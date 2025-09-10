@@ -449,6 +449,20 @@ impl<'a> PropertyStorage<'a> {
         let data = object.get_mut(agent);
         data.set_shape(new_shape);
         data.set_values(elements_vector.elements_index.unbind());
+        debug_assert_eq!(object.len(agent), new_len);
+        debug_assert_eq!(object.len(agent), elements_vector.len());
+        debug_assert_eq!(
+            object.object_shape(agent).capacity(agent).capacity(),
+            elements_vector.cap()
+        );
+        debug_assert_eq!(
+            object.get(agent).get_values(),
+            elements_vector.elements_index
+        );
+        let property_storage = object.get_property_storage(agent);
+        debug_assert_eq!(property_storage.keys.len(), new_len as usize);
+        debug_assert_eq!(property_storage.keys.last(), Some(&key));
+        debug_assert_eq!(property_storage.values.last(), Some(&value));
         Ok(())
     }
 

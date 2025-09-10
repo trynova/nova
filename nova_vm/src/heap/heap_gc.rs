@@ -618,7 +618,9 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                     return;
                 }
                 *marked = true;
-                objects.get(index).mark_values(&mut queues);
+                if let Some(rec) = objects.get(index) {
+                    rec.mark_values(&mut queues, &agent.heap.object_shapes);
+                }
             }
         });
         let mut promise_marks: Box<[Promise]> = queues.promises.drain(..).collect();
@@ -1708,9 +1710,6 @@ fn sweep(
         }
         if !object_shapes.is_empty() {
             s.spawn(|| {
-                sweep_heap_vector_values(object_shapes, &compactions, &bits.object_shapes);
-            });
-            s.spawn(|| {
                 sweep_heap_vector_values(
                     object_shape_transitions,
                     &compactions,
@@ -1718,9 +1717,20 @@ fn sweep(
                 );
             });
         }
-        if !objects.is_empty() {
+        if !object_shapes.is_empty() || !objects.is_empty() {
             s.spawn(|| {
-                sweep_heap_vector_values(objects, &compactions, &bits.objects);
+                sweep_heap_vector_values(object_shapes, &compactions, &bits.object_shapes);
+                assert_eq!(objects.len(), bits.objects.len());
+                let mut iter = bits.objects.iter();
+                objects.retain_mut(|item| {
+                    let do_retain = iter.next().unwrap();
+                    if *do_retain {
+                        item.sweep_values(&compactions, object_shapes);
+                        true
+                    } else {
+                        false
+                    }
+                });
             });
         }
         if !primitive_objects.is_empty() {

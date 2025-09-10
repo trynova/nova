@@ -361,8 +361,8 @@ pub(super) fn create_intrinsic_backing_object(
     let (cap, index) = agent
         .heap
         .elements
-        // Note: intrinsics should always allocate a keys storage.
-        .allocate_keys_with_capacity(properties_count.max(1));
+        .allocate_keys_with_capacity(properties_count);
+    let cap = cap.make_intrinsic();
     let keys_memory = agent.heap.elements.get_keys_uninit_raw(cap, index);
     for (slot, key) in keys_memory.iter_mut().zip(properties.iter().map(|e| e.0)) {
         *slot = Some(key.unbind());
@@ -389,7 +389,7 @@ pub(super) fn create_intrinsic_backing_object(
         .expect("Failed to create intrinsic backing object");
 
     assert_eq!(object_cap, cap);
-    assert_eq!(object_len as usize, properties_count.max(1));
+    assert_eq!(object_len as usize, properties_count);
 
     let slot = backing_object.get_mut(agent);
     assert_eq!(slot, &ObjectRecord::BLANK);

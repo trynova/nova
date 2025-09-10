@@ -114,8 +114,8 @@ use crate::{
         IntrinsicConstructorIndexes, IntrinsicObjectIndexes, IntrinsicPrimitiveObjectIndexes,
         ObjectEntry, WorkQueues,
         element_array::{
-            ElementArrayKey, ElementDescriptor, ElementStorageMut, ElementStorageRef,
-            ElementStorageUninit, ElementsVector, PropertyStorageMut, PropertyStorageRef,
+            ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementStorageUninit,
+            ElementsVector, PropertyStorageMut, PropertyStorageRef,
         },
         indexes::BaseIndex,
     },
@@ -489,15 +489,7 @@ impl<'a> OrdinaryObject<'a> {
             .allocate_object_property_storage_from_entries_slice(entries)
             .expect("Failed to create object");
         assert_eq!(len, shape.len(agent));
-        if len == 0 {
-            assert_eq!(cap, ElementArrayKey::Empty);
-            assert!(matches!(
-                shape.capacity(agent),
-                ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic
-            ));
-        } else {
-            assert_eq!(cap, shape.capacity(agent));
-        }
+        assert_eq!(cap.capacity(), shape.capacity(agent).capacity());
         agent.heap.create(ObjectRecord::new(shape, values))
     }
 
@@ -563,18 +555,11 @@ impl<'a> OrdinaryObject<'a> {
         entries: &[ObjectEntry<'a>],
     ) -> Self {
         let properties_count = entries.len();
-        let (cap, index) = if entries.is_empty() {
-            (
-                ElementArrayKey::EmptyIntrinsic,
-                BaseIndex::from_u32_index(0),
-            )
-        } else {
-            agent
-                .heap
-                .elements
-                // Note: intrinsics should always allocate a keys storage.
-                .allocate_keys_with_capacity(properties_count)
-        };
+        let (cap, index) = agent
+            .heap
+            .elements
+            .allocate_keys_with_capacity(properties_count);
+        let cap = cap.make_intrinsic();
         let keys_memory = agent.heap.elements.get_keys_uninit_raw(cap, index);
         for (slot, key) in keys_memory.iter_mut().zip(entries.iter().map(|e| e.key)) {
             *slot = Some(key.unbind());
@@ -627,7 +612,6 @@ impl<'a> OrdinaryObject<'a> {
         // All properties in the source object are enumerable, none are
         // getters, and no key is a symbol or private name: the shape of the
         // source and the self objects will be identical after this operation.
-        let descriptors = descriptors.cloned();
         let mut source_shape = self.get(agent).get_shape();
         // Note: our source object can be frozen but we should not become
         // frozen just by copying the source properties.
@@ -636,12 +620,6 @@ impl<'a> OrdinaryObject<'a> {
             .heap
             .elements
             .shallow_clone(&source.get_elements_vector(agent));
-        if let Some(descriptors) = descriptors {
-            elements_vector
-                .get_storage_mut(agent)
-                .descriptors
-                .insert_entry(descriptors);
-        }
         let data = self.get_mut(agent);
         data.set_shape(source_shape);
         data.set_values(elements_vector.elements_index.unbind());

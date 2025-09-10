@@ -3685,11 +3685,11 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::TSEnum
 
         // Create intrinsic shape directly with all properties in one shot
         let properties_count = property_keys.len();
-        let (cap, index) = ctx
-            .get_agent_mut()
+        let (cap, index) = agent
             .heap
             .elements
-            .allocate_keys_with_capacity(properties_count.max(1));
+            .allocate_keys_with_capacity(properties_count);
+        let cap = cap.make_intrinsic();
 
         let keys_memory = ctx
             .get_agent_mut()

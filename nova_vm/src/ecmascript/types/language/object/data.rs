@@ -8,7 +8,9 @@ use crate::{
     engine::context::{Bindable, bindable_handle},
     heap::{
         CompactionLists, HeapMarkAndSweep, WorkQueues,
-        element_array::{ElementArrayKey, ElementArrays, ElementStorageRef, ElementStorageUninit},
+        element_array::{
+            ElementArrayKey, ElementArrays, ElementStorageRef, ElementStorageUninit, ElementsVector,
+        },
         indexes::ElementIndex,
     },
 };
@@ -96,20 +98,47 @@ impl<'a> ObjectRecord<'a> {
     }
 }
 
-bindable_handle!(ObjectRecord);
-
-impl HeapMarkAndSweep for ObjectRecord<'static> {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        let Self { shape, values: _ } = self;
+impl ObjectRecord<'static> {
+    /// Manual implementation of marking for ObjectRecord. This needs access to
+    /// the shapes vector as well.
+    pub(crate) fn mark_values(
+        &self,
+        queues: &mut WorkQueues,
+        shapes: &[ObjectShapeRecord<'static>],
+    ) {
+        let Self { shape, values } = self;
         shape.mark_values(queues);
-        // Note: we cannot mark the values here as we don't know the capacity
-        // or length of it.
+        let elements_vector = ElementsVector {
+            elements_index: *values,
+            cap: shape.capacity(&shapes),
+            len: shape.len(&shapes),
+            len_writable: true,
+        };
+        elements_vector.mark_values(queues);
     }
 
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let Self { shape, values: _ } = self;
+    /// Manual implementation of marking for ObjectRecord. This needs access to
+    /// the shapes vector as well. The shapes are assumed to have been sweeped
+    /// already.
+    pub(crate) fn sweep_values(
+        &mut self,
+        compactions: &CompactionLists,
+        shapes: &[ObjectShapeRecord<'static>],
+    ) {
+        let Self { shape, values } = self;
         shape.sweep_values(compactions);
-        // Note: we cannot sweep the values here as we don't know the capacity
-        // or length of it.
+        match shape.capacity(&shapes) {
+            ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {}
+            ElementArrayKey::E4 => compactions.e_2_4.shift_index(values),
+            ElementArrayKey::E6 => compactions.e_2_6.shift_index(values),
+            ElementArrayKey::E8 => compactions.e_2_8.shift_index(values),
+            ElementArrayKey::E10 => compactions.e_2_10.shift_index(values),
+            ElementArrayKey::E12 => compactions.e_2_12.shift_index(values),
+            ElementArrayKey::E16 => compactions.e_2_16.shift_index(values),
+            ElementArrayKey::E24 => compactions.e_2_24.shift_index(values),
+            ElementArrayKey::E32 => compactions.e_2_32.shift_index(values),
+        };
     }
 }
+
+bindable_handle!(ObjectRecord);

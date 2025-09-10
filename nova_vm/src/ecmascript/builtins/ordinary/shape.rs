@@ -82,9 +82,9 @@ impl<'a> ObjectShape<'a> {
     /// Get the implied usize index of the ObjectShape reference.
     #[inline(always)]
     pub(crate) const fn get_index(self) -> usize {
-        let raw_value = self.0.get() - 1;
+        let raw_value = self.0.get();
         // Extract the raw value by masking out the extensible bit.
-        (raw_value & 0x7FFF_FFFF) as usize
+        (raw_value & 0x7FFF_FFFF) as usize - 1
     }
 
     pub(crate) fn keys<'e>(
@@ -448,7 +448,6 @@ impl<'a> ObjectShape<'a> {
     /// > NOTE: This function will create a new Object Shape, or possibly
     /// > multiple ones, if an existing one cannot be found.
     pub(crate) fn get_shape_with_removal(self, agent: &mut Agent, index: u32) -> Self {
-        debug_assert!(self.extensible(), "ObjectShape reference is frozen");
         let len = self.len(agent);
         debug_assert!(index < len);
         let cap = self.capacity(agent);
@@ -735,21 +734,15 @@ impl<'a> ObjectShape<'a> {
         let properties_count = self.len(agent);
         let prototype = self.get_prototype(agent);
         // Note: intrinsics should always allocate a keys storage.
-        let (cap, index) = if properties_count == 0 {
-            agent
-                .heap
-                .elements
-                .allocate_keys_with_capacity(properties_count.max(1) as usize)
-        } else {
-            let cap = self.capacity(agent);
-            let keys = self.get_keys(agent);
-            agent.heap.elements.copy_keys_with_capacity(
-                properties_count as usize,
-                cap,
-                keys,
-                properties_count,
-            )
-        };
+        let cap = self.capacity(agent);
+        let keys = self.get_keys(agent);
+        let (cap, index) = agent.heap.elements.copy_keys_with_capacity(
+            properties_count as usize,
+            cap,
+            keys,
+            properties_count,
+        );
+        let cap = cap.make_intrinsic();
         agent.heap.create(ObjectShapeRecord::create(
             prototype,
             index,
@@ -1148,9 +1141,13 @@ impl HeapMarkAndSweep for ObjectShape<'static> {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let top_bit = self.0.get() & 0x8000_0000;
+        // SAFETY: non-null 31-bit number is still non-null.
+        self.0 = unsafe { NonZeroU32::new_unchecked(self.0.get() & 0x7FFF_FFFF) };
         compactions
             .object_shapes
             .shift_non_zero_u32_index(&mut self.0);
+        self.0 = unsafe { NonZeroU32::new_unchecked(self.0.get() | top_bit) };
     }
 }
 

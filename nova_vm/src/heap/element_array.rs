@@ -148,6 +148,17 @@ impl ElementArrayKey {
             ElementArrayKey::E32 => u32::MAX,
         }
     }
+
+    /// Turn the ElementArrayKey into an intrinsic one.
+    ///
+    /// This is needed for intrinsic object shapes.
+    pub(crate) fn make_intrinsic(self) -> Self {
+        if self == ElementArrayKey::Empty {
+            ElementArrayKey::EmptyIntrinsic
+        } else {
+            self
+        }
+    }
 }
 
 impl From<u32> for ElementArrayKey {
