@@ -1542,7 +1542,7 @@ impl<const N: usize> PropertyKeyArray<N> {
 
     unsafe fn remove(&mut self, index: PropertyKeyIndex, len: u32, removal_index: u32) {
         let len = usize::try_from(len).unwrap_or(usize::MAX);
-        let keys = &mut self.keys[index.into_index()].as_mut_slice()[..len as usize];
+        let keys = &mut self.keys[index.into_index()].as_mut_slice()[..len];
         let Some(next_index) = usize::try_from(removal_index)
             .ok()
             .and_then(|i| i.checked_add(1))
@@ -2528,7 +2528,8 @@ impl ElementArrays {
             debug_assert_eq!(removal_index, 0);
             return ElementIndex::from_u32_index(0);
         }
-        let new_index = if dst_cap == src_cap {
+        
+        if dst_cap == src_cap {
             // No change in capacity.
             panic!("Should not request realloc with same capacity");
         } else {
@@ -2943,8 +2944,7 @@ impl ElementArrays {
                     e2pow32.push_with_removal(source, removal_index)
                 }
             }
-        };
-        new_index
+        }
     }
 
     /// Grow a keys storage to new capacity.
