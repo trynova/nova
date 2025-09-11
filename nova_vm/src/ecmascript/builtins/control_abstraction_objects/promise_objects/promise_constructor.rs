@@ -231,6 +231,18 @@ impl PromiseConstructor {
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let C be the this value.
+        // 2. Let promiseCapability be ? NewPromiseCapability(C).
+        // 3. Let promiseResolve be Completion(GetPromiseResolve(C)).
+        // 4. IfAbruptRejectPromise(promiseResolve, promiseCapability).
+        // 5. Let iteratorRecord be Completion(GetIterator(iterable, sync)).
+        // 6. IfAbruptRejectPromise(iteratorRecord, promiseCapability).
+        // 7. Let result be Completion(PerformPromiseAll(iteratorRecord, C, promiseCapability, promiseResolve)).
+        // 8. If result is an abrupt completion, then
+        //         a. If iteratorRecord.[[Done]] is false, set result to Completion(IteratorClose(iteratorRecord, result)).
+        //         b. IfAbruptRejectPromise(result, promiseCapability).
+        // 9. Return ! result.
+
+        // 1. Let C be the this value.
         if this_value
             != agent
                 .current_realm_record()
