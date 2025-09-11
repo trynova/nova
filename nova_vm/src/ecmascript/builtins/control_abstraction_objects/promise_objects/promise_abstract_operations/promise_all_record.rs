@@ -11,7 +11,10 @@ use crate::{
         execution::Agent,
         types::{IntoValue, Value},
     },
-    engine::context::{Bindable, GcScope, NoGcScope, bindable_handle},
+    engine::{
+        context::{Bindable, GcScope, NoGcScope, bindable_handle},
+        rootable::{HeapRootData, HeapRootRef, Rootable},
+    },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, indexes::BaseIndex,
     },
@@ -128,6 +131,29 @@ impl HeapMarkAndSweep for PromiseAllRecord<'static> {
         } = self;
         result_array.sweep_values(compactions);
         promise.sweep_values(compactions);
+    }
+}
+
+impl Rootable for PromiseAll<'_> {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Err(HeapRootData::PromiseAll(value.unbind()))
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::PromiseAll(object) => Some(object),
+            _ => None,
+        }
     }
 }
 
