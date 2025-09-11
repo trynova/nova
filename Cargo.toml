@@ -48,7 +48,7 @@ sonic-rs = "0.3.17"
 soavec = "0.1.1"
 soavec_derive = "0.1.1"
 unicode-normalization = "0.1.24"
-usdt = "0.6.0"
+usdt = { git = "https://github.com/aapoalas/usdt.git", branch = "nova-aarch64-branch" }
 wtf8 = "0.1"
 
 [workspace.metadata.dylint]
