@@ -17,9 +17,9 @@ use crate::{
             base_class_default_constructor, derived_class_default_constructor,
         },
         types::{
-            BUILTIN_STRING_MEMORY, BuiltinConstructorHeapData, Function,
-            FunctionInternalProperties, IntoFunction, IntoObject, IntoValue, Object,
-            OrdinaryObject, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, BuiltinConstructorRecord, Function, FunctionInternalProperties,
+            IntoFunction, IntoObject, IntoValue, Object, OrdinaryObject, PropertyKey, String,
+            Value,
         },
     },
     engine::{
@@ -38,7 +38,7 @@ use super::ArgumentsList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct BuiltinConstructorFunction<'a>(BaseIndex<'a, BuiltinConstructorHeapData<'static>>);
+pub struct BuiltinConstructorFunction<'a>(BaseIndex<'a, BuiltinConstructorRecord<'static>>);
 
 impl BuiltinConstructorFunction<'_> {
     pub(crate) const fn _def() -> Self {
@@ -108,7 +108,7 @@ impl<'a> TryFrom<Function<'a>> for BuiltinConstructorFunction<'a> {
 }
 
 impl Index<BuiltinConstructorFunction<'_>> for Agent {
-    type Output = BuiltinConstructorHeapData<'static>;
+    type Output = BuiltinConstructorRecord<'static>;
 
     fn index(&self, index: BuiltinConstructorFunction) -> &Self::Output {
         &self.heap.builtin_constructors[index]
@@ -121,8 +121,8 @@ impl IndexMut<BuiltinConstructorFunction<'_>> for Agent {
     }
 }
 
-impl Index<BuiltinConstructorFunction<'_>> for Vec<Option<BuiltinConstructorHeapData<'static>>> {
-    type Output = BuiltinConstructorHeapData<'static>;
+impl Index<BuiltinConstructorFunction<'_>> for Vec<Option<BuiltinConstructorRecord<'static>>> {
+    type Output = BuiltinConstructorRecord<'static>;
 
     fn index(&self, index: BuiltinConstructorFunction) -> &Self::Output {
         self.get(index.get_index())
@@ -132,7 +132,7 @@ impl Index<BuiltinConstructorFunction<'_>> for Vec<Option<BuiltinConstructorHeap
     }
 }
 
-impl IndexMut<BuiltinConstructorFunction<'_>> for Vec<Option<BuiltinConstructorHeapData<'static>>> {
+impl IndexMut<BuiltinConstructorFunction<'_>> for Vec<Option<BuiltinConstructorRecord<'static>>> {
     fn index_mut(&mut self, index: BuiltinConstructorFunction) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("BuiltinConstructorFunction out of bounds")
@@ -142,8 +142,8 @@ impl IndexMut<BuiltinConstructorFunction<'_>> for Vec<Option<BuiltinConstructorH
 }
 
 impl<'a> FunctionInternalProperties<'a> for BuiltinConstructorFunction<'a> {
-    fn get_name(self, _: &Agent) -> &String<'a> {
-        unreachable!();
+    fn get_name(self, agent: &Agent) -> &String<'a> {
+        &agent[self].class_name
     }
 
     fn get_length(self, _: &Agent) -> u8 {
@@ -152,7 +152,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinConstructorFunction<'a> {
 
     #[inline(always)]
     fn get_function_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        agent[self].backing_object
     }
 
     fn set_function_backing_object(
@@ -160,7 +160,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinConstructorFunction<'a> {
         agent: &mut Agent,
         backing_object: OrdinaryObject<'static>,
     ) {
-        assert!(agent[self].object_index.replace(backing_object).is_none());
+        assert!(agent[self].backing_object.replace(backing_object).is_none());
     }
 
     /// ### [10.3.1 \[\[Call\]\] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-built-in-function-objects-call-thisargument-argumentslist)
@@ -360,18 +360,19 @@ pub(crate) fn create_builtin_constructor<'a>(
     // 13. Return func.
     agent
         .heap
-        .create(BuiltinConstructorHeapData {
+        .create(BuiltinConstructorRecord {
             // 10. Perform SetFunctionLength(func, length).
             // Skipped as length of builtin constructors is always 0.
             // 8. Set func.[[Realm]] to realm.
             realm,
             compiled_initializer_bytecode: args.compiled_initializer_bytecode,
             is_derived: args.is_derived,
-            object_index: Some(backing_object),
+            backing_object: Some(backing_object),
             environment: args.env,
             private_environment: args.private_env,
             source_text: args.source_text,
             source_code: args.source_code,
+            class_name: args.class_name,
         })
         .bind(gc)
 }
@@ -399,10 +400,10 @@ impl Rootable for BuiltinConstructorFunction<'_> {
     }
 }
 
-impl<'a> CreateHeapData<BuiltinConstructorHeapData<'a>, BuiltinConstructorFunction<'a>> for Heap {
-    fn create(&mut self, data: BuiltinConstructorHeapData) -> BuiltinConstructorFunction<'a> {
+impl<'a> CreateHeapData<BuiltinConstructorRecord<'a>, BuiltinConstructorFunction<'a>> for Heap {
+    fn create(&mut self, data: BuiltinConstructorRecord) -> BuiltinConstructorFunction<'a> {
         self.builtin_constructors.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<BuiltinConstructorHeapData<'static>>>();
+        self.alloc_counter += core::mem::size_of::<Option<BuiltinConstructorRecord<'static>>>();
 
         BuiltinConstructorFunction(BaseIndex::last(&self.builtin_constructors))
     }
@@ -427,12 +428,12 @@ impl HeapSweepWeakReference for BuiltinConstructorFunction<'static> {
     }
 }
 
-bindable_handle!(BuiltinConstructorHeapData);
+bindable_handle!(BuiltinConstructorRecord);
 
-impl HeapMarkAndSweep for BuiltinConstructorHeapData<'static> {
+impl HeapMarkAndSweep for BuiltinConstructorRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
-            object_index,
+            backing_object: object_index,
             realm,
             is_derived: _,
             compiled_initializer_bytecode,
@@ -440,6 +441,7 @@ impl HeapMarkAndSweep for BuiltinConstructorHeapData<'static> {
             private_environment,
             source_text: _,
             source_code,
+            class_name,
         } = self;
         realm.mark_values(queues);
         object_index.mark_values(queues);
@@ -447,11 +449,12 @@ impl HeapMarkAndSweep for BuiltinConstructorHeapData<'static> {
         private_environment.mark_values(queues);
         source_code.mark_values(queues);
         compiled_initializer_bytecode.mark_values(queues);
+        class_name.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let Self {
-            object_index,
+            backing_object: object_index,
             realm,
             is_derived: _,
             compiled_initializer_bytecode,
@@ -459,6 +462,7 @@ impl HeapMarkAndSweep for BuiltinConstructorHeapData<'static> {
             private_environment,
             source_text: _,
             source_code,
+            class_name,
         } = self;
         realm.sweep_values(compactions);
         object_index.sweep_values(compactions);
@@ -466,5 +470,6 @@ impl HeapMarkAndSweep for BuiltinConstructorHeapData<'static> {
         private_environment.sweep_values(compactions);
         source_code.sweep_values(compactions);
         compiled_initializer_bytecode.sweep_values(compactions);
+        class_name.sweep_values(compactions);
     }
 }
