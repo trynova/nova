@@ -21,7 +21,7 @@ mod value_vec;
 pub use bigint::BigInt;
 pub(crate) use bigint::BigIntHeapData;
 pub(crate) use function::{
-    BoundFunctionHeapData, BuiltinConstructorHeapData, BuiltinFunctionHeapData,
+    BoundFunctionHeapData, BuiltinConstructorRecord, BuiltinFunctionHeapData,
     ECMAScriptFunctionHeapData, FunctionInternalProperties,
 };
 pub use function::{Function, IntoFunction};

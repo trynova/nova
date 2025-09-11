@@ -54,8 +54,8 @@ pub struct BuiltinFunctionHeapData<'a> {
 }
 
 #[derive(Debug, Clone)]
-pub struct BuiltinConstructorHeapData<'a> {
-    pub(crate) object_index: Option<OrdinaryObject<'a>>,
+pub struct BuiltinConstructorRecord<'a> {
+    pub(crate) backing_object: Option<OrdinaryObject<'a>>,
     /// #### \[\[Realm]]
     /// A Realm Record that represents the realm in which the function was
     /// created.
@@ -83,6 +83,9 @@ pub struct BuiltinConstructorHeapData<'a> {
     /// Nova specific addition: This SourceCode is where \[\[SourceText]]
     /// refers to.
     pub(crate) source_code: SourceCode<'a>,
+
+    /// Name of the class that this constructor belongs to.
+    pub(crate) class_name: String<'a>,
 }
 
 #[derive(Debug)]

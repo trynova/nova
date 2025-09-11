@@ -93,7 +93,7 @@ use crate::{
         },
         types::{
             BUILTIN_STRING_MEMORY, BUILTIN_STRINGS_LIST, BigIntHeapData, BoundFunctionHeapData,
-            BuiltinConstructorHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
+            BuiltinConstructorRecord, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
             HeapNumber, HeapString, NumberHeapData, ObjectHeapData, String, StringHeapData, Symbol,
             SymbolHeapData, bigint::HeapBigInt,
         },
@@ -131,7 +131,7 @@ pub(crate) struct Heap {
     pub(crate) await_reactions: Vec<Option<AwaitReactionRecord<'static>>>,
     pub(crate) bigints: Vec<Option<BigIntHeapData>>,
     pub(crate) bound_functions: Vec<Option<BoundFunctionHeapData<'static>>>,
-    pub(crate) builtin_constructors: Vec<Option<BuiltinConstructorHeapData<'static>>>,
+    pub(crate) builtin_constructors: Vec<Option<BuiltinConstructorRecord<'static>>>,
     pub(crate) builtin_functions: Vec<Option<BuiltinFunctionHeapData<'static>>>,
     pub(crate) caches: Caches<'static>,
     #[cfg(feature = "array-buffer")]
