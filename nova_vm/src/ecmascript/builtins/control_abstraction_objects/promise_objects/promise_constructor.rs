@@ -219,12 +219,33 @@ impl PromiseConstructor {
     }
 
     /// ### [27.2.4.1 Promise.all ( iterable )](https://tc39.es/ecma262/#sec-promise.all)
+    ///
+    /// This function returns a new promise which is fulfilled with an array of
+    /// fulfillment values for the passed promises, or rejects with the reason
+    /// of the first passed promise that rejects. It resolves all elements of
+    /// the passed iterable to promises as it runs this algorithm.
+    ///
+    /// > NOTE: This function requires its this value to be a constructor
+    /// > function that supports the parameter conventions of the Promise
+    /// > constructor.
     fn all<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        // 1. Let C be the this value.
+        // 2. Let promiseCapability be ? NewPromiseCapability(C).
+        // 3. Let promiseResolve be Completion(GetPromiseResolve(C)).
+        // 4. IfAbruptRejectPromise(promiseResolve, promiseCapability).
+        // 5. Let iteratorRecord be Completion(GetIterator(iterable, sync)).
+        // 6. IfAbruptRejectPromise(iteratorRecord, promiseCapability).
+        // 7. Let result be Completion(PerformPromiseAll(iteratorRecord, C, promiseCapability, promiseResolve)).
+        // 8. If result is an abrupt completion, then
+        //         a. If iteratorRecord.[[Done]] is false, set result to Completion(IteratorClose(iteratorRecord, result)).
+        //         b. IfAbruptRejectPromise(result, promiseCapability).
+        // 9. Return ! result.
+
         // 1. Let C be the this value.
         if this_value
             != agent
