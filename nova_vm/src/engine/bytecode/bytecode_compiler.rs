@@ -3685,22 +3685,19 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::TSEnum
 
         // Create intrinsic shape directly with all properties in one shot
         let properties_count = property_keys.len();
+        let agent = ctx.get_agent_mut();
         let (cap, index) = agent
             .heap
             .elements
             .allocate_keys_with_capacity(properties_count);
         let cap = cap.make_intrinsic();
 
-        let keys_memory = ctx
-            .get_agent_mut()
-            .heap
-            .elements
-            .get_keys_uninit_raw(cap, index);
+        let keys_memory = agent.heap.elements.get_keys_uninit_raw(cap, index);
         for (slot, key) in keys_memory.iter_mut().zip(property_keys.iter()) {
             *slot = Some(key.unbind());
         }
 
-        let shape = ctx.get_agent_mut().heap.create(ObjectShapeRecord::create(
+        let shape = agent.heap.create(ObjectShapeRecord::create(
             prototype,
             index,
             cap,
