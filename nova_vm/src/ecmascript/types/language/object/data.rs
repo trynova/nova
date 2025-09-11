@@ -8,9 +8,7 @@ use crate::{
     engine::context::{Bindable, bindable_handle},
     heap::{
         CompactionLists, HeapMarkAndSweep, WorkQueues,
-        element_array::{
-            ElementArrayKey, ElementArrays, ElementStorageRef, ElementStorageUninit, ElementsVector,
-        },
+        element_array::{ElementArrayKey, ElementArrays, ElementStorageRef, ElementStorageUninit},
         indexes::ElementIndex,
     },
 };
@@ -38,7 +36,7 @@ impl<'a> ObjectRecord<'a> {
     ) -> ElementStorageRef<'e, 'a> {
         elements.get_element_storage_raw(
             self.values,
-            self.shape.capacity(&shapes),
+            self.shape.values_capacity(&shapes),
             self.shape.len(&shapes),
         )
     }
@@ -48,7 +46,7 @@ impl<'a> ObjectRecord<'a> {
         elements: &'e mut ElementArrays,
         shapes: &[ObjectShapeRecord<'static>],
     ) -> ElementStorageUninit<'e> {
-        elements.get_element_storage_uninit_raw(self.values, self.shape.capacity(&shapes))
+        elements.get_element_storage_uninit_raw(self.values, self.shape.values_capacity(&shapes))
     }
 
     pub(crate) fn is_empty(&self, agent: &impl AsRef<[ObjectShapeRecord<'static>]>) -> bool {
@@ -86,11 +84,11 @@ impl<'a> ObjectRecord<'a> {
         self.values = values;
     }
 
-    pub(super) fn capacity_key(
+    pub(super) fn values_capacity(
         &self,
         agent: &impl AsRef<[ObjectShapeRecord<'static>]>,
     ) -> ElementArrayKey {
-        self.shape.capacity(agent)
+        self.shape.values_capacity(agent)
     }
 
     pub(crate) fn len(&self, agent: &impl AsRef<[ObjectShapeRecord<'static>]>) -> u32 {
@@ -108,13 +106,21 @@ impl ObjectRecord<'static> {
     ) {
         let Self { shape, values } = self;
         shape.mark_values(queues);
-        let elements_vector = ElementsVector {
-            elements_index: *values,
-            cap: shape.capacity(&shapes),
-            len: shape.len(&shapes),
-            len_writable: true,
-        };
-        elements_vector.mark_values(queues);
+        let len = shape.len(&shapes);
+        match shape.values_capacity(&shapes) {
+            ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {}
+            ElementArrayKey::E1 => queues.e_2_1.push((*values, len)),
+            ElementArrayKey::E2 => queues.e_2_2.push((*values, len)),
+            ElementArrayKey::E3 => queues.e_2_3.push((*values, len)),
+            ElementArrayKey::E4 => queues.e_2_4.push((*values, len)),
+            ElementArrayKey::E6 => queues.e_2_6.push((*values, len)),
+            ElementArrayKey::E8 => queues.e_2_8.push((*values, len)),
+            ElementArrayKey::E10 => queues.e_2_10.push((*values, len)),
+            ElementArrayKey::E12 => queues.e_2_12.push((*values, len)),
+            ElementArrayKey::E16 => queues.e_2_16.push((*values, len)),
+            ElementArrayKey::E24 => queues.e_2_24.push((*values, len)),
+            ElementArrayKey::E32 => queues.e_2_32.push((*values, len)),
+        }
     }
 
     /// Manual implementation of marking for ObjectRecord. This needs access to
@@ -127,8 +133,11 @@ impl ObjectRecord<'static> {
     ) {
         let Self { shape, values } = self;
         shape.sweep_values(compactions);
-        match shape.capacity(&shapes) {
+        match shape.values_capacity(&shapes) {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {}
+            ElementArrayKey::E1 => compactions.e_2_1.shift_index(values),
+            ElementArrayKey::E2 => compactions.e_2_2.shift_index(values),
+            ElementArrayKey::E3 => compactions.e_2_3.shift_index(values),
             ElementArrayKey::E4 => compactions.e_2_4.shift_index(values),
             ElementArrayKey::E6 => compactions.e_2_6.shift_index(values),
             ElementArrayKey::E8 => compactions.e_2_8.shift_index(values),

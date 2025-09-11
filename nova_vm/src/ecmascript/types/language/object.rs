@@ -389,10 +389,10 @@ impl<'a> OrdinaryObject<'a> {
         let data = self.get_direct(objects);
         let shape = data.get_shape();
         elements.get_property_storage_mut_raw(
-            shape.get_keys(object_shapes),
-            shape.capacity(object_shapes),
+            shape.keys_index(object_shapes),
+            shape.keys_capacity(object_shapes),
             data.get_values(),
-            shape.capacity(object_shapes),
+            shape.values_capacity(object_shapes),
             shape.len(object_shapes),
         )
     }
@@ -407,7 +407,7 @@ impl<'a> OrdinaryObject<'a> {
         let shape = data.get_shape();
         let elements_index = data.get_values();
         let len_writable = shape.extensible();
-        let cap = shape.capacity(agent);
+        let cap = shape.values_capacity(agent);
         let len = shape.len(agent);
         ElementsVector {
             elements_index,
@@ -427,7 +427,7 @@ impl<'a> OrdinaryObject<'a> {
         let data = self.get_direct(objects);
         elements.get_element_storage_raw(
             data.get_values(),
-            data.capacity_key(object_shapes),
+            data.values_capacity(object_shapes),
             data.len(object_shapes),
         )
     }
@@ -445,7 +445,7 @@ impl<'a> OrdinaryObject<'a> {
         let data = self.get_direct(objects);
         elements.get_element_storage_mut_raw(
             data.get_values(),
-            data.capacity_key(object_shapes),
+            data.values_capacity(object_shapes),
             data.len(object_shapes),
         )
     }
@@ -461,7 +461,8 @@ impl<'a> OrdinaryObject<'a> {
             ..
         } = &mut agent.heap;
         let data = self.get_direct(objects);
-        elements.get_element_storage_uninit_raw(data.get_values(), data.capacity_key(object_shapes))
+        elements
+            .get_element_storage_uninit_raw(data.get_values(), data.values_capacity(object_shapes))
     }
 
     fn create_object_internal(
@@ -489,7 +490,7 @@ impl<'a> OrdinaryObject<'a> {
             .allocate_object_property_storage_from_entries_slice(entries)
             .expect("Failed to create object");
         assert_eq!(len, shape.len(agent));
-        assert_eq!(cap.capacity(), shape.capacity(agent).capacity());
+        assert_eq!(cap.capacity(), shape.values_capacity(agent).capacity());
         agent.heap.create(ObjectRecord::new(shape, values))
     }
 
@@ -523,7 +524,7 @@ impl<'a> OrdinaryObject<'a> {
             .elements
             .allocate_property_storage(values, None)
             .expect("Failed to create object");
-        assert_eq!(cap, shape.capacity(agent));
+        assert_eq!(cap, shape.values_capacity(agent));
         assert_eq!(len, shape.len(agent));
         agent.heap.create(ObjectRecord::new(shape, values))
     }
@@ -532,7 +533,6 @@ impl<'a> OrdinaryObject<'a> {
         agent: &mut Agent,
         shape: ObjectShape<'a>,
     ) -> Result<Self, TryReserveError> {
-        // SAFETY: Option<Value> uses a niche in Value enum at discriminant 0.
         let ElementsVector {
             elements_index: values,
             cap,
@@ -541,8 +541,8 @@ impl<'a> OrdinaryObject<'a> {
         } = agent
             .heap
             .elements
-            .allocate_elements_with_capacity(shape.capacity(agent))?;
-        assert_eq!(cap, shape.capacity(agent));
+            .allocate_elements_with_capacity(shape.values_capacity(agent))?;
+        assert_eq!(cap, shape.values_capacity(agent));
         Ok(agent.heap.create(ObjectRecord::new(shape, values)))
     }
 

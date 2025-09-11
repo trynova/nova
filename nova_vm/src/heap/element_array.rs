@@ -115,6 +115,12 @@ pub enum ElementArrayKey {
     Empty,
     /// Uniquely owned zero-sized elements array
     EmptyIntrinsic,
+    /// up to 2 elements
+    E1,
+    /// up to 4 elements
+    E2,
+    /// up to 8 elements
+    E3,
     /// up to 16 elements
     E4,
     /// up to 64 elements
@@ -138,6 +144,9 @@ impl ElementArrayKey {
     pub(crate) fn capacity(self) -> u32 {
         match self {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => 0,
+            ElementArrayKey::E1 => 2u32.pow(1),
+            ElementArrayKey::E2 => 2u32.pow(2),
+            ElementArrayKey::E3 => 2u32.pow(3),
             ElementArrayKey::E4 => 2u32.pow(4),
             ElementArrayKey::E6 => 2u32.pow(6),
             ElementArrayKey::E8 => 2u32.pow(8),
@@ -165,6 +174,12 @@ impl From<u32> for ElementArrayKey {
     fn from(value: u32) -> Self {
         if value == 0 {
             ElementArrayKey::Empty
+        } else if value <= u32::pow(2, 1) {
+            ElementArrayKey::E1
+        } else if value <= u32::pow(2, 2) {
+            ElementArrayKey::E2
+        } else if value <= u32::pow(2, 3) {
+            ElementArrayKey::E3
         } else if value <= u32::pow(2, 4) {
             ElementArrayKey::E4
         } else if value <= u32::pow(2, 6) {
@@ -187,25 +202,7 @@ impl From<u32> for ElementArrayKey {
 
 impl From<usize> for ElementArrayKey {
     fn from(value: usize) -> Self {
-        if value == 0 {
-            ElementArrayKey::Empty
-        } else if value <= usize::pow(2, 4) {
-            ElementArrayKey::E4
-        } else if value <= usize::pow(2, 6) {
-            ElementArrayKey::E6
-        } else if value <= usize::pow(2, 8) {
-            ElementArrayKey::E8
-        } else if value <= usize::pow(2, 10) {
-            ElementArrayKey::E10
-        } else if value <= usize::pow(2, 12) {
-            ElementArrayKey::E12
-        } else if value <= usize::pow(2, 16) {
-            ElementArrayKey::E16
-        } else if value <= usize::pow(2, 24) {
-            ElementArrayKey::E24
-        } else {
-            ElementArrayKey::E32
-        }
+        u32::try_from(value).map_or(Self::E32, Self::from)
     }
 }
 
@@ -342,6 +339,15 @@ impl<'gc> ElementsVector<'gc> {
         }
         let next_over_end = match self.cap {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => unreachable!(),
+            ElementArrayKey::E1 => {
+                &mut elements.e2pow1.values[self.elements_index][self.len as usize]
+            }
+            ElementArrayKey::E2 => {
+                &mut elements.e2pow2.values[self.elements_index][self.len as usize]
+            }
+            ElementArrayKey::E3 => {
+                &mut elements.e2pow3.values[self.elements_index][self.len as usize]
+            }
             ElementArrayKey::E4 => {
                 &mut elements.e2pow4.values[self.elements_index][self.len as usize]
             }
@@ -371,6 +377,9 @@ impl<'gc> ElementsVector<'gc> {
         if let Some(descriptor) = descriptor {
             let descriptors_map = match self.cap {
                 ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => unreachable!(),
+                ElementArrayKey::E1 => &mut elements.e2pow1.descriptors,
+                ElementArrayKey::E2 => &mut elements.e2pow2.descriptors,
+                ElementArrayKey::E3 => &mut elements.e2pow3.descriptors,
                 ElementArrayKey::E4 => &mut elements.e2pow4.descriptors,
                 ElementArrayKey::E6 => &mut elements.e2pow6.descriptors,
                 ElementArrayKey::E8 => &mut elements.e2pow8.descriptors,
@@ -402,6 +411,9 @@ impl HeapMarkAndSweep for ElementsVector<'static> {
         } = self;
         match cap {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {}
+            ElementArrayKey::E1 => queues.e_2_1.push((*elements_index, *len)),
+            ElementArrayKey::E2 => queues.e_2_2.push((*elements_index, *len)),
+            ElementArrayKey::E3 => queues.e_2_3.push((*elements_index, *len)),
             ElementArrayKey::E4 => queues.e_2_4.push((*elements_index, *len)),
             ElementArrayKey::E6 => queues.e_2_6.push((*elements_index, *len)),
             ElementArrayKey::E8 => queues.e_2_8.push((*elements_index, *len)),
@@ -422,6 +434,9 @@ impl HeapMarkAndSweep for ElementsVector<'static> {
         } = self;
         match cap {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {}
+            ElementArrayKey::E1 => compactions.e_2_1.shift_index(elements_index),
+            ElementArrayKey::E2 => compactions.e_2_2.shift_index(elements_index),
+            ElementArrayKey::E3 => compactions.e_2_3.shift_index(elements_index),
             ElementArrayKey::E4 => compactions.e_2_4.shift_index(elements_index),
             ElementArrayKey::E6 => compactions.e_2_6.shift_index(elements_index),
             ElementArrayKey::E8 => compactions.e_2_8.shift_index(elements_index),
@@ -1330,11 +1345,11 @@ impl<const N: usize> ElementArray<N> {
         removal_index: u32,
     ) -> ElementIndex<'static> {
         let source_length = source.values.len();
-        let target_length = source_length.wrapping_sub(1);
+        let target_length = source_length - 1;
         self.values.reserve(1);
         let remaining = self.values.spare_capacity_mut();
         assert!((removal_index as usize) < source_length);
-        assert!(source_length > N);
+        assert!(target_length <= N);
         let target_values = remaining.get_mut(0).unwrap();
         // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
         let target_values = unsafe {
@@ -1404,6 +1419,12 @@ impl<const N: usize> ElementArray<N> {
     }
 }
 
+/// Element arrays of up to 2 elements
+pub(crate) type ElementArray2Pow1 = ElementArray<2>;
+/// Element arrays of up to 4 elements
+pub(crate) type ElementArray2Pow2 = ElementArray<4>;
+/// Element arrays of up to 8 elements
+pub(crate) type ElementArray2Pow3 = ElementArray<8>;
 /// Element arrays of up to 16 elements
 pub(crate) type ElementArray2Pow4 = ElementArray<16>;
 /// Element arrays of up to 64 elements
@@ -1483,11 +1504,11 @@ impl<const N: usize> PropertyKeyArray<N> {
         removal_index: usize,
     ) -> PropertyKeyIndex<'static> {
         let source_length = source.len();
-        let target_length = source_length.wrapping_sub(1);
+        let target_length = source_length - 1;
         self.keys.reserve(1);
         let remaining = self.keys.spare_capacity_mut();
         assert!(removal_index < source_length);
-        assert!(source_length > N);
+        assert!(target_length <= N);
         let target = remaining.get_mut(0).unwrap();
         // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
         let target = unsafe {
@@ -1519,10 +1540,20 @@ impl<const N: usize> PropertyKeyArray<N> {
         debug_assert!(previous.is_none());
     }
 
-    unsafe fn remove(&mut self, index: PropertyKeyIndex, len: u32, removal_index: usize) {
+    unsafe fn remove(&mut self, index: PropertyKeyIndex, len: u32, removal_index: u32) {
+        let len = usize::try_from(len).unwrap_or(usize::MAX);
         let keys = &mut self.keys[index.into_index()].as_mut_slice()[..len as usize];
-        keys.copy_within(removal_index.wrapping_add(1).., removal_index);
-        *keys.last_mut().unwrap() = None;
+        let Some(next_index) = usize::try_from(removal_index)
+            .ok()
+            .and_then(|i| i.checked_add(1))
+        else {
+            // Removing at the very edge of memory.
+            return;
+        };
+        keys.copy_within(next_index.., removal_index as usize);
+        if let Some(slot) = keys.last_mut() {
+            *slot = None;
+        }
     }
 
     /// Push a copy of a PropertyKey storage into the PropertyKeyArray, copying
@@ -1566,6 +1597,12 @@ impl<const N: usize> PropertyKeyArray<N> {
     }
 }
 
+/// Property key arrays of up to 2 elements
+pub(crate) type PropertyKeyArray2Pow1 = PropertyKeyArray<2>;
+/// Property key arrays of up to 4 elements
+pub(crate) type PropertyKeyArray2Pow2 = PropertyKeyArray<4>;
+/// Property key arrays of up to 8 elements
+pub(crate) type PropertyKeyArray2Pow3 = PropertyKeyArray<8>;
 /// Property key arrays of up to 16 elements
 pub(crate) type PropertyKeyArray2Pow4 = PropertyKeyArray<16>;
 /// Property key arrays of up to 64 elements
@@ -1585,6 +1622,15 @@ pub(crate) type PropertyKeyArray2Pow32 = PropertyKeyArray<4294967296>;
 
 #[derive(Debug)]
 pub(crate) struct ElementArrays {
+    /// up to 2 elements
+    pub(crate) k2pow1: PropertyKeyArray2Pow1,
+    pub(crate) e2pow1: ElementArray2Pow1,
+    /// up to 4 elements
+    pub(crate) k2pow2: PropertyKeyArray2Pow2,
+    pub(crate) e2pow2: ElementArray2Pow2,
+    /// up to 8 elements
+    pub(crate) k2pow3: PropertyKeyArray2Pow3,
+    pub(crate) e2pow3: ElementArray2Pow3,
     /// up to 16 elements
     pub(crate) k2pow4: PropertyKeyArray2Pow4,
     pub(crate) e2pow4: ElementArray2Pow4,
@@ -1650,19 +1696,36 @@ impl ElementArrays {
             core::mem::size_of::<Option<[Option<Value>; 1]>>(),
             core::mem::size_of::<[Option<Value>; 1]>()
         );
+        let ElementArrays {
+            e2pow1,
+            e2pow2,
+            e2pow3,
+            e2pow4,
+            e2pow6,
+            e2pow8,
+            e2pow10,
+            e2pow12,
+            e2pow16,
+            e2pow24,
+            e2pow32,
+            ..
+        } = self;
         match key {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {
                 assert!(source.is_empty() && descriptors.is_none());
                 Ok(ElementIndex::from_u32_index(0))
             }
-            ElementArrayKey::E4 => self.e2pow4.push(source, descriptors),
-            ElementArrayKey::E6 => self.e2pow6.push(source, descriptors),
-            ElementArrayKey::E8 => self.e2pow8.push(source, descriptors),
-            ElementArrayKey::E10 => self.e2pow10.push(source, descriptors),
-            ElementArrayKey::E12 => self.e2pow12.push(source, descriptors),
-            ElementArrayKey::E16 => self.e2pow16.push(source, descriptors),
-            ElementArrayKey::E24 => self.e2pow24.push(source, descriptors),
-            ElementArrayKey::E32 => self.e2pow32.push(source, descriptors),
+            ElementArrayKey::E1 => e2pow1.push(source, descriptors),
+            ElementArrayKey::E2 => e2pow2.push(source, descriptors),
+            ElementArrayKey::E3 => e2pow3.push(source, descriptors),
+            ElementArrayKey::E4 => e2pow4.push(source, descriptors),
+            ElementArrayKey::E6 => e2pow6.push(source, descriptors),
+            ElementArrayKey::E8 => e2pow8.push(source, descriptors),
+            ElementArrayKey::E10 => e2pow10.push(source, descriptors),
+            ElementArrayKey::E12 => e2pow12.push(source, descriptors),
+            ElementArrayKey::E16 => e2pow16.push(source, descriptors),
+            ElementArrayKey::E24 => e2pow24.push(source, descriptors),
+            ElementArrayKey::E32 => e2pow32.push(source, descriptors),
         }
     }
 
@@ -1693,6 +1756,9 @@ impl ElementArrays {
         let new_key = ElementArrayKey::from(new_len);
         assert_ne!(new_key, *cap);
         let ElementArrays {
+            e2pow1,
+            e2pow2,
+            e2pow3,
             e2pow4,
             e2pow6,
             e2pow8,
@@ -1708,6 +1774,78 @@ impl ElementArrays {
                 // 0 <= elements_vector.cap for all possible values.
                 unreachable!();
             }
+            ElementArrayKey::E1 => {
+                let ElementStorageRef {
+                    values: source,
+                    descriptors,
+                } = match cap {
+                    ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {
+                        ElementStorageRef::EMPTY
+                    }
+                    ElementArrayKey::E1 => {
+                        unreachable!()
+                    }
+                    ElementArrayKey::E2 => e2pow6.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E3 => e2pow8.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E4 => e2pow6.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E6 => e2pow6.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E8 => e2pow8.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E10 => e2pow10.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E12 => e2pow12.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E16 => e2pow16.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E24 => e2pow24.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E32 => e2pow32.get_descriptors_and_values_raw(*index, old_len),
+                };
+                e2pow1.push(source, descriptors.cloned())
+            }
+            ElementArrayKey::E2 => {
+                let ElementStorageRef {
+                    values: source,
+                    descriptors,
+                } = match cap {
+                    ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {
+                        ElementStorageRef::EMPTY
+                    }
+                    ElementArrayKey::E1 => e2pow1.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E2 => {
+                        unreachable!()
+                    }
+                    ElementArrayKey::E3 => e2pow3.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E4 => e2pow4.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E6 => e2pow6.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E8 => e2pow8.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E10 => e2pow10.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E12 => e2pow12.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E16 => e2pow16.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E24 => e2pow24.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E32 => e2pow32.get_descriptors_and_values_raw(*index, old_len),
+                };
+                e2pow2.push(source, descriptors.cloned())
+            }
+            ElementArrayKey::E3 => {
+                let ElementStorageRef {
+                    values: source,
+                    descriptors,
+                } = match cap {
+                    ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {
+                        ElementStorageRef::EMPTY
+                    }
+                    ElementArrayKey::E1 => e2pow1.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E2 => e2pow2.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E3 => {
+                        unreachable!()
+                    }
+                    ElementArrayKey::E4 => e2pow4.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E6 => e2pow6.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E8 => e2pow8.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E10 => e2pow10.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E12 => e2pow12.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E16 => e2pow16.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E24 => e2pow24.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E32 => e2pow32.get_descriptors_and_values_raw(*index, old_len),
+                };
+                e2pow3.push(source, descriptors.cloned())
+            }
             ElementArrayKey::E4 => {
                 let ElementStorageRef {
                     values: source,
@@ -1716,9 +1854,10 @@ impl ElementArrays {
                     ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {
                         ElementStorageRef::EMPTY
                     }
-                    ElementArrayKey::E4 => {
-                        unreachable!()
-                    }
+                    ElementArrayKey::E1 => e2pow1.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E2 => e2pow2.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E3 => e2pow3.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E4 => unreachable!(),
                     ElementArrayKey::E6 => e2pow6.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E8 => e2pow8.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E10 => e2pow10.get_descriptors_and_values_raw(*index, old_len),
@@ -1737,10 +1876,11 @@ impl ElementArrays {
                     ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {
                         ElementStorageRef::EMPTY
                     }
+                    ElementArrayKey::E1 => e2pow1.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E2 => e2pow2.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E3 => e2pow3.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E4 => e2pow4.get_descriptors_and_values_raw(*index, old_len),
-                    ElementArrayKey::E6 => {
-                        unreachable!()
-                    }
+                    ElementArrayKey::E6 => unreachable!(),
                     ElementArrayKey::E8 => e2pow8.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E10 => e2pow10.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E12 => e2pow12.get_descriptors_and_values_raw(*index, old_len),
@@ -1758,11 +1898,12 @@ impl ElementArrays {
                     ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {
                         ElementStorageRef::EMPTY
                     }
+                    ElementArrayKey::E1 => e2pow1.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E2 => e2pow2.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E3 => e2pow3.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E4 => e2pow4.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E6 => e2pow6.get_descriptors_and_values_raw(*index, old_len),
-                    ElementArrayKey::E8 => {
-                        unreachable!()
-                    }
+                    ElementArrayKey::E8 => unreachable!(),
                     ElementArrayKey::E10 => e2pow10.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E12 => e2pow12.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E16 => e2pow16.get_descriptors_and_values_raw(*index, old_len),
@@ -1779,12 +1920,13 @@ impl ElementArrays {
                     ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {
                         ElementStorageRef::EMPTY
                     }
+                    ElementArrayKey::E1 => e2pow1.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E2 => e2pow2.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E3 => e2pow3.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E4 => e2pow4.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E6 => e2pow6.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E8 => e2pow8.get_descriptors_and_values_raw(*index, old_len),
-                    ElementArrayKey::E10 => {
-                        unreachable!()
-                    }
+                    ElementArrayKey::E10 => unreachable!(),
                     ElementArrayKey::E12 => e2pow12.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E16 => e2pow16.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E24 => e2pow24.get_descriptors_and_values_raw(*index, old_len),
@@ -1800,13 +1942,14 @@ impl ElementArrays {
                     ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {
                         ElementStorageRef::EMPTY
                     }
+                    ElementArrayKey::E1 => e2pow1.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E2 => e2pow2.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E3 => e2pow3.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E4 => e2pow4.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E6 => e2pow6.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E8 => e2pow8.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E10 => e2pow10.get_descriptors_and_values_raw(*index, old_len),
-                    ElementArrayKey::E12 => {
-                        unreachable!()
-                    }
+                    ElementArrayKey::E12 => unreachable!(),
                     ElementArrayKey::E16 => e2pow16.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E24 => e2pow24.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E32 => e2pow32.get_descriptors_and_values_raw(*index, old_len),
@@ -1821,14 +1964,15 @@ impl ElementArrays {
                     ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {
                         ElementStorageRef::EMPTY
                     }
+                    ElementArrayKey::E1 => e2pow1.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E2 => e2pow2.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E3 => e2pow3.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E4 => e2pow4.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E6 => e2pow6.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E8 => e2pow8.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E10 => e2pow10.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E12 => e2pow12.get_descriptors_and_values_raw(*index, old_len),
-                    ElementArrayKey::E16 => {
-                        unreachable!()
-                    }
+                    ElementArrayKey::E16 => unreachable!(),
                     ElementArrayKey::E24 => e2pow24.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E32 => e2pow32.get_descriptors_and_values_raw(*index, old_len),
                 };
@@ -1839,19 +1983,20 @@ impl ElementArrays {
                     values: source,
                     descriptors,
                 } = match cap {
+                    ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {
+                        ElementStorageRef::EMPTY
+                    }
+                    ElementArrayKey::E1 => e2pow1.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E2 => e2pow2.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E3 => e2pow3.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E4 => e2pow4.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E6 => e2pow6.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E8 => e2pow8.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E10 => e2pow10.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E12 => e2pow12.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E16 => e2pow16.get_descriptors_and_values_raw(*index, old_len),
-                    ElementArrayKey::E24 => {
-                        unreachable!()
-                    }
+                    ElementArrayKey::E24 => unreachable!(),
                     ElementArrayKey::E32 => e2pow32.get_descriptors_and_values_raw(*index, old_len),
-                    ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {
-                        ElementStorageRef::EMPTY
-                    }
                 };
                 e2pow24.push(source, descriptors.cloned())
             }
@@ -1863,6 +2008,9 @@ impl ElementArrays {
                     ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {
                         ElementStorageRef::EMPTY
                     }
+                    ElementArrayKey::E1 => e2pow1.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E2 => e2pow2.get_descriptors_and_values_raw(*index, old_len),
+                    ElementArrayKey::E3 => e2pow3.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E4 => e2pow4.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E6 => e2pow6.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E8 => e2pow8.get_descriptors_and_values_raw(*index, old_len),
@@ -1870,9 +2018,7 @@ impl ElementArrays {
                     ElementArrayKey::E12 => e2pow12.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E16 => e2pow16.get_descriptors_and_values_raw(*index, old_len),
                     ElementArrayKey::E24 => e2pow24.get_descriptors_and_values_raw(*index, old_len),
-                    ElementArrayKey::E32 => {
-                        unreachable!()
-                    }
+                    ElementArrayKey::E32 => unreachable!(),
                 };
                 e2pow32.push(source, descriptors.cloned())
             }
@@ -1882,7 +2028,7 @@ impl ElementArrays {
         Ok(())
     }
 
-    pub(crate) fn reserve_properties_raw(
+    pub(crate) fn reserve_keys_raw(
         &mut self,
         index: &mut PropertyKeyIndex,
         cap: &mut ElementArrayKey,
@@ -1943,19 +2089,36 @@ impl ElementArrays {
         &mut self,
         capacity: usize,
     ) -> (ElementArrayKey, PropertyKeyIndex<'static>) {
+        let Self {
+            k2pow1,
+            k2pow2,
+            k2pow3,
+            k2pow4,
+            k2pow6,
+            k2pow8,
+            k2pow10,
+            k2pow12,
+            k2pow16,
+            k2pow24,
+            k2pow32,
+            ..
+        } = self;
         let key = ElementArrayKey::from(capacity);
         let index = match key {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {
                 PropertyKeyIndex::from_u32_index(0)
             }
-            ElementArrayKey::E4 => self.k2pow4.push(&[]),
-            ElementArrayKey::E6 => self.k2pow6.push(&[]),
-            ElementArrayKey::E8 => self.k2pow8.push(&[]),
-            ElementArrayKey::E10 => self.k2pow10.push(&[]),
-            ElementArrayKey::E12 => self.k2pow12.push(&[]),
-            ElementArrayKey::E16 => self.k2pow16.push(&[]),
-            ElementArrayKey::E24 => self.k2pow24.push(&[]),
-            ElementArrayKey::E32 => self.k2pow32.push(&[]),
+            ElementArrayKey::E1 => k2pow1.push(&[]),
+            ElementArrayKey::E2 => k2pow2.push(&[]),
+            ElementArrayKey::E3 => k2pow3.push(&[]),
+            ElementArrayKey::E4 => k2pow4.push(&[]),
+            ElementArrayKey::E6 => k2pow6.push(&[]),
+            ElementArrayKey::E8 => k2pow8.push(&[]),
+            ElementArrayKey::E10 => k2pow10.push(&[]),
+            ElementArrayKey::E12 => k2pow12.push(&[]),
+            ElementArrayKey::E16 => k2pow16.push(&[]),
+            ElementArrayKey::E24 => k2pow24.push(&[]),
+            ElementArrayKey::E32 => k2pow32.push(&[]),
         };
         (key, index)
     }
@@ -1970,31 +2133,54 @@ impl ElementArrays {
     ) -> (ElementArrayKey, PropertyKeyIndex<'a>) {
         let new_len = len.checked_add(1).expect("Ridiculous amount of keys");
         let (new_cap, new_key) = self.copy_keys_with_capacity(new_len as usize, cap, index, len);
+        let Self {
+            k2pow1,
+            k2pow2,
+            k2pow3,
+            k2pow4,
+            k2pow6,
+            k2pow8,
+            k2pow10,
+            k2pow12,
+            k2pow16,
+            k2pow24,
+            k2pow32,
+            ..
+        } = self;
         match new_cap {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => unreachable!(),
+            ElementArrayKey::E1 => {
+                k2pow1.get_uninit(new_key)[len as usize] = Some(key.unbind());
+            }
+            ElementArrayKey::E2 => {
+                k2pow2.get_uninit(new_key)[len as usize] = Some(key.unbind());
+            }
+            ElementArrayKey::E3 => {
+                k2pow3.get_uninit(new_key)[len as usize] = Some(key.unbind());
+            }
             ElementArrayKey::E4 => {
-                self.k2pow4.get_uninit(new_key)[len as usize] = Some(key.unbind());
+                k2pow4.get_uninit(new_key)[len as usize] = Some(key.unbind());
             }
             ElementArrayKey::E6 => {
-                self.k2pow6.get_uninit(new_key)[len as usize] = Some(key.unbind());
+                k2pow6.get_uninit(new_key)[len as usize] = Some(key.unbind());
             }
             ElementArrayKey::E8 => {
-                self.k2pow8.get_uninit(new_key)[len as usize] = Some(key.unbind());
+                k2pow8.get_uninit(new_key)[len as usize] = Some(key.unbind());
             }
             ElementArrayKey::E10 => {
-                self.k2pow10.get_uninit(new_key)[len as usize] = Some(key.unbind());
+                k2pow10.get_uninit(new_key)[len as usize] = Some(key.unbind());
             }
             ElementArrayKey::E12 => {
-                self.k2pow12.get_uninit(new_key)[len as usize] = Some(key.unbind());
+                k2pow12.get_uninit(new_key)[len as usize] = Some(key.unbind());
             }
             ElementArrayKey::E16 => {
-                self.k2pow16.get_uninit(new_key)[len as usize] = Some(key.unbind());
+                k2pow16.get_uninit(new_key)[len as usize] = Some(key.unbind());
             }
             ElementArrayKey::E24 => {
-                self.k2pow24.get_uninit(new_key)[len as usize] = Some(key.unbind());
+                k2pow24.get_uninit(new_key)[len as usize] = Some(key.unbind());
             }
             ElementArrayKey::E32 => {
-                self.k2pow32.get_uninit(new_key)[len as usize] = Some(key.unbind());
+                k2pow32.get_uninit(new_key)[len as usize] = Some(key.unbind());
             }
         }
         (new_cap, new_key)
@@ -2016,18 +2202,38 @@ impl ElementArrays {
         cap: ElementArrayKey,
         index: PropertyKeyIndex,
         len: &mut u32,
-        removal_index: usize,
+        removal_index: u32,
     ) {
+        if *len == 0 {
+            return;
+        }
+        let Self {
+            k2pow1,
+            k2pow2,
+            k2pow3,
+            k2pow4,
+            k2pow6,
+            k2pow8,
+            k2pow10,
+            k2pow12,
+            k2pow16,
+            k2pow24,
+            k2pow32,
+            ..
+        } = self;
         match cap {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {}
-            ElementArrayKey::E4 => unsafe { self.k2pow4.remove(index, *len, removal_index) },
-            ElementArrayKey::E6 => unsafe { self.k2pow6.remove(index, *len, removal_index) },
-            ElementArrayKey::E8 => unsafe { self.k2pow8.remove(index, *len, removal_index) },
-            ElementArrayKey::E10 => unsafe { self.k2pow10.remove(index, *len, removal_index) },
-            ElementArrayKey::E12 => unsafe { self.k2pow12.remove(index, *len, removal_index) },
-            ElementArrayKey::E16 => unsafe { self.k2pow16.remove(index, *len, removal_index) },
-            ElementArrayKey::E24 => unsafe { self.k2pow24.remove(index, *len, removal_index) },
-            ElementArrayKey::E32 => unsafe { self.k2pow32.remove(index, *len, removal_index) },
+            ElementArrayKey::E1 => unsafe { k2pow1.remove(index, *len, removal_index) },
+            ElementArrayKey::E2 => unsafe { k2pow2.remove(index, *len, removal_index) },
+            ElementArrayKey::E3 => unsafe { k2pow3.remove(index, *len, removal_index) },
+            ElementArrayKey::E4 => unsafe { k2pow4.remove(index, *len, removal_index) },
+            ElementArrayKey::E6 => unsafe { k2pow6.remove(index, *len, removal_index) },
+            ElementArrayKey::E8 => unsafe { k2pow8.remove(index, *len, removal_index) },
+            ElementArrayKey::E10 => unsafe { k2pow10.remove(index, *len, removal_index) },
+            ElementArrayKey::E12 => unsafe { k2pow12.remove(index, *len, removal_index) },
+            ElementArrayKey::E16 => unsafe { k2pow16.remove(index, *len, removal_index) },
+            ElementArrayKey::E24 => unsafe { k2pow24.remove(index, *len, removal_index) },
+            ElementArrayKey::E32 => unsafe { k2pow32.remove(index, *len, removal_index) },
         }
         *len -= 1;
     }
@@ -2050,19 +2256,36 @@ impl ElementArrays {
         len: &mut u32,
         key: PropertyKey,
     ) {
+        let Self {
+            k2pow1,
+            k2pow2,
+            k2pow3,
+            k2pow4,
+            k2pow6,
+            k2pow8,
+            k2pow10,
+            k2pow12,
+            k2pow16,
+            k2pow24,
+            k2pow32,
+            ..
+        } = self;
         let new_cap = ElementArrayKey::from(len.checked_add(1).expect("Ridiculous amount of keys"));
-        if new_cap == *cap {
+        if new_cap.capacity() <= cap.capacity() {
             // We're within our capacity, mutate directly.
             match cap {
                 ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => unreachable!(),
-                ElementArrayKey::E4 => unsafe { self.k2pow4.push_key(*index, *len, key) },
-                ElementArrayKey::E6 => unsafe { self.k2pow6.push_key(*index, *len, key) },
-                ElementArrayKey::E8 => unsafe { self.k2pow8.push_key(*index, *len, key) },
-                ElementArrayKey::E10 => unsafe { self.k2pow10.push_key(*index, *len, key) },
-                ElementArrayKey::E12 => unsafe { self.k2pow12.push_key(*index, *len, key) },
-                ElementArrayKey::E16 => unsafe { self.k2pow16.push_key(*index, *len, key) },
-                ElementArrayKey::E24 => unsafe { self.k2pow24.push_key(*index, *len, key) },
-                ElementArrayKey::E32 => unsafe { self.k2pow32.push_key(*index, *len, key) },
+                ElementArrayKey::E1 => unsafe { k2pow1.push_key(*index, *len, key) },
+                ElementArrayKey::E2 => unsafe { k2pow2.push_key(*index, *len, key) },
+                ElementArrayKey::E3 => unsafe { k2pow3.push_key(*index, *len, key) },
+                ElementArrayKey::E4 => unsafe { k2pow4.push_key(*index, *len, key) },
+                ElementArrayKey::E6 => unsafe { k2pow6.push_key(*index, *len, key) },
+                ElementArrayKey::E8 => unsafe { k2pow8.push_key(*index, *len, key) },
+                ElementArrayKey::E10 => unsafe { k2pow10.push_key(*index, *len, key) },
+                ElementArrayKey::E12 => unsafe { k2pow12.push_key(*index, *len, key) },
+                ElementArrayKey::E16 => unsafe { k2pow16.push_key(*index, *len, key) },
+                ElementArrayKey::E24 => unsafe { k2pow24.push_key(*index, *len, key) },
+                ElementArrayKey::E32 => unsafe { k2pow32.push_key(*index, *len, key) },
             }
         } else {
             // We need to grow our backing store.
@@ -2085,117 +2308,155 @@ impl ElementArrays {
             debug_assert_eq!(removal_index, 0);
             return (ElementArrayKey::Empty, PropertyKeyIndex::from_u32_index(0));
         }
+        let Self {
+            k2pow1,
+            k2pow2,
+            k2pow3,
+            k2pow4,
+            k2pow6,
+            k2pow8,
+            k2pow10,
+            k2pow12,
+            k2pow16,
+            k2pow24,
+            k2pow32,
+            ..
+        } = self;
         let new_cap = ElementArrayKey::from(len.wrapping_sub(1));
         let new_index = if new_cap == cap {
             // No change in capacity.
             match new_cap {
                 ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => unreachable!(),
-                ElementArrayKey::E4 => {
-                    self.k2pow4
-                        .push_within_with_removal(index, len, removal_index)
-                }
-                ElementArrayKey::E6 => {
-                    self.k2pow6
-                        .push_within_with_removal(index, len, removal_index)
-                }
-                ElementArrayKey::E8 => {
-                    self.k2pow8
-                        .push_within_with_removal(index, len, removal_index)
-                }
-                ElementArrayKey::E10 => {
-                    self.k2pow10
-                        .push_within_with_removal(index, len, removal_index)
-                }
-                ElementArrayKey::E12 => {
-                    self.k2pow12
-                        .push_within_with_removal(index, len, removal_index)
-                }
-                ElementArrayKey::E16 => {
-                    self.k2pow16
-                        .push_within_with_removal(index, len, removal_index)
-                }
-                ElementArrayKey::E24 => {
-                    self.k2pow24
-                        .push_within_with_removal(index, len, removal_index)
-                }
-                ElementArrayKey::E32 => {
-                    self.k2pow32
-                        .push_within_with_removal(index, len, removal_index)
-                }
+                ElementArrayKey::E1 => k2pow1.push_within_with_removal(index, len, removal_index),
+                ElementArrayKey::E2 => k2pow2.push_within_with_removal(index, len, removal_index),
+                ElementArrayKey::E3 => k2pow3.push_within_with_removal(index, len, removal_index),
+                ElementArrayKey::E4 => k2pow4.push_within_with_removal(index, len, removal_index),
+                ElementArrayKey::E6 => k2pow6.push_within_with_removal(index, len, removal_index),
+                ElementArrayKey::E8 => k2pow8.push_within_with_removal(index, len, removal_index),
+                ElementArrayKey::E10 => k2pow10.push_within_with_removal(index, len, removal_index),
+                ElementArrayKey::E12 => k2pow12.push_within_with_removal(index, len, removal_index),
+                ElementArrayKey::E16 => k2pow16.push_within_with_removal(index, len, removal_index),
+                ElementArrayKey::E24 => k2pow24.push_within_with_removal(index, len, removal_index),
+                ElementArrayKey::E32 => k2pow32.push_within_with_removal(index, len, removal_index),
             }
         } else {
             // Change in capacity.
             match new_cap {
                 ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => unreachable!(),
-                ElementArrayKey::E4 => {
+                ElementArrayKey::E1 => {
                     let source = match cap {
-                        ElementArrayKey::E6 => self.k2pow6.get_raw(index, len),
-                        ElementArrayKey::E8 => self.k2pow8.get_raw(index, len),
-                        ElementArrayKey::E10 => self.k2pow10.get_raw(index, len),
-                        ElementArrayKey::E12 => self.k2pow12.get_raw(index, len),
-                        ElementArrayKey::E16 => self.k2pow16.get_raw(index, len),
-                        ElementArrayKey::E24 => self.k2pow24.get_raw(index, len),
-                        ElementArrayKey::E32 => self.k2pow32.get_raw(index, len),
+                        ElementArrayKey::E2 => k2pow2.get_raw(index, len),
+                        ElementArrayKey::E3 => k2pow3.get_raw(index, len),
+                        ElementArrayKey::E4 => k2pow4.get_raw(index, len),
+                        ElementArrayKey::E6 => k2pow6.get_raw(index, len),
+                        ElementArrayKey::E8 => k2pow8.get_raw(index, len),
+                        ElementArrayKey::E10 => k2pow10.get_raw(index, len),
+                        ElementArrayKey::E12 => k2pow12.get_raw(index, len),
+                        ElementArrayKey::E16 => k2pow16.get_raw(index, len),
+                        ElementArrayKey::E24 => k2pow24.get_raw(index, len),
+                        ElementArrayKey::E32 => k2pow32.get_raw(index, len),
                         _ => unreachable!(),
                     };
-                    self.k2pow4.push_with_removal(source, removal_index)
+                    k2pow1.push_with_removal(source, removal_index)
+                }
+                ElementArrayKey::E2 => {
+                    let source = match cap {
+                        ElementArrayKey::E3 => k2pow3.get_raw(index, len),
+                        ElementArrayKey::E4 => k2pow4.get_raw(index, len),
+                        ElementArrayKey::E6 => k2pow6.get_raw(index, len),
+                        ElementArrayKey::E8 => k2pow8.get_raw(index, len),
+                        ElementArrayKey::E10 => k2pow10.get_raw(index, len),
+                        ElementArrayKey::E12 => k2pow12.get_raw(index, len),
+                        ElementArrayKey::E16 => k2pow16.get_raw(index, len),
+                        ElementArrayKey::E24 => k2pow24.get_raw(index, len),
+                        ElementArrayKey::E32 => k2pow32.get_raw(index, len),
+                        _ => unreachable!(),
+                    };
+                    k2pow2.push_with_removal(source, removal_index)
+                }
+                ElementArrayKey::E3 => {
+                    let source = match cap {
+                        ElementArrayKey::E4 => k2pow4.get_raw(index, len),
+                        ElementArrayKey::E6 => k2pow6.get_raw(index, len),
+                        ElementArrayKey::E8 => k2pow8.get_raw(index, len),
+                        ElementArrayKey::E10 => k2pow10.get_raw(index, len),
+                        ElementArrayKey::E12 => k2pow12.get_raw(index, len),
+                        ElementArrayKey::E16 => k2pow16.get_raw(index, len),
+                        ElementArrayKey::E24 => k2pow24.get_raw(index, len),
+                        ElementArrayKey::E32 => k2pow32.get_raw(index, len),
+                        _ => unreachable!(),
+                    };
+                    k2pow3.push_with_removal(source, removal_index)
+                }
+                ElementArrayKey::E4 => {
+                    let source = match cap {
+                        ElementArrayKey::E6 => k2pow6.get_raw(index, len),
+                        ElementArrayKey::E8 => k2pow8.get_raw(index, len),
+                        ElementArrayKey::E10 => k2pow10.get_raw(index, len),
+                        ElementArrayKey::E12 => k2pow12.get_raw(index, len),
+                        ElementArrayKey::E16 => k2pow16.get_raw(index, len),
+                        ElementArrayKey::E24 => k2pow24.get_raw(index, len),
+                        ElementArrayKey::E32 => k2pow32.get_raw(index, len),
+                        _ => unreachable!(),
+                    };
+                    k2pow4.push_with_removal(source, removal_index)
                 }
                 ElementArrayKey::E6 => {
                     let source = match cap {
-                        ElementArrayKey::E8 => self.k2pow8.get_raw(index, len),
-                        ElementArrayKey::E10 => self.k2pow10.get_raw(index, len),
-                        ElementArrayKey::E12 => self.k2pow12.get_raw(index, len),
-                        ElementArrayKey::E16 => self.k2pow16.get_raw(index, len),
-                        ElementArrayKey::E24 => self.k2pow24.get_raw(index, len),
-                        ElementArrayKey::E32 => self.k2pow32.get_raw(index, len),
+                        ElementArrayKey::E8 => k2pow8.get_raw(index, len),
+                        ElementArrayKey::E10 => k2pow10.get_raw(index, len),
+                        ElementArrayKey::E12 => k2pow12.get_raw(index, len),
+                        ElementArrayKey::E16 => k2pow16.get_raw(index, len),
+                        ElementArrayKey::E24 => k2pow24.get_raw(index, len),
+                        ElementArrayKey::E32 => k2pow32.get_raw(index, len),
                         _ => unreachable!(),
                     };
-                    self.k2pow6.push_with_removal(source, removal_index)
+                    k2pow6.push_with_removal(source, removal_index)
                 }
                 ElementArrayKey::E8 => {
                     let source = match cap {
-                        ElementArrayKey::E10 => self.k2pow10.get_raw(index, len),
-                        ElementArrayKey::E12 => self.k2pow12.get_raw(index, len),
-                        ElementArrayKey::E16 => self.k2pow16.get_raw(index, len),
-                        ElementArrayKey::E24 => self.k2pow24.get_raw(index, len),
-                        ElementArrayKey::E32 => self.k2pow32.get_raw(index, len),
+                        ElementArrayKey::E10 => k2pow10.get_raw(index, len),
+                        ElementArrayKey::E12 => k2pow12.get_raw(index, len),
+                        ElementArrayKey::E16 => k2pow16.get_raw(index, len),
+                        ElementArrayKey::E24 => k2pow24.get_raw(index, len),
+                        ElementArrayKey::E32 => k2pow32.get_raw(index, len),
                         _ => unreachable!(),
                     };
-                    self.k2pow8.push_with_removal(source, removal_index)
+                    k2pow8.push_with_removal(source, removal_index)
                 }
                 ElementArrayKey::E10 => {
                     let source = match cap {
-                        ElementArrayKey::E12 => self.k2pow12.get_raw(index, len),
-                        ElementArrayKey::E16 => self.k2pow16.get_raw(index, len),
-                        ElementArrayKey::E24 => self.k2pow24.get_raw(index, len),
-                        ElementArrayKey::E32 => self.k2pow32.get_raw(index, len),
+                        ElementArrayKey::E12 => k2pow12.get_raw(index, len),
+                        ElementArrayKey::E16 => k2pow16.get_raw(index, len),
+                        ElementArrayKey::E24 => k2pow24.get_raw(index, len),
+                        ElementArrayKey::E32 => k2pow32.get_raw(index, len),
                         _ => unreachable!(),
                     };
-                    self.k2pow10.push_with_removal(source, removal_index)
+                    k2pow10.push_with_removal(source, removal_index)
                 }
                 ElementArrayKey::E12 => {
                     let source = match cap {
-                        ElementArrayKey::E16 => self.k2pow16.get_raw(index, len),
-                        ElementArrayKey::E24 => self.k2pow24.get_raw(index, len),
-                        ElementArrayKey::E32 => self.k2pow32.get_raw(index, len),
+                        ElementArrayKey::E16 => k2pow16.get_raw(index, len),
+                        ElementArrayKey::E24 => k2pow24.get_raw(index, len),
+                        ElementArrayKey::E32 => k2pow32.get_raw(index, len),
                         _ => unreachable!(),
                     };
-                    self.k2pow12.push_with_removal(source, removal_index)
+                    k2pow12.push_with_removal(source, removal_index)
                 }
                 ElementArrayKey::E16 => {
                     let source = match cap {
-                        ElementArrayKey::E24 => self.k2pow24.get_raw(index, len),
-                        ElementArrayKey::E32 => self.k2pow32.get_raw(index, len),
+                        ElementArrayKey::E24 => k2pow24.get_raw(index, len),
+                        ElementArrayKey::E32 => k2pow32.get_raw(index, len),
                         _ => unreachable!(),
                     };
-                    self.k2pow16.push_with_removal(source, removal_index)
+                    k2pow16.push_with_removal(source, removal_index)
                 }
                 ElementArrayKey::E24 => {
                     let source = match cap {
-                        ElementArrayKey::E32 => self.k2pow32.get_raw(index, len),
+                        ElementArrayKey::E32 => k2pow32.get_raw(index, len),
                         _ => unreachable!(),
                     };
-                    self.k2pow24.push_with_removal(source, removal_index)
+                    k2pow24.push_with_removal(source, removal_index)
                 }
                 ElementArrayKey::E32 => unreachable!(),
             }
@@ -2216,19 +2477,36 @@ impl ElementArrays {
         if capacity == 0 {
             return (ElementArrayKey::Empty, PropertyKeyIndex::from_u32_index(0));
         }
+        let Self {
+            k2pow1,
+            k2pow2,
+            k2pow3,
+            k2pow4,
+            k2pow6,
+            k2pow8,
+            k2pow10,
+            k2pow12,
+            k2pow16,
+            k2pow24,
+            k2pow32,
+            ..
+        } = self;
         let new_cap = ElementArrayKey::from(capacity);
         let new_index = if new_cap == cap {
             // No change in capacity.
             match new_cap {
                 ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => unreachable!(),
-                ElementArrayKey::E4 => self.k2pow4.push_within(index, len),
-                ElementArrayKey::E6 => self.k2pow6.push_within(index, len),
-                ElementArrayKey::E8 => self.k2pow8.push_within(index, len),
-                ElementArrayKey::E10 => self.k2pow10.push_within(index, len),
-                ElementArrayKey::E12 => self.k2pow12.push_within(index, len),
-                ElementArrayKey::E16 => self.k2pow16.push_within(index, len),
-                ElementArrayKey::E24 => self.k2pow24.push_within(index, len),
-                ElementArrayKey::E32 => self.k2pow32.push_within(index, len),
+                ElementArrayKey::E1 => k2pow1.push_within(index, len),
+                ElementArrayKey::E2 => k2pow2.push_within(index, len),
+                ElementArrayKey::E3 => k2pow3.push_within(index, len),
+                ElementArrayKey::E4 => k2pow4.push_within(index, len),
+                ElementArrayKey::E6 => k2pow6.push_within(index, len),
+                ElementArrayKey::E8 => k2pow8.push_within(index, len),
+                ElementArrayKey::E10 => k2pow10.push_within(index, len),
+                ElementArrayKey::E12 => k2pow12.push_within(index, len),
+                ElementArrayKey::E16 => k2pow16.push_within(index, len),
+                ElementArrayKey::E24 => k2pow24.push_within(index, len),
+                ElementArrayKey::E32 => k2pow32.push_within(index, len),
             }
         } else {
             // Change in capacity.
@@ -2255,135 +2533,415 @@ impl ElementArrays {
             panic!("Should not request realloc with same capacity");
         } else {
             // Change in capacity.
+            let ElementArrays {
+                e2pow1,
+                e2pow2,
+                e2pow3,
+                e2pow4,
+                e2pow6,
+                e2pow8,
+                e2pow10,
+                e2pow12,
+                e2pow16,
+                e2pow24,
+                e2pow32,
+                ..
+            } = self;
             match dst_cap {
                 ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => unreachable!(),
-                ElementArrayKey::E4 => {
+                ElementArrayKey::E1 => {
                     let source = match src_cap {
+                        ElementArrayKey::E2 => {
+                            e2pow2.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E3 => {
+                            e2pow3.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E4 => {
+                            e2pow4.get_descriptors_and_values_raw(src_index, len)
+                        }
                         ElementArrayKey::E6 => {
-                            self.e2pow6.get_descriptors_and_values_raw(src_index, len)
+                            e2pow6.get_descriptors_and_values_raw(src_index, len)
                         }
                         ElementArrayKey::E8 => {
-                            self.e2pow8.get_descriptors_and_values_raw(src_index, len)
+                            e2pow8.get_descriptors_and_values_raw(src_index, len)
                         }
                         ElementArrayKey::E10 => {
-                            self.e2pow10.get_descriptors_and_values_raw(src_index, len)
+                            e2pow10.get_descriptors_and_values_raw(src_index, len)
                         }
                         ElementArrayKey::E12 => {
-                            self.e2pow12.get_descriptors_and_values_raw(src_index, len)
+                            e2pow12.get_descriptors_and_values_raw(src_index, len)
                         }
                         ElementArrayKey::E16 => {
-                            self.e2pow16.get_descriptors_and_values_raw(src_index, len)
+                            e2pow16.get_descriptors_and_values_raw(src_index, len)
                         }
                         ElementArrayKey::E24 => {
-                            self.e2pow24.get_descriptors_and_values_raw(src_index, len)
+                            e2pow24.get_descriptors_and_values_raw(src_index, len)
                         }
                         ElementArrayKey::E32 => {
-                            self.e2pow32.get_descriptors_and_values_raw(src_index, len)
+                            e2pow32.get_descriptors_and_values_raw(src_index, len)
                         }
                         _ => unreachable!(),
                     };
-                    self.e2pow4.push_with_removal(source, removal_index)
+                    e2pow1.push_with_removal(source, removal_index)
+                }
+                ElementArrayKey::E2 => {
+                    let source = match src_cap {
+                        ElementArrayKey::E1 => {
+                            e2pow1.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E3 => {
+                            e2pow3.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E4 => {
+                            e2pow4.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E6 => {
+                            e2pow6.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E8 => {
+                            e2pow8.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E10 => {
+                            e2pow10.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E12 => {
+                            e2pow12.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E16 => {
+                            e2pow16.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E24 => {
+                            e2pow24.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E32 => {
+                            e2pow32.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        _ => unreachable!(),
+                    };
+                    e2pow2.push_with_removal(source, removal_index)
+                }
+                ElementArrayKey::E3 => {
+                    let source = match src_cap {
+                        ElementArrayKey::E1 => {
+                            e2pow1.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E2 => {
+                            e2pow2.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E4 => {
+                            e2pow4.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E6 => {
+                            e2pow6.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E8 => {
+                            e2pow8.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E10 => {
+                            e2pow10.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E12 => {
+                            e2pow12.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E16 => {
+                            e2pow16.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E24 => {
+                            e2pow24.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E32 => {
+                            e2pow32.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        _ => unreachable!(),
+                    };
+                    e2pow3.push_with_removal(source, removal_index)
+                }
+                ElementArrayKey::E4 => {
+                    let source = match src_cap {
+                        ElementArrayKey::E1 => {
+                            e2pow1.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E2 => {
+                            e2pow2.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E3 => {
+                            e2pow3.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E6 => {
+                            e2pow6.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E8 => {
+                            e2pow8.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E10 => {
+                            e2pow10.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E12 => {
+                            e2pow12.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E16 => {
+                            e2pow16.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E24 => {
+                            e2pow24.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E32 => {
+                            e2pow32.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        _ => unreachable!(),
+                    };
+                    e2pow4.push_with_removal(source, removal_index)
                 }
                 ElementArrayKey::E6 => {
                     let source = match src_cap {
+                        ElementArrayKey::E1 => {
+                            e2pow1.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E2 => {
+                            e2pow2.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E3 => {
+                            e2pow3.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E4 => {
+                            e2pow4.get_descriptors_and_values_raw(src_index, len)
+                        }
                         ElementArrayKey::E8 => {
-                            self.e2pow8.get_descriptors_and_values_raw(src_index, len)
+                            e2pow8.get_descriptors_and_values_raw(src_index, len)
                         }
                         ElementArrayKey::E10 => {
-                            self.e2pow10.get_descriptors_and_values_raw(src_index, len)
+                            e2pow10.get_descriptors_and_values_raw(src_index, len)
                         }
                         ElementArrayKey::E12 => {
-                            self.e2pow12.get_descriptors_and_values_raw(src_index, len)
+                            e2pow12.get_descriptors_and_values_raw(src_index, len)
                         }
                         ElementArrayKey::E16 => {
-                            self.e2pow16.get_descriptors_and_values_raw(src_index, len)
+                            e2pow16.get_descriptors_and_values_raw(src_index, len)
                         }
                         ElementArrayKey::E24 => {
-                            self.e2pow24.get_descriptors_and_values_raw(src_index, len)
+                            e2pow24.get_descriptors_and_values_raw(src_index, len)
                         }
                         ElementArrayKey::E32 => {
-                            self.e2pow32.get_descriptors_and_values_raw(src_index, len)
+                            e2pow32.get_descriptors_and_values_raw(src_index, len)
                         }
                         _ => unreachable!(),
                     };
-                    self.e2pow6.push_with_removal(source, removal_index)
+                    e2pow6.push_with_removal(source, removal_index)
                 }
                 ElementArrayKey::E8 => {
                     let source = match src_cap {
+                        ElementArrayKey::E1 => {
+                            e2pow1.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E2 => {
+                            e2pow2.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E3 => {
+                            e2pow3.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E4 => {
+                            e2pow4.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E6 => {
+                            e2pow6.get_descriptors_and_values_raw(src_index, len)
+                        }
                         ElementArrayKey::E10 => {
-                            self.e2pow10.get_descriptors_and_values_raw(src_index, len)
+                            e2pow10.get_descriptors_and_values_raw(src_index, len)
                         }
                         ElementArrayKey::E12 => {
-                            self.e2pow12.get_descriptors_and_values_raw(src_index, len)
+                            e2pow12.get_descriptors_and_values_raw(src_index, len)
                         }
                         ElementArrayKey::E16 => {
-                            self.e2pow16.get_descriptors_and_values_raw(src_index, len)
+                            e2pow16.get_descriptors_and_values_raw(src_index, len)
                         }
                         ElementArrayKey::E24 => {
-                            self.e2pow24.get_descriptors_and_values_raw(src_index, len)
+                            e2pow24.get_descriptors_and_values_raw(src_index, len)
                         }
                         ElementArrayKey::E32 => {
-                            self.e2pow32.get_descriptors_and_values_raw(src_index, len)
+                            e2pow32.get_descriptors_and_values_raw(src_index, len)
                         }
                         _ => unreachable!(),
                     };
-                    self.e2pow8.push_with_removal(source, removal_index)
+                    e2pow8.push_with_removal(source, removal_index)
                 }
                 ElementArrayKey::E10 => {
                     let source = match src_cap {
+                        ElementArrayKey::E1 => {
+                            e2pow1.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E2 => {
+                            e2pow2.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E3 => {
+                            e2pow3.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E4 => {
+                            e2pow4.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E6 => {
+                            e2pow6.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E8 => {
+                            e2pow8.get_descriptors_and_values_raw(src_index, len)
+                        }
                         ElementArrayKey::E12 => {
-                            self.e2pow12.get_descriptors_and_values_raw(src_index, len)
+                            e2pow12.get_descriptors_and_values_raw(src_index, len)
                         }
                         ElementArrayKey::E16 => {
-                            self.e2pow16.get_descriptors_and_values_raw(src_index, len)
+                            e2pow16.get_descriptors_and_values_raw(src_index, len)
                         }
                         ElementArrayKey::E24 => {
-                            self.e2pow24.get_descriptors_and_values_raw(src_index, len)
+                            e2pow24.get_descriptors_and_values_raw(src_index, len)
                         }
                         ElementArrayKey::E32 => {
-                            self.e2pow32.get_descriptors_and_values_raw(src_index, len)
+                            e2pow32.get_descriptors_and_values_raw(src_index, len)
                         }
                         _ => unreachable!(),
                     };
-                    self.e2pow10.push_with_removal(source, removal_index)
+                    e2pow10.push_with_removal(source, removal_index)
                 }
                 ElementArrayKey::E12 => {
                     let source = match src_cap {
+                        ElementArrayKey::E1 => {
+                            e2pow1.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E2 => {
+                            e2pow2.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E3 => {
+                            e2pow3.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E4 => {
+                            e2pow4.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E6 => {
+                            e2pow6.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E8 => {
+                            e2pow8.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E10 => {
+                            e2pow10.get_descriptors_and_values_raw(src_index, len)
+                        }
                         ElementArrayKey::E16 => {
-                            self.e2pow16.get_descriptors_and_values_raw(src_index, len)
+                            e2pow16.get_descriptors_and_values_raw(src_index, len)
                         }
                         ElementArrayKey::E24 => {
-                            self.e2pow24.get_descriptors_and_values_raw(src_index, len)
+                            e2pow24.get_descriptors_and_values_raw(src_index, len)
                         }
                         ElementArrayKey::E32 => {
-                            self.e2pow32.get_descriptors_and_values_raw(src_index, len)
+                            e2pow32.get_descriptors_and_values_raw(src_index, len)
                         }
                         _ => unreachable!(),
                     };
-                    self.e2pow12.push_with_removal(source, removal_index)
+                    e2pow12.push_with_removal(source, removal_index)
                 }
                 ElementArrayKey::E16 => {
                     let source = match src_cap {
+                        ElementArrayKey::E1 => {
+                            e2pow1.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E2 => {
+                            e2pow2.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E3 => {
+                            e2pow3.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E4 => {
+                            e2pow4.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E6 => {
+                            e2pow6.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E8 => {
+                            e2pow8.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E10 => {
+                            e2pow10.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E12 => {
+                            e2pow12.get_descriptors_and_values_raw(src_index, len)
+                        }
                         ElementArrayKey::E24 => {
-                            self.e2pow24.get_descriptors_and_values_raw(src_index, len)
+                            e2pow24.get_descriptors_and_values_raw(src_index, len)
                         }
                         ElementArrayKey::E32 => {
-                            self.e2pow32.get_descriptors_and_values_raw(src_index, len)
+                            e2pow32.get_descriptors_and_values_raw(src_index, len)
                         }
                         _ => unreachable!(),
                     };
-                    self.e2pow16.push_with_removal(source, removal_index)
+                    e2pow16.push_with_removal(source, removal_index)
                 }
                 ElementArrayKey::E24 => {
                     let source = match src_cap {
+                        ElementArrayKey::E1 => {
+                            e2pow1.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E2 => {
+                            e2pow2.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E3 => {
+                            e2pow3.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E4 => {
+                            e2pow4.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E6 => {
+                            e2pow6.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E8 => {
+                            e2pow8.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E10 => {
+                            e2pow10.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E12 => {
+                            e2pow12.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E16 => {
+                            e2pow16.get_descriptors_and_values_raw(src_index, len)
+                        }
                         ElementArrayKey::E32 => {
-                            self.e2pow32.get_descriptors_and_values_raw(src_index, len)
+                            e2pow32.get_descriptors_and_values_raw(src_index, len)
                         }
                         _ => unreachable!(),
                     };
-                    self.e2pow24.push_with_removal(source, removal_index)
+                    e2pow24.push_with_removal(source, removal_index)
                 }
-                ElementArrayKey::E32 => unreachable!(),
+                ElementArrayKey::E32 => {
+                    let source = match src_cap {
+                        ElementArrayKey::E1 => {
+                            e2pow1.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E2 => {
+                            e2pow2.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E3 => {
+                            e2pow3.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E4 => {
+                            e2pow4.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E6 => {
+                            e2pow6.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E8 => {
+                            e2pow8.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E10 => {
+                            e2pow10.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E12 => {
+                            e2pow12.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        ElementArrayKey::E16 => {
+                            e2pow16.get_descriptors_and_values_raw(src_index, len)
+                        }
+                        _ => unreachable!(),
+                    };
+                    e2pow32.push_with_removal(source, removal_index)
+                }
             }
         };
         new_index
@@ -2397,75 +2955,153 @@ impl ElementArrays {
         new_cap: ElementArrayKey,
         len: u32,
     ) -> PropertyKeyIndex<'a> {
+        let Self {
+            k2pow1,
+            k2pow2,
+            k2pow3,
+            k2pow4,
+            k2pow6,
+            k2pow8,
+            k2pow10,
+            k2pow12,
+            k2pow16,
+            k2pow24,
+            k2pow32,
+            ..
+        } = self;
         match new_cap {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => unreachable!(),
-            ElementArrayKey::E4 => self.k2pow4.push(&[]),
+            ElementArrayKey::E1 => {
+                let source = match cap {
+                    ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => &[],
+                    _ => unreachable!(),
+                };
+                k2pow1.push(source)
+            }
+            ElementArrayKey::E2 => {
+                let source = match cap {
+                    ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => &[],
+                    ElementArrayKey::E1 => k2pow1.get_raw(index, len),
+                    _ => unreachable!(),
+                };
+                k2pow2.push(source)
+            }
+            ElementArrayKey::E3 => {
+                let source = match cap {
+                    ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => &[],
+                    ElementArrayKey::E1 => k2pow1.get_raw(index, len),
+                    ElementArrayKey::E2 => k2pow2.get_raw(index, len),
+                    _ => unreachable!(),
+                };
+                k2pow3.push(source)
+            }
+            ElementArrayKey::E4 => {
+                let source = match cap {
+                    ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => &[],
+                    ElementArrayKey::E1 => k2pow1.get_raw(index, len),
+                    ElementArrayKey::E2 => k2pow2.get_raw(index, len),
+                    ElementArrayKey::E3 => k2pow3.get_raw(index, len),
+                    _ => unreachable!(),
+                };
+                k2pow4.push(source)
+            }
             ElementArrayKey::E6 => {
-                let source = self.k2pow4.get_raw(index, len);
-                self.k2pow6.push(source)
+                let source = match cap {
+                    ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => &[],
+                    ElementArrayKey::E1 => k2pow1.get_raw(index, len),
+                    ElementArrayKey::E2 => k2pow2.get_raw(index, len),
+                    ElementArrayKey::E3 => k2pow3.get_raw(index, len),
+                    ElementArrayKey::E4 => k2pow4.get_raw(index, len),
+                    _ => unreachable!(),
+                };
+                k2pow6.push(source)
             }
             ElementArrayKey::E8 => {
                 let source = match cap {
-                    ElementArrayKey::E4 => self.k2pow4.get_raw(index, len),
-                    ElementArrayKey::E6 => self.k2pow6.get_raw(index, len),
+                    ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => &[],
+                    ElementArrayKey::E1 => k2pow1.get_raw(index, len),
+                    ElementArrayKey::E2 => k2pow2.get_raw(index, len),
+                    ElementArrayKey::E3 => k2pow3.get_raw(index, len),
+                    ElementArrayKey::E4 => k2pow4.get_raw(index, len),
+                    ElementArrayKey::E6 => k2pow6.get_raw(index, len),
                     _ => unreachable!(),
                 };
-                self.k2pow8.push(source)
+                k2pow8.push(source)
             }
             ElementArrayKey::E10 => {
                 let source = match cap {
-                    ElementArrayKey::E4 => self.k2pow4.get_raw(index, len),
-                    ElementArrayKey::E6 => self.k2pow6.get_raw(index, len),
-                    ElementArrayKey::E8 => self.k2pow8.get_raw(index, len),
+                    ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => &[],
+                    ElementArrayKey::E1 => k2pow1.get_raw(index, len),
+                    ElementArrayKey::E2 => k2pow2.get_raw(index, len),
+                    ElementArrayKey::E3 => k2pow3.get_raw(index, len),
+                    ElementArrayKey::E4 => k2pow4.get_raw(index, len),
+                    ElementArrayKey::E6 => k2pow6.get_raw(index, len),
+                    ElementArrayKey::E8 => k2pow8.get_raw(index, len),
                     _ => unreachable!(),
                 };
-                self.k2pow10.push(source)
+                k2pow10.push(source)
             }
             ElementArrayKey::E12 => {
                 let source = match cap {
-                    ElementArrayKey::E4 => self.k2pow4.get_raw(index, len),
-                    ElementArrayKey::E6 => self.k2pow6.get_raw(index, len),
-                    ElementArrayKey::E8 => self.k2pow8.get_raw(index, len),
-                    ElementArrayKey::E10 => self.k2pow10.get_raw(index, len),
+                    ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => &[],
+                    ElementArrayKey::E1 => k2pow1.get_raw(index, len),
+                    ElementArrayKey::E2 => k2pow2.get_raw(index, len),
+                    ElementArrayKey::E3 => k2pow3.get_raw(index, len),
+                    ElementArrayKey::E4 => k2pow4.get_raw(index, len),
+                    ElementArrayKey::E6 => k2pow6.get_raw(index, len),
+                    ElementArrayKey::E8 => k2pow8.get_raw(index, len),
+                    ElementArrayKey::E10 => k2pow10.get_raw(index, len),
                     _ => unreachable!(),
                 };
-                self.k2pow12.push(source)
+                k2pow12.push(source)
             }
             ElementArrayKey::E16 => {
                 let source = match cap {
-                    ElementArrayKey::E4 => self.k2pow4.get_raw(index, len),
-                    ElementArrayKey::E6 => self.k2pow6.get_raw(index, len),
-                    ElementArrayKey::E8 => self.k2pow8.get_raw(index, len),
-                    ElementArrayKey::E10 => self.k2pow10.get_raw(index, len),
-                    ElementArrayKey::E12 => self.k2pow12.get_raw(index, len),
+                    ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => &[],
+                    ElementArrayKey::E1 => k2pow1.get_raw(index, len),
+                    ElementArrayKey::E2 => k2pow2.get_raw(index, len),
+                    ElementArrayKey::E3 => k2pow3.get_raw(index, len),
+                    ElementArrayKey::E4 => k2pow4.get_raw(index, len),
+                    ElementArrayKey::E6 => k2pow6.get_raw(index, len),
+                    ElementArrayKey::E8 => k2pow8.get_raw(index, len),
+                    ElementArrayKey::E10 => k2pow10.get_raw(index, len),
+                    ElementArrayKey::E12 => k2pow12.get_raw(index, len),
                     _ => unreachable!(),
                 };
-                self.k2pow16.push(source)
+                k2pow16.push(source)
             }
             ElementArrayKey::E24 => {
                 let source = match cap {
-                    ElementArrayKey::E4 => self.k2pow4.get_raw(index, len),
-                    ElementArrayKey::E6 => self.k2pow6.get_raw(index, len),
-                    ElementArrayKey::E8 => self.k2pow8.get_raw(index, len),
-                    ElementArrayKey::E10 => self.k2pow10.get_raw(index, len),
-                    ElementArrayKey::E12 => self.k2pow12.get_raw(index, len),
-                    ElementArrayKey::E16 => self.k2pow16.get_raw(index, len),
+                    ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => &[],
+                    ElementArrayKey::E1 => k2pow1.get_raw(index, len),
+                    ElementArrayKey::E2 => k2pow2.get_raw(index, len),
+                    ElementArrayKey::E3 => k2pow3.get_raw(index, len),
+                    ElementArrayKey::E4 => k2pow4.get_raw(index, len),
+                    ElementArrayKey::E6 => k2pow6.get_raw(index, len),
+                    ElementArrayKey::E8 => k2pow8.get_raw(index, len),
+                    ElementArrayKey::E10 => k2pow10.get_raw(index, len),
+                    ElementArrayKey::E12 => k2pow12.get_raw(index, len),
+                    ElementArrayKey::E16 => k2pow16.get_raw(index, len),
                     _ => unreachable!(),
                 };
-                self.k2pow24.push(source)
+                k2pow24.push(source)
             }
             ElementArrayKey::E32 => {
                 let source = match cap {
-                    ElementArrayKey::E4 => self.k2pow4.get_raw(index, len),
-                    ElementArrayKey::E6 => self.k2pow6.get_raw(index, len),
-                    ElementArrayKey::E8 => self.k2pow8.get_raw(index, len),
-                    ElementArrayKey::E10 => self.k2pow10.get_raw(index, len),
-                    ElementArrayKey::E12 => self.k2pow12.get_raw(index, len),
-                    ElementArrayKey::E16 => self.k2pow16.get_raw(index, len),
-                    ElementArrayKey::E24 => self.k2pow24.get_raw(index, len),
+                    ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => &[],
+                    ElementArrayKey::E1 => k2pow1.get_raw(index, len),
+                    ElementArrayKey::E2 => k2pow2.get_raw(index, len),
+                    ElementArrayKey::E3 => k2pow3.get_raw(index, len),
+                    ElementArrayKey::E4 => k2pow4.get_raw(index, len),
+                    ElementArrayKey::E6 => k2pow6.get_raw(index, len),
+                    ElementArrayKey::E8 => k2pow8.get_raw(index, len),
+                    ElementArrayKey::E10 => k2pow10.get_raw(index, len),
+                    ElementArrayKey::E12 => k2pow12.get_raw(index, len),
+                    ElementArrayKey::E16 => k2pow16.get_raw(index, len),
+                    ElementArrayKey::E24 => k2pow24.get_raw(index, len),
                     _ => unreachable!(),
                 };
-                self.k2pow32.push(source)
+                k2pow32.push(source)
             }
         }
     }
@@ -2539,16 +3175,33 @@ impl ElementArrays {
         index: PropertyKeyIndex<'a>,
         len: u32,
     ) -> &[PropertyKey<'a>] {
+        let Self {
+            k2pow1,
+            k2pow2,
+            k2pow3,
+            k2pow4,
+            k2pow6,
+            k2pow8,
+            k2pow10,
+            k2pow12,
+            k2pow16,
+            k2pow24,
+            k2pow32,
+            ..
+        } = self;
         match cap {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => &[],
-            ElementArrayKey::E4 => self.k2pow4.get_raw(index, len),
-            ElementArrayKey::E6 => self.k2pow6.get_raw(index, len),
-            ElementArrayKey::E8 => self.k2pow8.get_raw(index, len),
-            ElementArrayKey::E10 => self.k2pow10.get_raw(index, len),
-            ElementArrayKey::E12 => self.k2pow12.get_raw(index, len),
-            ElementArrayKey::E16 => self.k2pow16.get_raw(index, len),
-            ElementArrayKey::E24 => self.k2pow24.get_raw(index, len),
-            ElementArrayKey::E32 => self.k2pow32.get_raw(index, len),
+            ElementArrayKey::E1 => k2pow1.get_raw(index, len),
+            ElementArrayKey::E2 => k2pow2.get_raw(index, len),
+            ElementArrayKey::E3 => k2pow3.get_raw(index, len),
+            ElementArrayKey::E4 => k2pow4.get_raw(index, len),
+            ElementArrayKey::E6 => k2pow6.get_raw(index, len),
+            ElementArrayKey::E8 => k2pow8.get_raw(index, len),
+            ElementArrayKey::E10 => k2pow10.get_raw(index, len),
+            ElementArrayKey::E12 => k2pow12.get_raw(index, len),
+            ElementArrayKey::E16 => k2pow16.get_raw(index, len),
+            ElementArrayKey::E24 => k2pow24.get_raw(index, len),
+            ElementArrayKey::E32 => k2pow32.get_raw(index, len),
         }
     }
 
@@ -2560,30 +3213,64 @@ impl ElementArrays {
         cap: ElementArrayKey,
         keys_index: PropertyKeyIndex,
     ) -> &mut [Option<PropertyKey<'static>>] {
+        let Self {
+            k2pow1,
+            k2pow2,
+            k2pow3,
+            k2pow4,
+            k2pow6,
+            k2pow8,
+            k2pow10,
+            k2pow12,
+            k2pow16,
+            k2pow24,
+            k2pow32,
+            ..
+        } = self;
         match cap {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => &mut [],
-            ElementArrayKey::E4 => self.k2pow4.get_uninit(keys_index),
-            ElementArrayKey::E6 => self.k2pow6.get_uninit(keys_index),
-            ElementArrayKey::E8 => self.k2pow8.get_uninit(keys_index),
-            ElementArrayKey::E10 => self.k2pow10.get_uninit(keys_index),
-            ElementArrayKey::E12 => self.k2pow12.get_uninit(keys_index),
-            ElementArrayKey::E16 => self.k2pow16.get_uninit(keys_index),
-            ElementArrayKey::E24 => self.k2pow24.get_uninit(keys_index),
-            ElementArrayKey::E32 => self.k2pow32.get_uninit(keys_index),
+            ElementArrayKey::E1 => k2pow1.get_uninit(keys_index),
+            ElementArrayKey::E2 => k2pow2.get_uninit(keys_index),
+            ElementArrayKey::E3 => k2pow3.get_uninit(keys_index),
+            ElementArrayKey::E4 => k2pow4.get_uninit(keys_index),
+            ElementArrayKey::E6 => k2pow6.get_uninit(keys_index),
+            ElementArrayKey::E8 => k2pow8.get_uninit(keys_index),
+            ElementArrayKey::E10 => k2pow10.get_uninit(keys_index),
+            ElementArrayKey::E12 => k2pow12.get_uninit(keys_index),
+            ElementArrayKey::E16 => k2pow16.get_uninit(keys_index),
+            ElementArrayKey::E24 => k2pow24.get_uninit(keys_index),
+            ElementArrayKey::E32 => k2pow32.get_uninit(keys_index),
         }
     }
 
     pub(crate) fn get_values<'a>(&self, vector: &ElementsVector) -> &[Option<Value<'a>>] {
+        let ElementArrays {
+            e2pow1,
+            e2pow2,
+            e2pow3,
+            e2pow4,
+            e2pow6,
+            e2pow8,
+            e2pow10,
+            e2pow12,
+            e2pow16,
+            e2pow24,
+            e2pow32,
+            ..
+        } = self;
         match vector.cap {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => &[],
-            ElementArrayKey::E4 => self.e2pow4.get_values(vector),
-            ElementArrayKey::E6 => self.e2pow6.get_values(vector),
-            ElementArrayKey::E8 => self.e2pow8.get_values(vector),
-            ElementArrayKey::E10 => self.e2pow10.get_values(vector),
-            ElementArrayKey::E12 => self.e2pow12.get_values(vector),
-            ElementArrayKey::E16 => self.e2pow16.get_values(vector),
-            ElementArrayKey::E24 => self.e2pow24.get_values(vector),
-            ElementArrayKey::E32 => self.e2pow32.get_values(vector),
+            ElementArrayKey::E1 => e2pow1.get_values(vector),
+            ElementArrayKey::E2 => e2pow2.get_values(vector),
+            ElementArrayKey::E3 => e2pow3.get_values(vector),
+            ElementArrayKey::E4 => e2pow4.get_values(vector),
+            ElementArrayKey::E6 => e2pow6.get_values(vector),
+            ElementArrayKey::E8 => e2pow8.get_values(vector),
+            ElementArrayKey::E10 => e2pow10.get_values(vector),
+            ElementArrayKey::E12 => e2pow12.get_values(vector),
+            ElementArrayKey::E16 => e2pow16.get_values(vector),
+            ElementArrayKey::E24 => e2pow24.get_values(vector),
+            ElementArrayKey::E32 => e2pow32.get_values(vector),
         }
     }
 
@@ -2591,16 +3278,33 @@ impl ElementArrays {
         &mut self,
         vector: &ElementsVector,
     ) -> &mut [Option<Value<'static>>] {
+        let ElementArrays {
+            e2pow1,
+            e2pow2,
+            e2pow3,
+            e2pow4,
+            e2pow6,
+            e2pow8,
+            e2pow10,
+            e2pow12,
+            e2pow16,
+            e2pow24,
+            e2pow32,
+            ..
+        } = self;
         match vector.cap {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => &mut [],
-            ElementArrayKey::E4 => self.e2pow4.get_values_mut(vector),
-            ElementArrayKey::E6 => self.e2pow6.get_values_mut(vector),
-            ElementArrayKey::E8 => self.e2pow8.get_values_mut(vector),
-            ElementArrayKey::E10 => self.e2pow10.get_values_mut(vector),
-            ElementArrayKey::E12 => self.e2pow12.get_values_mut(vector),
-            ElementArrayKey::E16 => self.e2pow16.get_values_mut(vector),
-            ElementArrayKey::E24 => self.e2pow24.get_values_mut(vector),
-            ElementArrayKey::E32 => self.e2pow32.get_values_mut(vector),
+            ElementArrayKey::E1 => e2pow1.get_values_mut(vector),
+            ElementArrayKey::E2 => e2pow2.get_values_mut(vector),
+            ElementArrayKey::E3 => e2pow3.get_values_mut(vector),
+            ElementArrayKey::E4 => e2pow4.get_values_mut(vector),
+            ElementArrayKey::E6 => e2pow6.get_values_mut(vector),
+            ElementArrayKey::E8 => e2pow8.get_values_mut(vector),
+            ElementArrayKey::E10 => e2pow10.get_values_mut(vector),
+            ElementArrayKey::E12 => e2pow12.get_values_mut(vector),
+            ElementArrayKey::E16 => e2pow16.get_values_mut(vector),
+            ElementArrayKey::E24 => e2pow24.get_values_mut(vector),
+            ElementArrayKey::E32 => e2pow32.get_values_mut(vector),
         }
     }
 
@@ -2626,16 +3330,33 @@ impl ElementArrays {
         cap: ElementArrayKey,
         len: u32,
     ) -> ElementStorageRef<'_, 'gc> {
+        let ElementArrays {
+            e2pow1,
+            e2pow2,
+            e2pow3,
+            e2pow4,
+            e2pow6,
+            e2pow8,
+            e2pow10,
+            e2pow12,
+            e2pow16,
+            e2pow24,
+            e2pow32,
+            ..
+        } = self;
         match cap {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => ElementStorageRef::EMPTY,
-            ElementArrayKey::E4 => self.e2pow4.get_descriptors_and_values_raw(index, len),
-            ElementArrayKey::E6 => self.e2pow6.get_descriptors_and_values_raw(index, len),
-            ElementArrayKey::E8 => self.e2pow8.get_descriptors_and_values_raw(index, len),
-            ElementArrayKey::E10 => self.e2pow10.get_descriptors_and_values_raw(index, len),
-            ElementArrayKey::E12 => self.e2pow12.get_descriptors_and_values_raw(index, len),
-            ElementArrayKey::E16 => self.e2pow16.get_descriptors_and_values_raw(index, len),
-            ElementArrayKey::E24 => self.e2pow24.get_descriptors_and_values_raw(index, len),
-            ElementArrayKey::E32 => self.e2pow32.get_descriptors_and_values_raw(index, len),
+            ElementArrayKey::E1 => e2pow1.get_descriptors_and_values_raw(index, len),
+            ElementArrayKey::E2 => e2pow2.get_descriptors_and_values_raw(index, len),
+            ElementArrayKey::E3 => e2pow3.get_descriptors_and_values_raw(index, len),
+            ElementArrayKey::E4 => e2pow4.get_descriptors_and_values_raw(index, len),
+            ElementArrayKey::E6 => e2pow6.get_descriptors_and_values_raw(index, len),
+            ElementArrayKey::E8 => e2pow8.get_descriptors_and_values_raw(index, len),
+            ElementArrayKey::E10 => e2pow10.get_descriptors_and_values_raw(index, len),
+            ElementArrayKey::E12 => e2pow12.get_descriptors_and_values_raw(index, len),
+            ElementArrayKey::E16 => e2pow16.get_descriptors_and_values_raw(index, len),
+            ElementArrayKey::E24 => e2pow24.get_descriptors_and_values_raw(index, len),
+            ElementArrayKey::E32 => e2pow32.get_descriptors_and_values_raw(index, len),
         }
     }
 
@@ -2649,17 +3370,34 @@ impl ElementArrays {
         cap: ElementArrayKey,
         len: u32,
     ) -> ElementStorageMut<'_> {
+        let ElementArrays {
+            e2pow1,
+            e2pow2,
+            e2pow3,
+            e2pow4,
+            e2pow6,
+            e2pow8,
+            e2pow10,
+            e2pow12,
+            e2pow16,
+            e2pow24,
+            e2pow32,
+            ..
+        } = self;
         let index = index.unbind();
         match cap {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => unreachable!(),
-            ElementArrayKey::E4 => self.e2pow4.get_descriptors_and_values_mut_raw(index, len),
-            ElementArrayKey::E6 => self.e2pow6.get_descriptors_and_values_mut_raw(index, len),
-            ElementArrayKey::E8 => self.e2pow8.get_descriptors_and_values_mut_raw(index, len),
-            ElementArrayKey::E10 => self.e2pow10.get_descriptors_and_values_mut_raw(index, len),
-            ElementArrayKey::E12 => self.e2pow12.get_descriptors_and_values_mut_raw(index, len),
-            ElementArrayKey::E16 => self.e2pow16.get_descriptors_and_values_mut_raw(index, len),
-            ElementArrayKey::E24 => self.e2pow24.get_descriptors_and_values_mut_raw(index, len),
-            ElementArrayKey::E32 => self.e2pow32.get_descriptors_and_values_mut_raw(index, len),
+            ElementArrayKey::E1 => e2pow1.get_descriptors_and_values_mut_raw(index, len),
+            ElementArrayKey::E2 => e2pow2.get_descriptors_and_values_mut_raw(index, len),
+            ElementArrayKey::E3 => e2pow3.get_descriptors_and_values_mut_raw(index, len),
+            ElementArrayKey::E4 => e2pow4.get_descriptors_and_values_mut_raw(index, len),
+            ElementArrayKey::E6 => e2pow6.get_descriptors_and_values_mut_raw(index, len),
+            ElementArrayKey::E8 => e2pow8.get_descriptors_and_values_mut_raw(index, len),
+            ElementArrayKey::E10 => e2pow10.get_descriptors_and_values_mut_raw(index, len),
+            ElementArrayKey::E12 => e2pow12.get_descriptors_and_values_mut_raw(index, len),
+            ElementArrayKey::E16 => e2pow16.get_descriptors_and_values_mut_raw(index, len),
+            ElementArrayKey::E24 => e2pow24.get_descriptors_and_values_mut_raw(index, len),
+            ElementArrayKey::E32 => e2pow32.get_descriptors_and_values_mut_raw(index, len),
         }
     }
 
@@ -2671,16 +3409,33 @@ impl ElementArrays {
         &mut self,
         vector: &ElementsVector,
     ) -> ElementStorageMut<'_> {
+        let ElementArrays {
+            e2pow1,
+            e2pow2,
+            e2pow3,
+            e2pow4,
+            e2pow6,
+            e2pow8,
+            e2pow10,
+            e2pow12,
+            e2pow16,
+            e2pow24,
+            e2pow32,
+            ..
+        } = self;
         match vector.cap {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => unreachable!(),
-            ElementArrayKey::E4 => self.e2pow4.get_descriptors_and_values_mut(vector),
-            ElementArrayKey::E6 => self.e2pow6.get_descriptors_and_values_mut(vector),
-            ElementArrayKey::E8 => self.e2pow8.get_descriptors_and_values_mut(vector),
-            ElementArrayKey::E10 => self.e2pow10.get_descriptors_and_values_mut(vector),
-            ElementArrayKey::E12 => self.e2pow12.get_descriptors_and_values_mut(vector),
-            ElementArrayKey::E16 => self.e2pow16.get_descriptors_and_values_mut(vector),
-            ElementArrayKey::E24 => self.e2pow24.get_descriptors_and_values_mut(vector),
-            ElementArrayKey::E32 => self.e2pow32.get_descriptors_and_values_mut(vector),
+            ElementArrayKey::E1 => e2pow1.get_descriptors_and_values_mut(vector),
+            ElementArrayKey::E2 => e2pow2.get_descriptors_and_values_mut(vector),
+            ElementArrayKey::E3 => e2pow3.get_descriptors_and_values_mut(vector),
+            ElementArrayKey::E4 => e2pow4.get_descriptors_and_values_mut(vector),
+            ElementArrayKey::E6 => e2pow6.get_descriptors_and_values_mut(vector),
+            ElementArrayKey::E8 => e2pow8.get_descriptors_and_values_mut(vector),
+            ElementArrayKey::E10 => e2pow10.get_descriptors_and_values_mut(vector),
+            ElementArrayKey::E12 => e2pow12.get_descriptors_and_values_mut(vector),
+            ElementArrayKey::E16 => e2pow16.get_descriptors_and_values_mut(vector),
+            ElementArrayKey::E24 => e2pow24.get_descriptors_and_values_mut(vector),
+            ElementArrayKey::E32 => e2pow32.get_descriptors_and_values_mut(vector),
         }
     }
 
@@ -2695,17 +3450,34 @@ impl ElementArrays {
         index: ElementIndex,
         cap: ElementArrayKey,
     ) -> ElementStorageUninit<'_> {
+        let ElementArrays {
+            e2pow1,
+            e2pow2,
+            e2pow3,
+            e2pow4,
+            e2pow6,
+            e2pow8,
+            e2pow10,
+            e2pow12,
+            e2pow16,
+            e2pow24,
+            e2pow32,
+            ..
+        } = self;
         let index = index.unbind();
         match cap {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => unreachable!(),
-            ElementArrayKey::E4 => self.e2pow4.get_descriptors_and_values_uninit_raw(index),
-            ElementArrayKey::E6 => self.e2pow6.get_descriptors_and_values_uninit_raw(index),
-            ElementArrayKey::E8 => self.e2pow8.get_descriptors_and_values_uninit_raw(index),
-            ElementArrayKey::E10 => self.e2pow10.get_descriptors_and_values_uninit_raw(index),
-            ElementArrayKey::E12 => self.e2pow12.get_descriptors_and_values_uninit_raw(index),
-            ElementArrayKey::E16 => self.e2pow16.get_descriptors_and_values_uninit_raw(index),
-            ElementArrayKey::E24 => self.e2pow24.get_descriptors_and_values_uninit_raw(index),
-            ElementArrayKey::E32 => self.e2pow32.get_descriptors_and_values_uninit_raw(index),
+            ElementArrayKey::E1 => e2pow1.get_descriptors_and_values_uninit_raw(index),
+            ElementArrayKey::E2 => e2pow2.get_descriptors_and_values_uninit_raw(index),
+            ElementArrayKey::E3 => e2pow3.get_descriptors_and_values_uninit_raw(index),
+            ElementArrayKey::E4 => e2pow4.get_descriptors_and_values_uninit_raw(index),
+            ElementArrayKey::E6 => e2pow6.get_descriptors_and_values_uninit_raw(index),
+            ElementArrayKey::E8 => e2pow8.get_descriptors_and_values_uninit_raw(index),
+            ElementArrayKey::E10 => e2pow10.get_descriptors_and_values_uninit_raw(index),
+            ElementArrayKey::E12 => e2pow12.get_descriptors_and_values_uninit_raw(index),
+            ElementArrayKey::E16 => e2pow16.get_descriptors_and_values_uninit_raw(index),
+            ElementArrayKey::E24 => e2pow24.get_descriptors_and_values_uninit_raw(index),
+            ElementArrayKey::E32 => e2pow32.get_descriptors_and_values_uninit_raw(index),
         }
     }
 
@@ -2722,19 +3494,45 @@ impl ElementArrays {
         values_cap: ElementArrayKey,
         len: u32,
     ) -> Option<PropertyStorageMut<'_, 'gc>> {
+        let Self {
+            k2pow1,
+            k2pow2,
+            k2pow3,
+            k2pow4,
+            k2pow6,
+            k2pow8,
+            k2pow10,
+            k2pow12,
+            k2pow16,
+            k2pow24,
+            k2pow32,
+            ..
+        } = self;
         let keys = match keys_cap {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => return None,
-            ElementArrayKey::E4 => self.k2pow4.get_raw(keys_index, len),
-            ElementArrayKey::E6 => self.k2pow6.get_raw(keys_index, len),
-            ElementArrayKey::E8 => self.k2pow8.get_raw(keys_index, len),
-            ElementArrayKey::E10 => self.k2pow10.get_raw(keys_index, len),
-            ElementArrayKey::E12 => self.k2pow12.get_raw(keys_index, len),
-            ElementArrayKey::E16 => self.k2pow16.get_raw(keys_index, len),
-            ElementArrayKey::E24 => self.k2pow24.get_raw(keys_index, len),
-            ElementArrayKey::E32 => self.k2pow32.get_raw(keys_index, len),
+            ElementArrayKey::E1 => k2pow1.get_raw(keys_index, len),
+            ElementArrayKey::E2 => k2pow2.get_raw(keys_index, len),
+            ElementArrayKey::E3 => k2pow3.get_raw(keys_index, len),
+            ElementArrayKey::E4 => k2pow4.get_raw(keys_index, len),
+            ElementArrayKey::E6 => k2pow6.get_raw(keys_index, len),
+            ElementArrayKey::E8 => k2pow8.get_raw(keys_index, len),
+            ElementArrayKey::E10 => k2pow10.get_raw(keys_index, len),
+            ElementArrayKey::E12 => k2pow12.get_raw(keys_index, len),
+            ElementArrayKey::E16 => k2pow16.get_raw(keys_index, len),
+            ElementArrayKey::E24 => k2pow24.get_raw(keys_index, len),
+            ElementArrayKey::E32 => k2pow32.get_raw(keys_index, len),
         };
         let elements = match values_cap {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => return None,
+            ElementArrayKey::E1 => self
+                .e2pow1
+                .get_descriptors_and_values_mut_raw(values_index.unbind(), len),
+            ElementArrayKey::E2 => self
+                .e2pow2
+                .get_descriptors_and_values_mut_raw(values_index.unbind(), len),
+            ElementArrayKey::E3 => self
+                .e2pow3
+                .get_descriptors_and_values_mut_raw(values_index.unbind(), len),
             ElementArrayKey::E4 => self
                 .e2pow4
                 .get_descriptors_and_values_mut_raw(values_index.unbind(), len),
@@ -2763,32 +3561,6 @@ impl ElementArrays {
         Some(PropertyStorageMut::from_keys_and_elements(keys, elements))
     }
 
-    pub(crate) fn get_descriptor(
-        &self,
-        vector: &ElementsVector,
-        index: usize,
-    ) -> Option<ElementDescriptor<'_>> {
-        let Ok(index) = u32::try_from(index) else {
-            return None;
-        };
-        let descriptors = match vector.cap {
-            ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => return None,
-            ElementArrayKey::E4 => &self.e2pow4.descriptors,
-            ElementArrayKey::E6 => &self.e2pow6.descriptors,
-            ElementArrayKey::E8 => &self.e2pow8.descriptors,
-            ElementArrayKey::E10 => &self.e2pow10.descriptors,
-            ElementArrayKey::E12 => &self.e2pow12.descriptors,
-            ElementArrayKey::E16 => &self.e2pow16.descriptors,
-            ElementArrayKey::E24 => &self.e2pow24.descriptors,
-            ElementArrayKey::E32 => &self.e2pow32.descriptors,
-        };
-        descriptors
-            .get(&vector.elements_index)?
-            .get(&index)
-            .copied()
-    }
-
-    /// This method creates a "shallow clone" of the elements of a trivial/dense array.
     /// It does not do anything with descriptors and assumes there is a previous validation in place.
     pub(crate) fn shallow_clone<'a>(
         &mut self,
@@ -2796,6 +3568,9 @@ impl ElementArrays {
     ) -> ElementsVector<'a> {
         let index = elements_vector.elements_index.into_index();
         let ElementArrays {
+            e2pow1,
+            e2pow2,
+            e2pow3,
             e2pow4,
             e2pow6,
             e2pow8,
@@ -2809,6 +3584,21 @@ impl ElementArrays {
         let new_index = match elements_vector.cap {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {
                 ElementIndex::from_u32_index(0)
+            }
+            ElementArrayKey::E1 => {
+                let elements = e2pow1;
+                elements.values.extend_from_within(index..index + 1);
+                ElementIndex::last_element_index(&elements.values)
+            }
+            ElementArrayKey::E2 => {
+                let elements = e2pow2;
+                elements.values.extend_from_within(index..index + 1);
+                ElementIndex::last_element_index(&elements.values)
+            }
+            ElementArrayKey::E3 => {
+                let elements = e2pow3;
+                elements.values.extend_from_within(index..index + 1);
+                ElementIndex::last_element_index(&elements.values)
             }
             ElementArrayKey::E4 => {
                 let elements = e2pow4;

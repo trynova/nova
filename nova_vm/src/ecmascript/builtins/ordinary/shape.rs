@@ -52,18 +52,37 @@ impl<'a> ObjectShape<'a> {
     /// and will thus be mutated upon intrinsic object mutation. It is thus not
     /// safe to inherit an intrinsic Object Shape.
     pub(crate) fn is_intrinsic(self, agent: &Agent) -> bool {
-        self.get(agent).cap != ElementArrayKey::Empty
+        self.get(agent).keys_cap != ElementArrayKey::Empty
             && self.get_transitions(agent).parent.is_none()
     }
 
     /// Get the Object Shape record.
     fn get(self, agent: &Agent) -> &ObjectShapeRecord<'a> {
-        &agent.heap.object_shapes[self.get_index()]
+        self.get_direct(&agent.heap.object_shapes)
     }
 
     /// Get the Object Shape record as mutable.
+    #[inline(always)]
     fn get_mut(self, agent: &mut Agent) -> &mut ObjectShapeRecord<'static> {
-        &mut agent.heap.object_shapes[self.get_index()]
+        self.get_direct_mut(&mut agent.heap.object_shapes)
+    }
+
+    /// Get the Object Shape record as mutable.
+    #[inline(always)]
+    fn get_direct<'r>(
+        self,
+        object_shapes: &'r [ObjectShapeRecord<'a>],
+    ) -> &'r ObjectShapeRecord<'a> {
+        &object_shapes[self.get_index()]
+    }
+
+    /// Get the Object Shape record as mutable.
+    #[inline(always)]
+    fn get_direct_mut<'r>(
+        self,
+        object_shapes: &'r mut [ObjectShapeRecord<'static>],
+    ) -> &'r mut ObjectShapeRecord<'static> {
+        &mut object_shapes[self.get_index()]
     }
 
     /// Get the Object Shape transitions.
@@ -87,34 +106,44 @@ impl<'a> ObjectShape<'a> {
         (raw_value & 0x7FFF_FFFF) as usize - 1
     }
 
+    /// Get the PropertyKeys of the Object Shape as a slice.
     pub(crate) fn keys<'e>(
         self,
         object_shapes: &[ObjectShapeRecord<'static>],
         elements: &'e ElementArrays,
     ) -> &'e [PropertyKey<'a>] {
         let data = &object_shapes[self.get_index()];
-        elements.get_keys_raw(data.cap, data.keys, data.len)
+        debug_assert_eq!(data.values_cap, data.len.into());
+        elements.get_keys_raw(data.keys_cap, data.keys, data.len)
     }
 
     /// Get the PropertyKeyIndex of the Object Shape.
-    pub(crate) fn get_keys(
+    pub(crate) fn keys_index(
         self,
         agent: &impl AsRef<[ObjectShapeRecord<'static>]>,
     ) -> PropertyKeyIndex<'a> {
-        agent.as_ref()[self.get_index()].keys
+        self.get_direct(agent.as_ref()).keys
     }
 
-    /// Get the capacity of the Object Shape.
-    pub(crate) fn capacity(
+    /// Get capacity of the keys storage referred to by this Object Shape.
+    pub(crate) fn keys_capacity(
         self,
         agent: &impl AsRef<[ObjectShapeRecord<'static>]>,
     ) -> ElementArrayKey {
-        agent.as_ref()[self.get_index()].cap
+        agent.as_ref()[self.get_index()].keys_cap
+    }
+
+    /// Get the Object property values capacity implied by this Object Shape.
+    pub(crate) fn values_capacity(
+        self,
+        agent: &impl AsRef<[ObjectShapeRecord<'static>]>,
+    ) -> ElementArrayKey {
+        self.get_direct(agent.as_ref()).values_cap
     }
 
     /// Get the length of the Object Shape keys.
     pub(crate) fn len(self, agent: &impl AsRef<[ObjectShapeRecord<'static>]>) -> u32 {
-        agent.as_ref()[self.get_index()].len
+        self.get_direct(agent.as_ref()).len
     }
 
     /// Return true if the OrdinaryObject holder of this ObjectShape reference
@@ -293,13 +322,16 @@ impl<'a> ObjectShape<'a> {
     ///
     /// This is only safe to use on intrinsic Object Shapes.
     unsafe fn push_key(self, agent: &mut Agent, key: PropertyKey<'a>) {
+        debug_assert_eq!(self.values_capacity(agent), self.len(agent).into());
         let ObjectShapeRecord {
             prototype: _,
             keys,
-            cap,
+            keys_cap,
+            values_cap,
             len,
         } = &mut agent.heap.object_shapes[self.get_index()];
-        unsafe { agent.heap.elements.push_key(cap, keys, len, key) }
+        unsafe { agent.heap.elements.push_key(keys_cap, keys, len, key) };
+        *values_cap = (*len).into();
     }
 
     /// Get or create an Object Shape with the given key added to this shape.
@@ -325,8 +357,8 @@ impl<'a> ObjectShape<'a> {
         }
         let prototype = self.get_prototype(agent);
         let len = self.len(agent) as usize;
-        let cap = self.capacity(agent);
-        let keys_index = self.get_keys(agent);
+        let cap = self.keys_capacity(agent);
+        let keys_index = self.keys_index(agent);
         let keys_uninit = agent.heap.elements.get_keys_uninit_raw(cap, keys_index);
         let shape_record = if let Some(slot) = keys_uninit.get_mut(len)
             && slot.is_none()
@@ -366,8 +398,8 @@ impl<'a> ObjectShape<'a> {
             // Asking for the prototype shape.
             return Some(Self::get_shape_for_prototype(agent, prototype));
         }
-        let cap = self.capacity(agent);
-        let keys_index = self.get_keys(agent);
+        let keys_cap = self.keys_capacity(agent);
+        let keys_index = self.keys_index(agent);
         // Find the ancestor.
         let mut ancestor_len = original_len.wrapping_sub(1);
         let mut ancestor_shape = self.get_parent(agent);
@@ -379,7 +411,7 @@ impl<'a> ObjectShape<'a> {
                 agent
                     .heap
                     .elements
-                    .get_keys_raw(cap, keys_index, ancestor_len)
+                    .get_keys_raw(keys_cap, keys_index, ancestor_len)
             );
             if parent.len(agent) == new_len {
                 // Found the ancestor.
@@ -450,18 +482,22 @@ impl<'a> ObjectShape<'a> {
     pub(crate) fn get_shape_with_removal(self, agent: &mut Agent, index: u32) -> Self {
         let len = self.len(agent);
         debug_assert!(index < len);
-        let cap = self.capacity(agent);
-        let keys_index = self.get_keys(agent);
+        let keys_cap = self.keys_capacity(agent);
+        let keys_index = self.keys_index(agent);
         if self.is_intrinsic(agent) {
+            debug_assert_eq!(self.values_capacity(agent), self.len(agent).into());
+            let data = self.get_direct_mut(&mut agent.heap.object_shapes);
             // SAFETY: Mutating an intrinsic Object Shape.
             unsafe {
-                agent.heap.elements.remove_key(
-                    cap,
-                    keys_index,
-                    &mut agent.heap.object_shapes[self.get_index()].len,
-                    index as usize,
-                )
+                agent
+                    .heap
+                    .elements
+                    .remove_key(keys_cap, keys_index, &mut data.len, index)
             };
+            // We have to update the values capacity in case we crossed a
+            // border here.
+            data.values_cap = data.len.into();
+            debug_assert_eq!(self.values_capacity(agent), self.len(agent).into());
             return self;
         }
         let prototype = self.get_prototype(agent);
@@ -475,7 +511,7 @@ impl<'a> ObjectShape<'a> {
             // post-removal keys.
             for i in index.wrapping_add(1)..len {
                 // Add old keys to parent shape.
-                let key = agent.heap.elements.get_keys_raw(cap, keys_index, len)[i as usize];
+                let key = agent.heap.elements.get_keys_raw(keys_cap, keys_index, len)[i as usize];
                 if let Some(s) = parent_shape.get_transition_to(agent, key) {
                     parent_shape = s;
                     continue;
@@ -483,7 +519,7 @@ impl<'a> ObjectShape<'a> {
                 // Couldn't find a path to an existing Object Shape. Copy the
                 // final keys into a new key storage.
                 let (new_cap, new_keys_index) = agent.heap.elements.copy_keys_with_removal(
-                    cap,
+                    keys_cap,
                     keys_index,
                     len,
                     index as usize,
@@ -517,15 +553,16 @@ impl<'a> ObjectShape<'a> {
         let ObjectShapeRecord {
             prototype: _,
             keys,
-            cap,
+            keys_cap,
             len,
+            values_cap,
         } = &mut agent.heap.object_shapes[self.get_index()];
         let private_fields_count = u32::try_from(private_fields.len()).unwrap();
         agent
             .heap
             .elements
-            .reserve_properties_raw(keys, cap, *len, private_fields_count);
-        let keys = agent.heap.elements.get_keys_uninit_raw(*cap, *keys);
+            .reserve_keys_raw(keys, keys_cap, *len, private_fields_count);
+        let keys = agent.heap.elements.get_keys_uninit_raw(*keys_cap, *keys);
         keys.copy_within(
             insertion_index..*len as usize,
             insertion_index + private_fields.len(),
@@ -537,6 +574,7 @@ impl<'a> ObjectShape<'a> {
             *slot = Some(key.into());
         }
         *len += private_fields_count;
+        *values_cap = (*len).into();
         (self, insertion_index)
     }
 
@@ -618,8 +656,8 @@ impl<'a> ObjectShape<'a> {
         // to first find our common ancestor shape.
         let ancestor_shape = self.get_ancestor_shape(agent, insertion_index as u32);
         let prototype = self.get_prototype(agent);
-        let cap = self.capacity(agent);
-        let keys_index = self.get_keys(agent);
+        let cap = self.keys_capacity(agent);
+        let keys_index = self.keys_index(agent);
         if let Some(mut parent_shape) = ancestor_shape {
             for field in private_fields {
                 let key = field.get_key();
@@ -688,8 +726,8 @@ impl<'a> ObjectShape<'a> {
             return self;
         }
         let original_len = self.len(agent);
-        let original_cap = self.capacity(agent);
-        let original_keys_index = self.get_keys(agent);
+        let original_cap = self.keys_capacity(agent);
+        let original_keys_index = self.keys_index(agent);
         let mut shape = Self::get_shape_for_prototype(agent, prototype);
         let keys = self.keys(&agent.heap.object_shapes, &agent.heap.elements);
         for i in 0..original_len as usize {
@@ -733,9 +771,10 @@ impl<'a> ObjectShape<'a> {
     pub(crate) fn make_intrinsic(self, agent: &mut Agent) -> Self {
         let properties_count = self.len(agent);
         let prototype = self.get_prototype(agent);
-        // Note: intrinsics should always allocate a keys storage.
-        let cap = self.capacity(agent);
-        let keys = self.get_keys(agent);
+        // Note: intrinsics must always own their keys uniquely, so a copy must
+        // be made here.
+        let cap = self.keys_capacity(agent);
+        let keys = self.keys_index(agent);
         let (cap, index) = agent.heap.elements.copy_keys_with_capacity(
             properties_count as usize,
             cap,
@@ -828,11 +867,23 @@ pub struct ObjectShapeRecord<'a> {
     /// Keys storage of the shape.
     ///
     /// The keys storage index is given by this value, while the vector
-    /// (capacity) is determined by the cap field.
+    /// (capacity) is determined by the `keys_cap` field.
     keys: PropertyKeyIndex<'a>,
-    cap: ElementArrayKey,
-    /// Length of the keys storage of the shape.
+    /// Keys storage capacity of the shape.
+    ///
+    /// The keys storage vector (capacity) is determined by this field, while
+    /// the index in that vector is determined by the `keys` field.
+    keys_cap: ElementArrayKey,
+    /// Length of the keys/values storage of the shape.
+    ///
+    /// This is the number of properties that a object with this shape has.
     len: u32,
+    /// Values storage capacity of objects with this shape.
+    ///
+    /// An ObjectRecord contains only an ElementIndex, ie. it only defines an
+    /// index in a vector of value arrays. This capacity value defines the
+    /// vector that the index points into.
+    values_cap: ElementArrayKey,
 }
 
 impl<'a> ObjectShapeRecord<'a> {
@@ -842,8 +893,9 @@ impl<'a> ObjectShapeRecord<'a> {
     pub(crate) const NULL: Self = Self {
         prototype: None,
         keys: PropertyKeyIndex::from_index(0),
-        cap: ElementArrayKey::Empty,
+        keys_cap: ElementArrayKey::Empty,
         len: 0,
+        values_cap: ElementArrayKey::Empty,
     };
 
     /// Base Object Shape Record.
@@ -859,8 +911,9 @@ impl<'a> ObjectShapeRecord<'a> {
             IntrinsicObjectIndexes::ObjectPrototype.get_backing_object(BaseIndex::from_index(0)),
         )),
         keys: BaseIndex::from_index(0),
-        cap: ElementArrayKey::Empty,
+        keys_cap: ElementArrayKey::Empty,
         len: 0,
+        values_cap: ElementArrayKey::Empty,
     };
 
     /// Create an Object Shape for the given prototype.
@@ -869,8 +922,9 @@ impl<'a> ObjectShapeRecord<'a> {
         Self {
             prototype: Some(prototype),
             keys: PropertyKeyIndex::from_index(0),
-            cap: ElementArrayKey::Empty,
+            keys_cap: ElementArrayKey::Empty,
             len: 0,
+            values_cap: ElementArrayKey::Empty,
         }
     }
 
@@ -878,14 +932,16 @@ impl<'a> ObjectShapeRecord<'a> {
     pub(crate) fn create(
         prototype: Option<Object<'a>>,
         keys: PropertyKeyIndex<'a>,
-        cap: ElementArrayKey,
+        keys_cap: ElementArrayKey,
         len: usize,
     ) -> Self {
+        let len = u32::try_from(len).expect("Unreasonable object size");
         Self {
             prototype,
             keys,
-            cap,
-            len: u32::try_from(len).expect("Unreasonable object size"),
+            keys_cap,
+            len,
+            values_cap: len.into(),
         }
     }
 
@@ -1103,7 +1159,7 @@ impl<'a> CreateHeapData<(ObjectShapeRecord<'a>, ObjectShapeTransitionMap<'a>), O
         data: (ObjectShapeRecord<'a>, ObjectShapeTransitionMap<'a>),
     ) -> ObjectShape<'a> {
         let (record, transitions) = data;
-        let is_root = record.cap == ElementArrayKey::Empty;
+        let is_root = record.keys_cap == ElementArrayKey::Empty;
         let prototype = record.prototype;
         if is_root {
             debug_assert_eq!(
@@ -1175,12 +1231,18 @@ impl HeapMarkAndSweep for ObjectShapeRecord<'static> {
         let Self {
             prototype,
             keys,
-            cap,
+            keys_cap,
             len,
+            // Note: values capacity is only used for marking and sweeping
+            // objects, not object shapes themselves.
+            values_cap: _,
         } = self;
         prototype.mark_values(queues);
-        match cap {
+        match keys_cap {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {}
+            ElementArrayKey::E1 => queues.k_2_1.push((*keys, *len)),
+            ElementArrayKey::E2 => queues.k_2_2.push((*keys, *len)),
+            ElementArrayKey::E3 => queues.k_2_3.push((*keys, *len)),
             ElementArrayKey::E4 => queues.k_2_4.push((*keys, *len)),
             ElementArrayKey::E6 => queues.k_2_6.push((*keys, *len)),
             ElementArrayKey::E8 => queues.k_2_8.push((*keys, *len)),
@@ -1196,12 +1258,18 @@ impl HeapMarkAndSweep for ObjectShapeRecord<'static> {
         let Self {
             prototype,
             keys,
-            cap,
+            keys_cap,
             len: _,
+            // Note: values capacity is only used for marking and sweeping
+            // objects, not object shapes themselves.
+            values_cap: _,
         } = self;
         prototype.sweep_values(compactions);
-        match cap {
+        match keys_cap {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {}
+            ElementArrayKey::E1 => compactions.k_2_1.shift_index(keys),
+            ElementArrayKey::E2 => compactions.k_2_2.shift_index(keys),
+            ElementArrayKey::E3 => compactions.k_2_3.shift_index(keys),
             ElementArrayKey::E4 => compactions.k_2_4.shift_index(keys),
             ElementArrayKey::E6 => compactions.k_2_6.shift_index(keys),
             ElementArrayKey::E8 => compactions.k_2_8.shift_index(keys),

@@ -449,20 +449,24 @@ impl<'a> PropertyStorage<'a> {
         let data = object.get_mut(agent);
         data.set_shape(new_shape);
         data.set_values(elements_vector.elements_index.unbind());
-        debug_assert_eq!(object.len(agent), new_len);
-        debug_assert_eq!(object.len(agent), elements_vector.len());
-        debug_assert_eq!(
-            object.object_shape(agent).capacity(agent).capacity(),
-            elements_vector.cap()
-        );
-        debug_assert_eq!(
-            object.get(agent).get_values(),
-            elements_vector.elements_index
-        );
-        let property_storage = object.get_property_storage(agent);
-        debug_assert_eq!(property_storage.keys.len(), new_len as usize);
-        debug_assert_eq!(property_storage.keys.last(), Some(&key));
-        debug_assert_eq!(property_storage.values.last(), Some(&value));
+        if cfg!(debug_assertions) {
+            assert_eq!(object.len(agent), new_len);
+            assert_eq!(object.len(agent), elements_vector.len());
+            assert_eq!(
+                object.object_shape(agent).values_capacity(agent).capacity(),
+                elements_vector.cap(),
+                "{}",
+                key.as_display(agent)
+            );
+            assert_eq!(
+                object.get(agent).get_values(),
+                elements_vector.elements_index
+            );
+            let property_storage = object.get_property_storage(agent);
+            assert_eq!(property_storage.keys.len(), new_len as usize);
+            assert_eq!(property_storage.keys.last(), Some(&key));
+            assert_eq!(property_storage.values.last(), Some(&value));
+        }
         Ok(())
     }
 
@@ -470,7 +474,7 @@ impl<'a> PropertyStorage<'a> {
         let object = self.0;
 
         let old_shape = object.object_shape(agent);
-        let old_cap = old_shape.capacity(agent);
+        let old_cap = old_shape.values_capacity(agent);
 
         let keys = old_shape.keys(&agent.heap.object_shapes, &agent.heap.elements);
 
@@ -489,14 +493,14 @@ impl<'a> PropertyStorage<'a> {
         let new_len = old_len - 1;
 
         let new_shape = old_shape.get_shape_with_removal(agent, index);
-        let new_cap = new_shape.capacity(agent);
+        let new_cap = new_shape.values_capacity(agent);
 
         if new_cap != old_cap {
             // We need to perform a copy with this removal, as it changes the
             // capacity of the shape and thus the object.
             // Note: we purposefully check new_cap from shape after removal,
-            // allowing intrinsic object to drift be temporarily invalid here.
-            // This is because it's possible that the new shape is actually
+            // allowing intrinsic object to be temporarily invalid here. This
+            // is because it's possible that the new shape is actually
             // allocated based on some much larger shape and overallocates a
             // bunch. That's intentional (at least for now).
             let new_values = agent.heap.elements.realloc_values_with_removal(

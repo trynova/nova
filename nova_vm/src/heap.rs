@@ -107,9 +107,10 @@ use crate::{
 #[cfg(feature = "array-buffer")]
 use ahash::AHashMap;
 use element_array::{
-    ElementArray2Pow4, ElementArray2Pow6, PropertyKeyArray2Pow4, PropertyKeyArray2Pow6,
-    PropertyKeyArray2Pow8, PropertyKeyArray2Pow10, PropertyKeyArray2Pow12, PropertyKeyArray2Pow16,
-    PropertyKeyArray2Pow24, PropertyKeyArray2Pow32,
+    ElementArray2Pow1, ElementArray2Pow2, ElementArray2Pow3, ElementArray2Pow4, ElementArray2Pow6,
+    PropertyKeyArray2Pow1, PropertyKeyArray2Pow2, PropertyKeyArray2Pow3, PropertyKeyArray2Pow4,
+    PropertyKeyArray2Pow6, PropertyKeyArray2Pow8, PropertyKeyArray2Pow10, PropertyKeyArray2Pow12,
+    PropertyKeyArray2Pow16, PropertyKeyArray2Pow24, PropertyKeyArray2Pow32,
 };
 use hashbrown::HashTable;
 pub(crate) use heap_bits::{
@@ -276,16 +277,22 @@ impl Heap {
             dates: Vec::with_capacity(1024),
             ecmascript_functions: Vec::with_capacity(1024),
             elements: ElementArrays {
-                e2pow4: ElementArray2Pow4::with_capacity(1024),
-                e2pow6: ElementArray2Pow6::with_capacity(1024),
+                e2pow1: ElementArray2Pow1::with_capacity(1024),
+                e2pow2: ElementArray2Pow2::with_capacity(1024),
+                e2pow3: ElementArray2Pow3::with_capacity(1024),
+                e2pow4: ElementArray2Pow4::with_capacity(512),
+                e2pow6: ElementArray2Pow6::with_capacity(512),
                 e2pow8: ElementArray2Pow8::default(),
                 e2pow10: ElementArray2Pow10::default(),
                 e2pow12: ElementArray2Pow12::default(),
                 e2pow16: ElementArray2Pow16::default(),
                 e2pow24: ElementArray2Pow24::default(),
                 e2pow32: ElementArray2Pow32::default(),
-                k2pow4: PropertyKeyArray2Pow4::with_capacity(1024),
-                k2pow6: PropertyKeyArray2Pow6::with_capacity(1024),
+                k2pow1: PropertyKeyArray2Pow1::with_capacity(1024),
+                k2pow2: PropertyKeyArray2Pow2::with_capacity(1024),
+                k2pow3: PropertyKeyArray2Pow3::with_capacity(1024),
+                k2pow4: PropertyKeyArray2Pow4::with_capacity(512),
+                k2pow6: PropertyKeyArray2Pow6::with_capacity(512),
                 k2pow8: PropertyKeyArray2Pow8::default(),
                 k2pow10: PropertyKeyArray2Pow10::default(),
                 k2pow12: PropertyKeyArray2Pow12::default(),
