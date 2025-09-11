@@ -270,11 +270,14 @@ impl PromiseConstructor {
         .unbind()?
         .bind(gc.nogc());
 
-        let promise_all_record = agent.heap.create(PromiseAllRecord {
-            remaining_unresolved_promise_count: array_len,
-            result_array: result_array.unbind(),
-            promise: scoped_result_promise.get(agent),
-        });
+        let promise_all_reference = agent
+            .heap
+            .create(PromiseAllRecord {
+                remaining_unresolved_promise_count: array_len,
+                result_array: result_array.unbind(),
+                promise: scoped_result_promise.get(agent),
+            })
+            .scope(agent, gc.nogc());
 
         for index in 0..array_len {
             let element = scoped_promise_array.get(agent).as_slice(agent)[index as usize];
@@ -292,16 +295,16 @@ impl PromiseConstructor {
             let capability = PromiseCapability::new(agent, gc.nogc());
             inner_promise_then(
                 agent,
-                promise.unbind(),
+                promise,
                 PromiseReactionHandler::PromiseAll {
                     index,
-                    promise_all: promise_all_record,
+                    promise_all: promise_all_reference.get(agent),
                 },
                 PromiseReactionHandler::PromiseAll {
                     index,
-                    promise_all: promise_all_record,
+                    promise_all: promise_all_reference.get(agent),
                 },
-                Some(capability.unbind()),
+                Some(capability),
                 gc.nogc(),
             );
         }
