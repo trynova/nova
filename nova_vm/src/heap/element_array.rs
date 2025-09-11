@@ -2528,7 +2528,7 @@ impl ElementArrays {
             debug_assert_eq!(removal_index, 0);
             return ElementIndex::from_u32_index(0);
         }
-        
+
         if dst_cap == src_cap {
             // No change in capacity.
             panic!("Should not request realloc with same capacity");
