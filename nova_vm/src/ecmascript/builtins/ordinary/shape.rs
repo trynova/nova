@@ -87,15 +87,38 @@ impl<'a> ObjectShape<'a> {
 
     /// Get the Object Shape transitions.
     fn get_transitions(self, agent: &Agent) -> &ObjectShapeTransitionMap<'a> {
-        &agent.heap.object_shape_transitions[self.get_index()]
+        self.get_transitions_direct(&agent.heap.object_shape_transitions)
     }
 
     /// Get the Object Shape transitions as mutable.
     pub(crate) fn get_transitions_mut(
         self,
-        transitions: &mut impl AsMut<[ObjectShapeTransitionMap<'static>]>,
-    ) -> &mut ObjectShapeTransitionMap<'static> {
-        &mut transitions.as_mut()[self.get_index()]
+        agent: &mut Agent,
+    ) -> &mut ObjectShapeTransitionMap<'a> {
+        self.get_transitions_direct_mut(&mut agent.heap.object_shape_transitions)
+    }
+
+    /// Get the Object Shape transitions.
+    fn get_transitions_direct<'r>(
+        self,
+        transitions: &'r [ObjectShapeTransitionMap<'a>],
+    ) -> &'r ObjectShapeTransitionMap<'a> {
+        &transitions[self.get_index()]
+    }
+
+    /// Get the Object Shape transitions as mutable.
+    pub(crate) fn get_transitions_direct_mut<'r>(
+        self,
+        transitions: &'r mut [ObjectShapeTransitionMap<'static>],
+    ) -> &'r mut ObjectShapeTransitionMap<'a> {
+        // SAFETY: Lifetime transmute to thread GC lifetime to temporary heap
+        // reference.
+        unsafe {
+            core::mem::transmute::<
+                &'r mut ObjectShapeTransitionMap<'static>,
+                &'r mut ObjectShapeTransitionMap<'a>,
+            >(&mut transitions[self.get_index()])
+        }
     }
 
     /// Get the implied usize index of the ObjectShape reference.
@@ -130,7 +153,7 @@ impl<'a> ObjectShape<'a> {
         self,
         agent: &impl AsRef<[ObjectShapeRecord<'static>]>,
     ) -> ElementArrayKey {
-        agent.as_ref()[self.get_index()].keys_cap
+        self.get_direct(agent.as_ref()).keys_cap
     }
 
     /// Get the Object property values capacity implied by this Object Shape.
@@ -166,7 +189,7 @@ impl<'a> ObjectShape<'a> {
 
     /// Get the length of the Object Shape keys.
     pub(crate) fn is_empty(self, agent: &impl AsRef<[ObjectShapeRecord<'static>]>) -> bool {
-        agent.as_ref()[self.get_index()].is_empty()
+        self.get_direct(agent.as_ref()).is_empty()
     }
 
     /// Get the prototype of the Object Shape.
@@ -174,7 +197,7 @@ impl<'a> ObjectShape<'a> {
         self,
         agent: &impl AsRef<[ObjectShapeRecord<'static>]>,
     ) -> Option<Object<'a>> {
-        agent.as_ref()[self.get_index()].prototype
+        self.get_direct(agent.as_ref()).prototype
     }
 
     /// Get the parent Object Shape of this Object Shape.
@@ -182,7 +205,7 @@ impl<'a> ObjectShape<'a> {
         self,
         agent: &impl AsRef<[ObjectShapeTransitionMap<'static>]>,
     ) -> Option<ObjectShape<'a>> {
-        agent.as_ref()[self.get_index()].parent
+        self.get_transitions_direct(agent.as_ref()).parent
     }
 
     /// Get the Object Shape that is reached by adding the given property to
@@ -308,7 +331,8 @@ impl<'a> ObjectShape<'a> {
 
     /// Add a transition from self to child by key.
     fn add_transition(self, agent: &mut Agent, key: PropertyKey<'a>, child: Self) {
-        let self_transitions = self.get_transitions_mut(&mut agent.heap.object_shape_transitions);
+        let self_transitions =
+            self.get_transitions_direct_mut(&mut agent.heap.object_shape_transitions);
         self_transitions.insert(
             key,
             child,
@@ -329,7 +353,7 @@ impl<'a> ObjectShape<'a> {
             keys_cap,
             values_cap,
             len,
-        } = &mut agent.heap.object_shapes[self.get_index()];
+        } = self.get_direct_mut(&mut agent.heap.object_shapes);
         unsafe { agent.heap.elements.push_key(keys_cap, keys, len, key) };
         *values_cap = (*len).into();
     }
@@ -556,7 +580,7 @@ impl<'a> ObjectShape<'a> {
             keys_cap,
             len,
             values_cap,
-        } = &mut agent.heap.object_shapes[self.get_index()];
+        } = self.get_direct_mut(&mut agent.heap.object_shapes);
         let private_fields_count = u32::try_from(private_fields.len()).unwrap();
         agent
             .heap
