@@ -70,11 +70,7 @@ pub(crate) fn array_create<'a>(
     };
     // 3. Let A be MakeBasicObject(« [[Prototype]], [[Extensible]] »).
     // 5. Set A.[[DefineOwnProperty]] as specified in 10.4.2.1.
-    let mut elements = match agent
-        .heap
-        .elements
-        .allocate_elements_with_capacity(capacity)
-    {
+    let mut elements = match agent.heap.elements.allocate_elements_with_length(capacity) {
         Ok(e) => e,
         Err(err) => {
             return Err(agent.throw_allocation_exception(err, gc));

@@ -4215,7 +4215,7 @@ impl ArrayPrototype {
         // attributes are { [[Writable]]: true, [[Enumerable]]: false,
         // [[Configurable]]: false }.
         debug_assert_eq!(data.elements.elements_index.into_u32_index(), 0);
-        debug_assert_eq!(data.elements.cap.cap(), 0);
+        debug_assert_eq!(data.elements.cap.capacity(), 0);
         debug_assert_eq!(data.elements.len, 0);
         debug_assert!(data.elements.len_writable);
     }

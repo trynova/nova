@@ -30,8 +30,8 @@ use crate::{
             agent::{ExceptionType, TryResult, js_result_into_try, try_result_into_js, unwrap_try},
         },
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, IntoFunction, IntoObject, IntoValue, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoFunction, IntoObject,
+            IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
             try_get_result_into_value,
         },
     },
@@ -722,7 +722,7 @@ impl ObjectConstructor {
         );
         // 3. Assert: obj is an extensible ordinary object with no own properties.
         let obj = OrdinaryObject::try_from(obj).unwrap();
-        debug_assert!(agent[obj].is_empty());
+        debug_assert!(obj.internal_extensible(agent) && obj.is_empty(agent));
         // 4. Let closure be a new Abstract Closure with parameters (key,
         //    value) that captures obj and performs the following steps when
         //    called:

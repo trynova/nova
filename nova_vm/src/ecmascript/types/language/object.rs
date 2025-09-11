@@ -122,7 +122,7 @@ use crate::{
 };
 
 use ahash::AHashMap;
-pub use data::ObjectHeapData;
+pub(crate) use data::ObjectRecord;
 pub use internal_methods::*;
 pub use internal_slots::InternalSlots;
 pub use into_object::IntoObject;
@@ -226,15 +226,18 @@ impl Object<'_> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct OrdinaryObject<'a>(BaseIndex<'a, ObjectHeapData<'static>>);
+pub struct OrdinaryObject<'a>(BaseIndex<'a, ObjectRecord<'static>>);
 
 bindable_handle!(OrdinaryObject);
 
 impl<'a> OrdinaryObject<'a> {
-    /// Allocate a a new uninitialised (None) OrdinaryObject and return its reference.
+    /// Allocate a a new blank OrdinaryObject and return its reference.
+    ///
+    /// The new OrdinaryObject is conceptually equivalent to a
+    /// `{ __proto__: null }` object.
     pub(crate) fn new_uninitialised(agent: &mut Agent) -> Self {
-        agent.heap.objects.push(None);
-        OrdinaryObject(BaseIndex::last(&agent.heap.objects))
+        agent.heap.objects.push(ObjectRecord::BLANK);
+        OrdinaryObject(BaseIndex::last_t(&agent.heap.objects))
     }
 
     pub(crate) const fn _def() -> Self {
@@ -245,18 +248,43 @@ impl<'a> OrdinaryObject<'a> {
         self.0.into_index()
     }
 
+    #[inline(always)]
+    pub(crate) fn get(self, agent: &Agent) -> &ObjectRecord<'a> {
+        self.get_direct(&agent.heap.objects)
+    }
+
+    #[inline(always)]
+    pub(crate) fn get_mut(self, agent: &mut Agent) -> &mut ObjectRecord<'a> {
+        self.get_direct_mut(&mut agent.heap.objects)
+    }
+
+    #[inline(always)]
+    pub(crate) fn get_direct<'o>(self, objects: &'o [ObjectRecord<'a>]) -> &'o ObjectRecord<'a> {
+        &objects[self.get_index()]
+    }
+
+    #[inline(always)]
+    pub(crate) fn get_direct_mut<'o>(
+        self,
+        objects: &'o mut [ObjectRecord<'static>],
+    ) -> &'o mut ObjectRecord<'a> {
+        // SAFETY: Lifetime transmute to thread GC lifetime to temporary heap
+        // reference.
+        unsafe {
+            core::mem::transmute::<&mut ObjectRecord<'static>, &mut ObjectRecord<'a>>(
+                &mut objects[self.get_index()],
+            )
+        }
+    }
+
     /// Returns true if the Object has no properties.
     pub(crate) fn is_empty(self, agent: &Agent) -> bool {
-        agent[self].is_empty()
+        self.get(agent).is_empty(agent)
     }
 
     /// Returns the number of properties in the object.
     pub(crate) fn len(self, agent: &Agent) -> u32 {
-        agent[self].len()
-    }
-
-    pub(crate) fn reserve(self, agent: &mut Agent, new_len: u32) -> Result<(), TryReserveError> {
-        agent.heap.objects[self].reserve(&mut agent.heap.elements, new_len)
+        self.get(agent).len(agent)
     }
 
     pub fn create_empty_object(agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Self {
@@ -278,7 +306,7 @@ impl<'a> OrdinaryObject<'a> {
             return;
         }
         let new_shape = shape.make_intrinsic(agent);
-        agent[self].set_shape(new_shape);
+        self.get_mut(agent).set_shape(new_shape);
     }
 
     pub(crate) unsafe fn try_set_property_by_offset<'gc>(
@@ -340,10 +368,10 @@ impl<'a> OrdinaryObject<'a> {
             objects,
             ..
         } = &agent.heap;
-        let data = &objects[self];
+        let data = self.get_direct(objects);
         let shape = data.get_shape();
         let keys = shape.keys(object_shapes, elements);
-        let elements = data.get_storage(elements);
+        let elements = data.get_storage(elements, object_shapes);
         debug_assert_eq!(keys.len(), elements.values.len());
         PropertyStorageRef::from_keys_and_elements(keys, elements)
     }
@@ -358,23 +386,50 @@ impl<'a> OrdinaryObject<'a> {
             objects,
             ..
         } = &mut agent.heap;
-        let data = &objects[self];
+        let data = self.get_direct(objects);
         let shape = data.get_shape();
         elements.get_property_storage_mut_raw(
-            shape.get_keys(object_shapes),
-            shape.get_cap(object_shapes),
+            shape.keys_index(object_shapes),
+            shape.keys_capacity(object_shapes),
             data.get_values(),
-            data.get_cap(),
-            data.len(),
+            shape.values_capacity(object_shapes),
+            shape.len(object_shapes),
         )
+    }
+
+    /// Get the elements backing storage of the Object as an ElementsVector.
+    ///
+    /// The Object owns this backing storage uniquely. Performing mutations on
+    /// the ElementsVector needs to be done carefully to avoid causing
+    /// "undefined behaviour" in JavaScript.
+    pub(crate) fn get_elements_vector(self, agent: &Agent) -> ElementsVector<'a> {
+        let data = self.get(agent);
+        let shape = data.get_shape();
+        let elements_index = data.get_values();
+        let len_writable = shape.extensible();
+        let cap = shape.values_capacity(agent);
+        let len = shape.len(agent);
+        ElementsVector {
+            elements_index,
+            cap,
+            len,
+            len_writable,
+        }
     }
 
     pub(crate) fn get_elements_storage<'b>(self, agent: &'b Agent) -> ElementStorageRef<'b, 'a> {
         let Heap {
-            elements, objects, ..
+            elements,
+            objects,
+            object_shapes,
+            ..
         } = &agent.heap;
-        let data = &objects[self];
-        elements.get_element_storage_raw(data.get_values(), data.get_cap(), data.len())
+        let data = self.get_direct(objects);
+        elements.get_element_storage_raw(
+            data.get_values(),
+            data.values_capacity(object_shapes),
+            data.len(object_shapes),
+        )
     }
 
     pub(crate) fn get_elements_storage_mut<'b>(
@@ -382,10 +437,17 @@ impl<'a> OrdinaryObject<'a> {
         agent: &'b mut Agent,
     ) -> ElementStorageMut<'b> {
         let Heap {
-            elements, objects, ..
+            elements,
+            objects,
+            object_shapes,
+            ..
         } = &mut agent.heap;
-        let data = &objects[self];
-        elements.get_element_storage_mut_raw(data.get_values(), data.get_cap(), data.len())
+        let data = self.get_direct(objects);
+        elements.get_element_storage_mut_raw(
+            data.get_values(),
+            data.values_capacity(object_shapes),
+            data.len(object_shapes),
+        )
     }
 
     pub(crate) fn get_elements_storage_uninit<'b>(
@@ -393,10 +455,14 @@ impl<'a> OrdinaryObject<'a> {
         agent: &'b mut Agent,
     ) -> ElementStorageUninit<'b> {
         let Heap {
-            elements, objects, ..
+            elements,
+            objects,
+            object_shapes,
+            ..
         } = &mut agent.heap;
-        let data = &objects[self];
-        elements.get_element_storage_uninit_raw(data.get_values(), data.get_cap())
+        let data = self.get_direct(objects);
+        elements
+            .get_element_storage_uninit_raw(data.get_values(), data.values_capacity(object_shapes))
     }
 
     fn create_object_internal(
@@ -417,15 +483,15 @@ impl<'a> OrdinaryObject<'a> {
             elements_index: values,
             cap,
             len,
-            len_writable: extensible,
+            len_writable: _,
         } = agent
             .heap
             .elements
             .allocate_object_property_storage_from_entries_slice(entries)
             .expect("Failed to create object");
-        agent
-            .heap
-            .create(ObjectHeapData::new(shape, values, cap, len, extensible))
+        assert_eq!(len, shape.len(agent));
+        assert_eq!(cap.capacity(), shape.values_capacity(agent).capacity());
+        agent.heap.create(ObjectRecord::new(shape, values))
     }
 
     pub fn create_object(
@@ -452,34 +518,32 @@ impl<'a> OrdinaryObject<'a> {
             elements_index: values,
             cap,
             len,
-            len_writable: extensible,
+            len_writable: _,
         } = agent
             .heap
             .elements
             .allocate_property_storage(values, None)
             .expect("Failed to create object");
-        agent
-            .heap
-            .create(ObjectHeapData::new(shape, values, cap, len, extensible))
+        assert_eq!(cap, shape.values_capacity(agent));
+        assert_eq!(len, shape.len(agent));
+        agent.heap.create(ObjectRecord::new(shape, values))
     }
 
     pub(crate) fn create_object_with_shape(
         agent: &mut Agent,
         shape: ObjectShape<'a>,
     ) -> Result<Self, TryReserveError> {
-        // SAFETY: Option<Value> uses a niche in Value enum at discriminant 0.
         let ElementsVector {
             elements_index: values,
             cap,
-            len,
-            len_writable: extensible,
+            len: _,
+            len_writable: _,
         } = agent
             .heap
             .elements
-            .allocate_elements_with_capacity(shape.get_length(agent) as usize)?;
-        Ok(agent
-            .heap
-            .create(ObjectHeapData::new(shape, values, cap, len, extensible)))
+            .allocate_elements_with_capacity(shape.values_capacity(agent))?;
+        assert_eq!(cap, shape.values_capacity(agent));
+        Ok(agent.heap.create(ObjectRecord::new(shape, values)))
     }
 
     /// Creates a new "intrinsic" object. An intrinsic object owns its Object
@@ -494,8 +558,8 @@ impl<'a> OrdinaryObject<'a> {
         let (cap, index) = agent
             .heap
             .elements
-            // Note: intrinsics should always allocate a keys storage.
-            .allocate_keys_with_capacity(properties_count.max(1));
+            .allocate_keys_with_capacity(properties_count);
+        let cap = cap.make_intrinsic();
         let keys_memory = agent.heap.elements.get_keys_uninit_raw(cap, index);
         for (slot, key) in keys_memory.iter_mut().zip(entries.iter().map(|e| e.key)) {
             *slot = Some(key.unbind());
@@ -548,28 +612,17 @@ impl<'a> OrdinaryObject<'a> {
         // All properties in the source object are enumerable, none are
         // getters, and no key is a symbol or private name: the shape of the
         // source and the self objects will be identical after this operation.
-        let len = keys.len() as u32;
-        let source_shape = agent[source].get_shape();
-        if self.reserve(agent, len).is_err() {
-            return false;
-        };
-        let ElementStorageUninit {
-            values: target_values,
-            ..
-        } = self.get_elements_storage_uninit(agent);
-        // Descriptors are now set, then just copy the values over.
-        let target_values = target_values as *mut [Option<Value<'static>>];
-        let PropertyStorageRef {
-            values: source_values,
-            ..
-        } = source.unbind().get_property_storage(agent);
-        // SAFETY: self and source are two distinct objects (otherwise we'd
-        // have returned early from self not being empty, or source being
-        // empty). Thus, the values slices here are distinct from one another.
-        let target_values = unsafe { &mut *target_values };
-        target_values.copy_from_slice(source_values);
-        agent[self].set_len(len);
-        agent[self].set_shape(source_shape);
+        let mut source_shape = self.get(agent).get_shape();
+        // Note: our source object can be frozen but we should not become
+        // frozen just by copying the source properties.
+        source_shape.set_extensible(true);
+        let elements_vector = agent
+            .heap
+            .elements
+            .shallow_clone(&source.get_elements_vector(agent));
+        let data = self.get_mut(agent);
+        data.set_shape(source_shape);
+        data.set_values(elements_vector.elements_index.unbind());
         true
     }
 }
@@ -577,7 +630,7 @@ impl<'a> OrdinaryObject<'a> {
 impl IntrinsicObjectIndexes {
     pub(crate) const fn get_backing_object<'a>(
         self,
-        base: BaseIndex<'a, ObjectHeapData<'static>>,
+        base: BaseIndex<'a, ObjectRecord<'static>>,
     ) -> OrdinaryObject<'a> {
         OrdinaryObject(BaseIndex::from_u32_index(
             self as u32 + base.into_u32_index() + Self::OBJECT_INDEX_OFFSET,
@@ -588,7 +641,7 @@ impl IntrinsicObjectIndexes {
 impl IntrinsicConstructorIndexes {
     pub(crate) const fn get_backing_object<'a>(
         self,
-        base: BaseIndex<'a, ObjectHeapData<'static>>,
+        base: BaseIndex<'a, ObjectRecord<'static>>,
     ) -> OrdinaryObject<'a> {
         OrdinaryObject(BaseIndex::from_u32_index(
             self as u32 + base.into_u32_index() + Self::OBJECT_INDEX_OFFSET,
@@ -599,7 +652,7 @@ impl IntrinsicConstructorIndexes {
 impl IntrinsicPrimitiveObjectIndexes {
     pub(crate) const fn get_backing_object<'a>(
         self,
-        base: BaseIndex<'a, ObjectHeapData<'static>>,
+        base: BaseIndex<'a, ObjectRecord<'static>>,
     ) -> OrdinaryObject<'a> {
         OrdinaryObject(BaseIndex::from_u32_index(
             self as u32 + base.into_u32_index() + Self::OBJECT_INDEX_OFFSET,
@@ -657,28 +710,28 @@ impl<'a> InternalSlots<'a> for OrdinaryObject<'a> {
     }
 
     fn object_shape(self, agent: &mut Agent) -> ObjectShape<'static> {
-        agent[self].get_shape()
+        self.get(agent).get_shape().unbind()
     }
 
     fn internal_extensible(self, agent: &Agent) -> bool {
-        agent[self].get_extensible()
+        self.get(agent).get_extensible()
     }
 
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
-        agent[self].set_extensible(value)
+        self.get_mut(agent).set_extensible(value)
     }
 
     fn internal_prototype(self, agent: &Agent) -> Option<Object<'static>> {
-        agent[self].get_prototype(agent)
+        self.get(agent).get_prototype(agent).unbind()
     }
 
     fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
-        let original_shape = agent[self].get_shape();
+        let original_shape = self.get(agent).get_shape();
         if original_shape.get_prototype(agent) == prototype {
             return;
         }
         let new_shape = original_shape.get_shape_with_prototype(agent, prototype);
-        agent[self].set_shape(new_shape);
+        self.get_mut(agent).set_shape(new_shape);
     }
 }
 
@@ -4889,11 +4942,11 @@ impl HeapSweepWeakReference for OrdinaryObject<'static> {
     }
 }
 
-impl<'a> CreateHeapData<ObjectHeapData<'a>, OrdinaryObject<'a>> for Heap {
-    fn create(&mut self, data: ObjectHeapData<'a>) -> OrdinaryObject<'a> {
-        self.objects.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<ObjectHeapData<'static>>>();
-        OrdinaryObject(BaseIndex::last(&self.objects))
+impl<'a> CreateHeapData<ObjectRecord<'a>, OrdinaryObject<'a>> for Heap {
+    fn create(&mut self, data: ObjectRecord<'a>) -> OrdinaryObject<'a> {
+        self.objects.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<Option<ObjectRecord<'static>>>();
+        OrdinaryObject(BaseIndex::last_t(&self.objects))
     }
 }
 

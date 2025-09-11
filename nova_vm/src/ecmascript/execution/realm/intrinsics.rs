@@ -142,7 +142,7 @@ use crate::{
                 number_constructor::NumberConstructor, number_prototype::NumberPrototype,
             },
         },
-        types::{BuiltinFunctionHeapData, Object, ObjectHeapData, OrdinaryObject},
+        types::{BuiltinFunctionHeapData, Object, ObjectRecord, OrdinaryObject},
     },
     engine::context::NoGcScope,
     heap::{
@@ -154,7 +154,7 @@ use crate::{
 };
 #[derive(Debug, Clone)]
 pub(crate) struct Intrinsics {
-    object_index_base: BaseIndex<'static, ObjectHeapData<'static>>,
+    object_index_base: BaseIndex<'static, ObjectRecord<'static>>,
     object_shape_base: ObjectShape<'static>,
     primitive_object_index_base: BaseIndex<'static, PrimitiveObjectHeapData<'static>>,
     /// Array prototype object is an Array exotic object. It is the only one
@@ -258,7 +258,7 @@ impl Intrinsics {
         agent
             .heap
             .objects
-            .extend((0..intrinsic_object_count()).map(|_| None));
+            .extend((0..intrinsic_object_count()).map(|_| ObjectRecord::BLANK));
         agent
             .heap
             .primitive_objects

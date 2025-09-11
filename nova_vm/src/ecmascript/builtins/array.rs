@@ -93,7 +93,7 @@ impl<'a> Array<'a> {
         let elements = agent
             .heap
             .elements
-            .allocate_elements_with_capacity(capacity as usize)?;
+            .allocate_elements_with_length(capacity as usize)?;
         Ok(agent
             .heap
             .create(ArrayHeapData {

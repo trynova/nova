@@ -156,7 +156,7 @@ pub(crate) fn create_unmapped_arguments_object<'a, 'b>(
         .throw_type_error()
         .into_function()
         .bind(gc);
-    let storage = obj.get_elements_storage_uninit(agent);
+    let storage = obj.get_elements_storage_mut(agent);
     let values = storage.values;
     let descriptors = storage.descriptors.or_insert(AHashMap::with_capacity(3));
 
@@ -200,7 +200,6 @@ pub(crate) fn create_unmapped_arguments_object<'a, 'b>(
         values[index as usize + 3] = Some(val);
         // c. Set index to index + 1.
     }
-    agent[obj].set_len(len + 3);
     // 7. Perform ! DefinePropertyOrThrow(obj, @@iterator, PropertyDescriptor {
     // [[Value]]: %Array.prototype.values%,
     // [[Writable]]: true,

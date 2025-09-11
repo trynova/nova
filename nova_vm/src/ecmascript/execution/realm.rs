@@ -745,6 +745,13 @@ pub(crate) fn initialize_host_defined_realm(
     // 10. Let globalObj be ? SetDefaultGlobalBindings(realm).
     let global_object =
         set_default_global_bindings(agent, agent.current_realm_id_internal(), gc.reborrow())
+            .unbind()
+            .map_err(|err| {
+                err.value()
+                    .string_repr(agent, gc.reborrow())
+                    .to_string_lossy(agent)
+                    .to_string()
+            })
             .unwrap()
             .unbind()
             .bind(gc.nogc());
@@ -803,12 +810,12 @@ mod test {
         panic!("Found a missing BuiltinFunction at index {index:?}");
     }
 
-    fn panic_object_missing(index: usize) {
+    fn panic_blank_object(index: usize) {
         let index = index as u32;
         let mut changed_index = index;
         if changed_index <= LAST_INTRINSIC_OBJECT_INDEX as u32 {
             // Safety: Tested to be within limits.
-            panic!("Found a missing Object at object index {:?}", unsafe {
+            panic!("Found a blank Object at object index {:?}", unsafe {
                 core::mem::transmute::<u32, IntrinsicObjectIndexes>(changed_index)
             });
         }
@@ -816,18 +823,21 @@ mod test {
         if changed_index <= LAST_INTRINSIC_CONSTRUCTOR_INDEX as u32 {
             // Safety: Tested to be within limits.
             panic!(
-                "Found a missing BuiltinFunction at constructor index {:?}",
+                "Found a blank BuiltinFunction at constructor index {:?}",
                 unsafe { core::mem::transmute::<u32, IntrinsicConstructorIndexes>(changed_index) }
             );
         }
-        panic!("Found a missing object at index {index:?}");
+        panic!("Found a blank object at index {index:?}");
     }
 
     #[test]
     #[cfg(feature = "regexp")]
     fn test_default_realm_sanity() {
         use super::initialize_default_realm;
-        use crate::ecmascript::execution::{Agent, DefaultHostHooks, agent::Options};
+        use crate::ecmascript::{
+            execution::{Agent, DefaultHostHooks, agent::Options},
+            types::ObjectRecord,
+        };
 
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
@@ -877,14 +887,14 @@ mod test {
         if let Some((missing_number_index, _)) = missing_number {
             panic!("Found a missing Number at index {missing_number_index}");
         }
-        let missing_object = agent
+        let blank_object = agent
             .heap
             .objects
             .iter()
             .enumerate()
-            .find(|(_, item)| item.is_none());
-        if let Some((missing_object_index, _)) = missing_object {
-            panic_object_missing(missing_object_index);
+            .find(|(_, item)| *item == &ObjectRecord::BLANK);
+        if let Some((blank_object_index, _)) = blank_object {
+            panic_blank_object(blank_object_index);
         }
         assert_eq!(agent.heap.realms.len(), 1);
         assert!(agent.heap.scripts.is_empty());

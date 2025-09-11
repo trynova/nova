@@ -887,7 +887,7 @@ pub(super) fn execute_object_create_with_shape(
     gc: NoGcScope,
 ) {
     let shape = executable.fetch_object_shape(agent, instr.get_first_index(), gc);
-    let len = shape.get_length(agent);
+    let len = shape.len(agent);
     let first_property_index = vm.stack.len() - len as usize;
     let obj = OrdinaryObject::create_object_with_shape_and_data_properties(
         agent,

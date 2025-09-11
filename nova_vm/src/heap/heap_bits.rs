@@ -92,22 +92,28 @@ pub struct HeapBits {
     #[cfg(feature = "date")]
     pub dates: Box<[bool]>,
     pub declarative_environments: Box<[bool]>,
+    pub e_2_1: Box<[(bool, u8)]>,
+    pub e_2_2: Box<[(bool, u8)]>,
+    pub e_2_3: Box<[(bool, u8)]>,
+    pub e_2_4: Box<[(bool, u8)]>,
+    pub e_2_6: Box<[(bool, u8)]>,
+    pub e_2_8: Box<[(bool, u8)]>,
     pub e_2_10: Box<[(bool, u16)]>,
     pub e_2_12: Box<[(bool, u16)]>,
     pub e_2_16: Box<[(bool, u16)]>,
     pub e_2_24: Box<[(bool, u32)]>,
     pub e_2_32: Box<[(bool, u32)]>,
-    pub e_2_4: Box<[(bool, u8)]>,
-    pub e_2_6: Box<[(bool, u8)]>,
-    pub e_2_8: Box<[(bool, u8)]>,
+    pub k_2_1: Box<[(bool, u8)]>,
+    pub k_2_2: Box<[(bool, u8)]>,
+    pub k_2_3: Box<[(bool, u8)]>,
+    pub k_2_4: Box<[(bool, u8)]>,
+    pub k_2_6: Box<[(bool, u8)]>,
+    pub k_2_8: Box<[(bool, u8)]>,
     pub k_2_10: Box<[(bool, u16)]>,
     pub k_2_12: Box<[(bool, u16)]>,
     pub k_2_16: Box<[(bool, u16)]>,
     pub k_2_24: Box<[(bool, u32)]>,
     pub k_2_32: Box<[(bool, u32)]>,
-    pub k_2_4: Box<[(bool, u8)]>,
-    pub k_2_6: Box<[(bool, u8)]>,
-    pub k_2_8: Box<[(bool, u8)]>,
     pub ecmascript_functions: Box<[bool]>,
     pub embedder_objects: Box<[bool]>,
     pub errors: Box<[bool]>,
@@ -177,22 +183,28 @@ pub(crate) struct WorkQueues {
     #[cfg(feature = "date")]
     pub dates: Vec<Date<'static>>,
     pub declarative_environments: Vec<DeclarativeEnvironment<'static>>,
+    pub e_2_1: Vec<(ElementIndex<'static>, u32)>,
+    pub e_2_2: Vec<(ElementIndex<'static>, u32)>,
+    pub e_2_3: Vec<(ElementIndex<'static>, u32)>,
+    pub e_2_4: Vec<(ElementIndex<'static>, u32)>,
+    pub e_2_6: Vec<(ElementIndex<'static>, u32)>,
+    pub e_2_8: Vec<(ElementIndex<'static>, u32)>,
     pub e_2_10: Vec<(ElementIndex<'static>, u32)>,
     pub e_2_12: Vec<(ElementIndex<'static>, u32)>,
     pub e_2_16: Vec<(ElementIndex<'static>, u32)>,
     pub e_2_24: Vec<(ElementIndex<'static>, u32)>,
     pub e_2_32: Vec<(ElementIndex<'static>, u32)>,
-    pub e_2_4: Vec<(ElementIndex<'static>, u32)>,
-    pub e_2_6: Vec<(ElementIndex<'static>, u32)>,
-    pub e_2_8: Vec<(ElementIndex<'static>, u32)>,
+    pub k_2_1: Vec<(PropertyKeyIndex<'static>, u32)>,
+    pub k_2_2: Vec<(PropertyKeyIndex<'static>, u32)>,
+    pub k_2_3: Vec<(PropertyKeyIndex<'static>, u32)>,
+    pub k_2_4: Vec<(PropertyKeyIndex<'static>, u32)>,
+    pub k_2_6: Vec<(PropertyKeyIndex<'static>, u32)>,
+    pub k_2_8: Vec<(PropertyKeyIndex<'static>, u32)>,
     pub k_2_10: Vec<(PropertyKeyIndex<'static>, u32)>,
     pub k_2_12: Vec<(PropertyKeyIndex<'static>, u32)>,
     pub k_2_16: Vec<(PropertyKeyIndex<'static>, u32)>,
     pub k_2_24: Vec<(PropertyKeyIndex<'static>, u32)>,
     pub k_2_32: Vec<(PropertyKeyIndex<'static>, u32)>,
-    pub k_2_4: Vec<(PropertyKeyIndex<'static>, u32)>,
-    pub k_2_6: Vec<(PropertyKeyIndex<'static>, u32)>,
-    pub k_2_8: Vec<(PropertyKeyIndex<'static>, u32)>,
     pub ecmascript_functions: Vec<ECMAScriptFunction<'static>>,
     pub embedder_objects: Vec<EmbedderObject<'static>>,
     pub source_codes: Vec<SourceCode<'static>>,
@@ -262,22 +274,28 @@ impl HeapBits {
         #[cfg(feature = "date")]
         let dates = vec![false; heap.dates.len()];
         let declarative_environments = vec![false; heap.environments.declarative.len()];
+        let e_2_1 = vec![(false, 0u8); heap.elements.e2pow1.values.len()];
+        let e_2_2 = vec![(false, 0u8); heap.elements.e2pow2.values.len()];
+        let e_2_3 = vec![(false, 0u8); heap.elements.e2pow3.values.len()];
+        let e_2_4 = vec![(false, 0u8); heap.elements.e2pow4.values.len()];
+        let e_2_6 = vec![(false, 0u8); heap.elements.e2pow6.values.len()];
+        let e_2_8 = vec![(false, 0u8); heap.elements.e2pow8.values.len()];
         let e_2_10 = vec![(false, 0u16); heap.elements.e2pow10.values.len()];
         let e_2_12 = vec![(false, 0u16); heap.elements.e2pow12.values.len()];
         let e_2_16 = vec![(false, 0u16); heap.elements.e2pow16.values.len()];
         let e_2_24 = vec![(false, 0u32); heap.elements.e2pow24.values.len()];
         let e_2_32 = vec![(false, 0u32); heap.elements.e2pow32.values.len()];
-        let e_2_4 = vec![(false, 0u8); heap.elements.e2pow4.values.len()];
-        let e_2_6 = vec![(false, 0u8); heap.elements.e2pow6.values.len()];
-        let e_2_8 = vec![(false, 0u8); heap.elements.e2pow8.values.len()];
+        let k_2_1 = vec![(false, 0u8); heap.elements.k2pow1.keys.len()];
+        let k_2_2 = vec![(false, 0u8); heap.elements.k2pow2.keys.len()];
+        let k_2_3 = vec![(false, 0u8); heap.elements.k2pow3.keys.len()];
+        let k_2_4 = vec![(false, 0u8); heap.elements.k2pow4.keys.len()];
+        let k_2_6 = vec![(false, 0u8); heap.elements.k2pow6.keys.len()];
+        let k_2_8 = vec![(false, 0u8); heap.elements.k2pow8.keys.len()];
         let k_2_10 = vec![(false, 0u16); heap.elements.k2pow10.keys.len()];
         let k_2_12 = vec![(false, 0u16); heap.elements.k2pow12.keys.len()];
         let k_2_16 = vec![(false, 0u16); heap.elements.k2pow16.keys.len()];
         let k_2_24 = vec![(false, 0u32); heap.elements.k2pow24.keys.len()];
         let k_2_32 = vec![(false, 0u32); heap.elements.k2pow32.keys.len()];
-        let k_2_4 = vec![(false, 0u8); heap.elements.k2pow4.keys.len()];
-        let k_2_6 = vec![(false, 0u8); heap.elements.k2pow6.keys.len()];
-        let k_2_8 = vec![(false, 0u8); heap.elements.k2pow8.keys.len()];
         let ecmascript_functions = vec![false; heap.ecmascript_functions.len()];
         let embedder_objects = vec![false; heap.embedder_objects.len()];
         let errors = vec![false; heap.errors.len()];
@@ -344,22 +362,28 @@ impl HeapBits {
             #[cfg(feature = "date")]
             dates: dates.into_boxed_slice(),
             declarative_environments: declarative_environments.into_boxed_slice(),
+            e_2_1: e_2_1.into_boxed_slice(),
+            e_2_2: e_2_2.into_boxed_slice(),
+            e_2_3: e_2_3.into_boxed_slice(),
+            e_2_4: e_2_4.into_boxed_slice(),
+            e_2_6: e_2_6.into_boxed_slice(),
+            e_2_8: e_2_8.into_boxed_slice(),
             e_2_10: e_2_10.into_boxed_slice(),
             e_2_12: e_2_12.into_boxed_slice(),
             e_2_16: e_2_16.into_boxed_slice(),
             e_2_24: e_2_24.into_boxed_slice(),
             e_2_32: e_2_32.into_boxed_slice(),
-            e_2_4: e_2_4.into_boxed_slice(),
-            e_2_6: e_2_6.into_boxed_slice(),
-            e_2_8: e_2_8.into_boxed_slice(),
+            k_2_1: k_2_1.into_boxed_slice(),
+            k_2_2: k_2_2.into_boxed_slice(),
+            k_2_3: k_2_3.into_boxed_slice(),
+            k_2_4: k_2_4.into_boxed_slice(),
+            k_2_6: k_2_6.into_boxed_slice(),
+            k_2_8: k_2_8.into_boxed_slice(),
             k_2_10: k_2_10.into_boxed_slice(),
             k_2_12: k_2_12.into_boxed_slice(),
             k_2_16: k_2_16.into_boxed_slice(),
             k_2_24: k_2_24.into_boxed_slice(),
             k_2_32: k_2_32.into_boxed_slice(),
-            k_2_4: k_2_4.into_boxed_slice(),
-            k_2_6: k_2_6.into_boxed_slice(),
-            k_2_8: k_2_8.into_boxed_slice(),
             ecmascript_functions: ecmascript_functions.into_boxed_slice(),
             embedder_objects: embedder_objects.into_boxed_slice(),
             errors: errors.into_boxed_slice(),
@@ -432,22 +456,28 @@ impl WorkQueues {
             #[cfg(feature = "date")]
             dates: Vec::with_capacity(heap.dates.len() / 4),
             declarative_environments: Vec::with_capacity(heap.environments.declarative.len() / 4),
+            e_2_1: Vec::with_capacity(heap.elements.e2pow1.values.len() / 4),
+            e_2_2: Vec::with_capacity(heap.elements.e2pow2.values.len() / 4),
+            e_2_3: Vec::with_capacity(heap.elements.e2pow3.values.len() / 4),
+            e_2_4: Vec::with_capacity(heap.elements.e2pow4.values.len() / 4),
+            e_2_6: Vec::with_capacity(heap.elements.e2pow6.values.len() / 4),
+            e_2_8: Vec::with_capacity(heap.elements.e2pow8.values.len() / 4),
             e_2_10: Vec::with_capacity(heap.elements.e2pow10.values.len() / 4),
             e_2_12: Vec::with_capacity(heap.elements.e2pow12.values.len() / 4),
             e_2_16: Vec::with_capacity(heap.elements.e2pow16.values.len() / 4),
             e_2_24: Vec::with_capacity(heap.elements.e2pow24.values.len() / 4),
             e_2_32: Vec::with_capacity(heap.elements.e2pow32.values.len() / 4),
-            e_2_4: Vec::with_capacity(heap.elements.e2pow4.values.len() / 4),
-            e_2_6: Vec::with_capacity(heap.elements.e2pow6.values.len() / 4),
-            e_2_8: Vec::with_capacity(heap.elements.e2pow8.values.len() / 4),
+            k_2_1: Vec::with_capacity(heap.elements.k2pow1.keys.len() / 4),
+            k_2_2: Vec::with_capacity(heap.elements.k2pow2.keys.len() / 4),
+            k_2_3: Vec::with_capacity(heap.elements.k2pow3.keys.len() / 4),
+            k_2_4: Vec::with_capacity(heap.elements.k2pow4.keys.len() / 4),
+            k_2_6: Vec::with_capacity(heap.elements.k2pow6.keys.len() / 4),
+            k_2_8: Vec::with_capacity(heap.elements.k2pow8.keys.len() / 4),
             k_2_10: Vec::with_capacity(heap.elements.k2pow10.keys.len() / 4),
             k_2_12: Vec::with_capacity(heap.elements.k2pow12.keys.len() / 4),
             k_2_16: Vec::with_capacity(heap.elements.k2pow16.keys.len() / 4),
             k_2_24: Vec::with_capacity(heap.elements.k2pow24.keys.len() / 4),
             k_2_32: Vec::with_capacity(heap.elements.k2pow32.keys.len() / 4),
-            k_2_4: Vec::with_capacity(heap.elements.k2pow4.keys.len() / 4),
-            k_2_6: Vec::with_capacity(heap.elements.k2pow6.keys.len() / 4),
-            k_2_8: Vec::with_capacity(heap.elements.k2pow8.keys.len() / 4),
             ecmascript_functions: Vec::with_capacity(heap.ecmascript_functions.len() / 4),
             embedder_objects: Vec::with_capacity(heap.embedder_objects.len() / 4),
             errors: Vec::with_capacity(heap.errors.len() / 4),
@@ -522,22 +552,28 @@ impl WorkQueues {
             #[cfg(feature = "date")]
             dates,
             declarative_environments,
+            e_2_1,
+            e_2_2,
+            e_2_3,
+            e_2_4,
+            e_2_6,
+            e_2_8,
             e_2_10,
             e_2_12,
             e_2_16,
             e_2_24,
             e_2_32,
-            e_2_4,
-            e_2_6,
-            e_2_8,
+            k_2_1,
+            k_2_2,
+            k_2_3,
+            k_2_4,
+            k_2_6,
+            k_2_8,
             k_2_10,
             k_2_12,
             k_2_16,
             k_2_24,
             k_2_32,
-            k_2_4,
-            k_2_6,
-            k_2_8,
             ecmascript_functions,
             embedder_objects,
             source_codes,
@@ -624,22 +660,28 @@ impl WorkQueues {
             && data_views.is_empty()
             && dates.is_empty()
             && declarative_environments.is_empty()
+            && e_2_1.is_empty()
+            && e_2_2.is_empty()
+            && e_2_3.is_empty()
+            && e_2_4.is_empty()
+            && e_2_6.is_empty()
+            && e_2_8.is_empty()
             && e_2_10.is_empty()
             && e_2_12.is_empty()
             && e_2_16.is_empty()
             && e_2_24.is_empty()
             && e_2_32.is_empty()
-            && e_2_4.is_empty()
-            && e_2_6.is_empty()
-            && e_2_8.is_empty()
+            && k_2_1.is_empty()
+            && k_2_2.is_empty()
+            && k_2_3.is_empty()
+            && k_2_4.is_empty()
+            && k_2_6.is_empty()
+            && k_2_8.is_empty()
             && k_2_10.is_empty()
             && k_2_12.is_empty()
             && k_2_16.is_empty()
             && k_2_24.is_empty()
             && k_2_32.is_empty()
-            && k_2_4.is_empty()
-            && k_2_6.is_empty()
-            && k_2_8.is_empty()
             && ecmascript_functions.is_empty()
             && embedder_objects.is_empty()
             && errors.is_empty()
@@ -970,22 +1012,28 @@ pub(crate) struct CompactionLists {
     #[cfg(feature = "date")]
     pub dates: CompactionList,
     pub declarative_environments: CompactionList,
+    pub e_2_1: CompactionList,
+    pub e_2_2: CompactionList,
+    pub e_2_3: CompactionList,
+    pub e_2_4: CompactionList,
+    pub e_2_6: CompactionList,
+    pub e_2_8: CompactionList,
     pub e_2_10: CompactionList,
     pub e_2_12: CompactionList,
     pub e_2_16: CompactionList,
     pub e_2_24: CompactionList,
     pub e_2_32: CompactionList,
-    pub e_2_4: CompactionList,
-    pub e_2_6: CompactionList,
-    pub e_2_8: CompactionList,
+    pub k_2_1: CompactionList,
+    pub k_2_2: CompactionList,
+    pub k_2_3: CompactionList,
+    pub k_2_4: CompactionList,
+    pub k_2_6: CompactionList,
+    pub k_2_8: CompactionList,
     pub k_2_10: CompactionList,
     pub k_2_12: CompactionList,
     pub k_2_16: CompactionList,
     pub k_2_24: CompactionList,
     pub k_2_32: CompactionList,
-    pub k_2_4: CompactionList,
-    pub k_2_6: CompactionList,
-    pub k_2_8: CompactionList,
     pub ecmascript_functions: CompactionList,
     pub embedder_objects: CompactionList,
     pub source_codes: CompactionList,
@@ -1058,6 +1106,9 @@ impl CompactionLists {
             function_environments: CompactionList::from_mark_bits(&bits.function_environments),
             global_environments: CompactionList::from_mark_bits(&bits.global_environments),
             object_environments: CompactionList::from_mark_bits(&bits.object_environments),
+            e_2_1: CompactionList::from_mark_u8s(&bits.e_2_1),
+            e_2_2: CompactionList::from_mark_u8s(&bits.e_2_2),
+            e_2_3: CompactionList::from_mark_u8s(&bits.e_2_3),
             e_2_4: CompactionList::from_mark_u8s(&bits.e_2_4),
             e_2_6: CompactionList::from_mark_u8s(&bits.e_2_6),
             e_2_8: CompactionList::from_mark_u8s(&bits.e_2_8),
@@ -1066,6 +1117,9 @@ impl CompactionLists {
             e_2_16: CompactionList::from_mark_u16s(&bits.e_2_16),
             e_2_24: CompactionList::from_mark_u32s(&bits.e_2_24),
             e_2_32: CompactionList::from_mark_u32s(&bits.e_2_32),
+            k_2_1: CompactionList::from_mark_u8s(&bits.k_2_1),
+            k_2_2: CompactionList::from_mark_u8s(&bits.k_2_2),
+            k_2_3: CompactionList::from_mark_u8s(&bits.k_2_3),
             k_2_4: CompactionList::from_mark_u8s(&bits.k_2_4),
             k_2_6: CompactionList::from_mark_u8s(&bits.k_2_6),
             k_2_8: CompactionList::from_mark_u8s(&bits.k_2_8),

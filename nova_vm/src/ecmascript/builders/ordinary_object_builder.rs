@@ -10,7 +10,7 @@ use crate::{
         },
         execution::{Agent, Realm},
         types::{
-            BUILTIN_STRING_MEMORY, IntoFunction, IntoObject, IntoValue, Object, ObjectHeapData,
+            BUILTIN_STRING_MEMORY, IntoFunction, IntoObject, IntoValue, Object, ObjectRecord,
             OrdinaryObject, PropertyKey, Value,
         },
     },
@@ -361,23 +361,26 @@ pub(super) fn create_intrinsic_backing_object(
     let (cap, index) = agent
         .heap
         .elements
-        // Note: intrinsics should always allocate a keys storage.
-        .allocate_keys_with_capacity(properties_count.max(1));
+        .allocate_keys_with_capacity(properties_count);
+    let cap = cap.make_intrinsic();
     let keys_memory = agent.heap.elements.get_keys_uninit_raw(cap, index);
     for (slot, key) in keys_memory.iter_mut().zip(properties.iter().map(|e| e.0)) {
         *slot = Some(key.unbind());
     }
-    let shape = agent.heap.create(ObjectShapeRecord::create(
+    let mut shape = agent.heap.create(ObjectShapeRecord::create(
         prototype,
         index,
         cap,
         properties_count,
     ));
+    if !extensible {
+        shape.set_extensible(extensible);
+    }
 
     let ElementsVector {
         elements_index: values,
-        cap,
-        len,
+        cap: object_cap,
+        len: object_len,
         len_writable: _,
     } = agent
         .heap
@@ -385,11 +388,10 @@ pub(super) fn create_intrinsic_backing_object(
         .allocate_object_property_storage_from_entries_vec(properties)
         .expect("Failed to create intrinsic backing object");
 
-    let slot = agent
-        .heap
-        .objects
-        .get_mut(backing_object.get_index())
-        .unwrap();
-    assert!(slot.is_none());
-    *slot = Some(ObjectHeapData::new(shape, values, cap, len, extensible).unbind());
+    assert_eq!(object_cap, cap);
+    assert_eq!(object_len as usize, properties_count);
+
+    let slot = backing_object.get_mut(agent);
+    assert_eq!(slot, &ObjectRecord::BLANK);
+    *slot = ObjectRecord::new(shape, values);
 }
