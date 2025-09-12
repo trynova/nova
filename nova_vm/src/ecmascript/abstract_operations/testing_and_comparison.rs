@@ -140,13 +140,6 @@ pub(crate) fn is_constructor<'a>(
     }
 }
 
-/// ### Try [7.2.5 IsExtensible ( O )](https://tc39.es/ecma262/#sec-isextensible-o)
-///
-/// The abstract operation IsExtensible takes argument O (an Object) and
-/// returns either a normal completion containing a Boolean or a throw
-/// completion. It is used to determine whether additional properties can be
-/// added to O.
-
 /// ### [7.2.6 IsRegExp ( argument )](https://tc39.es/ecma262/#sec-isregexp)
 ///
 /// The abstract operation IsRegExp takes argument

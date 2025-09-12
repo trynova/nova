@@ -102,6 +102,7 @@ impl core::fmt::Debug for Executable<'_> {
     }
 }
 
+#[expect(dead_code)]
 const EXECUTABLE_OPTION_SIZE_IS_U32: () =
     assert!(size_of::<Executable<'_>>() == size_of::<Option<Executable<'_>>>());
 
@@ -126,7 +127,6 @@ impl<'gc> Executable<'gc> {
         script: Script,
         gc: NoGcScope<'gc, '_>,
     ) -> Self {
-        let _ = EXECUTABLE_OPTION_SIZE_IS_U32;
         if agent.options.print_internals {
             eprintln!();
             eprintln!("=== Compiling Script ===");

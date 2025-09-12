@@ -367,7 +367,7 @@ impl Heap {
         let strings = &mut heap.strings;
         let string_hasher = &mut heap.string_hasher;
         let string_lookup_table = &mut heap.string_lookup_table;
-        for builtin_string in BUILTIN_STRINGS_LIST.into_iter() {
+        for builtin_string in BUILTIN_STRINGS_LIST.iter() {
             let hash = string_hasher.hash_one(Wtf8::from_str(builtin_string));
             let data = StringHeapData::from_static_str(builtin_string);
             // SAFETY: heap is entry.
