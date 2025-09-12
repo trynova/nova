@@ -1346,7 +1346,7 @@ fn intrinsic_default_constructor<T: Viewable>() -> ProtoIntrinsics {
         } else {
             #[cfg(feature = "proposal-float16array")]
             if TypeId::of::<T>() == TypeId::of::<f16>() {
-                ProtoIntrinsics::Float16Array
+                return ProtoIntrinsics::Float16Array;
             }
             unreachable!()
         }
