@@ -8,7 +8,7 @@ use crate::{
     engine::context::{Bindable, bindable_handle},
     heap::{
         CompactionLists, HeapMarkAndSweep, WorkQueues,
-        element_array::{ElementArrayKey, ElementArrays, ElementStorageRef, ElementStorageUninit},
+        element_array::{ElementArrayKey, ElementArrays, ElementStorageRef},
         indexes::ElementIndex,
     },
 };
@@ -39,14 +39,6 @@ impl<'a> ObjectRecord<'a> {
             self.shape.values_capacity(&shapes),
             self.shape.len(&shapes),
         )
-    }
-
-    pub(super) fn get_storage_uninit<'e>(
-        &self,
-        elements: &'e mut ElementArrays,
-        shapes: &[ObjectShapeRecord<'static>],
-    ) -> ElementStorageUninit<'e> {
-        elements.get_element_storage_uninit_raw(self.values, self.shape.values_capacity(&shapes))
     }
 
     pub(crate) fn is_empty(&self, agent: &impl AsRef<[ObjectShapeRecord<'static>]>) -> bool {

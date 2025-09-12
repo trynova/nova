@@ -16,7 +16,6 @@ mod template_literals;
 mod with_statement;
 
 use super::{FunctionExpression, Instruction, SendableRef, executable::ArrowFunctionExpression};
-#[cfg(feature = "regexp")]
 use crate::ecmascript::{
     syntax_directed_operations::{
         function_definitions::ContainsExpression,

@@ -586,15 +586,6 @@ impl Intrinsics {
             .get_builtin_function(self.builtin_function_index_base)
     }
 
-    /// %AsyncGeneratorFunction.prototype.prototype%
-    ///
-    /// The %AsyncGeneratorPrototype% object is %AsyncGeneratorFunction.prototype.prototype%.
-    pub(crate) const fn async_generator_function_prototype_prototype(
-        &self,
-    ) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::AsyncGeneratorPrototype.get_backing_object(self.object_index_base)
-    }
-
     /// %AsyncGeneratorFunction.prototype%
     pub(crate) const fn async_generator_function_prototype(&self) -> OrdinaryObject<'static> {
         IntrinsicObjectIndexes::AsyncGeneratorFunctionPrototype
@@ -823,13 +814,6 @@ impl Intrinsics {
             .get_builtin_function(self.builtin_function_index_base)
     }
 
-    // %GeneratorFunction.prototype.prototype%
-    //
-    // The %GeneratorPrototype% object is %GeneratorFunction.prototype.prototype%.
-    pub(crate) const fn generator_function_prototype_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::GeneratorPrototype.get_backing_object(self.object_index_base)
-    }
-
     /// %GeneratorFunction.prototype%
     pub(crate) const fn generator_function_prototype(&self) -> OrdinaryObject<'static> {
         IntrinsicObjectIndexes::GeneratorFunctionPrototype
@@ -1056,22 +1040,26 @@ impl Intrinsics {
     }
 
     /// %Set.prototype.values%
+    #[cfg(feature = "set")]
     pub(crate) const fn set_prototype_values(&self) -> BuiltinFunction<'static> {
         IntrinsicFunctionIndexes::SetPrototypeValues
             .get_builtin_function(self.builtin_function_index_base)
     }
 
     /// %Set.prototype%
+    #[cfg(feature = "set")]
     pub(crate) const fn set_prototype(&self) -> OrdinaryObject<'static> {
         IntrinsicObjectIndexes::SetPrototype.get_backing_object(self.object_index_base)
     }
 
     /// %Set%
+    #[cfg(feature = "set")]
     pub(crate) const fn set(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::Set.get_builtin_function(self.builtin_function_index_base)
     }
 
     /// %SetIteratorPrototype%
+    #[cfg(feature = "set")]
     pub(crate) const fn set_iterator_prototype(&self) -> OrdinaryObject<'static> {
         IntrinsicObjectIndexes::SetIteratorPrototype.get_backing_object(self.object_index_base)
     }
@@ -1406,9 +1394,13 @@ impl HeapMarkAndSweep for Intrinsics {
         self.reg_exp().mark_values(queues);
         #[cfg(feature = "regexp")]
         self.reg_exp_string_iterator_prototype().mark_values(queues);
+        #[cfg(feature = "set")]
         self.set_prototype_values().mark_values(queues);
+        #[cfg(feature = "set")]
         self.set_prototype().mark_values(queues);
+        #[cfg(feature = "set")]
         self.set().mark_values(queues);
+        #[cfg(feature = "set")]
         self.set_iterator_prototype().mark_values(queues);
         #[cfg(feature = "shared-array-buffer")]
         self.shared_array_buffer_prototype().mark_values(queues);

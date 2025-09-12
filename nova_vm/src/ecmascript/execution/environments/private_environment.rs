@@ -289,21 +289,6 @@ impl<'e> PrivateEnvironment<'e> {
         PrivateName::from_u32(data.first_private_name.into_u32() + offset as u32)
     }
 
-    /// Get the offset to Private Environment's first PrivateName.
-    pub(crate) fn get_base_offset(self, agent: &Agent) -> usize {
-        let data = self.get_data(agent);
-        if let Some(parent) = data.outer_private_environment {
-            parent.get_private_name_count(agent) + parent.get_base_offset(agent)
-        } else {
-            0
-        }
-    }
-
-    /// Get the number of PrivateNames in this Private Environment.
-    pub(crate) fn get_private_name_count(self, agent: &Agent) -> usize {
-        self.get_data(agent).names.len()
-    }
-
     /// Resolves a PrivateName into its \[\[Description]] String if found in
     /// this environment or in an outer one.
     pub(crate) fn resolve_description<'a>(

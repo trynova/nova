@@ -21,7 +21,7 @@ use crate::{
         types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
     },
     engine::{
-        context::{bindable_handle, Bindable, GcScope, NoGcScope}, rootable::{HeapRootData, HeapRootRef, Rootable, Scopable}, Executable, ExecutionResult, SuspendedVm
+        context::{bindable_handle, Bindable, GcScope, NoGcScope}, rootable::{HeapRootData, HeapRootRef, Rootable, Scopable}, Executable, SuspendedVm
     },
     heap::{
         indexes::BaseIndex,
@@ -79,14 +79,6 @@ impl AsyncGenerator<'_> {
             .as_ref()
             .unwrap()
             .is_executing()
-    }
-
-    pub(crate) fn is_executing_await(self, agent: &Agent) -> bool {
-        agent[self]
-            .async_generator_state
-            .as_ref()
-            .unwrap()
-            .is_executing_await()
     }
 
     pub(crate) fn is_suspended_start(self, agent: &Agent) -> bool {
@@ -322,19 +314,6 @@ impl AsyncGenerator<'_> {
                     return;
                 }
             }
-            AsyncGeneratorAwaitKind::Return => {
-                // 27.6.3.7 AsyncGeneratorUnwrapYieldResumption
-                // 3. If awaited is a throw completion, return ? awaited.
-                if reaction_type == PromiseReactionType::Reject {
-                    let executable = agent[self].executable.unwrap().scope(agent, gc.nogc());
-                    vm.resume_throw(agent, executable, value.unbind(), gc.reborrow())
-                } else {
-                    // TODO: vm.resume_return(agent, executable, value, gc.reborrow())
-                    // 4. Assert: awaited is a normal completion.
-                    // 5. Return ReturnCompletion(awaited.[[Value]]).
-                    ExecutionResult::Return(value)
-                }
-            }
         };
         resume_handle_result(agent, execution_result.unbind(), scoped_generator, gc);
     }
@@ -453,8 +432,6 @@ pub(crate) enum AsyncGeneratorAwaitKind {
     Await,
     /// AsyncGenerator is currently executing a next(value)'s implicit await.
     Yield,
-    /// AsyncGenerator is currently executing a return(value)'s implicit await.
-    Return,
 }
 
 #[derive(Debug)]
@@ -504,10 +481,6 @@ impl AsyncGeneratorState<'_> {
 
     pub(crate) fn is_executing(&self) -> bool {
         matches!(self, AsyncGeneratorState::Executing(_))
-    }
-
-    pub(crate) fn is_executing_await(&self) -> bool {
-        matches!(self, AsyncGeneratorState::ExecutingAwait { .. })
     }
 
     pub(crate) fn is_suspended(&self) -> bool {

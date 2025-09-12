@@ -26,6 +26,7 @@ pub struct DetachKey {}
 pub(crate) enum Ordering {
     Unordered = core::sync::atomic::Ordering::Relaxed as u8,
     SeqCst = core::sync::atomic::Ordering::SeqCst as u8,
+    #[expect(dead_code)]
     Init,
 }
 
@@ -204,7 +205,7 @@ pub(crate) fn get_array_buffer_max_byte_length_option<'a>(
     agent: &mut Agent,
     options: Value,
     mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, Option<i64>> {
+) -> JsResult<'a, Option<u64>> {
     let options = options.bind(gc.nogc());
     // 1. If options is not an Object, return EMPTY.
     let options = if let Ok(options) = Object::try_from(options) {
@@ -226,33 +227,7 @@ pub(crate) fn get_array_buffer_max_byte_length_option<'a>(
         return Ok(None);
     }
     // 4. Return ? ToIndex(maxByteLength).
-    to_index(agent, max_byte_length.unbind(), gc).map(Some)
-}
-
-/// ### [25.1.3.7 HostResizeArrayBuffer ( buffer, newByteLength )](https://tc39.es/ecma262/#sec-hostresizearraybuffer)
-///
-/// The host-defined abstract operation HostResizeArrayBuffer takes arguments
-/// buffer (an ArrayBuffer) and newByteLength (a non-negative integer) and
-/// returns either a normal completion containing either HANDLED or UNHANDLED,
-/// or a throw completion. It gives the host an opportunity to perform
-/// implementation-defined resizing of buffer. If the host chooses not to
-/// handle resizing of buffer, it may return UNHANDLED for the default
-/// behaviour.
-///
-/// The implementation of HostResizeArrayBuffer must conform to the following
-/// requirements:
-/// * The abstract operation does not detach buffer.
-/// * If the abstract operation completes normally with HANDLED,
-///   buffer.\[\[ArrayBufferByteLength]] is newByteLength.
-///
-/// The default implementation of HostResizeArrayBuffer is to return
-/// NormalCompletion(UNHANDLED).
-pub(crate) fn host_resize_array_buffer(
-    _agent: &mut Agent,
-    _buffer: ArrayBuffer,
-    _new_byte_length: u64,
-) -> bool {
-    false
+    Ok(Some(to_index(agent, max_byte_length.unbind(), gc)? as u64))
 }
 
 /// ### [25.1.3.8 IsFixedLengthArrayBuffer ( arrayBuffer )](https://tc39.es/ecma262/#sec-isfixedlengtharraybuffer)
@@ -264,58 +239,6 @@ pub(crate) fn is_fixed_length_array_buffer(agent: &Agent, array_buffer: ArrayBuf
     // 1. If arrayBuffer has an [[ArrayBufferMaxByteLength]] internal slot, return false.
     // 2. Return true.
     !agent[array_buffer].is_resizable()
-}
-
-/// ### [25.1.3.9 IsUnsignedElementType ( type )](https://tc39.es/ecma262/#sec-isunsignedelementtype)
-///
-/// The abstract operation IsUnsignedElementType takes argument type (a
-/// TypedArray element type) and returns a Boolean. It verifies if the
-/// argument type is an unsigned TypedArray element type.
-pub(crate) const fn is_unsigned_element_type(_type: ()) -> bool {
-    // 1. If type is one of UINT8, UINT8CLAMPED, UINT16, UINT32, or BIGUINT64, return true.
-    // 2. Return false.
-    false
-}
-
-/// ### [25.1.3.10 IsUnclampedIntegerElementType ( type )](https://tc39.es/ecma262/#sec-isunclampedintegerelementtype)
-///
-/// The abstract operation IsUnclampedIntegerElementType takes argument
-/// type (a TypedArray element type) and returns a Boolean. It verifies if
-/// the argument type is an Integer TypedArray element type not including
-/// UINT8CLAMPED.
-pub(crate) const fn is_unclamped_integer_element_type(_type: ()) -> bool {
-    // 1. If type is one of INT8, UINT8, INT16, UINT16, INT32, or UINT32, return true.
-    // 2. Return false.
-    false
-}
-
-/// ### [25.1.3.11 IsBigIntElementType ( type )](https://tc39.es/ecma262/#sec-isbigintelementtype)
-///
-/// The abstract operation IsBigIntElementType takes argument type (a
-/// TypedArray element type) and returns a Boolean. It verifies if the
-/// argument type is a BigInt TypedArray element type.
-pub(crate) const fn is_big_int_element_type(_type: ()) -> bool {
-    // 1. If type is either BIGUINT64 or BIGINT64, return true.
-    // 2. Return false.
-    false
-}
-
-/// ### [25.1.3.12 IsNoTearConfiguration ( type, order )](https://tc39.es/ecma262/#sec-isnotearconfiguration)
-///
-/// The abstract operation IsNoTearConfiguration takes arguments type (a
-/// TypedArray element type) and order (SEQ-CST, UNORDERED, or INIT) and
-/// returns a Boolean.
-pub(crate) const fn is_no_tear_configuration(r#type: (), order: Ordering) -> bool {
-    if is_unclamped_integer_element_type(r#type)
-        || is_big_int_element_type(r#type) && !matches!(order, Ordering::Init | Ordering::Unordered)
-    {
-        // 1. If IsUnclampedIntegerElementType(type) is true, return true.
-        // 2. If IsBigIntElementType(type) is true and order is neither INIT nor UNORDERED, return true.
-        true
-    } else {
-        // 3. Return false.
-        false
-    }
 }
 
 /// ### [25.1.3.13 RawBytesToNumeric ( type, rawBytes, isLittleEndian )](https://tc39.es/ecma262/#sec-rawbytestonumeric)
@@ -358,6 +281,7 @@ pub(crate) fn raw_bytes_to_numeric<'a, T: Viewable>(
 /// (a Shared Data Block), byteIndex (a non-negative integer), type (a
 /// TypedArray element type), isTypedArray (a Boolean), and order (SEQ-CST
 /// or UNORDERED) and returns a List of byte values.
+#[expect(dead_code)]
 pub(crate) fn get_raw_bytes_from_shared_block(
     _array_buffer: ArrayBuffer,
     _block: &DataBlock,
@@ -517,6 +441,7 @@ pub(crate) fn set_value_in_buffer<T: Viewable>(
 /// non-negative integer), type (a TypedArray element type), value (a Number or
 /// a BigInt), and op (a read-modify-write modification function) and returns a
 /// Number or a BigInt.
+#[expect(dead_code)]
 pub(crate) fn get_modify_set_value_in_buffer(
     _array_buffer: ArrayBuffer,
     _byte_index: u32,

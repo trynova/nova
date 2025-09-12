@@ -24,12 +24,6 @@ enum LeftHandSideKind {
     LexicalBinding,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-enum IteratorKind {
-    Sync,
-    Async,
-}
-
 fn for_in_of_head_evaluation<'s, 'gc>(
     ctx: &mut CompileContext<'_, 's, 'gc, '_>,
     uninitialized_bound_names: Vec<String<'gc>>,

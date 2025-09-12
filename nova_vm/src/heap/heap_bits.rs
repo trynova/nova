@@ -1,6 +1,8 @@
 use core::{hash::Hash, num::NonZeroU32};
 
-use ahash::{AHashMap, AHashSet};
+use ahash::AHashMap;
+#[cfg(feature = "weak-refs")]
+use ahash::AHashSet;
 use hashbrown::HashTable;
 use soavec::{SoAVec, SoAble};
 
@@ -16,8 +18,6 @@ use super::{
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
-#[cfg(feature = "regexp")]
-use crate::ecmascript::builtins::regexp::RegExp;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "array-buffer")]
@@ -25,6 +25,11 @@ use crate::ecmascript::builtins::{ArrayBuffer, data_view::DataView};
 #[cfg(feature = "set")]
 use crate::ecmascript::builtins::{
     keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
+};
+#[cfg(feature = "regexp")]
+use crate::ecmascript::builtins::{
+    regexp::RegExp,
+    text_processing::regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
 };
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
@@ -53,10 +58,7 @@ use crate::ecmascript::{
         promise::Promise,
         promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
         proxy::Proxy,
-        text_processing::{
-            regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
-            string_objects::string_iterator_objects::StringIterator,
-        },
+        text_processing::string_objects::string_iterator_objects::StringIterator,
     },
     execution::{
         DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ModuleEnvironment,
@@ -643,6 +645,8 @@ impl WorkQueues {
         let weak_sets: &[bool; 0] = &[];
         #[cfg(not(feature = "regexp"))]
         let regexps: &[bool; 0] = &[];
+        #[cfg(not(feature = "regexp"))]
+        let regexp_string_iterators: &[bool; 0] = &[];
         #[cfg(not(feature = "set"))]
         let sets: &[bool; 0] = &[];
         #[cfg(not(feature = "set"))]
@@ -869,7 +873,7 @@ impl CompactionList {
     }
 
     pub(crate) fn from_mark_bits(marks: &[bool]) -> Self {
-        let mut builder = CompactionListBuilder::default();
+        let mut builder = CompactionListBuilder::with_bits_length(marks.len());
         marks.iter().for_each(|bit| {
             if *bit {
                 builder.mark_used();
@@ -881,7 +885,7 @@ impl CompactionList {
     }
 
     pub(crate) fn from_mark_u8s(marks: &[(bool, u8)]) -> Self {
-        let mut builder = CompactionListBuilder::default();
+        let mut builder = CompactionListBuilder::with_bits_length(marks.len());
         marks.iter().for_each(|mark| {
             if mark.0 {
                 builder.mark_used();
@@ -893,7 +897,7 @@ impl CompactionList {
     }
 
     pub(crate) fn from_mark_u16s(marks: &[(bool, u16)]) -> Self {
-        let mut builder = CompactionListBuilder::default();
+        let mut builder = CompactionListBuilder::with_bits_length(marks.len());
         marks.iter().for_each(|mark| {
             if mark.0 {
                 builder.mark_used();
@@ -905,7 +909,7 @@ impl CompactionList {
     }
 
     pub(crate) fn from_mark_u32s(marks: &[(bool, u32)]) -> Self {
-        let mut builder = CompactionListBuilder::default();
+        let mut builder = CompactionListBuilder::with_bits_length(marks.len());
         marks.iter().for_each(|mark| {
             if mark.0 {
                 builder.mark_used();
@@ -1864,6 +1868,7 @@ pub(crate) trait HeapSweepWeakReference: Sized + Copy {
     fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self>;
 }
 
+#[cfg(feature = "array-buffer")]
 pub(crate) fn sweep_side_table_values<K, V>(
     side_table: &mut AHashMap<K, V>,
     compactions: &CompactionLists,
@@ -1876,6 +1881,7 @@ pub(crate) fn sweep_side_table_values<K, V>(
         .collect();
 }
 
+#[cfg(feature = "weak-refs")]
 pub(crate) fn sweep_side_set<K>(side_table: &mut AHashSet<K>, compactions: &CompactionLists)
 where
     K: HeapSweepWeakReference + Hash + Eq,

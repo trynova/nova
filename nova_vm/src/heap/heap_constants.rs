@@ -86,6 +86,7 @@ pub(crate) enum IntrinsicObjectIndexes {
     DataViewPrototype,
     #[cfg(feature = "atomics")]
     AtomicsObject,
+    #[cfg(feature = "json")]
     JSONObject,
 
     // Managing memory
@@ -132,8 +133,12 @@ pub(crate) enum IntrinsicObjectIndexes {
     #[cfg(feature = "regexp")]
     RegExpStringIteratorPrototype,
 }
+#[cfg(feature = "regexp")]
 pub(crate) const LAST_INTRINSIC_OBJECT_INDEX: IntrinsicObjectIndexes =
     IntrinsicObjectIndexes::RegExpStringIteratorPrototype;
+#[cfg(not(feature = "regexp"))]
+pub(crate) const LAST_INTRINSIC_OBJECT_INDEX: IntrinsicObjectIndexes =
+    IntrinsicObjectIndexes::URIErrorPrototype;
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy)]
@@ -372,11 +377,16 @@ pub(crate) enum WellKnownSymbolIndexes {
     HasInstance,
     IsConcatSpreadable,
     Iterator,
+    #[cfg(feature = "regexp")]
     Match,
+    #[cfg(feature = "regexp")]
     MatchAll,
+    #[cfg(feature = "regexp")]
     Replace,
+    #[cfg(feature = "regexp")]
     Search,
     Species,
+    #[cfg(feature = "regexp")]
     Split,
     ToPrimitive,
     ToStringTag,
@@ -395,4 +405,4 @@ impl From<WellKnownSymbolIndexes> for PropertyKey<'static> {
     }
 }
 
-pub const LAST_WELL_KNOWN_SYMBOL_INDEX: u32 = WellKnownSymbolIndexes::Unscopables as u32;
+pub(crate) const LAST_WELL_KNOWN_SYMBOL_INDEX: u32 = WellKnownSymbolIndexes::Unscopables as u32;

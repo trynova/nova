@@ -3,15 +3,15 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use num_traits::Num;
+#[cfg(feature = "regexp")]
 use oxc_ast::ast::RegExpFlags;
 use wtf8::Wtf8Buf;
 
+#[cfg(feature = "regexp")]
+use crate::ecmascript::builtins::regexp::{RegExp, reg_exp_create_literal};
 use crate::{
     ecmascript::{
-        builtins::{
-            ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
-            regexp::{RegExp, reg_exp_create_literal},
-        },
+        builtins::ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
         execution::Agent,
         types::{BigInt, Number, PropertyKey, String, Value},
     },
@@ -104,6 +104,7 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
         PropertyKey::from_str(self.agent, literal, self.gc)
     }
 
+    #[cfg(feature = "regexp")]
     pub(crate) fn create_regexp(&mut self, literal: &str, flags: RegExpFlags) -> RegExp<'gc> {
         let pattern = self.create_string(literal);
         reg_exp_create_literal(self.agent, pattern, Some(flags), self.gc)

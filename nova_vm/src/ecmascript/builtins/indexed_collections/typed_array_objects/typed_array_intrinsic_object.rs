@@ -14,7 +14,7 @@ use crate::{
                 call_function, get, get_method, invoke, length_of_array_like, set,
                 throw_not_callable, try_get, try_set,
             },
-            testing_and_comparison::{is_array, is_callable, is_constructor, same_value_zero},
+            testing_and_comparison::{is_callable, is_constructor, same_value_zero},
             type_conversion::{
                 to_big_int, to_boolean, to_integer_or_infinity, to_number, to_object, to_string,
                 try_to_integer_or_infinity, try_to_string,
@@ -299,15 +299,6 @@ impl TypedArrayIntrinsicObject {
         }
         let target_obj = scoped_target_obj.get(agent);
         Ok(target_obj.into_value())
-    }
-
-    fn is_array<'gc>(
-        agent: &mut Agent,
-        _this_value: Value,
-        arguments: ArgumentsList,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        is_array(agent, arguments.get(0), gc.into_nogc()).map(Value::Boolean)
     }
 
     /// ### [23.2.2.2 %TypedArray%.of ( ...items )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-properties-of-the-%typedarray%-intrinsic-object)

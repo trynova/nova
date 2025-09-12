@@ -4,17 +4,18 @@
 
 //! ### [6.2.9 Data Blocks](https://tc39.es/ecma262/#sec-data-blocks)
 
+#[cfg(feature = "shared-array-buffer")]
+use core::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
+#[cfg(feature = "shared-array-buffer")]
+use std::hint::assert_unchecked;
+
 use core::{
     f32, f64,
     mem::MaybeUninit,
     ops::{Deref, DerefMut},
     ptr::{NonNull, read_unaligned, write_unaligned},
-    sync::atomic::{AtomicU8, AtomicUsize, Ordering},
 };
-use std::{
-    alloc::{Layout, alloc_zeroed, dealloc, handle_alloc_error, realloc},
-    hint::assert_unchecked,
-};
+use std::alloc::{Layout, alloc_zeroed, dealloc, handle_alloc_error, realloc};
 
 use num_bigint::Sign;
 
@@ -143,11 +144,6 @@ impl DataBlock {
         self.byte_length
     }
 
-    pub(crate) fn view_len<T: Viewable>(&self, byte_offset: usize) -> usize {
-        let size = core::mem::size_of::<T>();
-        (self.byte_length - byte_offset) / size
-    }
-
     fn as_ptr(&self, byte_offset: usize) -> Option<*const u8> {
         if byte_offset >= self.byte_length {
             None
@@ -172,6 +168,7 @@ impl DataBlock {
         }
     }
 
+    #[allow(unused)]
     pub(crate) fn get<T: Viewable>(&self, offset: usize) -> Option<T> {
         let size = core::mem::size_of::<T>();
         let byte_offset = offset * size;
@@ -200,6 +197,7 @@ impl DataBlock {
         }
     }
 
+    #[allow(unused)]
     pub(crate) fn set<T: Viewable>(&mut self, offset: usize, value: T) {
         let size = core::mem::size_of::<T>();
         if let Some(data) = self.ptr {
@@ -228,6 +226,7 @@ impl DataBlock {
         }
     }
 
+    #[allow(unused)]
     pub(crate) fn set_from<T: Viewable>(
         &mut self,
         dst_offset: usize,
@@ -254,6 +253,7 @@ impl DataBlock {
         }
     }
 
+    #[allow(unused)]
     pub(crate) fn copy_within<T: Viewable>(
         &mut self,
         dst_offset: usize,
@@ -338,8 +338,10 @@ impl DataBlock {
 /// maximum byte length value of zero.
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq)]
+#[cfg(feature = "shared-array-buffer")]
 struct SharedDataBlockMaxByteLength(usize);
 
+#[cfg(feature = "shared-array-buffer")]
 impl SharedDataBlockMaxByteLength {
     /// Create a new max byte length value for a possibly growable SharedDataBlock.
     #[inline(always)]
@@ -427,16 +429,20 @@ impl SharedDataBlockMaxByteLength {
 #[must_use]
 #[repr(C)]
 #[derive(PartialEq, Eq)]
+#[cfg(feature = "shared-array-buffer")]
 pub struct SharedDataBlock {
     ptr: NonNull<AtomicU8>,
     max_byte_length: SharedDataBlockMaxByteLength,
 }
 
 // SAFETY: Atomic RC.
+#[cfg(feature = "shared-array-buffer")]
 unsafe impl Send for SharedDataBlock {}
 // SAFETY: Atomic RC.
+#[cfg(feature = "shared-array-buffer")]
 unsafe impl Sync for SharedDataBlock {}
 
+#[cfg(feature = "shared-array-buffer")]
 impl core::fmt::Debug for SharedDataBlock {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         // SAFETY: ptr points to a valid allocation of byte_length bytes.
@@ -444,12 +450,14 @@ impl core::fmt::Debug for SharedDataBlock {
     }
 }
 
+#[cfg(feature = "shared-array-buffer")]
 impl core::default::Default for SharedDataBlock {
     fn default() -> Self {
         Self::DANGLING_STATIC_SHARED_DATA_BLOCK
     }
 }
 
+#[cfg(feature = "shared-array-buffer")]
 impl Clone for SharedDataBlock {
     fn clone(&self) -> Self {
         if !self.is_dangling() {
@@ -465,6 +473,7 @@ impl Clone for SharedDataBlock {
     }
 }
 
+#[cfg(feature = "shared-array-buffer")]
 impl Drop for SharedDataBlock {
     fn drop(&mut self) {
         if self.is_dangling() {
@@ -526,6 +535,7 @@ impl Drop for SharedDataBlock {
     }
 }
 
+#[cfg(feature = "shared-array-buffer")]
 impl SharedDataBlock {
     const DANGLING_STATIC_SHARED_DATA_BLOCK: Self = Self {
         ptr: NonNull::<AtomicUsize>::dangling().cast(),
@@ -761,6 +771,7 @@ pub(crate) fn create_byte_data_block<'a>(
 ///
 /// `byte_length` must be less or equal than `max_byte_length` if it has been
 /// defined.
+#[cfg(feature = "shared-array-buffer")]
 pub(crate) unsafe fn create_shared_byte_data_block<'a>(
     agent: &mut Agent,
     byte_length: u64,
@@ -874,6 +885,7 @@ pub(crate) fn copy_data_block_bytes(
 /// fromBlock (a Data Block or a Shared Data Block), fromIndex (a
 /// non-negative integer), and count (a non-negative integer) and returns
 /// UNUSED.
+#[cfg(feature = "shared-array-buffer")]
 pub(crate) fn copy_shared_data_block_bytes(
     to_block: &SharedDataBlock,
     to_index: usize,
@@ -1846,6 +1858,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "shared-array-buffer")]
     fn new_shared_data_block() {
         use super::SharedDataBlock;
         // SAFETY: max_byte_length is None.
@@ -1853,6 +1866,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "shared-array-buffer")]
     fn clone_shared_data_block() {
         use super::SharedDataBlock;
         // SAFETY: max_byte_length is None.
@@ -1861,6 +1875,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "shared-array-buffer")]
     fn clone_shared_data_block_thread_safe() {
         use super::SharedDataBlock;
         use std::thread;

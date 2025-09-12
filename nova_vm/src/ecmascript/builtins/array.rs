@@ -13,7 +13,7 @@ use std::collections::{TryReserveError, hash_map::Entry};
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{call_function, create_array_from_list, try_get_object_method},
+            operations_on_objects::{call_function, create_array_from_list},
             testing_and_comparison::same_value,
         },
         builtins::{
@@ -36,7 +36,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WellKnownSymbolIndexes, WorkQueues,
+        WorkQueues,
         element_array::{
             ElementArrays, ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementsVector,
         },
@@ -259,7 +259,10 @@ impl<'a> Array<'a> {
 
     /// Returns true if it is trivially iterable, ie. it contains no element
     /// accessor descriptors and uses the Array intrinsic itrator method.
+    #[cfg(any(feature = "set", feature = "weak-refs"))]
     pub(crate) fn is_trivially_iterable(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> bool {
+        use crate::ecmascript::abstract_operations::operations_on_objects::try_get_object_method;
+        use crate::heap::WellKnownSymbolIndexes;
         if !self.is_dense(agent) {
             // Contains holes or getters, so cannot be iterated without looking
             // into the prototype chain or calling getters.
@@ -301,30 +304,6 @@ impl<'a> Array<'a> {
             elements: cloned_elements,
         };
         agent.heap.create(data)
-    }
-
-    #[inline]
-    fn internal_get_backing<'gc>(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        receiver: Value,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let property_key = property_key.bind(gc.nogc());
-        if let Some(object_index) = self.get_backing_object(agent) {
-            // If backing object exists, then we might have properties there
-            object_index.internal_get(agent, property_key.unbind(), receiver, gc)
-        } else {
-            // If backing object doesn't exist, then we might still have
-            // properties in the prototype.
-            self.internal_prototype(agent).unwrap().internal_get(
-                agent,
-                property_key.unbind(),
-                receiver,
-                gc,
-            )
-        }
     }
 
     #[inline]

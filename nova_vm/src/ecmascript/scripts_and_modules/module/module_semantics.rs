@@ -183,13 +183,6 @@ impl<'r> ModuleRequest<'r> {
         &agent[self.get_index()]
     }
 
-    pub(crate) fn get_mut<'a>(
-        self,
-        agent: &'a mut [ModuleRequestRecord<'static>],
-    ) -> &'a mut ModuleRequestRecord<'static> {
-        &mut agent[self.get_index()]
-    }
-
     /// Get the ModuleRequest's \[\[Specifier]] string.
     pub fn specifier(self, agent: &Agent) -> String<'r> {
         self.get(agent.as_ref()).specifier

@@ -55,12 +55,6 @@ pub(crate) struct PropertyStorageRef<'a, 'gc> {
 }
 
 impl<'a, 'gc> PropertyStorageRef<'a, 'gc> {
-    const EMPTY: Self = Self {
-        keys: &[],
-        values: &[],
-        descriptors: None,
-    };
-
     pub(crate) const fn from_keys_and_elements(
         keys: &'a [PropertyKey<'gc>],
         element_storage_ref: ElementStorageRef<'a, 'gc>,
@@ -98,14 +92,6 @@ impl<'a, 'gc> PropertyStorageMut<'a, 'gc> {
             descriptors: element_storage_mut.descriptors,
         }
     }
-}
-
-/// Exclusive access to an object's full property storage, including
-/// uninitialised property storage.
-pub(crate) struct PropertyStorageUninit<'a> {
-    pub keys: &'a mut [Option<PropertyKey<'static>>],
-    pub values: &'a mut [Option<Value<'static>>],
-    pub descriptors: Entry<'a, ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
 }
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
@@ -1216,10 +1202,6 @@ impl<const N: usize> ElementArray<N> {
         &mut self.values[vector.elements_index].as_mut_slice()[0..vector.len() as usize]
     }
 
-    fn get_values_uninit(&mut self, vector: &ElementsVector) -> &mut [Option<Value<'static>>] {
-        self.values[vector.elements_index].as_mut_slice()
-    }
-
     fn get_descriptors_and_values_raw<'gc>(
         &self,
         index: ElementIndex<'gc>,
@@ -1253,24 +1235,6 @@ impl<const N: usize> ElementArray<N> {
         ElementStorageMut {
             values: &mut self.values[index].as_mut_slice()[0..len as usize],
             descriptors: self.descriptors.entry(index),
-        }
-    }
-
-    /// Get the currently reserved values storage and any possible descriptors
-    /// as mutable.
-    fn get_descriptors_and_values_uninit(
-        &mut self,
-        vector: &ElementsVector,
-    ) -> ElementStorageUninit<'_> {
-        ElementStorageUninit {
-            values: self
-                .values
-                .get_mut(vector.elements_index.into_index())
-                .unwrap()
-                .as_mut()
-                .unwrap()
-                .as_mut_slice(),
-            descriptors: self.descriptors.entry(vector.elements_index.unbind()),
         }
     }
 
@@ -1387,35 +1351,6 @@ impl<const N: usize> ElementArray<N> {
             debug_assert!(inserted_new);
         }
         key
-    }
-
-    fn remove(&mut self, vector: &ElementsVector, index: usize) {
-        let len = vector.len() as usize;
-        let elements_index = vector.elements_index.unbind();
-        let values = &mut self.values[elements_index][..];
-        values.copy_within((index + 1)..len, index);
-        values[len - 1] = None;
-        let descriptors = self.descriptors.get_mut(&elements_index);
-        if let Some(descriptor_map) = descriptors {
-            let index = index as u32;
-            descriptor_map.remove(&index);
-            if descriptor_map.is_empty() {
-                self.descriptors.remove(&elements_index);
-                return;
-            }
-            let mut keys_to_move = descriptor_map
-                .keys()
-                .filter(|k| *k > &index)
-                .copied()
-                .collect::<Vec<_>>();
-            // Note: keys must be sorted before moving them in the hash map as
-            // otherwise it's possible to overwrite a not-yet-moved key.
-            keys_to_move.sort();
-            for k in keys_to_move {
-                let v = descriptor_map.remove(&k).unwrap();
-                descriptor_map.insert(k - 1, v);
-            }
-        }
     }
 }
 

@@ -2,15 +2,16 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use oxc_ast::ast::{self, LabelIdentifier, RegExpFlags, Statement};
+#[cfg(feature = "regexp")]
+use oxc_ast::ast::RegExpFlags;
+use oxc_ast::ast::{self, LabelIdentifier, Statement};
 use wtf8::Wtf8Buf;
 
+#[cfg(feature = "regexp")]
+use crate::ecmascript::builtins::regexp::RegExp;
 use crate::{
     ecmascript::{
-        builtins::{
-            ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
-            regexp::RegExp,
-        },
+        builtins::ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
         execution::Agent,
         scripts_and_modules::source_code::SourceCode,
         syntax_directed_operations::function_definitions::CompileFunctionBodyData,
@@ -50,29 +51,6 @@ pub(crate) enum NamedEvaluationParameter {
     ///
     /// The name must not be clobbered by the named evaluation.
     Stack,
-}
-
-pub(crate) struct JumpTarget {
-    /// Depth of the lexical of the jump target.
-    ///
-    /// This is used to determine how many ExitDeclarativeEnvironment
-    /// instructions are needed before jumping to this target from a continue
-    /// or break statement.
-    pub(super) depth: u32,
-    /// `continue;` statements that target this jump target.
-    pub(crate) continues: Vec<JumpIndex>,
-    /// `break;` statements that target this jump target.
-    pub(crate) breaks: Vec<JumpIndex>,
-}
-
-impl JumpTarget {
-    pub(super) fn new(depth: u32) -> Self {
-        Self {
-            depth,
-            continues: vec![],
-            breaks: vec![],
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -200,6 +178,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     }
 
     /// Create a new JavaScript RegExp from a RegExp literal and flags.
+    #[cfg(feature = "regexp")]
     pub(crate) fn create_regexp(&mut self, literal: &str, flags: RegExpFlags) -> RegExp<'gc> {
         self.executable.create_regexp(literal, flags)
     }
@@ -215,6 +194,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     }
 
     /// Create a new JavaScript String from an owned Wtf8Buf.
+    #[expect(dead_code)]
     pub(super) fn create_string_from_wtf8_buf(&mut self, buf: Wtf8Buf) -> String<'gc> {
         self.executable.create_string_from_wtf8_buf(buf)
     }
@@ -1075,10 +1055,6 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
 
     pub(super) fn set_jump_target_here(&mut self, jump: JumpIndex) {
         self.executable.set_jump_target_here(jump);
-    }
-
-    pub(super) fn set_jump_target(&mut self, source: JumpIndex, target: JumpIndex) {
-        self.executable.set_jump_target(source, target);
     }
 
     pub(super) fn get_next_class_initializer_index(&self) -> IndexType {

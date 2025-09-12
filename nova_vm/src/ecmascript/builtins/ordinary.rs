@@ -28,7 +28,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::element_array::{ElementStorageRef, PropertyStorageMut, PropertyStorageRef},
+    heap::element_array::{ElementStorageRef, PropertyStorageRef},
 };
 use crate::{
     ecmascript::{
@@ -774,6 +774,7 @@ pub(crate) fn ordinary_has_property<'a>(
     Ok(false)
 }
 
+#[cfg(feature = "array-buffer")]
 pub(crate) fn ordinary_has_property_entry<'a, 'gc>(
     agent: &mut Agent,
     object: impl InternalMethods<'a>,
@@ -2055,6 +2056,7 @@ pub(crate) fn get_prototype_from_constructor<'a>(
 /// and V (an Object or null) and returns either a normal completion containing
 /// a Boolean or a throw completion.
 #[inline]
+#[expect(dead_code)]
 pub(crate) fn set_immutable_prototype(
     agent: &mut Agent,
     o: Module,
@@ -2121,47 +2123,4 @@ pub(crate) fn try_get_ordinary_object_value<'a>(
         // path.
         Err(())
     }
-}
-
-/// Fast path try-function for setting a Value on an OrdinaryObject.
-///
-/// Returns Some(bool) if the Value was attempted to be set, the boolean telling
-/// if the Value was set or not. Returns None if the Value could not be set
-/// because the property was not found or a non-ordinary prototype object was
-/// encountered.
-pub(crate) fn try_set_ordinary_object_value(
-    agent: &mut Agent,
-    binding_object: OrdinaryObject,
-    name: PropertyKey,
-    value: Value,
-) -> Option<bool> {
-    let PropertyStorageMut {
-        keys,
-        values,
-        descriptors,
-    } = binding_object.get_property_storage_mut(agent)?;
-    let index = keys
-        .iter()
-        .enumerate()
-        .find(|(_, k)| **k == name)
-        .map(|(i, _)| i)?;
-    let slot = &mut values[index];
-    let Some(slot) = slot else {
-        return None;
-    };
-    // Note: Slot contains Some, so this is a data property.
-    let writable = if let Entry::Occupied(e) = descriptors {
-        let descriptors = &*e.into_mut();
-        descriptors
-            .get(&(index as u32))
-            .is_none_or(|d| d.is_writable().unwrap())
-    } else {
-        // No descriptors on this object, so all properties are plain
-        // data properties.
-        true
-    };
-    if writable {
-        *slot = value.unbind();
-    }
-    Some(writable)
 }

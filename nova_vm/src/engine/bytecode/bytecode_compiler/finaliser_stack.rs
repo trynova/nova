@@ -507,8 +507,4 @@ impl ControlFlowLoopEntry {
         }
         compile_break(ctx);
     }
-
-    pub(super) fn has_breaks(&self) -> bool {
-        !self.breaks.is_empty()
-    }
 }

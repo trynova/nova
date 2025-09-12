@@ -10,10 +10,9 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
-                define_property_or_throw, has_own_property, set, try_define_property_or_throw,
-                try_has_own_property, try_set,
+                define_property_or_throw, has_own_property, set, try_has_own_property,
             },
-            testing_and_comparison::{is_extensible, try_is_extensible},
+            testing_and_comparison::is_extensible,
         },
         builtins::ordinary::caches::PropertyLookupCache,
         execution::{
@@ -626,37 +625,6 @@ impl<'e> GlobalEnvironment<'e> {
         }
     }
 
-    /// ### [9.1.1.4.8 HasThisBinding ( )](https://tc39.es/ecma262/#sec-global-environment-records-hasthisbinding)
-    ///
-    /// The HasThisBinding concrete method of a Global Environment Record
-    /// envRec takes no arguments and returns true.
-    pub(crate) fn has_this_binding(self) -> bool {
-        // 1. Return true.
-        true
-        // NOTE
-        // Global Environment Records always provide a this binding.
-    }
-
-    /// ### [9.1.1.4.9 HasSuperBinding ( )](https://tc39.es/ecma262/#sec-global-environment-records-hassuperbinding)
-    ///
-    /// The HasSuperBinding concrete method of a Global Environment Record
-    /// envRec takes no arguments and returns false.
-    pub(crate) fn has_super_binding(self) -> bool {
-        // 1. Return false.
-        false
-        // NOTE
-        // Global Environment Records do not provide a super binding.
-    }
-
-    /// ### [9.1.1.4.10 WithBaseObject ( )](https://tc39.es/ecma262/#sec-global-environment-records-withbaseobject)
-    ///
-    /// The WithBaseObject concrete method of a Global Environment Record
-    /// envRec takes no arguments and returns undefined.
-    pub(crate) fn with_base_object(self) -> Option<Object<'static>> {
-        // 1. Return undefined.
-        None
-    }
-
     /// ### [9.1.1.4.11 GetThisBinding ( )](https://tc39.es/ecma262/#sec-global-environment-records-getthisbinding)
     ///
     /// The GetThisBinding concrete method of a Global Environment Record
@@ -698,38 +666,6 @@ impl<'e> GlobalEnvironment<'e> {
         dcl_rec.has_binding(agent, name)
     }
 
-    /// ### Try [9.1.1.4.14 HasRestrictedGlobalProperty ( N )](https://tc39.es/ecma262/#sec-hasrestrictedglobalproperty)
-    ///
-    /// The HasRestrictedGlobalProperty concrete method of a Global Environment
-    /// Record envRec takes argument N (a String) and returns either a normal
-    /// completion containing a Boolean or a throw completion. It determines if
-    /// the argument identifier is the name of a property of the global object
-    /// that must not be shadowed by a global lexical binding.
-    pub(crate) fn try_has_restricted_global_property<'gc>(
-        self,
-        agent: &mut Agent,
-        name: String,
-        cache: Option<PropertyLookupCache>,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, bool> {
-        let env = self.bind(gc);
-        let env_rec = &agent[env];
-        // 1. Let ObjRec be envRec.[[ObjectRecord]].
-        let obj_rec = env_rec.object_record.bind(gc);
-        // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.get_binding_object(agent);
-        // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
-        let n = PropertyKey::from(name);
-        let existing_prop = global_object.try_get_own_property(agent, n, cache, gc)?;
-        let Some(existing_prop) = existing_prop else {
-            // 4. If existingProp is undefined, return false.
-            return TryResult::Continue(false);
-        };
-        // 5. If existingProp.[[Configurable]] is true, return false.
-        // 6. Return true.
-        TryResult::Continue(existing_prop.configurable != Some(true))
-    }
-
     /// ### [9.1.1.4.14 HasRestrictedGlobalProperty ( N )](https://tc39.es/ecma262/#sec-hasrestrictedglobalproperty)
     ///
     /// The HasRestrictedGlobalProperty concrete method of a Global Environment
@@ -765,39 +701,6 @@ impl<'e> GlobalEnvironment<'e> {
         Ok(existing_prop.configurable != Some(true))
     }
 
-    /// ### Try [9.1.1.4.15 CanDeclareGlobalVar ( N )](https://tc39.es/ecma262/#sec-candeclareglobalvar)
-    ///
-    /// The CanDeclareGlobalVar concrete method of a Global Environment Record
-    /// envRec takes argument N (a String) and returns either a normal
-    /// completion containing a Boolean or a throw completion. It determines if
-    /// a corresponding CreateGlobalVarBinding call would succeed if called for
-    /// the same argument N. Redundant var declarations and var declarations
-    /// for pre-existing global object properties are allowed.
-    pub(crate) fn try_can_declare_global_var<'gc>(
-        self,
-        agent: &mut Agent,
-        name: String,
-        cache: Option<PropertyLookupCache>,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, bool> {
-        let env = self.bind(gc);
-        let env_rec = &agent[env];
-        // 1. Let ObjRec be envRec.[[ObjectRecord]].
-        let obj_rec = env_rec.object_record.bind(gc);
-        // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.get_binding_object(agent);
-        // 3. Let hasProperty be ? HasOwnProperty(globalObject, N).
-        let n = PropertyKey::from(name);
-        let has_property = try_has_own_property(agent, global_object, n, cache, gc)?;
-        // 4. If hasProperty is true, return true.
-        if has_property {
-            TryResult::Continue(true)
-        } else {
-            // 5. Return ? IsExtensible(globalObject).
-            try_is_extensible(agent, global_object, gc)
-        }
-    }
-
     /// ### [9.1.1.4.15 CanDeclareGlobalVar ( N )](https://tc39.es/ecma262/#sec-candeclareglobalvar)
     ///
     /// The CanDeclareGlobalVar concrete method of a Global Environment Record
@@ -830,47 +733,6 @@ impl<'e> GlobalEnvironment<'e> {
         } else {
             // 5. Return ? IsExtensible(globalObject).
             is_extensible(agent, scoped_global_object.get(agent), gc)
-        }
-    }
-
-    /// ### Try [9.1.1.4.16 CanDeclareGlobalFunction ( N )](https://tc39.es/ecma262/#sec-candeclareglobalfunction)
-    ///
-    /// The CanDeclareGlobalFunction concrete method of a Global Environment
-    /// Record envRec takes argument N (a String) and returns either a normal
-    /// completion containing a Boolean or a throw completion. It determines if
-    /// a corresponding CreateGlobalFunctionBinding call would succeed if
-    /// called for the same argument N.
-    pub(crate) fn try_can_declare_global_function<'gc>(
-        self,
-        agent: &mut Agent,
-        name: String,
-        cache: Option<PropertyLookupCache>,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, bool> {
-        let env = self.bind(gc);
-        let env_rec = &agent[env];
-        // 1. Let ObjRec be envRec.[[ObjectRecord]].
-        let obj_rec = env_rec.object_record.bind(gc);
-        // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.get_binding_object(agent);
-        let n = PropertyKey::from(name);
-        // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
-        let existing_prop = global_object.try_get_own_property(agent, n, cache, gc)?;
-        // 4. If existingProp is undefined, return ? IsExtensible(globalObject).
-        let Some(existing_prop) = existing_prop else {
-            return try_is_extensible(agent, global_object, gc);
-        };
-        // 5. If existingProp.[[Configurable]] is true, return true.
-        if existing_prop.configurable == Some(true)
-            || existing_prop.is_data_descriptor()
-                && existing_prop.writable == Some(true)
-                && existing_prop.enumerable == Some(true)
-        {
-            // 6. If IsDataDescriptor(existingProp) is true and existingProp has attribute values { [[Writable]]: true, [[Enumerable]]: true }, true.
-            TryResult::Continue(true)
-        } else {
-            // 7. Return false.
-            TryResult::Continue(false)
         }
     }
 
@@ -918,51 +780,6 @@ impl<'e> GlobalEnvironment<'e> {
             // 7. Return false.
             Ok(false)
         }
-    }
-
-    /// ### Try [9.1.1.4.17 CreateGlobalVarBinding ( N, D )](https://tc39.es/ecma262/#sec-createglobalvarbinding)
-    ///
-    /// The CreateGlobalVarBinding concrete method of a Global Environment
-    /// Record envRec takes arguments N (a String) and D (a Boolean) and
-    /// returns either a normal completion containing UNUSED or a throw
-    /// completion. It creates and initializes a mutable binding in the
-    /// associated Object Environment Record and records the bound name in the
-    /// associated \[\[VarNames]] List. If a binding already exists, it is
-    /// reused and assumed to be initialized.
-    pub(crate) fn try_create_global_var_binding<'a>(
-        self,
-        agent: &mut Agent,
-        name: String,
-        cache: PropertyLookupCache,
-        is_deletable: bool,
-        gc: NoGcScope<'a, '_>,
-    ) -> TryResult<'a, ()> {
-        let env = self.bind(gc);
-        let env_rec = &agent[env];
-        // 1. Let ObjRec be envRec.[[ObjectRecord]].
-        let obj_rec = env_rec.object_record.bind(gc);
-        // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.get_binding_object(agent);
-        let n = PropertyKey::from(name);
-        // 3. Let hasProperty be ? HasOwnProperty(globalObject, N).
-        let has_property = try_has_own_property(agent, global_object, n, Some(cache), gc)?;
-        // 4. Let extensible be ? IsExtensible(globalObject).
-        let extensible = try_is_extensible(agent, global_object, gc)?;
-        // 5. If hasProperty is false and extensible is true, then
-        if !has_property && extensible {
-            // a. Perform ? ObjRec.CreateMutableBinding(N, D).
-            obj_rec.try_create_mutable_binding(agent, name, is_deletable, Some(cache), gc)?;
-            // b. Perform ? ObjRec.InitializeBinding(N, undefined).
-            obj_rec.try_initialize_binding(agent, name, Some(cache), Value::Undefined, gc)?;
-        }
-
-        // 6. If envRec.[[VarNames]] does not contain N, then
-        //    a. Append N to envRec.[[VarNames]].
-        let env_rec = &mut agent[env];
-        env_rec.var_names.insert(name.unbind());
-
-        // 7. Return UNUSED.
-        TryResult::Continue(())
     }
 
     /// ### [9.1.1.4.17 CreateGlobalVarBinding ( N, D )](https://tc39.es/ecma262/#sec-createglobalvarbinding)
@@ -1037,76 +854,6 @@ impl<'e> GlobalEnvironment<'e> {
 
         // 7. Return UNUSED.
         Ok(())
-    }
-
-    /// ### Try [9.1.1.4.18 CreateGlobalFunctionBinding ( N, V, D )](https://tc39.es/ecma262/#sec-createglobalfunctionbinding)
-    ///
-    /// The CreateGlobalFunctionBinding concrete method of a Global Environment
-    /// Record envRec takes arguments N (a String), V (an ECMAScript language
-    /// value), and D (a Boolean) and returns either a normal completion
-    /// containing UNUSED or a throw completion. It creates and initializes a
-    /// mutable binding in the associated Object Environment Record and records
-    /// the bound name in the associated [[VarNames]] List. If a binding
-    /// already exists, it is replaced.
-    pub(crate) fn try_create_global_function_binding<'a>(
-        self,
-        agent: &mut Agent,
-        name: String,
-        value: Value,
-        d: bool,
-        cache: Option<PropertyLookupCache>,
-        gc: NoGcScope<'a, '_>,
-    ) -> TryResult<'a, ()> {
-        let env = self.bind(gc);
-        let env_rec = &agent[env];
-        // 1. Let ObjRec be envRec.[[ObjectRecord]].
-        let obj_rec = env_rec.object_record.bind(gc);
-        // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = obj_rec.get_binding_object(agent);
-        let n = PropertyKey::from(name);
-        // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
-        let existing_prop = global_object.try_get_own_property(agent, n, cache, gc)?;
-        // 4. If existingProp is undefined or existingProp.[[Configurable]] is true, then
-        let desc = if existing_prop.is_none() || existing_prop.unwrap().configurable == Some(true) {
-            // a. Let desc be the PropertyDescriptor { [[Value]]: V, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: D }.
-            PropertyDescriptor {
-                value: Some(value.unbind()),
-                writable: Some(true),
-                get: None,
-                set: None,
-                enumerable: Some(true),
-                configurable: Some(d),
-            }
-        } else {
-            // 5. Else,
-            // a. Let desc be the PropertyDescriptor { [[Value]]: V }.
-            PropertyDescriptor {
-                value: Some(value.unbind()),
-                writable: None,
-                get: None,
-                set: None,
-                enumerable: None,
-                configurable: None,
-            }
-        };
-        // 6. Perform ? DefinePropertyOrThrow(globalObject, N, desc).
-        try_define_property_or_throw(agent, global_object, n, desc, cache, gc)?;
-        // 7. Perform ? Set(globalObject, N, V, false).
-        try_set(agent, global_object, n, value, false, None, gc)?;
-
-        // 8. If envRec.[[VarNames]] does not contain N, then
-        // a. Append N to envRec.[[VarNames]].
-        let env_rec = &mut agent[env];
-        env_rec.var_names.insert(name.unbind());
-        // 9. Return UNUSED.
-        TryResult::Continue(())
-        // NOTE
-        // Global function declarations are always represented as own
-        // properties of the global object. If possible, an existing own
-        // property is reconfigured to have a standard set of attribute values.
-        // Step 7 is equivalent to what calling the InitializeBinding concrete
-        // method would do and if globalObject is a Proxy will produce the same
-        // sequence of Proxy trap calls.
     }
 
     /// ### [9.1.1.4.18 CreateGlobalFunctionBinding ( N, V, D )](https://tc39.es/ecma262/#sec-createglobalfunctionbinding)

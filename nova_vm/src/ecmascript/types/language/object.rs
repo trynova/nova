@@ -12,15 +12,12 @@ mod property_key_vec;
 mod property_storage;
 
 use core::hash::Hash;
-use core::ops::ControlFlow;
-use std::collections::{TryReserveError, hash_map::Entry};
+use std::collections::TryReserveError;
 
 #[cfg(feature = "date")]
 use super::value::DATE_DISCRIMINANT;
 #[cfg(feature = "proposal-float16array")]
 use super::value::FLOAT_16_ARRAY_DISCRIMINANT;
-#[cfg(feature = "regexp")]
-use super::value::REGEXP_DISCRIMINANT;
 #[cfg(feature = "shared-array-buffer")]
 use super::value::SHARED_ARRAY_BUFFER_DISCRIMINANT;
 #[cfg(feature = "array-buffer")]
@@ -46,13 +43,11 @@ use super::{
         FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, MAP_DISCRIMINANT,
         MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, OBJECT_DISCRIMINANT,
         PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT,
-        REGEXP_STRING_ITERATOR_DISCRIMINANT, STRING_ITERATOR_DISCRIMINANT,
+        STRING_ITERATOR_DISCRIMINANT,
     },
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
-#[cfg(feature = "regexp")]
-use crate::ecmascript::builtins::regexp::RegExp;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "weak-refs")]
@@ -64,15 +59,21 @@ use crate::ecmascript::{
     },
     types::{SET_DISCRIMINANT, SET_ITERATOR_DISCRIMINANT},
 };
+#[cfg(feature = "regexp")]
+use crate::ecmascript::{
+    builtins::{
+        regexp::RegExp,
+        text_processing::regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
+    },
+    types::{REGEXP_DISCRIMINANT, REGEXP_STRING_ITERATOR_DISCRIMINANT},
+};
 #[cfg(feature = "array-buffer")]
 use crate::{
     ecmascript::builtins::{ArrayBuffer, data_view::DataView, typed_array::TypedArray},
-    engine::context::NoGcScope,
     heap::indexes::TypedArrayIndex,
 };
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::call_function,
         builtins::{
             ArgumentsList, Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
             async_generator_objects::AsyncGenerator,
@@ -97,16 +98,13 @@ use crate::{
             promise::Promise,
             promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
             proxy::Proxy,
-            text_processing::{
-                regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
-                string_objects::string_iterator_objects::StringIterator,
-            },
+            text_processing::string_objects::string_iterator_objects::StringIterator,
         },
         execution::{Agent, JsResult, ProtoIntrinsics, agent::TryResult},
-        types::{IntoValue, PropertyDescriptor},
+        types::PropertyDescriptor,
     },
     engine::{
-        context::{Bindable, GcScope, bindable_handle},
+        context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::HeapRootData,
     },
     heap::{
@@ -128,6 +126,7 @@ pub use internal_slots::InternalSlots;
 pub use into_object::IntoObject;
 pub use property_key::PropertyKey;
 pub use property_key_set::PropertyKeySet;
+#[cfg(feature = "json")]
 pub(crate) use property_key_vec::ScopedPropertyKey;
 pub use property_storage::PropertyStorage;
 
@@ -205,6 +204,7 @@ pub enum Object<'a> {
     SetIterator(SetIterator<'a>) = SET_ITERATOR_DISCRIMINANT,
     MapIterator(MapIterator<'a>) = MAP_ITERATOR_DISCRIMINANT,
     StringIterator(StringIterator<'a>) = STRING_ITERATOR_DISCRIMINANT,
+    #[cfg(feature = "regexp")]
     RegExpStringIterator(RegExpStringIterator<'a>) = REGEXP_STRING_ITERATOR_DISCRIMINANT,
     Generator(Generator<'a>) = GENERATOR_DISCRIMINANT,
     Module(Module<'a>) = MODULE_DISCRIMINANT,
@@ -307,58 +307,6 @@ impl<'a> OrdinaryObject<'a> {
         }
         let new_shape = shape.make_intrinsic(agent);
         self.get_mut(agent).set_shape(new_shape);
-    }
-
-    pub(crate) unsafe fn try_set_property_by_offset<'gc>(
-        self,
-        agent: &mut Agent,
-        offset: u16,
-        value: Value,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ControlFlow<Function<'gc>, bool> {
-        let data = self.get_elements_storage_mut(agent);
-        match data.descriptors {
-            Entry::Occupied(e) => {
-                let e = e.into_mut();
-                let offset = offset as u32;
-                let d = e.get(&offset);
-                if let Some(d) = d
-                    && !(d.is_data_descriptor() && d.is_writable().unwrap())
-                {
-                    // Either unwritable data descriptor, or an accessor
-                    // descriptor.
-                    if let Some(setter) = d.setter_function(gc) {
-                        ControlFlow::Break(setter)
-                    } else {
-                        ControlFlow::Continue(false)
-                    }
-                } else {
-                    data.values[offset as usize] = Some(value.unbind());
-                    ControlFlow::Continue(true)
-                }
-            }
-            Entry::Vacant(_) => {
-                // No descriptors: pure WEC data properties.
-                data.values[offset as usize] = Some(value.unbind());
-                ControlFlow::Continue(true)
-            }
-        }
-    }
-
-    pub(crate) unsafe fn call_property_getter_by_offset<'gc>(
-        self,
-        agent: &mut Agent,
-        offset: u16,
-        this_value: Object,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let data = self.get_elements_storage(agent);
-        debug_assert!(data.values[offset as usize].is_none());
-        let getter = data
-            .descriptors
-            .and_then(|d| d.get(&(offset as u32)).unwrap().getter_function(gc.nogc()))
-            .unwrap();
-        call_function(agent, getter.unbind(), this_value.into_value(), None, gc)
     }
 
     pub(crate) fn get_property_storage<'b>(self, agent: &'b Agent) -> PropertyStorageRef<'b, 'a> {

@@ -8,13 +8,16 @@ use super::{
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
-#[cfg(feature = "regexp")]
-use crate::ecmascript::builtins::regexp::RegExp;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "set")]
 use crate::ecmascript::builtins::{
     keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
+};
+#[cfg(feature = "regexp")]
+use crate::ecmascript::builtins::{
+    regexp::RegExp,
+    text_processing::regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
 };
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
@@ -44,10 +47,7 @@ use crate::{
             promise::Promise,
             promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
             proxy::Proxy,
-            text_processing::{
-                regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
-                string_objects::string_iterator_objects::StringIterator,
-            },
+            text_processing::string_objects::string_iterator_objects::StringIterator,
         },
         execution::{
             Agent, JsResult,
@@ -235,11 +235,6 @@ const _VALUE_SIZE_IS_WORD: () = assert!(size_of::<Value>() == size_of::<usize>()
 /// arrays do not start requiring extra bookkeeping.
 const _OPTIONAL_VALUE_SIZE_IS_WORD: () = assert!(size_of::<Option<Value>>() == size_of::<usize>());
 
-#[derive(Debug, Clone, Copy)]
-pub enum PreferredType {
-    String,
-    Number,
-}
 const fn value_discriminant(value: Value) -> u8 {
     // SAFETY: Because `Self` is marked `repr(u8)`, its layout is a `repr(C)` `union`
     // between `repr(C)` structs, each of which has the `u8` discriminant as its first
@@ -361,6 +356,7 @@ pub(crate) const MAP_ITERATOR_DISCRIMINANT: u8 =
     value_discriminant(Value::MapIterator(MapIterator::_def()));
 pub(crate) const STRING_ITERATOR_DISCRIMINANT: u8 =
     value_discriminant(Value::StringIterator(StringIterator::_def()));
+#[cfg(feature = "regexp")]
 pub(crate) const REGEXP_STRING_ITERATOR_DISCRIMINANT: u8 =
     value_discriminant(Value::RegExpStringIterator(RegExpStringIterator::_def()));
 pub(crate) const GENERATOR_DISCRIMINANT: u8 =
@@ -1742,20 +1738,9 @@ fn map_object_to_static_string_repr(value: Value) -> String<'static> {
         #[cfg(feature = "regexp")]
         Object::RegExpStringIterator(_) => BUILTIN_STRING_MEMORY._object_Object_,
         Object::Module(_) => BUILTIN_STRING_MEMORY._object_Module_,
-        Object::Object(_)
-        | Object::PrimitiveObject(_)
-        | Object::ArrayBuffer(_)
+        #[cfg(feature = "array-buffer")]
+        Object::ArrayBuffer(_)
         | Object::DataView(_)
-        | Object::Date(_)
-        | Object::FinalizationRegistry(_)
-        | Object::Map(_)
-        | Object::Promise(_)
-        | Object::Proxy(_)
-        | Object::Set(_)
-        | Object::SharedArrayBuffer(_)
-        | Object::WeakMap(_)
-        | Object::WeakRef(_)
-        | Object::WeakSet(_)
         | Object::Int8Array(_)
         | Object::Uint8Array(_)
         | Object::Uint8ClampedArray(_)
@@ -1766,15 +1751,30 @@ fn map_object_to_static_string_repr(value: Value) -> String<'static> {
         | Object::BigInt64Array(_)
         | Object::BigUint64Array(_)
         | Object::Float32Array(_)
-        | Object::Float64Array(_)
+        | Object::Float64Array(_) => BUILTIN_STRING_MEMORY._object_Object_,
+        #[cfg(feature = "proposal-float16array")]
+        Object::Float16Array(_) => BUILTIN_STRING_MEMORY._object_Object_,
+        #[cfg(feature = "date")]
+        Object::Date(_) => BUILTIN_STRING_MEMORY._object_Object_,
+        #[cfg(feature = "set")]
+        Object::Set(_) | Object::SetIterator(_) => BUILTIN_STRING_MEMORY._object_Object_,
+        #[cfg(feature = "shared-array-buffer")]
+        Object::SharedArrayBuffer(_) => BUILTIN_STRING_MEMORY._object_Object_,
+        #[cfg(feature = "weak-refs")]
+        Object::WeakMap(_) | Object::WeakRef(_) | Object::WeakSet(_) => {
+            BUILTIN_STRING_MEMORY._object_Object_
+        }
+        Object::Object(_)
+        | Object::PrimitiveObject(_)
+        | Object::FinalizationRegistry(_)
+        | Object::Map(_)
+        | Object::Promise(_)
+        | Object::Proxy(_)
         | Object::AsyncGenerator(_)
         | Object::ArrayIterator(_)
-        | Object::SetIterator(_)
         | Object::MapIterator(_)
         | Object::StringIterator(_)
         | Object::Generator(_)
         | Object::EmbedderObject(_) => BUILTIN_STRING_MEMORY._object_Object_,
-        #[cfg(feature = "proposal-float16array")]
-        Object::Float16Array(_) => BUILTIN_STRING_MEMORY._object_Object_,
     }
 }

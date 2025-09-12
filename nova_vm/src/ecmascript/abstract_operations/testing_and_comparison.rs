@@ -6,27 +6,30 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_numeric_primitive,
-        builtins::proxy::abstract_operations::{NonRevokedProxy, validate_non_revoked_proxy},
-        execution::{
-            Agent, JsResult,
-            agent::{ExceptionType, TryResult},
+        abstract_operations::type_conversion::{
+            PreferredType, string_to_big_int, string_to_number, to_numeric_primitive, to_primitive,
         },
+        builtins::proxy::abstract_operations::{NonRevokedProxy, validate_non_revoked_proxy},
+        execution::{Agent, JsResult, agent::ExceptionType},
         types::{
-            Function, InternalMethods, IntoValue, Number, Numeric, Object, Primitive, PropertyKey,
-            String, Value, bigint::BigInt,
+            Function, InternalMethods, IntoValue, Number, Numeric, Object, Primitive, String,
+            Value, bigint::BigInt,
         },
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::{PrimitiveHeapIndexable, WellKnownSymbolIndexes},
+    heap::PrimitiveHeapIndexable,
 };
 
-use super::operations_on_objects::get;
-use super::type_conversion::{
-    PreferredType, string_to_big_int, string_to_number, to_boolean, to_primitive,
+#[cfg(feature = "regexp")]
+use crate::{
+    ecmascript::{
+        abstract_operations::{operations_on_objects::get, type_conversion::to_boolean},
+        types::PropertyKey,
+    },
+    heap::WellKnownSymbolIndexes,
 };
 
 /// ### [7.2.1 RequireObjectCoercible ( argument )](https://tc39.es/ecma262/#sec-requireobjectcoercible)
@@ -137,25 +140,11 @@ pub(crate) fn is_constructor<'a>(
     }
 }
 
-/// ### Try [7.2.5 IsExtensible ( O )](https://tc39.es/ecma262/#sec-isextensible-o)
-///
-/// The abstract operation IsExtensible takes argument O (an Object) and
-/// returns either a normal completion containing a Boolean or a throw
-/// completion. It is used to determine whether additional properties can be
-/// added to O.
-pub(crate) fn try_is_extensible<'gc>(
-    agent: &mut Agent,
-    o: Object,
-    gc: NoGcScope<'gc, '_>,
-) -> TryResult<'gc, bool> {
-    // 1. Return ? O.[[IsExtensible]]().
-    o.try_is_extensible(agent, gc)
-}
-
 /// ### [7.2.6 IsRegExp ( argument )](https://tc39.es/ecma262/#sec-isregexp)
 ///
 /// The abstract operation IsRegExp takes argument
 /// argument (an ECMAScript language value) and returns either a normal completion containing a Boolean or a throw completion.
+#[cfg(feature = "regexp")]
 pub(crate) fn is_reg_exp<'a>(
     agent: &mut Agent,
     argument: Value,
@@ -189,6 +178,15 @@ pub(crate) fn is_reg_exp<'a>(
     }
 
     // 5. Return false.
+    Ok(false)
+}
+#[cfg(not(feature = "regexp"))]
+#[inline(always)]
+pub(crate) fn is_reg_exp<'a>(
+    _agent: &mut Agent,
+    _argument: Value,
+    _gc: GcScope<'a, '_>,
+) -> JsResult<'a, bool> {
     Ok(false)
 }
 

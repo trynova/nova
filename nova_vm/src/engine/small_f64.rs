@@ -107,6 +107,7 @@ impl From<SmallF64> for f64 {
 
         #[repr(u8)]
         enum Repr {
+            #[expect(dead_code)]
             Data([u8; 7]) = 0,
         }
 

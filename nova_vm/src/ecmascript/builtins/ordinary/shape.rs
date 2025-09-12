@@ -9,21 +9,18 @@ use hashbrown::{HashTable, hash_table::Entry};
 
 use crate::{
     ecmascript::{
-        execution::{
-            Agent, PrivateField, Realm,
-            agent::{TryError, TryResult},
-        },
+        execution::{Agent, PrivateField, Realm},
         types::{
-            BigInt, InternalMethods, InternalSlots, IntoObject, Number, Numeric, Object, Primitive,
-            PropertyKey, SetCachedProps, SetResult, String, Symbol, TryGetResult, Value,
+            InternalMethods, IntoObject, Object, Primitive, PropertyKey, Symbol, TryGetResult,
+            Value,
         },
     },
     engine::context::{Bindable, GcToken, NoGcScope, bindable_handle},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        IntrinsicObjectIndexes, IntrinsicObjectShapes, PropertyKeyHeap, WeakReference, WorkQueues,
+        IntrinsicObjectShapes, PropertyKeyHeap, WeakReference, WorkQueues,
         element_array::{ElementArrayKey, ElementArrays},
-        indexes::{BaseIndex, PropertyKeyIndex},
+        indexes::PropertyKeyIndex,
     },
 };
 
@@ -88,14 +85,6 @@ impl<'a> ObjectShape<'a> {
     /// Get the Object Shape transitions.
     fn get_transitions(self, agent: &Agent) -> &ObjectShapeTransitionMap<'a> {
         self.get_transitions_direct(&agent.heap.object_shape_transitions)
-    }
-
-    /// Get the Object Shape transitions as mutable.
-    pub(crate) fn get_transitions_mut(
-        self,
-        agent: &mut Agent,
-    ) -> &mut ObjectShapeTransitionMap<'a> {
-        self.get_transitions_direct_mut(&mut agent.heap.object_shape_transitions)
     }
 
     /// Get the Object Shape transitions.
@@ -244,16 +233,6 @@ impl<'a> ObjectShape<'a> {
         ObjectShape(idx, PhantomData)
     }
 
-    /// Get an Object Shape containing the given NonZeroU32.
-    #[inline(always)]
-    pub(crate) const fn from_index(index: usize) -> Self {
-        let index = index as u32;
-        assert!(index != u32::MAX);
-        // SAFETY: Number is not max value and will not overflow to zero.
-        // This check is done manually to allow const context.
-        Self::from_non_zero(unsafe { NonZeroU32::new_unchecked(index.wrapping_add(1)) })
-    }
-
     /// Perform a cached lookup in the given cache for this Object Shape.
     ///
     /// If a match is found, it is returned. Otherwise, a request to fill this
@@ -283,31 +262,6 @@ impl<'a> ObjectShape<'a> {
                 .caches
                 .set_current_cache(shape, p, receiver, cache);
             None
-        }
-    }
-
-    pub(crate) fn set_cached<'gc>(
-        self,
-        agent: &mut Agent,
-        o: Object,
-        props: &SetCachedProps,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<'gc, SetResult<'gc>> {
-        let shape = self;
-        if let Some((offset, prototype)) = props.cache.find_cached_property_offset(agent, shape) {
-            // A cached lookup result was found.
-            if let Some(prototype) = prototype {
-                prototype.set_at_offset(agent, props, offset, gc)
-            } else {
-                o.set_at_offset(agent, props, offset, gc)
-            }
-        } else {
-            // No cache found.
-            agent
-                .heap
-                .caches
-                .set_current_cache(shape, props.p, props.receiver, props.cache);
-            TryError::GcError.into()
         }
     }
 
@@ -922,24 +876,6 @@ impl<'a> ObjectShapeRecord<'a> {
         values_cap: ElementArrayKey::Empty,
     };
 
-    /// Base Object Shape Record.
-    ///
-    /// This record has a `%Object.prototype%` prototype and no keys.
-    ///
-    /// > NOTE: The `%Object.prototype%` is created statically and does not
-    /// > point to the current Realm's intrinsic but to the "0th" Realm's
-    /// > intrinsic. This should only be used in static initialisation of the
-    /// > heap.
-    pub(crate) const BASE: Self = Self {
-        prototype: Some(Object::Object(
-            IntrinsicObjectIndexes::ObjectPrototype.get_backing_object(BaseIndex::from_index(0)),
-        )),
-        keys: BaseIndex::from_index(0),
-        keys_cap: ElementArrayKey::Empty,
-        len: 0,
-        values_cap: ElementArrayKey::Empty,
-    };
-
     /// Create an Object Shape for the given prototype.
     #[inline]
     pub(crate) fn create_root(prototype: Object<'a>) -> Self {
@@ -1088,41 +1024,9 @@ impl PrototypeShapeTable {
     }
 }
 
-impl Value<'_> {
-    pub(crate) fn object_shape(self, agent: &mut Agent) -> Option<ObjectShape<'static>> {
-        if let Ok(primitive) = Primitive::try_from(self) {
-            primitive.object_shape(agent)
-        } else {
-            Some(Object::try_from(self).unwrap().object_shape(agent))
-        }
-    }
-}
-
-impl String<'_> {
-    pub(crate) fn object_shape(self, agent: &mut Agent) -> ObjectShape<'static> {
-        agent.current_realm_record().intrinsics().string_shape()
-    }
-}
-
-impl Number<'_> {
-    pub(crate) fn object_shape(self, agent: &mut Agent) -> ObjectShape<'static> {
-        agent.current_realm_record().intrinsics().number_shape()
-    }
-}
-
 impl Symbol<'_> {
     pub(crate) fn object_shape(self, agent: &mut Agent) -> ObjectShape<'static> {
         let prototype = agent.current_realm_record().intrinsics().symbol_prototype();
-        ObjectShape::get_shape_for_prototype(agent, Some(prototype.into_object()))
-    }
-}
-
-impl BigInt<'_> {
-    pub(crate) fn object_shape(self, agent: &mut Agent) -> ObjectShape<'static> {
-        let prototype = agent
-            .current_realm_record()
-            .intrinsics()
-            .big_int_prototype();
         ObjectShape::get_shape_for_prototype(agent, Some(prototype.into_object()))
     }
 }
@@ -1151,19 +1055,6 @@ impl Primitive<'_> {
                     agent,
                     Some(prototype.into_object()),
                 ))
-            }
-        }
-    }
-}
-
-impl Numeric<'_> {
-    pub(crate) fn object_shape(self, agent: &mut Agent) -> ObjectShape<'static> {
-        let intrinsics = agent.current_realm_record().intrinsics();
-        match self {
-            Self::Number(_) | Self::Integer(_) | Self::SmallF64(_) => intrinsics.number_shape(),
-            Self::BigInt(_) | Self::SmallBigInt(_) => {
-                let prototype = intrinsics.big_int_prototype();
-                ObjectShape::get_shape_for_prototype(agent, Some(prototype.into_object()))
             }
         }
     }

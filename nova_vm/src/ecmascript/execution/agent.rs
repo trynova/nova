@@ -21,6 +21,10 @@
 
 use ahash::AHashMap;
 
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
+#[cfg(feature = "weak-refs")]
+use crate::ecmascript::execution::clear_kept_objects;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_string,
@@ -31,9 +35,7 @@ use crate::{
             promise_objects::promise_abstract_operations::promise_jobs::{
                 PromiseReactionJob, PromiseResolveThenableJob,
             },
-            shared_array_buffer::SharedArrayBuffer,
         },
-        execution::clear_kept_objects,
         scripts_and_modules::{
             ScriptOrModule,
             module::module_semantics::{
@@ -246,10 +248,6 @@ pub struct Job {
 }
 
 impl Job {
-    fn realm(&self) -> Option<Realm<'static>> {
-        self.realm
-    }
-
     pub fn run<'a>(self, agent: &mut Agent, gc: GcScope<'a, '_>) -> JsResult<'a, ()> {
         let mut id = 0;
         ndt::job_evaluation_start!(|| {
@@ -290,6 +288,7 @@ pub enum PromiseRejectionTrackerOperation {
 }
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
+#[cfg(feature = "shared-array-buffer")]
 pub enum GrowSharedArrayBufferResult {
     #[default]
     Unhandled = 0,
@@ -489,6 +488,7 @@ pub trait HostHooks: core::fmt::Debug {
     /// > `≤ buffer.[[ArrayBufferMaxByteLength]]`.
     #[allow(unused_variables)]
     #[inline(always)]
+    #[cfg(feature = "shared-array-buffer")]
     fn grow_shared_array_buffer<'gc>(
         &self,
         agent: &Agent,
@@ -619,6 +619,7 @@ impl GcAgent {
         let realm = self.get_realm_by_root(realm);
         assert!(self.agent.execution_context_stack.is_empty());
         let result = self.agent.run_in_realm(realm, func);
+        #[cfg(feature = "weak-refs")]
         clear_kept_objects(&mut self.agent);
         assert!(self.agent.execution_context_stack.is_empty());
         assert!(self.agent.vm_stack.is_empty());
@@ -655,8 +656,10 @@ impl GcAgent {
 pub struct Agent {
     pub(crate) heap: Heap,
     pub(crate) options: Options,
-    pub(crate) symbol_id: usize,
-    pub(crate) global_symbol_registry: AHashMap<&'static str, Symbol<'static>>,
+    #[expect(dead_code)]
+    symbol_id: usize,
+    #[expect(dead_code)]
+    global_symbol_registry: AHashMap<&'static str, Symbol<'static>>,
     pub(crate) host_hooks: &'static dyn HostHooks,
     execution_context_stack: Vec<ExecutionContext>,
     /// Temporary storage for on-stack heap roots.
@@ -672,6 +675,7 @@ pub struct Agent {
     ///
     /// > Note: instead of storing objects in a list here, we only store a
     /// > boolean to clear weak references as needed.
+    #[cfg(feature = "weak-refs")]
     pub(super) kept_alive: bool,
     /// Global counter for PrivateNames. This only ever grows.
     private_names_counter: u32,
@@ -695,6 +699,7 @@ impl Agent {
             stack_refs: RefCell::new(Vec::with_capacity(64)),
             stack_ref_collections: RefCell::new(Vec::with_capacity(32)),
             vm_stack: Vec::with_capacity(16),
+            #[cfg(feature = "weak-refs")]
             kept_alive: false,
             private_names_counter: 0,
             module_async_evaluation_count: 0,
@@ -1070,10 +1075,6 @@ impl Agent {
         count
     }
 
-    pub(crate) fn running_execution_context_mut(&mut self) -> &mut ExecutionContext {
-        self.execution_context_stack.last_mut().unwrap()
-    }
-
     /// Panics if no active function object exists.
     pub(crate) fn active_function_object<'a>(&self, gc: NoGcScope<'a, '_>) -> Function<'a> {
         self.execution_context_stack
@@ -1311,7 +1312,8 @@ impl HeapMarkAndSweep for Agent {
             symbol_id: _,
             global_symbol_registry: _,
             host_hooks: _,
-            kept_alive: _,
+            #[cfg(feature = "weak-refs")]
+                kept_alive: _,
             private_names_counter: _,
             module_async_evaluation_count: _,
         } = self;
@@ -1360,7 +1362,8 @@ impl HeapMarkAndSweep for Agent {
             symbol_id: _,
             global_symbol_registry: _,
             host_hooks: _,
-            kept_alive: _,
+            #[cfg(feature = "weak-refs")]
+                kept_alive: _,
             private_names_counter: _,
             module_async_evaluation_count: _,
         } = self;

@@ -9,8 +9,6 @@ pub(crate) use private::{HeapRootCollectionData, RootableCollectionSealed, Roota
 
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
-#[cfg(feature = "regexp")]
-use crate::ecmascript::builtins::regexp::RegExp;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "array-buffer")]
@@ -21,8 +19,6 @@ use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set
 use crate::ecmascript::types::DATE_DISCRIMINANT;
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::types::FLOAT_16_ARRAY_DISCRIMINANT;
-#[cfg(feature = "regexp")]
-use crate::ecmascript::types::REGEXP_DISCRIMINANT;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::types::SHARED_ARRAY_BUFFER_DISCRIMINANT;
 #[cfg(feature = "array-buffer")]
@@ -43,6 +39,14 @@ use crate::ecmascript::{
         keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
     },
     types::{SET_DISCRIMINANT, SET_ITERATOR_DISCRIMINANT},
+};
+#[cfg(feature = "regexp")]
+use crate::ecmascript::{
+    builtins::{
+        regexp::RegExp,
+        text_processing::regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
+    },
+    types::{REGEXP_DISCRIMINANT, REGEXP_STRING_ITERATOR_DISCRIMINANT},
 };
 #[cfg(feature = "array-buffer")]
 use crate::heap::indexes::TypedArrayIndex;
@@ -71,10 +75,7 @@ use crate::{
                 promise_resolving_functions::BuiltinPromiseResolvingFunction,
             },
             proxy::Proxy,
-            text_processing::{
-                regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
-                string_objects::string_iterator_objects::StringIterator,
-            },
+            text_processing::string_objects::string_iterator_objects::StringIterator,
         },
         execution::{
             DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ModuleEnvironment,
@@ -95,9 +96,8 @@ use crate::{
             FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, HeapNumber, HeapString,
             IntoObject, MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT,
             NUMBER_DISCRIMINANT, OBJECT_DISCRIMINANT, Object, OrdinaryObject, PROMISE_DISCRIMINANT,
-            PROXY_DISCRIMINANT, PropertyKey, PropertyKeySet, REGEXP_STRING_ITERATOR_DISCRIMINANT,
-            STRING_DISCRIMINANT, STRING_ITERATOR_DISCRIMINANT, SYMBOL_DISCRIMINANT, Symbol, Value,
-            bigint::HeapBigInt,
+            PROXY_DISCRIMINANT, PropertyKey, PropertyKeySet, STRING_DISCRIMINANT,
+            STRING_ITERATOR_DISCRIMINANT, SYMBOL_DISCRIMINANT, Symbol, Value, bigint::HeapBigInt,
         },
     },
     heap::HeapMarkAndSweep,
@@ -108,8 +108,6 @@ pub mod private {
 
     #[cfg(feature = "date")]
     use crate::ecmascript::builtins::date::Date;
-    #[cfg(feature = "regexp")]
-    use crate::ecmascript::builtins::regexp::RegExp;
     #[cfg(feature = "shared-array-buffer")]
     use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
     #[cfg(feature = "array-buffer")]
@@ -118,8 +116,16 @@ pub mod private {
     use crate::ecmascript::builtins::{
         keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
     };
+    #[cfg(feature = "regexp")]
+    use crate::ecmascript::builtins::{
+        regexp::RegExp,
+        text_processing::regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
+    };
     #[cfg(feature = "weak-refs")]
-    use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
+    use crate::ecmascript::{
+        builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet},
+        execution::WeakKey,
+    };
     use crate::{
         ecmascript::{
             abstract_operations::keyed_group::KeyedGroup,
@@ -146,12 +152,10 @@ pub mod private {
                     promise_resolving_functions::BuiltinPromiseResolvingFunction,
                 },
                 proxy::Proxy,
-                text_processing::regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
             },
             execution::{
                 DeclarativeEnvironment, Environment, FunctionEnvironment, GlobalEnvironment,
-                ModuleEnvironment, ObjectEnvironment, PrivateEnvironment, Realm, WeakKey,
-                agent::JsError,
+                ModuleEnvironment, ObjectEnvironment, PrivateEnvironment, Realm, agent::JsError,
             },
             scripts_and_modules::{
                 module::module_semantics::{
@@ -229,6 +233,7 @@ pub mod private {
     #[cfg(feature = "array-buffer")]
     impl RootableSealed for TypedArray<'_> {}
     impl RootableSealed for Value<'_> {}
+    #[cfg(feature = "weak-refs")]
     impl RootableSealed for WeakKey<'_> {}
     #[cfg(feature = "weak-refs")]
     impl RootableSealed for WeakMap<'_> {}
@@ -534,6 +539,7 @@ pub enum HeapRootData {
     MapIterator(MapIterator<'static>) = MAP_ITERATOR_DISCRIMINANT,
     Generator(Generator<'static>) = GENERATOR_DISCRIMINANT,
     StringIterator(StringIterator<'static>) = STRING_ITERATOR_DISCRIMINANT,
+    #[cfg(feature = "regexp")]
     RegExpStringIterator(RegExpStringIterator<'static>) = REGEXP_STRING_ITERATOR_DISCRIMINANT,
     Module(Module<'static>) = MODULE_DISCRIMINANT,
     EmbedderObject(EmbedderObject<'static>) = EMBEDDER_OBJECT_DISCRIMINANT,
@@ -582,8 +588,11 @@ impl From<Object<'static>> for HeapRootData {
             Object::PrimitiveObject(primitive_object) => Self::PrimitiveObject(primitive_object),
             Object::Arguments(ordinary_object) => Self::Arguments(ordinary_object),
             Object::Array(array) => Self::Array(array),
+            #[cfg(feature = "array-buffer")]
             Object::ArrayBuffer(array_buffer) => Self::ArrayBuffer(array_buffer),
+            #[cfg(feature = "array-buffer")]
             Object::DataView(data_view) => Self::DataView(data_view),
+            #[cfg(feature = "date")]
             Object::Date(date) => Self::Date(date),
             Object::Error(error) => Self::Error(error),
             Object::FinalizationRegistry(finalization_registry) => {
@@ -596,24 +605,39 @@ impl From<Object<'static>> for HeapRootData {
             Object::RegExp(reg_exp) => Self::RegExp(reg_exp),
             #[cfg(feature = "set")]
             Object::Set(set) => Self::Set(set),
+            #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(shared_array_buffer) => {
                 Self::SharedArrayBuffer(shared_array_buffer)
             }
+            #[cfg(feature = "weak-refs")]
             Object::WeakMap(weak_map) => Self::WeakMap(weak_map),
+            #[cfg(feature = "weak-refs")]
             Object::WeakRef(weak_ref) => Self::WeakRef(weak_ref),
+            #[cfg(feature = "weak-refs")]
             Object::WeakSet(weak_set) => Self::WeakSet(weak_set),
+            #[cfg(feature = "array-buffer")]
             Object::Int8Array(base_index) => Self::Int8Array(base_index),
+            #[cfg(feature = "array-buffer")]
             Object::Uint8Array(base_index) => Self::Uint8Array(base_index),
+            #[cfg(feature = "array-buffer")]
             Object::Uint8ClampedArray(base_index) => Self::Uint8ClampedArray(base_index),
+            #[cfg(feature = "array-buffer")]
             Object::Int16Array(base_index) => Self::Int16Array(base_index),
+            #[cfg(feature = "array-buffer")]
             Object::Uint16Array(base_index) => Self::Uint16Array(base_index),
+            #[cfg(feature = "array-buffer")]
             Object::Int32Array(base_index) => Self::Int32Array(base_index),
+            #[cfg(feature = "array-buffer")]
             Object::Uint32Array(base_index) => Self::Uint32Array(base_index),
+            #[cfg(feature = "array-buffer")]
             Object::BigInt64Array(base_index) => Self::BigInt64Array(base_index),
+            #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(base_index) => Self::BigUint64Array(base_index),
             #[cfg(feature = "proposal-float16array")]
             Object::Float16Array(base_index) => Self::Float16Array(base_index),
+            #[cfg(feature = "array-buffer")]
             Object::Float32Array(base_index) => Self::Float32Array(base_index),
+            #[cfg(feature = "array-buffer")]
             Object::Float64Array(base_index) => Self::Float64Array(base_index),
 
             Object::AsyncGenerator(r#gen) => Self::AsyncGenerator(r#gen),

@@ -2,7 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#![allow(dead_code)]
 #![cfg_attr(feature = "proposal-float16array", feature(f16))]
 
 pub mod ecmascript;

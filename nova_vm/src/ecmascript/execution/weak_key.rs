@@ -6,8 +6,6 @@
 
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
-#[cfg(feature = "regexp")]
-use crate::ecmascript::builtins::regexp::RegExp;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "weak-refs")]
@@ -16,8 +14,6 @@ use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set
 use crate::ecmascript::types::DATE_DISCRIMINANT;
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::types::FLOAT_16_ARRAY_DISCRIMINANT;
-#[cfg(feature = "regexp")]
-use crate::ecmascript::types::REGEXP_DISCRIMINANT;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::types::SHARED_ARRAY_BUFFER_DISCRIMINANT;
 #[cfg(feature = "array-buffer")]
@@ -38,6 +34,14 @@ use crate::ecmascript::{
         keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
     },
     types::{SET_DISCRIMINANT, SET_ITERATOR_DISCRIMINANT},
+};
+#[cfg(feature = "regexp")]
+use crate::ecmascript::{
+    builtins::{
+        regexp::RegExp,
+        text_processing::regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
+    },
+    types::{REGEXP_DISCRIMINANT, REGEXP_STRING_ITERATOR_DISCRIMINANT},
 };
 #[cfg(feature = "array-buffer")]
 use crate::{
@@ -66,10 +70,7 @@ use crate::{
             promise::Promise,
             promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
             proxy::Proxy,
-            text_processing::{
-                regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
-                string_objects::string_iterator_objects::StringIterator,
-            },
+            text_processing::string_objects::string_iterator_objects::StringIterator,
         },
         types::{
             ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
@@ -82,8 +83,7 @@ use crate::{
             FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, IntoValue,
             MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, OBJECT_DISCRIMINANT,
             Object, OrdinaryObject, PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT,
-            PROXY_DISCRIMINANT, REGEXP_STRING_ITERATOR_DISCRIMINANT, STRING_ITERATOR_DISCRIMINANT,
-            SYMBOL_DISCRIMINANT, Symbol, Value,
+            PROXY_DISCRIMINANT, STRING_ITERATOR_DISCRIMINANT, SYMBOL_DISCRIMINANT, Symbol, Value,
         },
     },
     engine::{
@@ -166,6 +166,7 @@ pub(crate) enum WeakKey<'a> {
     SetIterator(SetIterator<'a>) = SET_ITERATOR_DISCRIMINANT,
     MapIterator(MapIterator<'a>) = MAP_ITERATOR_DISCRIMINANT,
     StringIterator(StringIterator<'a>) = STRING_ITERATOR_DISCRIMINANT,
+    #[cfg(feature = "regexp")]
     RegExpStringIterator(RegExpStringIterator<'a>) = REGEXP_STRING_ITERATOR_DISCRIMINANT,
     Generator(Generator<'a>) = GENERATOR_DISCRIMINANT,
     Module(Module<'a>) = MODULE_DISCRIMINANT,
@@ -286,6 +287,7 @@ impl<'a> From<Object<'a>> for WeakKey<'a> {
             Object::Proxy(d) => Self::Proxy(d),
             #[cfg(feature = "regexp")]
             Object::RegExp(d) => Self::RegExp(d),
+            #[cfg(feature = "set")]
             Object::Set(d) => Self::Set(d),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(d) => Self::SharedArrayBuffer(d),
@@ -367,6 +369,7 @@ impl<'a> TryFrom<WeakKey<'a>> for Object<'a> {
             WeakKey::Proxy(d) => Ok(Self::Proxy(d)),
             #[cfg(feature = "regexp")]
             WeakKey::RegExp(d) => Ok(Self::RegExp(d)),
+            #[cfg(feature = "set")]
             WeakKey::Set(d) => Ok(Self::Set(d)),
             #[cfg(feature = "shared-array-buffer")]
             WeakKey::SharedArrayBuffer(d) => Ok(Self::SharedArrayBuffer(d)),
@@ -479,6 +482,7 @@ impl HeapMarkAndSweep for WeakKey<'static> {
             Self::Proxy(d) => d.mark_values(queues),
             #[cfg(feature = "regexp")]
             Self::RegExp(d) => d.mark_values(queues),
+            #[cfg(feature = "set")]
             Self::Set(d) => d.mark_values(queues),
             #[cfg(feature = "shared-array-buffer")]
             Self::SharedArrayBuffer(d) => d.mark_values(queues),
@@ -554,6 +558,7 @@ impl HeapMarkAndSweep for WeakKey<'static> {
             Self::Proxy(d) => d.sweep_values(compactions),
             #[cfg(feature = "regexp")]
             Self::RegExp(d) => d.sweep_values(compactions),
+            #[cfg(feature = "set")]
             Self::Set(d) => d.sweep_values(compactions),
             #[cfg(feature = "shared-array-buffer")]
             Self::SharedArrayBuffer(d) => d.sweep_values(compactions),

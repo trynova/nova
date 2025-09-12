@@ -4,18 +4,25 @@
 
 use core::{cmp::max, str::FromStr};
 use small_string::SmallString;
-use std::{borrow::Cow, cmp::Ordering, ops::Deref};
+use std::{cmp::Ordering, ops::Deref};
 use unicode_normalization::{
     IsNormalized, UnicodeNormalization, is_nfc_quick, is_nfd_quick, is_nfkc_quick, is_nfkd_quick,
 };
 use wtf8::{CodePoint, Wtf8Buf};
 
+#[cfg(feature = "regexp")]
+use crate::{
+    ecmascript::{
+        abstract_operations::operations_on_objects::{get, get_object_method, invoke},
+        builtins::regexp::reg_exp_create,
+        types::Object,
+    },
+    engine::Scoped,
+};
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{
-                call_function, create_array_from_list, get, get_object_method, invoke,
-            },
+            operations_on_objects::{call_function, create_array_from_list},
             testing_and_comparison::{is_callable, is_reg_exp, require_object_coercible},
             type_conversion::{
                 is_trimmable_whitespace, to_integer_or_infinity, to_integer_or_infinity_number,
@@ -27,18 +34,14 @@ use crate::{
         builtins::{
             ArgumentsList, Array, Behaviour, Builtin, BuiltinIntrinsic,
             primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
-            regexp::reg_exp_create,
         },
         execution::{
             Agent, JsResult, Realm,
             agent::{ExceptionType, try_result_into_js},
         },
-        types::{
-            BUILTIN_STRING_MEMORY, IntoValue, Number, Object, Primitive, PropertyKey, String, Value,
-        },
+        types::{BUILTIN_STRING_MEMORY, IntoValue, Number, Primitive, PropertyKey, String, Value},
     },
     engine::{
-        Scoped,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
@@ -115,13 +118,17 @@ impl Builtin for StringPrototypeLocaleCompare {
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::locale_compare);
 }
+#[cfg(feature = "regexp")]
 struct StringPrototypeMatch;
+#[cfg(feature = "regexp")]
 impl Builtin for StringPrototypeMatch {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.r#match;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::r#match);
 }
+#[cfg(feature = "regexp")]
 struct StringPrototypeMatchAll;
+#[cfg(feature = "regexp")]
 impl Builtin for StringPrototypeMatchAll {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.matchAll;
     const LENGTH: u8 = 1;
@@ -163,7 +170,9 @@ impl Builtin for StringPrototypeReplaceAll {
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::replace_all);
 }
+#[cfg(feature = "regexp")]
 struct StringPrototypeSearch;
+#[cfg(feature = "regexp")]
 impl Builtin for StringPrototypeSearch {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.search;
     const LENGTH: u8 = 1;
@@ -1198,6 +1207,7 @@ impl StringPrototype {
     /// This method is intentionally generic; it does not require that its this
     /// value be a String object. Therefore, it can be transferred to other
     /// kinds of objects for use as a method.
+    #[cfg(feature = "regexp")]
     fn r#match<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1277,6 +1287,7 @@ impl StringPrototype {
     /// > NOTE 2: Similarly to `String.prototype.split`,
     /// > `String.prototype.matchAll` is designed to typically act without
     /// > mutating its inputs.
+    #[cfg(feature = "regexp")]
     fn match_all<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1601,6 +1612,7 @@ impl StringPrototype {
         let scoped_search_value = search_value.scope(agent, nogc);
         // See: https://github.com/tc39/ecma262/pull/3009
         // 2. If searchValue is an Object, then
+        #[cfg(feature = "regexp")]
         if let Ok(search_value) = Object::try_from(search_value) {
             // a. Let replacer be ? GetMethod(searchValue, %Symbol.replace%).
             let symbol = WellKnownSymbolIndexes::Replace.into();
@@ -1721,6 +1733,7 @@ impl StringPrototype {
         let scoped_search_value = search_value.scope(agent, nogc);
 
         // 2. If searchValue is an Object, then
+        #[cfg(feature = "regexp")]
         if let Ok(mut search_value) = Object::try_from(search_value) {
             // a. Let isRegExp be ? IsRegExp(searchValue).
             let is_reg_exp = is_reg_exp(agent, search_value.unbind().into_value(), gc.reborrow())
@@ -1897,6 +1910,7 @@ impl StringPrototype {
     /// > NOTE: This method is intentionally generic; it does not require that
     /// > its this value be a String object. Therefore, it can be transferred
     /// > to other kinds of objects for use as a method.
+    #[cfg(feature = "regexp")]
     fn search<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -2065,6 +2079,7 @@ impl StringPrototype {
             .scope(agent, nogc);
 
         // 2. If separator is an object, then
+        #[cfg(feature = "regexp")]
         if let Ok(separator) = Object::try_from(separator) {
             let symbol = WellKnownSymbolIndexes::Split.into();
             // a. Let splitter be ? GetMethod(separator, %Symbol.split%).
@@ -2893,15 +2908,16 @@ impl StringPrototype {
         let this = intrinsics.string_prototype();
         let this_base_object = intrinsics.string_prototype_backing_object();
         let string_constructor = intrinsics.string();
+        #[cfg(feature = "annex-b-string")]
         let prototype_trim_start = intrinsics.string_prototype_trim_start();
+        #[cfg(feature = "annex-b-string")]
         let prototype_trim_end = intrinsics.string_prototype_trim_end();
 
+        let regexp_property_count = if cfg!(feature = "regexp") { 3 } else { 0 };
+        let annex_b_property_count = if cfg!(feature = "regexp") { 16 } else { 0 };
+
         let builder = OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this_base_object)
-            .with_property_capacity(if cfg!(feature = "annex-b-string") {
-                52
-            } else {
-                36
-            })
+            .with_property_capacity(33 + regexp_property_count + annex_b_property_count)
             .with_prototype(object_prototype)
             .with_builtin_function_property::<StringPrototypeGetAt>()
             .with_builtin_function_property::<StringPrototypeCharAt>()
@@ -2914,16 +2930,22 @@ impl StringPrototype {
             .with_builtin_function_property::<StringPrototypeIndexOf>()
             .with_builtin_function_property::<StringPrototypeIsWellFormed>()
             .with_builtin_function_property::<StringPrototypeLastIndexOf>()
-            .with_builtin_function_property::<StringPrototypeLocaleCompare>()
+            .with_builtin_function_property::<StringPrototypeLocaleCompare>();
+        #[cfg(feature = "regexp")]
+        let builder = builder
             .with_builtin_function_property::<StringPrototypeMatch>()
-            .with_builtin_function_property::<StringPrototypeMatchAll>()
+            .with_builtin_function_property::<StringPrototypeMatchAll>();
+        let builder = builder
             .with_builtin_function_property::<StringPrototypeNormalize>()
             .with_builtin_function_property::<StringPrototypePadEnd>()
             .with_builtin_function_property::<StringPrototypePadStart>()
             .with_builtin_function_property::<StringPrototypeRepeat>()
             .with_builtin_function_property::<StringPrototypeReplace>()
-            .with_builtin_function_property::<StringPrototypeReplaceAll>()
-            .with_builtin_function_property::<StringPrototypeSearch>()
+            .with_builtin_function_property::<StringPrototypeReplaceAll>();
+
+        #[cfg(feature = "regexp")]
+        let builder = builder.with_builtin_function_property::<StringPrototypeSearch>();
+        let builder = builder
             .with_builtin_function_property::<StringPrototypeSlice>()
             .with_builtin_function_property::<StringPrototypeSplit>()
             .with_builtin_function_property::<StringPrototypeStartsWith>()
@@ -3164,6 +3186,7 @@ fn string_pad<'gc>(
 /// The abstract operation ToZeroPaddedDecimalString takes arguments n
 /// (a non-negative integer) and minLength (a non-negative integer) and returns
 /// a String.
+#[cfg(feature = "date")]
 pub(crate) fn to_zero_padded_decimal_string(
     n: impl ToString,
     min_length: usize,
@@ -3184,6 +3207,7 @@ pub(crate) fn to_zero_padded_decimal_string(
 /// abstract operation, a decimal digit is a code unit in the inclusive
 /// interval from 0x0030 (DIGIT ZERO) to 0x0039 (DIGIT NINE).
 #[allow(clippy::too_many_arguments)]
+#[cfg(feature = "regexp")]
 pub(crate) fn get_substitution<'gc, 'scope>(
     agent: &mut Agent,
     scoped_matched: Scoped<'scope, String>,
@@ -3223,7 +3247,7 @@ pub(crate) fn get_substitution<'gc, 'scope>(
         //    templateRemainder), determine refReplacement (its replacement),
         //    and then append that replacement to result.
         let mut r#ref = template_remainder;
-        let mut ref_replacement = Cow::Borrowed(template_remainder);
+        let mut ref_replacement = std::borrow::Cow::Borrowed(template_remainder);
         if template_remainder_bytes.len() == 1 {
             // h. Else,
             // i. Let ref be the substring of templateRemainder from 0 to 1.

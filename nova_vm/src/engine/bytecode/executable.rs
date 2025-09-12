@@ -58,16 +58,6 @@ impl<T: ?Sized> SendableRef<T> {
         }
     }
 
-    /// Unsafely creates a new [`SendableRef`] from a non-static reference.
-    ///
-    /// # Safety
-    ///
-    /// The safety conditions for this constructor are the same as for
-    /// transmuting `reference` into a static lifetime.
-    pub(crate) unsafe fn new_as_static(reference: &T) -> Self {
-        Self::new(unsafe { core::mem::transmute::<&T, &'static T>(reference) })
-    }
-
     pub(crate) fn get(&self) -> &'static T {
         assert_eq!(std::thread::current().id(), self.thread_id);
         self.reference
@@ -112,6 +102,7 @@ impl core::fmt::Debug for Executable<'_> {
     }
 }
 
+#[expect(dead_code)]
 const EXECUTABLE_OPTION_SIZE_IS_U32: () =
     assert!(size_of::<Executable<'_>>() == size_of::<Option<Executable<'_>>>());
 

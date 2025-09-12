@@ -120,30 +120,12 @@ macro_rules! create_environment_index {
                 )
             }
 
-            pub(crate) const fn from_u32_index(value: u32) -> Self {
-                // SAFETY: Number is not 0 and will not overflow to zero.
-                // This check is done manually to allow const context.
-                Self(
-                    unsafe { NonZeroU32::new_unchecked(value + 1) },
-                    PhantomData,
-                    PhantomData,
-                )
-            }
-
             pub(crate) const fn into_index(self) -> usize {
                 self.0.get() as usize - 1
             }
 
-            pub(crate) const fn into_u32(self) -> u32 {
-                self.0.get()
-            }
-
             pub(crate) const fn into_u32_index(self) -> u32 {
                 self.0.get() - 1
-            }
-
-            pub(crate) fn last(vec: &[Option<$record>]) -> Self {
-                Self::from_u32(vec.len() as u32)
             }
         }
 
@@ -1125,6 +1107,7 @@ impl Environments {
             .expect("DeclarativeEnvironment pointed to a None")
     }
 
+    #[expect(dead_code)]
     pub(crate) fn get_function_environment(
         &self,
         index: FunctionEnvironment,
@@ -1136,6 +1119,7 @@ impl Environments {
             .expect("FunctionEnvironment pointed to a None")
     }
 
+    #[expect(dead_code)]
     pub(crate) fn get_function_environment_mut(
         &mut self,
         index: FunctionEnvironment,
@@ -1169,6 +1153,7 @@ impl Environments {
             .expect("ModuleEnvironment pointed to a None")
     }
 
+    #[expect(dead_code)]
     pub(crate) fn get_global_environment(
         &self,
         index: GlobalEnvironment,
@@ -1180,6 +1165,7 @@ impl Environments {
             .expect("GlobalEnvironment pointed to a None")
     }
 
+    #[expect(dead_code)]
     pub(crate) fn get_global_environment_mut(
         &mut self,
         index: GlobalEnvironment,
@@ -1191,6 +1177,7 @@ impl Environments {
             .expect("GlobalEnvironment pointed to a None")
     }
 
+    #[expect(dead_code)]
     pub(crate) fn get_object_environment(
         &self,
         index: ObjectEnvironment,
@@ -1202,6 +1189,7 @@ impl Environments {
             .expect("ObjectEnvironment pointed to a None")
     }
 
+    #[expect(dead_code)]
     pub(crate) fn get_object_environment_mut(
         &mut self,
         index: ObjectEnvironment,

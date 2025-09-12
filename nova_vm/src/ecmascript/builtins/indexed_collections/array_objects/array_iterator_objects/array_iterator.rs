@@ -6,12 +6,11 @@ use core::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
-        builtins::Array,
         execution::{Agent, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, IntoObject, Object, OrdinaryObject, Value},
+        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
     },
     engine::{
-        context::{Bindable, NoGcScope, bindable_handle},
+        context::{Bindable, bindable_handle},
         rootable::HeapRootData,
     },
     heap::{
@@ -46,23 +45,6 @@ impl<'a> ArrayIterator<'a> {
             next_index: 0,
             kind,
         })
-    }
-
-    pub(crate) fn from_vm_iterator(
-        agent: &mut Agent,
-        array: Array,
-        index: u32,
-        gc: NoGcScope<'a, '_>,
-    ) -> Self {
-        agent
-            .heap
-            .create(ArrayIteratorHeapData {
-                object_index: None,
-                array: Some(array.into_object().unbind()),
-                next_index: index as i64,
-                kind: CollectionIteratorKind::Value,
-            })
-            .bind(gc)
     }
 }
 

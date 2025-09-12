@@ -34,42 +34,6 @@ use super::{
     AsyncGeneratorRequestCompletion, AsyncGeneratorState,
 };
 
-/// ### [27.6.3.2 AsyncGeneratorStart ( generator, generatorBody )](https://tc39.es/ecma262/#sec-asyncgeneratorstart)
-///
-/// Performs steps 4.f. through 4.l.
-pub(crate) fn async_generator_start_result(
-    agent: &mut Agent,
-    generator: AsyncGenerator,
-    result: JsResult<Value>,
-    mut gc: GcScope,
-) {
-    let generator = generator.bind(gc.nogc());
-    let result = result.bind(gc.nogc());
-    let scoped_generator = generator.scope(agent, gc.nogc());
-    // f. Remove acGenContext from the execution context stack and restore the
-    //    execution context that is at the top of the execution context stack
-    //    as the running execution context.
-    // g. Set acGenerator.[[AsyncGeneratorState]] to draining-queue.
-    generator.transition_to_draining_queue(agent);
-    // h. If result is a normal completion, set result to
-    //    NormalCompletion(undefined).
-    // i. If result is a return completion, set result to
-    //    NormalCompletion(result.[[Value]]).
-    let result = result.unwrap_or_else(|e| e.value());
-    // j. Perform AsyncGeneratorCompleteStep(acGenerator, result, true).
-    async_generator_complete_step(
-        agent,
-        generator.unbind(),
-        AsyncGeneratorRequestCompletion::Ok(result),
-        true,
-        None,
-        gc.nogc(),
-    );
-    // k. Perform AsyncGeneratorDrainQueue(acGenerator).
-    async_generator_drain_queue(agent, scoped_generator, gc.reborrow());
-    // l. Return undefined.
-}
-
 /// ### [27.6.3.3 AsyncGeneratorValidate ( generator, generatorBrand )](https://tc39.es/ecma262/#sec-asyncgeneratorvalidate)
 ///
 /// The abstract operation AsyncGeneratorValidate takes arguments generator (an

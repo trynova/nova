@@ -4,14 +4,11 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::get,
-            type_conversion::{to_index, validate_index},
-        },
+        abstract_operations::type_conversion::{to_index, validate_index},
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
-            array_buffer::allocate_array_buffer,
+            array_buffer::{allocate_array_buffer, get_array_buffer_max_byte_length_option},
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{
@@ -186,38 +183,5 @@ impl ArrayBufferConstructor {
             .with_prototype_property(array_buffer_prototype.into_object())
             .with_builtin_function_getter_property::<ArrayBufferGetSpecies>()
             .build();
-    }
-}
-
-/// ### [25.1.3.7 GetArrayBufferMaxByteLengthOption ( options )](https://tc39.es/ecma262/#sec-getarraybuffermaxbytelengthoption)
-///
-/// The abstract operation GetArrayBufferMaxByteLengthOption takes argument
-/// options (an ECMAScript language value) and returns either a normal
-/// completion containing either a non-negative integer or empty, or a throw
-/// completion.
-fn get_array_buffer_max_byte_length_option<'a>(
-    agent: &mut Agent,
-    options: Value,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, Option<u64>> {
-    // 1. If options is not an Object, return empty.
-    let Ok(options) = Object::try_from(options) else {
-        return Ok(None);
-    };
-    // 2. Let maxByteLength be ? Get(options, "maxByteLength").
-    let max_byte_length = get(
-        agent,
-        options,
-        BUILTIN_STRING_MEMORY.maxByteLength.into(),
-        gc.reborrow(),
-    )
-    .unbind()?
-    .bind(gc.nogc());
-    // 3. If maxByteLength is undefined, return empty.
-    if max_byte_length.is_undefined() {
-        Ok(None)
-    } else {
-        // 4. Return ? ToIndex(maxByteLength).
-        Ok(Some(to_index(agent, max_byte_length.unbind(), gc)? as u64))
     }
 }

@@ -47,10 +47,12 @@ pub struct GcScope<'a, 'b> {
     /// in the world at a time. Reborrowing a GcScope binds the previous one,
     /// so its contained GcToken is "inactive" during the lifetime of the
     /// reborrowed one.
+    #[expect(dead_code)]
     gc: GcToken,
     /// A GcScope also "owns" the scope access: This is the access to the
     /// Scoped roots stack. This is not yet well-defined but probably only
     /// GC scopes are allowed to shrink the Scoped roots stack.
+    #[expect(dead_code)]
     scope: ScopeToken,
     /// We must also keep an exclusive borrow on a GcToken. This enables
     /// various engine values to reborrow this lifetime as shared and that way

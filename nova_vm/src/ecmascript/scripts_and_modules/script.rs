@@ -1249,8 +1249,6 @@ mod test {
 
         let global = agent.current_global_object(gc.nogc());
 
-        struct TestBuiltinFunction;
-
         fn test_builtin_function<'a>(
             _: &mut Agent,
             _: Value,

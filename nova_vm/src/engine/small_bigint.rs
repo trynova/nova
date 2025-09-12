@@ -40,6 +40,7 @@ impl SmallBigInt {
 
         #[repr(u8)]
         enum Repr {
+            #[expect(dead_code)]
             Data([u8; 7]),
         }
 

@@ -4,6 +4,7 @@
 
 //! [6.2 ECMAScript Specification Types](https://tc39.es/ecma262/#sec-ecmascript-specification-types)
 
+#[cfg(feature = "array-buffer")]
 mod data_block;
 mod private_name;
 mod property_descriptor;

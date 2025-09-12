@@ -2,24 +2,18 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use num_bigint::ToBigInt;
 use num_traits::Pow;
 
 use crate::{
-    SmallInteger,
     ecmascript::{
-        abstract_operations::{
-            testing_and_comparison::is_integral_number,
-            type_conversion::{
-                PreferredType, to_big_int, to_big_int_primitive, to_index, to_primitive,
-            },
+        abstract_operations::type_conversion::{
+            PreferredType, to_big_int, to_big_int_primitive, to_index, to_primitive,
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, BigInt, BigIntHeapData, IntoObject, IntoValue, Number, Object,
-            String, Value,
+            BUILTIN_STRING_MEMORY, BigInt, IntoObject, IntoValue, Number, Object, String, Value,
         },
     },
     engine::{
@@ -27,7 +21,7 @@ use crate::{
         rootable::Scopable,
         small_bigint::SmallBigInt,
     },
-    heap::{CreateHeapData, IntrinsicConstructorIndexes},
+    heap::IntrinsicConstructorIndexes,
 };
 
 /// ### [21.1.2.1 BigInt ( value )](https://tc39.es/ecma262/#sec-bigint-constructor)
@@ -237,42 +231,5 @@ impl BigIntConstructor {
             .with_builtin_function_property::<BigIntAsUintN>()
             .with_prototype_property(big_int_prototype.into_object())
             .build();
-    }
-}
-
-fn number_to_big_int<'a>(
-    agent: &mut Agent,
-    value: Number<'a>,
-    gc: GcScope<'a, '_>,
-) -> JsResult<'a, BigInt<'a>> {
-    let gc = gc.into_nogc();
-    if !is_integral_number(agent, value) {
-        Err(agent.throw_exception_with_static_message(
-            ExceptionType::RangeError,
-            "Not an integer",
-            gc,
-        ))
-    } else {
-        match value {
-            Number::Number(idx) => {
-                let value = agent[idx];
-                if let Ok(data) = SmallInteger::try_from(value) {
-                    Ok(BigInt::SmallBigInt(data.into()))
-                } else {
-                    let number = value.to_bigint().unwrap();
-                    Ok(agent.heap.create(BigIntHeapData { data: number }))
-                }
-            }
-            Number::Integer(int) => Ok(BigInt::SmallBigInt(int.into())),
-            Number::SmallF64(value) => {
-                let value = value.into_f64();
-                if let Ok(data) = SmallInteger::try_from(value) {
-                    Ok(BigInt::SmallBigInt(data.into()))
-                } else {
-                    let number = value.to_bigint().unwrap();
-                    Ok(agent.heap.create(BigIntHeapData { data: number }))
-                }
-            }
-        }
     }
 }

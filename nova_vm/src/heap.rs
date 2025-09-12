@@ -29,13 +29,12 @@ pub(crate) use self::heap_constants::{
 pub(crate) use self::object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor};
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::data::DateHeapData;
-#[cfg(feature = "regexp")]
-use crate::ecmascript::builtins::regexp::RegExpHeapData;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::data::SharedArrayBufferRecord;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{
-    ArrayBufferHeapData,
+    ArrayBuffer, ArrayBufferHeapData,
+    array_buffer::DetachKey,
     data_view::{DataView, data::DataViewHeapData},
     typed_array::data::TypedArrayHeapData,
 };
@@ -43,6 +42,11 @@ use crate::ecmascript::builtins::{
 use crate::ecmascript::builtins::{
     keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIteratorHeapData,
     set::data::SetHeapData,
+};
+#[cfg(feature = "regexp")]
+use crate::ecmascript::builtins::{
+    regexp::RegExpHeapData,
+    text_processing::regexp_objects::regexp_string_iterator_objects::RegExpStringIteratorRecord,
 };
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{
@@ -52,8 +56,7 @@ use crate::ecmascript::builtins::{
 use crate::{
     ecmascript::{
         builtins::{
-            ArrayBuffer, ArrayHeapData,
-            array_buffer::DetachKey,
+            ArrayHeapData,
             async_generator_objects::AsyncGeneratorHeapData,
             control_abstraction_objects::{
                 async_function_objects::await_reaction::AwaitReactionRecord,
@@ -69,7 +72,7 @@ use crate::{
             indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
             keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
             map::data::MapHeapData,
-            module::{Module, data::ModuleHeapData},
+            module::data::ModuleHeapData,
             ordinary::{
                 caches::Caches,
                 shape::{ObjectShapeRecord, ObjectShapeTransitionMap, PrototypeShapeTable},
@@ -78,10 +81,7 @@ use crate::{
             promise::data::PromiseHeapData,
             promise_objects::promise_abstract_operations::promise_finally_functions::PromiseFinallyFunctionHeapData,
             proxy::data::ProxyHeapData,
-            text_processing::{
-                regexp_objects::regexp_string_iterator_objects::RegExpStringIteratorRecord,
-                string_objects::string_iterator_objects::StringIteratorHeapData,
-            },
+            text_processing::string_objects::string_iterator_objects::StringIteratorHeapData,
         },
         execution::{Agent, Environments, Realm, RealmRecord},
         scripts_and_modules::{
@@ -113,10 +113,13 @@ use element_array::{
     PropertyKeyArray2Pow16, PropertyKeyArray2Pow24, PropertyKeyArray2Pow32,
 };
 use hashbrown::HashTable;
+#[cfg(feature = "weak-refs")]
+pub(crate) use heap_bits::sweep_side_set;
 pub(crate) use heap_bits::{
     CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WeakReference, WorkQueues,
-    sweep_heap_vector_values, sweep_side_set,
+    sweep_heap_vector_values,
 };
+#[cfg(feature = "array-buffer")]
 use indexes::TypedArrayIndex;
 use soavec::SoAVec;
 use wtf8::{Wtf8, Wtf8Buf};
@@ -364,7 +367,7 @@ impl Heap {
         let strings = &mut heap.strings;
         let string_hasher = &mut heap.string_hasher;
         let string_lookup_table = &mut heap.string_lookup_table;
-        for builtin_string in BUILTIN_STRINGS_LIST.into_iter() {
+        for builtin_string in BUILTIN_STRINGS_LIST.iter() {
             let hash = string_hasher.hash_one(Wtf8::from_str(builtin_string));
             let data = StringHeapData::from_static_str(builtin_string);
             // SAFETY: heap is entry.
@@ -424,16 +427,6 @@ impl Heap {
             .push(ObjectShapeTransitionMap::ROOT);
 
         heap
-    }
-
-    pub(crate) fn add_module<'a>(
-        &mut self,
-        module: ModuleHeapData,
-        _: NoGcScope<'a, '_>,
-    ) -> Module<'a> {
-        self.modules.push(Some(module.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<ModuleHeapData<'static>>>();
-        Module::last(&self.modules)
     }
 
     pub(crate) fn add_realm<'a>(&mut self, realm: RealmRecord, _: NoGcScope<'a, '_>) -> Realm<'a> {
