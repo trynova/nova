@@ -11,6 +11,7 @@ use crate::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
             InternalMethods, InternalSlots, Object, OrdinaryObject, Value, copy_data_block_bytes,
+            create_byte_data_block,
         },
     },
     engine::{
@@ -33,6 +34,18 @@ pub use data::*;
 pub struct ArrayBuffer<'a>(BaseIndex<'a, ArrayBufferHeapData<'static>>);
 
 impl ArrayBuffer<'_> {
+    pub fn new<'gc>(
+        agent: &mut Agent,
+        byte_length: usize,
+        gc: NoGcScope<'gc, '_>,
+    ) -> JsResult<'gc, ArrayBuffer<'gc>> {
+        let block = create_byte_data_block(agent, byte_length as u64, gc)?;
+        Ok(agent
+            .heap
+            .create(ArrayBufferHeapData::new_fixed_length(block))
+            .bind(gc))
+    }
+
     #[inline]
     pub fn is_detached(self, agent: &Agent) -> bool {
         agent[self].is_detached()
