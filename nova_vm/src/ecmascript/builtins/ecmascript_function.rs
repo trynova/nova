@@ -49,7 +49,7 @@ use crate::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         WorkQueues, indexes::BaseIndex,
     },
-    ndt,
+    // ndt,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -335,12 +335,12 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         let f = self.bind(gc.nogc());
-        let mut id = 0;
-        ndt::javascript_call_start!(|| {
-            let args = create_name_and_id(agent, f);
-            id = args.1;
-            args
-        });
+        // let mut id = 0;
+        // ndt::javascript_call_start!(|| {
+        //     let args = create_name_and_id(agent, f);
+        //     id = args.1;
+        //     args
+        // });
 
         let arguments_list = arguments_list.bind(gc.nogc());
 
@@ -386,7 +386,7 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
         // 7. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
         // NOTE: calleeContext must not be destroyed if it is suspended and retained for later resumption by an accessible Generator.
         let _callee_context = agent.pop_execution_context();
-        ndt::javascript_call_done!(|| id);
+        // ndt::javascript_call_done!(|| id);
         // 8. If result is a return completion, return result.[[Value]].
         // 9. ReturnIfAbrupt(result).
         // 10. Return undefined.
@@ -401,12 +401,12 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Object<'gc>> {
         let mut f = self.bind(gc.nogc());
-        let mut id = 0;
-        ndt::javascript_constructor_start!(|| {
-            let args = create_name_and_id(agent, f);
-            id = args.1;
-            args
-        });
+        // let mut id = 0;
+        // ndt::javascript_constructor_start!(|| {
+        //     let args = create_name_and_id(agent, f);
+        //     id = args.1;
+        //     args
+        // });
 
         let mut new_target = new_target.bind(gc.nogc());
         let mut arguments_list = arguments.bind(gc.nogc());
@@ -530,7 +530,7 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
             // 14. Return thisBinding.
             Ok(this_binding)
         };
-        ndt::javascript_constructor_done!(|| id);
+        // ndt::javascript_constructor_done!(|| id);
         result
     }
 }

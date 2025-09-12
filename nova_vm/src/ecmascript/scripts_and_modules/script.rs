@@ -28,7 +28,7 @@ use crate::{
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
-    ndt,
+    // ndt,
 };
 use ahash::AHashSet;
 use core::{
@@ -375,11 +375,11 @@ pub fn script_evaluation<'a>(
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, Value<'a>> {
     let script = script.bind(gc.nogc());
-    let mut id = 0;
-    ndt::script_evaluation_start!(|| {
-        id = create_id(agent, script, gc.nogc());
-        id
-    });
+    // let mut id = 0;
+    // ndt::script_evaluation_start!(|| {
+    //     id = create_id(agent, script, gc.nogc());
+    //     id
+    // });
     let script_record = &agent[script];
     let realm_id = script_record.realm;
     let is_strict_mode = script_record.is_strict;
@@ -470,7 +470,7 @@ pub fn script_evaluation<'a>(
     //     running execution context.
     // NOTE: This is done automatically.
 
-    ndt::script_evaluation_done!(|| id);
+    // ndt::script_evaluation_done!(|| id);
 
     // 17. Return ? result.
     result

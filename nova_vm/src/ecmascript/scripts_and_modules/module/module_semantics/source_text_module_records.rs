@@ -60,7 +60,7 @@ use crate::{
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
     heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
-    ndt,
+    // ndt,
 };
 
 use super::{
@@ -1475,11 +1475,11 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
         let module = self.bind(gc.nogc());
         let capability = capability.bind(gc.nogc());
 
-        let mut id = 0;
-        ndt::module_evaluation_start!(|| {
-            id = create_id(agent, module);
-            id
-        });
+        // let mut id = 0;
+        // ndt::module_evaluation_start!(|| {
+        //     id = create_id(agent, module);
+        //     id
+        // });
 
         // 0. Bind module environment.
         // Note: this is a custom step that enables certain optimisations of
@@ -1554,7 +1554,7 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
             Ok(())
         };
 
-        ndt::module_evaluation_done!(|| id);
+        // ndt::module_evaluation_done!(|| id);
 
         // 11. Return unused.
         result

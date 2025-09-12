@@ -26,7 +26,7 @@ use crate::{
         IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, ObjectEntry,
         ObjectEntryPropertyDescriptor, WorkQueues, indexes::BaseIndex,
     },
-    ndt,
+    // ndt,
 };
 
 #[derive(Default)]
@@ -604,16 +604,16 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
         arguments_list: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        let mut id = 0;
-        ndt::builtin_call_start!(|| {
-            let args = create_name_and_id(agent, self);
-            id = args.1;
-            args
-        });
+        // let mut id = 0;
+        // ndt::builtin_call_start!(|| {
+        //     let args = create_name_and_id(agent, self);
+        //     id = args.1;
+        //     args
+        // });
         // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
         let result =
             builtin_call_or_construct(agent, self, Some(this_argument), arguments_list, None, gc);
-        ndt::builtin_call_done!(|| id);
+        // ndt::builtin_call_done!(|| id);
         result
     }
 
@@ -630,17 +630,17 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
         new_target: Function,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Object<'gc>> {
-        let mut id = 0;
-        ndt::builtin_constructor_start!(|| {
-            let args = create_name_and_id(agent, self);
-            id = args.1;
-            args
-        });
+        // let mut id = 0;
+        // ndt::builtin_constructor_start!(|| {
+        //     let args = create_name_and_id(agent, self);
+        //     id = args.1;
+        //     args
+        // });
         // 1. Return ? BuiltinCallOrConstruct(F, uninitialized, argumentsList, newTarget).
         let result =
             builtin_call_or_construct(agent, self, None, arguments_list, Some(new_target), gc)
                 .map(|result| result.try_into().unwrap());
-        ndt::builtin_constructor_done!(|| id);
+        // ndt::builtin_constructor_done!(|| id);
         result
     }
 }

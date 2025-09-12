@@ -42,7 +42,7 @@ use crate::{
         string_literal_to_wtf8,
     },
     heap::IntrinsicFunctionIndexes,
-    ndt,
+    // ndt,
 };
 
 use super::{
@@ -188,11 +188,11 @@ pub(crate) fn perform_eval<'gc>(
         .ensure_can_compile_strings(&mut agent[eval_realm], gc.nogc())
         .unbind()?;
 
-    let mut id = 0;
-    ndt::eval_evaluation_start!(|| {
-        id = create_id(x);
-        id
-    });
+    // let mut id = 0;
+    // ndt::eval_evaluation_start!(|| {
+    //     id = create_id(x);
+    //     id
+    // });
 
     // 6. Let inFunction be false.
     let mut _in_function = false;
@@ -269,7 +269,7 @@ pub(crate) fn perform_eval<'gc>(
                 "Invalid eval source text: {}",
                 errors.first().unwrap().message
             );
-            ndt::eval_evaluation_done!(|| id);
+            // ndt::eval_evaluation_done!(|| id);
             return Err(agent.throw_exception(ExceptionType::SyntaxError, message, gc.into_nogc()));
         }
     };
@@ -287,7 +287,7 @@ pub(crate) fn perform_eval<'gc>(
         // SAFETY: SourceCode was just parsed and found empty; even if it had
         // been executed, it would do nothing.
         unsafe { source_code.manually_drop(agent) };
-        ndt::eval_evaluation_done!(|| id);
+        // ndt::eval_evaluation_done!(|| id);
         return Ok(empty_result.unbind());
     }
 
@@ -432,7 +432,7 @@ pub(crate) fn perform_eval<'gc>(
     // TODO:
     // 32. Resume the context that is now on the top of the execution context stack as the running execution context.
 
-    ndt::eval_evaluation_done!(|| id);
+    // ndt::eval_evaluation_done!(|| id);
 
     // 33. Return ? result.
     result

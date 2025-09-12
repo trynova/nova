@@ -31,7 +31,7 @@ use crate::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues, indexes::BaseIndex,
     },
-    ndt,
+    // ndt,
 };
 
 use super::ArgumentsList;
@@ -199,15 +199,15 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinConstructorFunction<'a> {
         new_target: Function,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Object<'gc>> {
-        let mut id = 0;
-        ndt::builtin_constructor_start!(|| {
-            id = create_id(agent, self);
-            let name = self.get_name(agent).to_string_lossy(agent);
-            (name, id)
-        });
+        // let mut id = 0;
+        // ndt::builtin_constructor_start!(|| {
+        //     id = create_id(agent, self);
+        //     let name = self.get_name(agent).to_string_lossy(agent);
+        //     (name, id)
+        // });
         // 1. Return ? BuiltinCallOrConstruct(F, uninitialized, argumentsList, newTarget).
         let result = builtin_call_or_construct(agent, self, arguments_list, new_target, gc);
-        ndt::builtin_constructor_done!(|| id);
+        // ndt::builtin_constructor_done!(|| id);
         result
     }
 }
