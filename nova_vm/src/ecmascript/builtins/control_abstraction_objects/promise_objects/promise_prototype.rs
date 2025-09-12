@@ -18,13 +18,10 @@ use crate::{
             promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
         },
         execution::{
-            Agent, JsResult, Realm,
+            Agent, JsResult, ProtoIntrinsics, Realm,
             agent::{ExceptionType, PromiseRejectionTrackerOperation},
         },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, IntoFunction, IntoObject, IntoValue, Object, String,
-            Value,
-        },
+        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
@@ -108,15 +105,10 @@ impl PromisePrototype {
         let scoped_on_finally = on_finally.scope(agent, gc.nogc());
 
         // 3. Let C be ? SpeciesConstructor(promise, %Promise%).
-        let promise_intrinsic = agent
-            .current_realm_record()
-            .intrinsics()
-            .promise()
-            .bind(gc.nogc());
         let c = species_constructor(
             agent,
             promise.into_object().unbind(),
-            promise_intrinsic.into_function().unbind(),
+            ProtoIntrinsics::Promise,
             gc.reborrow(),
         )
         .unbind()?

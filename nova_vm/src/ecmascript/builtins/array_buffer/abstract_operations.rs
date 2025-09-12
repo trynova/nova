@@ -2,19 +2,19 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{ArrayBuffer, ArrayBufferHeapData};
+use super::{ArrayBuffer, InternalBuffer};
 use crate::{
     Heap,
     ecmascript::{
         abstract_operations::{operations_on_objects::get, type_conversion::to_index},
-        execution::{Agent, JsResult, agent::ExceptionType},
+        builtins::ordinary::ordinary_create_from_constructor,
+        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, DataBlock, Function, IntoFunction, Number, Numeric, Object,
-            Value, Viewable, copy_data_block_bytes, create_byte_data_block,
+            BUILTIN_STRING_MEMORY, DataBlock, Function, Number, Numeric, Object, Value, Viewable,
+            copy_data_block_bytes, create_byte_data_block,
         },
     },
     engine::context::{Bindable, GcScope, NoGcScope},
-    heap::CreateHeapData,
 };
 
 // TODO: Implement the contents of the `DetachKey` struct?
@@ -39,51 +39,60 @@ pub(crate) enum Ordering {
 /// completion. It is used to create an ArrayBuffer.
 pub(crate) fn allocate_array_buffer<'a>(
     agent: &mut Agent,
-    // TODO: Verify that constructor is %ArrayBuffer% and if not,
-    // create the `ObjectHeapData` for obj.
-    _constructor: Function,
+    constructor: Function,
     byte_length: u64,
     max_byte_length: Option<u64>,
-    gc: NoGcScope<'a, '_>,
+    mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ArrayBuffer<'a>> {
+    let constructor = constructor.bind(gc.nogc());
     // 1. Let slots be « [[ArrayBufferData]], [[ArrayBufferByteLength]], [[ArrayBufferDetachKey]] ».
     // 2. If maxByteLength is present and maxByteLength is not EMPTY, let allocatingResizableBuffer be true; otherwise let allocatingResizableBuffer be false.
-    let allocating_resizable_buffer = max_byte_length.is_some();
     // 3. If allocatingResizableBuffer is true, then
-    if allocating_resizable_buffer {
+    if let Some(max_byte_length) = max_byte_length {
         // a. If byteLength > maxByteLength, throw a RangeError exception.
-        if byte_length > max_byte_length.unwrap() {
+        if byte_length > max_byte_length {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::RangeError,
                 "Byte length is over maximumm byte length",
-                gc,
+                gc.into_nogc(),
             ));
         }
         // b. Append [[ArrayBufferMaxByteLength]] to slots.
     }
     // 4. Let obj be ? OrdinaryCreateFromConstructor(constructor, "%ArrayBuffer.prototype%", slots).
+    let Object::ArrayBuffer(obj) = ordinary_create_from_constructor(
+        agent,
+        constructor.unbind(),
+        ProtoIntrinsics::ArrayBuffer,
+        gc.reborrow(),
+    )
+    .unbind()?
+    .bind(gc.nogc()) else {
+        unreachable!()
+    };
+    let obj = obj.unbind();
+    let gc = gc.into_nogc();
+    let obj = obj.bind(gc);
     // 5. Let block be ? CreateByteDataBlock(byteLength).
     // 8. If allocatingResizableBuffer is true, then
-    //      a. If it is not possible to create a Data Block block consisting of maxByteLength bytes, throw a RangeError exception.
-    //      b. NOTE: Resizable ArrayBuffers are designed to be implementable with in-place growth. Implementations may throw if, for example, virtual memory cannot be reserved up front.
-    //      c. Set obj.[[ArrayBufferMaxByteLength]] to maxByteLength.
-    if byte_length > u32::MAX as u64 {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::RangeError,
-            "Byte length is too large",
-            gc,
-        ));
-    }
-    let block = create_byte_data_block(agent, byte_length, gc)?;
+    let buffer = if let Some(max_byte_length) = max_byte_length {
+        // a. If it is not possible to create a Data Block block consisting of
+        //    maxByteLength bytes, throw a RangeError exception.
+        // b. NOTE: Resizable ArrayBuffers are designed to be implementable
+        //    with in-place growth. Implementations may throw if, for example,
+        //    virtual memory cannot be reserved up front.
+        // c. Set obj.[[ArrayBufferMaxByteLength]] to maxByteLength.
+        let mut block = create_byte_data_block(agent, max_byte_length, gc)?;
+        block.realloc(byte_length as usize);
+        InternalBuffer::resizable(block, max_byte_length as usize)
+    } else {
+        InternalBuffer::fixed_length(create_byte_data_block(agent, byte_length, gc)?)
+    };
     // 6. Set obj.[[ArrayBufferData]] to block.
     // 7. Set obj.[[ArrayBufferByteLength]] to byteLength.
-    let obj = if allocating_resizable_buffer {
-        ArrayBufferHeapData::new_resizable(block, max_byte_length.unwrap() as usize)
-    } else {
-        ArrayBufferHeapData::new_fixed_length(block)
-    };
+    agent[obj].buffer = buffer;
     // 9. Return obj.
-    Ok(agent.heap.create(obj).bind(gc))
+    Ok(obj)
 }
 
 /// ### [25.1.3.2 ArrayBufferByteLength ( arrayBuffer, order )](https://tc39.es/ecma262/#sec-arraybufferbytelength)
@@ -164,19 +173,8 @@ pub(crate) fn clone_array_buffer<'a>(
     // 1. Assert: IsDetachedBuffer(srcBuffer) is false.
     debug_assert!(!src_buffer.is_detached(agent));
     // 2. Let targetBuffer be ? AllocateArrayBuffer(%ArrayBuffer%, srcLength).
-    let target_buffer = allocate_array_buffer(
-        agent,
-        agent
-            .current_realm_record()
-            .intrinsics()
-            .array_buffer()
-            .into_function(),
-        src_length as u64,
-        None,
-        gc,
-    )
-    .unbind()?
-    .bind(gc);
+    let target_buffer = ArrayBuffer::new(agent, src_length, gc)?;
+
     let Heap { array_buffers, .. } = &mut agent.heap;
     let (target_buffer_data, array_buffers) = array_buffers.split_last_mut().unwrap();
     let target_buffer_data = target_buffer_data.as_mut().unwrap();

@@ -5,7 +5,7 @@
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::construct,
+            operations_on_objects::{construct, species_constructor},
             type_conversion::{to_index, to_integer_or_infinity, try_to_index},
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
@@ -14,12 +14,10 @@ use crate::{
             array_buffer::{is_detached_buffer, is_fixed_length_array_buffer},
         },
         execution::{
-            Agent, JsResult, Realm,
+            Agent, JsResult, ProtoIntrinsics, Realm,
             agent::{ExceptionType, try_result_into_js},
         },
-        types::{
-            BUILTIN_STRING_MEMORY, IntoFunction, IntoValue, Object, PropertyKey, String, Value,
-        },
+        types::{BUILTIN_STRING_MEMORY, IntoObject, IntoValue, PropertyKey, String, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
@@ -255,7 +253,7 @@ impl ArrayBufferPrototype {
         let end = arguments.get(1).scope(agent, gc.nogc());
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
-        // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.´
+        // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
         let o = require_internal_slot_array_buffer(agent, this_value, gc.nogc())
             .unbind()?
             .bind(gc.nogc());
@@ -308,28 +306,29 @@ impl ArrayBufferPrototype {
         // 14. Let newLen be max(final - first, 0).
         let new_len = (final_end as isize - first as isize).max(0) as usize;
         // 15. Let ctor be ? SpeciesConstructor(O, %ArrayBuffer%).
-        let ctor = agent
-            .current_realm_record()
-            .intrinsics()
-            .array_buffer()
-            .bind(gc.nogc());
-        // 16. Let new be ? Construct(ctor, « 𝔽(newLen) »).
-        let Object::ArrayBuffer(new) = construct(
+        let ctor = species_constructor(
             agent,
-            ctor.into_function().unbind(),
+            scoped_o.get(agent).into_object(),
+            ProtoIntrinsics::ArrayBuffer,
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        // 16. Let new be ? Construct(ctor, « 𝔽(newLen) »).
+        let new = construct(
+            agent,
+            ctor.unbind(),
             Some(ArgumentsList::from_mut_slice(&mut [(new_len as i64)
                 .try_into()
                 .unwrap()])),
             None,
             gc.reborrow(),
         )
-        .unbind()?
-        else {
-            unreachable!();
-        };
+        .unbind()?;
         let gc = gc.into_nogc();
         let new = new.bind(gc);
         // 17. Perform ? RequireInternalSlot(new, [[ArrayBufferData]]).
+        let new = require_internal_slot_array_buffer(agent, new.into_value(), gc)?;
         // 18. If IsSharedArrayBuffer(new) is true, throw a TypeError exception.
         // 19. If IsDetachedBuffer(new) is true, throw a TypeError exception.
         if is_detached_buffer(agent, new) {

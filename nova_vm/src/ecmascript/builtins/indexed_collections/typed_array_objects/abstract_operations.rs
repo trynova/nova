@@ -14,11 +14,11 @@ use crate::{
             type_conversion::{IntegerOrInfinity, to_big_int, to_index, to_number, to_object},
         },
         builtins::{
-            ArgumentsList, ArrayBuffer, BuiltinFunction,
+            ArgumentsList, ArrayBuffer,
             array_buffer::{
-                Ordering, ViewedArrayBufferByteLength, allocate_array_buffer,
-                array_buffer_byte_length, clone_array_buffer, get_value_from_buffer,
-                is_detached_buffer, is_fixed_length_array_buffer, set_value_in_buffer,
+                Ordering, ViewedArrayBufferByteLength, array_buffer_byte_length,
+                clone_array_buffer, get_value_from_buffer, is_detached_buffer,
+                is_fixed_length_array_buffer, set_value_in_buffer,
             },
             indexed_collections::typed_array_objects::typed_array_intrinsic_object::{
                 byte_slice_to_viewable, byte_slice_to_viewable_mut,
@@ -774,18 +774,7 @@ pub(crate) fn initialize_typed_array_from_typed_array<'a, O: Viewable, Src: View
     } else {
         // 12. Else,
         // a. Let data be ? AllocateArrayBuffer(%ArrayBuffer%, byteLength).
-        let array_buffer_constructor = agent
-            .current_realm_record()
-            .intrinsics()
-            .array_buffer()
-            .bind(gc);
-        let data = allocate_array_buffer(
-            agent,
-            array_buffer_constructor.into_function(),
-            byte_length as u64,
-            None,
-            gc,
-        )?;
+        let data = ArrayBuffer::new(agent, byte_length, gc)?;
 
         // b. If srcArray.[[ContentType]] is not O.[[ContentType]], throw a TypeError exception.
         if O::IS_BIGINT != Src::IS_BIGINT {
@@ -1133,18 +1122,7 @@ pub(crate) fn allocate_typed_array_buffer<'a, T: Viewable>(
     let byte_length = element_size * length;
 
     // 4. Let data be ? AllocateArrayBuffer(%ArrayBuffer%, byteLength).
-    let array_buffer_constructor = agent
-        .current_realm_record()
-        .intrinsics()
-        .array_buffer()
-        .bind(gc);
-    let data = allocate_array_buffer(
-        agent,
-        array_buffer_constructor.into_function(),
-        byte_length as u64,
-        None,
-        gc,
-    )?;
+    let data = ArrayBuffer::new(agent, byte_length, gc)?;
 
     let o_heap_data = &mut agent[o];
 
@@ -1340,37 +1318,35 @@ pub(crate) fn typed_array_create_same_type<'a>(
     Ok(result.unbind())
 }
 
-fn intrinsic_default_constructor<T: Viewable>(agent: &Agent) -> BuiltinFunction<'static> {
+#[inline(always)]
+fn intrinsic_default_constructor<T: Viewable>() -> ProtoIntrinsics {
     {
         if TypeId::of::<T>() == TypeId::of::<i8>() {
-            agent.current_realm_record().intrinsics().int8_array()
+            ProtoIntrinsics::Int8Array
         } else if TypeId::of::<T>() == TypeId::of::<u8>() {
-            agent.current_realm_record().intrinsics().uint8_array()
+            ProtoIntrinsics::Uint8Array
         } else if TypeId::of::<T>() == TypeId::of::<U8Clamped>() {
-            agent
-                .current_realm_record()
-                .intrinsics()
-                .uint8_clamped_array()
+            ProtoIntrinsics::Uint8ClampedArray
         } else if TypeId::of::<T>() == TypeId::of::<i16>() {
-            agent.current_realm_record().intrinsics().int16_array()
+            ProtoIntrinsics::Int16Array
         } else if TypeId::of::<T>() == TypeId::of::<u16>() {
-            agent.current_realm_record().intrinsics().uint16_array()
+            ProtoIntrinsics::Uint16Array
         } else if TypeId::of::<T>() == TypeId::of::<i32>() {
-            agent.current_realm_record().intrinsics().int32_array()
+            ProtoIntrinsics::Int32Array
         } else if TypeId::of::<T>() == TypeId::of::<u32>() {
-            agent.current_realm_record().intrinsics().uint32_array()
+            ProtoIntrinsics::Uint32Array
         } else if TypeId::of::<T>() == TypeId::of::<i64>() {
-            agent.current_realm_record().intrinsics().big_int64_array()
+            ProtoIntrinsics::BigInt64Array
         } else if TypeId::of::<T>() == TypeId::of::<u64>() {
-            agent.current_realm_record().intrinsics().big_uint64_array()
+            ProtoIntrinsics::BigUint64Array
         } else if TypeId::of::<T>() == TypeId::of::<f32>() {
-            agent.current_realm_record().intrinsics().float32_array()
+            ProtoIntrinsics::Float32Array
         } else if TypeId::of::<T>() == TypeId::of::<f64>() {
-            agent.current_realm_record().intrinsics().float64_array()
+            ProtoIntrinsics::Float64Array
         } else {
             #[cfg(feature = "proposal-float16array")]
             if TypeId::of::<T>() == TypeId::of::<f16>() {
-                return agent.current_realm_record().intrinsics().float16_array();
+                return ProtoIntrinsics::Float16Array;
             }
             unreachable!()
         }
@@ -1403,12 +1379,12 @@ pub(crate) fn typed_array_species_create_with_length<'a, T: Viewable>(
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, TypedArray<'a>> {
     // 1. Let defaultConstructor be the intrinsic object associated with the constructor name exemplar.[[TypedArrayName]] in Table 73.
-    let default_constructor = intrinsic_default_constructor::<T>(agent).bind(gc.nogc());
+    let default_constructor = intrinsic_default_constructor::<T>();
     // 2. Let constructor be ? SpeciesConstructor(exemplar, defaultConstructor).
     let constructor = species_constructor(
         agent,
         exemplar.into_object(),
-        default_constructor.into_function().unbind(),
+        default_constructor,
         gc.reborrow(),
     )
     .unbind()?
@@ -1445,12 +1421,12 @@ pub(crate) fn typed_array_species_create_with_buffer<'a, T: Viewable>(
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, TypedArray<'a>> {
     // 1. Let defaultConstructor be the intrinsic object associated with the constructor name exemplar.[[TypedArrayName]] in Table 73.
-    let default_constructor = intrinsic_default_constructor::<T>(agent).bind(gc.nogc());
+    let default_constructor = intrinsic_default_constructor::<T>();
     // 2. Let constructor be ? SpeciesConstructor(exemplar, defaultConstructor).
     let constructor = species_constructor(
         agent,
         exemplar.into_object(),
-        default_constructor.into_function().unbind(),
+        default_constructor,
         gc.reborrow(),
     )
     .unbind()?

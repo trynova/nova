@@ -67,6 +67,8 @@ impl ArrayBufferConstructor {
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         let nogc = gc.nogc();
+        let arguments = arguments.bind(nogc);
+        let new_target = new_target.bind(nogc);
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
@@ -117,7 +119,7 @@ impl ArrayBufferConstructor {
             Function::try_from(new_target).unwrap().unbind(),
             byte_length,
             requested_max_byte_length,
-            gc.into_nogc(),
+            gc,
         )
         .map(|ab| ab.into_value())
     }

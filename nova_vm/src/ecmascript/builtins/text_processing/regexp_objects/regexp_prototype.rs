@@ -29,7 +29,7 @@ use crate::{
             text_processing::string_objects::string_prototype::get_substitution,
         },
         execution::{
-            Agent, JsResult, Realm,
+            Agent, JsResult, ProtoIntrinsics, Realm,
             agent::{ExceptionType, JsError, unwrap_try},
         },
         types::{
@@ -624,16 +624,11 @@ impl RegExpPrototype {
             .unbind()?
             .scope(agent, gc.nogc());
         // 4. Let C be ? SpeciesConstructor(R, %RegExp%).
-        let regexp_intrinsic_constructor = agent
-            .current_realm_record()
-            .intrinsics()
-            .reg_exp()
-            .into_function()
-            .bind(gc.nogc());
+
         let c = species_constructor(
             agent,
             scoped_r.get(agent),
-            regexp_intrinsic_constructor.unbind(),
+            ProtoIntrinsics::RegExp,
             gc.reborrow(),
         )
         .unbind()?
@@ -1286,20 +1281,10 @@ impl RegExpPrototype {
             .unbind()?
             .scope(agent, gc.nogc());
         // 4. Let C be ? SpeciesConstructor(rx, %RegExp%).
-        let regexp_intrinsic_constructor = agent
-            .current_realm_record()
-            .intrinsics()
-            .reg_exp()
-            .into_function()
-            .bind(gc.nogc());
-        let c = species_constructor(
-            agent,
-            rx.get(agent),
-            regexp_intrinsic_constructor.unbind(),
-            gc.reborrow(),
-        )
-        .unbind()?
-        .scope(agent, gc.nogc());
+
+        let c = species_constructor(agent, rx.get(agent), ProtoIntrinsics::RegExp, gc.reborrow())
+            .unbind()?
+            .scope(agent, gc.nogc());
         // 5. Let flags be ? ToString(? Get(rx, "flags")).
         let flags = get(
             agent,

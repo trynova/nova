@@ -144,14 +144,14 @@ impl InternalBuffer {
         }
     }
 
-    fn fixed_length(data_block: DataBlock) -> Self {
+    pub(crate) fn fixed_length(data_block: DataBlock) -> Self {
         Self {
             data_block,
             capacity: usize::MAX,
         }
     }
 
-    fn resizable(data_block: DataBlock, capacity: usize) -> Self {
+    pub(crate) fn resizable(data_block: DataBlock, capacity: usize) -> Self {
         assert_ne!(capacity, usize::MAX);
         Self {
             data_block,
@@ -180,13 +180,6 @@ impl Default for ArrayBufferHeapData<'_> {
 unsafe impl Send for ArrayBufferHeapData<'_> {}
 
 impl ArrayBufferHeapData<'_> {
-    pub(crate) fn new_resizable(db: DataBlock, cap: usize) -> Self {
-        Self {
-            object_index: None,
-            buffer: InternalBuffer::resizable(db, cap),
-        }
-    }
-
     pub(crate) fn new_fixed_length(db: DataBlock) -> Self {
         Self {
             object_index: None,

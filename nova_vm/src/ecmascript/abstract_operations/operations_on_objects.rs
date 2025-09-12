@@ -29,7 +29,8 @@ use crate::{
             },
         },
         execution::{
-            Agent, ECMAScriptCodeEvaluationState, Environment, ExecutionContext, JsResult, Realm,
+            Agent, ECMAScriptCodeEvaluationState, Environment, ExecutionContext, JsResult,
+            ProtoIntrinsics, Realm,
             agent::{
                 ExceptionType, JsError, TryError, TryResult, js_result_into_try,
                 try_result_into_js, unwrap_try,
@@ -1352,7 +1353,7 @@ pub(crate) fn ordinary_has_instance<'a, 'b>(
 pub(crate) fn species_constructor<'a>(
     agent: &mut Agent,
     o: Object<'a>,
-    default_constructor: Function<'a>,
+    default_constructor: ProtoIntrinsics,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, Function<'a>> {
     // 1. Let C be ? Get(O, "constructor").
@@ -1366,7 +1367,10 @@ pub(crate) fn species_constructor<'a>(
     .bind(gc.nogc());
     // 2. If C is undefined, return defaultConstructor.
     if c.is_undefined() {
-        return Ok(default_constructor);
+        return Ok(agent
+            .current_realm_record()
+            .intrinsics()
+            .get_intrinsic_default_constructor(default_constructor));
     }
     // 3. If C is not an Object, throw a TypeError exception.
     let Ok(c) = Object::try_from(c) else {
@@ -1387,7 +1391,10 @@ pub(crate) fn species_constructor<'a>(
     .bind(gc.nogc());
     // 5. If S is either undefined or null, return defaultConstructor.
     if s.is_undefined() || s.is_null() {
-        return Ok(default_constructor);
+        return Ok(agent
+            .current_realm_record()
+            .intrinsics()
+            .get_intrinsic_default_constructor(default_constructor));
     }
     // 6. If IsConstructor(S) is true, return S.
     if let Some(s) = is_constructor(agent, s) {

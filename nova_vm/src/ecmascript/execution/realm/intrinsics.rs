@@ -142,7 +142,7 @@ use crate::{
                 number_constructor::NumberConstructor, number_prototype::NumberPrototype,
             },
         },
-        types::{BuiltinFunctionHeapData, Object, ObjectRecord, OrdinaryObject},
+        types::{BuiltinFunctionHeapData, Function, Object, ObjectRecord, OrdinaryObject},
     },
     engine::context::NoGcScope,
     heap::{
@@ -383,6 +383,91 @@ impl Intrinsics {
         ReflectObject::create_intrinsic(agent, realm);
         ProxyConstructor::create_intrinsic(agent, realm);
         IteratorConstructor::create_intrinsic(agent, realm);
+    }
+
+    // Suggest to inline this: The intrinsic default proto is often statically
+    // known.
+    #[inline]
+    pub(crate) fn get_intrinsic_default_constructor(
+        &self,
+        intrinsic_default_proto: ProtoIntrinsics,
+    ) -> Function<'static> {
+        match intrinsic_default_proto {
+            ProtoIntrinsics::Array => self.array().into(),
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::ArrayBuffer => self.array_buffer().into(),
+            ProtoIntrinsics::ArrayIterator => unreachable!(),
+            ProtoIntrinsics::BigInt => self.big_int().into(),
+            ProtoIntrinsics::Boolean => self.boolean().into(),
+            ProtoIntrinsics::Error => self.error().into(),
+            #[cfg(feature = "date")]
+            ProtoIntrinsics::Date => self.date().into(),
+            ProtoIntrinsics::EvalError => self.eval_error().into(),
+            ProtoIntrinsics::Function => self.function().into(),
+            ProtoIntrinsics::Number => self.number().into(),
+            ProtoIntrinsics::Object => self.object().into(),
+            ProtoIntrinsics::RangeError => self.range_error().into(),
+            ProtoIntrinsics::ReferenceError => self.reference_error().into(),
+            ProtoIntrinsics::StringIterator => unreachable!(),
+            #[cfg(feature = "regexp")]
+            ProtoIntrinsics::RegExpStringIterator => unreachable!(),
+            ProtoIntrinsics::String => self.string().into(),
+            ProtoIntrinsics::Symbol => self.symbol().into(),
+            ProtoIntrinsics::SyntaxError => self.syntax_error().into(),
+            ProtoIntrinsics::TypeError => self.type_error().into(),
+            ProtoIntrinsics::URIError => self.uri_error().into(),
+            ProtoIntrinsics::AggregateError => self.aggregate_error().into(),
+            ProtoIntrinsics::AsyncFunction => self.async_function().into(),
+            ProtoIntrinsics::AsyncGenerator => self.async_generator_function().into(),
+            ProtoIntrinsics::AsyncGeneratorFunction => self.async_generator_function().into(),
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::BigInt64Array => self.big_int64_array().into(),
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::BigUint64Array => self.big_uint64_array().into(),
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::DataView => self.data_view().into(),
+            ProtoIntrinsics::FinalizationRegistry => self.finalization_registry().into(),
+            #[cfg(feature = "proposal-float16array")]
+            ProtoIntrinsics::Float16Array => self.float16_array().into(),
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::Float32Array => self.float32_array().into(),
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::Float64Array => self.float64_array().into(),
+            ProtoIntrinsics::Generator => self.generator_function().into(),
+            ProtoIntrinsics::GeneratorFunction => self.generator_function().into(),
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::Int16Array => self.int16_array().into(),
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::Int32Array => self.int32_array().into(),
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::Int8Array => self.int8_array().into(),
+            ProtoIntrinsics::Iterator => self.iterator().into(),
+            ProtoIntrinsics::Map => self.map().into(),
+            ProtoIntrinsics::MapIterator => unreachable!(),
+            ProtoIntrinsics::Promise => self.promise().into(),
+            #[cfg(feature = "regexp")]
+            ProtoIntrinsics::RegExp => self.reg_exp().into(),
+            #[cfg(feature = "set")]
+            ProtoIntrinsics::Set => self.set().into(),
+            #[cfg(feature = "set")]
+            ProtoIntrinsics::SetIterator => unreachable!(),
+            #[cfg(feature = "shared-array-buffer")]
+            ProtoIntrinsics::SharedArrayBuffer => self.shared_array_buffer().into(),
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::Uint16Array => self.uint16_array().into(),
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::Uint32Array => self.uint32_array().into(),
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::Uint8Array => self.uint8_array().into(),
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::Uint8ClampedArray => self.uint8_clamped_array().into(),
+            #[cfg(feature = "weak-refs")]
+            ProtoIntrinsics::WeakMap => self.weak_map().into(),
+            #[cfg(feature = "weak-refs")]
+            ProtoIntrinsics::WeakRef => self.weak_ref().into(),
+            #[cfg(feature = "weak-refs")]
+            ProtoIntrinsics::WeakSet => self.weak_set().into(),
+        }
     }
 
     // Suggest to inline this: The intrinsic default proto is often statically

@@ -16,12 +16,12 @@ use crate::{
             shared_array_buffer::SharedArrayBuffer,
         },
         execution::{
-            Agent, JsResult, Realm,
+            Agent, JsResult, ProtoIntrinsics, Realm,
             agent::{ExceptionType, GrowSharedArrayBufferResult, try_result_into_js},
         },
         types::{
-            BUILTIN_STRING_MEMORY, IntoFunction, IntoObject, IntoValue, Number, PropertyKey,
-            String, Value, copy_shared_data_block_bytes,
+            BUILTIN_STRING_MEMORY, IntoObject, IntoValue, Number, PropertyKey, String, Value,
+            copy_shared_data_block_bytes,
         },
     },
     engine::{
@@ -267,16 +267,12 @@ impl SharedArrayBufferPrototype {
         };
         // 13. Let newLen be max(final - first, 0).
         let new_len = final_end.saturating_sub(first);
-        let default_constructor = agent
-            .current_realm_record()
-            .intrinsics()
-            .shared_array_buffer()
-            .bind(gc.nogc());
+
         // 14. Let ctor be ? SpeciesConstructor(O, %SharedArrayBuffer%).
         let ctor = species_constructor(
             agent,
             o.get(agent).into_object(),
-            default_constructor.into_function().unbind(),
+            ProtoIntrinsics::SharedArrayBuffer,
             gc.reborrow(),
         )
         .unbind()?
