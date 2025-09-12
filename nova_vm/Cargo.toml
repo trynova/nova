@@ -35,7 +35,6 @@ sonic-rs = { workspace = true, optional = true }
 soavec = { workspace = true }
 soavec_derive = { workspace = true }
 unicode-normalization = { workspace = true }
-usdt = { workspace = true }
 wtf8 = { workspace = true }
 
 [features]
@@ -96,4 +95,3 @@ proposal-atomics-microwait = ["atomics"]
 
 [build-dependencies]
 small_string = { path = "../small_string", version = "0.2.0" }
-usdt = { workspace = true }
