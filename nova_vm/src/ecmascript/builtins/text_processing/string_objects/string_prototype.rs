@@ -13,16 +13,16 @@ use wtf8::{CodePoint, Wtf8Buf};
 #[cfg(feature = "regexp")]
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::invoke, builtins::regexp::reg_exp_create,
+        abstract_operations::operations_on_objects::{get, get_object_method, invoke},
+        builtins::regexp::reg_exp_create,
+        types::Object,
     },
     engine::Scoped,
 };
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{
-                call_function, create_array_from_list, get, get_object_method,
-            },
+            operations_on_objects::{call_function, create_array_from_list},
             testing_and_comparison::{is_callable, is_reg_exp, require_object_coercible},
             type_conversion::{
                 is_trimmable_whitespace, to_integer_or_infinity, to_integer_or_infinity_number,
@@ -39,9 +39,7 @@ use crate::{
             Agent, JsResult, Realm,
             agent::{ExceptionType, try_result_into_js},
         },
-        types::{
-            BUILTIN_STRING_MEMORY, IntoValue, Number, Object, Primitive, PropertyKey, String, Value,
-        },
+        types::{BUILTIN_STRING_MEMORY, IntoValue, Number, Primitive, PropertyKey, String, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
@@ -1614,6 +1612,7 @@ impl StringPrototype {
         let scoped_search_value = search_value.scope(agent, nogc);
         // See: https://github.com/tc39/ecma262/pull/3009
         // 2. If searchValue is an Object, then
+        #[cfg(feature = "regexp")]
         if let Ok(search_value) = Object::try_from(search_value) {
             // a. Let replacer be ? GetMethod(searchValue, %Symbol.replace%).
             let symbol = WellKnownSymbolIndexes::Replace.into();
@@ -1734,6 +1733,7 @@ impl StringPrototype {
         let scoped_search_value = search_value.scope(agent, nogc);
 
         // 2. If searchValue is an Object, then
+        #[cfg(feature = "regexp")]
         if let Ok(mut search_value) = Object::try_from(search_value) {
             // a. Let isRegExp be ? IsRegExp(searchValue).
             let is_reg_exp = is_reg_exp(agent, search_value.unbind().into_value(), gc.reborrow())
@@ -2079,6 +2079,7 @@ impl StringPrototype {
             .scope(agent, nogc);
 
         // 2. If separator is an object, then
+        #[cfg(feature = "regexp")]
         if let Ok(separator) = Object::try_from(separator) {
             let symbol = WellKnownSymbolIndexes::Split.into();
             // a. Let splitter be ? GetMethod(separator, %Symbol.split%).

@@ -377,11 +377,16 @@ pub(crate) enum WellKnownSymbolIndexes {
     HasInstance,
     IsConcatSpreadable,
     Iterator,
+    #[cfg(feature = "regexp")]
     Match,
+    #[cfg(feature = "regexp")]
     MatchAll,
+    #[cfg(feature = "regexp")]
     Replace,
+    #[cfg(feature = "regexp")]
     Search,
     Species,
+    #[cfg(feature = "regexp")]
     Split,
     ToPrimitive,
     ToStringTag,

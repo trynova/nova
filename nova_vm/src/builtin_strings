@@ -133,7 +133,7 @@ findIndex
 findLast
 findLastIndex
 #[cfg(feature = "annex-b-string")]fixed
-flags
+#[cfg(feature = "regexp")]flags
 flat
 flatMap
 #[cfg(feature = "proposal-float16array")]Float16Array
@@ -271,8 +271,8 @@ localeCompare
 map
 Map
 Map Iterator
-match
-matchAll
+#[cfg(feature = "regexp")]match
+#[cfg(feature = "regexp")]matchAll
 #[cfg(feature = "math")]Math
 #[cfg(feature = "math")]max
 MAX_SAFE_INTEGER
@@ -339,7 +339,7 @@ reverse
 revocable
 #[cfg(feature = "math")]round
 seal
-search
+#[cfg(feature = "regexp")]search
 set
 #[cfg(feature = "set")]Set
 set [Symbol.toStringTag]

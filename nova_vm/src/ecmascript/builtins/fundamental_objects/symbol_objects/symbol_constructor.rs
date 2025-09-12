@@ -101,42 +101,45 @@ impl SymbolConstructor {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let symbol_prototype = intrinsics.symbol_prototype();
 
-        BuiltinFunctionBuilder::new_intrinsic_constructor::<SymbolConstructor>(agent, realm)
-            .with_property_capacity(16)
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.asyncIterator.into())
-                    .with_value_readonly(WellKnownSymbolIndexes::AsyncIterator.into())
-                    .with_enumerable(false)
-                    .with_configurable(false)
-                    .build()
-            })
-            .with_builtin_function_property::<SymbolFor>()
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.hasInstance.into())
-                    .with_value_readonly(WellKnownSymbolIndexes::HasInstance.into())
-                    .with_enumerable(false)
-                    .with_configurable(false)
-                    .build()
-            })
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.isConcatSpreadable.into())
-                    .with_value_readonly(WellKnownSymbolIndexes::IsConcatSpreadable.into())
-                    .with_enumerable(false)
-                    .with_configurable(false)
-                    .build()
-            })
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.iterator.into())
-                    .with_value_readonly(WellKnownSymbolIndexes::Iterator.into())
-                    .with_enumerable(false)
-                    .with_configurable(false)
-                    .build()
-            })
-            .with_builtin_function_property::<SymbolKeyFor>()
+        let builder =
+            BuiltinFunctionBuilder::new_intrinsic_constructor::<SymbolConstructor>(agent, realm)
+                .with_property_capacity(16)
+                .with_property(|builder| {
+                    builder
+                        .with_key(BUILTIN_STRING_MEMORY.asyncIterator.into())
+                        .with_value_readonly(WellKnownSymbolIndexes::AsyncIterator.into())
+                        .with_enumerable(false)
+                        .with_configurable(false)
+                        .build()
+                })
+                .with_builtin_function_property::<SymbolFor>()
+                .with_property(|builder| {
+                    builder
+                        .with_key(BUILTIN_STRING_MEMORY.hasInstance.into())
+                        .with_value_readonly(WellKnownSymbolIndexes::HasInstance.into())
+                        .with_enumerable(false)
+                        .with_configurable(false)
+                        .build()
+                })
+                .with_property(|builder| {
+                    builder
+                        .with_key(BUILTIN_STRING_MEMORY.isConcatSpreadable.into())
+                        .with_value_readonly(WellKnownSymbolIndexes::IsConcatSpreadable.into())
+                        .with_enumerable(false)
+                        .with_configurable(false)
+                        .build()
+                })
+                .with_property(|builder| {
+                    builder
+                        .with_key(BUILTIN_STRING_MEMORY.iterator.into())
+                        .with_value_readonly(WellKnownSymbolIndexes::Iterator.into())
+                        .with_enumerable(false)
+                        .with_configurable(false)
+                        .build()
+                })
+                .with_builtin_function_property::<SymbolKeyFor>();
+        #[cfg(feature = "regexp")]
+        let builder = builder
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.r#match.into())
@@ -152,8 +155,10 @@ impl SymbolConstructor {
                     .with_enumerable(false)
                     .with_configurable(false)
                     .build()
-            })
-            .with_prototype_property(symbol_prototype.into_object())
+            });
+        let builder = builder.with_prototype_property(symbol_prototype.into_object());
+        #[cfg(feature = "regexp")]
+        let builder = builder
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.replace.into())
@@ -169,23 +174,25 @@ impl SymbolConstructor {
                     .with_enumerable(false)
                     .with_configurable(false)
                     .build()
-            })
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.species.into())
-                    .with_value_readonly(WellKnownSymbolIndexes::Species.into())
-                    .with_enumerable(false)
-                    .with_configurable(false)
-                    .build()
-            })
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.split.into())
-                    .with_value_readonly(WellKnownSymbolIndexes::Split.into())
-                    .with_enumerable(false)
-                    .with_configurable(false)
-                    .build()
-            })
+            });
+        let builder = builder.with_property(|builder| {
+            builder
+                .with_key(BUILTIN_STRING_MEMORY.species.into())
+                .with_value_readonly(WellKnownSymbolIndexes::Species.into())
+                .with_enumerable(false)
+                .with_configurable(false)
+                .build()
+        });
+        #[cfg(feature = "regexp")]
+        let builder = builder.with_property(|builder| {
+            builder
+                .with_key(BUILTIN_STRING_MEMORY.split.into())
+                .with_value_readonly(WellKnownSymbolIndexes::Split.into())
+                .with_enumerable(false)
+                .with_configurable(false)
+                .build()
+        });
+        builder
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.toPrimitive.into())
