@@ -10,8 +10,7 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
-                define_property_or_throw, has_own_property, set,
-                try_has_own_property,
+                define_property_or_throw, has_own_property, set, try_has_own_property,
             },
             testing_and_comparison::is_extensible,
         },

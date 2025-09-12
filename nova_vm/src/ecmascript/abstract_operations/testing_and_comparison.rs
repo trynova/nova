@@ -6,8 +6,8 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::{to_numeric_primitive,
-            PreferredType, string_to_big_int, string_to_number, to_primitive,
+        abstract_operations::type_conversion::{
+            PreferredType, string_to_big_int, string_to_number, to_numeric_primitive, to_primitive,
         },
         builtins::proxy::abstract_operations::{NonRevokedProxy, validate_non_revoked_proxy},
         execution::{Agent, JsResult, agent::ExceptionType},
@@ -25,7 +25,10 @@ use crate::{
 
 #[cfg(feature = "regexp")]
 use crate::{
-    ecmascript::{abstract_operations::{operations_on_objects::get, type_conversion::to_boolean}, types::PropertyKey},
+    ecmascript::{
+        abstract_operations::{operations_on_objects::get, type_conversion::to_boolean},
+        types::PropertyKey,
+    },
     heap::WellKnownSymbolIndexes,
 };
 
