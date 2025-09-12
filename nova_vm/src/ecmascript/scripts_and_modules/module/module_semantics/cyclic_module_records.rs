@@ -417,6 +417,7 @@ impl<'a> From<CyclicModule<'a>> for AbstractModule<'a> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum InnerCyclicModule<'a> {
+    #[expect(dead_code)]
     SourceTextModule(SourceTextModule<'a>),
 }
 

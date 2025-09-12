@@ -8,21 +8,13 @@ use core::ops::Deref;
 use oxc_ast::ast::TSEnumDeclaration;
 use oxc_ast::ast::{
     BindingIdentifier, BlockStatement, Class, Declaration, ExportDefaultDeclarationKind,
-    ForStatementInit, ForStatementLeft, Function, FunctionBody, LabeledStatement, Program,
-    Statement, StaticBlock, SwitchCase, SwitchStatement, VariableDeclaration,
-    VariableDeclarationKind, VariableDeclarator,
+    ForStatementInit, ForStatementLeft, Function, FunctionBody, LabeledStatement, Statement,
+    StaticBlock, SwitchCase, SwitchStatement, VariableDeclaration, VariableDeclarationKind,
+    VariableDeclarator,
 };
 use oxc_ecmascript::BoundNames;
 
 use oxc_span::Atom;
-
-/// ### [8.2.4 Static Semantics: LexicallyDeclaredNames](https://tc39.es/ecma262/#sec-static-semantics-lexicallydeclarednames)
-///
-/// The syntax-directed operation LexicallyDeclaredNames takes no arguments and
-/// returns a List of Strings.
-pub(crate) trait LexicallyDeclaredNames<'a> {
-    fn lexically_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&'a self, f: &mut F);
-}
 
 pub(crate) fn script_lexically_declared_names<'a>(body: &'a [Statement<'a>]) -> Vec<Atom<'a>> {
     let mut lexically_declared_names: Vec<Atom<'a>> = vec![];
@@ -35,26 +27,6 @@ pub(crate) fn script_lexically_declared_names<'a>(body: &'a [Statement<'a>]) -> 
     });
     // NOTE 1
     // At the top level of a Script, function declarations are treated like var declarations rather than like lexical declarations.
-    lexically_declared_names
-}
-
-pub(crate) fn module_lexically_declared_names<'a>(script: &'a Program<'a>) -> Vec<Atom<'a>> {
-    let mut lexically_declared_names = vec![];
-    // NOTE 2
-    // The LexicallyDeclaredNames of a Module includes the names of all of its imported bindings.
-
-    // ModuleItemList : ModuleItemList ModuleItem
-    // 1. Let names1 be LexicallyDeclaredNames of ModuleItemList.
-    // 2. Let names2 be LexicallyDeclaredNames of ModuleItem.
-    // 3. Return the list-concatenation of names1 and names2.
-    // ModuleItem : StatementListItem
-    // 1. Return LexicallyDeclaredNames of StatementListItem.
-    script.body.lexically_declared_names(&mut |identifier| {
-        lexically_declared_names.push(identifier.name);
-    });
-
-    // NOTE 3
-    // At the top level of a Module, function declarations are treated like lexical declarations rather than like var declarations.
     lexically_declared_names
 }
 
@@ -75,152 +47,6 @@ pub(crate) fn function_body_lexically_declared_names<'a>(
             lexically_declared_names.push(identifier.name);
         });
     lexically_declared_names
-}
-
-// ConciseBody : ExpressionBody
-// 1. Return a new empty List.
-// AsyncConciseBody : ExpressionBody
-// 1. Return a new empty List.
-
-impl<'a> LexicallyDeclaredNames<'a> for oxc_allocator::Vec<'a, Statement<'a>> {
-    fn lexically_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&'a self, f: &mut F) {
-        // StatementList : StatementList StatementListItem
-        // 1. Let names1 be LexicallyDeclaredNames of StatementList.
-        // 2. Let names2 be LexicallyDeclaredNames of StatementListItem.
-        // 3. Return the list-concatenation of names1 and names2.
-        for ele in self {
-            ele.lexically_declared_names(f);
-        }
-    }
-}
-
-impl<'a> LexicallyDeclaredNames<'a> for Statement<'a> {
-    fn lexically_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&'a self, f: &mut F) {
-        match self {
-            // Block : { }
-            // 1. Return a new empty List.
-            // StatementListItem : Statement
-            // 1. If Statement is Statement : LabelledStatement , return LexicallyDeclaredNames of LabelledStatement.
-            Statement::LabeledStatement(st) => st.lexically_declared_names(f),
-            // 2. Return a new empty List.
-            Statement::SwitchStatement(st) => {
-                // CaseBlock : { }
-                // 1. Return a new empty List.
-                // CaseBlock : { CaseClausesopt DefaultClause CaseClausesopt }
-                // 1. If the first CaseClauses is present, let names1 be the LexicallyDeclaredNames of the first CaseClauses.
-                // 2. Else, let names1 be a new empty List.
-                // 3. Let names2 be LexicallyDeclaredNames of DefaultClause.
-                // 4. If the second CaseClauses is present, let names3 be the LexicallyDeclaredNames of the second CaseClauses.
-                // 5. Else, let names3 be a new empty List.
-                // 6. Return the list-concatenation of names1, names2, and names3.
-                // CaseClauses : CaseClauses CaseClause
-                // 1. Let names1 be LexicallyDeclaredNames of CaseClauses.
-                // 2. Let names2 be LexicallyDeclaredNames of CaseClause.
-                // 3. Return the list-concatenation of names1 and names2.
-                // CaseClause : case Expression : StatementListopt
-                // 1. If the StatementList is present, return the LexicallyDeclaredNames of StatementList.
-                // 2. Return a new empty List.
-                // DefaultClause : default : StatementListopt
-                // 1. If the StatementList is present, return the LexicallyDeclaredNames of StatementList.
-                // 2. Return a new empty List.
-                for ele in &st.cases {
-                    ele.consequent.lexically_declared_names(f);
-                }
-            }
-            // ModuleItem : ImportDeclaration
-            // 1. Return the BoundNames of ImportDeclaration.
-            // NOTE 2
-            // The LexicallyDeclaredNames of a Module includes the names of all of its imported bindings.
-            Statement::ImportDeclaration(decl) => decl.bound_names(f),
-            Statement::ExportAllDeclaration(_decl) => {}
-            // ModuleItem : ExportDeclaration
-            Statement::ExportNamedDeclaration(decl) => {
-                if matches!(decl.declaration, Some(Declaration::VariableDeclaration(_))) {
-                    // 1. If ExportDeclaration is export VariableStatement, return a new empty List.
-                    return;
-                }
-                // 2. Return the BoundNames of ExportDeclaration.
-                decl.bound_names(f)
-            }
-            Statement::ExportDefaultDeclaration(decl) => {
-                // 2. Return the BoundNames of ExportDeclaration.
-                match &decl.declaration {
-                    ExportDefaultDeclarationKind::FunctionDeclaration(decl) => decl.bound_names(f),
-                    ExportDefaultDeclarationKind::ClassDeclaration(decl) => decl.bound_names(f),
-                    _ => {}
-                }
-            }
-            // StatementListItem : Declaration
-            // 1. Return the BoundNames of Declaration.
-            Statement::BlockStatement(_)
-            | Statement::BreakStatement(_)
-            | Statement::ContinueStatement(_)
-            | Statement::DebuggerStatement(_)
-            | Statement::DoWhileStatement(_)
-            | Statement::EmptyStatement(_)
-            | Statement::ExpressionStatement(_)
-            | Statement::ForInStatement(_)
-            | Statement::ForOfStatement(_)
-            | Statement::ForStatement(_)
-            | Statement::IfStatement(_)
-            | Statement::ReturnStatement(_)
-            | Statement::ThrowStatement(_)
-            | Statement::TryStatement(_)
-            | Statement::WhileStatement(_)
-            | Statement::WithStatement(_) => {}
-            Statement::VariableDeclaration(decl) => decl.bound_names(f),
-            Statement::FunctionDeclaration(decl) => decl.bound_names(f),
-            Statement::ClassDeclaration(decl) => decl.bound_names(f),
-            #[cfg(feature = "typescript")]
-            Statement::TSEnumDeclaration(decl) => decl.id.bound_names(f),
-            #[cfg(feature = "typescript")]
-            Statement::TSTypeAliasDeclaration(_) => {
-                // Type aliases don't introduce runtime bindings
-            }
-            #[cfg(feature = "typescript")]
-            Statement::TSInterfaceDeclaration(_) => {
-                // Interfaces don't introduce runtime bindings
-            }
-            #[cfg(feature = "typescript")]
-            Statement::TSModuleDeclaration(_) => {
-                // TODO: implement when module declarations are supported
-            }
-            #[cfg(feature = "typescript")]
-            Statement::TSExportAssignment(_) => {
-                // TODO: implement when export assignments are supported
-            }
-            #[cfg(feature = "typescript")]
-            Statement::TSImportEqualsDeclaration(_) => {
-                // TODO: implement when import equals declarations are supported
-            }
-            #[cfg(feature = "typescript")]
-            Statement::TSNamespaceExportDeclaration(_) => {
-                // TODO: implement when namespace export declarations are supported
-            }
-            #[cfg(not(feature = "typescript"))]
-            Statement::TSEnumDeclaration(_)
-            | Statement::TSExportAssignment(_)
-            | Statement::TSImportEqualsDeclaration(_)
-            | Statement::TSNamespaceExportDeclaration(_)
-            | Statement::TSTypeAliasDeclaration(_)
-            | Statement::TSInterfaceDeclaration(_)
-            | Statement::TSModuleDeclaration(_) => unreachable!(),
-        }
-    }
-}
-
-impl<'a> LexicallyDeclaredNames<'a> for LabeledStatement<'a> {
-    fn lexically_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&'a self, f: &mut F) {
-        // LabelledStatement : LabelIdentifier : LabelledItem
-        // 1. Return the LexicallyDeclaredNames of LabelledItem.
-        // LabelledItem : Statement
-        // 1. Return a new empty List.
-        // LabelledItem : FunctionDeclaration
-        // 1. Return BoundNames of FunctionDeclaration.
-        if let Statement::FunctionDeclaration(decl) = &self.body {
-            decl.bound_names(f);
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -270,25 +96,6 @@ impl<'a> LexicallyScopedDeclarations<'a> for SwitchCase<'a> {
     ) {
         self.consequent.lexically_scoped_declarations(f);
     }
-}
-
-pub(crate) fn function_body_lexically_scoped_declarations<'body>(
-    code: &'body FunctionBody<'body>,
-) -> Vec<LexicallyScopedDeclaration<'body>> {
-    let mut lexically_scoped_declarations = vec![];
-    // FunctionStatementList : [empty]
-    // 1. Return a new empty List.
-
-    // FunctionStatementList : StatementList
-    // 1. Return the TopLevelLexicallyScopedDeclarations of StatementList.
-
-    code.statements
-        .top_level_lexically_scoped_declarations(&mut |decl| {
-            lexically_scoped_declarations.push(decl);
-        });
-
-    // Note: Concise bodies have no declarations and thus do not call this function.
-    lexically_scoped_declarations
 }
 
 pub(crate) fn class_static_block_lexically_scoped_declarations<'body>(
@@ -590,18 +397,6 @@ pub(crate) fn script_var_declared_names<'a>(body: &'a [Statement<'a>]) -> Vec<At
     var_declared_names
 }
 
-pub(crate) fn module_var_declared_names<'a>(module: &Program<'a>) -> Vec<Atom<'a>> {
-    let mut var_declared_names = vec![];
-    // ModuleItemList : ModuleItemList ModuleItem
-    // 1. Let names1 be VarDeclaredNames of ModuleItemList.
-    // 2. Let names2 be VarDeclaredNames of ModuleItem.
-    // 3. Return the list-concatenation of names1 and names2.
-    module.body.var_declared_names(&mut |identifier| {
-        var_declared_names.push(identifier.name);
-    });
-    var_declared_names
-}
-
 pub(crate) fn function_body_var_declared_names<'a>(
     function: &'a FunctionBody<'a>,
 ) -> Vec<Atom<'a>> {
@@ -635,20 +430,6 @@ pub(crate) fn class_static_block_var_declared_names<'a>(
             var_declared_names.push(identifier.name);
         });
     var_declared_names
-}
-
-pub(crate) fn arrow_function_var_declared_names<'a>(
-    arrow_function: &FunctionBody<'a>,
-) -> Vec<Atom<'a>> {
-    debug_assert!(arrow_function.statements.len() <= 1);
-    if let Some(body) = arrow_function.statements.first() {
-        debug_assert!(matches!(body, Statement::ExpressionStatement(_)));
-    }
-    // ConciseBody : ExpressionBody
-    // 1. Return a new empty List.
-    // AsyncConciseBody : ExpressionBody
-    // 1. Return a new empty List.
-    vec![]
 }
 
 impl<'a> VarDeclaredNames<'a> for oxc_allocator::Vec<'a, Statement<'a>> {

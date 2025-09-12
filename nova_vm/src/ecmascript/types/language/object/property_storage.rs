@@ -2,7 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::cell::Ref;
 use std::{
     collections::{TryReserveError, hash_map::Entry},
     ptr::NonNull,
@@ -14,8 +13,8 @@ use crate::{
     Heap,
     ecmascript::{
         builtins::ordinary::caches::Caches,
-        execution::{Agent, JsResult, PrivateField, RealmRecord, agent::ExceptionType},
-        types::{IntoValue, PrivateName, PropertyDescriptor, Value},
+        execution::{Agent, JsResult, PrivateField, agent::ExceptionType},
+        types::{PrivateName, PropertyDescriptor, Value},
     },
     engine::context::{Bindable, NoGcScope},
     heap::{
@@ -27,7 +26,7 @@ use crate::{
     },
 };
 
-use super::{InternalSlots, IntoObject, Object, OrdinaryObject, PropertyKey};
+use super::{InternalSlots, Object, OrdinaryObject, PropertyKey};
 
 #[derive(Debug, Clone, Copy)]
 pub struct PropertyStorage<'a>(OrdinaryObject<'a>);
@@ -52,14 +51,6 @@ fn verify_writable(
 impl<'a> PropertyStorage<'a> {
     pub fn new(object: OrdinaryObject<'a>) -> Self {
         Self(object)
-    }
-
-    fn into_object(self) -> Object<'a> {
-        self.0.into_object()
-    }
-
-    fn into_value(self) -> Value<'a> {
-        self.0.into_value()
     }
 
     /// Adds an uninitialized PrivateName field to the object.
@@ -560,16 +551,5 @@ impl<'a> PropertyStorage<'a> {
         } else {
             object.get_mut(agent).set_shape(new_shape);
         }
-    }
-}
-
-#[derive(Debug)]
-pub struct Entries<'a> {
-    pub realm: Ref<'a, RealmRecord<'static>>,
-}
-
-impl<'a> Entries<'a> {
-    fn new(realm: Ref<'a, RealmRecord<'static>>) -> Self {
-        Self { realm }
     }
 }

@@ -132,11 +132,6 @@ impl CachedBufferByteLength {
     pub fn is_detached(self) -> bool {
         self == Self::detached()
     }
-
-    pub fn unwrap(self) -> usize {
-        assert_ne!(self.0, usize::MAX, "cannot unwrap a detached buffer");
-        self.0
-    }
 }
 
 impl From<CachedBufferByteLength> for Option<usize> {

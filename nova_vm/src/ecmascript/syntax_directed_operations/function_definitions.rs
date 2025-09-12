@@ -34,11 +34,11 @@ use crate::{
         scripts_and_modules::source_code::SourceCode,
         types::{
             BUILTIN_STRING_MEMORY, IntoFunction, IntoObject, IntoValue, Object, PropertyDescriptor,
-            PropertyKey, String, Value,
+            PropertyKey, Value,
         },
     },
     engine::{
-        Executable, ExecutionResult, FunctionExpression, Vm,
+        Executable, ExecutionResult, Vm,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
@@ -197,53 +197,6 @@ pub(crate) fn instantiate_ordinary_function_object<'a>(
     // An anonymous FunctionDeclaration can only occur as part of an export
     // default declaration, and its function code is therefore always strict
     // mode code.
-}
-
-// 15.2.5 Runtime Semantics: InstantiateOrdinaryFunctionExpression
-// The syntax-directed operation InstantiateOrdinaryFunctionExpression takes optional argument name (a property key or a Private Name) and returns an ECMAScript function object. It is defined piecewise over the following productions:
-
-pub(crate) fn instantiate_ordinary_function_expression<'a>(
-    agent: &mut Agent,
-    function: &FunctionExpression,
-    name: Option<String>,
-    gc: NoGcScope<'a, '_>,
-) -> ECMAScriptFunction<'a> {
-    if let Some(_identifier) = function.identifier {
-        todo!();
-    } else {
-        // 1. If name is not present, set name to "".
-        let name = name.map_or_else(|| String::EMPTY_STRING, |name| name);
-        // 2. Let env be the LexicalEnvironment of the running execution context.
-        let env = agent.current_lexical_environment(gc);
-        // 3. Let privateEnv be the running execution context's PrivateEnvironment.
-        let private_env = agent.current_private_environment(gc);
-        // 4. Let sourceText be the source text matched by FunctionExpression.
-        let source_text = function.expression.get().span;
-        // 5. Let closure be OrdinaryFunctionCreate(%Function.prototype%, sourceText, FormalParameters, FunctionBody, NON-LEXICAL-THIS, env, privateEnv).
-        let params = OrdinaryFunctionCreateParams {
-            function_prototype: None,
-            source_code: None,
-            source_text,
-            parameters_list: &function.expression.get().params,
-            body: function.expression.get().body.as_ref().unwrap(),
-            is_concise_arrow_function: false,
-            is_async: function.expression.get().r#async,
-            is_generator: function.expression.get().generator,
-            lexical_this: false,
-            env,
-            private_env,
-        };
-        let closure = ordinary_function_create(agent, params, gc);
-        // 6. Perform SetFunctionName(closure, name).
-        let name = PropertyKey::from(name);
-        set_function_name(agent, closure, name, None, gc);
-        // 7. Perform MakeConstructor(closure).
-        if !function.expression.get().r#async && !function.expression.get().generator {
-            make_constructor(agent, closure, None, None, gc);
-        }
-        // 8. Return closure.
-        closure
-    }
 }
 
 pub(crate) struct CompileFunctionBodyData<'a> {

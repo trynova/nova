@@ -402,16 +402,6 @@ impl<'a> Reference<'a> {
         )
     }
 
-    pub(crate) fn is_expression_property_reference(&self) -> bool {
-        matches!(
-            self,
-            Reference::PropertyExpression(_)
-                | Reference::PropertyExpressionStrict(_)
-                | Reference::SuperExpression(_)
-                | Reference::SuperExpressionStrict(_)
-        )
-    }
-
     /// ### \[\[Strict]]
     pub(crate) fn strict(&self) -> bool {
         matches!(

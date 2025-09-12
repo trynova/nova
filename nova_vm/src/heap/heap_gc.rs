@@ -22,8 +22,6 @@ use super::{
 use super::{heap_bits::sweep_side_table_values, indexes::TypedArrayIndex};
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
-#[cfg(feature = "regexp")]
-use crate::ecmascript::builtins::regexp::RegExp;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "array-buffer")]
@@ -31,6 +29,11 @@ use crate::ecmascript::builtins::{ArrayBuffer, data_view::DataView};
 #[cfg(feature = "set")]
 use crate::ecmascript::builtins::{
     keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
+};
+#[cfg(feature = "regexp")]
+use crate::ecmascript::builtins::{
+    regexp::RegExp,
+    text_processing::regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
 };
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
@@ -60,10 +63,7 @@ use crate::{
             promise::Promise,
             promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
             proxy::Proxy,
-            text_processing::{
-                regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
-                string_objects::string_iterator_objects::StringIterator,
-            },
+            text_processing::string_objects::string_iterator_objects::StringIterator,
         },
         execution::{
             Agent, DeclarativeEnvironment, Environments, FunctionEnvironment, GlobalEnvironment,

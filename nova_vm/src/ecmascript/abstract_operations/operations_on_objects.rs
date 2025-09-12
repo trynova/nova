@@ -484,35 +484,6 @@ pub(crate) fn define_property_or_throw<'a, 'gc>(
 ///
 /// The abstract operation DeletePropertyOrThrow takes arguments O (an Object)
 /// and P (a property key) and returns either a normal completion containing
-/// unused or a throw completion. It is used to removeaa specific own property
-/// of an object. It throws an exception if the property is not configurable.
-pub(crate) fn try_delete_property_or_throw<'a, 'gc>(
-    agent: &mut Agent,
-    o: impl InternalMethods<'a>,
-    p: PropertyKey,
-    gc: NoGcScope<'gc, '_>,
-) -> TryResult<'gc, ()> {
-    // 1. Let success be ? O.[[Delete]](P).
-    let success = o.try_delete(agent, p, gc)?;
-    // 2. If success is false, throw a TypeError exception.
-    if !success {
-        agent
-            .throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Failed to delete property",
-                gc,
-            )
-            .into()
-    } else {
-        // 3. Return unused.
-        TryResult::Continue(())
-    }
-}
-
-/// ### [7.3.9 DeletePropertyOrThrow ( O, P )](https://tc39.es/ecma262/#sec-deletepropertyorthrow)
-///
-/// The abstract operation DeletePropertyOrThrow takes arguments O (an Object)
-/// and P (a property key) and returns either a normal completion containing
 /// unused or a throw completion. It is used to remove a specific own property
 /// of an object. It throws an exception if the property is not configurable.
 pub(crate) fn delete_property_or_throw<'a, 'gc>(
@@ -537,24 +508,6 @@ pub(crate) fn delete_property_or_throw<'a, 'gc>(
         // 3. Return unused.
         Ok(())
     }
-}
-
-/// ### Try [7.3.11 GetMethod ( V, P )](https://tc39.es/ecma262/#sec-getmethod)
-///
-/// The abstract operation GetMethod takes arguments V (an ECMAScript language
-/// value) and P (a property key) and returns either a normal completion
-/// containing either a function object or undefined, or a throw completion. It
-/// is used to get the value of a specific property of an ECMAScript language
-/// value when the value of the property is expected to be a function.
-pub(crate) fn try_get_method<'a>(
-    agent: &mut Agent,
-    v: Value,
-    p: PropertyKey,
-    gc: NoGcScope<'a, '_>,
-) -> TryResult<'a, Option<Function<'a>>> {
-    // 1. Let func be ? GetV(V, P).
-    let func = try_get_v(agent, v, p, gc)?;
-    js_result_into_try(get_method_internal(agent, func, gc))
 }
 
 /// ### Try [7.3.11 GetMethod ( V, P )](https://tc39.es/ecma262/#sec-getmethod)
@@ -1503,7 +1456,6 @@ pub(crate) trait EnumerablePropertiesKind {
 pub(crate) mod enumerable_properties_kind {
     use super::{EnumPropKind, EnumerablePropertiesKind};
 
-    pub(crate) struct EnumerateKeys;
     pub(crate) struct EnumerateValues;
     pub(crate) struct EnumerateKeysAndValues;
 
@@ -1521,6 +1473,7 @@ pub(crate) mod enumerable_properties_kind {
 /// The abstract operation EnumerableOwnKeys takes arguments O (an
 /// Object) and returns either a normal completion containing a List of
 /// ECMAScript property keys or a throw completion.
+#[cfg(feature = "json")]
 pub(crate) fn scoped_enumerable_own_keys<'a, 'b>(
     agent: &mut Agent,
     o: Scoped<'b, Object<'static>>,

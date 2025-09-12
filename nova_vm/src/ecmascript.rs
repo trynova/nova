@@ -8,7 +8,7 @@
 //! specification and its implementation in the Nova engine.
 
 pub(crate) mod abstract_operations;
-pub(crate) mod builders;
+pub mod builders;
 pub mod builtins;
 pub mod execution;
 pub(crate) use builtins::{fundamental_objects, numbers_and_dates};

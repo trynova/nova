@@ -473,6 +473,7 @@ pub(crate) struct RegExpExecBase<'gc> {
     pub(crate) global: bool,
     pub(crate) sticky: bool,
     pub(crate) has_indices: bool,
+    #[expect(dead_code)]
     pub(crate) full_unicode: bool,
 }
 

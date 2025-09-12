@@ -9,8 +9,7 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_iterator_objects::{
-                IteratorRecord, async_iterator_close_with_value, create_iter_result_object,
-                get_iterator_from_method, iterator_close_with_value,
+                IteratorRecord, create_iter_result_object, get_iterator_from_method,
             },
             operations_on_objects::{
                 call_function, get, get_method, get_object_method, throw_not_callable, try_get,
@@ -19,7 +18,6 @@ use crate::{
         },
         builtins::{
             ArgumentsList, Array, ScopedArgumentsList,
-            indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
             iteration::async_from_sync_iterator_objects::{
                 AsyncFromSyncIteratorPrototype, create_async_from_sync_iterator,
             },
@@ -242,108 +240,6 @@ impl<'a> VmIteratorRecord<'a> {
             | VmIteratorRecord::GenericIterator(IteratorRecord { iterator, .. })
             | VmIteratorRecord::AsyncFromSyncGenericIterator(IteratorRecord { iterator, .. }) => {
                 generic_iterator_record_requires_return_call(agent, *iterator, gc)
-            }
-        }
-    }
-
-    pub(super) fn requires_throw_call(&self, agent: &mut Agent, gc: NoGcScope) -> bool {
-        match self {
-            VmIteratorRecord::ObjectProperties(_)
-            | VmIteratorRecord::SliceIterator(_)
-            | VmIteratorRecord::EmptySliceIterator => false,
-            VmIteratorRecord::ArrayValues(_) => {
-                // Note: no one can access the array values iterator while it is
-                // iterating so we know its prototype is the intrinsic
-                // ArrayIteratorPrototype. But that may have a throw method
-                // set on it by a horrible-horrible person somewhere.
-                // TODO: This should actually maybe be the proto of the Array's
-                // realm?
-                let array_iterator_prototype = agent
-                    .current_realm_record()
-                    .intrinsics()
-                    .array_iterator_prototype()
-                    .bind(gc);
-                // IteratorClose calls GetMethod on the iterator: if a
-                // non-nullable value is found this way then things happen.
-                match array_iterator_prototype.try_get(
-                    agent,
-                    BUILTIN_STRING_MEMORY.throw.into(),
-                    array_iterator_prototype.into_value(),
-                    None,
-                    gc,
-                ) {
-                    ControlFlow::Continue(TryGetResult::Unset) => false,
-                    ControlFlow::Continue(TryGetResult::Value(v)) => {
-                        !v.is_undefined() && !v.is_null()
-                    }
-                    ControlFlow::Break(TryError::Err(_)) => {
-                        todo!()
-                    }
-                    _ => true,
-                }
-            }
-            VmIteratorRecord::InvalidIterator { iterator }
-            | VmIteratorRecord::GenericIterator(IteratorRecord { iterator, .. })
-            | VmIteratorRecord::AsyncFromSyncGenericIterator(IteratorRecord { iterator, .. }) => {
-                match iterator.try_get(
-                    agent,
-                    BUILTIN_STRING_MEMORY.throw.into(),
-                    iterator.into_value(),
-                    None,
-                    gc,
-                ) {
-                    ControlFlow::Continue(TryGetResult::Unset) => false,
-                    ControlFlow::Continue(TryGetResult::Value(v)) => {
-                        !v.is_undefined() && !v.is_null()
-                    }
-                    ControlFlow::Break(TryError::Err(_)) => todo!(),
-                    _ => true,
-                }
-            }
-        }
-    }
-
-    pub(super) fn is_arguments_iterator(&self) -> bool {
-        matches!(self, VmIteratorRecord::SliceIterator(_))
-    }
-
-    pub(super) fn close_with_value(
-        self,
-        agent: &mut Agent,
-        completion: Value,
-        gc: GcScope<'a, '_>,
-    ) -> JsResult<'a, Value<'a>> {
-        match self {
-            VmIteratorRecord::ObjectProperties(_)
-            | VmIteratorRecord::SliceIterator(_)
-            | VmIteratorRecord::EmptySliceIterator => {
-                unreachable!()
-            }
-            VmIteratorRecord::ArrayValues(iter) => iter.close_with_value(agent, completion, gc),
-            VmIteratorRecord::InvalidIterator { iterator }
-            | VmIteratorRecord::GenericIterator(IteratorRecord { iterator, .. })
-            | VmIteratorRecord::AsyncFromSyncGenericIterator(IteratorRecord { iterator, .. }) => {
-                iterator_close_with_value(agent, iterator, completion, gc)
-            }
-        }
-    }
-
-    pub(super) fn async_close_with_value(
-        self,
-        agent: &mut Agent,
-        gc: GcScope<'a, '_>,
-    ) -> JsResult<'a, Option<Value<'a>>> {
-        match self {
-            VmIteratorRecord::ObjectProperties(_)
-            | VmIteratorRecord::SliceIterator(_)
-            | VmIteratorRecord::EmptySliceIterator => {
-                unreachable!()
-            }
-            VmIteratorRecord::ArrayValues(iter) => iter.async_close_with_value(agent, gc),
-            VmIteratorRecord::InvalidIterator { iterator }
-            | VmIteratorRecord::GenericIterator(IteratorRecord { iterator, .. })
-            | VmIteratorRecord::AsyncFromSyncGenericIterator(IteratorRecord { iterator, .. }) => {
-                async_iterator_close_with_value(agent, iterator, gc)
             }
         }
     }
@@ -665,10 +561,6 @@ impl<'a> ObjectPropertiesIteratorRecord<'a> {
         }
     }
 
-    fn object<'gc>(&self, gc: NoGcScope<'gc, '_>) -> Object<'gc> {
-        self.object.bind(gc)
-    }
-
     fn object_is_visited(&self) -> bool {
         self.remaining_keys.is_some()
     }
@@ -878,34 +770,6 @@ impl<'a> ArrayValuesIteratorRecord<'a> {
             // a. Let index be 0.
             index: 0,
         }
-    }
-
-    fn close_with_value<'gc>(
-        self,
-        agent: &mut Agent,
-        completion: Value,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let ArrayValuesIteratorRecord { array, index } = self;
-        let array = array.bind(gc.nogc());
-        let completion = completion.bind(gc.nogc());
-        // We need to create the ArrayIterator object for user to
-        // interact with.
-        let iter = ArrayIterator::from_vm_iterator(agent, array, index, gc.nogc());
-        iterator_close_with_value(agent, iter.into_object().unbind(), completion.unbind(), gc)
-    }
-
-    fn async_close_with_value<'gc>(
-        self,
-        agent: &mut Agent,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Option<Value<'gc>>> {
-        let ArrayValuesIteratorRecord { array, index } = self;
-        let array = array.bind(gc.nogc());
-        // We need to create the ArrayIterator object for user to
-        // interact with.
-        let iter = ArrayIterator::from_vm_iterator(agent, array, index, gc.nogc());
-        async_iterator_close_with_value(agent, iter.into_object().unbind(), gc)
     }
 
     fn prep_step<'gc>(

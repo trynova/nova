@@ -375,12 +375,6 @@ fn handle_invalid_scoped_conversion() -> ! {
 
 #[cold]
 #[inline(never)]
-fn handle_index_overflow() -> ! {
-    panic!("Scoped stack overflowed");
-}
-
-#[cold]
-#[inline(never)]
 fn handle_bound_check_failure() -> ! {
     panic!("Attempted to access dropped Scoped")
 }

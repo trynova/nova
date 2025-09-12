@@ -124,14 +124,6 @@ impl<'e> ModuleEnvironment<'e> {
         env.has_indirect_binding(name) || env.declarative_environment.has_binding(agent, name)
     }
 
-    pub(crate) fn has_direct_binding(self, agent: &impl AsRef<Environments>, name: String) -> bool {
-        agent
-            .as_ref()
-            .get_module_environment(self)
-            .declarative_environment
-            .has_binding(agent, name)
-    }
-
     /// ### [CreateMutableBinding(N, D)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     ///
     /// Create a new but uninitialized mutable binding in an Environment

@@ -102,6 +102,7 @@ pub(crate) struct SourceTextModuleRecord<'a> {
     ///
     /// The execution context associated with this module. It is empty until
     /// the module's environment has been initialized.
+    #[expect(dead_code)]
     context: (),
     /// ### \[\[ImportMeta]]
     ///

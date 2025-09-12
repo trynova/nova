@@ -25,24 +25,24 @@
 [Symbol.split]
 [Symbol.toPrimitive]
 __proto__
-abs
-acos
-acosh
-add
+#[cfg(feature = "math")]abs
+#[cfg(feature = "math")]acos
+#[cfg(feature = "math")]acosh
+#[cfg(any(feature = "atomics", feature = "set", feature = "weak-refs"))]add
 AggregateError
 all
 allSettled
-anchor
-and
+#[cfg(feature = "annex-b-string")]anchor
+#[cfg(feature = "atomics")]and
 anonymous
 any
 apply
 arguments
 Array
 Array Iterator
-ArrayBuffer
-asin
-asinh
+#[cfg(feature = "array-buffer")]ArrayBuffer
+#[cfg(feature = "math")]asin
+#[cfg(feature = "math")]asinh
 asIntN
 assign
 asUintN
@@ -51,49 +51,48 @@ AsyncGenerator
 AsyncGeneratorFunction
 asyncIterator
 at
-atan
-atan2
-atanh
-Atomics
-big
+#[cfg(feature = "math")]atan
+#[cfg(feature = "math")]atan2
+#[cfg(feature = "math")]atanh
+#[cfg(feature = "atomics")]Atomics
+#[cfg(feature = "annex-b-string")]big
 bigint
 BigInt
-BigInt64Array
-BigUint64Array
+#[cfg(feature = "array-buffer")]BigInt64Array
+#[cfg(feature = "array-buffer")]BigUint64Array
 bind
-blink
-bold
+#[cfg(feature = "annex-b-string")]blink
+#[cfg(feature = "annex-b-string")]bold
 boolean
 Boolean
-bound
-buffer
-byteLength
-byteOffset
-BYTES_PER_ELEMENT
+#[cfg(feature = "array-buffer")]buffer
+#[cfg(feature = "array-buffer")]byteLength
+#[cfg(feature = "array-buffer")]byteOffset
+#[cfg(feature = "array-buffer")]BYTES_PER_ELEMENT
 call
 callee
 caller
 catch
 cause
-cbrt
-ceil
+#[cfg(feature = "math")]cbrt
+#[cfg(feature = "math")]ceil
 charAt
 charCodeAt
-clamp
+#[cfg(feature = "proposal-math-clamp")]clamp
 clear
-clz32
+#[cfg(feature = "math")]clz32
 codePointAt
-compareExchange
+#[cfg(feature = "atomics")]compareExchange
 concat
 configurable
 construct
 constructor
 copyWithin
-cos
-cosh
+#[cfg(feature = "math")]cos
+#[cfg(feature = "math")]cosh
 create
-DataView
-Date
+#[cfg(feature = "array-buffer")]DataView
+#[cfg(feature = "date")]Date
 decodeURI
 decodeURIComponent
 default
@@ -101,12 +100,12 @@ defineProperties
 defineProperty
 delete
 deleteProperty
-deref
+#[cfg(feature = "weak-refs")]deref
 description
-detached
+#[cfg(feature = "array-buffer")]detached
 done
-dotAll
-E
+#[cfg(feature = "regexp")]dotAll
+#[cfg(feature = "math")]E
 encodeURI
 encodeURIComponent
 endsWith
@@ -115,15 +114,15 @@ enumerable
 EPSILON
 Error
 errors
-escape
+#[cfg(any(feature = "annex-b-string", feature = "regexp"))]escape
 eval
 EvalError
 every
-exchange
-exec
-exp
-expm1
-f16round
+#[cfg(feature = "atomics")]exchange
+#[cfg(feature = "regexp")]exec
+#[cfg(feature = "math")]exp
+#[cfg(feature = "math")]expm1
+#[cfg(feature = "proposal-float16array")]f16round
 false
 fill
 filter
@@ -133,16 +132,16 @@ find
 findIndex
 findLast
 findLastIndex
-fixed
+#[cfg(feature = "annex-b-string")]fixed
 flags
 flat
 flatMap
-Float16Array
-Float32Array
-Float64Array
-floor
-fontcolor
-fontsize
+#[cfg(feature = "proposal-float16array")]Float16Array
+#[cfg(feature = "array-buffer")]Float32Array
+#[cfg(feature = "array-buffer")]Float64Array
+#[cfg(feature = "math")]floor
+#[cfg(feature = "annex-b-string")]fontcolor
+#[cfg(feature = "annex-b-string")]fontsize
 for
 forEach
 freeze
@@ -150,7 +149,7 @@ from
 fromCharCode
 fromCodePoint
 fromEntries
-fround
+#[cfg(feature = "math")]fround
 function
 Function
 Generator
@@ -158,158 +157,158 @@ GeneratorFunction
 get
 get [Symbol.species]
 get [Symbol.toStringTag]
-get buffer
-get byteLength
-get byteOffset
+#[cfg(feature = "array-buffer")]get buffer
+#[cfg(feature = "array-buffer")]get byteLength
+#[cfg(feature = "array-buffer")]get byteOffset
 get description
-get detached
-get dotAll
-get flags
-get global
-get growable
-get hasIndices
-get ignoreCase
-get length
-get maxByteLength
-get multiline
-get resizable
+#[cfg(feature = "array-buffer")]get detached
+#[cfg(feature = "regexp")]get dotAll
+#[cfg(feature = "regexp")]get flags
+#[cfg(feature = "regexp")]get global
+#[cfg(feature = "shared-array-buffer")]get growable
+#[cfg(feature = "regexp")]get hasIndices
+#[cfg(feature = "regexp")]get ignoreCase
+#[cfg(feature = "array-buffer")]get length
+#[cfg(feature = "array-buffer")]get maxByteLength
+#[cfg(feature = "regexp")]get multiline
+#[cfg(feature = "array-buffer")]get resizable
 get size
-get source
-get sticky
-get unicode
-get unicodeSets
-getBigInt64
-getBigUint64
-getDate
-getDay
-getFloat16
-getFloat32
-getFloat64
-getFullYear
-getHours
-getInt16
-getInt32
-getInt8
-getMilliseconds
-getMinutes
-getMonth
+#[cfg(feature = "regexp")]get source
+#[cfg(feature = "regexp")]get sticky
+#[cfg(feature = "regexp")]get unicode
+#[cfg(feature = "regexp")]get unicodeSets
+#[cfg(feature = "array-buffer")]getBigInt64
+#[cfg(feature = "array-buffer")]getBigUint64
+#[cfg(feature = "date")]getDate
+#[cfg(feature = "date")]getDay
+#[cfg(feature = "proposal-float16array")]getFloat16
+#[cfg(feature = "array-buffer")]getFloat32
+#[cfg(feature = "array-buffer")]getFloat64
+#[cfg(feature = "date")]getFullYear
+#[cfg(feature = "date")]getHours
+#[cfg(feature = "array-buffer")]getInt16
+#[cfg(feature = "array-buffer")]getInt32
+#[cfg(feature = "array-buffer")]getInt8
+#[cfg(feature = "date")]getMilliseconds
+#[cfg(feature = "date")]getMinutes
+#[cfg(feature = "date")]getMonth
 getOwnPropertyDescriptor
 getOwnPropertyDescriptors
 getOwnPropertyNames
 getOwnPropertySymbols
 getPrototypeOf
-getSeconds
-getTime
-getTimezoneOffset
-getUint16
-getUint32
-getUint8
-getUTCDate
-getUTCDay
-getUTCFullYear
-getUTCHours
-getUTCMilliseconds
-getUTCMinutes
-getUTCMonth
-getUTCSeconds
-global
+#[cfg(feature = "date")]getSeconds
+#[cfg(feature = "date")]getTime
+#[cfg(feature = "date")]getTimezoneOffset
+#[cfg(feature = "array-buffer")]getUint16
+#[cfg(feature = "array-buffer")]getUint32
+#[cfg(feature = "array-buffer")]getUint8
+#[cfg(feature = "date")]getUTCDate
+#[cfg(feature = "date")]getUTCDay
+#[cfg(feature = "date")]getUTCFullYear
+#[cfg(feature = "date")]getUTCHours
+#[cfg(feature = "date")]getUTCMilliseconds
+#[cfg(feature = "date")]getUTCMinutes
+#[cfg(feature = "date")]getUTCMonth
+#[cfg(feature = "date")]getUTCSeconds
+#[cfg(feature = "regexp")]global
 globalThis
-groups
+#[cfg(feature = "regexp")]groups
 groupBy
-grow
-growable
+#[cfg(feature = "shared-array-buffer")]grow
+#[cfg(feature = "shared-array-buffer")]growable
 has
-hasIndices
+#[cfg(feature = "regexp")]hasIndices
 hasInstance
 hasOwn
 hasOwnProperty
-hypot
-ignoreCase
-imul
+#[cfg(feature = "math")]hypot
+#[cfg(feature = "regexp")]ignoreCase
+#[cfg(feature = "math")]imul
 includes
-index
+#[cfg(feature = "regexp")]index
 indexOf
 Infinity
-Int16Array
-Int32Array
-Int8Array
+#[cfg(feature = "array-buffer")]Int16Array
+#[cfg(feature = "array-buffer")]Int32Array
+#[cfg(feature = "array-buffer")]Int8Array
 is
 isArray
 isConcatSpreadable
-isError
+#[cfg(feature = "proposal-is-error")]isError
 isExtensible
 isFinite
 isFrozen
 isInteger
-isLockFree
+#[cfg(feature = "atomics")]isLockFree
 isNaN
 isPrototypeOf
 isSafeInteger
 isSealed
-isView
+#[cfg(feature = "array-buffer")]isView
 isWellFormed
-italics
+#[cfg(feature = "annex-b-string")]italics
 Iterator
 iterator
 join
-JSON
+#[cfg(feature = "json")]JSON
 keyFor
 keys
-lastIndex
+#[cfg(feature = "regexp")]lastIndex
 lastIndexOf
 length
-link
-LN10
-LN2
-load
+#[cfg(feature = "annex-b-string")]link
+#[cfg(feature = "math")]LN10
+#[cfg(feature = "math")]LN2
+#[cfg(feature = "atomics")]load
 localeCompare
-log
-log10
-LOG10E
-log1p
-log2
-LOG2E
+#[cfg(feature = "math")]log
+#[cfg(feature = "math")]log10
+#[cfg(feature = "math")]LOG10E
+#[cfg(feature = "math")]log1p
+#[cfg(feature = "math")]log2
+#[cfg(feature = "math")]LOG2E
 map
 Map
 Map Iterator
 match
 matchAll
-Math
-max
+#[cfg(feature = "math")]Math
+#[cfg(feature = "math")]max
 MAX_SAFE_INTEGER
 MAX_VALUE
-maxByteLength
+#[cfg(feature = "array-buffer")]maxByteLength
 message
-min
+#[cfg(feature = "math")]min
 MIN_SAFE_INTEGER
 MIN_VALUE
 Module
-multiline
+#[cfg(feature = "regexp")]multiline
 name
 NaN
 NEGATIVE_INFINITY
 next
 normalize
-notify
-now
+#[cfg(feature = "atomics")]notify
+#[cfg(feature = "date")]now
 null
 number
 Number
 object
 Object
 of
-or
+#[cfg(feature = "atomics")]or
 ownKeys
 padEnd
 padStart
-parse
+#[cfg(any(feature = "json", feature = "date"))]parse
 parseFloat
 parseInt
-pause
-PI
+#[cfg(feature = "proposal-atomics-microwait")]pause
+#[cfg(feature = "math")]PI
 pop
 POSITIVE_INFINITY
-pow
+#[cfg(feature = "math")]pow
 preventExtensions
 promise
 Promise
@@ -318,91 +317,91 @@ prototype
 Proxy
 push
 race
-random
+#[cfg(feature = "math")]random
 RangeError
 raw
 reduce
 reduceRight
 ReferenceError
 Reflect
-RegExp
-RegExp String Iterator
+#[cfg(feature = "regexp")]RegExp
+#[cfg(feature = "regexp")]RegExp String Iterator
 register
 reject
 repeat
 replace
 replaceAll
-resizable
-resize
+#[cfg(feature = "array-buffer")]resizable
+#[cfg(feature = "array-buffer")]resize
 resolve
 return
 reverse
 revocable
-round
+#[cfg(feature = "math")]round
 seal
 search
 set
-Set
+#[cfg(feature = "set")]Set
 set [Symbol.toStringTag]
-Set Iterator
-setBigInt64
-setBigUint64
-setDate
-setFloat16
-setFloat32
-setFloat64
-setFullYear
-setHours
-setInt16
-setInt32
-setInt8
-setMilliseconds
-setMinutes
-setMonth
+#[cfg(feature = "set")]Set Iterator
+#[cfg(feature = "array-buffer")]setBigInt64
+#[cfg(feature = "array-buffer")]setBigUint64
+#[cfg(feature = "date")]setDate
+#[cfg(feature = "proposal-float16array")]setFloat16
+#[cfg(feature = "array-buffer")]setFloat32
+#[cfg(feature = "array-buffer")]setFloat64
+#[cfg(feature = "date")]setFullYear
+#[cfg(feature = "date")]setHours
+#[cfg(feature = "array-buffer")]setInt16
+#[cfg(feature = "array-buffer")]setInt32
+#[cfg(feature = "array-buffer")]setInt8
+#[cfg(feature = "date")]setMilliseconds
+#[cfg(feature = "date")]setMinutes
+#[cfg(feature = "date")]setMonth
 setPrototypeOf
-setSeconds
-setTime
-setUint16
-setUint32
-setUint8
-setUTCDate
-setUTCFullYear
-setUTCHours
-setUTCMilliseconds
-setUTCMinutes
-setUTCMonth
-setUTCSeconds
-SharedArrayBuffer
+#[cfg(feature = "date")]setSeconds
+#[cfg(feature = "date")]setTime
+#[cfg(feature = "array-buffer")]setUint16
+#[cfg(feature = "array-buffer")]setUint32
+#[cfg(feature = "array-buffer")]setUint8
+#[cfg(feature = "date")]setUTCDate
+#[cfg(feature = "date")]setUTCFullYear
+#[cfg(feature = "date")]setUTCHours
+#[cfg(feature = "date")]setUTCMilliseconds
+#[cfg(feature = "date")]setUTCMinutes
+#[cfg(feature = "date")]setUTCMonth
+#[cfg(feature = "date")]setUTCSeconds
+#[cfg(feature = "shared-array-buffer")]SharedArrayBuffer
 shift
-sign
-sin
-sinh
+#[cfg(feature = "math")]sign
+#[cfg(feature = "math")]sin
+#[cfg(feature = "math")]sinh
 size
 slice
-small
+#[cfg(feature = "annex-b-string")]small
 some
 sort
-source
+#[cfg(feature = "regexp")]source
 species
 splice
 split
-sqrt
-SQRT1_2
-SQRT2
+#[cfg(feature = "math")]sqrt
+#[cfg(feature = "math")]SQRT1_2
+#[cfg(feature = "math")]SQRT2
 startsWith
-sticky
-store
-strike
+#[cfg(feature = "regexp")]sticky
+#[cfg(feature = "atomics")]store
+#[cfg(feature = "annex-b-string")]strike
 string
 String
 String Iterator
-stringify
-sub
-subarray
-substr
+#[cfg(feature = "json")]stringify
+#[cfg(any(feature = "annex-b-string", feature = "atomics"))]sub
+#[cfg(feature = "array-buffer")]subarray
+#[cfg(feature = "annex-b-string")]substr
 substring
-sumPrecise
-sup
+#[cfg(feature = "proposal-math-sum")]sumPrecise
+#[cfg(feature = "annex-b-string")]sup
 symbol
 Symbol
 Symbol()
@@ -420,21 +419,21 @@ Symbol.toPrimitive
 Symbol.toStringTag
 Symbol.unscopables
 SyntaxError
-tan
-tanh
-test
+#[cfg(feature = "math")]tan
+#[cfg(feature = "math")]tanh
+#[cfg(feature = "regexp")]test
 then
 throw
 toArray
-toDateString
+#[cfg(feature = "date")]toDateString
 toExponential
 toFixed
-toISOString
-toJSON
-toLocaleDateString
+#[cfg(feature = "date")]toISOString
+#[cfg(any(feature = "json", feature = "date"))]toJSON
+#[cfg(feature = "date")]toLocaleDateString
 toLocaleLowerCase
 toLocaleString
-toLocaleTimeString
+#[cfg(feature = "date")]toLocaleTimeString
 toLocaleUpperCase
 toLowerCase
 toPrecision
@@ -444,44 +443,44 @@ toSorted
 toSpliced
 toString
 toStringTag
-toTimeString
+#[cfg(feature = "date")]toTimeString
 toUpperCase
-toUTCString
+#[cfg(feature = "date")]toUTCString
 toWellFormed
-transfer
-transferToFixedLength
+#[cfg(feature = "array-buffer")]transfer
+#[cfg(feature = "array-buffer")]transferToFixedLength
 trim
 trimEnd
-trimLeft
-trimRight
+#[cfg(feature = "annex-b-string")]trimLeft
+#[cfg(feature = "annex-b-string")]trimRight
 trimStart
 true
-trunc
+#[cfg(feature = "math")]trunc
 try
-TypedArray
+#[cfg(feature = "array-buffer")]TypedArray
 TypeError
-Uint16Array
-Uint32Array
-Uint8Array
-Uint8ClampedArray
+#[cfg(feature = "array-buffer")]Uint16Array
+#[cfg(feature = "array-buffer")]Uint32Array
+#[cfg(feature = "array-buffer")]Uint8Array
+#[cfg(feature = "array-buffer")]Uint8ClampedArray
 undefined
-unescape
-unicode
-unicodeSets
+#[cfg(feature = "annex-b-string")]unescape
+#[cfg(feature = "regexp")]unicode
+#[cfg(feature = "regexp")]unicodeSets
 unregister
 unscopables
 unshift
 URIError
-UTC
+#[cfg(feature = "date")]UTC
 value
 valueOf
 values
-wait
-waitAsync
-WeakMap
-WeakRef
-WeakSet
+#[cfg(feature = "atomics")]wait
+#[cfg(feature = "atomics")]waitAsync
+#[cfg(feature = "weak-refs")]WeakMap
+#[cfg(feature = "weak-refs")]WeakRef
+#[cfg(feature = "weak-refs")]WeakSet
 with
 withResolvers
 writable
-xor
+#[cfg(feature = "atomics")]xor

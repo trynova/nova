@@ -16,7 +16,7 @@ use crate::{
         builtins::ArgumentsList,
         execution::{
             Agent, JsResult,
-            agent::{ExceptionType, JsError, try_result_into_js, try_result_into_option_js},
+            agent::{ExceptionType, JsError, try_result_into_option_js},
         },
         types::{
             BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, OrdinaryObject,
@@ -599,87 +599,6 @@ macro_rules! if_abrupt_close_iterator {
 
 pub(crate) use if_abrupt_close_iterator;
 
-/// ### [7.4.13 AsyncIteratorClose ( iteratorRecord, completion )](https://tc39.es/ecma262/#sec-asynciteratorclose)
-///
-/// The abstract operation AsyncIteratorClose takes arguments iteratorRecord
-/// (an Iterator Record) and completion (a Completion Record) and returns a
-/// Completion Record. It is used to notify an async iterator that it should
-/// perform any actions it would normally perform when it has reached its
-/// completed state.
-///
-/// Note: this is used to perform a "return" function call on async VM iterator
-/// close and returns Some(value) if the return function did not throw. If the
-/// return function threw an error, the error is returned directly. None is
-/// returned if no "return" function existed.
-pub(crate) fn async_iterator_close_with_value<'a>(
-    agent: &mut Agent,
-    iterator: Object,
-    // completion: Value,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, Option<Value<'a>>> {
-    // let completion = completion.bind(gc.nogc());
-    // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
-    // 2. Let iterator be iteratorRecord.[[Iterator]].
-    let mut iterator = iterator.bind(gc.nogc());
-    // 3. Let innerResult be Completion(GetMethod(iterator, "return")).
-    let inner_result = if let Some(inner_result) = try_result_into_js(try_get_object_method(
-        agent,
-        iterator,
-        BUILTIN_STRING_MEMORY.r#return.into(),
-        gc.nogc(),
-    ))
-    .unbind()?
-    .bind(gc.nogc())
-    {
-        // Note: completion.[[Type]] is known to not be throw, so if
-        // innerResult.[[Type]] is throw then the following steps mean that
-        // "rethrow innerResult immediately". Hence we can use the ? operator
-        // below.
-        // 4. If innerResult.[[Type]] is normal, then
-        // 5. If completion.[[Type]] is throw, return ? completion.
-        // 6. If innerResult.[[Type]] is throw, return ? innerResult.
-        inner_result
-    } else {
-        let scoped_iterator = iterator.scope(agent, gc.nogc());
-        let inner_result = get_object_method(
-            agent,
-            iterator.unbind(),
-            BUILTIN_STRING_MEMORY.r#return.into(),
-            gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
-        // SAFETY: scoped_iterator is not shared.
-        iterator = unsafe { scoped_iterator.take(agent) }.bind(gc.nogc());
-        inner_result
-    };
-    // 4. If innerResult.[[Type]] is normal, then
-    // Note: we statically know it is normal here.
-    // a. Let return be innerResult.[[Value]].
-    let r#return = inner_result;
-    // b. If return is undefined, return ? completion.
-    let Some(r#return) = r#return else {
-        // Note: we return None to signal that completion value should be used.
-        return Ok(None);
-    };
-    // c. Set innerResult to Completion(Call(return, iterator)).
-    let value = call_function(
-        agent,
-        r#return.unbind(),
-        iterator.into_value().unbind(),
-        None,
-        gc,
-    )?;
-    // d. If innerResult.[[Type]] is normal, set innerResult to
-    //    Completion(Await(innerResult.[[Value]])).
-    // Note: we return Some to signal that an Await is required.
-    Ok(Some(value))
-    // 5. If completion.[[Type]] is throw, return ? completion.
-    // 6. If innerResult.[[Type]] is throw, return ? innerResult.
-    // 7. If innerResult.[[Value]] is not an Object, throw a TypeError exception.
-    // 8. Return ? completion.
-}
-
 /// ### [7.4.14 CreateIterResultObject ( value, done )](https://tc39.es/ecma262/#sec-createiterresultobject)
 ///
 /// The abstract operation CreateIterResultObject takes arguments value (an
@@ -725,26 +644,6 @@ pub(crate) fn create_iter_result_object<'a>(
             },
         ],
     )
-}
-
-/// ### [7.4.15 CreateListIteratorRecord ( list )](https://tc39.es/ecma262/#sec-createlistiteratorRecord)
-///
-/// The abstract operation CreateListIteratorRecord takes argument list (a List
-/// of ECMAScript language values) and returns an Iterator Record. It creates
-/// an Iterator (27.1.1.2) object record whose next method returns the
-/// successive elements of list.
-pub(crate) fn create_list_iterator_record<'a>(
-    agent: &mut Agent,
-    _list: &[Value],
-    gc: GcScope<'a, '_>,
-) -> JsResult<'a, Value<'a>> {
-    // 1. Let closure be a new Abstract Closure with no parameters that captures list and performs the following steps when called:
-    // a. For each element E of list, do
-    // i. Perform ? GeneratorYield(CreateIterResultObject(E, false)).
-    // b. Return NormalCompletion(undefined).
-    // 2. Let iterator be CreateIteratorFromClosure(closure, empty, %IteratorPrototype%).
-    // 3. Return the Iterator Record { [[Iterator]]: iterator, [[NextMethod]]: %GeneratorFunction.prototype.prototype.next%, [[Done]]: false }.
-    Err(agent.todo("CreateListIteratorRecord", gc.into_nogc()))
 }
 
 /// ### [7.4.16 IteratorToList ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratortolist)

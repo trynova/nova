@@ -844,28 +844,6 @@ impl<'e> ObjectEnvironment<'e> {
         binding_boject.internal_delete(agent, name, gc)
     }
 
-    /// ### [9.1.1.2.8 HasThisBinding ( )](https://tc39.es/ecma262/#sec-object-environment-records-hasthisbinding)
-    ///
-    /// The HasThisBinding concrete method of an Object Environment Record
-    /// envRec takes no arguments and returns false.
-    pub(crate) fn has_this_binding(&self) -> bool {
-        // 1. Return false.
-        false
-        // NOTE
-        // Object Environment Records do not provide a this binding.
-    }
-
-    /// ### [9.1.1.2.9 HasSuperBinding ( )](https://tc39.es/ecma262/#sec-object-environment-records-hassuperbinding)
-    ///
-    /// The HasSuperBinding concrete method of an Object Environment Record
-    /// envRec takes no arguments and returns false.
-    pub(crate) fn has_super_binding(&self) -> bool {
-        // 1. Return false.
-        false
-        // NOTE
-        // Object Environment Records do not provide a super binding.
-    }
-
     /// ### [9.1.1.2.10 WithBaseObject ( )](https://tc39.es/ecma262/#sec-object-environment-records-withbaseobject)
     ///
     /// The WithBaseObject concrete method of an Object Environment Record

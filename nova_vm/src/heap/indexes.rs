@@ -90,11 +90,6 @@ impl<T: ?Sized> BaseIndex<'_, T> {
     }
 
     #[inline(always)]
-    pub(crate) const fn into_usize(self) -> usize {
-        self.0.get() as usize
-    }
-
-    #[inline(always)]
     pub(crate) const fn into_u32(self) -> u32 {
         self.0.get()
     }
@@ -127,18 +122,6 @@ impl<T: ?Sized> BaseIndex<'_, T> {
     #[inline(always)]
     pub(crate) const fn from_usize(value: usize) -> Self {
         let value = value as u32;
-        assert!(value != 0);
-        // SAFETY: Number is not zero.
-        // This check is done manually to allow const context.
-        Self(
-            unsafe { NonZeroU32::new_unchecked(value) },
-            PhantomData,
-            PhantomData,
-        )
-    }
-
-    #[inline(always)]
-    pub(crate) const fn from_u32(value: u32) -> Self {
         assert!(value != 0);
         // SAFETY: Number is not zero.
         // This check is done manually to allow const context.

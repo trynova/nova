@@ -3,7 +3,10 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    SmallInteger,
+    ecmascript::abstract_operations::type_conversion::to_number,
+    engine::context::{Bindable, GcScope, NoGcScope},
+};
+use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::invoke,
@@ -25,10 +28,6 @@ use crate::{
     },
     engine::rootable::Scopable,
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
-};
-use crate::{
-    ecmascript::abstract_operations::type_conversion::to_number,
-    engine::context::{Bindable, GcScope, NoGcScope},
 };
 
 pub(crate) struct DatePrototype;
@@ -307,8 +306,6 @@ impl Builtin for DatePrototypeToPrimitive {
 
     const WRITABLE: bool = false;
 }
-
-const MAX_SYSTEM_TIME_VALUE: u128 = SmallInteger::MAX as u128;
 
 impl DatePrototype {
     /// ### [21.4.4.2 Date.prototype.getDate ( )](https://tc39.es/ecma262/#sec-date.prototype.getdate)

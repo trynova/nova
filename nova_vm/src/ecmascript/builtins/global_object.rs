@@ -1782,6 +1782,7 @@ where
     }
 }
 
+#[cfg(feature = "annex-b-global")]
 fn encode_hex_byte(s: &mut Wtf8Buf, hex_half: u8) {
     match hex_half {
         0 => s.push_char('0'),

@@ -442,12 +442,6 @@ impl Caches<'static> {
 #[repr(transparent)]
 pub struct PropertyLookupCache<'a>(NonZeroU32, PhantomData<&'a GcToken>);
 
-pub(crate) struct PropertyLookupCacheResult<'a> {
-    cache: PropertyLookupCache<'a>,
-    index: Option<Option<u16>>,
-    prototype: Option<Object<'a>>,
-}
-
 impl<'a> PropertyLookupCache<'a> {
     /// Get a property lookup cache entry for the given key if one exists.
     pub(crate) fn get(agent: &Agent, key: PropertyKey<'a>) -> Option<PropertyLookupCache<'a>> {
@@ -686,21 +680,6 @@ impl<'a> PropertyLookupCache<'a> {
     }
 
     #[inline(always)]
-    fn get_record<'c>(
-        self,
-        caches: &'c Caches<'a>,
-    ) -> (
-        &'c PropertyLookupCacheRecord<'a>,
-        &'c PropertyLookupCacheRecordPrototypes<'a>,
-    ) {
-        let index = self.get_index();
-        (
-            &caches.property_lookup_caches[index],
-            &caches.property_lookup_cache_prototypes[index],
-        )
-    }
-
-    #[inline(always)]
     fn get_record_mut<'c>(
         self,
         caches: &'c mut Caches<'static>,
@@ -874,22 +853,6 @@ impl PropertyOffset {
         let masked = offset & Self::OFFSET_BIT_MASK as u32;
         if masked == offset {
             Some(Self(masked as u16 | Self::CUSTOM_STORAGE_BIT_MASK))
-        } else {
-            None
-        }
-    }
-
-    /// Create a new prototype property lookup offset for custom property
-    /// storage.
-    ///
-    /// Returns None if the offset is beyond supported limits.
-    #[inline(always)]
-    pub(crate) const fn new_custom_prototype(offset: u32) -> Option<Self> {
-        let masked = offset & Self::OFFSET_BIT_MASK as u32;
-        if masked == offset {
-            Some(Self(
-                masked as u16 | Self::PROTOTYPE_BIT_MASK | Self::CUSTOM_STORAGE_BIT_MASK,
-            ))
         } else {
             None
         }

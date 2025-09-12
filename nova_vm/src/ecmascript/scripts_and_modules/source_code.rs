@@ -301,6 +301,7 @@ impl<'a> SourceCode<'a> {
     }
 
     /// Access the AstNodes information of the SourceCode.
+    #[expect(dead_code)]
     pub(crate) fn get_nodes(self, agent: &Agent) -> &AstNodes<'a> {
         &agent[self].nodes
     }
@@ -320,6 +321,7 @@ pub struct SourceCodeHeapData<'a> {
     scoping: Scoping,
     nodes: AstNodes<'static>,
     /// The arena that contains the parsed data of the eval source.
+    #[expect(dead_code)]
     allocator: Allocator,
 }
 
@@ -333,14 +335,6 @@ impl Debug for SourceCodeHeapData<'_> {
             .finish()
     }
 }
-
-// impl Drop for SourceCodeHeapData<'_> {
-//     fn drop(&mut self) {
-//         // SAFETY: All references to this SourceCode should have been dropped
-//         // before we drop this.
-//         drop(unsafe { Box::from_raw(self.allocator.as_mut()) });
-//     }
-// }
 
 impl Index<SourceCode<'_>> for Agent {
     type Output = SourceCodeHeapData<'static>;

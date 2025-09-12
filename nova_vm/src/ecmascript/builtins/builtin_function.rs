@@ -196,10 +196,6 @@ impl<'slice, 'value> ArgumentsList<'slice, 'value> {
         self.slice
     }
 
-    pub(crate) fn into_raw_parts_mut(self) -> (*mut Value<'static>, usize) {
-        (self.slice.as_mut_ptr(), self.slice.len())
-    }
-
     /// Get a Value by index from an ArgumentsList.
     ///
     /// If a Value with that index isn't present, `undefined` is returned.

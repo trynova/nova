@@ -81,8 +81,7 @@ impl SharedArrayBufferConstructor {
             gc.reborrow(),
         )
         .unbind()?
-        .bind(gc.nogc())
-        .map(|b| b as u64);
+        .bind(gc.nogc());
         // 4. Return ? AllocateSharedArrayBuffer(NewTarget, byteLength, requestedMaxByteLength).
         allocate_shared_array_buffer(
             agent,

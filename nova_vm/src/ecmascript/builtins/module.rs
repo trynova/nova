@@ -116,11 +116,6 @@ impl Module<'_> {
     pub(crate) const fn from_u32(value: u32) -> Self {
         Self(value, PhantomData)
     }
-
-    pub(crate) fn last(modules: &[Option<ModuleHeapData>]) -> Self {
-        let index = modules.len() - 1;
-        Self::from_index(index)
-    }
 }
 
 bindable_handle!(Module);

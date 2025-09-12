@@ -383,12 +383,6 @@ impl<'e> FunctionEnvironment<'e> {
             .delete_binding(agent, name)
     }
 
-    /// ### [9.1.1.1.10 WithBaseObject ( )](https://tc39.es/ecma262/#sec-declarative-environment-records-withbaseobject)
-    pub(crate) fn with_base_object(self) -> Option<Object<'static>> {
-        // 1. Return undefined.
-        None
-    }
-
     /// ### [9.1.1.3.1 BindThisValue ( V )](https://tc39.es/ecma262/#sec-bindthisvalue)
     ///
     /// The BindThisValue concrete method of a Function Environment Record

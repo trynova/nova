@@ -655,6 +655,7 @@ pub fn try_get_result_into_value<'a>(
 }
 
 #[inline(always)]
+#[cfg(any(feature = "array-buffer", feature = "regexp"))]
 pub(crate) fn unwrap_try_get_value<'a>(v: TryResult<'a, TryGetResult<'a>>) -> Value<'a> {
     match v {
         ControlFlow::Continue(TryGetResult::Value(v)) => v,
@@ -663,6 +664,7 @@ pub(crate) fn unwrap_try_get_value<'a>(v: TryResult<'a, TryGetResult<'a>>) -> Va
 }
 
 #[inline(always)]
+#[cfg(feature = "array-buffer")]
 pub(crate) fn unwrap_try_get_value_or_unset<'a>(v: TryResult<'a, TryGetResult<'a>>) -> Value<'a> {
     match v {
         ControlFlow::Continue(TryGetResult::Value(v)) => v,
@@ -750,15 +752,6 @@ impl SetResult<'_> {
         }
     }
 }
-
-pub struct SetProps<'a> {
-    pub receiver: Value<'a>,
-    pub p: PropertyKey<'a>,
-    pub value: Value<'a>,
-    pub strict: bool,
-}
-
-bindable_handle!(SetProps);
 
 /// Helper function for calling a Proxy [[Set]] trap when triggered by finding
 /// a Proxy used as a prototype.

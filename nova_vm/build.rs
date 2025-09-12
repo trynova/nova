@@ -2,10 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use small_string::SmallString;
-use std::fs::File;
-use std::io::{self, BufReader, prelude::*};
-
 fn replace_invalid_key_characters(string: &str) -> String {
     let mut string = string.to_owned();
 
@@ -23,74 +19,134 @@ fn replace_invalid_key_characters(string: &str) -> String {
     string.replace(['[', ']', '(', ')', ' ', '.', '-', '*'], "_")
 }
 
-fn gen_builtin_strings() -> io::Result<Vec<u8>> {
+fn gen_builtin_strings() -> std::io::Result<Vec<u8>> {
+    use small_string::SmallString;
+    use std::fs::File;
+    use std::io::{BufRead, BufReader};
+
     let file = File::open("src/builtin_strings")?;
     let reader = BufReader::new(file);
     // Use line count from builtin_strings
     let mut strings = Vec::with_capacity(256);
 
-    let mut i: u32 = 0;
     for line in reader.lines() {
         let line = line.unwrap();
         if strings.contains(&line) {
             panic!("Duplicate strings {line}");
         }
-        if SmallString::try_from(line.as_str()).is_err() {
-            i += 1;
-        }
         strings.push(line);
     }
 
-    let array_size = i.to_string();
-    let mut output = String::with_capacity(2048);
-    output.push_str("pub const BUILTIN_STRINGS_LIST: [&str; ");
-    output.push_str(&array_size);
-    output.push_str("] = [\n");
-    for string in &strings {
-        if SmallString::try_from(string.as_str()).is_ok() {
-            // Do not output small strings into the builtin strings array.
-            continue;
-        }
-        output.push_str("    \"");
-        output.push_str(string);
-        output.push_str("\",\n");
-    }
-    output.push_str("];\n\n#[allow(non_snake_case)]\npub struct BuiltinStrings {\n");
-    for string in &strings {
-        output.push_str("    /// ```js\n");
-        output.push_str(&format!("    /// \"{string}\"\n"));
-        output.push_str("    /// ```\n");
-        output.push_str("    pub r#");
-        output.push_str(&replace_invalid_key_characters(string));
-        output.push_str(": String<'static>,\n");
-    }
-    output.push_str("}\n\npub const BUILTIN_STRING_MEMORY: BuiltinStrings = BuiltinStrings {\n");
-    let mut i: u32 = 0;
-    for string in strings.iter() {
-        output.push_str("    r#");
-        output.push_str(&replace_invalid_key_characters(string));
-        if SmallString::try_from(string.as_str()).is_ok() {
-            output.push_str(": crate::ecmascript::types::String::SmallString(unsafe { SmallString::from_str_unchecked(\"");
-            output.push_str(string.as_str());
-            output.push_str("\") }),\n");
-        } else {
-            output.push_str(
-                ": crate::ecmascript::types::String::String(HeapString(BaseIndex::from_index(",
-            );
-            output.push_str(&i.to_string());
-            output.push_str("))),\n");
-            i += 1;
-        }
-    }
-    output.push_str("};\n");
+    // Sizes measured from the final output plus a bit to allow for growth.
+    let mut module = String::with_capacity(120_000);
+    let mut list = String::with_capacity(10_000);
+    let mut struct_def = String::with_capacity(50_000);
+    let mut struct_const = String::with_capacity(54_000);
 
-    Ok(output.into_bytes())
+    module.push_str(
+        "\
+const fn get_index(n: &'static str) -> usize {
+    let mut i = 0;
+    'main: loop {
+        let candidate = BUILTIN_STRINGS_LIST[i];
+        if n.len() != candidate.len() {
+            i += 1;
+            continue 'main;
+        }
+        let n = n.as_bytes();
+        let candidate = candidate.as_bytes();
+        let mut j = 0;
+        loop {
+            if j == n.len() {
+                break;
+            }
+            if n[j] != candidate[j] {
+                i += 1;
+                continue 'main;
+            }
+            j += 1;
+        }
+        return i;
+    }
+}\n\n\
+    ",
+    );
+
+    // List
+    list.push_str("pub const BUILTIN_STRINGS_LIST: &[&str] = &[\n");
+
+    // Struct definition
+    struct_def.push_str("#[allow(non_snake_case)]\npub struct BuiltinStrings {\n");
+
+    // Struct instantiation
+    struct_const.push_str("pub const BUILTIN_STRING_MEMORY: BuiltinStrings = BuiltinStrings {\n");
+    for string in &strings {
+        let (cfg, string) = if string.starts_with("#[cfg(") {
+            let end_index = string.find(']').expect(
+                "Builtin string started with feature attribute brackets but did not close it",
+            );
+            let (cfg, string) = string.split_at(end_index + 1);
+            (format!("    {cfg}\n"), string)
+        } else {
+            ("".to_string(), string.as_ref())
+        };
+        if string.contains("#[") {
+            panic!(
+                "Builtin string still contains conditional compilation after split: \"{string}\""
+            );
+        }
+
+        // List
+        let is_small_string = SmallString::try_from(string).is_ok();
+        if !is_small_string {
+            // Do not output small strings into the builtin strings array.
+            if !cfg.is_empty() {
+                list.push_str(&cfg);
+            }
+            list.push_str(&format!("    \"{string}\",\n"));
+        }
+
+        // Struct definition
+        struct_def.push_str("    /// ```js\n");
+        struct_def.push_str(&format!("    /// \"{string}\"\n"));
+        struct_def.push_str("    /// ```\n");
+        if !cfg.is_empty() {
+            struct_def.push_str(&cfg);
+        }
+        let escaped_string = replace_invalid_key_characters(string);
+        struct_def.push_str("    pub r#");
+        struct_def.push_str(&escaped_string);
+        struct_def.push_str(": String<'static>,\n");
+
+        // Struct instantiation
+        if !cfg.is_empty() {
+            struct_const.push_str(&cfg);
+        }
+        struct_const.push_str("    r#");
+        struct_const.push_str(&escaped_string);
+        if is_small_string {
+            struct_const
+                .push_str(": String::SmallString(unsafe { SmallString::from_str_unchecked(\"");
+            struct_const.push_str(string);
+            struct_const.push_str("\") }),\n");
+        } else {
+            struct_const.push_str(": String::String(HeapString(BaseIndex::from_index(get_index(");
+            struct_const.push_str(&format!("\"{string}\")))),\n"));
+        }
+    }
+    list.push_str("];\n\n");
+    struct_def.push_str("}\n\n");
+    struct_const.push_str("};\n");
+
+    module.extend([list, struct_def, struct_const]);
+    Ok(module.into_bytes())
 }
-use std::env;
-use std::fs;
-use std::path::Path;
 
 fn main() {
+    use std::env;
+    use std::fs;
+    use std::path::Path;
+
     println!("cargo:rerun-if-changed=src/builtin_strings");
     println!("cargo:rerun-if-changed=build.rs");
 

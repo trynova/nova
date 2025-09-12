@@ -15,7 +15,7 @@ use crate::{
                 group_by_property, has_own_property,
                 integrity::{Frozen, Sealed},
                 set, set_integrity_level, test_integrity_level, throw_not_callable,
-                try_create_data_property, try_define_property_or_throw, try_get,
+                try_create_data_property,
             },
             testing_and_comparison::{require_object_coercible, same_value},
             type_conversion::{to_object, to_property_key, to_property_key_simple},
@@ -27,17 +27,16 @@ use crate::{
         },
         execution::{
             Agent, JsResult, ProtoIntrinsics, Realm,
-            agent::{ExceptionType, TryResult, js_result_into_try, try_result_into_js, unwrap_try},
+            agent::{ExceptionType, TryResult, try_result_into_js, unwrap_try},
         },
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoFunction, IntoObject,
             IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
-            try_get_result_into_value,
         },
     },
     engine::{
         ScopableCollection, Scoped,
-        context::{Bindable, GcScope, NoGcScope},
+        context::{Bindable, GcScope},
         rootable::Scopable,
     },
     heap::{IntrinsicConstructorIndexes, ObjectEntry, WellKnownSymbolIndexes},
@@ -1272,45 +1271,6 @@ fn object_define_properties<'gc>(
     Ok(unsafe { scoped_o.take(agent) })
 }
 
-fn try_object_define_properties<'gc, T: 'gc + InternalMethods<'gc>>(
-    agent: &mut Agent,
-    o: T,
-    properties: Value,
-    gc: NoGcScope<'gc, '_>,
-) -> TryResult<'gc, T> {
-    // 1. Let props be ? ToObject(Properties).
-    let props = js_result_into_try(to_object(agent, properties, gc))?;
-    // 2. Let keys be ? props.[[OwnPropertyKeys]]().
-    let keys = props.try_own_property_keys(agent, gc)?;
-    // 3. Let descriptors be a new empty List.
-    let mut descriptors = Vec::with_capacity(keys.len());
-    // 4. For each element nextKey of keys, do
-    for next_key in keys {
-        // a. Let propDesc be ? props.[[GetOwnProperty]](nextKey).
-        let prop_desc = props.try_get_own_property(agent, next_key, None, gc)?;
-        // b. If propDesc is not undefined and propDesc.[[Enumerable]] is true, then
-        let Some(prop_desc) = prop_desc else {
-            continue;
-        };
-        if prop_desc.enumerable != Some(true) {
-            continue;
-        }
-        // i. Let descObj be ? Get(props, nextKey).
-        let desc_obj = try_get_result_into_value(try_get(agent, props, next_key, None, gc))?;
-        // ii. Let desc be ? ToPropertyDescriptor(descObj).
-        let desc = PropertyDescriptor::try_to_property_descriptor(agent, desc_obj, gc)?;
-        // iii. Append the Record { [[Key]]: nextKey, [[Descriptor]]: desc } to descriptors.
-        descriptors.push((next_key, desc));
-    }
-    // 5. For each element property of descriptors, do
-    for (property_key, property_descriptor) in descriptors {
-        // a. Perform ? DefinePropertyOrThrow(O, property.[[Key]], property.[[Descriptor]]).
-        try_define_property_or_throw(agent, o, property_key, property_descriptor, None, gc)?;
-    }
-    // 6. Return O.
-    TryResult::Continue(o)
-}
-
 /// ### [24.1.1.2 AddEntriesFromIterable ( target, iterable, adder )](https://tc39.es/ecma262/#sec-add-entries-from-iterable)
 ///
 /// The abstract operation AddEntriesFromIterable takes arguments target (an
@@ -1542,5 +1502,3 @@ fn get_own_property_descriptors_slow<'gc>(
     }
     Ok(descriptors.get(agent).into_value())
 }
-
-fn object_define_properties_slow() {}

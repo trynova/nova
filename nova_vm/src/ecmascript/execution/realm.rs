@@ -233,6 +233,7 @@ pub struct RealmRecord<'a> {
     /// that is a TemplateLiteral. The associated \[\[Array]] value is the
     /// corresponding template object that is passed to a tag function.
     /// NOTE: The template data is included in the AST.
+    #[expect(dead_code)]
     template_map: (),
 
     /// ### \[\[LoadedModules]]
@@ -254,10 +255,6 @@ unsafe impl Send for RealmRecord<'_> {}
 impl RealmRecord<'_> {
     pub(crate) fn intrinsics(&self) -> &Intrinsics {
         &self.intrinsics
-    }
-
-    pub(crate) fn intrinsics_mut(&mut self) -> &mut Intrinsics {
-        &mut self.intrinsics
     }
 }
 
@@ -831,7 +828,6 @@ mod test {
     }
 
     #[test]
-    #[cfg(feature = "regexp")]
     fn test_default_realm_sanity() {
         use super::initialize_default_realm;
         use crate::ecmascript::{
@@ -920,6 +916,7 @@ mod test {
         if let Some((missing_string_index, _)) = missing_string {
             panic!("Found a missing String at index {missing_string_index}");
         }
+        #[cfg(feature = "regexp")]
         assert!(agent.heap.regexps.is_empty());
     }
 }

@@ -62,10 +62,6 @@ impl AwaitReaction<'_> {
         self.0 as usize
     }
 
-    pub(crate) const fn into_u32(self) -> u32 {
-        self.0
-    }
-
     pub(crate) fn resume(
         self,
         agent: &mut Agent,

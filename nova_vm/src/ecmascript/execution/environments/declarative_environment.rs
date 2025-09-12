@@ -8,7 +8,7 @@ use super::{DeclarativeEnvironment, Environment, Environments, OuterEnv};
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult, agent::ExceptionType},
-        types::{Object, String, Value},
+        types::{String, Value},
     },
     engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -411,33 +411,6 @@ impl<'e> DeclarativeEnvironment<'e> {
         let env_rec = &mut agent[self];
         // Delegate to heap data record method.
         env_rec.delete_binding(name)
-    }
-
-    /// ### [9.1.1.1.8 HasThisBinding ( )](https://tc39.es/ecma262/#sec-declarative-environment-records-hasthisbinding)
-    ///
-    /// The HasThisBinding concrete method of a Declarative Environment Record
-    /// envRec takes no arguments and returns false.
-    pub(crate) fn has_this_binding(self) -> bool {
-        // 1. Return false.
-        false
-    }
-
-    /// ### [9.1.1.1.9 HasSuperBinding ( )](https://tc39.es/ecma262/#sec-declarative-environment-records-hassuperbinding)
-    ///
-    /// The HasSuperBinding concrete method of a Declarative Environment Record
-    /// envRec takes no arguments and returns false.
-    pub(crate) fn has_super_binding(self) -> bool {
-        // 1. Return false.
-        false
-    }
-
-    /// ### [9.1.1.1.10 WithBaseObject ( )](https://tc39.es/ecma262/#sec-declarative-environment-records-withbaseobject)
-    ///
-    /// The WithBaseObject concrete method of a Declarative Environment Record
-    /// envRec takes no arguments and returns undefined.
-    pub(crate) fn with_base_object(self) -> Option<Object<'static>> {
-        // 1. Return undefined.
-        None
     }
 }
 

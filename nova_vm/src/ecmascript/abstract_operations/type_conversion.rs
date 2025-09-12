@@ -261,19 +261,6 @@ pub(crate) fn to_numeric_primitive<'a>(
     to_number_primitive(agent, prim_value, gc).map(|n| n.into_numeric())
 }
 
-pub(crate) fn try_to_number<'a, 'gc>(
-    agent: &mut Agent,
-    argument: impl IntoValue<'a>,
-    gc: NoGcScope<'gc, '_>,
-) -> Option<JsResult<'gc, Number<'gc>>> {
-    let argument = argument.into_value().unbind().bind(gc);
-    if let Ok(argument) = Primitive::try_from(argument) {
-        Some(to_number_primitive(agent, argument, gc))
-    } else {
-        None
-    }
-}
-
 /// ### [7.1.4 ToNumber ( argument )](https://tc39.es/ecma262/#sec-tonumber)
 pub(crate) fn to_number<'a, 'gc>(
     agent: &mut Agent,
@@ -449,10 +436,6 @@ impl IntegerOrInfinity {
         self.0.is_negative()
     }
 
-    pub(crate) fn is_positive(self) -> bool {
-        self.0.is_positive()
-    }
-
     pub(crate) fn into_i64(self) -> i64 {
         self.0
     }
@@ -490,6 +473,7 @@ impl PartialOrd<IntegerOrInfinity> for i64 {
 trivially_bindable!(IntegerOrInfinity);
 
 /// ### [7.1.5 ToIntegerOrInfinity ( argument )](https://tc39.es/ecma262/#sec-tointegerorinfinity)
+#[cfg(feature = "date")]
 pub(crate) fn to_integer_or_infinity_f64(number: f64) -> f64 {
     // `ToIntegerOrInfinity ( argument )`
     if number.is_nan() || number == 0.0 {
@@ -1395,6 +1379,7 @@ pub(crate) fn try_to_length<'a>(
 }
 
 /// ### [7.1.21 CanonicalNumericIndexString ( argument )](https://tc39.es/ecma262/#sec-canonicalnumericindexstring)
+#[cfg(feature = "array-buffer")]
 pub(crate) fn canonical_numeric_index_string<'gc>(
     agent: &mut Agent,
     argument: String<'gc>,
@@ -1457,6 +1442,7 @@ pub(crate) fn to_index<'a>(
 }
 
 /// ### [7.1.22 ToIndex ( value )](https://tc39.es/ecma262/#sec-toindex)
+#[cfg(feature = "array-buffer")]
 pub(crate) fn try_to_index<'a>(
     agent: &mut Agent,
     argument: Value,
