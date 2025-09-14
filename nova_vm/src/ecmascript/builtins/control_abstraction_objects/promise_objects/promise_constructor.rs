@@ -108,6 +108,7 @@ impl Builtin for PromiseGetSpecies {
 impl BuiltinGetter for PromiseGetSpecies {}
 
 impl PromiseConstructor {
+    /// ### [27.2.3.1 Promise ( executor )](https://tc39.es/ecma262/#sec-promise-executor)
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -210,6 +211,11 @@ impl PromiseConstructor {
         Ok(scoped_promise.get(agent).into_value())
     }
 
+    /// ### [27.2.4.1 Promise.all ( iterable )](https://tc39.es/ecma262/#sec-promise.all)
+    ///
+    /// > NOTE: This function requires its **this** value to be a constructor
+    /// > function that supports the parameter conventions of the Promise
+    /// > constructor.
     fn all<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -219,6 +225,11 @@ impl PromiseConstructor {
         Err(agent.todo("Promise.all", gc.into_nogc()))
     }
 
+    /// ### [27.2.4.2 Promise.allSettled ( iterable )](https://tc39.es/ecma262/#sec-promise.allsettled)
+    ///
+    /// > NOTE: This function requires its this value to be a constructor
+    /// > function that supports the parameter conventions of the Promise
+    /// > constructor.
     fn all_settled<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -227,6 +238,12 @@ impl PromiseConstructor {
     ) -> JsResult<'gc, Value<'gc>> {
         Err(agent.todo("Promise.allSettled", gc.into_nogc()))
     }
+
+    /// ### [27.2.4.3 Promise.any ( iterable )](https://tc39.es/ecma262/#sec-promise.any)
+    ///
+    /// > NOTE: This function requires its this value to be a constructor
+    /// > function that supports the parameter conventions of the Promise
+    /// > constructor.
     fn any<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -235,6 +252,17 @@ impl PromiseConstructor {
     ) -> JsResult<'gc, Value<'gc>> {
         Err(agent.todo("Promise.any", gc.into_nogc()))
     }
+
+    /// ### [27.2.4.5 Promise.race ( iterable )](https://tc39.es/ecma262/#sec-promise.race)
+    ///
+    /// > NOTE 1: If the iterable argument yields no values or if none of the
+    /// > promises yielded by iterable ever settle, then the pending promise
+    /// > returned by this method will never be settled.
+    ///
+    /// > NOTE 2: This function expects its this value to be a constructor
+    /// > function that supports the parameter conventions of the Promise
+    /// > constructor. It also expects that its this value provides a resolve
+    /// > method.
     fn race<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -244,6 +272,11 @@ impl PromiseConstructor {
         Err(agent.todo("Promise.race", gc.into_nogc()))
     }
 
+    /// ### [27.2.4.6 Promise.reject ( r )](https://tc39.es/ecma262/#sec-promise.reject)
+    ///
+    /// > NOTE: This function expects its this value to be a constructor
+    /// > function that supports the parameter conventions of the Promise
+    /// > constructor.
     fn reject<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -271,6 +304,11 @@ impl PromiseConstructor {
         Ok(Promise::new_rejected(agent, r, gc).into_value())
     }
 
+    /// ### [27.2.4.7 Promise.resolve ( x )](https://tc39.es/ecma262/#sec-promise.resolve)
+    ///
+    /// > NOTE: This function expects its this value to be a constructor
+    /// > function that supports the parameter conventions of the Promise
+    /// > constructor.
     fn resolve<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -294,9 +332,11 @@ impl PromiseConstructor {
         Ok(Promise::resolve(agent, arguments.get(0), gc).into_value())
     }
 
-    /// ### [1 Promise.try ( callbackfn, ...args )](https://tc39.es/proposal-promise-try)
+    /// ### [27.2.4.8 Promise.try ( callback, ...args )](https://tc39.es/ecma262/#sec-promise.try)
     ///
-    /// `Promise.try` proposal.
+    /// > NOTE: This function expects its this value to be a constructor
+    /// > function that supports the parameter conventions of the Promise
+    /// > constructor.
     fn r#try<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -359,6 +399,7 @@ impl PromiseConstructor {
         Ok(promise.into_value().unbind())
     }
 
+    /// ### [27.2.4.9 Promise.withResolvers ( )](https://tc39.es/ecma262/#sec-promise.withResolvers)
     fn with_resolvers<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -437,6 +478,7 @@ impl PromiseConstructor {
         Ok(obj.into_value())
     }
 
+    /// ### [27.2.4.10 get Promise \[ %Symbol.species% \]](https://tc39.es/ecma262/#sec-get-promise-%symbol.species%)
     fn get_species<'gc>(
         _: &mut Agent,
         this_value: Value,

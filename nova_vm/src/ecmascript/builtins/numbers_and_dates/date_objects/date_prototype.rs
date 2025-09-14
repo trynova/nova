@@ -581,11 +581,9 @@ impl DatePrototype {
     ///
     /// The "length" property of this method is 3𝔽.
     ///
-    /// > #### Note
-    /// >
-    /// > If month is not present, this method behaves as if month was present
-    /// > with the value getMonth(). If date is not present, it behaves as if
-    /// > date was present with the value getDate().
+    /// > NOTE: If month is not present, this method behaves as if month was
+    /// > present with the value getMonth(). If date is not present, it behaves
+    /// > as if date was present with the value getDate().
     fn set_full_year<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -648,12 +646,11 @@ impl DatePrototype {
     ///
     /// The "length" property of this method is 4𝔽.
     ///
-    /// > #### Note
-    /// >
-    /// > If min is not present, this method behaves as if min was present with
-    /// > the value getMinutes(). If sec is not present, it behaves as if sec
-    /// > was present with the value getSeconds(). If ms is not present, it
-    /// > behaves as if ms was present with the value getMilliseconds().
+    /// > NOTE: If min is not present, this method behaves as if min was
+    /// > present with the value getMinutes(). If sec is not present, it
+    /// > behaves as if sec was present with the value getSeconds(). If ms is
+    /// > not present, it behaves as if ms was present with the value
+    /// > getMilliseconds().
     fn set_hours<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -773,11 +770,9 @@ impl DatePrototype {
     ///
     /// The "length" property of this method is 3𝔽.
     ///
-    /// > #### Note
-    /// >
-    /// > If sec is not present, this method behaves as if sec was present with
-    /// > the value getSeconds(). If ms is not present, this behaves as if ms
-    /// > was present with the value getMilliseconds().
+    /// > NOTE: If sec is not present, this method behaves as if sec was
+    /// > present with the value getSeconds(). If ms is not present, this
+    /// > behaves as if ms was present with the value getMilliseconds().
     fn set_minutes<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -843,10 +838,8 @@ impl DatePrototype {
     ///
     /// The "length" property of this method is 2𝔽.
     ///
-    /// > #### Note
-    /// >
-    /// > If date is not present, this method behaves as if date was present
-    /// > with the value getDate().
+    /// > NOTE: If date is not present, this method behaves as if date was
+    /// > present with the value getDate().
     fn set_month<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -902,10 +895,8 @@ impl DatePrototype {
     ///
     /// The "length" property of this method is 2𝔽.
     ///
-    /// > #### Note
-    /// >
-    /// > If ms is not present, this method behaves as if ms was present with
-    /// > the value getMilliseconds().
+    /// > NOTE: If ms is not present, this method behaves as if ms was present
+    /// > with the value getMilliseconds().
     fn set_seconds<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -1057,16 +1048,12 @@ impl DatePrototype {
     /// This method provides a String representation of a Date for use
     /// by JSON.stringify (25.5.2).
     ///
-    /// > #### Note 1
+    /// > NOTE 1: The argument is ignored.
     /// >
-    /// > The argument is ignored.
-    /// >
-    /// > #### Note 2
-    /// >
-    /// > This method is intentionally generic; it does not require that its
-    /// > this value be a Date. Therefore, it can be transferred to other kinds
-    /// > of objects for use as a method. However, it does require that any
-    /// > such object have a toISOString method.
+    /// > NOTE 2: This method is intentionally generic; it does not require
+    /// > that its this value be a Date. Therefore, it can be transferred to
+    /// > other kinds of objects for use as a method. However, it does require
+    /// > that any such object have a toISOString method.
     fn to_json<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1169,16 +1156,13 @@ impl DatePrototype {
 
     /// ### [21.4.4.41 Date.prototype.toString ( )](https://tc39.es/ecma262/#sec-date.prototype.tostring)
     ///
-    /// > #### Note 1
+    /// > NOTE 1: For any Date d such that d.[[DateValue]] is evenly divisible
+    /// > by 1000, the result of Date.parse(d.toString()) = d.valueOf(). See
+    /// > 21.4.3.2.
     /// >
-    /// > For any Date d such that d.[[DateValue]] is evenly divisible by 1000,
-    /// > the result of Date.parse(d.toString()) = d.valueOf(). See 21.4.3.2.
-    /// >
-    /// > #### Note 2
-    /// >
-    /// > This method is not generic; it throws a TypeError exception if its
-    /// > this value is not a Date. Therefore, it cannot be transferred to
-    /// > other kinds of objects for use as a method.
+    /// > NOTE 2: This method is not generic; it throws a TypeError exception
+    /// > if its this value is not a Date. Therefore, it cannot be transferred
+    /// > to other kinds of objects for use as a method.
     fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1816,10 +1800,8 @@ fn get_utc_epoch_nanoseconds(
 /// for ECMAScript implementations that do not include local political rules
 /// for any time zones, performs the following steps when called:
 ///
-/// > #### Note
-/// >
-/// > It is required for time zone aware implementations (and recommended for
-/// > all others) to use the time zone information of the IANA Time Zone
+/// > NOTE: It is required for time zone aware implementations (and recommended
+/// > for all others) to use the time zone information of the IANA Time Zone
 /// > Database https://www.iana.org/time-zones/.
 /// >
 /// > 1:30 AM on 5 November 2017 in America/New_York is repeated twice, so
@@ -1877,9 +1859,7 @@ fn get_named_time_zone_epoch_nanoseconds(
 /// for ECMAScript implementations that do not include local political rules
 /// for any time zones, performs the following steps when called:
 ///
-/// > #### Note
-/// >
-/// > Time zone offset values may be positive or negative.
+/// > NOTE: Time zone offset values may be positive or negative.
 fn get_named_time_zone_offset_nanoseconds(
     time_zone_identifier: &str,
     _epoch_nanoseconds: i64,
@@ -1898,9 +1878,7 @@ fn get_named_time_zone_offset_nanoseconds(
 /// representing a UTC offset for which IsTimeZoneOffsetString returns true, or
 /// a primary time zone identifier.
 ///
-/// > #### Note
-/// >
-/// > To ensure the level of functionality that implementations commonly
+/// > NOTE: To ensure the level of functionality that implementations commonly
 /// > provide in the methods of the Date object, it is recommended that
 /// > SystemTimeZoneIdentifier return an IANA time zone name corresponding to
 /// > the host environment's time zone setting, if such a thing exists.
@@ -1929,24 +1907,18 @@ fn system_time_zone_identifier(_agent: &Agent) -> &'static str {
 /// should be used to determine the result in the way specified in this
 /// section.
 ///
-/// > #### Note 1
+/// > NOTE 1: If political rules for the local time t are not available within
+/// > the implementation, the result is t because SystemTimeZoneIdentifier
+/// > returns "UTC" and GetNamedTimeZoneOffsetNanoseconds returns 0.
 /// >
-/// > If political rules for the local time t are not available within the
-/// > implementation, the result is t because SystemTimeZoneIdentifier returns
-/// > "UTC" and GetNamedTimeZoneOffsetNanoseconds returns 0.
+/// > NOTE 2: It is required for time zone aware implementations (and
+/// > recommended for all others) to use the time zone information of the IANA
+/// > Time Zone Database https://www.iana.org/time-zones/.
 /// >
-/// > #### Note 2
-/// >
-/// > It is required for time zone aware implementations (and recommended for
-/// > all others) to use the time zone information of the IANA Time Zone
-/// > Database https://www.iana.org/time-zones/.
-/// >
-/// > #### Note 3
-/// >
-/// > Two different input time values tUTC are converted to the same local time
-/// > tlocal at a negative time zone transition when there are repeated times
-/// > (e.g. the daylight saving time ends or the time zone adjustment is
-/// > decreased.).
+/// > NOTE 3: Two different input time values tUTC are converted to the same
+/// > local time tlocal at a negative time zone transition when there are
+/// > repeated times (e.g. the daylight saving time ends or the time zone
+/// > adjustment is decreased.).
 /// >
 /// > LocalTime(UTC(tlocal)) is not necessarily always equal to tlocal.
 /// > Correspondingly, UTC(LocalTime(tUTC)) is not necessarily always equal to tUTC.
@@ -1996,11 +1968,9 @@ fn local_or_utc_time<const UTC: bool>(agent: &mut Agent, t: f64) -> f64 {
 /// implementation, the result is t because SystemTimeZoneIdentifier returns
 /// "UTC" and GetNamedTimeZoneOffsetNanoseconds returns 0.
 ///
-/// > #### Note 1
-/// >
-/// > It is required for time zone aware implementations (and recommended for
-/// > all others) to use the time zone information of the IANA Time Zone
-/// > Database https://www.iana.org/time-zones/.
+/// > NOTE 1: It is required for time zone aware implementations (and
+/// > recommended for all others) to use the time zone information of the IANA
+/// > Time Zone Database https://www.iana.org/time-zones/.
 /// >
 /// > 1:30 AM on 5 November 2017 in America/New_York is repeated twice (fall
 /// > backward), but it must be interpreted as 1:30 AM UTC-04 instead of 1:30
@@ -2012,9 +1982,7 @@ fn local_or_utc_time<const UTC: bool>(agent: &mut Agent, t: f64) -> f64 {
 /// > (TimeClip(MakeDate(MakeDay(2017, 2, 12), MakeTime(2, 30, 0, 0)))), the
 /// > value of offsetMs is -5 × msPerHour.
 /// >
-/// > #### Note 2
-/// >
-/// > UTC(LocalTime(tUTC)) is not necessarily always equal to tUTC.
+/// > NOTE 2: UTC(LocalTime(tUTC)) is not necessarily always equal to tUTC.
 /// > Correspondingly, LocalTime(UTC(tlocal)) is not necessarily always equal
 /// > to tlocal.
 pub(super) fn utc(agent: &Agent, t: f64) -> f64 {
@@ -2088,11 +2056,9 @@ pub(super) fn utc(agent: &Agent, t: f64) -> f64 {
 /// min (a Number), sec (a Number), and ms (a Number) and returns a Number.
 /// It calculates a number of milliseconds.
 ///
-/// > #### Note
-/// >
-/// > The arithmetic in MakeTime is floating-point arithmetic,
-/// > which is not associative, so the operations must be performed in the
-/// > correct order.
+/// > NOTE: The arithmetic in MakeTime is floating-point arithmetic, which is
+/// > not associative, so the operations must be performed in the correct
+/// > order.
 pub(super) fn make_time(hour: f64, min: f64, sec: f64, ms: f64) -> f64 {
     // 1. If hour is not finite, min is not finite, sec is not finite, or ms is not finite, return NaN.
     if !hour.is_finite() || !min.is_finite() || !sec.is_finite() || !ms.is_finite() {

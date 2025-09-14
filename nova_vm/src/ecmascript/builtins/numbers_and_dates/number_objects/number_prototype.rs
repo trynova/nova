@@ -126,6 +126,19 @@ impl NumberPrototype {
         }
     }
 
+    /// ### [21.1.3.3 Number.prototype.toFixed ( fractionDigits )](https://tc39.es/ecma262/#sec-number.prototype.tofixed)
+    ///
+    /// > NOTE 1: This method returns a String containing this Number value
+    /// > represented in decimal fixed-point notation with fractionDigits
+    /// > digits after the decimal point. If fractionDigits is undefined, 0 is
+    /// > assumed.
+    ///
+    /// > NOTE 2: The output of toFixed may be more precise than toString for
+    /// > some values because toString only prints enough significant digits to
+    /// > distinguish the number from adjacent Number values. For example,
+    /// > `(1000000000000000128).toString()` returns `"1000000000000000100"`,
+    /// > while `(1000000000000000128).toFixed(0)` returns
+    /// > `"1000000000000000128"`.
     fn to_fixed<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -174,6 +187,7 @@ impl NumberPrototype {
         Ok(Value::from_str(agent, string, gc))
     }
 
+    /// ### [21.1.3.4 Number.prototype.toLocaleString ( \[ reserved1 \[ , reserved2 \] \] )](https://tc39.es/ecma262/#sec-number.prototype.tolocalestring)
     fn to_locale_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -183,7 +197,8 @@ impl NumberPrototype {
         Self::to_string(agent, this_value, arguments, gc)
     }
 
-    /// ### [21.1.3.5 Number.prototype.toPrecision ( )](https://tc39.es/ecma262/#sec-number.prototype.toprecision)
+    /// ### [21.1.3.5 Number.prototype.toPrecision ( precision )](https://tc39.es/ecma262/#sec-number.prototype.toprecision)
+    ///
     /// Copied from Boa JS engine. Source https://github.com/boa-dev/boa/blob/6f1d7d11ce49040eafe54e5ff2da379be4d998c2/core/engine/src/builtins/number/mod.rs#L412
     ///
     /// Copyright (c) 2019 Jason Williams
@@ -434,7 +449,7 @@ impl NumberPrototype {
         (flt.len() as i32) - 1
     }
 
-    /// ### [21.1.3.6 Number.prototype.toString ( [ radix ] )](https://tc39.es/ecma262/#sec-number.prototype.tostring)
+    /// ### [21.1.3.6 Number.prototype.toString ( \[ radix \] )](https://tc39.es/ecma262/#sec-number.prototype.tostring)
     ///
     /// > NOTE: The optional radix should be an integral Number value in the
     /// > inclusive interval from 2𝔽 to 36𝔽. If radix is undefined then 10𝔽 is
@@ -475,12 +490,14 @@ impl NumberPrototype {
         }
     }
 
+    /// ### [21.1.3.7 Number.prototype.valueOf ( )](https://tc39.es/ecma262/#sec-number.prototype.valueof)
     fn value_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        // 1. Return ? ThisNumberValue(this value).
         this_number_value(agent, this_value, gc.into_nogc()).map(|result| result.into_value())
     }
 
@@ -541,7 +558,9 @@ fn f64_to_exponential_with_precision<'a>(
 
 /// ### [21.1.3.7.1 ThisNumberValue ( value )](https://tc39.es/ecma262/#sec-thisnumbervalue)
 ///
-/// The abstract operation ThisNumberValue takes argument value (an ECMAScript language value) and returns either a normal completion containing a Number or a throw completion.
+/// The abstract operation ThisNumberValue takes argument value (an ECMAScript
+/// language value) and returns either a normal completion containing a Number
+/// or a throw completion.
 #[inline(always)]
 fn this_number_value<'gc>(
     agent: &mut Agent,

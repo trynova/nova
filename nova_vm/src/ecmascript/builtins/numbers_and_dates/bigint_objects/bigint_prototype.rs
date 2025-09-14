@@ -47,6 +47,7 @@ impl Builtin for BigIntPrototypeValueOf {
 }
 
 impl BigIntPrototype {
+    /// ### [21.2.3.2 BigInt.prototype.toLocaleString ( \[ reserved1 \[ , reserved2 \] \] )](https://tc39.es/ecma262/#sec-bigint.prototype.tolocalestring)
     fn to_locale_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -96,12 +97,14 @@ impl BigIntPrototype {
         }
     }
 
+    /// ### [21.2.3.4 BigInt.prototype.valueOf ( )](https://tc39.es/ecma262/#sec-bigint.prototype.valueof)
     fn value_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        // 1. Return ? ThisBigIntValue(this value).
         this_big_int_value(agent, this_value, gc.into_nogc()).map(|result| result.into_value())
     }
 

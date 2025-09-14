@@ -150,9 +150,8 @@ impl SetPrototype {
 
     /// ### [24.2.4.2 Set.prototype.clear ( )](https://tc39.es/ecma262/#sec-set.prototype.clear)
     ///
-    /// > #### Note
-    /// > The existing \[\[SetData]] List is preserved because there may be
-    /// > existing Set Iterator objects that are suspended midway through
+    /// > NOTE: The existing \[\[SetData]] List is preserved because there may
+    /// > be existing Set Iterator objects that are suspended midway through
     /// > iterating over that List.
     fn clear<'gc>(
         agent: &mut Agent,
@@ -175,11 +174,10 @@ impl SetPrototype {
 
     /// ### [24.2.4.4 Set.prototype.delete ( value )](https://tc39.es/ecma262/#sec-set.prototype.delete)
     ///
-    /// > #### Note
-    /// >
-    /// > The value EMPTY is used as a specification device to indicate that an
-    /// > entry has been deleted. Actual implementations may take other actions
-    /// > such as physically removing the entry from internal data structures.
+    /// > NOTE: The value EMPTY is used as a specification device to indicate
+    /// > that an entry has been deleted. Actual implementations may take other
+    /// > actions such as physically removing the entry from internal data
+    /// > structures.
     fn delete<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -233,6 +231,10 @@ impl SetPrototype {
         }
     }
 
+    /// ### [24.2.4.6 Set.prototype.entries ( )](https://tc39.es/ecma262/#sec-set.prototype.entries)
+    ///
+    /// > NOTE: For iteration purposes, a Set appears similar to a Map where
+    /// > each entry has the same value for its key and value.
     fn entries<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -252,8 +254,7 @@ impl SetPrototype {
 
     /// ### [24.2.4.7 Set.prototype.forEach ( callbackfn \[ , thisArg \] )](https://tc39.es/ecma262/#sec-set.prototype.foreach)
     ///
-    /// > #### Note
-    /// > `callbackfn` should be a function that accepts three arguments.
+    /// > NOTE: `callbackfn` should be a function that accepts three arguments.
     /// > **forEach** calls `callbackfn` once for each value present in the Set
     /// > object, in value insertion order. `callbackfn` is called only for
     /// > values of the Set which actually exist; it is not called for keys
@@ -417,6 +418,7 @@ impl SetPrototype {
         Ok(Number::from(size).into_value())
     }
 
+    /// ### [24.2.4.17 Set.prototype.values ( )](https://tc39.es/ecma262/#sec-set.prototype.values)
     fn values<'gc>(
         agent: &mut Agent,
         this_value: Value,

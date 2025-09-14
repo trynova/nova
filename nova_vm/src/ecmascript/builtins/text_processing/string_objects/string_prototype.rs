@@ -539,6 +539,18 @@ impl StringPrototype {
     }
 
     /// ### [22.1.3.4 String.prototype.codePointAt ( pos )](https://tc39.es/ecma262/#sec-string.prototype.codepointat)
+    ///
+    /// > NOTE 1: This method returns a non-negative integral Number less than
+    /// > or equal to 0x10FFFF𝔽 that is the numeric value of the UTF-16 encoded
+    /// > code point (6.1.4) starting at the string element at index pos within
+    /// > the String resulting from converting this object to a String. If
+    /// > there is no element at that index, the result is undefined. If a
+    /// > valid UTF-16 surrogate pair does not begin at pos, the result is the
+    /// > code unit at pos.
+    ///
+    /// > NOTE 2: This method is intentionally generic; it does not require
+    /// > that its this value be a String object. Therefore it can be
+    /// > transferred to other kinds of objects for use as a method.
     fn code_point_at<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -581,6 +593,15 @@ impl StringPrototype {
     }
 
     /// ### [22.1.3.5 String.prototype.concat ( ...args )](https://tc39.es/ecma262/#sec-string.prototype.concat)
+    ///
+    /// > NOTE 1: When this method is called it returns the String value
+    /// > consisting of the code units of the this value (converted to a
+    /// > String) followed by the code units of each of the arguments converted
+    /// > to a String. The result is a String value, not a String object.
+    ///
+    /// > NOTE 2: This method is intentionally generic; it does not require
+    /// > that its this value be a String object. Therefore it can be
+    /// > transferred to other kinds of objects for use as a method.
     fn concat<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -667,6 +688,20 @@ impl StringPrototype {
         Ok(String::concat(agent, &strings, nogc).into_value())
     }
 
+    /// ### [22.1.3.7 String.prototype.endsWith ( searchString \[ , endPosition \] )](https://tc39.es/ecma262/#sec-string.prototype.endswith)
+    ///
+    /// > NOTE 1: This method returns true if the sequence of code units of
+    /// > searchString converted to a String is the same as the corresponding
+    /// > code units of this object (converted to a String) starting at
+    /// > `endPosition - length(this)`. Otherwise it returns false.
+    ///
+    /// > NOTE 2: Throwing an exception if the first argument is a RegExp is
+    /// > specified in order to allow future editions to define extensions that
+    /// > allow such argument values.
+    ///
+    /// > NOTE 3: This method is intentionally generic; it does not require
+    /// > that its this value be a String object. Therefore it can be
+    /// > transferred to other kinds of objects for use as a method.
     fn ends_with<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -768,6 +803,21 @@ impl StringPrototype {
         ))
     }
 
+    /// ### [22.1.3.8 String.prototype.includes ( searchString \[ , position \] )](https://tc39.es/ecma262/#sec-string.prototype.includes)
+    ///
+    /// > NOTE 1: If searchString appears as a substring of the result of
+    /// > converting this object to a String, at one or more indices that are
+    /// > greater than or equal to position, this function returns true;
+    /// > otherwise, it returns false. If position is undefined, 0 is assumed,
+    /// > so as to search all of the String.
+    ///
+    /// > NOTE 2: Throwing an exception if the first argument is a RegExp is
+    /// > specified in order to allow future editions to define extensions that
+    /// > allow such argument values.
+    ///
+    /// > NOTE 3: This method is intentionally generic; it does not require
+    /// > that its this value be a String object. Therefore it can be
+    /// > transferred to other kinds of objects for use as a method.
     fn includes<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -862,6 +912,16 @@ impl StringPrototype {
     }
 
     /// ### [22.1.3.9 String.prototype.indexOf ( searchString \[ , position \] )](https://tc39.es/ecma262/#sec-string.prototype.indexof)
+    ///
+    /// > NOTE 1: If searchString appears as a substring of the result of
+    /// > converting this object to a String, at one or more indices that are
+    /// > greater than or equal to position, then the smallest such index is
+    /// > returned; otherwise, -1𝔽 is returned. If position is undefined, +0𝔽
+    /// > is assumed, so as to search all of the String.
+    ///
+    /// > NOTE 2: This method is intentionally generic; it does not require
+    /// > that its this value be a String object. Therefore it can be
+    /// > transferred to other kinds of objects for use as a method.
     fn index_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -964,14 +1024,16 @@ impl StringPrototype {
 
     /// ### [22.1.3.11 String.prototype.lastIndexOf ( searchString \[ , position \] )]()
     ///
-    /// > #### Note 1
-    /// >
-    /// > If _searchString_ appears as a substring of the result of converting
-    /// > this object to a String at one or more indices that are smaller than
-    /// > or equal to _position_, then the greatest such index is returned;
-    /// > otherwise, **`-1𝔽`** is returned. If position is **undefined**, the
-    /// > length of the String value is assumed, so as to search all of the
-    /// > String.
+    /// > NOTE 1: If _searchString_ appears as a substring of the result of
+    /// > converting this object to a String at one or more indices that are
+    /// > smaller than or equal to _position_, then the greatest such index is
+    /// > returned; otherwise, **`-1𝔽`** is returned. If position is
+    /// > **undefined**, the length of the String value is assumed, so as to
+    /// > search all of the String.
+    ///
+    /// > NOTE 2: This method is intentionally generic; it does not require
+    /// > that its this value be a String object. Therefore it can be
+    /// > transferred to other kinds of objects for use as a method.
     fn last_index_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1202,11 +1264,9 @@ impl StringPrototype {
 
     /// ### [22.1.3.13 String.prototype.match ( regexp )](https://tc39.es/ecma262/#sec-string.prototype.match)
     ///
-    /// Note
-    ///
-    /// This method is intentionally generic; it does not require that its this
-    /// value be a String object. Therefore, it can be transferred to other
-    /// kinds of objects for use as a method.
+    /// > NOTE: This method is intentionally generic; it does not require that
+    /// > its this value be a String object. Therefore, it can be transferred
+    /// > to other kinds of objects for use as a method.
     #[cfg(feature = "regexp")]
     fn r#match<'gc>(
         agent: &mut Agent,
@@ -1396,6 +1456,10 @@ impl StringPrototype {
     }
 
     /// ### [22.1.3.15 String.prototype.normalize ( \[ form \] )](https://tc39.es/ecma262/#sec-string.prototype.normalize)
+    ///
+    /// > NOTE: This method is intentionally generic, it does not require that
+    /// > its this value be a String object. Therefore, it can be transferred
+    /// > to other kinds of objects for use as a method.
     fn normalize<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1522,6 +1586,13 @@ impl StringPrototype {
     }
 
     /// ### [22.1.3.18 String.prototype.repeat ( count )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.repeat)
+    ///
+    /// > NOTE 1: This method creates the String value consisting of the code
+    /// > units of the this value (converted to String) repeated count times.
+    ///
+    /// > NOTE 2: This method is intentionally generic; it does not require
+    /// > that its this value be a String object. Therefore, it can be
+    /// > transferred to other kinds of objects for use as a method.
     fn repeat<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1593,6 +1664,10 @@ impl StringPrototype {
     }
 
     /// ### [22.1.3.19 String.prototype.replace ( searchValue, replaceValue )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.replace)
+    ///
+    /// > NOTE: This method is intentionally generic; it does not require that
+    /// > its this value be a String object. Therefore, it can be transferred
+    /// > to other kinds of objects for use as a method.
     fn replace<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1971,6 +2046,11 @@ impl StringPrototype {
         )
     }
 
+    /// ### [22.1.3.22 String.prototype.slice ( start, end )](https://tc39.es/ecma262/#sec-string.prototype.slice)
+    ///
+    /// > NOTE: This method is intentionally generic; it does not require that
+    /// > its this value be a String object. Therefore, it can be transferred
+    /// > to other kinds of objects for use as a method.
     fn slice<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -2062,6 +2142,28 @@ impl StringPrototype {
     }
 
     /// ### [22.1.3.23 String.prototype.split ( separator, limit )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.split)
+    ///
+    /// > NOTE 1: The value of separator may be an empty String. In this case,
+    /// > separator does not match the empty substring at the beginning or end
+    /// > of the input String, nor does it match the empty substring at the end
+    /// > of the previous separator match. If separator is the empty String,
+    /// > the String is split up into individual code unit elements; the length
+    /// > of the result array equals the length of the String, and each
+    /// > substring contains one code unit.
+    /// >
+    /// > If the this value is (or converts to) the empty String, the result
+    /// > depends on whether separator can match the empty String. If it can,
+    /// > the result array contains no elements. Otherwise, the result array
+    /// > contains one element, which is the empty String.
+    /// >
+    /// > If separator is undefined, then the result array contains just one
+    /// > String, which is the this value (converted to a String). If limit is
+    /// > not undefined, then the output array is truncated so that it contains
+    /// > no more than limit elements.
+    ///
+    /// > NOTE 2: This method is intentionally generic; it does not require
+    /// > that its this value be a String object. Therefore, it can be
+    /// > transferred to other kinds of objects for use as a method.
     fn split<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -2186,7 +2288,20 @@ impl StringPrototype {
         Ok(results.into_value())
     }
 
-    /// ### [22.1.3.24 String.prototype.startsWith ( searchString \[ , position \] )]
+    /// ### [22.1.3.24 String.prototype.startsWith ( searchString \[ , position \] )](https://tc39.es/ecma262/#sec-string.prototype.startswith)
+    ///
+    /// > NOTE 1: This method returns **true** if the sequence of code units of
+    /// > _searchString_ converted to a String is the same as the corresponding
+    /// > code units of this object (converted to a String) starting at index
+    /// > position. Otherwise it returns **false**.
+    ///
+    /// > NOTE 2: Throwing an exception if the first argument is a RegExp is
+    /// > specified in order to allow future editions to define extensions that
+    /// > allow such argument values.
+    ///
+    /// > NOTE 3: This method is intentionally generic; it does not require
+    /// > that its **this** value be a String object. Therefore, it can be
+    /// > transferred to other kinds of objects for use as a method.
     fn starts_with<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -2288,6 +2403,11 @@ impl StringPrototype {
             .into())
     }
 
+    /// ### [22.1.3.25 String.prototype.substring ( start, end )](https://tc39.es/ecma262/#sec-string.prototype.substring)
+    ///
+    /// > NOTE: This method is intentionally generic; it does not require that
+    /// > its this value be a String object. Therefore, it can be transferred
+    /// > to other kinds of objects for use as a method.
     fn substring<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -2438,7 +2558,11 @@ impl StringPrototype {
 
     /// ### [22.1.3.28 String.prototype.toLowerCase ( )](https://tc39.es/ecma262/#sec-string.prototype.tolowercase)
     ///
-    /// > NOTE: The implementation might not reflect the spec.
+    /// The implementation might not reflect the specification.
+    ///
+    /// > NOTE: This method is intentionally generic; it does not require that
+    /// > its this value be a String object. Therefore, it can be transferred
+    /// > to other kinds of objects for use as a method.
     fn to_lower_case<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -2464,7 +2588,11 @@ impl StringPrototype {
 
     /// ### [22.1.3.30 String.prototype.toUpperCase ( )](https://tc39.es/ecma262/#sec-string.prototype.touppercase)
     ///
-    /// > NOTE: The implementation might not reflect the spec.
+    /// The implementation might not reflect the specification.
+    ///
+    /// > NOTE: This method is intentionally generic; it does not require that
+    /// > its this value be a String object. Therefore, it can be transferred
+    /// > to other kinds of objects for use as a method.
     fn to_upper_case<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -2489,6 +2617,10 @@ impl StringPrototype {
     }
 
     /// ### [22.1.3.31 String.prototype.toWellFormed ( )](https://tc39.es/ecma262/#sec-string.prototype.towellformed)
+    ///
+    /// This method returns a String representation of this object with all
+    /// leading surrogates and trailing surrogates that are not part of a
+    /// surrogate pair replaced with U+FFFD (REPLACEMENT CHARACTER).
     fn to_well_formed<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -2527,6 +2659,13 @@ impl StringPrototype {
     }
 
     /// ### [22.1.3.32 String.prototype.trim ( )](https://tc39.es/ecma262/#sec-string.prototype.trim)
+    ///
+    /// This method interprets a String value as a sequence of UTF-16 encoded
+    /// code points, as described in 6.1.4.
+    ///
+    /// > NOTE: This method is intentionally generic; it does not require that
+    /// > its this value be a String object. Therefore, it can be transferred
+    /// > to other kinds of objects for use as a method.
     fn trim<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -2538,7 +2677,7 @@ impl StringPrototype {
         Self::trim_string(agent, this_value, TrimWhere::StartAndEnd, gc)
     }
 
-    /// #### [22.1.3.32.1 String.prototype.trimString ( )](https://tc39.es/ecma262/#sec-trimstring)
+    /// ### [22.1.3.32.1 TrimString ( string, where )](https://tc39.es/ecma262/#sec-trimstring)
     fn trim_string<'gc>(
         agent: &mut Agent,
         value: Value,
@@ -2580,6 +2719,13 @@ impl StringPrototype {
     }
 
     /// ### [22.1.3.33 String.prototype.trimEnd ( )](https://tc39.es/ecma262/#sec-string.prototype.trimend)
+    ///
+    /// This method interprets a String value as a sequence of UTF-16 encoded
+    /// code points, as described in 6.1.4.
+    ///
+    /// > NOTE: This method is intentionally generic; it does not require that
+    /// > its this value be a String object. Therefore, it can be transferred
+    /// > to other kinds of objects for use as a method.
     fn trim_end<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -2592,6 +2738,13 @@ impl StringPrototype {
     }
 
     /// ### [22.1.3.34 String.prototype.trimStart ( )](https://tc39.es/ecma262/#sec-string.prototype.trimstart)
+    ///
+    /// This method interprets a String value as a sequence of UTF-16 encoded
+    /// code points, as described in 6.1.4.
+    ///
+    /// > NOTE: This method is intentionally generic; it does not require that
+    /// > its this value be a String object. Therefore, it can be transferred
+    /// > to other kinds of objects for use as a method.
     fn trim_start<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -2619,6 +2772,9 @@ impl StringPrototype {
     }
 
     /// ### [22.1.3.36 String.prototype \[ %Symbol.iterator% \] ( )](https://tc39.es/ecma262/#sec-string.prototype-%symbol.iterator%)
+    ///
+    /// This method returns an iterator object that iterates over the code
+    /// points of a String value, returning each code point as a String value.
     fn iterator<'gc>(
         agent: &mut Agent,
         this_value: Value,

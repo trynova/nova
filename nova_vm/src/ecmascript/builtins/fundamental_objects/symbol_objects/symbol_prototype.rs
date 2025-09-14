@@ -82,24 +82,28 @@ impl SymbolPrototype {
             .map_or_else(|| Ok(Value::Undefined), |desc| Ok(desc.into_value()))
     }
 
+    /// ### [20.4.3.3 Symbol.prototype.toString ( )](https://tc39.es/ecma262/#sec-symbol.prototype.tostring)
     fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        let symb = this_symbol_value(agent, this_value, gc.nogc())
-            .unbind()?
-            .bind(gc.nogc());
-        Ok(symbol_descriptive_string(agent, symb.unbind(), gc.into_nogc()).into_value())
+        let gc = gc.into_nogc();
+        // 1. Let sym be ? ThisSymbolValue(this value).
+        let symb = this_symbol_value(agent, this_value, gc)?;
+        // 2. Return SymbolDescriptiveString(sym).
+        Ok(symbol_descriptive_string(agent, symb, gc).into_value())
     }
 
+    /// ### [20.4.3.4 Symbol.prototype.valueOf ( )](https://tc39.es/ecma262/#sec-symbol.prototype.valueof)
     fn value_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        // 1. Return ? ThisSymbolValue(this value).
         this_symbol_value(agent, this_value, gc.into_nogc()).map(|res| res.into_value())
     }
 

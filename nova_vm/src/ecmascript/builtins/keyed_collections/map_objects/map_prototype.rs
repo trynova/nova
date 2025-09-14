@@ -185,6 +185,7 @@ impl MapPrototype {
         }
     }
 
+    /// ### [24.1.3.4 Map.prototype.entries ( )](https://tc39.es/ecma262/#sec-map.prototype.entries)
     fn entries<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -392,6 +393,7 @@ impl MapPrototype {
         Ok(found.into())
     }
 
+    /// ### [24.1.3.8 Map.prototype.keys ( )](https://tc39.es/ecma262/#sec-map.prototype.keys)
     fn keys<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -479,6 +481,7 @@ impl MapPrototype {
         Ok(m.into_value())
     }
 
+    /// ### [24.1.3.10 get Map.prototype.size](https://tc39.es/ecma262/#sec-get-map.prototype.size)
     fn get_size<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -491,6 +494,7 @@ impl MapPrototype {
         Ok(count.into())
     }
 
+    /// ### [24.1.3.11 Map.prototype.values ( )](https://tc39.es/ecma262/#sec-map.prototype.values)
     fn values<'gc>(
         agent: &mut Agent,
         this_value: Value,

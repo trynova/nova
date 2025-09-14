@@ -41,39 +41,79 @@ impl Builtin for WeakMapPrototypeSet {
 }
 
 impl WeakMapPrototype {
+    /// ### [24.3.3.2 WeakMap.prototype.delete ( key )](https://tc39.es/ecma262/#sec-weakmap.prototype.delete)
+    ///
+    /// > NOTE: The value EMPTY is used as a specification device to indicate
+    /// > that an entry has been deleted. Actual implementations may take other
+    /// > actions such as physically removing the entry from internal data
+    /// > structures.
     fn delete<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        // 1. Let M be the this value.
+        // 2. Perform ? RequireInternalSlot(M, [[WeakMapData]]).
+        // 3. If CanBeHeldWeakly(key) is false, return false.
+        // 4. For each Record { [[Key]], [[Value]] } p of M.[[WeakMapData]], do
+        //         a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, then
+        //                 i. Set p.[[Key]] to EMPTY.
+        //                 ii. Set p.[[Value]] to EMPTY.
+        //                 iii. Return true.
+        // 5. Return false.
         Err(agent.todo("WeakMap.prototype.delete", gc.into_nogc()))
     }
 
+    /// ### [24.3.3.3 WeakMap.prototype.get ( key )](https://tc39.es/ecma262/#sec-weakmap.prototype.get)
     fn get<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        // 1. Let M be the this value.
+        // 2. Perform ? RequireInternalSlot(M, [[WeakMapData]]).
+        // 3. If CanBeHeldWeakly(key) is false, return false.
+        // 4. For each Record { [[Key]], [[Value]] } p of M.[[WeakMapData]], do
+        //        a. If p.[[Key]] is not empty and SameValue(p.[[Key]], key) is true, return true.
+        // 5. Return false.
         Err(agent.todo("WeakMap.prototype.get", gc.into_nogc()))
     }
 
+    /// ### [24.3.3.4 WeakMap.prototype.has ( key )](https://tc39.es/ecma262/#sec-weakmap.prototype.has)
     fn has<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        // 1. Let M be the this value.
+        // 2. Perform ? RequireInternalSlot(M, [[WeakMapData]]).
+        // 3. If CanBeHeldWeakly(key) is false, return false.
+        // 4. For each Record { [[Key]], [[Value]] } p of M.[[WeakMapData]], do
+        //        a. If p.[[Key]] is not empty and SameValue(p.[[Key]], key) is true, return true.
+        // 5. Return false.
         Err(agent.todo("WeakMap.prototype.has", gc.into_nogc()))
     }
 
+    /// ### [24.3.3.5 WeakMap.prototype.set ( key, value )](https://tc39.es/ecma262/#sec-weakmap.prototype.set)
     fn set<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        // 1. Let M be the this value.
+        // 2. Perform ? RequireInternalSlot(M, [[WeakMapData]]).
+        // 3. If CanBeHeldWeakly(key) is false, throw a TypeError exception.
+        // 4. For each Record { [[Key]], [[Value]] } p of M.[[WeakMapData]], do
+        //        a. If p.[[Key]] is not empty and SameValue(p.[[Key]], key) is true, then
+        //               i. Set p.[[Value]] to value.
+        //               ii. Return M.
+        // 5. Let p be the Record { [[Key]]: key, [[Value]]: value }.
+        // 6. Append p to M.[[WeakMapData]].
+        // 7. Return M.
         Err(agent.todo("WeakMap.prototype.set", gc.into_nogc()))
     }
 

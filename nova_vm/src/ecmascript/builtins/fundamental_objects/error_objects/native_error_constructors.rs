@@ -97,6 +97,7 @@ impl BuiltinIntrinsicConstructor for URIErrorConstructor {
 
 pub(crate) struct NativeErrorConstructors;
 impl NativeErrorConstructors {
+    /// ### [20.5.6.1.1 NativeError ( message \[ , options \] )](https://tc39.es/ecma262/#sec-nativeerror)
     #[inline(always)]
     fn constructor<'gc>(
         agent: &mut Agent,
@@ -121,6 +122,8 @@ impl NativeErrorConstructors {
             ExceptionType::UriError => ProtoIntrinsics::URIError,
         };
 
+        // 1. If NewTarget is undefined, let newTarget be the active function
+        //    object; else let newTarget be NewTarget.
         let new_target = new_target.unwrap_or_else(|| {
             agent
                 .running_execution_context()
@@ -128,6 +131,7 @@ impl NativeErrorConstructors {
                 .unwrap()
                 .into_object()
         });
+        // 2. Let O be ? OrdinaryCreateFromConstructor(newTarget, "%NativeError.prototype%", « [[ErrorData]] »).
         let o = ordinary_create_from_constructor(
             agent,
             Function::try_from(new_target.unbind()).unwrap(),
@@ -136,16 +140,21 @@ impl NativeErrorConstructors {
         )
         .unbind()?
         .scope(agent, gc.nogc());
-        let message = scoped_message.get(agent);
+        let message = scoped_message.get(agent).bind(gc.nogc());
+        // 3. If message is not undefined, then
         let msg = if !message.is_undefined() {
+            // a. Let msg be ? ToString(message).
             let msg = to_string(agent, message.unbind(), gc.reborrow())
                 .unbind()?
                 .bind(gc.nogc());
+            // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
             // Safety: scoped_message is never shared.
             Some(unsafe { scoped_message.replace_self(agent, msg.unbind()) })
         } else {
             None
         };
+        // 4. Perform ? InstallErrorCause(O, options).
+        // 5. Return O.
         let cause = get_error_cause(agent, options.get(agent), gc.reborrow()).unbind()?;
         let gc = gc.into_nogc();
         let cause = cause.bind(gc);

@@ -718,6 +718,7 @@ impl ArrayPrototype {
         Ok(o.get(agent).into_value())
     }
 
+    /// ### [23.1.3.5 Array.prototype.entries ( )](https://tc39.es/ecma262/#sec-array.prototype.entries)
     fn entries<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -738,7 +739,7 @@ impl ArrayPrototype {
 
     /// ### [23.1.3.6 Array.prototype.every ( callbackfn \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.every)
     ///
-    /// > #### Note 1
+    /// > NOTE 1
     /// >
     /// > callbackfn should be a function that accepts three arguments and returns
     /// > a value that is coercible to a Boolean value. every calls callbackfn once
@@ -767,7 +768,7 @@ impl ArrayPrototype {
     /// > like the "for all" quantifier in mathematics. In particular, for an empty
     /// > array, it returns true.
     ///
-    /// > #### Note 2
+    /// > NOTE 2
     /// >
     /// > This method is intentionally generic; it does not require that its this
     /// > value be an Array. Therefore it can be transferred to other kinds of
@@ -843,20 +844,20 @@ impl ArrayPrototype {
 
     /// ### [23.1.3.7 Array.prototype.fill ( value \[ , start \[ , end \] \] )](https://tc39.es/ecma262/#sec-array.prototype.fill)
     ///
-    /// > #### Note 1
+    /// > NOTE 1
     /// >
     /// > The start argument is optional. If it is not provided, +0𝔽 is used.
     /// >
     /// > The end argument is optional. If it is not provided, the length of
     /// > the this value is used.
     ///
-    /// > #### Note 2
+    /// > NOTE 2
     /// >
     /// > If start is negative, it is treated as length + start where length is
     /// > the length of the array. If end is negative, it is treated as
     /// > length + end.
     ///
-    /// > #### Note 3
+    /// > NOTE 3
     /// >
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore it can be transferred to other
@@ -979,7 +980,7 @@ impl ArrayPrototype {
 
     /// ### [23.1.3.8 Array.prototype.filter ( callbackfn \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.filter)
     ///
-    /// > #### Note 1
+    /// > NOTE 1
     /// > `callbackfn` should be a function that accepts three arguments and
     /// > returns a value that is coercible to a Boolean value. **filter**
     /// > calls `callbackfn` once for each element in the array, in ascending
@@ -1006,7 +1007,7 @@ impl ArrayPrototype {
     /// > elements that are deleted after the call to **filter** begins and
     /// > before being visited are not visited.
     ///
-    /// > #### Note 2
+    /// > NOTE 2
     /// >
     /// > This method is intentionally generic; it does not require that its
     /// > **this** value be an Array. Therefore it can be transferred to other
@@ -1100,7 +1101,7 @@ impl ArrayPrototype {
 
     /// ### [23.1.3.9 Array.prototype.find ( predicate \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.find)
     ///
-    /// > #### Note 1
+    /// > NOTE 1
     /// >
     /// > This method calls predicate once for each element of the array, in
     /// > ascending index order, until it finds one where predicate returns a
@@ -1110,7 +1111,7 @@ impl ArrayPrototype {
     /// >
     /// > See FindViaPredicate for additional information.
     ///
-    /// > #### Note 2
+    /// > NOTE 2
     /// >
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore it can be transferred to other
@@ -1140,7 +1141,7 @@ impl ArrayPrototype {
 
     /// ### [23.1.3.10 Array.prototype.findIndex ( predicate \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.findindex)
     ///
-    /// > #### Note 1
+    /// > NOTE 1
     /// >
     /// > This method calls predicate once for each element of the array, in
     /// > ascending index order, until it finds one where predicate returns a
@@ -1150,7 +1151,7 @@ impl ArrayPrototype {
     /// >
     /// > See FindViaPredicate for additional information.
     /// >
-    /// > #### Note 2
+    /// > NOTE 2
     /// >
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore it can be transferred to other
@@ -1331,7 +1332,7 @@ impl ArrayPrototype {
 
     /// ### [23.1.3.15 Array.prototype.forEach ( callbackfn \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.foreach)
     ///
-    /// > #### Note 1
+    /// > NOTE 1
     /// >
     /// > callbackfn should be a function that accepts three arguments.
     /// > forEach calls callbackfn once for each element present in the
@@ -1358,7 +1359,7 @@ impl ArrayPrototype {
     /// > forEach visits them; elements that are deleted after the call to
     /// > forEach begins and before being visited are not visited.
     ///
-    /// > #### Note 2
+    /// > NOTE 2
     /// >
     /// > This method is intentionally generic; it does not require that
     /// > its this value be an Array. Therefore it can be transferred to
@@ -1429,7 +1430,7 @@ impl ArrayPrototype {
 
     /// ### [23.1.3.16 Array.prototype.includes ( searchElement \[ , fromIndex \] )](https://tc39.es/ecma262/#sec-array.prototype.includes)
     ///
-    /// > #### Note 1
+    /// > NOTE 1
     /// >
     /// > This method compares searchElement to the elements of the array,
     /// > in ascending order, using the SameValueZero algorithm, and if
@@ -1443,13 +1444,13 @@ impl ArrayPrototype {
     /// > index is less than or equal to +0𝔽, the whole array will be
     /// > searched.
     ///
-    /// > #### Note 2
+    /// > NOTE 2
     /// >
     /// > This method is intentionally generic; it does not require that
     /// > its this value be an Array. Therefore it can be transferred to
     /// > other kinds of objects for use as a method.
     ///
-    /// > #### Note 3
+    /// > NOTE 3
     /// >
     /// > This method intentionally differs from the similar indexOf method
     /// > in two ways. First, it uses the SameValueZero algorithm, instead
@@ -1574,7 +1575,7 @@ impl ArrayPrototype {
     /// at one or more indices, returns the smallest such index; otherwise,
     /// it returns -1𝔽.
     ///
-    /// > #### Note 1
+    /// > NOTE 1
     /// >
     /// > The optional second argument fromIndex defaults to +0𝔽 (i.e. the
     /// > whole array is searched). If it is greater than or equal to the
@@ -1583,7 +1584,7 @@ impl ArrayPrototype {
     /// > the end of the array to compute fromIndex. If the computed index
     /// > is less than or equal to +0𝔽, the whole array will be searched.
     ///
-    /// > #### Note 2
+    /// > NOTE 2
     /// >
     /// > This method is intentionally generic; it does not require that
     /// > its this value be an Array. Therefore it can be transferred to
@@ -1788,6 +1789,7 @@ impl ArrayPrototype {
         Ok(String::from_wtf8_buf(agent, r, gc.into_nogc()).into_value())
     }
 
+    /// ### [23.1.3.19 Array.prototype.keys ( )](https://tc39.es/ecma262/#sec-array.prototype.keys)
     fn keys<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1940,7 +1942,7 @@ impl ArrayPrototype {
 
     /// ### [23.1.3.21 Array.prototype.map ( callbackfn \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.map)
     ///
-    /// > #### Note 1
+    /// > NOTE 1
     /// >
     /// > callbackfn should be a function that accepts three arguments. map
     /// > calls callbackfn once for each element in the array, in ascending
@@ -1966,7 +1968,7 @@ impl ArrayPrototype {
     /// > that are deleted after the call to map begins and before being
     /// > visited are not visited.
     ///
-    /// > #### Note 2
+    /// > NOTE 2
     /// >
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore it can be transferred to other
@@ -2048,11 +2050,11 @@ impl ArrayPrototype {
 
     /// ### [23.1.3.22 Array.prototype.pop ( )](https://tc39.es/ecma262/#sec-array.prototype.pop)
     ///
-    /// > #### Note 1
+    /// > NOTE 1
     /// >
     /// > This method removes the last element of the array and returns it.
     ///
-    /// > #### Note 2
+    /// > NOTE 2
     /// >
     /// > This method is intentionally generic; it does not require that
     /// > its this value be an Array. Therefore it can be transferred to
@@ -2556,6 +2558,14 @@ impl ArrayPrototype {
         Ok(accumulator.get(agent))
     }
 
+    /// ### [23.1.3.26 Array.prototype.reverse ( )](https://tc39.es/ecma262/#sec-array.prototype.reverse)
+    ///
+    /// > NOTE 1: This method rearranges the elements of the array so as to
+    /// > reverse their order. It returns the reversed array.
+    ///
+    /// > NOTE 2: This method is intentionally generic; it does not require
+    /// > that its this value be an Array. Therefore, it can be transferred to
+    /// > other kinds of objects for use as a method.
     fn reverse<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -2693,10 +2703,8 @@ impl ArrayPrototype {
     ///
     /// This method removes the first element of the array and returns it.
     ///
-    /// > ### Note
-    /// >
-    /// > This method is intentionally generic; it does not require that its
-    /// > this value be an Array. Therefore it can be transferred to other
+    /// > NOTE: This method is intentionally generic; it does not require that
+    /// > its this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
     fn shift<'gc>(
         agent: &mut Agent,
@@ -2840,14 +2848,13 @@ impl ArrayPrototype {
     /// negative, it is treated as length + end where length is the length of
     /// the array.
     ///
-    /// > #### Note 1
-    /// > The explicit setting of the "length" property in step 15 is intended
-    /// > to ensure the length is correct even when A is not a built-in Array.
+    /// > NOTE 1: The explicit setting of the "length" property in step 15 is
+    /// > intended to ensure the length is correct even when A is not a
+    /// > built-in Array.
     ///
-    /// > #### Note 2
-    /// > This method is intentionally generic; it does not require that its
-    /// > this value be an Array. Therefore it can be transferred to other
-    /// > kinds of objects for use as a method.
+    /// > NOTE 2: This method is intentionally generic; it does not require
+    /// > that its this value be an Array. Therefore it can be transferred to
+    /// > other kinds of objects for use as a method.
     fn slice<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -3061,16 +3068,14 @@ impl ArrayPrototype {
 
     /// ### 23.1.3.29 Array.prototype.some ( callbackfn \[ , thisArg \] )(https://tc39.es/ecma262/#sec-array.prototype.some)
     ///
-    /// > #### Note 1
-    /// >
-    /// > `callbackfn` should be a function that accepts three arguments and
-    /// > returns a value that is coercible to a Boolean value. **some** calls
-    /// > `callbackfn` once for each element present in the array, in ascending
-    /// > order, until it finds one where `callbackfn` returns **true**. If
-    /// > such an element is found, **some** immediately returns **true**.
-    /// > Otherwise, **some** returns **false**. `callbackfn` is called only
-    /// > for elements of the array which actually exist; it is not called for
-    /// > missing elements of the array.
+    /// > NOTE 1: `callbackfn` should be a function that accepts three
+    /// > arguments and returns a value that is coercible to a Boolean value.
+    /// > **some** calls `callbackfn` once for each element present in the
+    /// > array, in ascending order, until it finds one where `callbackfn`
+    /// > returns **true**. If such an element is found, **some** immediately
+    /// > returns **true**. Otherwise, **some** returns **false**. `callbackfn`
+    /// > is called only for elements of the array which actually exist; it is
+    /// > not called for missing elements of the array.
     /// >
     /// > If a `thisArg` parameter is provided, it will be used as the **this**
     /// > value for each invocation of `callbackfn`. If it is not provided,
@@ -3092,11 +3097,9 @@ impl ArrayPrototype {
     /// > quantifier in mathematics. In particular, for an empty array, it
     /// > returns false.
     ///
-    /// > #### Note 2
-    /// >
-    /// > This method is intentionally generic; it does not require that its
-    /// > this value be an Array. Therefore it can be transferred to other
-    /// > kinds of objects for use as a method.
+    /// > NOTE 2: This method is intentionally generic; it does not require
+    /// > that its this value be an Array. Therefore it can be transferred to
+    /// > other kinds of objects for use as a method.
     fn some<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -3170,22 +3173,19 @@ impl ArrayPrototype {
     /// accepts two arguments x and y and returns a negative Number if x < y, a
     /// positive Number if x > y, or a zero otherwise.
     ///
-    /// > #### Note 1
-    /// > Because non-existent property values always compare greater than
-    /// > undefined property values, and undefined always compares greater than
-    /// > any other value (see CompareArrayElements), undefined property values
-    /// > always sort to the end of the result, followed by non-existent
+    /// > NOTE 1: Because non-existent property values always compare greater
+    /// > than undefined property values, and undefined always compares greater
+    /// > than any other value (see CompareArrayElements), undefined property
+    /// > values always sort to the end of the result, followed by non-existent
     /// > property values.
     ///
-    /// > #### Note 2
-    /// > Method calls performed by the ToString abstract operations in steps 5
-    /// > and 6 have the potential to cause SortCompare to not behave as a
-    /// > consistent comparator.
+    /// > NOTE 2: Method calls performed by the ToString abstract operations in
+    /// > steps 5 and 6 have the potential to cause SortCompare to not behave
+    /// > as a consistent comparator.
     ///
-    /// > #### Note 3
-    /// > This method is intentionally generic; it does not require that its
-    /// > this value be an Array. Therefore, it can be transferred to other
-    /// > kinds of objects for use as a method.
+    /// > NOTE 3: This method is intentionally generic; it does not require
+    /// > that its this value be an Array. Therefore, it can be transferred to
+    /// > other kinds of objects for use as a method.
     fn sort<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -3256,6 +3256,20 @@ impl ArrayPrototype {
         Ok(obj.get(agent).into_value())
     }
 
+    /// ### [23.1.3.31 Array.prototype.splice ( start, deleteCount, ...items )](https://tc39.es/ecma262/#sec-array.prototype.splice)
+    ///
+    /// > NOTE 1: This method deletes the deleteCount elements of the array
+    /// > starting at integer index start and replaces them with the elements
+    /// > of items. It returns an Array containing the deleted elements (if
+    /// > any).
+    ///
+    /// > NOTE 2: The explicit setting of the "length" property in steps 15 and
+    /// > 20 is intended to ensure the lengths are correct even when the
+    /// > objects are not built-in Arrays.
+    ///
+    /// > NOTE 3: This method is intentionally generic; it does not require
+    /// > that its this value be an Array. Therefore it can be transferred to
+    /// > other kinds of objects for use as a method.
     fn splice<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -3480,30 +3494,29 @@ impl ArrayPrototype {
     }
 
     /// ### [23.1.3.32 Array.prototype.toLocaleString ( [ reserved1 [ , reserved2 ] ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-array.prototype.tolocalestring)
-    /// An ECMAScript implementation that includes the ECMA-402 Internationalization
-    /// API must implement this method as specified in the ECMA-402 specification.
-    /// If an ECMAScript implementation does not include the ECMA-402 API the
-    /// following specification of this method is used.
+    /// An ECMAScript implementation that includes the ECMA-402
+    /// Internationalization API must implement this method as specified in the
+    /// ECMA-402 specification. If an ECMAScript implementation does not
+    /// include the ECMA-402 API the following specification of this method is
+    /// used.
     ///
-    /// > #### Note 1
-    /// > The first edition of ECMA-402 did not include a replacement specification
-    /// > for this method. The meanings of the optional parameters to this method
-    /// > are defined in the ECMA-402 specification; implementations that do not
-    /// > include ECMA-402 support must not use those parameter positions for
-    /// > anything else.
+    /// > NOTE 1: The first edition of ECMA-402 did not include a replacement
+    /// > specification for this method. The meanings of the optional
+    /// > parameters to this method are defined in the ECMA-402 specification;
+    /// > implementations that do not include ECMA-402 support must not use
+    /// > those parameter positions for anything else.
     ///
-    /// > #### Note 2
-    /// > This method converts the elements of the array to Strings using their
-    /// > toLocaleString methods, and then concatenates these Strings, separated
-    /// > by occurrences of an implementation-defined locale-sensitive separator
-    /// > String. This method is analogous to toString except that it is intended
-    /// > to yield a locale-sensitive result corresponding with conventions of
-    /// > the host environment's current locale.
+    /// > NOTE 2: This method converts the elements of the array to Strings
+    /// > using their toLocaleString methods, and then concatenates these
+    /// > Strings, separated by occurrences of an implementation-defined
+    /// > locale-sensitive separator String. This method is analogous to
+    /// > toString except that it is intended to yield a locale-sensitive
+    /// > result corresponding with conventions of the host environment's
+    /// > current locale.
     ///
-    /// > #### Note 3
-    /// > This method is intentionally generic; it does not require that its this
-    /// > value be an Array. Therefore it can be transferred to other kinds of
-    /// > objects for use as a method.
+    /// > NOTE 3: This method is intentionally generic; it does not require
+    /// > that its this value be an Array. Therefore it can be transferred to
+    /// > other kinds of objects for use as a method.
     fn to_locale_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -3563,6 +3576,7 @@ impl ArrayPrototype {
         Ok(String::from_wtf8_buf(agent, r, gc.into_nogc()).into_value())
     }
 
+    /// ### [23.1.3.33 Array.prototype.toReversed ( )](https://tc39.es/ecma262/#sec-array.prototype.toreversed)
     fn to_reversed<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -3681,6 +3695,7 @@ impl ArrayPrototype {
         Ok(a.into_value())
     }
 
+    /// ### [23.1.3.35 Array.prototype.toSpliced ( start, skipCount, ...items )](https://tc39.es/ecma262/#sec-array.prototype.tospliced)
     fn to_spliced<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -3865,10 +3880,8 @@ impl ArrayPrototype {
     /// their order within the array is the same as the order in which they appear
     /// in the argument list.
     ///
-    /// > ### Note
-    /// >
-    /// > This method is intentionally generic; it does not require that its
-    /// > this value be an Array. Therefore it can be transferred to other
+    /// > NOTE: This method is intentionally generic; it does not require that
+    /// > its this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
     fn unshift<'gc>(
         agent: &mut Agent,
@@ -3995,6 +4008,7 @@ impl ArrayPrototype {
         Ok(len)
     }
 
+    /// ### [23.1.3.38 Array.prototype.values ( )](https://tc39.es/ecma262/#sec-array.prototype.values)
     fn values<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -4569,7 +4583,7 @@ fn flatten_into_array<'a>(
 /// * If `a <C b` and `b <C c`, then `a <C c` (transitivity of `<C`)
 /// * If `a >C b` and `b >C c`, then `a >C c` (transitivity of `>C`)
 ///
-/// > #### Note
+/// > NOTE
 /// > The above conditions are necessary and sufficient to ensure that
 /// > comparator divides the set S into equivalence classes and that these
 /// > equivalence classes are totally ordered.
