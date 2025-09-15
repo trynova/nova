@@ -50,6 +50,7 @@ impl Builtin for SymbolKeyFor {
 }
 
 impl SymbolConstructor {
+    /// ### [20.4.1.1 Symbol ( \[ description \] )](https://tc39.es/ecma262/#sec-symbol-description)
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -57,6 +58,8 @@ impl SymbolConstructor {
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        let description = arguments.get(0).bind(gc.nogc());
+        // 1. If NewTarget is not undefined, throw a TypeError exception.
         if new_target.is_some() {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -64,13 +67,16 @@ impl SymbolConstructor {
                 gc.into_nogc(),
             ));
         }
-        let description = arguments.get(0).bind(gc.nogc());
+        // 2. If description is undefined,
         let desc_string = if description.is_undefined() {
+            // let descString be undefined.
             None
         } else {
+            // 3. Else, let descString be ? ToString(description).
             Some(to_string(agent, description.unbind(), gc)?.unbind())
         };
 
+        // 4. Return a new Symbol whose [[Description]] is descString.
         Ok(agent
             .heap
             .create(SymbolHeapData {
@@ -79,22 +85,33 @@ impl SymbolConstructor {
             .into_value())
     }
 
+    /// ### [20.4.2.2 Symbol.for ( key )](https://tc39.es/ecma262/#sec-symbol.for)
     fn r#for<'gc>(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        _arguments: ArgumentsList,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Ok(arguments.get(0).unbind())
+        // 1. Let stringKey be ? ToString(key).
+        // 2. For each element e of the GlobalSymbolRegistry List, do
+        //        a. If e.[[Key]] is stringKey, return e.[[Symbol]].
+        // 3. Assert: The GlobalSymbolRegistry List does not currently contain an entry for stringKey.
+        // 4. Let newSymbol be a new Symbol whose [[Description]] is stringKey.
+        // 5. Append the GlobalSymbolRegistry Record { [[Key]]: stringKey, [[Symbol]]: newSymbol } to the GlobalSymbolRegistry List.
+        // 6. Return newSymbol.
+        Err(agent.todo("Symbol.for", gc.into_nogc()))
     }
 
+    /// ### [20.4.2.6 Symbol.keyFor ( sym )](https://tc39.es/ecma262/#sec-symbol.keyfor)
     fn key_for<'gc>(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        _arguments: ArgumentsList,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Ok(arguments.get(0).unbind())
+        // 1. If sym is not a Symbol, throw a TypeError exception.
+        // 2. Return KeyForSymbol(sym).
+        Err(agent.todo("Symbol.keyFor", gc.into_nogc()))
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {

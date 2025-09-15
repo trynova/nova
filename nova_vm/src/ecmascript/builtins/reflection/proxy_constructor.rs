@@ -60,12 +60,29 @@ impl ProxyConstructor {
         proxy_create(agent, target, handler, gc).map(|proxy| proxy.into_value())
     }
 
+    /// ### [28.2.2.1 Proxy.revocable ( target, handler )](https://tc39.es/ecma262/#sec-proxy.revocable)
     fn revocable<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        // 1. Let proxy be ? ProxyCreate(target, handler).
+        // 2. Let revokerClosure be a new Abstract Closure with no parameters that captures nothing and performs the following steps when called:
+        //        a. Let F be the active function object.
+        //        b. Let p be F.[[RevocableProxy]].
+        //        c. If p is null, return NormalCompletion(undefined).
+        //        d. Set F.[[RevocableProxy]] to null.
+        //        e. Assert: p is a Proxy exotic object.
+        //        f. Set p.[[ProxyTarget]] to null.
+        //        g. Set p.[[ProxyHandler]] to null.
+        //        h. Return NormalCompletion(undefined).
+        // 3. Let revoker be CreateBuiltinFunction(revokerClosure, 0, "", « [[RevocableProxy]] »).
+        // 4. Set revoker.[[RevocableProxy]] to proxy.
+        // 5. Let result be OrdinaryObjectCreate(%Object.prototype%).
+        // 6. Perform ! CreateDataPropertyOrThrow(result, "proxy", proxy).
+        // 7. Perform ! CreateDataPropertyOrThrow(result, "revoke", revoker).
+        // 8. Return result.
         Err(agent.todo("Proxy.revocable", gc.into_nogc()))
     }
 

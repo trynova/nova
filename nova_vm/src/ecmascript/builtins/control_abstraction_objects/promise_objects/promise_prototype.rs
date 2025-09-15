@@ -60,6 +60,7 @@ impl Builtin for PromisePrototypeThen {
 }
 
 impl PromisePrototype {
+    /// ### [27.2.5.1 Promise.prototype.catch ( onRejected )](https://tc39.es/ecma262/#sec-promise.prototype.catch)
     fn catch<'gc>(
         agent: &mut Agent,
         this_value: Value,

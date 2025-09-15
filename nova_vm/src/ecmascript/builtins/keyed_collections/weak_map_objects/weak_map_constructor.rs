@@ -26,6 +26,13 @@ impl BuiltinIntrinsicConstructor for WeakMapConstructor {
 }
 
 impl WeakMapConstructor {
+    /// ### [24.3.1.1 WeakMap ( \[ iterable \] )]()
+    ///
+    /// > NOTE: If the parameter _iterable_ is present, it is expected to be an
+    /// > object that implements a %Symbol.iterator% method that returns an
+    /// > iterator object that produces a two element array-like object whose
+    /// > first element is a value that will be used as a WeakMap key and whose
+    /// > second element is the value to associate with that key.
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -33,6 +40,13 @@ impl WeakMapConstructor {
         _new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        // 1. If NewTarget is undefined, throw a TypeError exception.
+        // 2. Let map be ? OrdinaryCreateFromConstructor(NewTarget, "%WeakMap.prototype%", « [[WeakMapData]] »).
+        // 3. Set map.[[WeakMapData]] to a new empty List.
+        // 4. If iterable is either undefined or null, return map.
+        // 5. Let adder be ? Get(map, "set").
+        // 6. If IsCallable(adder) is false, throw a TypeError exception.
+        // 7. Return ? AddEntriesFromIterable(map, iterable, adder).
         Err(agent.todo("WeakMap", gc.into_nogc()))
     }
 

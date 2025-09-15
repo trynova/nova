@@ -50,6 +50,7 @@ impl Builtin for BigIntAsUintN {
 }
 
 impl BigIntConstructor {
+    /// ### [21.2.1.1 BigInt ( value )](https://tc39.es/ecma262/#sec-bigint-constructor-number-value)
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -57,14 +58,18 @@ impl BigIntConstructor {
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        let value = arguments.get(0).bind(gc.nogc());
+
+        // 1. If NewTarget is not undefined,
         if new_target.is_some() {
+            // throw a TypeError exception.
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "BigInt is not a constructor",
                 gc.into_nogc(),
             ));
         }
-        let value = arguments.get(0).bind(gc.nogc());
+        // 2. Let prim be ? ToPrimitive(value, number).
         let prim = to_primitive(
             agent,
             value.unbind(),
@@ -73,7 +78,9 @@ impl BigIntConstructor {
         )
         .unbind()?
         .bind(gc.nogc());
+        // 3. If prim is a Number,
         if let Ok(prim) = Number::try_from(prim) {
+            // return ? NumberToBigInt(prim).
             if !prim.is_integer(agent) {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::RangeError,
@@ -84,6 +91,7 @@ impl BigIntConstructor {
 
             Ok(BigInt::from_i64(agent, prim.into_i64(agent)).into_value())
         } else {
+            // 4. Otherwise, return ? ToBigInt(prim).
             to_big_int_primitive(agent, prim.unbind(), gc.into_nogc())
                 .map(|result| result.into_value())
         }

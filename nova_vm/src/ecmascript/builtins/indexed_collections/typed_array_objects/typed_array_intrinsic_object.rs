@@ -366,6 +366,12 @@ impl TypedArrayIntrinsicObject {
         )
     }
 
+    /// ### [23.2.2.4 get %TypedArray% \[ %Symbol.species% \]](https://tc39.es/ecma262/#sec-get-%typedarray%-%symbol.species%)
+    ///
+    /// > NOTE: %TypedArray.prototype% methods normally use their **this**
+    /// > value's constructor to create a derived object. However, a subclass
+    /// > constructor may over-ride that default behaviour by redefining its
+    /// > %Symbol.species% property.
     fn get_species<'gc>(
         _: &mut Agent,
         this_value: Value,
@@ -621,7 +627,7 @@ impl Builtin for TypedArrayPrototypeGetToStringTag {
 impl BuiltinGetter for TypedArrayPrototypeGetToStringTag {}
 
 impl TypedArrayPrototype {
-    /// ### [23.2.3.1 %TypedArray%.prototype.at ( index )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-array.prototype.at)
+    /// ### [23.2.3.1 %TypedArray%.prototype.at ( index )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.at)
     fn at<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -754,9 +760,10 @@ impl TypedArrayPrototype {
         Ok(Value::try_from(o.byte_offset(agent) as i64).unwrap())
     }
 
-    /// ### [23.2.3.6 %TypedArray%.prototype.copyWithin ( target, start [ , end ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-typedarray-objects)
-    /// The interpretation and use of the arguments of this method
-    /// are the same as for Array.prototype.copyWithin as defined in 23.1.3.4.
+    /// ### [23.2.3.6 %TypedArray%.prototype.copyWithin ( target, start \[ , end \] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-typedarray-objects)
+    ///
+    /// The interpretation and use of the arguments of this method are the same
+    /// as for **Array.prototype.copyWithin** as defined in 23.1.3.4.
     fn copy_within<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -811,7 +818,10 @@ impl TypedArrayPrototype {
         )
     }
 
-    /// ### [23.2.3.8 %%TypedArray%.prototype.every ( callback [ , thisArg ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.every)
+    /// ### [23.2.3.8 %%TypedArray%.prototype.every ( callback \[ , thisArg \] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.every)
+    ///
+    /// The interpretation and use of the arguments of this method are the same
+    /// as for **Array.prototype.every** as defined in 23.1.3.6.
     fn every<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -877,9 +887,10 @@ impl TypedArrayPrototype {
         Ok(true.into())
     }
 
-    /// ### [23.2.3.9 %TypedArray%.prototype.fill ( value [ , start [ , end ] ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.fill)
-    /// The interpretation and use of the arguments of this method are
-    /// the same as for Array.prototype.fill as defined in 23.1.3.7.
+    /// ### [23.2.3.9 %TypedArray%.prototype.fill ( value \[ , start \[ , end \] \] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.fill)
+    ///
+    /// The interpretation and use of the arguments of this method are the same
+    /// as for **Array.prototype.fill** as defined in 23.1.3.7.
     fn fill<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -914,9 +925,10 @@ impl TypedArrayPrototype {
         o.map(|o| o.into_value())
     }
 
-    /// ### [23.2.3.10 %TypedArray%.prototype.filter ( callback [ , thisArg ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.filter)
-    /// The interpretation and use of the arguments of this method
-    /// are the same as for Array.prototype.filter as defined in 23.1.3.8.
+    /// ### [23.2.3.10 %TypedArray%.prototype.filter ( callback \[ , thisArg \] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.filter)
+    ///
+    /// The interpretation and use of the arguments of this method are the same
+    /// as for **Array.prototype.filter** as defined in 23.1.3.8.
     fn filter<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -957,9 +969,10 @@ impl TypedArrayPrototype {
         a.map(|a| a.into_value())
     }
 
-    /// ### 23.2.3.11 %TypedArray%.prototype.find ( predicate [ , thisArg ] )(https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.find)
+    /// ### [23.2.3.11 %TypedArray%.prototype.find ( predicate \[ , thisArg \] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.find)
     ///
-    /// The interpretation and use of the arguments of this method are the same as for Array.prototype.find as defined in 23.1.3.9.
+    /// The interpretation and use of the arguments of this method are the same
+    /// as for **Array.prototype.find** as defined in 23.1.3.9.
     fn find<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -986,9 +999,10 @@ impl TypedArrayPrototype {
         Ok(find_rec.1)
     }
 
-    // ### 23.2.3.12 %TypedArray%.prototype.findIndex( predicate [ , thisArg ] )(https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.findindex)
-    //
-    // The interpretation and use of the arguments of this method are the same as for Array.prototype.findIndex as defined in 23.1.3.10.
+    /// ### [23.2.3.12 %TypedArray%.prototype.findIndex( predicate \[ , thisArg \] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.findindex)
+    ///
+    /// The interpretation and use of the arguments of this method are the same
+    /// as for **Array.prototype.findIndex** as defined in 23.1.3.10.
     fn find_index<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1016,6 +1030,10 @@ impl TypedArrayPrototype {
         Ok(Number::try_from(find_rec.0).unwrap().into_value())
     }
 
+    /// ### [23.2.3.13 %TypedArray%.prototype.findLast ( predicate \[ , thisArg \] )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.findlast)
+    ///
+    /// The interpretation and use of the arguments of this method are the same
+    /// as for **Array.prototype.findLastIndex** as defined in 23.1.3.12.
     fn find_last<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1042,8 +1060,10 @@ impl TypedArrayPrototype {
         Ok(find_rec.1)
     }
 
-    // ### 23.2.3.14 %TypedArray%.prototype.findLastIndex ( predicate [ , thisArg ] )(https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.findlastindex)
-    // The interpretation and use of the arguments of this method are the same as for Array.prototype.findLastIndex as defined in 23.1.3.12.
+    /// ### [23.2.3.14 %TypedArray%.prototype.findLastIndex ( predicate \[ , thisArg \] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.findlastindex)
+    ///
+    /// The interpretation and use of the arguments of this method are the same
+    /// as for **Array.prototype.findLastIndex** as defined in 23.1.3.12.
     fn find_last_index<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1071,8 +1091,10 @@ impl TypedArrayPrototype {
         Ok(Number::try_from(find_rec.0).unwrap().into_value())
     }
 
-    // ### [ 23.2.3.15 %TypedArray%.prototype.forEach ( callback [ , thisArg ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.foreach)
-    // The interpretation and use of the arguments of this method are the same as for Array.prototype.forEach as defined in 23.1.3.15.
+    /// ### [23.2.3.15 %TypedArray%.prototype.forEach ( callback \[ , thisArg \] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.foreach)
+    ///
+    /// The interpretation and use of the arguments of this method are the same
+    /// as for **Array.prototype.forEach** as defined in 23.1.3.15.
     fn for_each<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1137,8 +1159,10 @@ impl TypedArrayPrototype {
         Ok(Value::Undefined)
     }
 
-    // ### [23.2.3.16 %TypedArray%.prototype.includes ( searchElement [ , fromIndex ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.includes)
-    // The interpretation and use of the arguments of this method are the same as for Array.prototype.includes as defined in 23.1.3.16.
+    /// ### [23.2.3.16 %TypedArray%.prototype.includes ( searchElement \[ , fromIndex \] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.includes)
+    ///
+    /// The interpretation and use of the arguments of this method are the same
+    /// as for **Array.prototype.includes** as defined in 23.1.3.16.
     fn includes<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1233,7 +1257,7 @@ impl TypedArrayPrototype {
     /// ### [23.2.3.17 %TypedArray%.prototype.indexOf ( searchElement \[ , fromIndex \] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.indexof)
     ///
     /// The interpretation and use of the arguments of this method are the same
-    /// as for Array.prototype.indexOf as defined in 23.1.3.17.
+    /// as for **Array.prototype.indexOf** as defined in 23.1.3.17.
     fn index_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1318,10 +1342,10 @@ impl TypedArrayPrototype {
 
     /// ### [23.2.3.18 %TypedArray%.prototype.join ( separator )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.join)
     ///
-    /// The interpretation and use of the arguments of this method are the
-    /// same as for Array.prototype.join as defined in 23.1.3.18.
+    /// The interpretation and use of the arguments of this method are the same
+    /// as for **Array.prototype.join** as defined in 23.1.3.18.
     ///
-    /// This method is not generic. The this value must be an object with a
+    /// This method is not generic. The **this** value must be an object with a
     /// `[[TypedArrayName]]` internal slot.
     fn join<'gc>(
         agent: &mut Agent,
@@ -1461,8 +1485,10 @@ impl TypedArrayPrototype {
         )
     }
 
-    // ### [23.2.3.20 %TypedArray%.prototype.lastIndexOf ( searchElement [ , fromIndex ] )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.lastindexof)
-    // The interpretation and use of the arguments of this method are the same as for Array.prototype.lastIndexOf as defined in 23.1.3.20.
+    /// ### [23.2.3.20 %TypedArray%.prototype.lastIndexOf ( searchElement \[ , fromIndex \] )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.lastindexof)
+    ///
+    /// The interpretation and use of the arguments of this method are the same
+    /// as for **Array.prototype.lastIndexOf** as defined in 23.1.3.20.
     fn last_index_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1560,8 +1586,10 @@ impl TypedArrayPrototype {
         Ok(Value::try_from(length).unwrap())
     }
 
-    /// ### [23.2.3.22 %TypedArray%.prototype.map ( callback [ , thisArg ] )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.map)
-    /// The interpretation and use of the arguments of this method are the same as for Array.prototype.map as defined in 23.1.3.21.
+    /// ### [23.2.3.22 %TypedArray%.prototype.map ( callback \[ , thisArg \] )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.map)
+    ///
+    /// The interpretation and use of the arguments of this method are the same
+    /// as for **Array.prototype.map** as defined in 23.1.3.21.
     fn map<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1599,9 +1627,10 @@ impl TypedArrayPrototype {
         Ok(a.into_value())
     }
 
-    /// ### [23.2.3.23 %TypedArray%.prototype.reduce ( callback [ , initialValue ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.reduce)
-    /// The interpretation and use of the arguments of this method are
-    /// the same as for Array.prototype.reduce as defined in 23.1.3.24.
+    /// ### [23.2.3.23 %TypedArray%.prototype.reduce ( callback \[ , initialValue \] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.reduce)
+    ///
+    /// The interpretation and use of the arguments of this method are the same
+    /// as for **Array.prototype.reduce** as defined in 23.1.3.24.
     fn reduce<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1697,9 +1726,10 @@ impl TypedArrayPrototype {
         Ok(accumulator.get(agent))
     }
 
-    /// ### [23.2.3.24 %TypedArray%.prototype.reduceRight ( callback [ , initialValue ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.reduceright)
-    /// The interpretation and use of the arguments of this method
-    /// are the same as for Array.prototype.reduceRight as defined in 23.1.3.25.
+    /// ### [23.2.3.24 %TypedArray%.prototype.reduceRight ( callback \[ , initialValue \] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.reduceright)
+    ///
+    /// The interpretation and use of the arguments of this method are the same
+    /// as for **Array.prototype.reduceRight** as defined in 23.1.3.25.
     fn reduce_right<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1797,7 +1827,9 @@ impl TypedArrayPrototype {
     }
 
     /// ### [23.2.3.25 %TypedArray%.prototype.reverse ( )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.reverse)
-    /// The interpretation and use of the arguments of this method are the same as for Array.prototype.reverse as defined in 23.1.3.26.
+    ///
+    /// The interpretation and use of the arguments of this method are the same
+    /// as for **Array.prototype.reverse** as defined in 23.1.3.26.
     fn reverse<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1817,11 +1849,12 @@ impl TypedArrayPrototype {
         Ok(o.into_value())
     }
 
-    /// [23.2.3.26 %TypedArray%.prototype.set ( source [ , offset ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.set)
+    /// ### [23.2.3.26 %TypedArray%.prototype.set ( source \[ , offset \] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.set)
+    ///
     /// This method sets multiple values in this TypedArray, reading the values
-    /// from source. The details differ based upon the type of source. The optional
-    /// offset value indicates the first element index in this TypedArray where
-    /// values are written. If omitted, it is assumed to be 0.
+    /// from source. The details differ based upon the type of source. The
+    /// optional offset value indicates the first element index in this
+    /// TypedArray where values are written. If omitted, it is assumed to be 0.
     fn set<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1851,9 +1884,10 @@ impl TypedArrayPrototype {
         Ok(Value::Undefined)
     }
 
-    /// ## [23.2.3.27 %TypedArray%.prototype.slice ( start, end )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.slice)
-    /// The interpretation and use of the arguments of this method
-    /// are the same as for Array.prototype.slice as defined in 23.1.3.28.
+    /// ### [23.2.3.27 %TypedArray%.prototype.slice ( start, end )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.slice)
+    ///
+    /// The interpretation and use of the arguments of this method are the same
+    /// as for **Array.prototype.slice** as defined in 23.1.3.28.
     fn slice<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1877,7 +1911,10 @@ impl TypedArrayPrototype {
         a.map(|a| a.into_value())
     }
 
-    /// ### [23.2.3.28 get %TypedArray%.prototype.some](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.some)
+    /// ### [23.2.3.28 %TypedArray%.prototype.some ( callback \[ , thisArg \] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.some)
+    ///
+    /// The interpretation and use of the arguments of this method are the same
+    /// as for **Array.prototype.some** as defined in 23.1.3.29.
     fn some<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1944,11 +1981,19 @@ impl TypedArrayPrototype {
     }
 
     /// ### [23.2.3.29 %TypedArray%.prototype.sort ( comparator )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.sort)
-    /// This is a distinct method that, except as described below,
-    /// implements the same requirements as those of Array.prototype.sort as defined in 23.1.3.30.
-    /// The implementation of this method may be optimized with the knowledge that
-    /// the this value is an object that has a fixed length and whose integer-indexed properties are not sparse.
-    /// This method is not generic. The this value must be an object with a [[TypedArrayName]] internal slot.
+    ///
+    /// This is a distinct method that, except as described below, implements
+    /// the same requirements as those of **Array.prototype.sort** as defined
+    /// in 23.1.3.30. The implementation of this method may be optimized with
+    /// the knowledge that the **this** value is an object that has a fixed
+    /// length and whose integer-indexed properties are not sparse.
+    ///
+    /// This method is not generic. The this value must be an object with a
+    /// \[\[TypedArrayName]] internal slot.
+    ///
+    /// > NOTE: Because **NaN** always compares greater than any other value
+    /// > (see CompareTypedArrayElements), **NaN** property values always sort
+    /// > to the end of the result when _comparator_ is not provided.
     fn sort<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -2047,11 +2092,16 @@ impl TypedArrayPrototype {
     }
 
     /// ### [23.2.3.30 %TypedArray%.prototype.subarray ( start, end )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.subarray)
-    /// This method returns a new TypedArray whose element type is the element type of
-    /// this TypedArray and whose ArrayBuffer is the ArrayBuffer of this TypedArray,
-    /// referencing the elements in the interval from start (inclusive) to end (exclusive).
-    /// If either start or end is negative, it refers to an index from the end of the array,
-    /// as opposed to from the beginning.
+    ///
+    /// This method returns a new TypedArray whose element type is the element
+    /// type of this TypedArray and whose ArrayBuffer is the ArrayBuffer of
+    /// this TypedArray, referencing the elements in the interval from _start_
+    /// (inclusive) to _end_ (exclusive). If either _start_ or _end_ is
+    /// negative, it refers to an index from the end of the array, as opposed
+    /// to from the beginning.
+    ///
+    /// This method is not generic. The *this* value must be an object with a
+    /// \[\[TypedArrayName]] internal slot.
     fn subarray<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -2084,20 +2134,26 @@ impl TypedArrayPrototype {
         res.map(|v| v.into_value())
     }
 
-    /// ### [23.2.3.31 %TypedArray%.prototype.toLocaleString ( [ reserved1 [ , reserved2 ] ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.tolocalestring)
-    /// This is a distinct method that implements the same algorithm as Array.prototype.toLocaleString
-    /// as defined in 23.1.3.32 except that TypedArrayLength is called in place of performing a
-    /// [[Get]] of "length". The implementation of the algorithm may be optimized with the knowledge
-    /// that the this value has a fixed length when the underlying buffer is not resizable and whose
-    /// integer-indexed properties are not sparse. However, such optimization must not introduce any
-    /// observable changes in the specified behaviour of the algorithm. This method is not generic.
-    /// ValidateTypedArray is called with the this value and seq-cst as arguments prior to evaluating
-    /// the algorithm. If its result is an abrupt completion that exception is thrown instead of
+    /// ### [23.2.3.31 %TypedArray%.prototype.toLocaleString ( \[ reserved1 \[ , reserved2 \] \] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.tolocalestring)
+    ///
+    /// This is a distinct method that implements the same algorithm as
+    /// **Array.prototype.toLocaleString** as defined in 23.1.3.32 except that
+    /// TypedArrayLength is called in place of performing a \[\[Get]] of
+    /// "length". The implementation of the algorithm may be optimized with the
+    /// knowledge that the **this** value has a fixed length when the
+    /// underlying buffer is not resizable and whose integer-indexed properties
+    /// are not sparse. However, such optimization must not introduce any
+    /// observable changes in the specified behaviour of the algorithm.
+    ///
+    /// This method is not generic. ValidateTypedArray is called with the this
+    /// value and SEQ-CST as arguments prior to evaluating the algorithm. If
+    /// its result is an abrupt completion that exception is thrown instead of
     /// evaluating the algorithm.
     ///
-    /// > #### Note
-    /// > If the ECMAScript implementation includes the ECMA-402 Internationalization API this method is
-    /// > based upon the algorithm for Array.prototype.toLocaleString that is in the ECMA-402 specification.
+    /// > NOTE: If the ECMAScript implementation includes the ECMA-402
+    /// > Internationalization API this method is based upon the algorithm for
+    /// > **Array.prototype.toLocaleString** that is in the ECMA-402
+    /// > specification.
     fn to_locale_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
