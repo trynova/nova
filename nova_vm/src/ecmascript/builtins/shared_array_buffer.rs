@@ -21,13 +21,16 @@ use self::data::SharedArrayBufferRecord;
 
 pub mod data;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct SharedArrayBuffer<'a>(BaseIndex<'a, SharedArrayBufferRecord<'static>>);
 
 bindable_handle!(SharedArrayBuffer);
 
 impl<'sab> SharedArrayBuffer<'sab> {
+    /// Constant to be used only for creating a build-time Self.
+    pub(crate) const _DEF: Self = Self(BaseIndex::ZERO);
+
     /// Get the SharedDataBlock of a SharedArrayBuffer for sharing.
     pub fn get_data_block(self, agent: &Agent) -> &SharedDataBlock {
         &self.unbind().get(agent).data_block
@@ -47,10 +50,6 @@ impl<'sab> SharedArrayBuffer<'sab> {
                 data_block,
             })
             .bind(gc)
-    }
-
-    pub(crate) const fn _def() -> Self {
-        SharedArrayBuffer(BaseIndex::from_u32_index(0))
     }
 
     #[inline(always)]

@@ -944,6 +944,7 @@ mod private {
     use super::U8Clamped;
 
     pub trait Sealed {}
+    impl Sealed for () {}
     impl Sealed for u8 {}
     impl Sealed for U8Clamped {}
     impl Sealed for i8 {}
@@ -965,6 +966,7 @@ pub trait Viewable: 'static + private::Sealed + Copy + PartialEq {
     /// a BigInt.
     const IS_BIGINT: bool = false;
     const IS_FLOAT: bool = false;
+    const NAME: &str;
 
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics;
@@ -1026,9 +1028,76 @@ pub trait Viewable: 'static + private::Sealed + Copy + PartialEq {
     fn from_f64(value: f64) -> Self;
 }
 
+impl Viewable for () {
+    #[cfg(feature = "array-buffer")]
+    const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint8Array;
+    const NAME: &str = "VoidArray";
+
+    fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        const {
+            panic!("VoidArray is a marker type");
+        }
+    }
+
+    fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        const {
+            panic!("VoidArray is a marker type");
+        }
+    }
+
+    fn from_be_value(_: &mut Agent, _: Numeric) -> Self {
+        const {
+            panic!("VoidArray is a marker type");
+        }
+    }
+
+    fn from_le_value(_: &mut Agent, _: Numeric) -> Self {
+        const {
+            panic!("VoidArray is a marker type");
+        }
+    }
+
+    fn try_from_value(_: &mut Agent, _: Value) -> Option<Self> {
+        const {
+            panic!("VoidArray is a marker type");
+        }
+    }
+
+    fn default() -> Self {
+        const {
+            panic!("VoidArray is a marker type");
+        }
+    }
+
+    fn into_bits(self) -> u64 {
+        const {
+            panic!("VoidArray is a marker type");
+        }
+    }
+
+    fn from_bits(_: u64) -> Self {
+        const {
+            panic!("VoidArray is a marker type");
+        }
+    }
+
+    fn into_f64(self) -> f64 {
+        const {
+            panic!("VoidArray is a marker type");
+        }
+    }
+
+    fn from_f64(_: f64) -> Self {
+        const {
+            panic!("VoidArray is a marker type");
+        }
+    }
+}
+
 impl Viewable for u8 {
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint8Array;
+    const NAME: &str = "Uint8Array";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
         Number::from(self.to_be()).into_numeric()
@@ -1085,6 +1154,7 @@ impl Viewable for u8 {
 impl Viewable for U8Clamped {
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint8ClampedArray;
+    const NAME: &str = "Uint8ClampedArray";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
         Number::from(self.0.to_be()).into_numeric()
@@ -1141,6 +1211,7 @@ impl Viewable for U8Clamped {
 impl Viewable for i8 {
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Int8Array;
+    const NAME: &str = "Int8Array";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
         Number::from(self.to_be()).into_numeric()
@@ -1197,6 +1268,7 @@ impl Viewable for i8 {
 impl Viewable for u16 {
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint16Array;
+    const NAME: &str = "Uint16Array";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
         Number::from(self.to_be()).into_numeric()
@@ -1253,6 +1325,7 @@ impl Viewable for u16 {
 impl Viewable for i16 {
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Int16Array;
+    const NAME: &str = "Int16Array";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
         Number::from(self.to_be()).into_numeric()
@@ -1309,6 +1382,7 @@ impl Viewable for i16 {
 impl Viewable for u32 {
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint32Array;
+    const NAME: &str = "Uint32Array";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
         Number::from(self.to_be()).into_numeric()
@@ -1365,6 +1439,7 @@ impl Viewable for u32 {
 impl Viewable for i32 {
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Int32Array;
+    const NAME: &str = "Int32Array";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
         Number::from(self.to_be()).into_numeric()
@@ -1422,6 +1497,7 @@ impl Viewable for u64 {
     const IS_BIGINT: bool = true;
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::BigUint64Array;
+    const NAME: &str = "BigUint64Array";
 
     fn into_be_value<'a>(self, agent: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
         BigInt::from_u64(agent, self.to_be()).into_numeric()
@@ -1490,6 +1566,7 @@ impl Viewable for i64 {
     const IS_BIGINT: bool = true;
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::BigInt64Array;
+    const NAME: &str = "BigInt64Array";
 
     fn into_be_value<'a>(self, agent: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
         BigInt::from_i64(agent, self.to_be()).into_numeric()
@@ -1563,6 +1640,7 @@ impl Viewable for i64 {
 #[cfg(feature = "proposal-float16array")]
 impl Viewable for f16 {
     const IS_FLOAT: bool = true;
+    const NAME: &str = "Float16Array";
 
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float16Array;
@@ -1625,6 +1703,7 @@ impl Viewable for f16 {
 }
 impl Viewable for f32 {
     const IS_FLOAT: bool = true;
+    const NAME: &str = "Float32Array";
 
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float32Array;
@@ -1688,6 +1767,7 @@ impl Viewable for f32 {
 }
 impl Viewable for f64 {
     const IS_FLOAT: bool = true;
+    const NAME: &str = "Float64Array";
 
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float64Array;

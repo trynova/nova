@@ -9,29 +9,58 @@ pub(crate) use private::{HeapRootCollectionData, RootableCollectionSealed, Roota
 
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
-#[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
-#[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::{ArrayBuffer, data_view::DataView};
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
 #[cfg(feature = "date")]
 use crate::ecmascript::types::DATE_DISCRIMINANT;
-#[cfg(feature = "proposal-float16array")]
-use crate::ecmascript::types::FLOAT_16_ARRAY_DISCRIMINANT;
-#[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::types::SHARED_ARRAY_BUFFER_DISCRIMINANT;
-#[cfg(feature = "array-buffer")]
-use crate::ecmascript::types::{
-    ARRAY_BUFFER_DISCRIMINANT, BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
-    DATA_VIEW_DISCRIMINANT, FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT,
-    INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
-    UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT,
-    UINT_32_ARRAY_DISCRIMINANT,
-};
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::types::{
     WEAK_MAP_DISCRIMINANT, WEAK_REF_DISCRIMINANT, WEAK_SET_DISCRIMINANT,
+};
+#[cfg(feature = "proposal-float16array")]
+use crate::ecmascript::{builtins::typed_array::Float16Array, types::FLOAT_16_ARRAY_DISCRIMINANT};
+#[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+use crate::ecmascript::{
+    builtins::typed_array::SharedFloat16Array, types::SHARED_FLOAT_16_ARRAY_DISCRIMINANT,
+};
+#[cfg(feature = "array-buffer")]
+use crate::ecmascript::{
+    builtins::{
+        ArrayBuffer,
+        data_view::DataView,
+        typed_array::{
+            BigInt64Array, BigUint64Array, Float32Array, Float64Array, Int8Array, Int16Array,
+            Int32Array, Uint8Array, Uint8ClampedArray, Uint16Array, Uint32Array,
+        },
+    },
+    types::{
+        ARRAY_BUFFER_DISCRIMINANT, BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
+        DATA_VIEW_DISCRIMINANT, FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT,
+        INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
+        UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT,
+        UINT_32_ARRAY_DISCRIMINANT,
+    },
+};
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::{
+    builtins::{
+        data_view::SharedDataView,
+        shared_array_buffer::SharedArrayBuffer,
+        typed_array::{
+            SharedBigInt64Array, SharedBigUint64Array, SharedFloat32Array, SharedFloat64Array,
+            SharedInt8Array, SharedInt16Array, SharedInt32Array, SharedUint8Array,
+            SharedUint8ClampedArray, SharedUint16Array, SharedUint32Array,
+        },
+    },
+    types::{
+        SHARED_ARRAY_BUFFER_DISCRIMINANT, SHARED_BIGINT_64_ARRAY_DISCRIMINANT,
+        SHARED_BIGUINT_64_ARRAY_DISCRIMINANT, SHARED_DATA_VIEW_DISCRIMINANT,
+        SHARED_FLOAT_32_ARRAY_DISCRIMINANT, SHARED_FLOAT_64_ARRAY_DISCRIMINANT,
+        SHARED_INT_8_ARRAY_DISCRIMINANT, SHARED_INT_16_ARRAY_DISCRIMINANT,
+        SHARED_INT_32_ARRAY_DISCRIMINANT, SHARED_UINT_8_ARRAY_DISCRIMINANT,
+        SHARED_UINT_8_CLAMPED_ARRAY_DISCRIMINANT, SHARED_UINT_16_ARRAY_DISCRIMINANT,
+        SHARED_UINT_32_ARRAY_DISCRIMINANT,
+    },
 };
 #[cfg(feature = "set")]
 use crate::ecmascript::{
@@ -48,8 +77,6 @@ use crate::ecmascript::{
     },
     types::{REGEXP_DISCRIMINANT, REGEXP_STRING_ITERATOR_DISCRIMINANT},
 };
-#[cfg(feature = "array-buffer")]
-use crate::heap::indexes::TypedArrayIndex;
 use crate::{
     ecmascript::{
         abstract_operations::keyed_group::KeyedGroup,
@@ -109,10 +136,17 @@ pub mod private {
 
     #[cfg(feature = "date")]
     use crate::ecmascript::builtins::date::Date;
-    #[cfg(feature = "shared-array-buffer")]
-    use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
+    #[cfg(feature = "proposal-float16array")]
+    use crate::ecmascript::builtins::typed_array::Float16Array;
+    #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+    use crate::ecmascript::builtins::typed_array::Float16Array;
     #[cfg(feature = "array-buffer")]
     use crate::ecmascript::builtins::{ArrayBuffer, data_view::DataView, typed_array::TypedArray};
+    #[cfg(feature = "shared-array-buffer")]
+    use crate::ecmascript::builtins::{
+        data_view::SharedDataView, shared_array_buffer::SharedArrayBuffer,
+        typed_array::SharedTypedArray,
+    };
     #[cfg(feature = "set")]
     use crate::ecmascript::builtins::{
         keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
@@ -154,6 +188,7 @@ pub mod private {
                     promise_resolving_functions::BuiltinPromiseResolvingFunction,
                 },
                 proxy::Proxy,
+                typed_array::{GenericSharedTypedArray, GenericTypedArray},
             },
             execution::{
                 DeclarativeEnvironment, Environment, FunctionEnvironment, GlobalEnvironment,
@@ -171,7 +206,7 @@ pub mod private {
             },
             types::{
                 BigInt, Function, Number, Numeric, Object, OrdinaryObject, Primitive, PropertyKey,
-                PropertyKeySet, String, Symbol, Value,
+                PropertyKeySet, String, Symbol, Value, Viewable,
             },
         },
         engine::{Executable, context::Bindable},
@@ -181,8 +216,6 @@ pub mod private {
     /// Marker trait to make Rootable not implementable outside of nova_vm.
     pub trait RootableSealed {}
     impl RootableSealed for Array<'_> {}
-    #[cfg(feature = "array-buffer")]
-    impl RootableSealed for ArrayBuffer<'_> {}
     impl RootableSealed for ArrayIterator<'_> {}
     impl RootableSealed for AsyncGenerator<'_> {}
     impl RootableSealed for AwaitReaction<'_> {}
@@ -192,8 +225,6 @@ pub mod private {
     impl RootableSealed for BuiltinFunction<'_> {}
     impl RootableSealed for BuiltinPromiseResolvingFunction<'_> {}
     impl RootableSealed for BuiltinPromiseFinallyFunction<'_> {}
-    #[cfg(feature = "array-buffer")]
-    impl RootableSealed for DataView<'_> {}
     #[cfg(feature = "date")]
     impl RootableSealed for Date<'_> {}
     impl RootableSealed for ECMAScriptFunction<'_> {}
@@ -227,15 +258,29 @@ pub mod private {
     impl RootableSealed for Set<'_> {}
     #[cfg(feature = "set")]
     impl RootableSealed for SetIterator<'_> {}
-    #[cfg(feature = "shared-array-buffer")]
-    impl RootableSealed for SharedArrayBuffer<'_> {}
     impl RootableSealed for SourceCode<'_> {}
     impl RootableSealed for SourceTextModule<'_> {}
     impl RootableSealed for String<'_> {}
     impl RootableSealed for Symbol<'_> {}
+
+    #[cfg(feature = "array-buffer")]
+    impl RootableSealed for ArrayBuffer<'_> {}
+    #[cfg(feature = "array-buffer")]
+    impl RootableSealed for DataView<'_> {}
     #[cfg(feature = "array-buffer")]
     impl RootableSealed for TypedArray<'_> {}
-    impl RootableSealed for Value<'_> {}
+    #[cfg(feature = "array-buffer")]
+    impl<T: Viewable> RootableSealed for GenericTypedArray<'_, T> {}
+
+    #[cfg(feature = "shared-array-buffer")]
+    impl RootableSealed for SharedArrayBuffer<'_> {}
+    #[cfg(feature = "shared-array-buffer")]
+    impl RootableSealed for SharedDataView<'_> {}
+    #[cfg(feature = "shared-array-buffer")]
+    impl RootableSealed for SharedTypedArray<'_> {}
+    #[cfg(feature = "shared-array-buffer")]
+    impl<T: Viewable> RootableSealed for GenericSharedTypedArray<'_, T> {}
+
     #[cfg(feature = "weak-refs")]
     impl RootableSealed for WeakKey<'_> {}
     #[cfg(feature = "weak-refs")]
@@ -244,6 +289,8 @@ pub mod private {
     impl RootableSealed for WeakRef<'_> {}
     #[cfg(feature = "weak-refs")]
     impl RootableSealed for WeakSet<'_> {}
+
+    impl RootableSealed for Value<'_> {}
 
     // Environments are also rootable
     impl RootableSealed for DeclarativeEnvironment<'_> {}
@@ -488,10 +535,6 @@ pub enum HeapRootData {
     PrimitiveObject(PrimitiveObject<'static>),
     Arguments(OrdinaryObject<'static>) = ARGUMENTS_DISCRIMINANT,
     Array(Array<'static>) = ARRAY_DISCRIMINANT,
-    #[cfg(feature = "array-buffer")]
-    ArrayBuffer(ArrayBuffer<'static>) = ARRAY_BUFFER_DISCRIMINANT,
-    #[cfg(feature = "array-buffer")]
-    DataView(DataView<'static>) = DATA_VIEW_DISCRIMINANT,
     #[cfg(feature = "date")]
     Date(Date<'static>) = DATE_DISCRIMINANT,
     Error(Error<'static>) = ERROR_DISCRIMINANT,
@@ -503,8 +546,6 @@ pub enum HeapRootData {
     RegExp(RegExp<'static>) = REGEXP_DISCRIMINANT,
     #[cfg(feature = "set")]
     Set(Set<'static>) = SET_DISCRIMINANT,
-    #[cfg(feature = "shared-array-buffer")]
-    SharedArrayBuffer(SharedArrayBuffer<'static>) = SHARED_ARRAY_BUFFER_DISCRIMINANT,
     #[cfg(feature = "weak-refs")]
     WeakMap(WeakMap<'static>) = WEAK_MAP_DISCRIMINANT,
     #[cfg(feature = "weak-refs")]
@@ -512,29 +553,64 @@ pub enum HeapRootData {
     #[cfg(feature = "weak-refs")]
     WeakSet(WeakSet<'static>) = WEAK_SET_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    Int8Array(TypedArrayIndex<'static>) = INT_8_ARRAY_DISCRIMINANT,
+    ArrayBuffer(ArrayBuffer<'static>) = ARRAY_BUFFER_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    Uint8Array(TypedArrayIndex<'static>) = UINT_8_ARRAY_DISCRIMINANT,
+    DataView(DataView<'static>) = DATA_VIEW_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    Uint8ClampedArray(TypedArrayIndex<'static>) = UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+    Int8Array(Int8Array<'static>) = INT_8_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    Int16Array(TypedArrayIndex<'static>) = INT_16_ARRAY_DISCRIMINANT,
+    Uint8Array(Uint8Array<'static>) = UINT_8_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    Uint16Array(TypedArrayIndex<'static>) = UINT_16_ARRAY_DISCRIMINANT,
+    Uint8ClampedArray(Uint8ClampedArray<'static>) = UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    Int32Array(TypedArrayIndex<'static>) = INT_32_ARRAY_DISCRIMINANT,
+    Int16Array(Int16Array<'static>) = INT_16_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    Uint32Array(TypedArrayIndex<'static>) = UINT_32_ARRAY_DISCRIMINANT,
+    Uint16Array(Uint16Array<'static>) = UINT_16_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    BigInt64Array(TypedArrayIndex<'static>) = BIGINT_64_ARRAY_DISCRIMINANT,
+    Int32Array(Int32Array<'static>) = INT_32_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    BigUint64Array(TypedArrayIndex<'static>) = BIGUINT_64_ARRAY_DISCRIMINANT,
+    Uint32Array(Uint32Array<'static>) = UINT_32_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
+    BigInt64Array(BigInt64Array<'static>) = BIGINT_64_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
+    BigUint64Array(BigUint64Array<'static>) = BIGUINT_64_ARRAY_DISCRIMINANT,
     #[cfg(feature = "proposal-float16array")]
-    Float16Array(TypedArrayIndex<'static>) = FLOAT_16_ARRAY_DISCRIMINANT,
+    Float16Array(Float16Array<'static>) = FLOAT_16_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    Float32Array(TypedArrayIndex<'static>) = FLOAT_32_ARRAY_DISCRIMINANT,
+    Float32Array(Float32Array<'static>) = FLOAT_32_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    Float64Array(TypedArrayIndex<'static>) = FLOAT_64_ARRAY_DISCRIMINANT,
+    Float64Array(Float64Array<'static>) = FLOAT_64_ARRAY_DISCRIMINANT,
+
+    #[cfg(feature = "shared-array-buffer")]
+    SharedArrayBuffer(SharedArrayBuffer<'static>) = SHARED_ARRAY_BUFFER_DISCRIMINANT,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedDataView(SharedDataView<'static>) = SHARED_DATA_VIEW_DISCRIMINANT,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedInt8Array(SharedInt8Array<'static>) = SHARED_INT_8_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedUint8Array(SharedUint8Array<'static>) = SHARED_UINT_8_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedUint8ClampedArray(SharedUint8ClampedArray<'static>) =
+        SHARED_UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedInt16Array(SharedInt16Array<'static>) = SHARED_INT_16_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedUint16Array(SharedUint16Array<'static>) = SHARED_UINT_16_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedInt32Array(SharedInt32Array<'static>) = SHARED_INT_32_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedUint32Array(SharedUint32Array<'static>) = SHARED_UINT_32_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedBigInt64Array(SharedBigInt64Array<'static>) = SHARED_BIGINT_64_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedBigUint64Array(SharedBigUint64Array<'static>) = SHARED_BIGUINT_64_ARRAY_DISCRIMINANT,
+    #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+    SharedFloat16Array(SharedFloat16Array<'static>) = SHARED_FLOAT_16_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedFloat32Array(SharedFloat32Array<'static>) = SHARED_FLOAT_32_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedFloat64Array(SharedFloat64Array<'static>) = SHARED_FLOAT_64_ARRAY_DISCRIMINANT,
+
     AsyncGenerator(AsyncGenerator<'static>) = ASYNC_GENERATOR_DISCRIMINANT,
     ArrayIterator(ArrayIterator<'static>) = ARRAY_ITERATOR_DISCRIMINANT,
     #[cfg(feature = "set")]
@@ -592,10 +668,6 @@ impl From<Object<'static>> for HeapRootData {
             Object::PrimitiveObject(primitive_object) => Self::PrimitiveObject(primitive_object),
             Object::Arguments(ordinary_object) => Self::Arguments(ordinary_object),
             Object::Array(array) => Self::Array(array),
-            #[cfg(feature = "array-buffer")]
-            Object::ArrayBuffer(array_buffer) => Self::ArrayBuffer(array_buffer),
-            #[cfg(feature = "array-buffer")]
-            Object::DataView(data_view) => Self::DataView(data_view),
             #[cfg(feature = "date")]
             Object::Date(date) => Self::Date(date),
             Object::Error(error) => Self::Error(error),
@@ -609,40 +681,70 @@ impl From<Object<'static>> for HeapRootData {
             Object::RegExp(reg_exp) => Self::RegExp(reg_exp),
             #[cfg(feature = "set")]
             Object::Set(set) => Self::Set(set),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedArrayBuffer(shared_array_buffer) => {
-                Self::SharedArrayBuffer(shared_array_buffer)
-            }
             #[cfg(feature = "weak-refs")]
             Object::WeakMap(weak_map) => Self::WeakMap(weak_map),
             #[cfg(feature = "weak-refs")]
             Object::WeakRef(weak_ref) => Self::WeakRef(weak_ref),
             #[cfg(feature = "weak-refs")]
             Object::WeakSet(weak_set) => Self::WeakSet(weak_set),
+
             #[cfg(feature = "array-buffer")]
-            Object::Int8Array(base_index) => Self::Int8Array(base_index),
+            Object::ArrayBuffer(ab) => Self::ArrayBuffer(ab),
             #[cfg(feature = "array-buffer")]
-            Object::Uint8Array(base_index) => Self::Uint8Array(base_index),
+            Object::DataView(dv) => Self::DataView(dv),
             #[cfg(feature = "array-buffer")]
-            Object::Uint8ClampedArray(base_index) => Self::Uint8ClampedArray(base_index),
+            Object::Int8Array(ta) => Self::Int8Array(ta),
             #[cfg(feature = "array-buffer")]
-            Object::Int16Array(base_index) => Self::Int16Array(base_index),
+            Object::Uint8Array(ta) => Self::Uint8Array(ta),
             #[cfg(feature = "array-buffer")]
-            Object::Uint16Array(base_index) => Self::Uint16Array(base_index),
+            Object::Uint8ClampedArray(ta) => Self::Uint8ClampedArray(ta),
             #[cfg(feature = "array-buffer")]
-            Object::Int32Array(base_index) => Self::Int32Array(base_index),
+            Object::Int16Array(ta) => Self::Int16Array(ta),
             #[cfg(feature = "array-buffer")]
-            Object::Uint32Array(base_index) => Self::Uint32Array(base_index),
+            Object::Uint16Array(ta) => Self::Uint16Array(ta),
             #[cfg(feature = "array-buffer")]
-            Object::BigInt64Array(base_index) => Self::BigInt64Array(base_index),
+            Object::Int32Array(ta) => Self::Int32Array(ta),
             #[cfg(feature = "array-buffer")]
-            Object::BigUint64Array(base_index) => Self::BigUint64Array(base_index),
+            Object::Uint32Array(ta) => Self::Uint32Array(ta),
+            #[cfg(feature = "array-buffer")]
+            Object::BigInt64Array(ta) => Self::BigInt64Array(ta),
+            #[cfg(feature = "array-buffer")]
+            Object::BigUint64Array(ta) => Self::BigUint64Array(ta),
             #[cfg(feature = "proposal-float16array")]
-            Object::Float16Array(base_index) => Self::Float16Array(base_index),
+            Object::Float16Array(ta) => Self::Float16Array(ta),
             #[cfg(feature = "array-buffer")]
-            Object::Float32Array(base_index) => Self::Float32Array(base_index),
+            Object::Float32Array(ta) => Self::Float32Array(ta),
             #[cfg(feature = "array-buffer")]
-            Object::Float64Array(base_index) => Self::Float64Array(base_index),
+            Object::Float64Array(ta) => Self::Float64Array(ta),
+
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedArrayBuffer(sab) => Self::SharedArrayBuffer(sab),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedDataView(sta) => Self::SharedDataView(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedInt8Array(sta) => Self::SharedInt8Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedUint8Array(sta) => Self::SharedUint8Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedUint8ClampedArray(sta) => Self::SharedUint8ClampedArray(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedInt16Array(sta) => Self::SharedInt16Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedUint16Array(sta) => Self::SharedUint16Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedInt32Array(sta) => Self::SharedInt32Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedUint32Array(sta) => Self::SharedUint32Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedBigInt64Array(sta) => Self::SharedBigInt64Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedBigUint64Array(sta) => Self::SharedBigUint64Array(sta),
+            #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+            Object::SharedFloat16Array(sta) => Self::SharedFloat16Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedFloat32Array(sta) => Self::SharedFloat32Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedFloat64Array(sta) => Self::SharedFloat64Array(sta),
 
             Object::AsyncGenerator(r#gen) => Self::AsyncGenerator(r#gen),
             Object::ArrayIterator(array_iterator) => Self::ArrayIterator(array_iterator),
@@ -699,122 +801,148 @@ fn handle_heap_ref_overflow() -> ! {
 impl HeapMarkAndSweep for HeapRootData {
     fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
         match self {
-            HeapRootData::Empty => {}
-            HeapRootData::String(heap_string) => heap_string.mark_values(queues),
-            HeapRootData::Symbol(symbol) => symbol.mark_values(queues),
-            HeapRootData::Number(heap_number) => heap_number.mark_values(queues),
-            HeapRootData::BigInt(heap_big_int) => heap_big_int.mark_values(queues),
-            HeapRootData::Object(ordinary_object) => ordinary_object.mark_values(queues),
-            HeapRootData::BoundFunction(bound_function) => bound_function.mark_values(queues),
-            HeapRootData::BuiltinFunction(builtin_function) => builtin_function.mark_values(queues),
-            HeapRootData::ECMAScriptFunction(ecmascript_function) => {
+            Self::Empty => {}
+            Self::String(heap_string) => heap_string.mark_values(queues),
+            Self::Symbol(symbol) => symbol.mark_values(queues),
+            Self::Number(heap_number) => heap_number.mark_values(queues),
+            Self::BigInt(heap_big_int) => heap_big_int.mark_values(queues),
+            Self::Object(ordinary_object) => ordinary_object.mark_values(queues),
+            Self::BoundFunction(bound_function) => bound_function.mark_values(queues),
+            Self::BuiltinFunction(builtin_function) => builtin_function.mark_values(queues),
+            Self::ECMAScriptFunction(ecmascript_function) => {
                 ecmascript_function.mark_values(queues)
             }
 
-            HeapRootData::BuiltinConstructorFunction(builtin_constructor_function) => {
+            Self::BuiltinConstructorFunction(builtin_constructor_function) => {
                 builtin_constructor_function.mark_values(queues)
             }
-            HeapRootData::BuiltinPromiseResolvingFunction(builtin_promise_resolving_function) => {
+            Self::BuiltinPromiseResolvingFunction(builtin_promise_resolving_function) => {
                 builtin_promise_resolving_function.mark_values(queues)
             }
-            HeapRootData::BuiltinPromiseFinallyFunction(builtin_promise_finally_function) => {
+            Self::BuiltinPromiseFinallyFunction(builtin_promise_finally_function) => {
                 builtin_promise_finally_function.mark_values(queues)
             }
-            HeapRootData::BuiltinPromiseCollectorFunction => todo!(),
-            HeapRootData::BuiltinProxyRevokerFunction => todo!(),
-            HeapRootData::PrimitiveObject(primitive_object) => primitive_object.mark_values(queues),
-            HeapRootData::Arguments(ordinary_object) => ordinary_object.mark_values(queues),
-            HeapRootData::Array(array) => array.mark_values(queues),
-            #[cfg(feature = "array-buffer")]
-            HeapRootData::ArrayBuffer(array_buffer) => array_buffer.mark_values(queues),
-            #[cfg(feature = "array-buffer")]
-            HeapRootData::DataView(data_view) => data_view.mark_values(queues),
+            Self::BuiltinPromiseCollectorFunction => todo!(),
+            Self::BuiltinProxyRevokerFunction => todo!(),
+            Self::PrimitiveObject(primitive_object) => primitive_object.mark_values(queues),
+            Self::Arguments(ordinary_object) => ordinary_object.mark_values(queues),
+            Self::Array(array) => array.mark_values(queues),
             #[cfg(feature = "date")]
-            HeapRootData::Date(date) => date.mark_values(queues),
-            HeapRootData::Error(error) => error.mark_values(queues),
-            HeapRootData::FinalizationRegistry(finalization_registry) => {
+            Self::Date(date) => date.mark_values(queues),
+            Self::Error(error) => error.mark_values(queues),
+            Self::FinalizationRegistry(finalization_registry) => {
                 finalization_registry.mark_values(queues)
             }
-            HeapRootData::Map(map) => map.mark_values(queues),
-            HeapRootData::Promise(promise) => promise.mark_values(queues),
-            HeapRootData::Proxy(proxy) => proxy.mark_values(queues),
+            Self::Map(map) => map.mark_values(queues),
+            Self::Promise(promise) => promise.mark_values(queues),
+            Self::Proxy(proxy) => proxy.mark_values(queues),
             #[cfg(feature = "regexp")]
-            HeapRootData::RegExp(reg_exp) => reg_exp.mark_values(queues),
+            Self::RegExp(reg_exp) => reg_exp.mark_values(queues),
             #[cfg(feature = "set")]
-            HeapRootData::Set(set) => set.mark_values(queues),
-            #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedArrayBuffer(shared_array_buffer) => {
-                shared_array_buffer.mark_values(queues)
-            }
+            Self::Set(set) => set.mark_values(queues),
             #[cfg(feature = "weak-refs")]
-            HeapRootData::WeakMap(weak_map) => weak_map.mark_values(queues),
+            Self::WeakMap(weak_map) => weak_map.mark_values(queues),
             #[cfg(feature = "weak-refs")]
-            HeapRootData::WeakRef(weak_ref) => weak_ref.mark_values(queues),
+            Self::WeakRef(weak_ref) => weak_ref.mark_values(queues),
             #[cfg(feature = "weak-refs")]
-            HeapRootData::WeakSet(weak_set) => weak_set.mark_values(queues),
-            #[cfg(feature = "array-buffer")]
-            HeapRootData::Int8Array(base_index) => base_index.mark_values(queues),
-            #[cfg(feature = "array-buffer")]
-            HeapRootData::Uint8Array(base_index) => base_index.mark_values(queues),
-            #[cfg(feature = "array-buffer")]
-            HeapRootData::Uint8ClampedArray(base_index) => base_index.mark_values(queues),
-            #[cfg(feature = "array-buffer")]
-            HeapRootData::Int16Array(base_index) => base_index.mark_values(queues),
-            #[cfg(feature = "array-buffer")]
-            HeapRootData::Uint16Array(base_index) => base_index.mark_values(queues),
-            #[cfg(feature = "array-buffer")]
-            HeapRootData::Int32Array(base_index) => base_index.mark_values(queues),
-            #[cfg(feature = "array-buffer")]
-            HeapRootData::Uint32Array(base_index) => base_index.mark_values(queues),
-            #[cfg(feature = "array-buffer")]
-            HeapRootData::BigInt64Array(base_index) => base_index.mark_values(queues),
-            #[cfg(feature = "array-buffer")]
-            HeapRootData::BigUint64Array(base_index) => base_index.mark_values(queues),
-            #[cfg(feature = "proposal-float16array")]
-            HeapRootData::Float16Array(base_index) => base_index.mark_values(queues),
-            #[cfg(feature = "array-buffer")]
-            HeapRootData::Float32Array(base_index) => base_index.mark_values(queues),
-            #[cfg(feature = "array-buffer")]
-            HeapRootData::Float64Array(base_index) => base_index.mark_values(queues),
+            Self::WeakSet(weak_set) => weak_set.mark_values(queues),
 
-            HeapRootData::AsyncGenerator(r#gen) => r#gen.mark_values(queues),
-            HeapRootData::ArrayIterator(array_iterator) => array_iterator.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
+            Self::ArrayBuffer(array_buffer) => array_buffer.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
+            Self::DataView(data_view) => data_view.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
+            Self::Int8Array(ta) => ta.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
+            Self::Uint8Array(ta) => ta.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
+            Self::Uint8ClampedArray(ta) => ta.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
+            Self::Int16Array(ta) => ta.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
+            Self::Uint16Array(ta) => ta.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
+            Self::Int32Array(ta) => ta.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
+            Self::Uint32Array(ta) => ta.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
+            Self::BigInt64Array(ta) => ta.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
+            Self::BigUint64Array(ta) => ta.mark_values(queues),
+            #[cfg(feature = "proposal-float16array")]
+            Self::Float16Array(ta) => ta.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
+            Self::Float32Array(ta) => ta.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
+            Self::Float64Array(ta) => ta.mark_values(queues),
+
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedArrayBuffer(sab) => sab.mark_values(queues),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedDataView(sta) => sta.mark_values(queues),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedInt8Array(sta) => sta.mark_values(queues),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedUint8Array(sta) => sta.mark_values(queues),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedUint8ClampedArray(sta) => sta.mark_values(queues),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedInt16Array(sta) => sta.mark_values(queues),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedUint16Array(sta) => sta.mark_values(queues),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedInt32Array(sta) => sta.mark_values(queues),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedUint32Array(sta) => sta.mark_values(queues),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedBigInt64Array(sta) => sta.mark_values(queues),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedBigUint64Array(sta) => sta.mark_values(queues),
+            #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+            Self::SharedFloat16Array(sta) => sta.mark_values(queues),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedFloat32Array(sta) => sta.mark_values(queues),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedFloat64Array(sta) => sta.mark_values(queues),
+
+            Self::AsyncGenerator(r#gen) => r#gen.mark_values(queues),
+            Self::ArrayIterator(array_iterator) => array_iterator.mark_values(queues),
             #[cfg(feature = "set")]
-            HeapRootData::SetIterator(set_iterator) => set_iterator.mark_values(queues),
-            HeapRootData::MapIterator(map_iterator) => map_iterator.mark_values(queues),
-            HeapRootData::StringIterator(generator) => generator.mark_values(queues),
+            Self::SetIterator(set_iterator) => set_iterator.mark_values(queues),
+            Self::MapIterator(map_iterator) => map_iterator.mark_values(queues),
+            Self::StringIterator(generator) => generator.mark_values(queues),
             #[cfg(feature = "regexp")]
-            HeapRootData::RegExpStringIterator(generator) => generator.mark_values(queues),
-            HeapRootData::Generator(generator) => generator.mark_values(queues),
-            HeapRootData::Module(module) => module.mark_values(queues),
-            HeapRootData::EmbedderObject(embedder_object) => embedder_object.mark_values(queues),
-            HeapRootData::Executable(exe) => exe.mark_values(queues),
-            HeapRootData::AwaitReaction(await_reaction) => await_reaction.mark_values(queues),
-            HeapRootData::PromiseReaction(promise_reaction) => promise_reaction.mark_values(queues),
-            HeapRootData::PromiseAll(promise_all) => promise_all.mark_values(queues),
-            HeapRootData::Realm(realm) => realm.mark_values(queues),
-            HeapRootData::Script(script) => script.mark_values(queues),
-            HeapRootData::SourceCode(source_code) => source_code.mark_values(queues),
-            HeapRootData::SourceTextModule(m) => m.mark_values(queues),
-            HeapRootData::DeclarativeEnvironment(declarative_environment_index) => {
+            Self::RegExpStringIterator(generator) => generator.mark_values(queues),
+            Self::Generator(generator) => generator.mark_values(queues),
+            Self::Module(module) => module.mark_values(queues),
+            Self::EmbedderObject(embedder_object) => embedder_object.mark_values(queues),
+            Self::Executable(exe) => exe.mark_values(queues),
+            Self::AwaitReaction(await_reaction) => await_reaction.mark_values(queues),
+            Self::PromiseReaction(promise_reaction) => promise_reaction.mark_values(queues),
+            Self::PromiseAll(promise_all) => promise_all.mark_values(queues),
+            Self::Realm(realm) => realm.mark_values(queues),
+            Self::Script(script) => script.mark_values(queues),
+            Self::SourceCode(source_code) => source_code.mark_values(queues),
+            Self::SourceTextModule(m) => m.mark_values(queues),
+            Self::DeclarativeEnvironment(declarative_environment_index) => {
                 declarative_environment_index.mark_values(queues)
             }
-            HeapRootData::FunctionEnvironment(function_environment_index) => {
+            Self::FunctionEnvironment(function_environment_index) => {
                 function_environment_index.mark_values(queues)
             }
-            HeapRootData::GlobalEnvironment(global_environment_index) => {
+            Self::GlobalEnvironment(global_environment_index) => {
                 global_environment_index.mark_values(queues)
             }
-            HeapRootData::ModuleEnvironment(module_environment_index) => {
+            Self::ModuleEnvironment(module_environment_index) => {
                 module_environment_index.mark_values(queues)
             }
-            HeapRootData::ObjectEnvironment(object_environment_index) => {
+            Self::ObjectEnvironment(object_environment_index) => {
                 object_environment_index.mark_values(queues)
             }
-            HeapRootData::PrivateEnvironment(private_environment_index) => {
+            Self::PrivateEnvironment(private_environment_index) => {
                 private_environment_index.mark_values(queues)
             }
-            HeapRootData::PropertyLookupCache(property_lookup_cache) => {
+            Self::PropertyLookupCache(property_lookup_cache) => {
                 property_lookup_cache.mark_values(queues);
             }
         }
@@ -822,129 +950,150 @@ impl HeapMarkAndSweep for HeapRootData {
 
     fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
         match self {
-            HeapRootData::Empty => {}
-            HeapRootData::String(heap_string) => heap_string.sweep_values(compactions),
-            HeapRootData::Symbol(symbol) => symbol.sweep_values(compactions),
-            HeapRootData::Number(heap_number) => heap_number.sweep_values(compactions),
-            HeapRootData::BigInt(heap_big_int) => heap_big_int.sweep_values(compactions),
-            HeapRootData::Object(ordinary_object) => ordinary_object.sweep_values(compactions),
-            HeapRootData::BoundFunction(bound_function) => bound_function.sweep_values(compactions),
-            HeapRootData::BuiltinFunction(builtin_function) => {
-                builtin_function.sweep_values(compactions)
-            }
-            HeapRootData::ECMAScriptFunction(ecmascript_function) => {
+            Self::Empty => {}
+            Self::String(heap_string) => heap_string.sweep_values(compactions),
+            Self::Symbol(symbol) => symbol.sweep_values(compactions),
+            Self::Number(heap_number) => heap_number.sweep_values(compactions),
+            Self::BigInt(heap_big_int) => heap_big_int.sweep_values(compactions),
+            Self::Object(ordinary_object) => ordinary_object.sweep_values(compactions),
+            Self::BoundFunction(bound_function) => bound_function.sweep_values(compactions),
+            Self::BuiltinFunction(builtin_function) => builtin_function.sweep_values(compactions),
+            Self::ECMAScriptFunction(ecmascript_function) => {
                 ecmascript_function.sweep_values(compactions)
             }
 
-            HeapRootData::BuiltinConstructorFunction(builtin_constructor_function) => {
+            Self::BuiltinConstructorFunction(builtin_constructor_function) => {
                 builtin_constructor_function.sweep_values(compactions)
             }
-            HeapRootData::BuiltinPromiseResolvingFunction(builtin_promise_resolving_function) => {
+            Self::BuiltinPromiseResolvingFunction(builtin_promise_resolving_function) => {
                 builtin_promise_resolving_function.sweep_values(compactions)
             }
-            HeapRootData::BuiltinPromiseFinallyFunction(builtin_promise_finally_function) => {
+            Self::BuiltinPromiseFinallyFunction(builtin_promise_finally_function) => {
                 builtin_promise_finally_function.sweep_values(compactions);
             }
-            HeapRootData::BuiltinPromiseCollectorFunction => todo!(),
-            HeapRootData::BuiltinProxyRevokerFunction => todo!(),
-            HeapRootData::PrimitiveObject(primitive_object) => {
-                primitive_object.sweep_values(compactions)
-            }
-            HeapRootData::Arguments(ordinary_object) => ordinary_object.sweep_values(compactions),
-            HeapRootData::Array(array) => array.sweep_values(compactions),
-            #[cfg(feature = "array-buffer")]
-            HeapRootData::ArrayBuffer(array_buffer) => array_buffer.sweep_values(compactions),
-            #[cfg(feature = "array-buffer")]
-            HeapRootData::DataView(data_view) => data_view.sweep_values(compactions),
+            Self::BuiltinPromiseCollectorFunction => todo!(),
+            Self::BuiltinProxyRevokerFunction => todo!(),
+            Self::PrimitiveObject(primitive_object) => primitive_object.sweep_values(compactions),
+            Self::Arguments(ordinary_object) => ordinary_object.sweep_values(compactions),
+            Self::Array(array) => array.sweep_values(compactions),
             #[cfg(feature = "date")]
-            HeapRootData::Date(date) => date.sweep_values(compactions),
-            HeapRootData::Error(error) => error.sweep_values(compactions),
-            HeapRootData::FinalizationRegistry(finalization_registry) => {
+            Self::Date(date) => date.sweep_values(compactions),
+            Self::Error(error) => error.sweep_values(compactions),
+            Self::FinalizationRegistry(finalization_registry) => {
                 finalization_registry.sweep_values(compactions)
             }
-            HeapRootData::Map(map) => map.sweep_values(compactions),
-            HeapRootData::Promise(promise) => promise.sweep_values(compactions),
-            HeapRootData::Proxy(proxy) => proxy.sweep_values(compactions),
+            Self::Map(map) => map.sweep_values(compactions),
+            Self::Promise(promise) => promise.sweep_values(compactions),
+            Self::Proxy(proxy) => proxy.sweep_values(compactions),
             #[cfg(feature = "regexp")]
-            HeapRootData::RegExp(reg_exp) => reg_exp.sweep_values(compactions),
+            Self::RegExp(reg_exp) => reg_exp.sweep_values(compactions),
             #[cfg(feature = "set")]
-            HeapRootData::Set(set) => set.sweep_values(compactions),
+            Self::Set(set) => set.sweep_values(compactions),
+            #[cfg(feature = "weak-refs")]
+            Self::WeakMap(weak_map) => weak_map.sweep_values(compactions),
+            #[cfg(feature = "weak-refs")]
+            Self::WeakRef(weak_ref) => weak_ref.sweep_values(compactions),
+            #[cfg(feature = "weak-refs")]
+            Self::WeakSet(weak_set) => weak_set.sweep_values(compactions),
+
+            #[cfg(feature = "array-buffer")]
+            Self::ArrayBuffer(array_buffer) => array_buffer.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
+            Self::DataView(data_view) => data_view.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
+            Self::Int8Array(ta) => ta.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
+            Self::Uint8Array(ta) => ta.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
+            Self::Uint8ClampedArray(ta) => ta.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
+            Self::Int16Array(ta) => ta.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
+            Self::Uint16Array(ta) => ta.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
+            Self::Int32Array(ta) => ta.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
+            Self::Uint32Array(ta) => ta.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
+            Self::BigInt64Array(ta) => ta.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
+            Self::BigUint64Array(ta) => ta.sweep_values(compactions),
+            #[cfg(feature = "proposal-float16array")]
+            Self::Float16Array(ta) => ta.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
+            Self::Float32Array(ta) => ta.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
+            Self::Float64Array(ta) => ta.sweep_values(compactions),
+
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedArrayBuffer(shared_array_buffer) => {
+            Self::SharedArrayBuffer(shared_array_buffer) => {
                 shared_array_buffer.sweep_values(compactions)
             }
-            #[cfg(feature = "weak-refs")]
-            HeapRootData::WeakMap(weak_map) => weak_map.sweep_values(compactions),
-            #[cfg(feature = "weak-refs")]
-            HeapRootData::WeakRef(weak_ref) => weak_ref.sweep_values(compactions),
-            #[cfg(feature = "weak-refs")]
-            HeapRootData::WeakSet(weak_set) => weak_set.sweep_values(compactions),
-            #[cfg(feature = "array-buffer")]
-            HeapRootData::Int8Array(base_index) => base_index.sweep_values(compactions),
-            #[cfg(feature = "array-buffer")]
-            HeapRootData::Uint8Array(base_index) => base_index.sweep_values(compactions),
-            #[cfg(feature = "array-buffer")]
-            HeapRootData::Uint8ClampedArray(base_index) => base_index.sweep_values(compactions),
-            #[cfg(feature = "array-buffer")]
-            HeapRootData::Int16Array(base_index) => base_index.sweep_values(compactions),
-            #[cfg(feature = "array-buffer")]
-            HeapRootData::Uint16Array(base_index) => base_index.sweep_values(compactions),
-            #[cfg(feature = "array-buffer")]
-            HeapRootData::Int32Array(base_index) => base_index.sweep_values(compactions),
-            #[cfg(feature = "array-buffer")]
-            HeapRootData::Uint32Array(base_index) => base_index.sweep_values(compactions),
-            #[cfg(feature = "array-buffer")]
-            HeapRootData::BigInt64Array(base_index) => base_index.sweep_values(compactions),
-            #[cfg(feature = "array-buffer")]
-            HeapRootData::BigUint64Array(base_index) => base_index.sweep_values(compactions),
-            #[cfg(feature = "proposal-float16array")]
-            HeapRootData::Float16Array(base_index) => base_index.sweep_values(compactions),
-            #[cfg(feature = "array-buffer")]
-            HeapRootData::Float32Array(base_index) => base_index.sweep_values(compactions),
-            #[cfg(feature = "array-buffer")]
-            HeapRootData::Float64Array(base_index) => base_index.sweep_values(compactions),
-            HeapRootData::AsyncGenerator(r#gen) => r#gen.sweep_values(compactions),
-            HeapRootData::ArrayIterator(array_iterator) => array_iterator.sweep_values(compactions),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedDataView(sta) => sta.sweep_values(compactions),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedInt8Array(sta) => sta.sweep_values(compactions),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedUint8Array(sta) => sta.sweep_values(compactions),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedUint8ClampedArray(sta) => sta.sweep_values(compactions),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedInt16Array(sta) => sta.sweep_values(compactions),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedUint16Array(sta) => sta.sweep_values(compactions),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedInt32Array(sta) => sta.sweep_values(compactions),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedUint32Array(sta) => sta.sweep_values(compactions),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedBigInt64Array(sta) => sta.sweep_values(compactions),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedBigUint64Array(sta) => sta.sweep_values(compactions),
+            #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+            Self::SharedFloat16Array(sta) => sta.sweep_values(compactions),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedFloat32Array(sta) => sta.sweep_values(compactions),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedFloat64Array(sta) => sta.sweep_values(compactions),
+
+            Self::AsyncGenerator(r#gen) => r#gen.sweep_values(compactions),
+            Self::ArrayIterator(array_iterator) => array_iterator.sweep_values(compactions),
             #[cfg(feature = "set")]
-            HeapRootData::SetIterator(set_iterator) => set_iterator.sweep_values(compactions),
-            HeapRootData::MapIterator(map_iterator) => map_iterator.sweep_values(compactions),
-            HeapRootData::StringIterator(generator) => generator.sweep_values(compactions),
+            Self::SetIterator(set_iterator) => set_iterator.sweep_values(compactions),
+            Self::MapIterator(map_iterator) => map_iterator.sweep_values(compactions),
+            Self::StringIterator(generator) => generator.sweep_values(compactions),
             #[cfg(feature = "regexp")]
-            HeapRootData::RegExpStringIterator(generator) => generator.sweep_values(compactions),
-            HeapRootData::Generator(generator) => generator.sweep_values(compactions),
-            HeapRootData::Module(module) => module.sweep_values(compactions),
-            HeapRootData::EmbedderObject(embedder_object) => {
-                embedder_object.sweep_values(compactions)
-            }
-            HeapRootData::Executable(exe) => exe.sweep_values(compactions),
-            HeapRootData::AwaitReaction(await_reaction) => await_reaction.sweep_values(compactions),
-            HeapRootData::PromiseReaction(promise_reaction) => {
-                promise_reaction.sweep_values(compactions)
-            }
-            HeapRootData::PromiseAll(promise_all) => promise_all.sweep_values(compactions),
-            HeapRootData::Realm(realm) => realm.sweep_values(compactions),
-            HeapRootData::Script(script) => script.sweep_values(compactions),
-            HeapRootData::SourceCode(source_code) => source_code.sweep_values(compactions),
-            HeapRootData::SourceTextModule(m) => m.sweep_values(compactions),
-            HeapRootData::DeclarativeEnvironment(declarative_environment_index) => {
+            Self::RegExpStringIterator(generator) => generator.sweep_values(compactions),
+            Self::Generator(generator) => generator.sweep_values(compactions),
+            Self::Module(module) => module.sweep_values(compactions),
+            Self::EmbedderObject(embedder_object) => embedder_object.sweep_values(compactions),
+            Self::Executable(exe) => exe.sweep_values(compactions),
+            Self::AwaitReaction(await_reaction) => await_reaction.sweep_values(compactions),
+            Self::PromiseReaction(promise_reaction) => promise_reaction.sweep_values(compactions),
+            Self::PromiseAll(promise_all) => promise_all.sweep_values(compactions),
+            Self::Realm(realm) => realm.sweep_values(compactions),
+            Self::Script(script) => script.sweep_values(compactions),
+            Self::SourceCode(source_code) => source_code.sweep_values(compactions),
+            Self::SourceTextModule(m) => m.sweep_values(compactions),
+            Self::DeclarativeEnvironment(declarative_environment_index) => {
                 declarative_environment_index.sweep_values(compactions)
             }
-            HeapRootData::FunctionEnvironment(function_environment_index) => {
+            Self::FunctionEnvironment(function_environment_index) => {
                 function_environment_index.sweep_values(compactions)
             }
-            HeapRootData::GlobalEnvironment(global_environment_index) => {
+            Self::GlobalEnvironment(global_environment_index) => {
                 global_environment_index.sweep_values(compactions)
             }
-            HeapRootData::ModuleEnvironment(module_environment_index) => {
+            Self::ModuleEnvironment(module_environment_index) => {
                 module_environment_index.sweep_values(compactions)
             }
-            HeapRootData::ObjectEnvironment(object_environment_index) => {
+            Self::ObjectEnvironment(object_environment_index) => {
                 object_environment_index.sweep_values(compactions)
             }
-            HeapRootData::PrivateEnvironment(private_environment_index) => {
+            Self::PrivateEnvironment(private_environment_index) => {
                 private_environment_index.sweep_values(compactions)
             }
-            HeapRootData::PropertyLookupCache(property_lookup_cache) => {
+            Self::PropertyLookupCache(property_lookup_cache) => {
                 property_lookup_cache.sweep_values(compactions)
             }
         }
