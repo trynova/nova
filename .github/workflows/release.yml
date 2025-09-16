@@ -46,11 +46,11 @@ jobs:
       - name: Install the rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.85.0
+          toolchain: stable
           targets: ${{ matrix.rust-target }}
 
       - name: Build
-        run: cargo build --release --target ${{ matrix.rust-target }} --manifest-path ./nova_cli/Cargo.toml
+        run: cargo build --release --target ${{ matrix.rust-target }} --bin nova_cli
 
       - name: Prepare binary
         shell: bash
