@@ -28,7 +28,7 @@ use super::control_abstraction_objects::promise_objects::promise_abstract_operat
 
 pub mod data;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Promise<'a>(BaseIndex<'a, PromiseHeapData<'static>>);
 

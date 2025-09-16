@@ -23,7 +23,7 @@ use self::data::WeakRefHeapData;
 
 pub mod data;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct WeakRef<'a>(BaseIndex<'a, WeakRefHeapData<'static>>);
 
