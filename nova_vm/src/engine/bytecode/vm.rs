@@ -1292,8 +1292,6 @@ fn typeof_operator(agent: &Agent, val: Value, gc: NoGcScope) -> String<'static> 
         #[cfg(feature = "set")]
         Value::Set(_) |
         Value::SetIterator(_) => BUILTIN_STRING_MEMORY.object,
-        #[cfg(feature = "shared-array-buffer")]
-        Value::SharedArrayBuffer(_) => BUILTIN_STRING_MEMORY.object,
         #[cfg(feature = "array-buffer")]
         Value::ArrayBuffer(_) |
         Value::Int8Array(_) |
@@ -1310,6 +1308,22 @@ fn typeof_operator(agent: &Agent, val: Value, gc: NoGcScope) -> String<'static> 
         Value::DataView(_) => BUILTIN_STRING_MEMORY.object,
         #[cfg(feature = "proposal-float16array")]
         Value::Float16Array(_) => BUILTIN_STRING_MEMORY.object,
+        #[cfg(feature = "shared-array-buffer")]
+        Value::SharedArrayBuffer(_) |
+        Value::SharedInt8Array(_) |
+        Value::SharedUint8Array(_) |
+        Value::SharedUint8ClampedArray(_) |
+        Value::SharedInt16Array(_) |
+        Value::SharedUint16Array(_) |
+        Value::SharedInt32Array(_) |
+        Value::SharedUint32Array(_) |
+        Value::SharedBigInt64Array(_) |
+        Value::SharedBigUint64Array(_) |
+        Value::SharedFloat32Array(_) |
+        Value::SharedFloat64Array(_) |
+        Value::SharedDataView(_) => BUILTIN_STRING_MEMORY.object,
+        #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+        Value::SharedFloat16Array(_) => BUILTIN_STRING_MEMORY.object,
         #[cfg(feature = "date")]
         Value::Date(_)  => BUILTIN_STRING_MEMORY.object,
         // 13. If val has a [[Call]] internal slot, return "function".
