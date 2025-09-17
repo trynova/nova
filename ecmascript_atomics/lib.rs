@@ -355,6 +355,7 @@ macro_rules! gen_exchange {
         #[cfg(target_arch = "aarch64")]
         unsafe {
             let res: u8;
+            let scratch: u8;
             core::arch::asm!(
                 "dmb ish",
                 "0:",
@@ -363,7 +364,7 @@ macro_rules! gen_exchange {
                 "cbnz {scratch:w}, 0b",
                 "dmb ish",
                 res = lateout(reg) res,
-                scratch = lateout(reg) _,
+                scratch = lateout(reg) scratch,
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
                 options(nostack)
@@ -372,20 +373,24 @@ macro_rules! gen_exchange {
         }
 
         #[cfg(target_arch = "arm")]
-        {
-            //     insns = ""
-            //     insns += fmt_insn("dmb sy")
-            //     insns += fmt_insn("0:")
-            //     if size == 8:
-            //         insns += fmt_insn("ldrexb %[res], [%[addr]]")
-            //         insns += fmt_insn("strexb %[scratch], %[val], [%[addr]]")
-            //     elif size == 16:
-            //         insns += fmt_insn("ldrexh %[res], [%[addr]]")
-            //         insns += fmt_insn("strexh %[scratch], %[val], [%[addr]]")
-            //     else:
-            //         assert size == 32
-            //         insns += fmt_insn("ldrex %[res], [%[addr]]")
-            //         insns += fmt_insn("strex %[scratch], %[val], [%[addr]]")
+        unsafe {
+            let res: u8;
+            let scratch: u8;
+            core::arch::asm!(
+                "dmb sy",
+                "0:",
+                "ldrex {res:w}, [{ptr}]",
+                "strex {scratch:w}, {val:w}, [{ptr}]",
+                "cmp {scratch:w}, #1",
+                "beq 0b",
+                "dmb sy",
+                res = lateout(reg) res,
+                scratch = lateout(reg) scratch,
+                ptr = in(reg) ptr,
+                val = in(reg) $val,
+                options(nostack)
+            );
+            $val = res;
             //     insns += fmt_insn("cmp %[scratch], #1")
             //     insns += fmt_insn("beq 0b")
             //     insns += fmt_insn("dmb sy")
@@ -425,6 +430,7 @@ macro_rules! gen_exchange {
         #[cfg(target_arch = "aarch64")]
         unsafe {
             let res: u16;
+            let scratch: u16;
             core::arch::asm!(
                 "dmb ish",
                 "0:",
@@ -433,7 +439,7 @@ macro_rules! gen_exchange {
                 "cbnz {scratch:w}, 0b",
                 "dmb ish",
                 res = lateout(reg) res,
-                scratch = lateout(reg) _,
+                scratch = lateout(reg) scratch,
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
                 options(nostack)
@@ -499,6 +505,7 @@ macro_rules! gen_exchange {
         #[cfg(target_arch = "aarch64")]
         unsafe {
             let res: u32;
+            let scratch: u32;
             core::arch::asm!(
                 "dmb ish",
                 "0:",
@@ -507,7 +514,7 @@ macro_rules! gen_exchange {
                 "cbnz {scratch:w}, 0b",
                 "dmb ish",
                 res = lateout(reg) res,
-                scratch = lateout(reg) _,
+                scratch = lateout(reg) scratch,
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
                 options(nostack)
@@ -572,6 +579,7 @@ macro_rules! gen_exchange {
         #[cfg(target_arch = "aarch64")]
         unsafe {
             let res: u64;
+            let scratch: u64;
             core::arch::asm!(
                 "dmb ish",
                 "0:",
@@ -580,7 +588,7 @@ macro_rules! gen_exchange {
                 "cbnz {scratch:x}, 0b",
                 "dmb ish",
                 res = lateout(reg) res,
-                scratch = lateout(reg) _,
+                scratch = lateout(reg) scratch,
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
                 options(nostack)
