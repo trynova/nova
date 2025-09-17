@@ -205,7 +205,7 @@ macro_rules! gen_store {
         unsafe {
             core::arch::asm!(
                 fence!($barrier, aarch64),
-                "strb [{ptr}], {val:w}",
+                "str [{ptr}], {val:w}",
                 fence!($barrier, aarch64),
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
@@ -217,7 +217,7 @@ macro_rules! gen_store {
         unsafe {
             core::arch::asm!(
                 fence!($barrier, arm),
-                "strb [{ptr}], {val:w}",
+                "str [{ptr}], {val:w}",
                 fence!($barrier, arm),
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
@@ -244,7 +244,7 @@ macro_rules! gen_store {
         unsafe {
             core::arch::asm!(
                 fence!($barrier, aarch64),
-                "strh [{ptr}], {val:w}",
+                "str [{ptr}], {val:w}",
                 fence!($barrier, aarch64),
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
@@ -256,7 +256,7 @@ macro_rules! gen_store {
         unsafe {
             core::arch::asm!(
                 fence!($barrier, arm),
-                "strh [{ptr}], {val:w}",
+                "str [{ptr}], {val:w}",
                 fence!($barrier, arm),
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
