@@ -355,7 +355,6 @@ macro_rules! gen_exchange {
         #[cfg(target_arch = "aarch64")]
         unsafe {
             let res: u8;
-            let scratch: u8;
             core::arch::asm!(
                 "dmb ish",
                 "0:",
@@ -364,7 +363,7 @@ macro_rules! gen_exchange {
                 "cbnz {scratch:w}, 0b",
                 "dmb ish",
                 res = lateout(reg) res,
-                scratch = lateout(reg) scratch,
+                scratch = out(reg) _,
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
                 options(nostack)
@@ -375,7 +374,6 @@ macro_rules! gen_exchange {
         #[cfg(target_arch = "arm")]
         unsafe {
             let res: u8;
-            let scratch: u8;
             core::arch::asm!(
                 "dmb sy",
                 "0:",
@@ -385,7 +383,7 @@ macro_rules! gen_exchange {
                 "beq 0b",
                 "dmb sy",
                 res = lateout(reg) res,
-                scratch = lateout(reg) scratch,
+                scratch = out(reg) _,
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
                 options(nostack)
@@ -430,7 +428,6 @@ macro_rules! gen_exchange {
         #[cfg(target_arch = "aarch64")]
         unsafe {
             let res: u16;
-            let scratch: u16;
             core::arch::asm!(
                 "dmb ish",
                 "0:",
@@ -439,7 +436,7 @@ macro_rules! gen_exchange {
                 "cbnz {scratch:w}, 0b",
                 "dmb ish",
                 res = lateout(reg) res,
-                scratch = lateout(reg) scratch,
+                scratch = out(reg) _,
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
                 options(nostack)
@@ -505,7 +502,6 @@ macro_rules! gen_exchange {
         #[cfg(target_arch = "aarch64")]
         unsafe {
             let res: u32;
-            let scratch: u32;
             core::arch::asm!(
                 "dmb ish",
                 "0:",
@@ -514,7 +510,7 @@ macro_rules! gen_exchange {
                 "cbnz {scratch:w}, 0b",
                 "dmb ish",
                 res = lateout(reg) res,
-                scratch = lateout(reg) scratch,
+                scratch = out(reg) _,
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
                 options(nostack)
@@ -579,7 +575,6 @@ macro_rules! gen_exchange {
         #[cfg(target_arch = "aarch64")]
         unsafe {
             let res: u64;
-            let scratch: u64;
             core::arch::asm!(
                 "dmb ish",
                 "0:",
@@ -588,7 +583,7 @@ macro_rules! gen_exchange {
                 "cbnz {scratch:x}, 0b",
                 "dmb ish",
                 res = lateout(reg) res,
-                scratch = lateout(reg) scratch,
+                scratch = out(reg) _,
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
                 options(nostack)
