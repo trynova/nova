@@ -27,181 +27,150 @@ macro_rules! fence {
 
 macro_rules! gen_load {
     (u8, $ptr: ident, $barrier: tt) => {
+        let z: u8;
+        // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
+        let ptr = unsafe { &mut *$ptr.as_ptr() };
+
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        {
-            let z: u8;
-            // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
-            let ptr = unsafe { &mut *$ptr.as_ptr() };
-            unsafe { core::arch::asm!(
+        unsafe {
+            core::arch::asm!(
                 "mov {val}, [{ptr}]",
                 fence!(false, x86),
                 ptr = in(reg) ptr,
                 val = lateout(reg_byte) z,
                 options(preserves_flags, nostack, pure, readonly)
-            ) };
-            return z;
+            );
         }
 
         #[cfg(target_arch = "aarch64")]
-        {
-            let z: u32;
-            // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
-            let ptr = unsafe { &mut *$ptr.as_ptr() };
-            unsafe { core::arch::asm!(
+        unsafe {
+            core::arch::asm!(
                 "ldrb {val:w}, [{ptr}]",
                 fence!($barrier, aarch64),
                 ptr = in(reg) ptr,
                 val = lateout(reg) z,
                 options(preserves_flags, nostack, pure, readonly)
-            ) };
-            return z as u8;
+            );
         }
 
         #[cfg(target_arch = "arm")]
-        {
-            let z: u32;
-            // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
-            let ptr = unsafe { &mut *$ptr.as_ptr() };
-            unsafe { core::arch::asm!(
+        unsafe {
+            core::arch::asm!(
                 "ldrb {val:w}, [{ptr}]",
                 fence!($barrier, arm),
                 ptr = in(reg) ptr,
                 val = lateout(reg) z,
                 options(preserves_flags, nostack, pure, readonly)
-            ) };
-            return z as u8;
+            );
         }
 
-        #[expect(unreachable_code)]
-        const { panic!("Unexpected arch") }
+        return z;
     };
     (u16, $ptr: ident, $barrier: tt) => {
+        let z: u16;
+        // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
+        let ptr = unsafe { &mut *$ptr.as_ptr() };
+
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        {
-            let z: u16;
-            // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
-            let ptr = unsafe { &mut *$ptr.as_ptr() };
-            unsafe { core::arch::asm!(
+        unsafe {
+            core::arch::asm!(
                 "mov {val:x}, [{ptr}]",
                 fence!(false, x86),
                 ptr = in(reg) ptr,
                 val = lateout(reg) z,
                 options(preserves_flags, nostack, pure, readonly)
-            ) };
-            return z;
+            );
         }
 
         #[cfg(target_arch = "aarch64")]
-        {
-            let z: u32;
-            // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
-            let ptr = unsafe { &mut *$ptr.as_ptr() };
-            unsafe { core::arch::asm!(
+        unsafe {
+            core::arch::asm!(
                 "ldrh {val:w}, [{ptr}]",
                 fence!($barrier, aarch64),
                 ptr = in(reg) ptr,
                 val = lateout(reg) z,
                 options(preserves_flags, nostack, pure, readonly)
-            ) };
-            return z as u16;
+            );
         }
 
         #[cfg(target_arch = "arm")]
-        {
-            let z: u32;
-            // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
-            let ptr = unsafe { &mut *$ptr.as_ptr() };
-            unsafe { core::arch::asm!(
+        unsafe {
+            core::arch::asm!(
                 "ldrh {val:w}, [{ptr}]",
                 fence!($barrier, arm),
                 ptr = in(reg) ptr,
                 val = lateout(reg) z,
                 options(preserves_flags, nostack, pure, readonly)
-            ) };
-            return z as u16;
+            );
         }
 
-        #[expect(unreachable_code)]
-        const { panic!("Unexpected arch") }
+        return z;
     };
     (u32, $ptr: ident, $barrier: tt) => {
+        let z: u32;
+        // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
+        let ptr = unsafe { &mut *$ptr.as_ptr() };
+
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        {
-            let z: u32;
-            // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
-            let ptr = unsafe { &mut *$ptr.as_ptr() };
-            unsafe { core::arch::asm!(
+        unsafe {
+            core::arch::asm!(
                 "mov {val:e}, [{ptr}]",
                 fence!(false, x86),
                 ptr = in(reg) ptr,
                 val = lateout(reg) z,
                 options(preserves_flags, nostack, pure, readonly)
-            ) };
-            return z;
+            );
         }
 
         #[cfg(target_arch = "aarch64")]
-        {
-            let z: u32;
-            // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
-            let ptr = unsafe { &mut *$ptr.as_ptr() };
-            unsafe { core::arch::asm!(
+        unsafe {
+            core::arch::asm!(
                 "ldr {val:w}, [{ptr}]",
                 fence!($barrier, aarch64),
                 ptr = in(reg) ptr,
                 val = lateout(reg) z,
                 options(preserves_flags, nostack, pure, readonly)
-            ) };
-            return z;
+            );
         }
 
         #[cfg(target_arch = "arm")]
-        {
-            let z: u32;
-            // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
-            let ptr = unsafe { &mut *$ptr.as_ptr() };
-            unsafe { core::arch::asm!(
+        unsafe {
+            core::arch::asm!(
                 "ldr {val:w}, [{ptr}]",
                 fence!($barrier, arm),
                 ptr = in(reg) ptr,
                 val = lateout(reg) z,
                 options(preserves_flags, nostack, pure, readonly)
-            ) };
-            return z;
+            );
         }
 
-        #[expect(unreachable_code)]
-        const { panic!("Unexpected arch") }
+        return z;
     };
     (u64, $ptr: ident, $barrier: tt) => {
+        let z: u64;
+        // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
+        let ptr = unsafe { &mut *$ptr.as_ptr() };
+
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        {
-            let z: u64;
-            // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
-            let ptr = unsafe { &mut *$ptr.as_ptr() };
-            unsafe { core::arch::asm!(
+        unsafe {
+            core::arch::asm!(
                 "mov {val:r}, [{ptr}]",
                 fence!(false, x86),
                 ptr = in(reg) ptr,
                 val = lateout(reg) z,
                 options(preserves_flags, nostack, pure, readonly)
-            ) };
-            return z;
+            );
         }
 
         #[cfg(target_arch = "aarch64")]
-        {
-            let z: u64;
-            // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
-            let ptr = unsafe { &mut *$ptr.as_ptr() };
-            unsafe { core::arch::asm!(
+        unsafe {
+            core::arch::asm!(
                 "ldr {val:x}, [{ptr}]",
                 fence!($barrier, aarch64),
                 ptr = in(reg) ptr,
                 val = lateout(reg) z,
                 options(preserves_flags, nostack, pure, readonly)
-            ) };
-            return z;
+            );
         }
 
         #[cfg(target_arch = "arm")]
@@ -209,8 +178,7 @@ macro_rules! gen_load {
             const { panic!("Unexpected size") }
         }
 
-        #[expect(unreachable_code)]
-        const { panic!("Unexpected arch") }
+        return z;
     };
     ($type: ty, $ptr: ident, $barrier: tt) => {
         panic!("Unsupported type");
@@ -219,230 +187,152 @@ macro_rules! gen_load {
 
 macro_rules! gen_store {
     (u8, $ptr: ident, $val: ident, $barrier: tt) => {
+        // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
+        let ptr = unsafe { &mut *$ptr.as_ptr() };
+
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        {
-            // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
-            let ptr = unsafe { &mut *$ptr.as_ptr() };
-            unsafe { core::arch::asm!(
+        unsafe {
+            core::arch::asm!(
                 "mov [{ptr}], {val}",
                 fence!($barrier, x86),
                 ptr = in(reg) ptr,
                 val = in(reg_byte) $val,
                 options(preserves_flags, nostack)
-            ) };
-            return;
-            //     elif size == 16:
-            //         insns += fmt_insn("movw %[val], (%[addr])")
-            //     elif size == 32:
-            //         insns += fmt_insn("movl %[val], (%[addr])")
-            //     else:
-            //         assert size == 64
-            //         insns += fmt_insn("movq %[val], (%[addr])")
-            //     if barrier:
-            //         insns += fmt_insn("mfence")
-            //     return """
-            //         INLINE_ATTR void %(fun_name)s(%(cpp_type)s* addr, %(cpp_type)s val) {
-            //             asm volatile (%(insns)s
-            //                 :
-            //                 : [addr] "r" (addr), [val] "r"(val)
-            //                 : "memory");
-            //         }""" % {
-            //         "cpp_type": cpp_type,
-            //         "fun_name": fun_name,
-            //         "insns": insns,
-            //     }
+            );
         }
 
         #[cfg(target_arch = "aarch64")]
-        {
-            // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
-            let ptr = unsafe { &mut *$ptr.as_ptr() };
-            unsafe { core::arch::asm!(
+        unsafe {
+            core::arch::asm!(
                 fence!($barrier, aarch64),
                 "strb [{ptr}], {val:w}",
                 fence!($barrier, aarch64),
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
                 options(preserves_flags, nostack)
-            ) };
-            return;
-            //     elif size == 16:
-            //         insns += fmt_insn("strh %w[val], [%x[addr]]")
-            //     elif size == 32:
-            //         insns += fmt_insn("str %w[val], [%x[addr]]")
-            //     else:
-            //         assert size == 64
-            //         insns += fmt_insn("str %x[val], [%x[addr]]")
+            );
         }
 
         #[cfg(target_arch = "arm")]
-        {
-            // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
-            let ptr = unsafe { &mut *$ptr.as_ptr() };
-            unsafe { core::arch::asm!(
+        unsafe {
+            core::arch::asm!(
                 fence!($barrier, arm),
                 "strb [{ptr}], {val:w}",
                 fence!($barrier, arm),
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
                 options(preserves_flags, nostack)
-            ) };
-            return;
-        }
-
-        #[expect(unreachable_code)]
-        const {
-            panic!("Unexpected arch")
+            );
         }
     };
     (u16, $ptr: ident, $val: ident, $barrier: tt) => {
+        // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
+        let ptr = unsafe { &mut *$ptr.as_ptr() };
+
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        {
-            // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
-            let ptr = unsafe { &mut *$ptr.as_ptr() };
-            unsafe { core::arch::asm!(
+        unsafe {
+            core::arch::asm!(
                 "mov [{ptr}], {val:x}",
                 fence!($barrier, x86),
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
                 options(preserves_flags, nostack)
-            ) };
-            return;
+            );
         }
 
         #[cfg(target_arch = "aarch64")]
-        {
-            // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
-            let ptr = unsafe { &mut *$ptr.as_ptr() };
-            unsafe { core::arch::asm!(
+        unsafe {
+            core::arch::asm!(
                 fence!($barrier, aarch64),
                 "strh [{ptr}], {val:w}",
                 fence!($barrier, aarch64),
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
                 options(preserves_flags, nostack)
-            ) };
-            return;
+            );
         }
 
         #[cfg(target_arch = "arm")]
-        {
-            // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
-            let ptr = unsafe { &mut *$ptr.as_ptr() };
-            unsafe { core::arch::asm!(
+        unsafe {
+            core::arch::asm!(
                 fence!($barrier, arm),
                 "strh [{ptr}], {val:w}",
                 fence!($barrier, arm),
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
                 options(preserves_flags, nostack)
-            ) };
-            return;
-        }
-
-        #[expect(unreachable_code)]
-        const {
-            panic!("Unexpected arch")
+            );
         }
     };
     (u32, $ptr: ident, $val: ident, $barrier: tt) => {
+        // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
+        let ptr = unsafe { &mut *$ptr.as_ptr() };
+
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        {
-            // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
-            let ptr = unsafe { &mut *$ptr.as_ptr() };
-            unsafe { core::arch::asm!(
+        unsafe {
+            core::arch::asm!(
                 "mov [{ptr}], {val:e}",
                 fence!($barrier, x86),
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
                 options(preserves_flags, nostack)
-            ) };
-            return;
+            );
         }
 
         #[cfg(target_arch = "aarch64")]
-        {
-            // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
-            let ptr = unsafe { &mut *$ptr.as_ptr() };
-            unsafe { core::arch::asm!(
+        unsafe {
+            core::arch::asm!(
                 fence!($barrier, aarch64),
                 "str [{ptr}], {val:w}",
                 fence!($barrier, aarch64),
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
                 options(preserves_flags, nostack)
-            ) };
-            return;
+            );
         }
 
         #[cfg(target_arch = "arm")]
-        {
-            // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
-            let ptr = unsafe { &mut *$ptr.as_ptr() };
-            unsafe { core::arch::asm!(
+        unsafe {
+            core::arch::asm!(
                 fence!($barrier, arm),
                 "str [{ptr}], {val:w}",
                 fence!($barrier, arm),
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
                 options(preserves_flags, nostack)
-            ) };
-            return;
-        }
-
-        #[expect(unreachable_code)]
-        const {
-            panic!("Unexpected arch")
+            );
         }
     };
     (u64, $ptr: ident, $val: ident, $barrier: tt) => {
+        // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
+        let ptr = unsafe { &mut *$ptr.as_ptr() };
+
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        {
-            // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
-            let ptr = unsafe { &mut *$ptr.as_ptr() };
-            unsafe { core::arch::asm!(
+        unsafe {
+            core::arch::asm!(
                 "mov [{ptr}], {val:x}",
                 fence!($barrier, x86),
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
                 options(preserves_flags, nostack)
-            ) };
-            return;
+            );
         }
 
         #[cfg(target_arch = "aarch64")]
-        {
-            // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
-            let ptr = unsafe { &mut *$ptr.as_ptr() };
-            unsafe { core::arch::asm!(
+        unsafe {
+            core::arch::asm!(
                 fence!($barrier, aarch64),
                 "str [{ptr}], {val:x}",
                 fence!($barrier, aarch64),
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
                 options(preserves_flags, nostack)
-            ) };
-            return;
+            );
         }
 
         #[cfg(target_arch = "arm")]
         {
-            // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
-            let ptr = unsafe { &mut *$ptr.as_ptr() };
-            unsafe { core::arch::asm!(
-                fence!($barrier, arm),
-                "str [{ptr}], {val:x}",
-                fence!($barrier, arm),
-                ptr = in(reg) ptr,
-                val = in(reg) $val,
-                options(preserves_flags, nostack)
-            ) };
-            return;
-        }
-
-        #[expect(unreachable_code)]
-        const {
-            panic!("Unexpected arch")
+            const { panic!("Unexpected size") }
         }
     };
 }
