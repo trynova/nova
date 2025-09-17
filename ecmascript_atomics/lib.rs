@@ -362,7 +362,7 @@ macro_rules! gen_exchange {
                 "stxr {scratch:w}, {val:w}, [{ptr}]",
                 "cbnz {scratch:w}, 0b",
                 "dmb ish",
-                res = lateout(reg) res,
+                res = out(reg) res,
                 scratch = out(reg) _,
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
@@ -382,31 +382,13 @@ macro_rules! gen_exchange {
                 "cmp {scratch:w}, #1",
                 "beq 0b",
                 "dmb sy",
-                res = lateout(reg) res,
+                res = out(reg) res,
                 scratch = out(reg) _,
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
                 options(nostack)
             );
             $val = res;
-            //     insns += fmt_insn("cmp %[scratch], #1")
-            //     insns += fmt_insn("beq 0b")
-            //     insns += fmt_insn("dmb sy")
-            //     return """
-            //         INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr, %(cpp_type)s val) {
-            //             %(cpp_type)s res;
-            //             uint32_t scratch;
-            //             asm volatile (%(insns)s
-            //                 : [res] "=&r"(res), [scratch] "=&r"(scratch)
-            //                 : [addr] "r" (addr), [val] "r"(val)
-            //                 : "memory", "cc");
-            //             return res;
-            //         }""" % {
-            //         "cpp_type": cpp_type,
-            //         "fun_name": fun_name,
-            //         "insns": insns,
-            //     }
-            todo!();
         }
 
         return $val;
@@ -435,52 +417,33 @@ macro_rules! gen_exchange {
                 "stxr {scratch:w}, {val:w}, [{ptr}]",
                 "cbnz {scratch:w}, 0b",
                 "dmb ish",
-                res = lateout(reg) res,
+                res = out(reg) res,
                 scratch = out(reg) _,
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
                 options(nostack)
             );
             $val = res;
-            //         insns += fmt_insn("ldxrh %w[res], [%x[addr]]")
-            //         insns += fmt_insn("stxrh %w[scratch], %w[val], [%x[addr]]")
-            //     insns += fmt_insn("cbnz %w[scratch], 0b")
-            //     insns += fmt_insn("dmb ish")
         }
 
         #[cfg(target_arch = "arm")]
-        {
-            //     insns = ""
-            //     insns += fmt_insn("dmb sy")
-            //     insns += fmt_insn("0:")
-            //     if size == 8:
-            //         insns += fmt_insn("ldrexb %[res], [%[addr]]")
-            //         insns += fmt_insn("strexb %[scratch], %[val], [%[addr]]")
-            //     elif size == 16:
-            //         insns += fmt_insn("ldrexh %[res], [%[addr]]")
-            //         insns += fmt_insn("strexh %[scratch], %[val], [%[addr]]")
-            //     else:
-            //         assert size == 32
-            //         insns += fmt_insn("ldrex %[res], [%[addr]]")
-            //         insns += fmt_insn("strex %[scratch], %[val], [%[addr]]")
-            //     insns += fmt_insn("cmp %[scratch], #1")
-            //     insns += fmt_insn("beq 0b")
-            //     insns += fmt_insn("dmb sy")
-            //     return """
-            //         INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr, %(cpp_type)s val) {
-            //             %(cpp_type)s res;
-            //             uint32_t scratch;
-            //             asm volatile (%(insns)s
-            //                 : [res] "=&r"(res), [scratch] "=&r"(scratch)
-            //                 : [addr] "r" (addr), [val] "r"(val)
-            //                 : "memory", "cc");
-            //             return res;
-            //         }""" % {
-            //         "cpp_type": cpp_type,
-            //         "fun_name": fun_name,
-            //         "insns": insns,
-            //     }
-            todo!();
+        unsafe {
+            let res: u8;
+            core::arch::asm!(
+                "dmb sy",
+                "0:",
+                "ldrex {res:w}, [{ptr}]",
+                "strex {scratch:w}, {val:w}, [{ptr}]",
+                "cmp {scratch:w}, #1",
+                "beq 0b",
+                "dmb sy",
+                res = out(reg) res,
+                scratch = out(reg) _,
+                ptr = in(reg) ptr,
+                val = in(reg) $val,
+                options(nostack)
+            );
+            $val = res;
         }
 
         return $val;
@@ -509,51 +472,33 @@ macro_rules! gen_exchange {
                 "stxr {scratch:w}, {val:w}, [{ptr}]",
                 "cbnz {scratch:w}, 0b",
                 "dmb ish",
-                res = lateout(reg) res,
+                res = out(reg) res,
                 scratch = out(reg) _,
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
                 options(nostack)
             );
             $val = res;
-            //     elif size == 32:
-            //         insns += fmt_insn("ldxr %w[res], [%x[addr]]")
-            //         insns += fmt_insn("stxr %w[scratch], %w[val], [%x[addr]]")
         }
 
         #[cfg(target_arch = "arm")]
-        {
-            //     insns = ""
-            //     insns += fmt_insn("dmb sy")
-            //     insns += fmt_insn("0:")
-            //     if size == 8:
-            //         insns += fmt_insn("ldrexb %[res], [%[addr]]")
-            //         insns += fmt_insn("strexb %[scratch], %[val], [%[addr]]")
-            //     elif size == 16:
-            //         insns += fmt_insn("ldrexh %[res], [%[addr]]")
-            //         insns += fmt_insn("strexh %[scratch], %[val], [%[addr]]")
-            //     else:
-            //         assert size == 32
-            //         insns += fmt_insn("ldrex %[res], [%[addr]]")
-            //         insns += fmt_insn("strex %[scratch], %[val], [%[addr]]")
-            //     insns += fmt_insn("cmp %[scratch], #1")
-            //     insns += fmt_insn("beq 0b")
-            //     insns += fmt_insn("dmb sy")
-            //     return """
-            //         INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr, %(cpp_type)s val) {
-            //             %(cpp_type)s res;
-            //             uint32_t scratch;
-            //             asm volatile (%(insns)s
-            //                 : [res] "=&r"(res), [scratch] "=&r"(scratch)
-            //                 : [addr] "r" (addr), [val] "r"(val)
-            //                 : "memory", "cc");
-            //             return res;
-            //         }""" % {
-            //         "cpp_type": cpp_type,
-            //         "fun_name": fun_name,
-            //         "insns": insns,
-            //     }
-            todo!();
+        unsafe {
+            let res: u8;
+            core::arch::asm!(
+                "dmb sy",
+                "0:",
+                "ldrex {res:w}, [{ptr}]",
+                "strex {scratch:w}, {val:w}, [{ptr}]",
+                "cmp {scratch:w}, #1",
+                "beq 0b",
+                "dmb sy",
+                res = out(reg) res,
+                scratch = out(reg) _,
+                ptr = in(reg) ptr,
+                val = in(reg) $val,
+                options(nostack)
+            );
+            $val = res;
         }
 
         return $val;
@@ -579,56 +524,21 @@ macro_rules! gen_exchange {
                 "dmb ish",
                 "0:",
                 "ldxr {res:x}, [{ptr}]",
-                "stxr {scratch:x}, {val:x}, [{ptr}]",
-                "cbnz {scratch:x}, 0b",
+                "stxr {scratch:w}, {val:x}, [{ptr}]",
+                "cbnz {scratch:w}, 0b",
                 "dmb ish",
-                res = lateout(reg) res,
+                res = out(reg) res,
                 scratch = out(reg) _,
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
                 options(nostack)
             );
             $val = res;
-            //         assert size == 64
-            //         insns += fmt_insn("ldxr %x[res], [%x[addr]]")
-            //         insns += fmt_insn("stxr %w[scratch], %x[val], [%x[addr]]")
-            //     insns += fmt_insn("cbnz %w[scratch], 0b")
-            //     insns += fmt_insn("dmb ish")
         }
 
         #[cfg(target_arch = "arm")]
         {
-            //     insns = ""
-            //     insns += fmt_insn("dmb sy")
-            //     insns += fmt_insn("0:")
-            //     if size == 8:
-            //         insns += fmt_insn("ldrexb %[res], [%[addr]]")
-            //         insns += fmt_insn("strexb %[scratch], %[val], [%[addr]]")
-            //     elif size == 16:
-            //         insns += fmt_insn("ldrexh %[res], [%[addr]]")
-            //         insns += fmt_insn("strexh %[scratch], %[val], [%[addr]]")
-            //     else:
-            //         assert size == 32
-            //         insns += fmt_insn("ldrex %[res], [%[addr]]")
-            //         insns += fmt_insn("strex %[scratch], %[val], [%[addr]]")
-            //     insns += fmt_insn("cmp %[scratch], #1")
-            //     insns += fmt_insn("beq 0b")
-            //     insns += fmt_insn("dmb sy")
-            //     return """
-            //         INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr, %(cpp_type)s val) {
-            //             %(cpp_type)s res;
-            //             uint32_t scratch;
-            //             asm volatile (%(insns)s
-            //                 : [res] "=&r"(res), [scratch] "=&r"(scratch)
-            //                 : [addr] "r" (addr), [val] "r"(val)
-            //                 : "memory", "cc");
-            //             return res;
-            //         }""" % {
-            //         "cpp_type": cpp_type,
-            //         "fun_name": fun_name,
-            //         "insns": insns,
-            //     }
-            todo!();
+            const { panic!("Unexpected size") }
         }
 
         return $val;
