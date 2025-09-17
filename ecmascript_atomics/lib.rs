@@ -1215,7 +1215,7 @@ pub fn atomic_add_64_seq_cst() {
     gen_fetchop!(u64, 64, "add");
 }
 
-// `and` bitwise-ands a value atomically into the cell and returns the old value
+// `and` bitwise-and a value atomically into the cell and returns the old value
 // in the cell.
 #[inline(always)]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64"))]
