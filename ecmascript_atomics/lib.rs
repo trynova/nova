@@ -353,40 +353,22 @@ macro_rules! gen_exchange {
         }
 
         #[cfg(target_arch = "aarch64")]
-        {
-            //     insns = ""
-            //     insns += fmt_insn("dmb ish")
-            //     insns += fmt_insn("0:")
-            //     if size == 8:
-            //         insns += fmt_insn("ldxrb %w[res], [%x[addr]]")
-            //         insns += fmt_insn("stxrb %w[scratch], %w[val], [%x[addr]]")
-            //     elif size == 16:
-            //         insns += fmt_insn("ldxrh %w[res], [%x[addr]]")
-            //         insns += fmt_insn("stxrh %w[scratch], %w[val], [%x[addr]]")
-            //     elif size == 32:
-            //         insns += fmt_insn("ldxr %w[res], [%x[addr]]")
-            //         insns += fmt_insn("stxr %w[scratch], %w[val], [%x[addr]]")
-            //     else:
-            //         assert size == 64
-            //         insns += fmt_insn("ldxr %x[res], [%x[addr]]")
-            //         insns += fmt_insn("stxr %w[scratch], %x[val], [%x[addr]]")
-            //     insns += fmt_insn("cbnz %w[scratch], 0b")
-            //     insns += fmt_insn("dmb ish")
-            //     return """
-            //         INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr, %(cpp_type)s val) {
-            //             %(cpp_type)s res;
-            //             uint32_t scratch;
-            //             asm volatile (%(insns)s
-            //                 : [res] "=&r"(res), [scratch] "=&r"(scratch)
-            //                 : [addr] "r" (addr), [val] "r"(val)
-            //                 : "memory", "cc");
-            //             return res;
-            //         }""" % {
-            //         "cpp_type": cpp_type,
-            //         "fun_name": fun_name,
-            //         "insns": insns,
-            //     }
-            todo!();
+        unsafe {
+            let res: u8;
+            core::arch::asm!(
+                "dmb ish",
+                "0:",
+                "ldxr {res:w} [{ptr}]",
+                "stxr {scratch:w}, {val:w}, [{ptr}]",
+                "cnz {scratch:w}, 0b",
+                "dmb ish",
+                ptr = in(reg) ptr,
+                val = in(reg) $val,
+                res = lateout(reg) res,
+                scratch = lateout(reg) _,
+                options(nostack)
+            );
+            $val = res;
         }
 
         #[cfg(target_arch = "arm")]
@@ -441,40 +423,26 @@ macro_rules! gen_exchange {
         }
 
         #[cfg(target_arch = "aarch64")]
-        {
-            //     insns = ""
-            //     insns += fmt_insn("dmb ish")
-            //     insns += fmt_insn("0:")
-            //     if size == 8:
-            //         insns += fmt_insn("ldxrb %w[res], [%x[addr]]")
-            //         insns += fmt_insn("stxrb %w[scratch], %w[val], [%x[addr]]")
-            //     elif size == 16:
+        unsafe {
+            let res: u16;
+            core::arch::asm!(
+                "dmb ish",
+                "0:",
+                "ldxr {res:w} [{ptr}]",
+                "stxr {scratch:w}, {val:w}, [{ptr}]",
+                "cnz {scratch:w}, 0b",
+                "dmb ish",
+                ptr = in(reg) ptr,
+                val = in(reg) $val,
+                res = lateout(reg) res,
+                scratch = lateout(reg) _,
+                options(nostack)
+            );
+            $val = res;
             //         insns += fmt_insn("ldxrh %w[res], [%x[addr]]")
             //         insns += fmt_insn("stxrh %w[scratch], %w[val], [%x[addr]]")
-            //     elif size == 32:
-            //         insns += fmt_insn("ldxr %w[res], [%x[addr]]")
-            //         insns += fmt_insn("stxr %w[scratch], %w[val], [%x[addr]]")
-            //     else:
-            //         assert size == 64
-            //         insns += fmt_insn("ldxr %x[res], [%x[addr]]")
-            //         insns += fmt_insn("stxr %w[scratch], %x[val], [%x[addr]]")
             //     insns += fmt_insn("cbnz %w[scratch], 0b")
             //     insns += fmt_insn("dmb ish")
-            //     return """
-            //         INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr, %(cpp_type)s val) {
-            //             %(cpp_type)s res;
-            //             uint32_t scratch;
-            //             asm volatile (%(insns)s
-            //                 : [res] "=&r"(res), [scratch] "=&r"(scratch)
-            //                 : [addr] "r" (addr), [val] "r"(val)
-            //                 : "memory", "cc");
-            //             return res;
-            //         }""" % {
-            //         "cpp_type": cpp_type,
-            //         "fun_name": fun_name,
-            //         "insns": insns,
-            //     }
-            todo!();
         }
 
         #[cfg(target_arch = "arm")]
@@ -529,40 +497,25 @@ macro_rules! gen_exchange {
         }
 
         #[cfg(target_arch = "aarch64")]
-        {
-            //     insns = ""
-            //     insns += fmt_insn("dmb ish")
-            //     insns += fmt_insn("0:")
-            //     if size == 8:
-            //         insns += fmt_insn("ldxrb %w[res], [%x[addr]]")
-            //         insns += fmt_insn("stxrb %w[scratch], %w[val], [%x[addr]]")
-            //     elif size == 16:
-            //         insns += fmt_insn("ldxrh %w[res], [%x[addr]]")
-            //         insns += fmt_insn("stxrh %w[scratch], %w[val], [%x[addr]]")
+        unsafe {
+            let res: u32;
+            core::arch::asm!(
+                "dmb ish",
+                "0:",
+                "ldxr {res:w} [{ptr}]",
+                "stxr {scratch:w}, {val:w}, [{ptr}]",
+                "cnz {scratch:w}, 0b",
+                "dmb ish",
+                ptr = in(reg) ptr,
+                val = in(reg) $val,
+                res = lateout(reg) res,
+                scratch = lateout(reg) _,
+                options(nostack)
+            );
+            $val = res;
             //     elif size == 32:
             //         insns += fmt_insn("ldxr %w[res], [%x[addr]]")
             //         insns += fmt_insn("stxr %w[scratch], %w[val], [%x[addr]]")
-            //     else:
-            //         assert size == 64
-            //         insns += fmt_insn("ldxr %x[res], [%x[addr]]")
-            //         insns += fmt_insn("stxr %w[scratch], %x[val], [%x[addr]]")
-            //     insns += fmt_insn("cbnz %w[scratch], 0b")
-            //     insns += fmt_insn("dmb ish")
-            //     return """
-            //         INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr, %(cpp_type)s val) {
-            //             %(cpp_type)s res;
-            //             uint32_t scratch;
-            //             asm volatile (%(insns)s
-            //                 : [res] "=&r"(res), [scratch] "=&r"(scratch)
-            //                 : [addr] "r" (addr), [val] "r"(val)
-            //                 : "memory", "cc");
-            //             return res;
-            //         }""" % {
-            //         "cpp_type": cpp_type,
-            //         "fun_name": fun_name,
-            //         "insns": insns,
-            //     }
-            todo!();
         }
 
         #[cfg(target_arch = "arm")]
@@ -617,40 +570,27 @@ macro_rules! gen_exchange {
         }
 
         #[cfg(target_arch = "aarch64")]
-        {
-            //     insns = ""
-            //     insns += fmt_insn("dmb ish")
-            //     insns += fmt_insn("0:")
-            //     if size == 8:
-            //         insns += fmt_insn("ldxrb %w[res], [%x[addr]]")
-            //         insns += fmt_insn("stxrb %w[scratch], %w[val], [%x[addr]]")
-            //     elif size == 16:
-            //         insns += fmt_insn("ldxrh %w[res], [%x[addr]]")
-            //         insns += fmt_insn("stxrh %w[scratch], %w[val], [%x[addr]]")
-            //     elif size == 32:
-            //         insns += fmt_insn("ldxr %w[res], [%x[addr]]")
-            //         insns += fmt_insn("stxr %w[scratch], %w[val], [%x[addr]]")
-            //     else:
+        unsafe {
+            let res: u64;
+            core::arch::asm!(
+                "dmb ish",
+                "0:",
+                "ldxr {res:x} [{ptr}]",
+                "stxr {scratch:x}, {val:x}, [{ptr}]",
+                "cnz {scratch:x}, 0b",
+                "dmb ish",
+                ptr = in(reg) ptr,
+                val = in(reg) $val,
+                res = lateout(reg) res,
+                scratch = lateout(reg) _,
+                options(nostack)
+            );
+            $val = res;
             //         assert size == 64
             //         insns += fmt_insn("ldxr %x[res], [%x[addr]]")
             //         insns += fmt_insn("stxr %w[scratch], %x[val], [%x[addr]]")
             //     insns += fmt_insn("cbnz %w[scratch], 0b")
             //     insns += fmt_insn("dmb ish")
-            //     return """
-            //         INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr, %(cpp_type)s val) {
-            //             %(cpp_type)s res;
-            //             uint32_t scratch;
-            //             asm volatile (%(insns)s
-            //                 : [res] "=&r"(res), [scratch] "=&r"(scratch)
-            //                 : [addr] "r" (addr), [val] "r"(val)
-            //                 : "memory", "cc");
-            //             return res;
-            //         }""" % {
-            //         "cpp_type": cpp_type,
-            //         "fun_name": fun_name,
-            //         "insns": insns,
-            //     }
-            todo!();
         }
 
         #[cfg(target_arch = "arm")]
