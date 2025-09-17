@@ -262,7 +262,7 @@ macro_rules! gen_store {
                 "strb [{ptr}], {val:w}",
                 fence!($barrier, aarch64),
                 ptr = in(reg) ptr,
-                val = in(reg) val,
+                val = in(reg) $val,
                 options(preserves_flags, nostack)
             ) };
             return;
@@ -284,7 +284,7 @@ macro_rules! gen_store {
                 "strb [{ptr}], {val:w}",
                 fence!($barrier, arm),
                 ptr = in(reg) ptr,
-                val = in(reg) val,
+                val = in(reg) $val,
                 options(preserves_flags, nostack)
             ) };
             return;
@@ -319,7 +319,7 @@ macro_rules! gen_store {
                 "strh [{ptr}], {val:w}",
                 fence!($barrier, aarch64),
                 ptr = in(reg) ptr,
-                val = in(reg) val,
+                val = in(reg) $val,
                 options(preserves_flags, nostack)
             ) };
             return;
@@ -334,7 +334,7 @@ macro_rules! gen_store {
                 "strh [{ptr}], {val:w}",
                 fence!($barrier, arm),
                 ptr = in(reg) ptr,
-                val = in(reg) val,
+                val = in(reg) $val,
                 options(preserves_flags, nostack)
             ) };
             return;
@@ -369,7 +369,7 @@ macro_rules! gen_store {
                 "str [{ptr}], {val:w}",
                 fence!($barrier, aarch64),
                 ptr = in(reg) ptr,
-                val = in(reg) val,
+                val = in(reg) $val,
                 options(preserves_flags, nostack)
             ) };
             return;
@@ -384,7 +384,7 @@ macro_rules! gen_store {
                 "str [{ptr}], {val:w}",
                 fence!($barrier, arm),
                 ptr = in(reg) ptr,
-                val = in(reg) val,
+                val = in(reg) $val,
                 options(preserves_flags, nostack)
             ) };
             return;
@@ -419,7 +419,7 @@ macro_rules! gen_store {
                 "str [{ptr}], {val:x}",
                 fence!($barrier, aarch64),
                 ptr = in(reg) ptr,
-                val = in(reg) val,
+                val = in(reg) $val,
                 options(preserves_flags, nostack)
             ) };
             return;
@@ -434,7 +434,7 @@ macro_rules! gen_store {
                 "str [{ptr}], {val:x}",
                 fence!($barrier, arm),
                 ptr = in(reg) ptr,
-                val = in(reg) val,
+                val = in(reg) $val,
                 options(preserves_flags, nostack)
             ) };
             return;
