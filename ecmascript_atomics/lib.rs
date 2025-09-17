@@ -358,14 +358,14 @@ macro_rules! gen_exchange {
             core::arch::asm!(
                 "dmb ish",
                 "0:",
-                "ldxr {res:w} [{ptr}]",
+                "ldxr {res:w}, [{ptr}]",
                 "stxr {scratch:w}, {val:w}, [{ptr}]",
-                "cnz {scratch:w}, 0b",
+                "cbnz {scratch:w}, 0b",
                 "dmb ish",
-                ptr = in(reg) ptr,
-                val = in(reg) $val,
                 res = lateout(reg) res,
                 scratch = lateout(reg) _,
+                ptr = in(reg) ptr,
+                val = in(reg) $val,
                 options(nostack)
             );
             $val = res;
@@ -428,14 +428,14 @@ macro_rules! gen_exchange {
             core::arch::asm!(
                 "dmb ish",
                 "0:",
-                "ldxr {res:w} [{ptr}]",
+                "ldxr {res:w}, [{ptr}]",
                 "stxr {scratch:w}, {val:w}, [{ptr}]",
-                "cnz {scratch:w}, 0b",
+                "cbnz {scratch:w}, 0b",
                 "dmb ish",
-                ptr = in(reg) ptr,
-                val = in(reg) $val,
                 res = lateout(reg) res,
                 scratch = lateout(reg) _,
+                ptr = in(reg) ptr,
+                val = in(reg) $val,
                 options(nostack)
             );
             $val = res;
@@ -502,14 +502,14 @@ macro_rules! gen_exchange {
             core::arch::asm!(
                 "dmb ish",
                 "0:",
-                "ldxr {res:w} [{ptr}]",
+                "ldxr {res:w}, [{ptr}]",
                 "stxr {scratch:w}, {val:w}, [{ptr}]",
-                "cnz {scratch:w}, 0b",
+                "cbnz {scratch:w}, 0b",
                 "dmb ish",
-                ptr = in(reg) ptr,
-                val = in(reg) $val,
                 res = lateout(reg) res,
                 scratch = lateout(reg) _,
+                ptr = in(reg) ptr,
+                val = in(reg) $val,
                 options(nostack)
             );
             $val = res;
@@ -575,14 +575,14 @@ macro_rules! gen_exchange {
             core::arch::asm!(
                 "dmb ish",
                 "0:",
-                "ldxr {res:x} [{ptr}]",
+                "ldxr {res:x}, [{ptr}]",
                 "stxr {scratch:x}, {val:x}, [{ptr}]",
-                "cnz {scratch:x}, 0b",
+                "cbnz {scratch:x}, 0b",
                 "dmb ish",
-                ptr = in(reg) ptr,
-                val = in(reg) $val,
                 res = lateout(reg) res,
                 scratch = lateout(reg) _,
+                ptr = in(reg) ptr,
+                val = in(reg) $val,
                 options(nostack)
             );
             $val = res;
