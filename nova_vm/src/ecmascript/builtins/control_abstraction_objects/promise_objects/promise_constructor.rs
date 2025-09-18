@@ -260,26 +260,28 @@ impl PromiseConstructor {
                 gc.into_nogc(),
             ));
         };
+        let constructor = constructor.scope(agent, gc.nogc());
         let promise_capability = PromiseCapability::new(agent, gc.nogc());
         let promise = promise_capability.promise().scope(agent, gc.nogc());
 
         // 3. Let promiseResolve be Completion(GetPromiseResolve(C)).
-        let promise_resolve = get_promise_resolve(agent, constructor.unbind(), gc.reborrow());
+        let promise_resolve = get_promise_resolve(agent, constructor.get(agent), gc.reborrow());
 
         // 4. IfAbruptRejectPromise(promiseResolve, promiseCapability).
         let promise_capability = PromiseCapability {
-            promise: promise.get(agent).bind(gc.nogc()),
+            promise: promise.get(agent),
             must_be_unresolved: true,
         };
         let promise_resolve =
             if_abrupt_reject_promise_m!(agent, promise_resolve, promise_capability, gc);
+        let promise_resolve = promise_resolve.scope(agent, gc.nogc());
 
         // 5. Let iteratorRecord be Completion(GetIterator(iterable, sync)).
         let iterator_record = get_iterator(agent, iterable.get(agent), false, gc.reborrow());
 
         // 6. IfAbruptRejectPromise(iteratorRecord, promiseCapability).
         let promise_capability = PromiseCapability {
-            promise: promise.get(agent).bind(gc.nogc()),
+            promise: promise.get(agent),
             must_be_unresolved: true,
         };
         let iterator_record =
@@ -310,14 +312,16 @@ impl PromiseConstructor {
         let result_array = array_create(agent, 0, capacity as usize, None, gc.nogc())
             .unbind()?
             .bind(gc.nogc());
+        let result_array = result_array.scope(agent, gc.nogc());
 
         //     2. Let remainingElementsCount be the Record { [[Value]]: 1 }.
-        let mut promise_all = PromiseAllRecord {
+        let promise_all = PromiseAllRecord {
             remaining_elements_count: 1,
-            result_array: result_array.unbind(),
+            result_array: result_array.get(agent),
             promise: promise.get(agent),
         }
         .bind(gc.nogc());
+
         let promise_all_reference = agent
             .heap
             .create(promise_all.unbind())
@@ -348,15 +352,15 @@ impl PromiseConstructor {
             };
 
             // c. Append undefined to values.
-            result_array.reserve(agent, 1);
+            result_array.get(agent).reserve(agent, 1);
             // SAFETY: reserve did not fail.
-            unsafe { result_array.set_len(agent, index + 1) };
+            unsafe { result_array.get(agent).set_len(agent, index + 1) };
 
             // d. Let nextPromise be ? Call(promiseResolve, constructor, « next »).
             let next_promise = call_function(
                 agent,
-                promise_resolve.unbind(),
-                constructor.into_value().unbind(),
+                promise_resolve.get(agent),
+                constructor.get(agent).into_value(),
                 Some(ArgumentsList::from_mut_value(&mut next.unbind())),
                 gc.reborrow(),
             );
@@ -380,8 +384,12 @@ impl PromiseConstructor {
             // m. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] + 1.
             // n. Perform ? Invoke(nextPromise, "then", « onFulfilled, resultCapability.[[Reject]] »).
             // o. Set index to index + 1.
+            let capability = PromiseCapability {
+                promise: next_promise.unbind(),
+                must_be_unresolved: true,
+            };
 
-            let capability = PromiseCapability::new(agent, gc.nogc());
+            // let capability = PromiseCapability::new(agent, gc.nogc());
             inner_promise_then(
                 agent,
                 next_promise.unbind(),
@@ -402,7 +410,8 @@ impl PromiseConstructor {
             // promise_all_record.remaining_unresolved_promise_count = index;
 
             index += 1;
-            promise_all.remaining_elements_count = index;
+            let promise_all = promise_all_reference.get(agent);
+            promise_all.get_mut(agent).remaining_elements_count = index;
         }
 
         // 8. If result is an abrupt completion, then
