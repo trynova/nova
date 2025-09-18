@@ -546,193 +546,305 @@ macro_rules! gen_exchange {
 }
 
 macro_rules! gen_cmpxchg {
-    ($type: ty) => {
+    (u8, $ptr: ident, $old_val: ident, $new_val: ident) => {
+        // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
+        let ptr = unsafe { &mut *$ptr.as_ptr() };
+
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        {
-            todo!();
+        unsafe {
+            core::arch::asm!(
+                "lock; cmpxchg [{ptr}], {new_val}",
+                // Load old_val into RAX as input/output register
+                inout("al") $old_val,
+                ptr = in(reg) ptr,
+                new_val = in(reg_byte) $new_val,
+                options(nostack)
+            );
         }
 
         #[cfg(target_arch = "aarch64")]
-        {
-            todo!();
+        unsafe {
+            let res: u8;
+            core::arch::asm!(
+                "dmb ish",
+                "0:",
+                "uxt {scratch:w}, {old_val:w}",
+                "ldxr {res:w} [{ptr}]",
+                "cmp {res:w}, {scratch:w}",
+                "b.ne 1f",
+                "stxr {scratch:w}, {new_val:w}, [{ptr}]",
+                "cbnz {scratch:w}, 0b",
+                "1: dmb ish",
+                res = out(reg) res,
+                scratch = out(reg) _,
+                ptr = in(reg) ptr,
+                old_val = in(reg) $old_val,
+                new_val = in(reg) $new_val,
+                options(nostack)
+            );
+            $old_val = res;
         }
 
         #[cfg(target_arch = "arm")]
         {
-            todo!();
+            let res: u8;
+            core::arch::asm!(
+                "dmb sy",
+                "0:",
+                "uxt {scratch:w}, {old_val:w}",
+                "ldrex {res:w} [{ptr}]",
+                "cmp {res:w}, {scratch:w}",
+                "bne 1f",
+                "strex {scratch:w}, {new_val:w}, [{ptr}]",
+                "cmp {scratch:w}, #1",
+                "beq 0b",
+                "1: dmb sy",
+                res = out(reg) res,
+                scratch = out(reg) _,
+                ptr = in(reg) ptr,
+                old_val = in(reg) $old_val,
+                new_val = in(reg) $new_val,
+                options(nostack)
+            );
+            $old_val = res;
         }
 
-        #[expect(unreachable_code)]
-        const {
-            panic!("Unexpected arch")
+        return $old_val;
+    };
+    (u16, $ptr: ident, $old_val: ident, $new_val: ident) => {
+        // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
+        let ptr = unsafe { &mut *$ptr.as_ptr() };
+
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        unsafe {
+            core::arch::asm!(
+                "lock; cmpxchg [{ptr}], {new_val:x}",
+                // Load old_val into RAX as input/output register
+                inout("ax") $old_val,
+                ptr = in(reg) ptr,
+                new_val = in(reg) $new_val,
+                options(nostack)
+            );
         }
-        // NOTE: the assembly code must match the generated code in:
-        // - MacroAssembler::compareExchange
-        // - MacroAssembler::compareExchange64
-        // if cpu_arch == "x86" and size == 64:
-        //     // Use a +A constraint to load `oldval` into EDX:EAX as input/output.
-        //     // `newval` is loaded into ECX:EBX.
-        //     return r"""
-        //         INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr,
-        //                                          %(cpp_type)s oldval,
-        //                                          %(cpp_type)s newval) {
-        //             asm volatile ("lock; cmpxchg8b (%%[addr])\n\t"
-        //             : "+A" (oldval)
-        //             : [addr] "r" (addr),
-        //               "b" (uint32_t(newval & 0xffff'ffff)),
-        //               "c" (uint32_t(newval >> 32))
-        //             : "memory", "cc");
-        //             return oldval;
-        //         }""" % {
-        //         "cpp_type": cpp_type,
-        //         "fun_name": fun_name,
-        //     }
-        // if cpu_arch == "arm" and size == 64:
-        //     return r"""
-        //         INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr,
-        //                                          %(cpp_type)s oldval,
-        //                                          %(cpp_type)s newval) {
-        //             uint32_t oldval0 = oldval & 0xffff'ffff;
-        //             uint32_t oldval1 = oldval >> 32;
-        //             uint32_t newval0 = newval & 0xffff'ffff;
-        //             uint32_t newval1 = newval >> 32;
-        //             asm volatile (
-        //                 "dmb sy\n\t"
-        //                 "0: ldrexd r0, r1, [%%[addr]]\n\t"
-        //                 "cmp r0, %%[oldval0]\n\t"
-        //                 "bne 1f\n\t"
-        //                 "cmp r1, %%[oldval1]\n\t"
-        //                 "bne 1f\n\t"
-        //                 "mov r2, %%[newval0]\n\t"
-        //                 "mov r3, %%[newval1]\n\t"
-        //                 "strexd r4, r2, r3, [%%[addr]]\n\t"
-        //                 "cmp r4, #1\n\t"
-        //                 "beq 0b\n\t"
-        //                 "1: dmb sy\n\t"
-        //                 "mov %%[oldval0], r0\n\t"
-        //                 "mov %%[oldval1], r1\n\t"
-        //                 : [oldval0] "+&r" (oldval0), [oldval1] "+&r"(oldval1)
-        //                 : [addr] "r" (addr), [newval0] "r" (newval0), [newval1] "r" (newval1)
-        //                 : "memory", "cc", "r0", "r1", "r2", "r3", "r4");
-        //             return uint64_t(oldval0) | (uint64_t(oldval1) << 32);
-        //         }""" % {
-        //         "cpp_type": cpp_type,
-        //         "fun_name": fun_name,
-        //     }
-        // if cpu_arch in ("x86", "x86_64"):
-        //     // Use a +a constraint to load `oldval` into RAX as input/output register.
-        //     insns = ""
-        //     if size == 8:
-        //         insns += fmt_insn("lock; cmpxchgb %[newval], (%[addr])")
-        //     elif size == 16:
-        //         insns += fmt_insn("lock; cmpxchgw %[newval], (%[addr])")
-        //     elif size == 32:
-        //         insns += fmt_insn("lock; cmpxchgl %[newval], (%[addr])")
-        //     else:
-        //         assert size == 64
-        //         insns += fmt_insn("lock; cmpxchgq %[newval], (%[addr])")
-        //     return """
-        //         INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr,
-        //                                          %(cpp_type)s oldval,
-        //                                          %(cpp_type)s newval) {
-        //             asm volatile (%(insns)s
-        //                 : [oldval] "+a" (oldval)
-        //                 : [addr] "r" (addr), [newval] "r" (newval)
-        //                 : "memory", "cc");
-        //             return oldval;
-        //         }""" % {
-        //         "cpp_type": cpp_type,
-        //         "fun_name": fun_name,
-        //         "insns": insns,
-        //     }
-        // if cpu_arch == "aarch64":
-        //     insns = ""
-        //     insns += fmt_insn("dmb ish")
-        //     insns += fmt_insn("0:")
-        //     if size == 8:
-        //         insns += fmt_insn("uxtb %w[scratch], %w[oldval]")
-        //         insns += fmt_insn("ldxrb %w[res], [%x[addr]]")
-        //         insns += fmt_insn("cmp %w[res], %w[scratch]")
-        //         insns += fmt_insn("b.ne 1f")
-        //         insns += fmt_insn("stxrb %w[scratch], %w[newval], [%x[addr]]")
-        //     elif size == 16:
-        //         insns += fmt_insn("uxth %w[scratch], %w[oldval]")
-        //         insns += fmt_insn("ldxrh %w[res], [%x[addr]]")
-        //         insns += fmt_insn("cmp %w[res], %w[scratch]")
-        //         insns += fmt_insn("b.ne 1f")
-        //         insns += fmt_insn("stxrh %w[scratch], %w[newval], [%x[addr]]")
-        //     elif size == 32:
-        //         insns += fmt_insn("mov %w[scratch], %w[oldval]")
-        //         insns += fmt_insn("ldxr %w[res], [%x[addr]]")
-        //         insns += fmt_insn("cmp %w[res], %w[scratch]")
-        //         insns += fmt_insn("b.ne 1f")
-        //         insns += fmt_insn("stxr %w[scratch], %w[newval], [%x[addr]]")
-        //     else:
-        //         assert size == 64
-        //         insns += fmt_insn("mov %x[scratch], %x[oldval]")
-        //         insns += fmt_insn("ldxr %x[res], [%x[addr]]")
-        //         insns += fmt_insn("cmp %x[res], %x[scratch]")
-        //         insns += fmt_insn("b.ne 1f")
-        //         insns += fmt_insn("stxr %w[scratch], %x[newval], [%x[addr]]")
-        //     insns += fmt_insn("cbnz %w[scratch], 0b")
-        //     insns += fmt_insn("1: dmb ish")
-        //     return """
-        //         INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr,
-        //                                          %(cpp_type)s oldval,
-        //                                          %(cpp_type)s newval) {
-        //             %(cpp_type)s res, scratch;
-        //             asm volatile (%(insns)s
-        //                 : [res] "=&r" (res), [scratch] "=&r" (scratch)
-        //                 : [addr] "r" (addr), [oldval] "r"(oldval), [newval] "r" (newval)
-        //                 : "memory", "cc");
-        //             return res;
-        //         }""" % {
-        //         "cpp_type": cpp_type,
-        //         "fun_name": fun_name,
-        //         "insns": insns,
-        //     }
-        // if cpu_arch == "arm":
-        //     insns = ""
-        //     insns += fmt_insn("dmb sy")
-        //     insns += fmt_insn("0:")
-        //     if size == 8:
-        //         insns += fmt_insn("uxtb %[scratch], %[oldval]")
-        //         insns += fmt_insn("ldrexb %[res], [%[addr]]")
-        //         insns += fmt_insn("cmp %[res], %[scratch]")
-        //         insns += fmt_insn("bne 1f")
-        //         insns += fmt_insn("strexb %[scratch], %[newval], [%[addr]]")
-        //     elif size == 16:
-        //         insns += fmt_insn("uxth %[scratch], %[oldval]")
-        //         insns += fmt_insn("ldrexh %[res], [%[addr]]")
-        //         insns += fmt_insn("cmp %[res], %[scratch]")
-        //         insns += fmt_insn("bne 1f")
-        //         insns += fmt_insn("strexh %[scratch], %[newval], [%[addr]]")
-        //     else:
-        //         assert size == 32
-        //         insns += fmt_insn("mov %[scratch], %[oldval]")
-        //         insns += fmt_insn("ldrex %[res], [%[addr]]")
-        //         insns += fmt_insn("cmp %[res], %[scratch]")
-        //         insns += fmt_insn("bne 1f")
-        //         insns += fmt_insn("strex %[scratch], %[newval], [%[addr]]")
-        //     insns += fmt_insn("cmp %[scratch], #1")
-        //     insns += fmt_insn("beq 0b")
-        //     insns += fmt_insn("1: dmb sy")
-        //     return """
-        //         INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr,
-        //                                          %(cpp_type)s oldval,
-        //                                          %(cpp_type)s newval) {
-        //             %(cpp_type)s res, scratch;
-        //             asm volatile (%(insns)s
-        //                 : [res] "=&r" (res), [scratch] "=&r" (scratch)
-        //                 : [addr] "r" (addr), [oldval] "r"(oldval), [newval] "r" (newval)
-        //                 : "memory", "cc");
-        //             return res;
-        //         }""" % {
-        //         "cpp_type": cpp_type,
-        //         "fun_name": fun_name,
-        //         "insns": insns,
-        //     }
-        // raise Exception("Unexpected arch")
+
+        #[cfg(target_arch = "aarch64")]
+        unsafe {
+            let res: u16;
+            core::arch::asm!(
+                "dmb ish",
+                "0:",
+                "uxt {scratch:w}, {old_val:w}",
+                "ldxr {res:w} [{ptr}]",
+                "cmp {res:w}, {scratch:w}",
+                "b.ne 1f",
+                "stxr {scratch:w}, {new_val:w}, [{ptr}]",
+                "cbnz {scratch:w}, 0b",
+                "1: dmb ish",
+                res = out(reg) res,
+                scratch = out(reg) _,
+                ptr = in(reg) ptr,
+                old_val = in(reg) $old_val,
+                new_val = in(reg) $new_val,
+                options(nostack)
+            );
+            $old_val = res;
+        }
+
+        #[cfg(target_arch = "arm")]
+        {
+            let res: u16;
+            core::arch::asm!(
+                "dmb sy",
+                "0:",
+                "uxt {scratch:w}, {old_val:w}",
+                "ldrex {res:w} [{ptr}]",
+                "cmp {res:w}, {scratch:w}",
+                "bne 1f",
+                "strex {scratch:w}, {new_val:w}, [{ptr}]",
+                "cmp {scratch:w}, #1",
+                "beq 0b",
+                "1: dmb sy",
+                res = out(reg) res,
+                scratch = out(reg) _,
+                ptr = in(reg) ptr,
+                old_val = in(reg) $old_val,
+                new_val = in(reg) $new_val,
+                options(nostack)
+            );
+            $old_val = res;
+        }
+
+        return $old_val;
+    };
+    (u32, $ptr: ident, $old_val: ident, $new_val: ident) => {
+        // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
+        let ptr = unsafe { &mut *$ptr.as_ptr() };
+
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        unsafe {
+            core::arch::asm!(
+                "lock; cmpxchg [{ptr}], {new_val:e}",
+                // Load old_val into RAX as input/output register
+                inout("eax") $old_val,
+                ptr = in(reg) ptr,
+                new_val = in(reg) $new_val,
+                options(nostack)
+            );
+        }
+
+        #[cfg(target_arch = "aarch64")]
+        unsafe {
+            let res: u32;
+            core::arch::asm!(
+                "dmb ish",
+                "0:",
+                "uxt {scratch:w}, {old_val:w}",
+                "ldxr {res:w} [{ptr}]",
+                "cmp {res:w}, {scratch:w}",
+                "b.ne 1f",
+                "stxr {scratch:w}, {new_val:w}, [{ptr}]",
+                "cbnz {scratch:w}, 0b",
+                "1: dmb ish",
+                res = out(reg) res,
+                scratch = out(reg) _,
+                ptr = in(reg) ptr,
+                old_val = in(reg) $old_val,
+                new_val = in(reg) $new_val,
+                options(nostack)
+            );
+            $old_val = res;
+        }
+
+        #[cfg(target_arch = "arm")]
+        {
+            let res: u32;
+            core::arch::asm!(
+                "dmb sy",
+                "0:",
+                "uxt {scratch:w}, {old_val:w}",
+                "ldrex {res:w} [{ptr}]",
+                "cmp {res:w}, {scratch:w}",
+                "bne 1f",
+                "strex {scratch:w}, {new_val:w}, [{ptr}]",
+                "cmp {scratch:w}, #1",
+                "beq 0b",
+                "1: dmb sy",
+                res = out(reg) res,
+                scratch = out(reg) _,
+                ptr = in(reg) ptr,
+                old_val = in(reg) $old_val,
+                new_val = in(reg) $new_val,
+                options(nostack)
+            );
+            $old_val = res;
+        }
+
+        return $old_val;
+    };
+    (u64, $ptr: ident, $old_val: ident, $new_val: ident) => {
+        // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
+        let ptr = unsafe { &mut *$ptr.as_ptr() };
+
+        #[cfg(target_arch = "x86")]
+        unsafe {
+            let [b0, b1, b2, b3, b4, b5, b6, b7] = $old_val.to_le_bytes();
+            let old_bot = u32::from_le_bytes([b0, b1, b2, b3]);
+            let old_top = u32::from_le_bytes([b4, b5, b6, b7]);
+            let [b0, b1, b2, b3, b4, b5, b6, b7] = $new_val.to_le_bytes();
+            let new_bot = u32::from_le_bytes([b0, b1, b2, b3]);
+            let new_top = u32::from_le_bytes([b4, b5, b6, b7]);
+            core::arch::asm!(
+                "lock; cmpxchg8b [{ptr}]",
+                // Load old_val into EDX:EAX (high:low).
+                inout("edx") old_top,
+                inout("eax") old_bot,
+                ptr = in(reg) ptr,
+                // Load old_val into ECX:EBX (high:low).
+                in("ecx") new_top,
+                in("ebx") new_bot,
+                options(nostack)
+            );
+            let [b0, b1, b2, b3] = old_bot.to_le_bytes();
+            let [b4, b5, b6, b7] = old_top.to_le_bytes();
+            $old_val = u64::from_le_bytes([b0, b1, b2, b3, b4, b5, b6, b7]);
+        }
+
+        #[cfg(target_arch = "x86_64")]
+        unsafe {
+            core::arch::asm!(
+                "lock; cmpxchg [{ptr}], {new_val:r}",
+                // Load old_val into RAX as input/output register
+                inout("rax") $old_val,
+                ptr = in(reg) ptr,
+                new_val = in(reg) $new_val,
+                options(nostack)
+            );
+        }
+
+        #[cfg(target_arch = "aarch64")]
+        unsafe {
+            let res: u64;
+            core::arch::asm!(
+                "dmb ish",
+                "0:",
+                "uxt {scratch:w}, {old_val:w}",
+                "ldxr {res:w} [{ptr}]",
+                "cmp {res:w}, {scratch:w}",
+                "b.ne 1f",
+                "stxr {scratch:w}, {new_val:w}, [{ptr}]",
+                "cbnz {scratch:w}, 0b",
+                "1: dmb ish",
+                res = out(reg) res,
+                scratch = out(reg) _,
+                ptr = in(reg) ptr,
+                old_val = in(reg) $old_val,
+                new_val = in(reg) $new_val,
+                options(nostack)
+            );
+            $old_val = res;
+        }
+
+        #[cfg(target_arch = "arm")]
+        {
+            let [b0, b1, b2, b3, b4, b5, b6, b7] = $old_val.to_le_bytes();
+            let old_bot = u32::from_le_bytes([b0, b1, b2, b3]);
+            let old_top = u32::from_le_bytes([b4, b5, b6, b7]);
+            let [b0, b1, b2, b3, b4, b5, b6, b7] = $new_val.to_le_bytes();
+            let new_bot = u32::from_le_bytes([b0, b1, b2, b3]);
+            let new_top = u32::from_le_bytes([b4, b5, b6, b7]);
+            core::arch::asm!(
+                "dmb sy",
+                "0: ldrexd r0 r1 [{ptr}]",
+                "cmp r0 {old_bot}",
+                "b.ne 1f",
+                "cmp r1 {old_top}",
+                "b.ne 1f",
+                "mov r2, {new_bot}"
+                "mov r3, {new_top}"
+                "strexd r4, r2, r3, [{ptr}]"
+                "cmp r4, #1",
+                "beq 0b",
+                "1: dmb sy",
+                "mov {old_bot} r0",
+                "mov {old_top} r1",
+                inout(reg) old_bot,
+                inout(reg) old_top,
+                ptr = in(reg) ptr,
+                new_bot = in(reg) new_bot,
+                new_top = in(reg) new_top,
+                out("r0") _,
+                out("r1") _,
+                out("r2") _,
+                out("r3") _,
+                out("r4") _,
+                options(nostack)
+            );
+            let [b0, b1, b2, b3] = old_bot.to_le_bytes();
+            let [b4, b5, b6, b7] = old_top.to_le_bytes();
+            $old_val = u64::from_le_bytes([b0, b1, b2, b3, b4, b5, b6, b7]);
+        }
+
+        return $old_val;
     };
 }
 
@@ -1152,23 +1264,23 @@ pub fn atomic_exchange_64_seq_cst(ptr: NonNull<()>, mut val: u64) -> u64 {
 // is stored in the cell.  It always returns the value previously in the cell.
 #[inline(always)]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64"))]
-pub fn atomic_cmp_xchg_8_seq_cst() {
-    gen_cmpxchg!(u8);
+pub fn atomic_cmp_xchg_8_seq_cst(ptr: NonNull<()>, mut old_val: u8, new_val: u8) -> u8 {
+    gen_cmpxchg!(u8, ptr, old_val, new_val);
 }
 #[inline(always)]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64"))]
-pub fn atomic_cmp_xchg_16_seq_cst() {
-    gen_cmpxchg!(u16);
+pub fn atomic_cmp_xchg_16_seq_cst(ptr: NonNull<()>, mut old_val: u16, new_val: u16) -> u16 {
+    gen_cmpxchg!(u16, ptr, old_val, new_val);
 }
 #[inline(always)]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64"))]
-pub fn atomic_cmp_xchg_32_seq_cst() {
-    gen_cmpxchg!(u32);
+pub fn atomic_cmp_xchg_32_seq_cst(ptr: NonNull<()>, mut old_val: u32, new_val: u32) -> u32 {
+    gen_cmpxchg!(u32, ptr, old_val, new_val);
 }
 #[inline(always)]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64"))]
-pub fn atomic_cmp_xchg_64_seq_cst() {
-    gen_cmpxchg!(u64);
+pub fn atomic_cmp_xchg_64_seq_cst(ptr: NonNull<()>, mut old_val: u64, new_val: u64) -> u64 {
+    gen_cmpxchg!(u64, ptr, old_val, new_val);
 }
 
 // `add` adds a value atomically to the cell and returns the old value in the
@@ -1455,6 +1567,97 @@ fn test_exchange() {
     );
     assert_eq!(
         atomic_exchange_64_seq_cst(foo, 0),
+        0xFFFF_FFFF_FFFF_FFFF,
+        "u64 subsequent"
+    );
+    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+
+    let _ = unsafe { Box::from_raw(foo.cast::<u64>().as_ptr()) };
+}
+
+#[test]
+fn test_compare_exchange() {
+    let foo = NonNull::from(Box::leak(Box::new([0u64; 1]))).cast::<()>();
+
+    assert_eq!(atomic_cmp_xchg_8_seq_cst(foo, 0xFF, 0xFF), 0, "u8 initial");
+    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+    assert_eq!(atomic_cmp_xchg_8_seq_cst(foo, 0, 0xFF), 0, "u8 initial");
+    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFF);
+    assert_eq!(atomic_cmp_xchg_8_seq_cst(foo, 0, 0), 0xFF, "u8 subsequent");
+    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFF);
+    assert_eq!(
+        atomic_cmp_xchg_8_seq_cst(foo, 0xFF, 0),
+        0xFF,
+        "u8 subsequent"
+    );
+    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+
+    assert_eq!(
+        atomic_cmp_xchg_16_seq_cst(foo, 0xFFFF, 0xFFFF),
+        0,
+        "u16 initial"
+    );
+    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+    assert_eq!(atomic_cmp_xchg_16_seq_cst(foo, 0, 0xFFFF), 0, "u16 initial");
+    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF);
+    assert_eq!(
+        atomic_cmp_xchg_16_seq_cst(foo, 0, 0),
+        0xFFFF,
+        "u16 subsequent"
+    );
+    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF);
+    assert_eq!(
+        atomic_cmp_xchg_16_seq_cst(foo, 0xFFFF, 0),
+        0xFFFF,
+        "u16 subsequent"
+    );
+    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+
+    assert_eq!(
+        atomic_cmp_xchg_32_seq_cst(foo, 0xFFFF_FFFF, 0xFFFF_FFFF),
+        0,
+        "u32 initial"
+    );
+    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+    assert_eq!(
+        atomic_cmp_xchg_32_seq_cst(foo, 0, 0xFFFF_FFFF),
+        0,
+        "u32 initial"
+    );
+    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF_FFFF);
+    assert_eq!(
+        atomic_cmp_xchg_32_seq_cst(foo, 0, 0),
+        0xFFFF_FFFF,
+        "u32 subsequent"
+    );
+    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF_FFFF);
+    assert_eq!(
+        atomic_cmp_xchg_32_seq_cst(foo, 0xFFFF_FFFF, 0),
+        0xFFFF_FFFF,
+        "u32 subsequent"
+    );
+    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+
+    assert_eq!(
+        atomic_cmp_xchg_64_seq_cst(foo, 0xFFFF_FFFF_FFFF_FFFF, 0xFFFF_FFFF_FFFF_FFFF),
+        0,
+        "u64 initial"
+    );
+    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+    assert_eq!(
+        atomic_cmp_xchg_64_seq_cst(foo, 0, 0xFFFF_FFFF_FFFF_FFFF),
+        0,
+        "u64 initial"
+    );
+    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF_FFFF_FFFF_FFFF);
+    assert_eq!(
+        atomic_cmp_xchg_64_seq_cst(foo, 0, 0),
+        0xFFFF_FFFF_FFFF_FFFF,
+        "u64 subsequent"
+    );
+    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF_FFFF_FFFF_FFFF);
+    assert_eq!(
+        atomic_cmp_xchg_64_seq_cst(foo, 0xFFFF_FFFF_FFFF_FFFF, 0),
         0xFFFF_FFFF_FFFF_FFFF,
         "u64 subsequent"
     );
