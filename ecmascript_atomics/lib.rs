@@ -898,29 +898,33 @@ macro_rules! fetchop {
     ("xor", x86, u64) => {
         "xor {scratch:r}, {val:r}"
     };
-    ("add", aarch64) => {
-        "add {val}, {scratch}"
+    // Note: we differ here from source material. In Firefox the operation
+    // always operates on :x registers; there doesn't seem to be a reason for
+    // this so we try to avoid that.
+    // "OP %x[scratch1], %x[res], %x[val]"
+    ("add", arm, u32) => {
+        "add {scratch1:w}, {res:w}, {val:w}"
     };
-    ("and", aarch64) => {
-        "and {val}, {scratch}"
+    ("add", arm, u64) => {
+        "add {scratch1:w}, {res:x}, {val:x}"
     };
-    ("or", aarch64) => {
-        "orr {val}, {scratch}"
+    ("and", arm, u32) => {
+        "and {scratch1:w}, {res:w}, {val:w}"
     };
-    ("xor", aarch64) => {
-        "eor {val}, {scratch}"
+    ("and", arm, u64) => {
+        "and {scratch1:w}, {res:x}, {val:x}"
     };
-    ("add", arm) => {
-        "add {val}, {scratch}"
+    ("or", arm, u32) => {
+        "orr {scratch1:w}, {res:w}, {val:w}"
     };
-    ("and", arm) => {
-        "and {val}, {scratch}"
+    ("or", arm, u64) => {
+        "orr {scratch1:w}, {res:x}, {val:x}"
     };
-    ("or", arm) => {
-        "or {val}, {scratch}"
+    ("xor", arm, u32) => {
+        "eor {scratch1:w}, {res:w}, {val:w}"
     };
-    ("xor", arm) => {
-        "xor {val}, {scratch}"
+    ("xor", arm, u64) => {
+        "eor {scratch1:w}, {res:x}, {val:x}"
     };
 }
 
@@ -960,49 +964,23 @@ macro_rules! gen_fetchop {
 
         #[cfg(target_arch = "aarch64")]
         unsafe {
-            //     insns = ""
-            //     insns += fmt_insn("dmb ish")
-            //     insns += fmt_insn("0:")
-            //     if size == 8:
-            //         insns += fmt_insn("ldxrb %w[res], [%x[addr]]")
-            //         insns += fmt_insn("OP %x[scratch1], %x[res], %x[val]")
-            //         insns += fmt_insn("stxrb %w[scratch2], %w[scratch1], [%x[addr]]")
-            //     elif size == 16:
-            //         insns += fmt_insn("ldxrh %w[res], [%x[addr]]")
-            //         insns += fmt_insn("OP %x[scratch1], %x[res], %x[val]")
-            //         insns += fmt_insn("stxrh %w[scratch2], %w[scratch1], [%x[addr]]")
-            //     elif size == 32:
-            //         insns += fmt_insn("ldxr %w[res], [%x[addr]]")
-            //         insns += fmt_insn("OP %x[scratch1], %x[res], %x[val]")
-            //         insns += fmt_insn("stxr %w[scratch2], %w[scratch1], [%x[addr]]")
-            //     else:
-            //         assert size == 64
-            //         insns += fmt_insn("ldxr %x[res], [%x[addr]]")
-            //         insns += fmt_insn("OP %x[scratch1], %x[res], %x[val]")
-            //         insns += fmt_insn("stxr %w[scratch2], %x[scratch1], [%x[addr]]")
-            //     cpu_op = op
-            //     if cpu_op == "or":
-            //         cpu_op = "orr"
-            //     if cpu_op == "xor":
-            //         cpu_op = "eor"
-            //     insns = insns.replace("OP", cpu_op)
-            //     insns += fmt_insn("cbnz %w[scratch2], 0b")
-            //     insns += fmt_insn("dmb ish")
-            //     return """
-            //         INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr, %(cpp_type)s val) {
-            //             %(cpp_type)s res;
-            //             uintptr_t scratch1, scratch2;
-            //             asm volatile (%(insns)s
-            //                 : [res] "=&r" (res), [scratch1] "=&r" (scratch1), [scratch2] "=&r"(scratch2)
-            //                 : [addr] "r" (addr), [val] "r"(val)
-            //                 : "memory", "cc");
-            //             return res;
-            //         }""" % {
-            //         "cpp_type": cpp_type,
-            //         "fun_name": fun_name,
-            //         "insns": insns,
-            //     }
-            todo!();
+            let res: u8;
+            core::arch::asm!(
+                "dmb ish",
+                "2:",
+                "ldxr {res:w}, [{ptr}]",
+                fetchop!($op, arm),
+                "stxr {scratch2:w}, {scratch1:w}, [{ptr}]",
+                "cbnz {scratch2:w}, 2b",
+                "3: dmb ish",
+                res = out(reg) res,
+                scratch1 = out(reg) _,
+                scratch2 = out(reg) _,
+                ptr = in(reg) ptr,
+                val = in(reg) $val,
+                options(nostack)
+            );
+            $val = res;
         }
 
         #[cfg(target_arch = "arm")]
@@ -1085,50 +1063,24 @@ macro_rules! gen_fetchop {
         }
 
         #[cfg(target_arch = "aarch64")]
-        {
-            //     insns = ""
-            //     insns += fmt_insn("dmb ish")
-            //     insns += fmt_insn("0:")
-            //     if size == 8:
-            //         insns += fmt_insn("ldxrb %w[res], [%x[addr]]")
-            //         insns += fmt_insn("OP %x[scratch1], %x[res], %x[val]")
-            //         insns += fmt_insn("stxrb %w[scratch2], %w[scratch1], [%x[addr]]")
-            //     elif size == 16:
-            //         insns += fmt_insn("ldxrh %w[res], [%x[addr]]")
-            //         insns += fmt_insn("OP %x[scratch1], %x[res], %x[val]")
-            //         insns += fmt_insn("stxrh %w[scratch2], %w[scratch1], [%x[addr]]")
-            //     elif size == 32:
-            //         insns += fmt_insn("ldxr %w[res], [%x[addr]]")
-            //         insns += fmt_insn("OP %x[scratch1], %x[res], %x[val]")
-            //         insns += fmt_insn("stxr %w[scratch2], %w[scratch1], [%x[addr]]")
-            //     else:
-            //         assert size == 64
-            //         insns += fmt_insn("ldxr %x[res], [%x[addr]]")
-            //         insns += fmt_insn("OP %x[scratch1], %x[res], %x[val]")
-            //         insns += fmt_insn("stxr %w[scratch2], %x[scratch1], [%x[addr]]")
-            //     cpu_op = op
-            //     if cpu_op == "or":
-            //         cpu_op = "orr"
-            //     if cpu_op == "xor":
-            //         cpu_op = "eor"
-            //     insns = insns.replace("OP", cpu_op)
-            //     insns += fmt_insn("cbnz %w[scratch2], 0b")
-            //     insns += fmt_insn("dmb ish")
-            //     return """
-            //         INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr, %(cpp_type)s val) {
-            //             %(cpp_type)s res;
-            //             uintptr_t scratch1, scratch2;
-            //             asm volatile (%(insns)s
-            //                 : [res] "=&r" (res), [scratch1] "=&r" (scratch1), [scratch2] "=&r"(scratch2)
-            //                 : [addr] "r" (addr), [val] "r"(val)
-            //                 : "memory", "cc");
-            //             return res;
-            //         }""" % {
-            //         "cpp_type": cpp_type,
-            //         "fun_name": fun_name,
-            //         "insns": insns,
-            //     }
-            todo!();
+        unsafe {
+            let res: u16;
+            core::arch::asm!(
+                "dmb ish",
+                "2:",
+                "ldxr {res:w}, [{ptr}]",
+                fetchop!($op, arm),
+                "stxr {scratch2:w}, {scratch1:w}, [{ptr}]",
+                "cbnz {scratch2:w}, 2b",
+                "3: dmb ish",
+                res = out(reg) res,
+                scratch1 = out(reg) _,
+                scratch2 = out(reg) _,
+                ptr = in(reg) ptr,
+                val = in(reg) $val,
+                options(nostack)
+            );
+            $val = res;
         }
 
         #[cfg(target_arch = "arm")]
@@ -1211,50 +1163,24 @@ macro_rules! gen_fetchop {
         }
 
         #[cfg(target_arch = "aarch64")]
-        {
-            //     insns = ""
-            //     insns += fmt_insn("dmb ish")
-            //     insns += fmt_insn("0:")
-            //     if size == 8:
-            //         insns += fmt_insn("ldxrb %w[res], [%x[addr]]")
-            //         insns += fmt_insn("OP %x[scratch1], %x[res], %x[val]")
-            //         insns += fmt_insn("stxrb %w[scratch2], %w[scratch1], [%x[addr]]")
-            //     elif size == 16:
-            //         insns += fmt_insn("ldxrh %w[res], [%x[addr]]")
-            //         insns += fmt_insn("OP %x[scratch1], %x[res], %x[val]")
-            //         insns += fmt_insn("stxrh %w[scratch2], %w[scratch1], [%x[addr]]")
-            //     elif size == 32:
-            //         insns += fmt_insn("ldxr %w[res], [%x[addr]]")
-            //         insns += fmt_insn("OP %x[scratch1], %x[res], %x[val]")
-            //         insns += fmt_insn("stxr %w[scratch2], %w[scratch1], [%x[addr]]")
-            //     else:
-            //         assert size == 64
-            //         insns += fmt_insn("ldxr %x[res], [%x[addr]]")
-            //         insns += fmt_insn("OP %x[scratch1], %x[res], %x[val]")
-            //         insns += fmt_insn("stxr %w[scratch2], %x[scratch1], [%x[addr]]")
-            //     cpu_op = op
-            //     if cpu_op == "or":
-            //         cpu_op = "orr"
-            //     if cpu_op == "xor":
-            //         cpu_op = "eor"
-            //     insns = insns.replace("OP", cpu_op)
-            //     insns += fmt_insn("cbnz %w[scratch2], 0b")
-            //     insns += fmt_insn("dmb ish")
-            //     return """
-            //         INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr, %(cpp_type)s val) {
-            //             %(cpp_type)s res;
-            //             uintptr_t scratch1, scratch2;
-            //             asm volatile (%(insns)s
-            //                 : [res] "=&r" (res), [scratch1] "=&r" (scratch1), [scratch2] "=&r"(scratch2)
-            //                 : [addr] "r" (addr), [val] "r"(val)
-            //                 : "memory", "cc");
-            //             return res;
-            //         }""" % {
-            //         "cpp_type": cpp_type,
-            //         "fun_name": fun_name,
-            //         "insns": insns,
-            //     }
-            todo!();
+        unsafe {
+            let res: u32;
+            core::arch::asm!(
+                "dmb ish",
+                "2:",
+                "ldxr {res:w}, [{ptr}]",
+                fetchop!($op, arm),
+                "stxr {scratch2:w}, {scratch1:w}, [{ptr}]",
+                "cbnz {scratch2:w}, 2b",
+                "3: dmb ish",
+                res = out(reg) res,
+                scratch1 = out(reg) _,
+                scratch2 = out(reg) _,
+                ptr = in(reg) ptr,
+                val = in(reg) $val,
+                options(nostack)
+            );
+            $val = res;
         }
 
         #[cfg(target_arch = "arm")]
@@ -1337,50 +1263,24 @@ macro_rules! gen_fetchop {
         }
 
         #[cfg(target_arch = "aarch64")]
-        {
-            //     insns = ""
-            //     insns += fmt_insn("dmb ish")
-            //     insns += fmt_insn("0:")
-            //     if size == 8:
-            //         insns += fmt_insn("ldxrb %w[res], [%x[addr]]")
-            //         insns += fmt_insn("OP %x[scratch1], %x[res], %x[val]")
-            //         insns += fmt_insn("stxrb %w[scratch2], %w[scratch1], [%x[addr]]")
-            //     elif size == 16:
-            //         insns += fmt_insn("ldxrh %w[res], [%x[addr]]")
-            //         insns += fmt_insn("OP %x[scratch1], %x[res], %x[val]")
-            //         insns += fmt_insn("stxrh %w[scratch2], %w[scratch1], [%x[addr]]")
-            //     elif size == 32:
-            //         insns += fmt_insn("ldxr %w[res], [%x[addr]]")
-            //         insns += fmt_insn("OP %x[scratch1], %x[res], %x[val]")
-            //         insns += fmt_insn("stxr %w[scratch2], %w[scratch1], [%x[addr]]")
-            //     else:
-            //         assert size == 64
-            //         insns += fmt_insn("ldxr %x[res], [%x[addr]]")
-            //         insns += fmt_insn("OP %x[scratch1], %x[res], %x[val]")
-            //         insns += fmt_insn("stxr %w[scratch2], %x[scratch1], [%x[addr]]")
-            //     cpu_op = op
-            //     if cpu_op == "or":
-            //         cpu_op = "orr"
-            //     if cpu_op == "xor":
-            //         cpu_op = "eor"
-            //     insns = insns.replace("OP", cpu_op)
-            //     insns += fmt_insn("cbnz %w[scratch2], 0b")
-            //     insns += fmt_insn("dmb ish")
-            //     return """
-            //         INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr, %(cpp_type)s val) {
-            //             %(cpp_type)s res;
-            //             uintptr_t scratch1, scratch2;
-            //             asm volatile (%(insns)s
-            //                 : [res] "=&r" (res), [scratch1] "=&r" (scratch1), [scratch2] "=&r"(scratch2)
-            //                 : [addr] "r" (addr), [val] "r"(val)
-            //                 : "memory", "cc");
-            //             return res;
-            //         }""" % {
-            //         "cpp_type": cpp_type,
-            //         "fun_name": fun_name,
-            //         "insns": insns,
-            //     }
-            todo!();
+        unsafe {
+            let res: u64;
+            core::arch::asm!(
+                "dmb ish",
+                "2:",
+                "ldxr {res:x}, [{ptr}]",
+                fetchop!($op, arm),
+                "stxr {scratch2:w}, {scratch1:x}, [{ptr}]",
+                "cbnz {scratch2:w}, 2b",
+                "3: dmb ish",
+                res = out(reg) res,
+                scratch1 = out(reg) _,
+                scratch2 = out(reg) _,
+                ptr = in(reg) ptr,
+                val = in(reg) $val,
+                options(nostack)
+            );
+            $val = res;
         }
 
         #[cfg(target_arch = "arm")]
@@ -1964,11 +1864,6 @@ pub fn atomic_pause() {
     core::hint::spin_loop();
 }
 
-// See comment in jit/AtomicOperations-shared-jit.cpp for an explanation.
-const WORDS_IN_BLOCK: usize = 8;
-const WORD_SIZE: usize = core::mem::size_of::<usize>();
-const BLOCK_SIZE: usize = WORDS_IN_BLOCK * WORD_SIZE;
-
 #[inline(always)]
 #[cfg(any(
     target_arch = "x86",
@@ -1977,7 +1872,12 @@ const BLOCK_SIZE: usize = WORDS_IN_BLOCK * WORD_SIZE;
     target_arch = "arm"
 ))]
 pub fn atomic_copy_unaligned_block_down_unsynchronized() {
-    gen_copy!(u8, 1, BLOCK_SIZE, "down");
+    #[cfg(target_pointer_width = "16")]
+    gen_copy!(u8, 1, 16, "down");
+    #[cfg(target_pointer_width = "32")]
+    gen_copy!(u8, 1, 32, "down");
+    #[cfg(target_pointer_width = "64")]
+    gen_copy!(u8, 1, 64, "down");
 }
 
 #[inline(always)]
@@ -1988,7 +1888,12 @@ pub fn atomic_copy_unaligned_block_down_unsynchronized() {
     target_arch = "arm"
 ))]
 pub fn atomic_copy_unaligned_block_up_unsynchronized() {
-    gen_copy!(u8, 1, BLOCK_SIZE, "up");
+    #[cfg(target_pointer_width = "16")]
+    gen_copy!(u8, 1, 16, "up");
+    #[cfg(target_pointer_width = "32")]
+    gen_copy!(u8, 1, 32, "up");
+    #[cfg(target_pointer_width = "64")]
+    gen_copy!(u8, 1, 64, "up");
 }
 
 #[inline(always)]
@@ -1999,7 +1904,12 @@ pub fn atomic_copy_unaligned_block_up_unsynchronized() {
     target_arch = "arm"
 ))]
 pub fn atomic_copy_unaligned_word_down_unsynchronized() {
-    gen_copy!(u8, 1, WORD_SIZE, "down");
+    #[cfg(target_pointer_width = "16")]
+    gen_copy!(u8, 1, 2, "down");
+    #[cfg(target_pointer_width = "32")]
+    gen_copy!(u8, 1, 4, "down");
+    #[cfg(target_pointer_width = "64")]
+    gen_copy!(u8, 1, 8, "down");
 }
 
 #[inline(always)]
@@ -2010,7 +1920,12 @@ pub fn atomic_copy_unaligned_word_down_unsynchronized() {
     target_arch = "arm"
 ))]
 pub fn atomic_copy_unaligned_word_up_unsynchronized() {
-    gen_copy!(u8, 1, WORD_SIZE, "up");
+    #[cfg(target_pointer_width = "16")]
+    gen_copy!(u8, 1, 2, "up");
+    #[cfg(target_pointer_width = "32")]
+    gen_copy!(u8, 1, 4, "up");
+    #[cfg(target_pointer_width = "64")]
+    gen_copy!(u8, 1, 8, "up");
 }
 
 #[inline(always)]
@@ -2021,7 +1936,12 @@ pub fn atomic_copy_unaligned_word_up_unsynchronized() {
     target_arch = "arm"
 ))]
 pub fn atomic_copy_block_down_unsynchronized() {
-    gen_copy!(uptr, WORD_SIZE, WORDS_IN_BLOCK, "down");
+    #[cfg(target_pointer_width = "16")]
+    gen_copy!(usize, 2, 8, "down");
+    #[cfg(target_pointer_width = "32")]
+    gen_copy!(usize, 4, 8, "down");
+    #[cfg(target_pointer_width = "64")]
+    gen_copy!(usize, 8, 8, "down");
 }
 
 #[inline(always)]
@@ -2032,7 +1952,12 @@ pub fn atomic_copy_block_down_unsynchronized() {
     target_arch = "arm"
 ))]
 pub fn atomic_copy_block_up_unsynchronized() {
-    gen_copy!(uptr, WORD_SIZE, WORDS_IN_BLOCK, "up");
+    #[cfg(target_pointer_width = "16")]
+    gen_copy!(usize, 2, 8, "up");
+    #[cfg(target_pointer_width = "32")]
+    gen_copy!(usize, 4, 8, "up");
+    #[cfg(target_pointer_width = "64")]
+    gen_copy!(usize, 8, 8, "up");
 }
 
 #[inline(always)]
@@ -2043,7 +1968,12 @@ pub fn atomic_copy_block_up_unsynchronized() {
     target_arch = "arm"
 ))]
 pub fn atomic_copy_word_unsynchronized() {
-    gen_copy!(uptr, WORD_SIZE, 1, "down");
+    #[cfg(target_pointer_width = "16")]
+    gen_copy!(usize, 2, 1, "down");
+    #[cfg(target_pointer_width = "32")]
+    gen_copy!(usize, 4, 1, "down");
+    #[cfg(target_pointer_width = "64")]
+    gen_copy!(usize, 8, 1, "down");
 }
 
 #[inline(always)]
@@ -2079,8 +2009,8 @@ pub fn atomic_copy8_unsynchronized() {
     gen_copy!(u8, 1, 1, "down");
 }
 
-pub const JS_GENERATED_ATOMICS_BLOCKSIZE: usize = 0;
-pub const JS_GENERATED_ATOMICS_WORSIZE: usize = 0;
+pub const JS_GENERATED_ATOMICS_BLOCKSIZE: usize = core::mem::size_of::<usize>() * 8;
+pub const JS_GENERATED_ATOMICS_WORSIZE: usize = core::mem::size_of::<usize>();
 
 #[cfg(test)]
 mod test {
