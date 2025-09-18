@@ -205,7 +205,7 @@ macro_rules! gen_store {
         unsafe {
             core::arch::asm!(
                 fence!($barrier, aarch64),
-                "str {val:w}, [{ptr}]",
+                "strb {val:w}, [{ptr}]",
                 fence!($barrier, aarch64),
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
@@ -217,7 +217,7 @@ macro_rules! gen_store {
         unsafe {
             core::arch::asm!(
                 fence!($barrier, arm),
-                "str {val:w}, [{ptr}]",
+                "strb {val:w}, [{ptr}]",
                 fence!($barrier, arm),
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
@@ -244,7 +244,7 @@ macro_rules! gen_store {
         unsafe {
             core::arch::asm!(
                 fence!($barrier, aarch64),
-                "str {val:w}, [{ptr}]",
+                "strh {val:w}, [{ptr}]",
                 fence!($barrier, aarch64),
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
@@ -256,7 +256,7 @@ macro_rules! gen_store {
         unsafe {
             core::arch::asm!(
                 fence!($barrier, arm),
-                "str {val:w}, [{ptr}]",
+                "strh {val:w}, [{ptr}]",
                 fence!($barrier, arm),
                 ptr = in(reg) ptr,
                 val = in(reg) $val,
@@ -1279,9 +1279,9 @@ macro_rules! gen_fetchop {
             core::arch::asm!(
                 "dmb ish",
                 "2:",
-                "ldxr {res:x}, [{ptr:x}]",
+                "ldxr {res:x}, [{ptr}]",
                 fetchop!($op, aarch64, u64),
-                "stxr {scratch2:w}, {scratch1:x}, [{ptr:x}]",
+                "stxr {scratch2:w}, {scratch1:x}, [{ptr}]",
                 "cbnz {scratch2:w}, 2b",
                 "3: dmb ish",
                 res = out(reg) res,
