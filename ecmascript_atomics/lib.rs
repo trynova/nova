@@ -357,10 +357,10 @@ macro_rules! gen_exchange {
             let res: u8;
             core::arch::asm!(
                 "dmb ish",
-                "0:",
+                "2:",
                 "ldxr {res:w}, [{ptr}]",
                 "stxr {scratch:w}, {val:w}, [{ptr}]",
-                "cbnz {scratch:w}, 0b",
+                "cbnz {scratch:w}, 2b",
                 "dmb ish",
                 res = out(reg) res,
                 scratch = out(reg) _,
@@ -376,11 +376,11 @@ macro_rules! gen_exchange {
             let res: u8;
             core::arch::asm!(
                 "dmb sy",
-                "0:",
+                "2:",
                 "ldrex {res:w}, [{ptr}]",
                 "strex {scratch:w}, {val:w}, [{ptr}]",
                 "cmp {scratch:w}, #1",
-                "beq 0b",
+                "beq 2b",
                 "dmb sy",
                 res = out(reg) res,
                 scratch = out(reg) _,
@@ -412,10 +412,10 @@ macro_rules! gen_exchange {
             let res: u16;
             core::arch::asm!(
                 "dmb ish",
-                "0:",
+                "2:",
                 "ldxr {res:w}, [{ptr}]",
                 "stxr {scratch:w}, {val:w}, [{ptr}]",
-                "cbnz {scratch:w}, 0b",
+                "cbnz {scratch:w}, 2b",
                 "dmb ish",
                 res = out(reg) res,
                 scratch = out(reg) _,
@@ -431,11 +431,11 @@ macro_rules! gen_exchange {
             let res: u8;
             core::arch::asm!(
                 "dmb sy",
-                "0:",
+                "2:",
                 "ldrex {res:w}, [{ptr}]",
                 "strex {scratch:w}, {val:w}, [{ptr}]",
                 "cmp {scratch:w}, #1",
-                "beq 0b",
+                "beq 2b",
                 "dmb sy",
                 res = out(reg) res,
                 scratch = out(reg) _,
@@ -467,10 +467,10 @@ macro_rules! gen_exchange {
             let res: u32;
             core::arch::asm!(
                 "dmb ish",
-                "0:",
+                "2:",
                 "ldxr {res:w}, [{ptr}]",
                 "stxr {scratch:w}, {val:w}, [{ptr}]",
-                "cbnz {scratch:w}, 0b",
+                "cbnz {scratch:w}, 2b",
                 "dmb ish",
                 res = out(reg) res,
                 scratch = out(reg) _,
@@ -486,11 +486,11 @@ macro_rules! gen_exchange {
             let res: u8;
             core::arch::asm!(
                 "dmb sy",
-                "0:",
+                "2:",
                 "ldrex {res:w}, [{ptr}]",
                 "strex {scratch:w}, {val:w}, [{ptr}]",
                 "cmp {scratch:w}, #1",
-                "beq 0b",
+                "beq 2b",
                 "dmb sy",
                 res = out(reg) res,
                 scratch = out(reg) _,
@@ -522,10 +522,10 @@ macro_rules! gen_exchange {
             let res: u64;
             core::arch::asm!(
                 "dmb ish",
-                "0:",
+                "2:",
                 "ldxr {res:x}, [{ptr}]",
                 "stxr {scratch:w}, {val:x}, [{ptr}]",
-                "cbnz {scratch:w}, 0b",
+                "cbnz {scratch:w}, 2b",
                 "dmb ish",
                 res = out(reg) res,
                 scratch = out(reg) _,
@@ -567,14 +567,14 @@ macro_rules! gen_cmpxchg {
             let res: u8;
             core::arch::asm!(
                 "dmb ish",
-                "0:",
+                "2:",
                 "uxtb {scratch:w}, {old_val:w}",
-                "ldxr {res:w}, [{ptr}]",
+                "ldxrb {res:w}, [{ptr}]",
                 "cmp {res:w}, {scratch:w}",
-                "b.ne 1f",
-                "stxr {scratch:w}, {new_val:w}, [{ptr}]",
-                "cbnz {scratch:w}, 0b",
-                "1: dmb ish",
+                "b.ne 3f",
+                "stxrb {scratch:w}, {new_val:w}, [{ptr}]",
+                "cbnz {scratch:w}, 2b",
+                "3: dmb ish",
                 res = out(reg) res,
                 scratch = out(reg) _,
                 ptr = in(reg) ptr,
@@ -590,15 +590,15 @@ macro_rules! gen_cmpxchg {
             let res: u8;
             core::arch::asm!(
                 "dmb sy",
-                "0:",
+                "2:",
                 "uxtb {scratch:w}, {old_val:w}",
                 "ldrex {res:w} [{ptr}]",
                 "cmp {res:w}, {scratch:w}",
-                "bne 1f",
+                "bne 3f",
                 "strex {scratch:w}, {new_val:w}, [{ptr}]",
                 "cmp {scratch:w}, #1",
-                "beq 0b",
-                "1: dmb sy",
+                "beq 2b",
+                "3: dmb sy",
                 res = out(reg) res,
                 scratch = out(reg) _,
                 ptr = in(reg) ptr,
@@ -632,14 +632,14 @@ macro_rules! gen_cmpxchg {
             let res: u16;
             core::arch::asm!(
                 "dmb ish",
-                "0:",
+                "2:",
                 "uxth {scratch:w}, {old_val:w}",
-                "ldxr {res:w}, [{ptr}]",
+                "ldxrh {res:w}, [{ptr}]",
                 "cmp {res:w}, {scratch:w}",
-                "b.ne 1f",
-                "stxr {scratch:w}, {new_val:w}, [{ptr}]",
-                "cbnz {scratch:w}, 0b",
-                "1: dmb ish",
+                "b.ne 3f",
+                "stxrh {scratch:w}, {new_val:w}, [{ptr}]",
+                "cbnz {scratch:w}, 2b",
+                "3: dmb ish",
                 res = out(reg) res,
                 scratch = out(reg) _,
                 ptr = in(reg) ptr,
@@ -655,15 +655,15 @@ macro_rules! gen_cmpxchg {
             let res: u16;
             core::arch::asm!(
                 "dmb sy",
-                "0:",
+                "2:",
                 "uxth {scratch:w}, {old_val:w}",
                 "ldrex {res:w} [{ptr}]",
                 "cmp {res:w}, {scratch:w}",
-                "bne 1f",
+                "bne 3f",
                 "strex {scratch:w}, {new_val:w}, [{ptr}]",
                 "cmp {scratch:w}, #1",
-                "beq 0b",
-                "1: dmb sy",
+                "beq 2b",
+                "3: dmb sy",
                 res = out(reg) res,
                 scratch = out(reg) _,
                 ptr = in(reg) ptr,
@@ -697,14 +697,14 @@ macro_rules! gen_cmpxchg {
             let res: u32;
             core::arch::asm!(
                 "dmb ish",
-                "0:",
+                "2:",
                 "mov {scratch:w}, {old_val:w}",
                 "ldxr {res:w}, [{ptr}]",
                 "cmp {res:w}, {scratch:w}",
-                "b.ne 1f",
+                "b.ne 3f",
                 "stxr {scratch:w}, {new_val:w}, [{ptr}]",
-                "cbnz {scratch:w}, 0b",
-                "1: dmb ish",
+                "cbnz {scratch:w}, 2b",
+                "3: dmb ish",
                 res = out(reg) res,
                 scratch = out(reg) _,
                 ptr = in(reg) ptr,
@@ -720,15 +720,15 @@ macro_rules! gen_cmpxchg {
             let res: u32;
             core::arch::asm!(
                 "dmb sy",
-                "0:",
+                "2:",
                 "mov {scratch:w}, {old_val:w}",
                 "ldrex {res:w} [{ptr}]",
                 "cmp {res:w}, {scratch:w}",
-                "bne 1f",
+                "bne 3f",
                 "strex {scratch:w}, {new_val:w}, [{ptr}]",
                 "cmp {scratch:w}, #1",
-                "beq 0b",
-                "1: dmb sy",
+                "beq 2b",
+                "3: dmb sy",
                 res = out(reg) res,
                 scratch = out(reg) _,
                 ptr = in(reg) ptr,
@@ -786,14 +786,14 @@ macro_rules! gen_cmpxchg {
             let res: u64;
             core::arch::asm!(
                 "dmb ish",
-                "0:",
+                "2:",
                 "mov {scratch:w}, {old_val:w}",
                 "ldxr {res:w}, [{ptr}]",
                 "cmp {res:w}, {scratch:w}",
-                "b.ne 1f",
+                "b.ne 3f",
                 "stxr {scratch:w}, {new_val:w}, [{ptr}]",
-                "cbnz {scratch:w}, 0b",
-                "1: dmb ish",
+                "cbnz {scratch:w}, 2b",
+                "3: dmb ish",
                 res = out(reg) res,
                 scratch = out(reg) _,
                 ptr = in(reg) ptr,
@@ -814,17 +814,17 @@ macro_rules! gen_cmpxchg {
             let new_top = u32::from_le_bytes([b4, b5, b6, b7]);
             core::arch::asm!(
                 "dmb sy",
-                "0: ldrexd r0 r1 [{ptr}]",
+                "2: ldrexd r0 r1 [{ptr}]",
                 "cmp r0 {old_bot}",
-                "b.ne 1f",
+                "b.ne 3f",
                 "cmp r1 {old_top}",
-                "b.ne 1f",
+                "b.ne 3f",
                 "mov r2, {new_bot}"
                 "mov r3, {new_top}"
                 "strexd r4, r2, r3, [{ptr}]"
                 "cmp r4, #1",
-                "beq 0b",
-                "1: dmb sy",
+                "beq 2b",
+                "3: dmb sy",
                 "mov {old_bot} r0",
                 "mov {old_top} r1",
                 inout(reg) old_bot,
@@ -987,7 +987,7 @@ macro_rules! gen_fetchop {
         unsafe {
             //     insns = ""
             //     insns += fmt_insn("dmb sy")
-            //     insns += fmt_insn("0:")
+            //     insns += fmt_insn("2:")
             //     if size == 8:
             //         insns += fmt_insn("ldrexb %[res], [%[addr]]")
             //         insns += fmt_insn("OP %[scratch1], %[res], %[val]")
@@ -1008,7 +1008,7 @@ macro_rules! gen_fetchop {
             //         cpu_op = "eor"
             //     insns = insns.replace("OP", cpu_op)
             //     insns += fmt_insn("cmp %[scratch2], #1")
-            //     insns += fmt_insn("beq 0b")
+            //     insns += fmt_insn("beq 2b")
             //     insns += fmt_insn("dmb sy")
             //     return """
             //         INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr, %(cpp_type)s val) {
@@ -1087,7 +1087,7 @@ macro_rules! gen_fetchop {
         unsafe {
             //     insns = ""
             //     insns += fmt_insn("dmb sy")
-            //     insns += fmt_insn("0:")
+            //     insns += fmt_insn("2:")
             //     if size == 8:
             //         insns += fmt_insn("ldrexb %[res], [%[addr]]")
             //         insns += fmt_insn("OP %[scratch1], %[res], %[val]")
@@ -1108,7 +1108,7 @@ macro_rules! gen_fetchop {
             //         cpu_op = "eor"
             //     insns = insns.replace("OP", cpu_op)
             //     insns += fmt_insn("cmp %[scratch2], #1")
-            //     insns += fmt_insn("beq 0b")
+            //     insns += fmt_insn("beq 2b")
             //     insns += fmt_insn("dmb sy")
             //     return """
             //         INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr, %(cpp_type)s val) {
@@ -1187,7 +1187,7 @@ macro_rules! gen_fetchop {
         unsafe {
             //     insns = ""
             //     insns += fmt_insn("dmb sy")
-            //     insns += fmt_insn("0:")
+            //     insns += fmt_insn("2:")
             //     if size == 8:
             //         insns += fmt_insn("ldrexb %[res], [%[addr]]")
             //         insns += fmt_insn("OP %[scratch1], %[res], %[val]")
@@ -1208,7 +1208,7 @@ macro_rules! gen_fetchop {
             //         cpu_op = "eor"
             //     insns = insns.replace("OP", cpu_op)
             //     insns += fmt_insn("cmp %[scratch2], #1")
-            //     insns += fmt_insn("beq 0b")
+            //     insns += fmt_insn("beq 2b")
             //     insns += fmt_insn("dmb sy")
             //     return """
             //         INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr, %(cpp_type)s val) {
@@ -1287,7 +1287,7 @@ macro_rules! gen_fetchop {
         unsafe {
             //     insns = ""
             //     insns += fmt_insn("dmb sy")
-            //     insns += fmt_insn("0:")
+            //     insns += fmt_insn("2:")
             //     if size == 8:
             //         insns += fmt_insn("ldrexb %[res], [%[addr]]")
             //         insns += fmt_insn("OP %[scratch1], %[res], %[val]")
@@ -1308,7 +1308,7 @@ macro_rules! gen_fetchop {
             //         cpu_op = "eor"
             //     insns = insns.replace("OP", cpu_op)
             //     insns += fmt_insn("cmp %[scratch2], #1")
-            //     insns += fmt_insn("beq 0b")
+            //     insns += fmt_insn("beq 2b")
             //     insns += fmt_insn("dmb sy")
             //     return """
             //         INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr, %(cpp_type)s val) {
