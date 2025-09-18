@@ -658,8 +658,7 @@ pub struct Agent {
     pub(crate) options: Options,
     #[expect(dead_code)]
     symbol_id: usize,
-    #[expect(dead_code)]
-    global_symbol_registry: AHashMap<&'static str, Symbol<'static>>,
+    pub(crate) global_symbol_registry: AHashMap<String<'static>, Symbol<'static>>,
     pub(crate) host_hooks: &'static dyn HostHooks,
     execution_context_stack: Vec<ExecutionContext>,
     /// Temporary storage for on-stack heap roots.

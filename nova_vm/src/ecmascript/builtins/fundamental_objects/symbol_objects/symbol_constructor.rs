@@ -9,7 +9,8 @@ use crate::{
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, IntoObject, IntoValue, Object, String, SymbolHeapData, Value,
+            BUILTIN_STRING_MEMORY, IntoObject, IntoValue, Object, String, Symbol, SymbolHeapData,
+            Value,
         },
     },
     engine::context::{Bindable, GcScope},
@@ -89,31 +90,83 @@ impl SymbolConstructor {
     fn r#for<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        let key = arguments.get(0).bind(gc.nogc());
         // 1. Let stringKey be ? ToString(key).
+        let string_key = to_string(agent, key.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+
         // 2. For each element e of the GlobalSymbolRegistry List, do
         //        a. If e.[[Key]] is stringKey, return e.[[Symbol]].
+        if let Some(&symbol) = agent.global_symbol_registry.get(&string_key.unbind()) {
+            return Ok(symbol.into_value());
+        }
+
         // 3. Assert: The GlobalSymbolRegistry List does not currently contain an entry for stringKey.
         // 4. Let newSymbol be a new Symbol whose [[Description]] is stringKey.
+        let new_symbol = agent.heap.create(SymbolHeapData {
+            descriptor: Some(string_key.unbind()),
+        });
+
         // 5. Append the GlobalSymbolRegistry Record { [[Key]]: stringKey, [[Symbol]]: newSymbol } to the GlobalSymbolRegistry List.
+        agent
+            .global_symbol_registry
+            .insert(string_key.unbind(), new_symbol);
+
         // 6. Return newSymbol.
-        Err(agent.todo("Symbol.for", gc.into_nogc()))
+        Ok(new_symbol.into_value())
     }
 
     /// ### [20.4.2.6 Symbol.keyFor ( sym )](https://tc39.es/ecma262/#sec-symbol.keyfor)
     fn key_for<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
+        arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        // 1. If sym is not a Symbol, throw a TypeError exception.
-        // 2. Return KeyForSymbol(sym).
-        Err(agent.todo("Symbol.keyFor", gc.into_nogc()))
-    }
+        let sym = arguments.get(0).bind(gc.nogc());
 
+        // 1. If sym is not a Symbol, throw a TypeError exception.
+        let symbol = match sym.unbind().try_into() {
+            Ok(symbol) => symbol,
+            Err(_) => {
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Symbol.keyFor argument is not a symbol",
+                    gc.into_nogc(),
+                ));
+            }
+        };
+
+        // 2. Return KeyForSymbol(sym).
+        key_for_symbol(agent, symbol, gc)
+    }
+}
+
+/// ### [20.4.5.1 KeyForSymbol ( sym )](https://tc39.es/ecma262/#sec-keyforsymbol)
+///
+/// The abstract operation KeyForSymbol takes argument sym (a Symbol) and returns a String or undefined.
+fn key_for_symbol<'gc>(
+    agent: &mut Agent,
+    sym: Symbol<'static>,
+    _gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, Value<'gc>> {
+    // 1. For each element e of the GlobalSymbolRegistry List, do
+    //        a. If SameValue(e.[[Symbol]], sym) is true, return e.[[Key]].
+    for (key, &symbol) in &agent.global_symbol_registry {
+        if symbol == sym {
+            return Ok(key.into_value());
+        }
+    }
+    // 2. Assert: The GlobalSymbolRegistry List does not currently contain an entry for sym.
+    // 3. Return undefined.
+    Ok(Value::Undefined)
+}
+
+impl SymbolConstructor {
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let symbol_prototype = intrinsics.symbol_prototype();
