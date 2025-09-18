@@ -13,7 +13,7 @@ use crate::{
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
-            ArgumentsList, Array, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
+            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
             array_create,
             ordinary::ordinary_create_from_constructor,
             promise::{
@@ -343,16 +343,13 @@ impl PromiseConstructor {
 
             // b. If next is done, then
             let Some(next) = next else {
-                //      i. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] - 1.
-                //      ii. If remainingElementsCount.[[Value]] = 0, then
-                //          1. Let valuesArray be CreateArrayFromList(values).
-                //          2. Perform ? Call(resultCapability.[[Resolve]], undefined, « valuesArray »).
-                //      iii. Return resultCapability.[[Promise]].
                 break;
             };
 
             // c. Append undefined to values.
-            result_array.get(agent).reserve(agent, 1);
+            if let Err(err) = result_array.get(agent).reserve(agent, 1) {
+                return Err(agent.throw_allocation_exception(err, gc.into_nogc()));
+            }
             // SAFETY: reserve did not fail.
             unsafe { result_array.get(agent).set_len(agent, index + 1) };
 
@@ -388,8 +385,6 @@ impl PromiseConstructor {
                 promise: next_promise.unbind(),
                 must_be_unresolved: true,
             };
-
-            // let capability = PromiseCapability::new(agent, gc.nogc());
             inner_promise_then(
                 agent,
                 next_promise.unbind(),
@@ -404,10 +399,6 @@ impl PromiseConstructor {
                 Some(capability),
                 gc.nogc(),
             );
-
-            // let promise_all = promise_all_reference.get(agent);
-            // let promise_all_record = promise_all.get_mut(agent);
-            // promise_all_record.remaining_unresolved_promise_count = index;
 
             index += 1;
             let promise_all = promise_all_reference.get(agent);

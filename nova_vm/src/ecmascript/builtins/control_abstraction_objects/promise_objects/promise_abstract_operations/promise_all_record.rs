@@ -48,8 +48,14 @@ impl<'a> PromiseAll<'a> {
         elements[index as usize] = Some(value.unbind());
 
         let data = promise_all.get_mut(agent);
+
+        // i. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] - 1.
         data.remaining_elements_count = data.remaining_elements_count.saturating_sub(1);
+
+        //ii. If remainingElementsCount.[[Value]] = 0, then
         if data.remaining_elements_count == 0 {
+            // 1. Let valuesArray be CreateArrayFromList(values).
+            // 2. Perform ? Call(resultCapability.[[Resolve]], undefined, « valuesArray »).
             let capability = PromiseCapability::from_promise(data.promise, true);
             capability.resolve(agent, result_array.into_value().unbind(), gc);
         }
