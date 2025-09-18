@@ -6,12 +6,14 @@
 
 mod abstract_operations;
 mod data;
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::types::SHARED_ARRAY_BUFFER_DISCRIMINANT;
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            InternalMethods, InternalSlots, Object, OrdinaryObject, Value, copy_data_block_bytes,
-            create_byte_data_block,
+            ARRAY_BUFFER_DISCRIMINANT, InternalMethods, InternalSlots, Object, OrdinaryObject,
+            Value, copy_data_block_bytes, create_byte_data_block,
         },
     },
     engine::{
@@ -28,6 +30,9 @@ use abstract_operations::detach_array_buffer;
 pub(crate) use abstract_operations::*;
 use core::ops::{Index, IndexMut};
 pub use data::*;
+
+#[cfg(feature = "shared-array-buffer")]
+use super::shared_array_buffer::SharedArrayBuffer;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
@@ -287,5 +292,98 @@ impl<'a> CreateHeapData<ArrayBufferHeapData<'a>, ArrayBuffer<'a>> for Heap {
         self.array_buffers.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<ArrayBufferHeapData<'static>>>();
         ArrayBuffer(BaseIndex::last(&self.array_buffers))
+    }
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
+#[repr(u8)]
+pub enum AnyArrayBuffer<'a> {
+    ArrayBuffer(ArrayBuffer<'a>) = ARRAY_BUFFER_DISCRIMINANT,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedArrayBuffer(SharedArrayBuffer<'a>) = SHARED_ARRAY_BUFFER_DISCRIMINANT,
+}
+bindable_handle!(AnyArrayBuffer);
+
+macro_rules! array_buffer_delegate {
+    ($value: ident, $method: ident, $($arg:expr),*) => {
+        match $value {
+            Self::ArrayBuffer(ta) => ta.$method($($arg),+),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedArrayBuffer(sta) => sta.$method($($arg),+),
+        }
+    };
+}
+
+impl<'ab> AnyArrayBuffer<'ab> {
+    #[inline(always)]
+    pub fn is_detached(self, agent: &Agent) -> bool {
+        array_buffer_delegate!(self, is_detached, agent)
+    }
+
+    /// Returns true if the ArrayBuffer is resizable.
+    #[inline(always)]
+    pub fn is_resizable(self, agent: &Agent) -> bool {
+        match self {
+            Self::ArrayBuffer(ta) => ta.is_resizable(agent),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedArrayBuffer(sta) => sta.is_growable(agent),
+        }
+    }
+
+    /// \[\[ByteLength]]
+    #[inline(always)]
+    pub fn byte_length(self, agent: &Agent) -> usize {
+        array_buffer_delegate!(self, byte_length, agent)
+    }
+}
+
+impl<'a> From<ArrayBuffer<'a>> for AnyArrayBuffer<'a> {
+    #[inline(always)]
+    fn from(value: ArrayBuffer<'a>) -> Self {
+        Self::ArrayBuffer(value)
+    }
+}
+
+#[cfg(feature = "shared-array-buffer")]
+impl<'a> From<SharedArrayBuffer<'a>> for AnyArrayBuffer<'a> {
+    #[inline(always)]
+    fn from(value: SharedArrayBuffer<'a>) -> Self {
+        Self::SharedArrayBuffer(value)
+    }
+}
+
+impl<'a> From<AnyArrayBuffer<'a>> for Value<'a> {
+    #[inline(always)]
+    fn from(value: AnyArrayBuffer<'a>) -> Self {
+        match value {
+            AnyArrayBuffer::ArrayBuffer(dv) => Self::ArrayBuffer(dv),
+            #[cfg(feature = "shared-array-buffer")]
+            AnyArrayBuffer::SharedArrayBuffer(sdv) => Self::SharedArrayBuffer(sdv),
+        }
+    }
+}
+
+impl<'a> From<AnyArrayBuffer<'a>> for Object<'a> {
+    #[inline(always)]
+    fn from(value: AnyArrayBuffer<'a>) -> Self {
+        match value {
+            AnyArrayBuffer::ArrayBuffer(dv) => Self::ArrayBuffer(dv),
+            #[cfg(feature = "shared-array-buffer")]
+            AnyArrayBuffer::SharedArrayBuffer(sdv) => Self::SharedArrayBuffer(sdv),
+        }
+    }
+}
+
+impl TryFrom<HeapRootData> for AnyArrayBuffer<'_> {
+    type Error = ();
+
+    #[inline]
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        match value {
+            HeapRootData::ArrayBuffer(dv) => Ok(AnyArrayBuffer::ArrayBuffer(dv)),
+            #[cfg(feature = "shared-array-buffer")]
+            HeapRootData::SharedArrayBuffer(sdv) => Ok(AnyArrayBuffer::SharedArrayBuffer(sdv)),
+            _ => Err(()),
+        }
     }
 }

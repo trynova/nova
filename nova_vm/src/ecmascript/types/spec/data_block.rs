@@ -5,7 +5,10 @@
 //! ### [6.2.9 Data Blocks](https://tc39.es/ecma262/#sec-data-blocks)
 
 #[cfg(feature = "shared-array-buffer")]
-use core::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
+use core::sync::atomic::{
+    AtomicI8, AtomicI16, AtomicI32, AtomicI64, AtomicU8, AtomicU16, AtomicU32, AtomicU64,
+    AtomicUsize, Ordering,
+};
 #[cfg(feature = "shared-array-buffer")]
 use std::hint::assert_unchecked;
 
@@ -183,17 +186,45 @@ impl DataBlock {
         }
     }
 
-    pub(crate) fn get_offset_by_byte<T: Viewable>(&self, byte_offset: usize) -> Option<T> {
-        let size = core::mem::size_of::<T>();
-        let end_byte_offset = byte_offset + size;
-        if end_byte_offset > self.byte_length {
-            None
-        } else {
-            self.ptr.map(|data| {
-                // SAFETY: The data is properly initialized, and the T being read is
-                // checked to be fully within the length of the data allocation.
-                unsafe { read_unaligned(data.as_ptr().byte_add(byte_offset).cast()) }
-            })
+    /// Read a T from the buffer at `byte_offset`.
+    ///
+    /// # Safety
+    ///
+    /// The buffer must have enough room to read a T at `byte_offset` and must
+    /// not be detached. The offset must be aligned.
+    #[inline(always)]
+    pub(crate) unsafe fn read_aligned<T: Viewable>(&self, byte_offset: usize) -> T {
+        // SAFETY: The data is properly initialized, and the T being read is
+        // checked to be fully within the length of the data allocation.
+        unsafe {
+            core::ptr::read(
+                self.ptr
+                    .unwrap_unchecked()
+                    .as_ptr()
+                    .byte_add(byte_offset)
+                    .cast(),
+            )
+        }
+    }
+
+    /// Read a T from the buffer at `byte_offset`.
+    ///
+    /// # Safety
+    ///
+    /// The buffer must have enough room to read a T at `byte_offset` and must
+    /// not be detached.
+    #[inline(always)]
+    pub(crate) unsafe fn read_unaligned<T: Viewable>(&self, byte_offset: usize) -> T {
+        // SAFETY: The data is properly initialized, and the T being read is
+        // checked to be fully within the length of the data allocation.
+        unsafe {
+            core::ptr::read_unaligned(
+                self.ptr
+                    .unwrap_unchecked()
+                    .as_ptr()
+                    .byte_add(byte_offset)
+                    .cast(),
+            )
         }
     }
 
@@ -671,6 +702,65 @@ impl SharedDataBlock {
         self.max_byte_length.is_growable()
     }
 
+    /// Read a value at the given aligned offset with no synchronisation.
+    ///
+    /// # Safety
+    ///
+    /// The given byte offset must correctly align the type.
+    ///
+    /// # Soundness
+    ///
+    /// This method is entirely unsound. Rust's memory model does not allow
+    /// data races, but ECMAScript specifically does (and just politely asks
+    /// you to not write them).
+    ///
+    /// This is... not the best thing in the world. It's quite possibly the
+    /// worst thing in the world. Yet here it stands.
+    #[inline(always)]
+    pub(crate) unsafe fn read_unordered_aligned<T: Viewable>(&self, byte_offset: usize) -> T {
+        // SAFETY: The data is properly initialized, and the T being read is
+        // checked to be fully within the length of the data allocation.
+        unsafe { core::ptr::read(self.ptr.as_ptr().byte_add(byte_offset).cast()) }
+    }
+
+    /// Read a value at the given possibly unaligned offset with no
+    /// synchronisation.
+    ///
+    /// # Soundness
+    ///
+    /// This method is entirely unsound. Rust's memory model does not allow
+    /// data races, but ECMAScript specifically does (and just politely asks
+    /// you to not write them).
+    ///
+    /// Because this is an unaligned read, this is possibly even worse than the
+    /// above method.
+    #[inline(always)]
+    pub(crate) unsafe fn read_unordered_unaligned<T: Viewable>(&self, byte_offset: usize) -> T {
+        // SAFETY: The data is properly initialized, and the T being read is
+        // checked to be fully within the length of the data allocation.
+        unsafe { core::ptr::read_unaligned(self.ptr.as_ptr().byte_add(byte_offset).cast()) }
+    }
+
+    /// Read a value at the given aligned offset with SeqCst ordering.
+    ///
+    /// # Safety
+    ///
+    /// The given byte offset must correctly align the type.
+    ///
+    /// # Soundness
+    ///
+    /// This method is mostly unsound. Rust's memory model does not allow
+    /// data races or mixed atomic access, but ECMAScript specifically does
+    /// (and just politely asks you to not write them).
+    ///
+    /// At least this is aligned and properly sequentially consistent.
+    #[inline(always)]
+    pub(crate) unsafe fn read<T: Viewable>(&self, byte_offset: usize) -> T {
+        // SAFETY: Caller guarantees the buffer is large enough.
+        let ptr = unsafe { self.ptr.byte_add(byte_offset) };
+        unsafe { T::read_atomic(ptr) }
+    }
+
     /// Attempt to grow the SharedDataBlock. Returns false if `new_byte_length`
     /// is or becomes less than the current byte length.
     ///
@@ -1026,6 +1116,17 @@ pub trait Viewable: 'static + private::Sealed + Copy + PartialEq {
     /// This is used to convert Viewables to other Viewables without having to
     /// go through a conversion into Value.
     fn from_f64(value: f64) -> Self;
+
+    /// Reverses the byte order of the value.
+    fn flip_endian(self) -> Self;
+
+    /// Read value through an atomic pointer as sequentially consistent.
+    ///
+    /// # Safety
+    ///
+    /// The pointer must be properly aligned and point to a buffer large enough
+    /// to read Self from with initialised data.
+    unsafe fn read_atomic(ptr: NonNull<AtomicU8>) -> Self;
 }
 
 impl Viewable for () {
@@ -1092,6 +1193,18 @@ impl Viewable for () {
             panic!("VoidArray is a marker type");
         }
     }
+
+    fn flip_endian(self) -> Self {
+        const {
+            panic!("VoidArray is a marker type");
+        }
+    }
+
+    unsafe fn read_atomic(_: NonNull<AtomicU8>) -> Self {
+        const {
+            panic!("VoidArray is a marker type");
+        }
+    }
 }
 
 impl Viewable for u8 {
@@ -1150,6 +1263,17 @@ impl Viewable for u8 {
     fn from_f64(value: f64) -> Self {
         value as Self
     }
+
+    #[inline(always)]
+    fn flip_endian(self) -> Self {
+        self.swap_bytes()
+    }
+
+    #[inline(always)]
+    unsafe fn read_atomic(ptr: NonNull<AtomicU8>) -> Self {
+        // SAFETY: ptr is guaranteed to be aligned and point to valid data.
+        unsafe { ptr.as_ref() }.load(Ordering::SeqCst)
+    }
 }
 impl Viewable for U8Clamped {
     #[cfg(feature = "array-buffer")]
@@ -1206,6 +1330,17 @@ impl Viewable for U8Clamped {
 
     fn from_f64(value: f64) -> Self {
         U8Clamped(value.clamp(0.0, 255.0).round_ties_even() as u8)
+    }
+
+    #[inline(always)]
+    fn flip_endian(self) -> Self {
+        Self(self.0.swap_bytes())
+    }
+
+    #[inline(always)]
+    unsafe fn read_atomic(ptr: NonNull<AtomicU8>) -> Self {
+        // SAFETY: ptr is guaranteed to be aligned and point to valid data.
+        Self(unsafe { ptr.as_ref() }.load(Ordering::SeqCst))
     }
 }
 impl Viewable for i8 {
@@ -1264,6 +1399,17 @@ impl Viewable for i8 {
     fn from_f64(value: f64) -> Self {
         value as Self
     }
+
+    #[inline(always)]
+    fn flip_endian(self) -> Self {
+        self.swap_bytes()
+    }
+
+    #[inline(always)]
+    unsafe fn read_atomic(ptr: NonNull<AtomicU8>) -> Self {
+        // SAFETY: ptr is guaranteed to be aligned and point to valid data.
+        unsafe { ptr.cast::<AtomicI8>().as_ref() }.load(Ordering::SeqCst)
+    }
 }
 impl Viewable for u16 {
     #[cfg(feature = "array-buffer")]
@@ -1320,6 +1466,17 @@ impl Viewable for u16 {
 
     fn from_f64(value: f64) -> Self {
         value as Self
+    }
+
+    #[inline(always)]
+    fn flip_endian(self) -> Self {
+        self.swap_bytes()
+    }
+
+    #[inline(always)]
+    unsafe fn read_atomic(ptr: NonNull<AtomicU8>) -> Self {
+        // SAFETY: ptr is guaranteed to be aligned and point to valid data.
+        unsafe { ptr.cast::<AtomicU16>().as_ref() }.load(Ordering::SeqCst)
     }
 }
 impl Viewable for i16 {
@@ -1378,6 +1535,17 @@ impl Viewable for i16 {
     fn from_f64(value: f64) -> Self {
         value as Self
     }
+
+    #[inline(always)]
+    fn flip_endian(self) -> Self {
+        self.swap_bytes()
+    }
+
+    #[inline(always)]
+    unsafe fn read_atomic(ptr: NonNull<AtomicU8>) -> Self {
+        // SAFETY: ptr is guaranteed to be aligned and point to valid data.
+        unsafe { ptr.cast::<AtomicI16>().as_ref() }.load(Ordering::SeqCst)
+    }
 }
 impl Viewable for u32 {
     #[cfg(feature = "array-buffer")]
@@ -1435,6 +1603,17 @@ impl Viewable for u32 {
     fn from_f64(value: f64) -> Self {
         value as Self
     }
+
+    #[inline(always)]
+    fn flip_endian(self) -> Self {
+        self.swap_bytes()
+    }
+
+    #[inline(always)]
+    unsafe fn read_atomic(ptr: NonNull<AtomicU8>) -> Self {
+        // SAFETY: ptr is guaranteed to be aligned and point to valid data.
+        unsafe { ptr.cast::<AtomicU32>().as_ref() }.load(Ordering::SeqCst)
+    }
 }
 impl Viewable for i32 {
     #[cfg(feature = "array-buffer")]
@@ -1491,6 +1670,17 @@ impl Viewable for i32 {
 
     fn from_f64(value: f64) -> Self {
         value as Self
+    }
+
+    #[inline(always)]
+    fn flip_endian(self) -> Self {
+        self.swap_bytes()
+    }
+
+    #[inline(always)]
+    unsafe fn read_atomic(ptr: NonNull<AtomicU8>) -> Self {
+        // SAFETY: ptr is guaranteed to be aligned and point to valid data.
+        unsafe { ptr.cast::<AtomicI32>().as_ref() }.load(Ordering::SeqCst)
     }
 }
 impl Viewable for u64 {
@@ -1560,6 +1750,17 @@ impl Viewable for u64 {
 
     fn from_f64(value: f64) -> Self {
         value as Self
+    }
+
+    #[inline(always)]
+    fn flip_endian(self) -> Self {
+        self.swap_bytes()
+    }
+
+    #[inline(always)]
+    unsafe fn read_atomic(ptr: NonNull<AtomicU8>) -> Self {
+        // SAFETY: ptr is guaranteed to be aligned and point to valid data.
+        unsafe { ptr.cast::<AtomicU64>().as_ref() }.load(Ordering::SeqCst)
     }
 }
 impl Viewable for i64 {
@@ -1636,6 +1837,17 @@ impl Viewable for i64 {
     fn from_f64(value: f64) -> Self {
         value as Self
     }
+
+    #[inline(always)]
+    fn flip_endian(self) -> Self {
+        self.swap_bytes()
+    }
+
+    #[inline(always)]
+    unsafe fn read_atomic(ptr: NonNull<AtomicU8>) -> Self {
+        // SAFETY: ptr is guaranteed to be aligned and point to valid data.
+        unsafe { ptr.cast::<AtomicI64>().as_ref() }.load(Ordering::SeqCst)
+    }
 }
 #[cfg(feature = "proposal-float16array")]
 impl Viewable for f16 {
@@ -1699,6 +1911,17 @@ impl Viewable for f16 {
 
     fn from_f64(value: f64) -> Self {
         value as Self
+    }
+
+    #[inline(always)]
+    fn viewable_swap_bytes(self) -> Self {
+        Self::from_bits(self.to_bits().swap_bytes())
+    }
+
+    #[inline(always)]
+    unsafe fn read_atomic(ptr: NonNull<AtomicU8>) -> Self {
+        // SAFETY: ptr is guaranteed to be aligned and point to valid data.
+        Self::from_bits(unsafe { ptr.cast::<AtomicU16>().as_ref() }.load(Ordering::SeqCst))
     }
 }
 impl Viewable for f32 {
@@ -1764,6 +1987,17 @@ impl Viewable for f32 {
     fn from_f64(value: f64) -> Self {
         value as Self
     }
+
+    #[inline(always)]
+    fn flip_endian(self) -> Self {
+        Self::from_bits(self.to_bits().swap_bytes())
+    }
+
+    #[inline(always)]
+    unsafe fn read_atomic(ptr: NonNull<AtomicU8>) -> Self {
+        // SAFETY: ptr is guaranteed to be aligned and point to valid data.
+        Self::from_bits(unsafe { ptr.cast::<AtomicU32>().as_ref() }.load(Ordering::SeqCst))
+    }
 }
 impl Viewable for f64 {
     const IS_FLOAT: bool = true;
@@ -1819,6 +2053,17 @@ impl Viewable for f64 {
 
     fn from_f64(value: f64) -> Self {
         value
+    }
+
+    #[inline(always)]
+    fn flip_endian(self) -> Self {
+        Self::from_bits(self.to_bits().swap_bytes())
+    }
+
+    #[inline(always)]
+    unsafe fn read_atomic(ptr: NonNull<AtomicU8>) -> Self {
+        // SAFETY: ptr is guaranteed to be aligned and point to valid data.
+        Self::from_bits(unsafe { ptr.cast::<AtomicU64>().as_ref() }.load(Ordering::SeqCst))
     }
 }
 

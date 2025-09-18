@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{ArrayBuffer, InternalBuffer};
+use super::{AnyArrayBuffer, ArrayBuffer, InternalBuffer};
 use crate::{
     Heap,
     ecmascript::{
@@ -233,10 +233,11 @@ pub(crate) fn get_array_buffer_max_byte_length_option<'a>(
 /// The abstract operation IsFixedLengthArrayBuffer takes argument
 /// arrayBuffer (an ArrayBuffer or a SharedArrayBuffer) and returns a
 /// Boolean.
-pub(crate) fn is_fixed_length_array_buffer(agent: &Agent, array_buffer: ArrayBuffer) -> bool {
+#[inline(always)]
+pub(crate) fn is_fixed_length_array_buffer(agent: &Agent, array_buffer: AnyArrayBuffer) -> bool {
     // 1. If arrayBuffer has an [[ArrayBufferMaxByteLength]] internal slot, return false.
     // 2. Return true.
-    !agent[array_buffer].is_resizable()
+    array_buffer.is_resizable(agent)
 }
 
 /// ### [25.1.3.13 RawBytesToNumeric ( type, rawBytes, isLittleEndian )](https://tc39.es/ecma262/#sec-rawbytestonumeric)
@@ -311,7 +312,7 @@ pub(crate) fn get_value_from_buffer<'a, T: Viewable>(
     agent: &mut Agent,
     array_buffer: ArrayBuffer,
     byte_index: usize,
-    _is_typed_array: bool,
+    is_typed_array: bool,
     _order: Ordering,
     is_little_endian: Option<bool>,
     gc: NoGcScope<'a, '_>,
@@ -330,7 +331,11 @@ pub(crate) fn get_value_from_buffer<'a, T: Viewable>(
     // a. Let rawValue be a List whose elements are bytes from block at indices
     //    in the interval from byteIndex (inclusive) to byteIndex + elementSize
     //    (exclusive).
-    let raw_value = block.get_offset_by_byte::<T>(byte_index).unwrap();
+    let raw_value = if is_typed_array {
+        block.read_aligned::<T>(byte_index)
+    } else {
+        block.read_unaligned::<T>(byte_index)
+    };
     // 7. Assert: The number of elements in rawValue is elementSize.
     // 8. If isLittleEndian is not present, set isLittleEndian to the value of
     //    the [[LittleEndian]] field of the surrounding agent's Agent Record.
@@ -346,7 +351,7 @@ pub(crate) fn get_value_from_buffer<'a, T: Viewable>(
     });
 
     // 9. Return RawBytesToNumeric(type, rawValue, isLittleEndian).
-    raw_bytes_to_numeric::<T>(agent, raw_value, is_little_endian, gc)
+    raw_bytes_to_numeric::<T>(agent, raw_value.unwrap(), is_little_endian, gc)
 }
 
 /// ### [25.1.3.16 NumericToRawBytes ( type, value, isLittleEndian )](https://tc39.es/ecma262/#sec-numerictorawbytes)
