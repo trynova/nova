@@ -850,31 +850,76 @@ macro_rules! gen_cmpxchg {
 
 macro_rules! fetchop {
     // The `add` operation can be optimized with XADD.
-    (add, x86) => {
-        "lock; xadd {val}, [{ptr}]"
+    ("add", x86, u8) => {
+        "lock; xadd [{ptr}], {val}"
     };
-    (or, x86) => {
-        "or {val}, {scratch}"
+    ("add", x86, u16) => {
+        "lock; xadd [{ptr}], {val:x}"
     };
-    (xor, x86) => {
-        "xor {val}, {scratch}"
+    ("add", x86, u32) => {
+        "lock; xadd [{ptr}], {val:e}"
     };
-    (add, aarch64) => {
+    ("add", x86, u64) => {
+        "lock; xadd [{ptr}], {val:r}"
+    };
+    ("and", x86, u8) => {
+        "and {scratch}, {val}"
+    };
+    ("and", x86, u16) => {
+        "and {scratch:x}, {val:x}"
+    };
+    ("and", x86, u32) => {
+        "and {scratch:e}, {val:e}"
+    };
+    ("and", x86, u64) => {
+        "and {scratch:r}, {val:r}"
+    };
+    ("or", x86, u8) => {
+        "or {scratch}, {val}"
+    };
+    ("or", x86, u16) => {
+        "or {scratch:x}, {val:x}"
+    };
+    ("or", x86, u32) => {
+        "or {scratch:e}, {val:e}"
+    };
+    ("or", x86, u64) => {
+        "or {scratch:r}, {val:r}"
+    };
+    ("xor", x86, u8) => {
+        "xor {scratch}, {val}"
+    };
+    ("xor", x86, u16) => {
+        "xor {scratch:x}, {val:x}"
+    };
+    ("xor", x86, u32) => {
+        "xor {scratch:e}, {val:e}"
+    };
+    ("xor", x86, u64) => {
+        "xor {scratch:r}, {val:r}"
+    };
+    ("add", aarch64) => {
         "add {val}, {scratch}"
     };
-    (or, aarch64) => {
+    ("and", aarch64) => {
+        "and {val}, {scratch}"
+    };
+    ("or", aarch64) => {
         "orr {val}, {scratch}"
     };
-    (xor, aarch64) => {
+    ("xor", aarch64) => {
         "eor {val}, {scratch}"
     };
-    (add, arm) => {
+    ("add", arm) => {
         "add {val}, {scratch}"
     };
-    (or, arm) => {
+    ("and", arm) => {
+        "and {val}, {scratch}"
+    };
+    ("or", arm) => {
         "or {val}, {scratch}"
     };
-    (xor, arm) => {
+    ("xor", arm) => {
         "xor {val}, {scratch}"
     };
 }
@@ -885,75 +930,36 @@ macro_rules! gen_fetchop {
         let ptr = unsafe { &mut *$ptr.as_ptr() };
 
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        {
-            // The `add` operation can be optimized with XADD.
-            //     if op == "add":
-            //         insns = ""
-            //         if size == 8:
-            //             insns += fmt_insn("lock; xaddb %[val], (%[addr])")
-            //         elif size == 16:
-            //             insns += fmt_insn("lock; xaddw %[val], (%[addr])")
-            //         elif size == 32:
-            //             insns += fmt_insn("lock; xaddl %[val], (%[addr])")
-            //         else:
-            //             assert size == 64
-            //             insns += fmt_insn("lock; xaddq %[val], (%[addr])")
-            //         return """
-            //             INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr, %(cpp_type)s val) {
-            //                 asm volatile (%(insns)s
-            //                     : [val] "+&r" (val)
-            //                     : [addr] "r" (addr)
-            //                     : "memory", "cc");
-            //                 return val;
-            //             }""" % {
-            //             "cpp_type": cpp_type,
-            //             "fun_name": fun_name,
-            //             "insns": insns,
-            //         }
-            //     // Use a +a constraint to ensure `res` is stored in RAX. This is required
-            //     // for the CMPXCHG instruction.
-            //     insns = ""
-            //     if size == 8:
-            //         insns += fmt_insn("movb (%[addr]), %[res]")
-            //         insns += fmt_insn("0: movb %[res], %[scratch]")
-            //         insns += fmt_insn("OPb %[val], %[scratch]")
-            //         insns += fmt_insn("lock; cmpxchgb %[scratch], (%[addr])")
-            //     elif size == 16:
-            //         insns += fmt_insn("movw (%[addr]), %[res]")
-            //         insns += fmt_insn("0: movw %[res], %[scratch]")
-            //         insns += fmt_insn("OPw %[val], %[scratch]")
-            //         insns += fmt_insn("lock; cmpxchgw %[scratch], (%[addr])")
-            //     elif size == 32:
-            //         insns += fmt_insn("movl (%[addr]), %[res]")
-            //         insns += fmt_insn("0: movl %[res], %[scratch]")
-            //         insns += fmt_insn("OPl %[val], %[scratch]")
-            //         insns += fmt_insn("lock; cmpxchgl %[scratch], (%[addr])")
-            //     else:
-            //         assert size == 64
-            //         insns += fmt_insn("movq (%[addr]), %[res]")
-            //         insns += fmt_insn("0: movq %[res], %[scratch]")
-            //         insns += fmt_insn("OPq %[val], %[scratch]")
-            //         insns += fmt_insn("lock; cmpxchgq %[scratch], (%[addr])")
-            //     insns = insns.replace("OP", op)
-            //     insns += fmt_insn("jnz 0b")
-            //     return """
-            //         INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr, %(cpp_type)s val) {
-            //             %(cpp_type)s res, scratch;
-            //             asm volatile (%(insns)s
-            //                 : [res] "=&a" (res), [scratch] "=&r" (scratch)
-            //                 : [addr] "r" (addr), [val] "r"(val)
-            //                 : "memory", "cc");
-            //             return res;
-            //         }""" % {
-            //         "cpp_type": cpp_type,
-            //         "fun_name": fun_name,
-            //         "insns": insns,
-            //     }
-            todo!();
+        unsafe {
+            if $op == "add" {
+                // The `add` operation can be optimized with XADD.
+                core::arch::asm!(
+                    "lock; xadd [{ptr}], {val}",
+                    val = inout(reg_byte) $val,
+                    ptr = in(reg) ptr,
+                    options(nostack)
+                );
+            } else {
+                let res: u8;
+                core::arch::asm!(
+                    "mov al, [{ptr}]",
+                    "2: mov {scratch}, al",
+                    fetchop!($op, x86, u8),
+                    "lock; cmpxchg [{ptr}], {scratch}",
+                    "jnz 2b",
+                    // Use of RAX is required for the CMPXCHG instruction.
+                    out("al") res,
+                    scratch = out(reg_byte) _,
+                    ptr = in(reg) ptr,
+                    val = in(reg_byte) $val,
+                    options(nostack)
+                );
+                $val = res;
+            }
         }
 
         #[cfg(target_arch = "aarch64")]
-        {
+        unsafe {
             //     insns = ""
             //     insns += fmt_insn("dmb ish")
             //     insns += fmt_insn("0:")
@@ -1043,79 +1049,39 @@ macro_rules! gen_fetchop {
             todo!();
         }
 
-        #[expect(unreachable_code)]
-        const { panic!("Unexpected arch") }
+        return $val;
     };
     (u16, $op: tt, $ptr: ident, $val: ident) => {
         // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
         let ptr = unsafe { &mut *$ptr.as_ptr() };
 
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        {
-            // The `add` operation can be optimized with XADD.
-            //     if op == "add":
-            //         insns = ""
-            //         if size == 8:
-            //             insns += fmt_insn("lock; xaddb %[val], (%[addr])")
-            //         elif size == 16:
-            //             insns += fmt_insn("lock; xaddw %[val], (%[addr])")
-            //         elif size == 32:
-            //             insns += fmt_insn("lock; xaddl %[val], (%[addr])")
-            //         else:
-            //             assert size == 64
-            //             insns += fmt_insn("lock; xaddq %[val], (%[addr])")
-            //         return """
-            //             INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr, %(cpp_type)s val) {
-            //                 asm volatile (%(insns)s
-            //                     : [val] "+&r" (val)
-            //                     : [addr] "r" (addr)
-            //                     : "memory", "cc");
-            //                 return val;
-            //             }""" % {
-            //             "cpp_type": cpp_type,
-            //             "fun_name": fun_name,
-            //             "insns": insns,
-            //         }
-            //     // Use a +a constraint to ensure `res` is stored in RAX. This is required
-            //     // for the CMPXCHG instruction.
-            //     insns = ""
-            //     if size == 8:
-            //         insns += fmt_insn("movb (%[addr]), %[res]")
-            //         insns += fmt_insn("0: movb %[res], %[scratch]")
-            //         insns += fmt_insn("OPb %[val], %[scratch]")
-            //         insns += fmt_insn("lock; cmpxchgb %[scratch], (%[addr])")
-            //     elif size == 16:
-            //         insns += fmt_insn("movw (%[addr]), %[res]")
-            //         insns += fmt_insn("0: movw %[res], %[scratch]")
-            //         insns += fmt_insn("OPw %[val], %[scratch]")
-            //         insns += fmt_insn("lock; cmpxchgw %[scratch], (%[addr])")
-            //     elif size == 32:
-            //         insns += fmt_insn("movl (%[addr]), %[res]")
-            //         insns += fmt_insn("0: movl %[res], %[scratch]")
-            //         insns += fmt_insn("OPl %[val], %[scratch]")
-            //         insns += fmt_insn("lock; cmpxchgl %[scratch], (%[addr])")
-            //     else:
-            //         assert size == 64
-            //         insns += fmt_insn("movq (%[addr]), %[res]")
-            //         insns += fmt_insn("0: movq %[res], %[scratch]")
-            //         insns += fmt_insn("OPq %[val], %[scratch]")
-            //         insns += fmt_insn("lock; cmpxchgq %[scratch], (%[addr])")
-            //     insns = insns.replace("OP", op)
-            //     insns += fmt_insn("jnz 0b")
-            //     return """
-            //         INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr, %(cpp_type)s val) {
-            //             %(cpp_type)s res, scratch;
-            //             asm volatile (%(insns)s
-            //                 : [res] "=&a" (res), [scratch] "=&r" (scratch)
-            //                 : [addr] "r" (addr), [val] "r"(val)
-            //                 : "memory", "cc");
-            //             return res;
-            //         }""" % {
-            //         "cpp_type": cpp_type,
-            //         "fun_name": fun_name,
-            //         "insns": insns,
-            //     }
-            todo!();
+        unsafe {
+            if $op == "add" {
+                // The `add` operation can be optimized with XADD.
+                core::arch::asm!(
+                    "lock; xadd [{ptr}], {val:x}",
+                    val = inout(reg) $val,
+                    ptr = in(reg) ptr,
+                    options(nostack)
+                );
+            } else {
+                let res: u16;
+                core::arch::asm!(
+                    "mov ax, [{ptr}]",
+                    "2: mov {scratch:x}, ax",
+                    fetchop!($op, x86, u16),
+                    "lock; cmpxchg [{ptr}], {scratch:x}",
+                    "jnz 2b",
+                    // Use of RAX is required for the CMPXCHG instruction.
+                    out("ax") res,
+                    scratch = out(reg) _,
+                    ptr = in(reg) ptr,
+                    val = in(reg) $val,
+                    options(nostack)
+                );
+                $val = res;
+            }
         }
 
         #[cfg(target_arch = "aarch64")]
@@ -1209,79 +1175,39 @@ macro_rules! gen_fetchop {
             todo!();
         }
 
-        #[expect(unreachable_code)]
-        const { panic!("Unexpected arch") }
+        return $val;
     };
     (u32, $op: tt, $ptr: ident, $val: ident) => {
         // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
         let ptr = unsafe { &mut *$ptr.as_ptr() };
 
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        {
-            // The `add` operation can be optimized with XADD.
-            //     if op == "add":
-            //         insns = ""
-            //         if size == 8:
-            //             insns += fmt_insn("lock; xaddb %[val], (%[addr])")
-            //         elif size == 16:
-            //             insns += fmt_insn("lock; xaddw %[val], (%[addr])")
-            //         elif size == 32:
-            //             insns += fmt_insn("lock; xaddl %[val], (%[addr])")
-            //         else:
-            //             assert size == 64
-            //             insns += fmt_insn("lock; xaddq %[val], (%[addr])")
-            //         return """
-            //             INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr, %(cpp_type)s val) {
-            //                 asm volatile (%(insns)s
-            //                     : [val] "+&r" (val)
-            //                     : [addr] "r" (addr)
-            //                     : "memory", "cc");
-            //                 return val;
-            //             }""" % {
-            //             "cpp_type": cpp_type,
-            //             "fun_name": fun_name,
-            //             "insns": insns,
-            //         }
-            //     // Use a +a constraint to ensure `res` is stored in RAX. This is required
-            //     // for the CMPXCHG instruction.
-            //     insns = ""
-            //     if size == 8:
-            //         insns += fmt_insn("movb (%[addr]), %[res]")
-            //         insns += fmt_insn("0: movb %[res], %[scratch]")
-            //         insns += fmt_insn("OPb %[val], %[scratch]")
-            //         insns += fmt_insn("lock; cmpxchgb %[scratch], (%[addr])")
-            //     elif size == 16:
-            //         insns += fmt_insn("movw (%[addr]), %[res]")
-            //         insns += fmt_insn("0: movw %[res], %[scratch]")
-            //         insns += fmt_insn("OPw %[val], %[scratch]")
-            //         insns += fmt_insn("lock; cmpxchgw %[scratch], (%[addr])")
-            //     elif size == 32:
-            //         insns += fmt_insn("movl (%[addr]), %[res]")
-            //         insns += fmt_insn("0: movl %[res], %[scratch]")
-            //         insns += fmt_insn("OPl %[val], %[scratch]")
-            //         insns += fmt_insn("lock; cmpxchgl %[scratch], (%[addr])")
-            //     else:
-            //         assert size == 64
-            //         insns += fmt_insn("movq (%[addr]), %[res]")
-            //         insns += fmt_insn("0: movq %[res], %[scratch]")
-            //         insns += fmt_insn("OPq %[val], %[scratch]")
-            //         insns += fmt_insn("lock; cmpxchgq %[scratch], (%[addr])")
-            //     insns = insns.replace("OP", op)
-            //     insns += fmt_insn("jnz 0b")
-            //     return """
-            //         INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr, %(cpp_type)s val) {
-            //             %(cpp_type)s res, scratch;
-            //             asm volatile (%(insns)s
-            //                 : [res] "=&a" (res), [scratch] "=&r" (scratch)
-            //                 : [addr] "r" (addr), [val] "r"(val)
-            //                 : "memory", "cc");
-            //             return res;
-            //         }""" % {
-            //         "cpp_type": cpp_type,
-            //         "fun_name": fun_name,
-            //         "insns": insns,
-            //     }
-            todo!();
+        unsafe {
+            if $op == "add" {
+                // The `add` operation can be optimized with XADD.
+                core::arch::asm!(
+                    "lock; xadd [{ptr}], {val:e}",
+                    val = inout(reg) $val,
+                    ptr = in(reg) ptr,
+                    options(nostack)
+                );
+            } else {
+                let res: u32;
+                core::arch::asm!(
+                    "mov eax, [{ptr}]",
+                    "2: mov {scratch:e}, eax",
+                    fetchop!($op, x86, u32),
+                    "lock; cmpxchg [{ptr}], {scratch:e}",
+                    "jnz 2b",
+                    // Use of RAX is required for the CMPXCHG instruction.
+                    out("eax") res,
+                    scratch = out(reg) _,
+                    ptr = in(reg) ptr,
+                    val = in(reg) $val,
+                    options(nostack)
+                );
+                $val = res;
+            }
         }
 
         #[cfg(target_arch = "aarch64")]
@@ -1375,79 +1301,39 @@ macro_rules! gen_fetchop {
             todo!();
         }
 
-        #[expect(unreachable_code)]
-        const { panic!("Unexpected arch") }
+        return $val;
     };
     (u64, $op: tt, $ptr: ident, $val: ident) => {
         // SAFETY: ptr is NonNull<()>; it is never null, dangling, or unaligned.
         let ptr = unsafe { &mut *$ptr.as_ptr() };
 
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        {
-            // The `add` operation can be optimized with XADD.
-            //     if op == "add":
-            //         insns = ""
-            //         if size == 8:
-            //             insns += fmt_insn("lock; xaddb %[val], (%[addr])")
-            //         elif size == 16:
-            //             insns += fmt_insn("lock; xaddw %[val], (%[addr])")
-            //         elif size == 32:
-            //             insns += fmt_insn("lock; xaddl %[val], (%[addr])")
-            //         else:
-            //             assert size == 64
-            //             insns += fmt_insn("lock; xaddq %[val], (%[addr])")
-            //         return """
-            //             INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr, %(cpp_type)s val) {
-            //                 asm volatile (%(insns)s
-            //                     : [val] "+&r" (val)
-            //                     : [addr] "r" (addr)
-            //                     : "memory", "cc");
-            //                 return val;
-            //             }""" % {
-            //             "cpp_type": cpp_type,
-            //             "fun_name": fun_name,
-            //             "insns": insns,
-            //         }
-            //     // Use a +a constraint to ensure `res` is stored in RAX. This is required
-            //     // for the CMPXCHG instruction.
-            //     insns = ""
-            //     if size == 8:
-            //         insns += fmt_insn("movb (%[addr]), %[res]")
-            //         insns += fmt_insn("0: movb %[res], %[scratch]")
-            //         insns += fmt_insn("OPb %[val], %[scratch]")
-            //         insns += fmt_insn("lock; cmpxchgb %[scratch], (%[addr])")
-            //     elif size == 16:
-            //         insns += fmt_insn("movw (%[addr]), %[res]")
-            //         insns += fmt_insn("0: movw %[res], %[scratch]")
-            //         insns += fmt_insn("OPw %[val], %[scratch]")
-            //         insns += fmt_insn("lock; cmpxchgw %[scratch], (%[addr])")
-            //     elif size == 32:
-            //         insns += fmt_insn("movl (%[addr]), %[res]")
-            //         insns += fmt_insn("0: movl %[res], %[scratch]")
-            //         insns += fmt_insn("OPl %[val], %[scratch]")
-            //         insns += fmt_insn("lock; cmpxchgl %[scratch], (%[addr])")
-            //     else:
-            //         assert size == 64
-            //         insns += fmt_insn("movq (%[addr]), %[res]")
-            //         insns += fmt_insn("0: movq %[res], %[scratch]")
-            //         insns += fmt_insn("OPq %[val], %[scratch]")
-            //         insns += fmt_insn("lock; cmpxchgq %[scratch], (%[addr])")
-            //     insns = insns.replace("OP", op)
-            //     insns += fmt_insn("jnz 0b")
-            //     return """
-            //         INLINE_ATTR %(cpp_type)s %(fun_name)s(%(cpp_type)s* addr, %(cpp_type)s val) {
-            //             %(cpp_type)s res, scratch;
-            //             asm volatile (%(insns)s
-            //                 : [res] "=&a" (res), [scratch] "=&r" (scratch)
-            //                 : [addr] "r" (addr), [val] "r"(val)
-            //                 : "memory", "cc");
-            //             return res;
-            //         }""" % {
-            //         "cpp_type": cpp_type,
-            //         "fun_name": fun_name,
-            //         "insns": insns,
-            //     }
-            todo!();
+        unsafe {
+            if $op == "add" {
+                // The `add` operation can be optimized with XADD.
+                core::arch::asm!(
+                    "lock; xadd [{ptr}], {val:r}",
+                    val = inout(reg) $val,
+                    ptr = in(reg) ptr,
+                    options(nostack)
+                );
+            } else {
+                let res: u64;
+                core::arch::asm!(
+                    "mov rax, [{ptr}]",
+                    "2: mov {scratch:r}, rax",
+                    fetchop!($op, x86, u64),
+                    "lock; cmpxchg [{ptr}], {scratch:r}",
+                    "jnz 2b",
+                    // Use of RAX is required for the CMPXCHG instruction.
+                    out("rax") res,
+                    scratch = out(reg) _,
+                    ptr = in(reg) ptr,
+                    val = in(reg) $val,
+                    options(nostack)
+                );
+                $val = res;
+            }
         }
 
         #[cfg(target_arch = "aarch64")]
@@ -1541,8 +1427,7 @@ macro_rules! gen_fetchop {
             todo!();
         }
 
-        #[expect(unreachable_code)]
-        const { panic!("Unexpected arch") }
+        return $val;
     };
 }
 
@@ -1701,7 +1586,6 @@ pub fn atomic_load_32_seq_cst(ptr: NonNull<()>) -> u32 {
     gen_load!(u32, ptr, true);
 }
 
-// if is_64bit:
 #[inline(always)]
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64",))]
 pub fn atomic_load_64_seq_cst(ptr: NonNull<()>) -> u64 {
@@ -1918,7 +1802,7 @@ pub fn atomic_cmp_xchg_64_seq_cst(ptr: NonNull<()>, mut old_val: u64, new_val: u
     target_arch = "aarch64",
     target_arch = "arm"
 ))]
-pub fn atomic_add_8_seq_cst(ptr: NonNull<()>, val: u8) -> u8 {
+pub fn atomic_add_8_seq_cst(ptr: NonNull<()>, mut val: u8) -> u8 {
     gen_fetchop!(u8, "add", ptr, val);
 }
 #[inline(always)]
@@ -1928,7 +1812,7 @@ pub fn atomic_add_8_seq_cst(ptr: NonNull<()>, val: u8) -> u8 {
     target_arch = "aarch64",
     target_arch = "arm"
 ))]
-pub fn atomic_add_16_seq_cst(ptr: NonNull<()>, val: u16) -> u16 {
+pub fn atomic_add_16_seq_cst(ptr: NonNull<()>, mut val: u16) -> u16 {
     gen_fetchop!(u16, "add", ptr, val);
 }
 #[inline(always)]
@@ -1938,13 +1822,13 @@ pub fn atomic_add_16_seq_cst(ptr: NonNull<()>, val: u16) -> u16 {
     target_arch = "aarch64",
     target_arch = "arm"
 ))]
-pub fn atomic_add_32_seq_cst(ptr: NonNull<()>, val: u32) -> u32 {
+pub fn atomic_add_32_seq_cst(ptr: NonNull<()>, mut val: u32) -> u32 {
     gen_fetchop!(u32, "add", ptr, val);
 }
 
 #[inline(always)]
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64",))]
-pub fn atomic_add_64_seq_cst(ptr: NonNull<()>, val: u64) -> u64 {
+pub fn atomic_add_64_seq_cst(ptr: NonNull<()>, mut val: u64) -> u64 {
     gen_fetchop!(u64, "add", ptr, val);
 }
 
@@ -1957,7 +1841,7 @@ pub fn atomic_add_64_seq_cst(ptr: NonNull<()>, val: u64) -> u64 {
     target_arch = "aarch64",
     target_arch = "arm"
 ))]
-pub fn atomic_and_8_seq_cst(ptr: NonNull<()>, val: u8) -> u8 {
+pub fn atomic_and_8_seq_cst(ptr: NonNull<()>, mut val: u8) -> u8 {
     gen_fetchop!(u8, "and", ptr, val);
 }
 #[inline(always)]
@@ -1967,7 +1851,7 @@ pub fn atomic_and_8_seq_cst(ptr: NonNull<()>, val: u8) -> u8 {
     target_arch = "aarch64",
     target_arch = "arm"
 ))]
-pub fn atomic_and_16_seq_cst(ptr: NonNull<()>, val: u16) -> u16 {
+pub fn atomic_and_16_seq_cst(ptr: NonNull<()>, mut val: u16) -> u16 {
     gen_fetchop!(u16, "and", ptr, val);
 }
 #[inline(always)]
@@ -1977,13 +1861,13 @@ pub fn atomic_and_16_seq_cst(ptr: NonNull<()>, val: u16) -> u16 {
     target_arch = "aarch64",
     target_arch = "arm"
 ))]
-pub fn atomic_and_32_seq_cst(ptr: NonNull<()>, val: u32) -> u32 {
+pub fn atomic_and_32_seq_cst(ptr: NonNull<()>, mut val: u32) -> u32 {
     gen_fetchop!(u32, "and", ptr, val);
 }
 
 #[inline(always)]
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64",))]
-pub fn atomic_and_64_seq_cst(ptr: NonNull<()>, val: u64) -> u64 {
+pub fn atomic_and_64_seq_cst(ptr: NonNull<()>, mut val: u64) -> u64 {
     gen_fetchop!(u64, "and", ptr, val);
 }
 
@@ -1996,7 +1880,7 @@ pub fn atomic_and_64_seq_cst(ptr: NonNull<()>, val: u64) -> u64 {
     target_arch = "aarch64",
     target_arch = "arm"
 ))]
-pub fn atomic_or_8_seq_cst(ptr: NonNull<()>, val: u8) -> u8 {
+pub fn atomic_or_8_seq_cst(ptr: NonNull<()>, mut val: u8) -> u8 {
     gen_fetchop!(u8, "or", ptr, val);
 }
 #[inline(always)]
@@ -2006,7 +1890,7 @@ pub fn atomic_or_8_seq_cst(ptr: NonNull<()>, val: u8) -> u8 {
     target_arch = "aarch64",
     target_arch = "arm"
 ))]
-pub fn atomic_or_16_seq_cst(ptr: NonNull<()>, val: u16) -> u16 {
+pub fn atomic_or_16_seq_cst(ptr: NonNull<()>, mut val: u16) -> u16 {
     gen_fetchop!(u16, "or", ptr, val);
 }
 #[inline(always)]
@@ -2016,13 +1900,13 @@ pub fn atomic_or_16_seq_cst(ptr: NonNull<()>, val: u16) -> u16 {
     target_arch = "aarch64",
     target_arch = "arm"
 ))]
-pub fn atomic_or_32_seq_cst(ptr: NonNull<()>, val: u32) -> u32 {
+pub fn atomic_or_32_seq_cst(ptr: NonNull<()>, mut val: u32) -> u32 {
     gen_fetchop!(u32, "or", ptr, val);
 }
 
 #[inline(always)]
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64",))]
-pub fn atomic_or_64_seq_cst(ptr: NonNull<()>, val: u64) -> u64 {
+pub fn atomic_or_64_seq_cst(ptr: NonNull<()>, mut val: u64) -> u64 {
     gen_fetchop!(u64, "or", ptr, val);
 }
 
@@ -2035,7 +1919,7 @@ pub fn atomic_or_64_seq_cst(ptr: NonNull<()>, val: u64) -> u64 {
     target_arch = "aarch64",
     target_arch = "arm"
 ))]
-pub fn atomic_xor_8_seq_cst(ptr: NonNull<()>, val: u8) -> u8 {
+pub fn atomic_xor_8_seq_cst(ptr: NonNull<()>, mut val: u8) -> u8 {
     gen_fetchop!(u8, "xor", ptr, val);
 }
 #[inline(always)]
@@ -2045,7 +1929,7 @@ pub fn atomic_xor_8_seq_cst(ptr: NonNull<()>, val: u8) -> u8 {
     target_arch = "aarch64",
     target_arch = "arm"
 ))]
-pub fn atomic_xor_16_seq_cst(ptr: NonNull<()>, val: u16) -> u16 {
+pub fn atomic_xor_16_seq_cst(ptr: NonNull<()>, mut val: u16) -> u16 {
     gen_fetchop!(u16, "xor", ptr, val);
 }
 #[inline(always)]
@@ -2055,14 +1939,13 @@ pub fn atomic_xor_16_seq_cst(ptr: NonNull<()>, val: u16) -> u16 {
     target_arch = "aarch64",
     target_arch = "arm"
 ))]
-pub fn atomic_xor_32_seq_cst(ptr: NonNull<()>, val: u32) -> u32 {
+pub fn atomic_xor_32_seq_cst(ptr: NonNull<()>, mut val: u32) -> u32 {
     gen_fetchop!(u32, "xor", ptr, val);
 }
 
-// if is_64bit:
 #[inline(always)]
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64",))]
-pub fn atomic_xor_64_seq_cst(ptr: NonNull<()>, val: u64) -> u64 {
+pub fn atomic_xor_64_seq_cst(ptr: NonNull<()>, mut val: u64) -> u64 {
     gen_fetchop!(u64, "xor", ptr, val);
 }
 
@@ -2082,9 +1965,9 @@ pub fn atomic_pause() {
 }
 
 // See comment in jit/AtomicOperations-shared-jit.cpp for an explanation.
-// wordsize = 8 if is_64bit else 4
-// words_in_block = 8
-// blocksize = words_in_block * wordsize
+const WORDS_IN_BLOCK: usize = 8;
+const WORD_SIZE: usize = core::mem::size_of::<usize>();
+const BLOCK_SIZE: usize = WORDS_IN_BLOCK * WORD_SIZE;
 
 #[inline(always)]
 #[cfg(any(
@@ -2094,7 +1977,7 @@ pub fn atomic_pause() {
     target_arch = "arm"
 ))]
 pub fn atomic_copy_unaligned_block_down_unsynchronized() {
-    gen_copy!(u8, 1, blocksize, "down");
+    gen_copy!(u8, 1, BLOCK_SIZE, "down");
 }
 
 #[inline(always)]
@@ -2105,7 +1988,7 @@ pub fn atomic_copy_unaligned_block_down_unsynchronized() {
     target_arch = "arm"
 ))]
 pub fn atomic_copy_unaligned_block_up_unsynchronized() {
-    gen_copy!(u8, 1, blocksize, "up");
+    gen_copy!(u8, 1, BLOCK_SIZE, "up");
 }
 
 #[inline(always)]
@@ -2116,7 +1999,7 @@ pub fn atomic_copy_unaligned_block_up_unsynchronized() {
     target_arch = "arm"
 ))]
 pub fn atomic_copy_unaligned_word_down_unsynchronized() {
-    gen_copy!(u8, 1, wordsize, "down");
+    gen_copy!(u8, 1, WORD_SIZE, "down");
 }
 
 #[inline(always)]
@@ -2127,7 +2010,7 @@ pub fn atomic_copy_unaligned_word_down_unsynchronized() {
     target_arch = "arm"
 ))]
 pub fn atomic_copy_unaligned_word_up_unsynchronized() {
-    gen_copy!(u8, 1, wordsize, "up");
+    gen_copy!(u8, 1, WORD_SIZE, "up");
 }
 
 #[inline(always)]
@@ -2138,7 +2021,7 @@ pub fn atomic_copy_unaligned_word_up_unsynchronized() {
     target_arch = "arm"
 ))]
 pub fn atomic_copy_block_down_unsynchronized() {
-    gen_copy!(uptr, wordsize, words_in_block, "down");
+    gen_copy!(uptr, WORD_SIZE, WORDS_IN_BLOCK, "down");
 }
 
 #[inline(always)]
@@ -2149,7 +2032,7 @@ pub fn atomic_copy_block_down_unsynchronized() {
     target_arch = "arm"
 ))]
 pub fn atomic_copy_block_up_unsynchronized() {
-    gen_copy!(uptr, wordsize, words_in_block, "up");
+    gen_copy!(uptr, WORD_SIZE, WORDS_IN_BLOCK, "up");
 }
 
 #[inline(always)]
@@ -2160,7 +2043,7 @@ pub fn atomic_copy_block_up_unsynchronized() {
     target_arch = "arm"
 ))]
 pub fn atomic_copy_word_unsynchronized() {
-    gen_copy!(uptr, wordsize, 1, "down");
+    gen_copy!(uptr, WORD_SIZE, 1, "down");
 }
 
 #[inline(always)]
@@ -2199,207 +2082,466 @@ pub fn atomic_copy8_unsynchronized() {
 pub const JS_GENERATED_ATOMICS_BLOCKSIZE: usize = 0;
 pub const JS_GENERATED_ATOMICS_WORSIZE: usize = 0;
 
-#[test]
-fn test_load() {
-    let foo = NonNull::from(Box::leak(Box::new([0xFFFF_FFFF_FFFF_FFFFu64; 1]))).cast::<()>();
+#[cfg(test)]
+mod test {
+    use std::ptr::NonNull;
 
-    assert_eq!(atomic_load_8_unsynchronized(foo), 0xFF);
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF_FFFF_FFFF_FFFF);
+    use crate::*;
 
-    assert_eq!(atomic_load_16_unsynchronized(foo), 0xFFFF);
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF_FFFF_FFFF_FFFF);
+    #[test]
+    fn test_load() {
+        let foo = NonNull::from(Box::leak(Box::new([u64::MAX; 1]))).cast::<()>();
 
-    assert_eq!(atomic_load_32_unsynchronized(foo), 0xFFFF_FFFF);
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF_FFFF_FFFF_FFFF);
+        assert_eq!(atomic_load_8_unsynchronized(foo), u8::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u64::MAX);
 
-    assert_eq!(atomic_load_64_unsynchronized(foo), 0xFFFF_FFFF_FFFF_FFFF);
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF_FFFF_FFFF_FFFF);
+        assert_eq!(atomic_load_16_unsynchronized(foo), u16::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u64::MAX);
 
-    assert_eq!(atomic_load_8_seq_cst(foo), 0xFF);
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF_FFFF_FFFF_FFFF);
+        assert_eq!(atomic_load_32_unsynchronized(foo), u32::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u64::MAX);
 
-    assert_eq!(atomic_load_16_seq_cst(foo), 0xFFFF);
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF_FFFF_FFFF_FFFF);
+        assert_eq!(atomic_load_64_unsynchronized(foo), u64::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u64::MAX);
 
-    assert_eq!(atomic_load_32_seq_cst(foo), 0xFFFF_FFFF);
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF_FFFF_FFFF_FFFF);
+        assert_eq!(atomic_load_8_seq_cst(foo), u8::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u64::MAX);
 
-    assert_eq!(atomic_load_64_seq_cst(foo), 0xFFFF_FFFF_FFFF_FFFF);
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF_FFFF_FFFF_FFFF);
+        assert_eq!(atomic_load_16_seq_cst(foo), u16::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u64::MAX);
 
-    let _ = unsafe { Box::from_raw(foo.cast::<u64>().as_ptr()) };
-}
+        assert_eq!(atomic_load_32_seq_cst(foo), u32::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u64::MAX);
 
-#[test]
-fn test_store() {
-    let foo = NonNull::from(Box::leak(Box::new([0u64; 1]))).cast::<()>();
+        assert_eq!(atomic_load_64_seq_cst(foo), u64::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u64::MAX);
 
-    atomic_store_8_unsynchronized(foo, 0xFF);
-    assert_eq!(atomic_load_8_unsynchronized(foo), 0xFF);
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFF);
+        let _ = unsafe { Box::from_raw(foo.cast::<u64>().as_ptr()) };
+    }
 
-    atomic_store_16_unsynchronized(foo, 0xFFFF);
-    assert_eq!(atomic_load_16_unsynchronized(foo), 0xFFFF);
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF);
+    #[test]
+    fn test_store() {
+        let foo = NonNull::from(Box::leak(Box::new([0u64; 1]))).cast::<()>();
 
-    atomic_store_32_unsynchronized(foo, 0xFFFF_FFFF);
-    assert_eq!(atomic_load_32_unsynchronized(foo), 0xFFFF_FFFF);
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF_FFFF);
+        atomic_store_8_unsynchronized(foo, u8::MAX);
+        assert_eq!(atomic_load_8_unsynchronized(foo), u8::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u8::MAX as u64);
 
-    atomic_store_64_unsynchronized(foo, 0xFFFF_FFFF_FFFF_FFFF);
-    assert_eq!(atomic_load_64_unsynchronized(foo), 0xFFFF_FFFF_FFFF_FFFF);
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF_FFFF_FFFF_FFFF);
+        atomic_store_16_unsynchronized(foo, u16::MAX);
+        assert_eq!(atomic_load_16_unsynchronized(foo), u16::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u16::MAX as u64);
 
-    atomic_store_64_unsynchronized(foo, 0x0);
-    assert_eq!(atomic_load_64_unsynchronized(foo), 0x0);
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0x0);
+        atomic_store_32_unsynchronized(foo, u32::MAX);
+        assert_eq!(atomic_load_32_unsynchronized(foo), u32::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u32::MAX as u64);
 
-    atomic_store_8_seq_cst(foo, 0xFF);
-    assert_eq!(atomic_load_8_seq_cst(foo), 0xFF);
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFF);
+        atomic_store_64_unsynchronized(foo, u64::MAX);
+        assert_eq!(atomic_load_64_unsynchronized(foo), u64::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u64::MAX);
 
-    atomic_store_16_seq_cst(foo, 0xFFFF);
-    assert_eq!(atomic_load_16_seq_cst(foo), 0xFFFF);
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF);
+        atomic_store_64_unsynchronized(foo, 0x0);
+        assert_eq!(atomic_load_64_unsynchronized(foo), 0x0);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0x0);
 
-    atomic_store_32_seq_cst(foo, 0xFFFF_FFFF);
-    assert_eq!(atomic_load_32_seq_cst(foo), 0xFFFF_FFFF);
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF_FFFF);
+        atomic_store_8_seq_cst(foo, u8::MAX);
+        assert_eq!(atomic_load_8_seq_cst(foo), u8::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u8::MAX as u64);
 
-    atomic_store_64_seq_cst(foo, 0xFFFF_FFFF_FFFF_FFFF);
-    assert_eq!(atomic_load_64_seq_cst(foo), 0xFFFF_FFFF_FFFF_FFFF);
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF_FFFF_FFFF_FFFF);
+        atomic_store_16_seq_cst(foo, u16::MAX);
+        assert_eq!(atomic_load_16_seq_cst(foo), u16::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u16::MAX as u64);
 
-    let _ = unsafe { Box::from_raw(foo.cast::<u64>().as_ptr()) };
-}
+        atomic_store_32_seq_cst(foo, u32::MAX);
+        assert_eq!(atomic_load_32_seq_cst(foo), u32::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u32::MAX as u64);
 
-#[test]
-fn test_exchange() {
-    let foo = NonNull::from(Box::leak(Box::new([0u64; 1]))).cast::<()>();
+        atomic_store_64_seq_cst(foo, u64::MAX);
+        assert_eq!(atomic_load_64_seq_cst(foo), u64::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u64::MAX);
 
-    assert_eq!(atomic_exchange_8_seq_cst(foo, 0xFF), 0, "u8 initial");
-    assert_eq!(atomic_exchange_8_seq_cst(foo, 0), 0xFF, "u8 subsequent");
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+        let _ = unsafe { Box::from_raw(foo.cast::<u64>().as_ptr()) };
+    }
 
-    assert_eq!(atomic_exchange_16_seq_cst(foo, 0xFFFF), 0, "u16 initial");
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF);
-    assert_eq!(atomic_exchange_16_seq_cst(foo, 0), 0xFFFF, "u16 subsequent");
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+    #[test]
+    fn test_exchange() {
+        let foo = NonNull::from(Box::leak(Box::new([0u64; 1]))).cast::<()>();
 
-    assert_eq!(
-        atomic_exchange_32_seq_cst(foo, 0xFFFF_FFFF),
-        0,
-        "u32 initial"
-    );
-    assert_eq!(
-        atomic_exchange_32_seq_cst(foo, 0),
-        0xFFFF_FFFF,
-        "u32 subsequent"
-    );
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+        assert_eq!(atomic_exchange_8_seq_cst(foo, u8::MAX), 0, "u8 initial");
+        assert_eq!(atomic_exchange_8_seq_cst(foo, 0), u8::MAX, "u8 subsequent");
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
 
-    assert_eq!(
-        atomic_exchange_64_seq_cst(foo, 0xFFFF_FFFF_FFFF_FFFF),
-        0,
-        "u64 initial"
-    );
-    assert_eq!(
-        atomic_exchange_64_seq_cst(foo, 0),
-        0xFFFF_FFFF_FFFF_FFFF,
-        "u64 subsequent"
-    );
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+        assert_eq!(atomic_exchange_16_seq_cst(foo, u16::MAX), 0, "u16 initial");
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u16::MAX as u64);
+        assert_eq!(
+            atomic_exchange_16_seq_cst(foo, 0),
+            u16::MAX,
+            "u16 subsequent"
+        );
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
 
-    let _ = unsafe { Box::from_raw(foo.cast::<u64>().as_ptr()) };
-}
+        assert_eq!(atomic_exchange_32_seq_cst(foo, u32::MAX), 0, "u32 initial");
+        assert_eq!(
+            atomic_exchange_32_seq_cst(foo, 0),
+            u32::MAX,
+            "u32 subsequent"
+        );
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
 
-#[test]
-fn test_compare_exchange() {
-    let foo = NonNull::from(Box::leak(Box::new([0u64; 1]))).cast::<()>();
+        assert_eq!(atomic_exchange_64_seq_cst(foo, u64::MAX), 0, "u64 initial");
+        assert_eq!(
+            atomic_exchange_64_seq_cst(foo, 0),
+            u64::MAX,
+            "u64 subsequent"
+        );
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
 
-    assert_eq!(atomic_cmp_xchg_8_seq_cst(foo, 0xFF, 0xFF), 0, "u8 initial");
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
-    assert_eq!(atomic_cmp_xchg_8_seq_cst(foo, 0, 0xFF), 0, "u8 initial");
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFF);
-    assert_eq!(atomic_cmp_xchg_8_seq_cst(foo, 0, 0), 0xFF, "u8 subsequent");
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFF);
-    assert_eq!(
-        atomic_cmp_xchg_8_seq_cst(foo, 0xFF, 0),
-        0xFF,
-        "u8 subsequent"
-    );
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+        let _ = unsafe { Box::from_raw(foo.cast::<u64>().as_ptr()) };
+    }
 
-    assert_eq!(
-        atomic_cmp_xchg_16_seq_cst(foo, 0xFFFF, 0xFFFF),
-        0,
-        "u16 initial"
-    );
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
-    assert_eq!(atomic_cmp_xchg_16_seq_cst(foo, 0, 0xFFFF), 0, "u16 initial");
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF);
-    assert_eq!(
-        atomic_cmp_xchg_16_seq_cst(foo, 0, 0),
-        0xFFFF,
-        "u16 subsequent"
-    );
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF);
-    assert_eq!(
-        atomic_cmp_xchg_16_seq_cst(foo, 0xFFFF, 0),
-        0xFFFF,
-        "u16 subsequent"
-    );
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+    #[test]
+    fn test_compare_exchange() {
+        let foo = NonNull::from(Box::leak(Box::new([0u64; 1]))).cast::<()>();
 
-    assert_eq!(
-        atomic_cmp_xchg_32_seq_cst(foo, 0xFFFF_FFFF, 0xFFFF_FFFF),
-        0,
-        "u32 initial"
-    );
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
-    assert_eq!(
-        atomic_cmp_xchg_32_seq_cst(foo, 0, 0xFFFF_FFFF),
-        0,
-        "u32 initial"
-    );
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF_FFFF);
-    assert_eq!(
-        atomic_cmp_xchg_32_seq_cst(foo, 0, 0),
-        0xFFFF_FFFF,
-        "u32 subsequent"
-    );
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF_FFFF);
-    assert_eq!(
-        atomic_cmp_xchg_32_seq_cst(foo, 0xFFFF_FFFF, 0),
-        0xFFFF_FFFF,
-        "u32 subsequent"
-    );
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+        assert_eq!(
+            atomic_cmp_xchg_8_seq_cst(foo, u8::MAX, u8::MAX),
+            0,
+            "u8 initial"
+        );
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+        assert_eq!(atomic_cmp_xchg_8_seq_cst(foo, 0, u8::MAX), 0, "u8 initial");
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u8::MAX as u64);
+        assert_eq!(
+            atomic_cmp_xchg_8_seq_cst(foo, 0, 0),
+            u8::MAX,
+            "u8 subsequent"
+        );
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u8::MAX as u64);
+        assert_eq!(
+            atomic_cmp_xchg_8_seq_cst(foo, u8::MAX, 0),
+            u8::MAX,
+            "u8 subsequent"
+        );
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
 
-    assert_eq!(
-        atomic_cmp_xchg_64_seq_cst(foo, 0xFFFF_FFFF_FFFF_FFFF, 0xFFFF_FFFF_FFFF_FFFF),
-        0,
-        "u64 initial"
-    );
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
-    assert_eq!(
-        atomic_cmp_xchg_64_seq_cst(foo, 0, 0xFFFF_FFFF_FFFF_FFFF),
-        0,
-        "u64 initial"
-    );
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF_FFFF_FFFF_FFFF);
-    assert_eq!(
-        atomic_cmp_xchg_64_seq_cst(foo, 0, 0),
-        0xFFFF_FFFF_FFFF_FFFF,
-        "u64 subsequent"
-    );
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF_FFFF_FFFF_FFFF);
-    assert_eq!(
-        atomic_cmp_xchg_64_seq_cst(foo, 0xFFFF_FFFF_FFFF_FFFF, 0),
-        0xFFFF_FFFF_FFFF_FFFF,
-        "u64 subsequent"
-    );
-    assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+        assert_eq!(
+            atomic_cmp_xchg_16_seq_cst(foo, u16::MAX, u16::MAX),
+            0,
+            "u16 initial"
+        );
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+        assert_eq!(
+            atomic_cmp_xchg_16_seq_cst(foo, 0, u16::MAX),
+            0,
+            "u16 initial"
+        );
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u16::MAX as u64);
+        assert_eq!(
+            atomic_cmp_xchg_16_seq_cst(foo, 0, 0),
+            u16::MAX,
+            "u16 subsequent"
+        );
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u16::MAX as u64);
+        assert_eq!(
+            atomic_cmp_xchg_16_seq_cst(foo, u16::MAX, 0),
+            u16::MAX,
+            "u16 subsequent"
+        );
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
 
-    let _ = unsafe { Box::from_raw(foo.cast::<u64>().as_ptr()) };
+        assert_eq!(
+            atomic_cmp_xchg_32_seq_cst(foo, u32::MAX, u32::MAX),
+            0,
+            "u32 initial"
+        );
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+        assert_eq!(
+            atomic_cmp_xchg_32_seq_cst(foo, 0, u32::MAX),
+            0,
+            "u32 initial"
+        );
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u32::MAX as u64);
+        assert_eq!(
+            atomic_cmp_xchg_32_seq_cst(foo, 0, 0),
+            u32::MAX,
+            "u32 subsequent"
+        );
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u32::MAX as u64);
+        assert_eq!(
+            atomic_cmp_xchg_32_seq_cst(foo, u32::MAX, 0),
+            u32::MAX,
+            "u32 subsequent"
+        );
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+
+        assert_eq!(
+            atomic_cmp_xchg_64_seq_cst(foo, u64::MAX, u64::MAX),
+            0,
+            "u64 initial"
+        );
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+        assert_eq!(
+            atomic_cmp_xchg_64_seq_cst(foo, 0, u64::MAX),
+            0,
+            "u64 initial"
+        );
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u64::MAX);
+        assert_eq!(
+            atomic_cmp_xchg_64_seq_cst(foo, 0, 0),
+            u64::MAX,
+            "u64 subsequent"
+        );
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u64::MAX);
+        assert_eq!(
+            atomic_cmp_xchg_64_seq_cst(foo, u64::MAX, 0),
+            u64::MAX,
+            "u64 subsequent"
+        );
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+
+        let _ = unsafe { Box::from_raw(foo.cast::<u64>().as_ptr()) };
+    }
+
+    #[test]
+    fn test_add() {
+        let foo = NonNull::from(Box::leak(Box::new([0u64; 1]))).cast::<()>();
+
+        assert_eq!(atomic_add_8_seq_cst(foo, u8::MAX), 0);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u8::MAX as u64);
+        assert_eq!(atomic_add_8_seq_cst(foo, 1), u8::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+
+        assert_eq!(atomic_add_16_seq_cst(foo, u16::MAX), 0);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u16::MAX as u64);
+        assert_eq!(atomic_add_16_seq_cst(foo, 1), u16::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+
+        assert_eq!(atomic_add_32_seq_cst(foo, u32::MAX), 0);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u32::MAX as u64);
+        assert_eq!(atomic_add_32_seq_cst(foo, 1), u32::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+
+        assert_eq!(atomic_add_64_seq_cst(foo, u64::MAX), 0);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u64::MAX);
+        assert_eq!(atomic_add_64_seq_cst(foo, 1), u64::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+
+        let _ = unsafe { Box::from_raw(foo.cast::<u64>().as_ptr()) };
+    }
+
+    #[test]
+    fn test_and() {
+        let foo = NonNull::from(Box::leak(Box::new([0u64; 1]))).cast::<()>();
+
+        assert_eq!(atomic_and_8_seq_cst(foo, u8::MAX), 0);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+        atomic_store_64_unsynchronized(foo, u64::MAX);
+        assert_eq!(atomic_and_8_seq_cst(foo, u8::MAX), u8::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u64::MAX);
+        assert_eq!(atomic_and_8_seq_cst(foo, 0xF0), u8::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u64::MAX - 0xF);
+        assert_eq!(atomic_and_8_seq_cst(foo, 0), 0xF0);
+        assert_eq!(
+            unsafe { foo.cast::<u64>().read() },
+            u64::MAX - u8::MAX as u64
+        );
+        unsafe {
+            foo.cast::<u64>().write(0);
+        }
+
+        assert_eq!(atomic_and_16_seq_cst(foo, u16::MAX), 0);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+        atomic_store_64_unsynchronized(foo, u64::MAX);
+        assert_eq!(atomic_and_16_seq_cst(foo, u16::MAX), u16::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u64::MAX);
+        assert_eq!(atomic_and_16_seq_cst(foo, 0xFF00), u16::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u64::MAX - 0xFF);
+        assert_eq!(atomic_and_16_seq_cst(foo, 0), 0xFF00);
+        assert_eq!(
+            unsafe { foo.cast::<u64>().read() },
+            u64::MAX - u16::MAX as u64
+        );
+        unsafe {
+            foo.cast::<u64>().write(0);
+        }
+
+        assert_eq!(atomic_and_32_seq_cst(foo, u32::MAX), 0);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+        atomic_store_64_unsynchronized(foo, u64::MAX);
+        assert_eq!(atomic_and_32_seq_cst(foo, u32::MAX), u32::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u64::MAX);
+        assert_eq!(atomic_and_32_seq_cst(foo, 0xFFFF_0000), u32::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u64::MAX - 0xFFFF);
+        assert_eq!(atomic_and_32_seq_cst(foo, 0), 0xFFFF_0000);
+        assert_eq!(
+            unsafe { foo.cast::<u64>().read() },
+            u64::MAX - u32::MAX as u64
+        );
+        unsafe {
+            foo.cast::<u64>().write(0);
+        }
+
+        assert_eq!(atomic_and_64_seq_cst(foo, u64::MAX), 0);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+        atomic_store_64_unsynchronized(foo, u64::MAX);
+        assert_eq!(atomic_and_64_seq_cst(foo, u64::MAX), u64::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, u64::MAX);
+        assert_eq!(atomic_and_64_seq_cst(foo, 0xFFFF_0000_FFFF_0000), u64::MAX);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF_0000_FFFF_0000);
+        assert_eq!(
+            atomic_and_64_seq_cst(foo, 0x0_FFFF_0000_FFFF),
+            0xFFFF_0000_FFFF_0000
+        );
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+
+        let _ = unsafe { Box::from_raw(foo.cast::<u64>().as_ptr()) };
+    }
+
+    #[test]
+    fn test_or() {
+        let foo = NonNull::from(Box::leak(Box::new([0u64; 1]))).cast::<()>();
+
+        assert_eq!(atomic_or_8_seq_cst(foo, 0x73), 0);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0x73);
+        assert_eq!(atomic_or_8_seq_cst(foo, 0x1B), 0x73);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0x7B);
+        assert_eq!(atomic_or_8_seq_cst(foo, 0xF0), 0x7B);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFB);
+        assert_eq!(atomic_or_8_seq_cst(foo, 0x00), 0xFB);
+        assert_eq!(atomic_or_8_seq_cst(foo, 0xFF), 0xFB);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFF);
+        unsafe {
+            foo.cast::<u64>().write(0);
+        }
+
+        assert_eq!(atomic_or_16_seq_cst(foo, 0xB182), 0);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xB182);
+        assert_eq!(atomic_or_16_seq_cst(foo, 0x02C3), 0xB182);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xB3C3);
+        assert_eq!(atomic_or_16_seq_cst(foo, 0xFF00), 0xB3C3);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFC3);
+        assert_eq!(atomic_or_16_seq_cst(foo, 0), 0xFFC3);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFC3);
+        assert_eq!(atomic_or_16_seq_cst(foo, 0x00FF), 0xFFC3);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF);
+        assert_eq!(atomic_or_16_seq_cst(foo, 0), 0xFFFF);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF);
+        unsafe {
+            foo.cast::<u64>().write(0);
+        }
+
+        assert_eq!(atomic_or_32_seq_cst(foo, 0x01A4_1005), 0);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0x01A4_1005);
+        assert_eq!(atomic_or_32_seq_cst(foo, 0x5502_D581), 0x01A4_1005);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0x55A6_D585);
+        assert_eq!(atomic_or_32_seq_cst(foo, 0xFF00_FF00), 0x55A6_D585);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFA6_FF85);
+        assert_eq!(atomic_or_32_seq_cst(foo, 0), 0xFFA6_FF85);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFA6_FF85);
+        assert_eq!(atomic_or_32_seq_cst(foo, 0x00FF_00FF), 0xFFA6_FF85);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF_FFFF);
+        unsafe {
+            foo.cast::<u64>().write(0);
+        }
+
+        assert_eq!(atomic_or_64_seq_cst(foo, 0xABCD_3456_01A4_1005), 0);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xABCD_3456_01A4_1005);
+        assert_eq!(
+            atomic_or_64_seq_cst(foo, 0x0F25_0021_232B_C34A),
+            0xABCD_3456_01A4_1005
+        );
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xAFED_3477_23AF_D34F);
+        assert_eq!(
+            atomic_or_64_seq_cst(foo, 0xFF00_FF00_FF00_FF00),
+            0xAFED_3477_23AF_D34F
+        );
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFED_FF77_FFAF_FF4F);
+        assert_eq!(atomic_or_64_seq_cst(foo, 0), 0xFFED_FF77_FFAF_FF4F);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFED_FF77_FFAF_FF4F);
+        assert_eq!(
+            atomic_or_64_seq_cst(foo, 0x00FF_00FF_00FF_00FF),
+            0xFFED_FF77_FFAF_FF4F
+        );
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xFFFF_FFFF_FFFF_FFFF);
+
+        let _ = unsafe { Box::from_raw(foo.cast::<u64>().as_ptr()) };
+    }
+
+    #[test]
+    fn test_xor() {
+        let foo = NonNull::from(Box::leak(Box::new([0u64; 1]))).cast::<()>();
+
+        assert_eq!(atomic_xor_8_seq_cst(foo, 0x73), 0);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0x73);
+        assert_eq!(atomic_xor_8_seq_cst(foo, 0x1B), 0x73);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0x68);
+        assert_eq!(atomic_xor_8_seq_cst(foo, 0xF0), 0x68);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0x98);
+        assert_eq!(atomic_xor_8_seq_cst(foo, 0x00), 0x98);
+        assert_eq!(atomic_xor_8_seq_cst(foo, 0xFF), 0x98);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0x67);
+        assert_eq!(atomic_xor_8_seq_cst(foo, 0x67), 0x67);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+
+        assert_eq!(atomic_xor_16_seq_cst(foo, 0xB182), 0);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xB182);
+        assert_eq!(atomic_xor_16_seq_cst(foo, 0x02C3), 0xB182);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xB341);
+        assert_eq!(atomic_xor_16_seq_cst(foo, 0xFF00), 0xB341);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0x4C41);
+        assert_eq!(atomic_xor_16_seq_cst(foo, 0), 0x4C41);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0x4C41);
+        assert_eq!(atomic_xor_16_seq_cst(foo, 0x00FF), 0x4C41);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0x4CBE);
+        assert_eq!(atomic_xor_16_seq_cst(foo, 0xFFFF), 0x4CBE);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xB341);
+        assert_eq!(atomic_xor_16_seq_cst(foo, 0xB341), 0xB341);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+
+        assert_eq!(atomic_xor_32_seq_cst(foo, 0xA34B_B182), 0);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xA34B_B182);
+        assert_eq!(atomic_xor_32_seq_cst(foo, 0x86D0_02C3), 0xA34B_B182);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0x259B_B341);
+        assert_eq!(atomic_xor_32_seq_cst(foo, 0xFF00_FF00), 0x259B_B341);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xDA9B_4C41);
+        assert_eq!(atomic_xor_32_seq_cst(foo, 0), 0xDA9B_4C41);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xDA9B_4C41);
+        assert_eq!(atomic_xor_32_seq_cst(foo, 0x00FF_00FF), 0xDA9B_4C41);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xDA64_4CBE);
+        assert_eq!(atomic_xor_32_seq_cst(foo, 0xFFFF_FFFF), 0xDA64_4CBE);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0x259B_B341);
+        assert_eq!(atomic_xor_32_seq_cst(foo, 0x259B_B341), 0x259B_B341);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+
+        assert_eq!(atomic_xor_64_seq_cst(foo, 0x0567_98E0_A34B_B182), 0);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0x0567_98E0_A34B_B182);
+        assert_eq!(
+            atomic_xor_64_seq_cst(foo, 0x1135_C732_86D0_02C3),
+            0x0567_98E0_A34B_B182
+        );
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0x1452_5FD2_259B_B341);
+        assert_eq!(
+            atomic_xor_64_seq_cst(foo, 0xFF00_FF00_FF00_FF00),
+            0x1452_5FD2_259B_B341
+        );
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xEB52_A0D2_DA9B_4C41);
+        assert_eq!(atomic_xor_64_seq_cst(foo, 0), 0xEB52_A0D2_DA9B_4C41);
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xEB52_A0D2_DA9B_4C41);
+        assert_eq!(
+            atomic_xor_64_seq_cst(foo, 0x00FF_00FF_00FF_00FF),
+            0xEB52_A0D2_DA9B_4C41
+        );
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0xEBAD_A02D_DA64_4CBE);
+        assert_eq!(
+            atomic_xor_64_seq_cst(foo, 0xFFFF_FFFF_FFFF_FFFF),
+            0xEBAD_A02D_DA64_4CBE
+        );
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0x1452_5FD2_259B_B341);
+        assert_eq!(
+            atomic_xor_64_seq_cst(foo, 0x1452_5FD2_259B_B341),
+            0x1452_5FD2_259B_B341
+        );
+        assert_eq!(unsafe { foo.cast::<u64>().read() }, 0);
+
+        let _ = unsafe { Box::from_raw(foo.cast::<u64>().as_ptr()) };
+    }
 }
