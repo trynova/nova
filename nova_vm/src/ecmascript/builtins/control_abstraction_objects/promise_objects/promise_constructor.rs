@@ -401,7 +401,7 @@ impl PromiseConstructor {
             );
 
             index += 1;
-            let promise_all = promise_all_reference.get(agent);
+            let promise_all = promise_all_reference.get(agent).bind(gc.nogc());
             promise_all.get_mut(agent).remaining_elements_count = index;
         }
 
