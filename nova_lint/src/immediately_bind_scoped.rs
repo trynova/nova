@@ -1,16 +1,12 @@
-use clippy_utils::paths::{PathLookup, PathNS, lookup_path_str};
-use clippy_utils::sym::Symbol;
+use clippy_utils::paths::{PathNS, lookup_path_str};
 use clippy_utils::ty::implements_trait;
 use clippy_utils::usage::local_used_after_expr;
-use clippy_utils::{diagnostics::span_lint_and_help, is_self};
+use clippy_utils::diagnostics::span_lint_and_help;
 use clippy_utils::{
-    get_expr_use_or_unification_node, get_parent_expr, is_expr_final_block_expr, is_trait_method,
-    path_def_id, peel_blocks, potential_return_of_enclosing_body,
+    get_expr_use_or_unification_node, get_parent_expr, potential_return_of_enclosing_body,
 };
-use rustc_hir::{Body, FnDecl, def_id::LocalDefId, intravisit::FnKind};
-use rustc_hir::{Expr, ExprKind, LetStmt, Node};
+use rustc_hir::{Expr, Node};
 use rustc_lint::{LateContext, LateLintPass};
-use rustc_span::symbol::Symbol;
 
 use crate::{is_scoped_ty, method_call};
 
@@ -81,13 +77,7 @@ impl<'tcx> LateLintPass<'tcx> for ImmediatelyBindScoped {
             if let Some((usage, hir_id)) = get_expr_use_or_unification_node(cx.tcx, expr)
                 && (potential_return_of_enclosing_body(cx, expr)
                     || local_used_after_expr(cx, hir_id, expr)
-                    || matches!(
-                        usage,
-                        Node::LetStmt(LetStmt {
-                            init: Some(hir_id),
-                            ..
-                        })
-                    ))
+                    || matches!(usage, Node::LetStmt(_)))
             {
                 span_lint_and_help(
                     cx,
