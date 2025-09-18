@@ -55,7 +55,7 @@ impl WeakRefConstructor {
         };
         let new_target = Function::try_from(new_target).unwrap();
         // 2. If CanBeHeldWeakly(target) is false, throw a TypeError exception.
-        let Some(target) = can_be_held_weakly(target) else {
+        let Some(target) = can_be_held_weakly(agent, target) else {
             return Err(throw_not_weak_key_error(
                 agent,
                 target.unbind(),
