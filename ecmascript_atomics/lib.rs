@@ -906,25 +906,25 @@ macro_rules! fetchop {
         "add {scratch1:w}, {res:w}, {val:w}"
     };
     ("add", arm, u64) => {
-        "add {scratch1:w}, {res:x}, {val:x}"
+        "add {scratch1:x}, {res:x}, {val:x}"
     };
     ("and", arm, u32) => {
         "and {scratch1:w}, {res:w}, {val:w}"
     };
     ("and", arm, u64) => {
-        "and {scratch1:w}, {res:x}, {val:x}"
+        "and {scratch1:x}, {res:x}, {val:x}"
     };
     ("or", arm, u32) => {
         "orr {scratch1:w}, {res:w}, {val:w}"
     };
     ("or", arm, u64) => {
-        "orr {scratch1:w}, {res:x}, {val:x}"
+        "orr {scratch1:x}, {res:x}, {val:x}"
     };
     ("xor", arm, u32) => {
         "eor {scratch1:w}, {res:w}, {val:w}"
     };
     ("xor", arm, u64) => {
-        "eor {scratch1:w}, {res:x}, {val:x}"
+        "eor {scratch1:x}, {res:x}, {val:x}"
     };
 }
 
