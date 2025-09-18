@@ -592,10 +592,10 @@ macro_rules! gen_cmpxchg {
                 "dmb sy",
                 "2:",
                 "uxtb {scratch:w}, {old_val:w}",
-                "ldrex {res:w} [{ptr}]",
+                "ldrexb {res:w} [{ptr}]",
                 "cmp {res:w}, {scratch:w}",
                 "bne 3f",
-                "strex {scratch:w}, {new_val:w}, [{ptr}]",
+                "strexb {scratch:w}, {new_val:w}, [{ptr}]",
                 "cmp {scratch:w}, #1",
                 "beq 2b",
                 "3: dmb sy",
@@ -656,12 +656,12 @@ macro_rules! gen_cmpxchg {
             core::arch::asm!(
                 "dmb sy",
                 "2:",
-                "uxth {scratch:w}, {old_val:w}",
-                "ldrex {res:w} [{ptr}]",
-                "cmp {res:w}, {scratch:w}",
+                "uxth {scratch}, {old_val}",
+                "ldrexh {res} [{ptr}]",
+                "cmp {res}, {scratch}",
                 "bne 3f",
-                "strex {scratch:w}, {new_val:w}, [{ptr}]",
-                "cmp {scratch:w}, #1",
+                "strexh {scratch}, {new_val}, [{ptr}]",
+                "cmp {scratch}, #1",
                 "beq 2b",
                 "3: dmb sy",
                 res = out(reg) res,
@@ -721,12 +721,12 @@ macro_rules! gen_cmpxchg {
             core::arch::asm!(
                 "dmb sy",
                 "2:",
-                "mov {scratch:w}, {old_val:w}",
-                "ldrex {res:w} [{ptr}]",
-                "cmp {res:w}, {scratch:w}",
+                "mov {scratch}, {old_val}",
+                "ldrex {res} [{ptr}]",
+                "cmp {res}, {scratch}",
                 "bne 3f",
-                "strex {scratch:w}, {new_val:w}, [{ptr}]",
-                "cmp {scratch:w}, #1",
+                "strex {scratch}, {new_val}, [{ptr}]",
+                "cmp {scratch}, #1",
                 "beq 2b",
                 "3: dmb sy",
                 res = out(reg) res,
@@ -787,11 +787,11 @@ macro_rules! gen_cmpxchg {
             core::arch::asm!(
                 "dmb ish",
                 "2:",
-                "mov {scratch:w}, {old_val:w}",
-                "ldxr {res:w}, [{ptr}]",
-                "cmp {res:w}, {scratch:w}",
+                "mov {scratch:x}, {old_val:x}",
+                "ldxr {res:x}, [{ptr}]",
+                "cmp {res:x}, {scratch:x}",
                 "b.ne 3f",
-                "stxr {scratch:w}, {new_val:w}, [{ptr}]",
+                "stxr {scratch:w}, {new_val:x}, [{ptr}]",
                 "cbnz {scratch:w}, 2b",
                 "3: dmb ish",
                 res = out(reg) res,
@@ -901,30 +901,41 @@ macro_rules! fetchop {
     // Note: we differ here from source material. In Firefox the operation
     // always operates on :x registers; there doesn't seem to be a reason for
     // this so we try to avoid that.
-    // "OP %x[scratch1], %x[res], %x[val]"
-    ("add", arm, u32) => {
+    ("add", aarch64, u32) => {
         "add {scratch1:w}, {res:w}, {val:w}"
     };
-    ("add", arm, u64) => {
+    ("add", aarch64, u64) => {
         "add {scratch1:x}, {res:x}, {val:x}"
     };
-    ("and", arm, u32) => {
+    ("and", aarch64, u32) => {
         "and {scratch1:w}, {res:w}, {val:w}"
     };
-    ("and", arm, u64) => {
+    ("and", aarch64, u64) => {
         "and {scratch1:x}, {res:x}, {val:x}"
     };
-    ("or", arm, u32) => {
+    ("or", aarch64, u32) => {
         "orr {scratch1:w}, {res:w}, {val:w}"
     };
-    ("or", arm, u64) => {
+    ("or", aarch64, u64) => {
         "orr {scratch1:x}, {res:x}, {val:x}"
     };
-    ("xor", arm, u32) => {
+    ("xor", aarch64, u32) => {
         "eor {scratch1:w}, {res:w}, {val:w}"
     };
-    ("xor", arm, u64) => {
-        "eor {scratch1:x}, {res:x}, {val:x}"
+    ("xor", aarch64, u64) => {
+        "eor {scratch1}, {res}, {val}"
+    };
+    ("add", arm) => {
+        "add {scratch1}, {res}, {val}"
+    };
+    ("and", arm) => {
+        "and {scratch1}, {res}, {val}"
+    };
+    ("or", arm) => {
+        "orr {scratch1}, {res}, {val}"
+    };
+    ("xor", arm) => {
+        "eor {scratch1}, {res}, {val}"
     };
 }
 
@@ -968,9 +979,9 @@ macro_rules! gen_fetchop {
             core::arch::asm!(
                 "dmb ish",
                 "2:",
-                "ldxr {res:w}, [{ptr}]",
+                "ldxrb {res:w}, [{ptr}]",
                 fetchop!($op, arm, u32),
-                "stxr {scratch2:w}, {scratch1:w}, [{ptr}]",
+                "stxrb {scratch2:w}, {scratch1:w}, [{ptr}]",
                 "cbnz {scratch2:w}, 2b",
                 "3: dmb ish",
                 res = out(reg) res,
@@ -1068,9 +1079,9 @@ macro_rules! gen_fetchop {
             core::arch::asm!(
                 "dmb ish",
                 "2:",
-                "ldxr {res:w}, [{ptr}]",
+                "ldxrh {res:w}, [{ptr}]",
                 fetchop!($op, arm, u32),
-                "stxr {scratch2:w}, {scratch1:w}, [{ptr}]",
+                "stxrh {scratch2:w}, {scratch1:w}, [{ptr}]",
                 "cbnz {scratch2:w}, 2b",
                 "3: dmb ish",
                 res = out(reg) res,
@@ -1268,9 +1279,9 @@ macro_rules! gen_fetchop {
             core::arch::asm!(
                 "dmb ish",
                 "2:",
-                "ldxr {res:x}, [{ptr}]",
+                "ldxr {res:x}, [{ptr:x}]",
                 fetchop!($op, arm, u64),
-                "stxr {scratch2:w}, {scratch1:x}, [{ptr}]",
+                "stxr {scratch2:w}, {scratch1:x}, [{ptr:x}]",
                 "cbnz {scratch2:w}, 2b",
                 "3: dmb ish",
                 res = out(reg) res,
