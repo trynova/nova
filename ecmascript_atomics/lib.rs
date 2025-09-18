@@ -568,7 +568,7 @@ macro_rules! gen_cmpxchg {
             core::arch::asm!(
                 "dmb ish",
                 "0:",
-                "uxt {scratch:w}, {old_val:w}",
+                "uxtb {scratch:w}, {old_val:w}",
                 "ldxr {res:w} [{ptr}]",
                 "cmp {res:w}, {scratch:w}",
                 "b.ne 1f",
@@ -591,7 +591,7 @@ macro_rules! gen_cmpxchg {
             core::arch::asm!(
                 "dmb sy",
                 "0:",
-                "uxt {scratch:w}, {old_val:w}",
+                "uxtb {scratch:w}, {old_val:w}",
                 "ldrex {res:w} [{ptr}]",
                 "cmp {res:w}, {scratch:w}",
                 "bne 1f",
@@ -633,7 +633,7 @@ macro_rules! gen_cmpxchg {
             core::arch::asm!(
                 "dmb ish",
                 "0:",
-                "uxt {scratch:w}, {old_val:w}",
+                "uxth {scratch:w}, {old_val:w}",
                 "ldxr {res:w} [{ptr}]",
                 "cmp {res:w}, {scratch:w}",
                 "b.ne 1f",
@@ -656,7 +656,7 @@ macro_rules! gen_cmpxchg {
             core::arch::asm!(
                 "dmb sy",
                 "0:",
-                "uxt {scratch:w}, {old_val:w}",
+                "uxth {scratch:w}, {old_val:w}",
                 "ldrex {res:w} [{ptr}]",
                 "cmp {res:w}, {scratch:w}",
                 "bne 1f",
@@ -698,7 +698,7 @@ macro_rules! gen_cmpxchg {
             core::arch::asm!(
                 "dmb ish",
                 "0:",
-                "uxt {scratch:w}, {old_val:w}",
+                "mov {scratch:w}, {old_val:w}",
                 "ldxr {res:w} [{ptr}]",
                 "cmp {res:w}, {scratch:w}",
                 "b.ne 1f",
@@ -721,7 +721,7 @@ macro_rules! gen_cmpxchg {
             core::arch::asm!(
                 "dmb sy",
                 "0:",
-                "uxt {scratch:w}, {old_val:w}",
+                "mov {scratch:w}, {old_val:w}",
                 "ldrex {res:w} [{ptr}]",
                 "cmp {res:w}, {scratch:w}",
                 "bne 1f",
@@ -787,7 +787,7 @@ macro_rules! gen_cmpxchg {
             core::arch::asm!(
                 "dmb ish",
                 "0:",
-                "uxt {scratch:w}, {old_val:w}",
+                "mov {scratch:w}, {old_val:w}",
                 "ldxr {res:w} [{ptr}]",
                 "cmp {res:w}, {scratch:w}",
                 "b.ne 1f",
