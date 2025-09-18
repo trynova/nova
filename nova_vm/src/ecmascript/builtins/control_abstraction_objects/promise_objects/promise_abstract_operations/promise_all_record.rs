@@ -22,7 +22,7 @@ use crate::{
 
 #[derive(Debug, Clone, Copy)]
 pub struct PromiseAllRecord<'a> {
-    pub(crate) remaining_unresolved_promise_count: u32,
+    pub(crate) remaining_elements_count: u32,
     pub(crate) result_array: Array<'a>,
     pub(crate) promise: Promise<'a>,
 }
@@ -48,9 +48,8 @@ impl<'a> PromiseAll<'a> {
         elements[index as usize] = Some(value.unbind());
 
         let data = promise_all.get_mut(agent);
-        data.remaining_unresolved_promise_count =
-            data.remaining_unresolved_promise_count.saturating_sub(1);
-        if data.remaining_unresolved_promise_count == 0 {
+        data.remaining_elements_count = data.remaining_elements_count.saturating_sub(1);
+        if data.remaining_elements_count == 0 {
             let capability = PromiseCapability::from_promise(data.promise, true);
             capability.resolve(agent, result_array.into_value().unbind(), gc);
         }
@@ -79,7 +78,7 @@ impl<'a> PromiseAll<'a> {
         self.0.into_index()
     }
 
-    fn get(self, agent: &Agent) -> &PromiseAllRecord<'a> {
+    pub fn get(self, agent: &Agent) -> &PromiseAllRecord<'a> {
         agent
             .heap
             .promise_all_records
@@ -87,7 +86,7 @@ impl<'a> PromiseAll<'a> {
             .expect("PromiseAllRecord not found")
     }
 
-    fn get_mut(self, agent: &mut Agent) -> &mut PromiseAllRecord<'static> {
+    pub fn get_mut(self, agent: &mut Agent) -> &mut PromiseAllRecord<'static> {
         agent
             .heap
             .promise_all_records
@@ -115,7 +114,7 @@ impl AsMut<[PromiseAllRecord<'static>]> for Agent {
 impl HeapMarkAndSweep for PromiseAllRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
-            remaining_unresolved_promise_count: _,
+            remaining_elements_count: _,
             result_array,
             promise,
         } = self;
@@ -125,7 +124,7 @@ impl HeapMarkAndSweep for PromiseAllRecord<'static> {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let Self {
-            remaining_unresolved_promise_count: _,
+            remaining_elements_count: _,
             result_array,
             promise,
         } = self;
