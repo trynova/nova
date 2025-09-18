@@ -24,8 +24,12 @@ path = "ui/gc_scope_comes_last.rs"
 name = "gc_scope_is_only_passed_by_value"
 path = "ui/gc_scope_is_only_passed_by_value.rs"
 
+[[example]]
+name = "immediately_bind_scoped"
+path = "ui/immediately_bind_scoped.rs"
+
 [dependencies]
-clippy_utils = { git = "https://github.com/rust-lang/rust-clippy", rev = "0450db33a5d8587f7c1d4b6d233dac963605766b" }
+clippy_utils = { git = "https://github.com/rust-lang/rust-clippy", rev = "334fb906aef13d20050987b13448f37391bb97a2" }
 dylint_linting = { version = "4.1.0", features = ["constituent"] }
 
 [dev-dependencies]
