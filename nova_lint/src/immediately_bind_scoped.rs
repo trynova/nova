@@ -1,14 +1,15 @@
-use clippy_utils::paths::{PathNS, lookup_path_str};
-use clippy_utils::ty::implements_trait;
-use clippy_utils::usage::local_used_after_expr;
-use clippy_utils::diagnostics::span_lint_and_help;
+use crate::{is_scoped_ty, method_call};
 use clippy_utils::{
-    get_expr_use_or_unification_node, get_parent_expr, potential_return_of_enclosing_body,
+    diagnostics::span_lint_and_help,
+    get_expr_use_or_unification_node, get_parent_expr,
+    paths::{PathNS, lookup_path_str},
+    potential_return_of_enclosing_body,
+    ty::implements_trait,
+    usage::local_used_after_expr,
 };
 use rustc_hir::{Expr, Node};
 use rustc_lint::{LateContext, LateLintPass};
-
-use crate::{is_scoped_ty, method_call};
+use rustc_middle::ty::Ty;
 
 dylint_linting::declare_late_lint! {
     /// ### What it does
@@ -51,23 +52,23 @@ dylint_linting::declare_late_lint! {
 impl<'tcx> LateLintPass<'tcx> for ImmediatelyBindScoped {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expr: &'tcx Expr<'tcx>) {
         // First we check if we have found a `Scoped<Value>::get` call
-        if let Some((method, recv, _, _, _)) = method_call(expr)
-            && method == "get"
-            && let typeck_results = cx.typeck_results()
-            && let recv_ty = typeck_results.expr_ty(recv)
-            && is_scoped_ty(cx, &recv_ty)
-        {
+        if is_scoped_get_method_call(cx, expr) {
             // Which is followed by a trait method call to `bind` in which case
             // it is all done properly and we can exit out of the lint
             if let Some(parent) = get_parent_expr(cx, expr)
-                && let Some((parent_method, _, _, _, _)) = method_call(parent)
-                && parent_method == "bind"
-                && let parent_ty = typeck_results.expr_ty(parent)
-                && let Some(&trait_def_id) =
-                    lookup_path_str(cx.tcx, PathNS::Type, "nova_vm::engine::context::Bindable")
-                        .first()
-                && implements_trait(cx, parent_ty, trait_def_id, &[])
+                && is_bindable_bind_method_call(cx, parent)
             {
+                return;
+            }
+
+            // If the `Scoped<Value>::get` call is never used or unified we can
+            // safely exit out of the rule, otherwise we need to look into how
+            // it's used.
+            let Some((usage, hir_id)) = get_expr_use_or_unification_node(cx.tcx, expr) else {
+                return;
+            };
+
+            if !local_used_after_expr(cx, hir_id, expr) {
                 return;
             }
 
@@ -90,4 +91,47 @@ impl<'tcx> LateLintPass<'tcx> for ImmediatelyBindScoped {
             }
         }
     }
+}
+
+fn is_scoped_get_method_call(cx: &LateContext<'_>, expr: &Expr) -> bool {
+    if let Some((method, recv, _, _, _)) = method_call(expr)
+        && method == "get"
+        && let typeck_results = cx.typeck_results()
+        && let recv_ty = typeck_results.expr_ty(recv)
+        && is_scoped_ty(cx, &recv_ty)
+    {
+        true
+    } else {
+        false
+    }
+}
+
+fn is_bindable_bind_method_call(cx: &LateContext<'_>, expr: &Expr) -> bool {
+    if let Some((method, _, _, _, _)) = method_call(expr)
+        && method == "bind"
+        && let expr_ty = cx.typeck_results().expr_ty(expr)
+        && implements_bindable_trait(cx, &expr_ty)
+    {
+        true
+    } else {
+        false
+    }
+}
+
+fn is_bindable_unbind_method_call(cx: &LateContext<'_>, expr: &Expr) -> bool {
+    if let Some((method, _, _, _, _)) = method_call(expr)
+        && method == "unbind"
+        && let expr_ty = cx.typeck_results().expr_ty(expr)
+        && implements_bindable_trait(cx, &expr_ty)
+    {
+        true
+    } else {
+        false
+    }
+}
+
+fn implements_bindable_trait<'tcx>(cx: &LateContext<'tcx>, ty: &Ty<'tcx>) -> bool {
+    lookup_path_str(cx.tcx, PathNS::Type, "nova_vm::engine::context::Bindable")
+        .first()
+        .is_some_and(|&trait_def_id| implements_trait(cx, *ty, trait_def_id, &[]))
 }
