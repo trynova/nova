@@ -6,6 +6,7 @@
 
 use crate::{
     ecmascript::{
+        builtins::fundamental_objects::symbol_objects::symbol_constructor::key_for_symbol,
         execution::{Agent, weak_key::WeakKey},
         types::{Object, Value},
     },
@@ -68,14 +69,17 @@ pub(crate) fn add_to_kept_objects(agent: &mut Agent, _value: WeakKey) {
 /// > resources in implementations.
 ///
 /// > NOTE: We return an option of a WeakKey enum instead of a boolean.
-pub(crate) fn can_be_held_weakly(v: Value) -> Option<WeakKey> {
+pub(crate) fn can_be_held_weakly<'a>(agent: &Agent, v: Value<'a>) -> Option<WeakKey<'a>> {
     // 1. If v is an Object, return true.
     if let Ok(v) = Object::try_from(v) {
         Some(v.into())
     } else if let Value::Symbol(v) = v {
         // 2. If v is a Symbol and KeyForSymbol(v) is undefined, return true.
-        // TODO: KeyForSymbol
-        Some(WeakKey::Symbol(v))
+        if key_for_symbol(agent, v).is_some() {
+            None
+        } else {
+            Some(WeakKey::Symbol(v))
+        }
     } else {
         // 3. Return false.
         None

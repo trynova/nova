@@ -27,7 +27,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::{Heap, IntrinsicConstructorIndexes},
+    heap::IntrinsicConstructorIndexes,
 };
 
 pub(crate) struct WeakSetConstructor;
@@ -196,22 +196,22 @@ fn weak_set_add_trivially_iterable_array_elements<'a>(
     iterable: Array,
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
-    let Heap {
-        arrays,
-        elements,
-        weak_sets,
-        ..
-    } = &mut agent.heap;
-    let array_heap = ArrayHeap::new(elements, arrays);
+    let array_heap = ArrayHeap::new(&agent.heap.elements, &agent.heap.arrays);
     let slice = iterable.as_slice(&array_heap);
-    let weak_set_data = &mut weak_sets[set];
+
+    let mut weak_keys = Vec::new();
     for value in slice {
         let value = value.unwrap_or(Value::Undefined);
         // 3. If CanBeHeldWeakly(value) is false, throw a TypeError exception.
-        let Some(value) = can_be_held_weakly(value) else {
+        let Some(weak_key) = can_be_held_weakly(agent, value) else {
             return Err(throw_not_weak_key_error(agent, value, gc));
         };
-        weak_set_data.add(value);
+        weak_keys.push(weak_key);
+    }
+
+    let weak_set_data = &mut agent.heap.weak_sets[set];
+    for weak_key in weak_keys {
+        weak_set_data.add(weak_key);
     }
     Ok(())
 }

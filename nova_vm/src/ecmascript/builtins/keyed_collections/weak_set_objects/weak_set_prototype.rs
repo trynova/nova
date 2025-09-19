@@ -54,7 +54,7 @@ impl WeakSetPrototype {
         // 2. Perform ? RequireInternalSlot(S, [[WeakSetData]]).
         let s = require_internal_slot_weak_set(agent, s, gc)?;
         // 3. If CanBeHeldWeakly(value) is false, throw a TypeError exception.
-        let Some(value) = can_be_held_weakly(value) else {
+        let Some(value) = can_be_held_weakly(agent, value) else {
             return Err(throw_not_weak_key_error(agent, value.unbind(), gc));
         };
         // 4. For each element e of S.[[WeakSetData]], do
@@ -87,7 +87,7 @@ impl WeakSetPrototype {
         // 2. Perform ? RequireInternalSlot(S, [[WeakSetData]]).
         let s = require_internal_slot_weak_set(agent, s, gc)?;
         // 3. If CanBeHeldWeakly(value) is false, return false.
-        let Some(value) = can_be_held_weakly(value) else {
+        let Some(value) = can_be_held_weakly(agent, value) else {
             return Ok(false.into_value());
         };
         // 4. For each element e of S.[[WeakSetData]], do
@@ -116,7 +116,7 @@ impl WeakSetPrototype {
         // 2. Perform ? RequireInternalSlot(S, [[WeakSetData]]).
         let s = require_internal_slot_weak_set(agent, s, gc)?;
         // 3. If CanBeHeldWeakly(value) is false, return false.
-        let Some(value) = can_be_held_weakly(value) else {
+        let Some(value) = can_be_held_weakly(agent, value) else {
             return Ok(false.into_value());
         };
         // 4. For each element e of S.[[WeakSetData]], do

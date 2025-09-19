@@ -658,8 +658,7 @@ pub struct Agent {
     pub(crate) options: Options,
     #[expect(dead_code)]
     symbol_id: usize,
-    #[expect(dead_code)]
-    global_symbol_registry: AHashMap<&'static str, Symbol<'static>>,
+    pub(crate) global_symbol_registry: AHashMap<String<'static>, Symbol<'static>>,
     pub(crate) host_hooks: &'static dyn HostHooks,
     execution_context_stack: Vec<ExecutionContext>,
     /// Temporary storage for on-stack heap roots.
@@ -1310,7 +1309,7 @@ impl HeapMarkAndSweep for Agent {
             vm_stack,
             options: _,
             symbol_id: _,
-            global_symbol_registry: _,
+            global_symbol_registry,
             host_hooks: _,
             #[cfg(feature = "weak-refs")]
                 kept_alive: _,
@@ -1332,6 +1331,7 @@ impl HeapMarkAndSweep for Agent {
         vm_stack.iter().for_each(|vm_ptr| {
             unsafe { vm_ptr.as_ref() }.mark_values(queues);
         });
+        global_symbol_registry.mark_values(queues);
         let mut last_filled_global_value = None;
         heap.globals
             .borrow()
@@ -1360,7 +1360,7 @@ impl HeapMarkAndSweep for Agent {
             vm_stack,
             options: _,
             symbol_id: _,
-            global_symbol_registry: _,
+            global_symbol_registry,
             host_hooks: _,
             #[cfg(feature = "weak-refs")]
                 kept_alive: _,
@@ -1382,5 +1382,6 @@ impl HeapMarkAndSweep for Agent {
         vm_stack
             .iter_mut()
             .for_each(|entry| unsafe { entry.as_mut().sweep_values(compactions) });
+        global_symbol_registry.sweep_values(compactions);
     }
 }
