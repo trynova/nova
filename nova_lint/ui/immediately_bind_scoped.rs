@@ -33,7 +33,7 @@ fn test_scoped_get_can_be_immediately_passed_on(
     gc: NoGcScope,
 ) {
     let a = scoped.get(agent);
-    test_consumes_unbound_value(a.unbind());
+    test_consumes_unbound_value(a);
 }
 
 fn test_consumes_unbound_value(value: Value) {
