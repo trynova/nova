@@ -6,8 +6,9 @@
 
 use crate::{
     ecmascript::{
+        builtins::fundamental_objects::symbol_objects::symbol_constructor::key_for_symbol,
         execution::{Agent, weak_key::WeakKey},
-        types::{Object, Symbol, Value},
+        types::{Object, Value},
     },
     engine::context::NoGcScope,
 };
@@ -48,19 +49,7 @@ pub(crate) fn add_to_kept_objects(agent: &mut Agent, _value: WeakKey) {
     // 3. Return unused.
 }
 
-/// Check if a Symbol is in the Global Symbol Registry
-fn is_symbol_in_global_registry(agent: &Agent, sym: Symbol) -> bool {
-    // Get the symbol's description
-    let symbol_data = &agent[sym];
-    if let Some(description) = symbol_data.descriptor {
-        // Search for this description in the Global Symbol Registry
-        if let Some(&registry_symbol) = agent.global_symbol_registry.get(&description) {
-            // Check if the registry symbol is the same as the input symbol
-            return registry_symbol == sym;
-        }
-    }
-    false
-}
+
 
 /// ### [9.13 CanBeHeldWeakly ( v )](https://tc39.es/ecma262/#sec-canbeheldweakly)
 ///
@@ -88,7 +77,7 @@ pub(crate) fn can_be_held_weakly<'a>(agent: &Agent, v: Value<'a>) -> Option<Weak
         Some(v.into())
     } else if let Value::Symbol(v) = v {
         // 2. If v is a Symbol and KeyForSymbol(v) is undefined, return true.
-        if is_symbol_in_global_registry(agent, v) {
+        if key_for_symbol(agent, v).is_some() {
             None
         } else {
             Some(WeakKey::Symbol(v))

@@ -142,7 +142,10 @@ impl SymbolConstructor {
         };
 
         // 2. Return KeyForSymbol(sym).
-        key_for_symbol(agent, symbol, gc)
+        match key_for_symbol(agent, symbol) {
+            Some(key) => Ok(key.into_value()),
+            None => Ok(Value::Undefined),
+        }
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -272,19 +275,15 @@ impl SymbolConstructor {
 /// ### [20.4.5.1 KeyForSymbol ( sym )](https://tc39.es/ecma262/#sec-keyforsymbol)
 ///
 /// The abstract operation KeyForSymbol takes argument sym (a Symbol) and returns a String or undefined.
-fn key_for_symbol<'gc>(
-    agent: &mut Agent,
-    sym: Symbol<'static>,
-    _gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, Value<'gc>> {
+pub(crate) fn key_for_symbol<'a>(agent: &Agent, sym: Symbol<'a>) -> Option<String<'a>> {
     // 1. For each element e of the GlobalSymbolRegistry List, do
     //        a. If SameValue(e.[[Symbol]], sym) is true, return e.[[Key]].
     for (key, &symbol) in &agent.global_symbol_registry {
         if symbol == sym {
-            return Ok(key.into_value());
+            return Some(*key);
         }
     }
     // 2. Assert: The GlobalSymbolRegistry List does not currently contain an entry for sym.
     // 3. Return undefined.
-    Ok(Value::Undefined)
+    None
 }
