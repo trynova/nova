@@ -12,35 +12,33 @@ fn test_scoped_get_is_immediately_bound(agent: &Agent, scoped: Scoped<Value>, gc
     let _a = scoped.get(agent).bind(gc);
 }
 
-// TODO: These are valid patterns, which are found in certain parts of the
-// codebase so should ideally be implemented.
-// fn test_scoped_get_can_get_bound_right_after(agent: &Agent, scoped: Scoped<Value>, gc: NoGcScope) {
-//     let a = scoped.get(agent);
-//     a.bind(gc);
-// }
-//
-// fn test_scoped_get_can_get_bound_right_after_and_never_used_again(
-//     agent: &Agent,
-//     scoped: Scoped<Value>,
-//     gc: NoGcScope,
-// ) {
-//     let a = scoped.get(agent);
-//     let b = a.bind(gc);
-//     a;
-// }
-//
-// fn test_scoped_get_can_be_immediately_passed_on(
-//     agent: &Agent,
-//     scoped: Scoped<Value>,
-//     gc: NoGcScope,
-// ) {
-//     let a = scoped.get(agent);
-//     test_consumes_unbound_value(value);
-// }
-//
-// fn test_consumes_unbound_value(value: Value) {
-//     unimplemented!()
-// }
+fn test_scoped_get_can_get_bound_right_after(agent: &Agent, scoped: Scoped<Value>, gc: NoGcScope) {
+    let a = scoped.get(agent);
+    a.bind(gc);
+}
+
+fn test_scoped_get_can_get_bound_right_after_but_never_used_again(
+    agent: &Agent,
+    scoped: Scoped<Value>,
+    gc: NoGcScope,
+) {
+    let a = scoped.get(agent);
+    let b = a.bind(gc);
+    a.is_undefined();
+}
+
+fn test_scoped_get_can_be_immediately_passed_on(
+    agent: &Agent,
+    scoped: Scoped<Value>,
+    gc: NoGcScope,
+) {
+    let a = scoped.get(agent);
+    test_consumes_unbound_value(a.unbind());
+}
+
+fn test_consumes_unbound_value(value: Value) {
+    unimplemented!()
+}
 
 fn test_scoped_get_is_not_immediately_bound(agent: &Agent, scoped: Scoped<Value>) {
     let _a = scoped.get(agent);
