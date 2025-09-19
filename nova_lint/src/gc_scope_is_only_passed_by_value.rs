@@ -1,5 +1,5 @@
 use clippy_utils::{diagnostics::span_lint_and_help, is_self};
-use rustc_hir::{def_id::LocalDefId, intravisit::FnKind, Body, FnDecl};
+use rustc_hir::{Body, FnDecl, def_id::LocalDefId, intravisit::FnKind};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_middle::ty::TyKind;
 use rustc_span::Span;
