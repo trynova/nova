@@ -49,8 +49,6 @@ pub(crate) fn add_to_kept_objects(agent: &mut Agent, _value: WeakKey) {
     // 3. Return unused.
 }
 
-
-
 /// ### [9.13 CanBeHeldWeakly ( v )](https://tc39.es/ecma262/#sec-canbeheldweakly)
 ///
 /// The abstract operation CanBeHeldWeakly takes argument v (an ECMAScript
