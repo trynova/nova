@@ -25,11 +25,11 @@ name = "gc_scope_is_only_passed_by_value"
 path = "ui/gc_scope_is_only_passed_by_value.rs"
 
 [dependencies]
-clippy_utils = { git = "https://github.com/rust-lang/rust-clippy", rev = "ff4a26d442bead94a4c96fb1de967374bc4fbd8e" }
-dylint_linting = { version = "4.0.0", features = ["constituent"] }
+clippy_utils = { git = "https://github.com/rust-lang/rust-clippy", rev = "0450db33a5d8587f7c1d4b6d233dac963605766b" }
+dylint_linting = { version = "4.1.0", features = ["constituent"] }
 
 [dev-dependencies]
-dylint_testing = "4.0.0"
+dylint_testing = "4.1.0"
 nova_vm = { path = "../nova_vm" }
 
 [package.metadata.rust-analyzer]
