@@ -1,19 +1,25 @@
 error: the result of `Scoped<Value>::get` should be immediately bound
-  --> $DIR/immediately_bind_scoped.rs:46:14
+  --> $DIR/immediately_bind_scoped.rs:25:13
+   |
+LL |     let a = scoped.get(agent);
+   |             ^^^^^^^^^^^^^^^^^
+   |
+   = help: immediately bind the value
+
+error: the result of `Scoped<Value>::get` should be immediately bound
+  --> $DIR/immediately_bind_scoped.rs:44:14
    |
 LL |     let _a = scoped.get(agent);
    |              ^^^^^^^^^^^^^^^^^
    |
    = help: immediately bind the value
-   = note: `#[deny(immediately_bind_scoped)]` on by default
 
 error: the result of `Scoped<Value>::get` should be immediately bound
-  --> $DIR/immediately_bind_scoped.rs:58:14
+  --> $DIR/immediately_bind_scoped.rs:56:14
    |
 LL |     let _a = Scoped::new(agent, Value::Undefined, gc).get(agent);
    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
    = help: immediately bind the value
 
-error: aborting due to 2 previous errors
-
+error: aborting due to 3 previous errors
