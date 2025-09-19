@@ -1,8 +1,7 @@
 use rustc_hir::{Expr, ExprKind, def_id::DefId};
 use rustc_lint::LateContext;
 use rustc_middle::ty::{Ty, TyKind};
-use rustc_span::Span;
-use rustc_span::symbol::Symbol;
+use rustc_span::{Span, symbol::Symbol};
 
 // Copyright (c) 2014-2025 The Rust Project Developers
 //
@@ -84,28 +83,3 @@ pub fn is_scoped_ty(cx: &LateContext<'_>, ty: &Ty) -> bool {
         _ => false,
     }
 }
-
-// Checks if a given expression is assigned to a variable.
-//
-// Copyright (c) 2014-2025 The Rust Project Developers
-//
-// Copied and modified from `clippy_utils`:
-// - https://github.com/rust-lang/rust-clippy/blob/8a5dc7c1713a7eb9af28bf9f53dc6b61da7aad90/clippy_utils/src/lib.rs#L1369-L1388
-// pub fn is_inside_let(tcx: TyCtxt<'_>, expr: &Expr<'_>) -> bool {
-//     let mut child_id = expr.hir_id;
-//     for (parent_id, node) in tcx.hir_parent_iter(child_id) {
-//         if let Node::LetStmt(LetStmt {
-//             init: Some(init),
-//             els: Some(els),
-//             ..
-//         }) = node
-//             && (init.hir_id == child_id || els.hir_id == child_id)
-//         {
-//             return true;
-//         }
-
-//         child_id = parent_id;
-//     }
-
-//     false
-// }
