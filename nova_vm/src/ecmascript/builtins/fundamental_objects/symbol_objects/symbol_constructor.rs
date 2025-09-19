@@ -142,10 +142,7 @@ impl SymbolConstructor {
         };
 
         // 2. Return KeyForSymbol(sym).
-        match key_for_symbol(agent, symbol) {
-            Some(key) => Ok(key.into_value()),
-            None => Ok(Value::Undefined),
-        }
+        Ok(key_for_symbol(agent, symbol).map_or(Value::Undefined, |key| key.into_value()))
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
