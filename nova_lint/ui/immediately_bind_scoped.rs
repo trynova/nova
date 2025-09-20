@@ -17,14 +17,13 @@ fn test_scoped_get_can_get_bound_right_after(agent: &Agent, scoped: Scoped<Value
     a.bind(gc);
 }
 
-fn test_scoped_get_can_get_bound_right_after_but_never_used_again(
+fn test_scoped_get_can_get_bound_in_tuple_right_after(
     agent: &Agent,
     scoped: Scoped<Value>,
     gc: NoGcScope,
 ) {
     let a = scoped.get(agent);
-    let b = a.bind(gc);
-    a.is_undefined();
+    (a.bind(gc), ());
 }
 
 fn test_scoped_get_can_be_immediately_passed_on(
