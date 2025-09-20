@@ -1,0 +1,12 @@
+[package]
+name = "ecmascript_atomics"
+version = "0.1.0"
+repository = "https://github.com/trynova/nova/tree/main/ecmascript_atomics"
+description = "ECMAScript specification compliant atomic operations for use with SharedArrayBuffers."
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+
+[lib]
+path = "lib.rs"
