@@ -21,7 +21,6 @@ cliclack = "0.3.6"
 console = "0.15.11"
 ctrlc = "3.4.5"
 fast-float = "0.2.0"
-fast_float = "0.2.0"
 hashbrown = "0.16.0"
 lexical = { version = "7.0.4", default-features = false, features = [
     "std",
@@ -54,8 +53,14 @@ wtf8 = "0.1"
 [workspace.metadata.dylint]
 libraries = [{ path = "nova_lint" }]
 
+# The release profile, used for `cargo build --release`.
 [profile.release]
-lto = true
+# Enables "fat" LTO, for faster release builds
+lto = "fat"
+# Makes sure that all code is compiled together, for LTO
+codegen-units = 1
+# Strips debug information and symbols from the binary, reducing its size
+strip = "symbols"
 
 # This profile has all the same safety checks as dev builds. It trades slightly
 # longer compile times for faster runs, which is worth it when running test262.
