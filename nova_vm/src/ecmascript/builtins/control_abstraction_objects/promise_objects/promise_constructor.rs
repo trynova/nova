@@ -354,20 +354,19 @@ impl PromiseConstructor {
             unsafe { result_array.get(agent).set_len(agent, index + 1) };
 
             // d. Let nextPromise be ? Call(promiseResolve, constructor, « next »).
-            let next_promise = call_function(
+            let call_result = call_function(
                 agent,
                 promise_resolve.get(agent),
                 constructor.get(agent).into_value(),
                 Some(ArgumentsList::from_mut_value(&mut next.unbind())),
                 gc.reborrow(),
-            );
+            )
+            .unbind()?
+            .bind(gc.nogc());
 
-            let Ok(Value::Promise(next_promise)) = next_promise else {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "Expected a promise",
-                    gc.into_nogc(),
-                ));
+            let next_promise = match call_result {
+                Value::Promise(next_promise) => next_promise,
+                _ => Promise::resolve(agent, call_result.unbind(), gc.reborrow()),
             };
 
             // e. Let steps be the algorithm steps defined in Promise.all Resolve Element Functions.
