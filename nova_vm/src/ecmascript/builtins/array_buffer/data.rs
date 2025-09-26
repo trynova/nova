@@ -11,14 +11,31 @@ use crate::{
 // TODO: Investigate if the common case is that the byte length is less than
 // an u16, that would mean we could squeeze an extra 2 bytes out of the struct.
 #[repr(transparent)]
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub(crate) struct ViewedArrayBufferByteLength(pub u32);
+
+impl core::fmt::Debug for ViewedArrayBufferByteLength {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.is_auto() {
+            f.write_str("AUTO")
+        } else if self.is_overflowing() {
+            f.write_str("> u32::MAX - 2")
+        } else {
+            self.0.fmt(f)
+        }
+    }
+}
 
 impl ViewedArrayBufferByteLength {
     /// Returns `true` if the byte length is stored in an associated map in the
     /// heap.
     pub(crate) const fn is_overflowing(self) -> bool {
         self.0 == Self::heap().0
+    }
+
+    /// Returns `true` if the byte length is `AUTO`.
+    pub(crate) const fn is_auto(self) -> bool {
+        self.0 == Self::auto().0
     }
 
     pub const fn value(value: u32) -> Self {

@@ -31,7 +31,7 @@ use crate::{
 
 use super::promise_objects::promise_abstract_operations::promise_reaction_records::PromiseReactionType;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct AsyncGenerator<'a>(BaseIndex<'a, AsyncGeneratorHeapData<'static>>);
 

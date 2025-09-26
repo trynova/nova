@@ -6,27 +6,58 @@
 
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
-#[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
 #[cfg(feature = "date")]
 use crate::ecmascript::types::DATE_DISCRIMINANT;
-#[cfg(feature = "proposal-float16array")]
-use crate::ecmascript::types::FLOAT_16_ARRAY_DISCRIMINANT;
-#[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::types::SHARED_ARRAY_BUFFER_DISCRIMINANT;
-#[cfg(feature = "array-buffer")]
-use crate::ecmascript::types::{
-    ARRAY_BUFFER_DISCRIMINANT, BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
-    DATA_VIEW_DISCRIMINANT, FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT,
-    INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
-    UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT,
-    UINT_32_ARRAY_DISCRIMINANT,
-};
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::types::{
     WEAK_MAP_DISCRIMINANT, WEAK_REF_DISCRIMINANT, WEAK_SET_DISCRIMINANT,
+};
+#[cfg(feature = "proposal-float16array")]
+use crate::ecmascript::{builtins::typed_array::Float16Array, types::FLOAT_16_ARRAY_DISCRIMINANT};
+#[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+use crate::ecmascript::{
+    builtins::typed_array::SharedFloat16Array, types::SHARED_FLOAT_16_ARRAY_DISCRIMINANT,
+};
+#[cfg(feature = "array-buffer")]
+use crate::ecmascript::{
+    builtins::{
+        ArrayBuffer,
+        data_view::DataView,
+        typed_array::{
+            BigInt64Array, BigUint64Array, Float32Array, Float64Array, Int8Array, Int16Array,
+            Int32Array, Uint8Array, Uint8ClampedArray, Uint16Array, Uint32Array,
+        },
+    },
+    types::{
+        ARRAY_BUFFER_DISCRIMINANT, BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
+        DATA_VIEW_DISCRIMINANT, FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT,
+        INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
+        UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT,
+        UINT_32_ARRAY_DISCRIMINANT,
+    },
+};
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::{
+    builtins::{
+        data_view::SharedDataView,
+        shared_array_buffer::SharedArrayBuffer,
+        typed_array::{
+            SharedBigInt64Array, SharedBigUint64Array, SharedFloat32Array, SharedFloat64Array,
+            SharedInt8Array, SharedInt16Array, SharedInt32Array, SharedUint8Array,
+            SharedUint8ClampedArray, SharedUint16Array, SharedUint32Array,
+        },
+    },
+    types::{
+        SHARED_ARRAY_BUFFER_DISCRIMINANT, SHARED_BIGINT_64_ARRAY_DISCRIMINANT,
+        SHARED_BIGUINT_64_ARRAY_DISCRIMINANT, SHARED_DATA_VIEW_DISCRIMINANT,
+        SHARED_FLOAT_32_ARRAY_DISCRIMINANT, SHARED_FLOAT_64_ARRAY_DISCRIMINANT,
+        SHARED_INT_8_ARRAY_DISCRIMINANT, SHARED_INT_16_ARRAY_DISCRIMINANT,
+        SHARED_INT_32_ARRAY_DISCRIMINANT, SHARED_UINT_8_ARRAY_DISCRIMINANT,
+        SHARED_UINT_8_CLAMPED_ARRAY_DISCRIMINANT, SHARED_UINT_16_ARRAY_DISCRIMINANT,
+        SHARED_UINT_32_ARRAY_DISCRIMINANT,
+    },
 };
 #[cfg(feature = "set")]
 use crate::ecmascript::{
@@ -42,11 +73,6 @@ use crate::ecmascript::{
         text_processing::regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
     },
     types::{REGEXP_DISCRIMINANT, REGEXP_STRING_ITERATOR_DISCRIMINANT},
-};
-#[cfg(feature = "array-buffer")]
-use crate::{
-    ecmascript::builtins::{ArrayBuffer, data_view::DataView},
-    heap::indexes::TypedArrayIndex,
 };
 
 use crate::{
@@ -113,10 +139,6 @@ pub(crate) enum WeakKey<'a> {
     PrimitiveObject(PrimitiveObject<'a>) = PRIMITIVE_OBJECT_DISCRIMINANT,
     Arguments(OrdinaryObject<'a>) = ARGUMENTS_DISCRIMINANT,
     Array(Array<'a>) = ARRAY_DISCRIMINANT,
-    #[cfg(feature = "array-buffer")]
-    ArrayBuffer(ArrayBuffer<'a>) = ARRAY_BUFFER_DISCRIMINANT,
-    #[cfg(feature = "array-buffer")]
-    DataView(DataView<'a>) = DATA_VIEW_DISCRIMINANT,
     #[cfg(feature = "date")]
     Date(Date<'a>) = DATE_DISCRIMINANT,
     Error(Error<'a>) = ERROR_DISCRIMINANT,
@@ -128,38 +150,71 @@ pub(crate) enum WeakKey<'a> {
     RegExp(RegExp<'a>) = REGEXP_DISCRIMINANT,
     #[cfg(feature = "set")]
     Set(Set<'a>) = SET_DISCRIMINANT,
-    #[cfg(feature = "shared-array-buffer")]
-    SharedArrayBuffer(SharedArrayBuffer<'a>) = SHARED_ARRAY_BUFFER_DISCRIMINANT,
     #[cfg(feature = "weak-refs")]
     WeakMap(WeakMap<'a>) = WEAK_MAP_DISCRIMINANT,
     #[cfg(feature = "weak-refs")]
     WeakRef(WeakRef<'a>) = WEAK_REF_DISCRIMINANT,
     #[cfg(feature = "weak-refs")]
     WeakSet(WeakSet<'a>) = WEAK_SET_DISCRIMINANT,
+
     #[cfg(feature = "array-buffer")]
-    Int8Array(TypedArrayIndex<'a>) = INT_8_ARRAY_DISCRIMINANT,
+    ArrayBuffer(ArrayBuffer<'a>) = ARRAY_BUFFER_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    Uint8Array(TypedArrayIndex<'a>) = UINT_8_ARRAY_DISCRIMINANT,
+    DataView(DataView<'a>) = DATA_VIEW_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    Uint8ClampedArray(TypedArrayIndex<'a>) = UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+    Int8Array(Int8Array<'a>) = INT_8_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    Int16Array(TypedArrayIndex<'a>) = INT_16_ARRAY_DISCRIMINANT,
+    Uint8Array(Uint8Array<'a>) = UINT_8_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    Uint16Array(TypedArrayIndex<'a>) = UINT_16_ARRAY_DISCRIMINANT,
+    Uint8ClampedArray(Uint8ClampedArray<'a>) = UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    Int32Array(TypedArrayIndex<'a>) = INT_32_ARRAY_DISCRIMINANT,
+    Int16Array(Int16Array<'a>) = INT_16_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    Uint32Array(TypedArrayIndex<'a>) = UINT_32_ARRAY_DISCRIMINANT,
+    Uint16Array(Uint16Array<'a>) = UINT_16_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    BigInt64Array(TypedArrayIndex<'a>) = BIGINT_64_ARRAY_DISCRIMINANT,
+    Int32Array(Int32Array<'a>) = INT_32_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    BigUint64Array(TypedArrayIndex<'a>) = BIGUINT_64_ARRAY_DISCRIMINANT,
+    Uint32Array(Uint32Array<'a>) = UINT_32_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
+    BigInt64Array(BigInt64Array<'a>) = BIGINT_64_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
+    BigUint64Array(BigUint64Array<'a>) = BIGUINT_64_ARRAY_DISCRIMINANT,
     #[cfg(feature = "proposal-float16array")]
-    Float16Array(TypedArrayIndex<'a>) = FLOAT_16_ARRAY_DISCRIMINANT,
+    Float16Array(Float16Array<'a>) = FLOAT_16_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    Float32Array(TypedArrayIndex<'a>) = FLOAT_32_ARRAY_DISCRIMINANT,
+    Float32Array(Float32Array<'a>) = FLOAT_32_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    Float64Array(TypedArrayIndex<'a>) = FLOAT_64_ARRAY_DISCRIMINANT,
+    Float64Array(Float64Array<'a>) = FLOAT_64_ARRAY_DISCRIMINANT,
+
+    #[cfg(feature = "shared-array-buffer")]
+    SharedArrayBuffer(SharedArrayBuffer<'a>) = SHARED_ARRAY_BUFFER_DISCRIMINANT,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedDataView(SharedDataView<'a>) = SHARED_DATA_VIEW_DISCRIMINANT,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedInt8Array(SharedInt8Array<'a>) = SHARED_INT_8_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedUint8Array(SharedUint8Array<'a>) = SHARED_UINT_8_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedUint8ClampedArray(SharedUint8ClampedArray<'a>) = SHARED_UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedInt16Array(SharedInt16Array<'a>) = SHARED_INT_16_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedUint16Array(SharedUint16Array<'a>) = SHARED_UINT_16_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedInt32Array(SharedInt32Array<'a>) = SHARED_INT_32_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedUint32Array(SharedUint32Array<'a>) = SHARED_UINT_32_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedBigInt64Array(SharedBigInt64Array<'a>) = SHARED_BIGINT_64_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedBigUint64Array(SharedBigUint64Array<'a>) = SHARED_BIGUINT_64_ARRAY_DISCRIMINANT,
+    #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+    SharedFloat16Array(SharedFloat16Array<'a>) = SHARED_FLOAT_16_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedFloat32Array(SharedFloat32Array<'a>) = SHARED_FLOAT_32_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedFloat64Array(SharedFloat64Array<'a>) = SHARED_FLOAT_64_ARRAY_DISCRIMINANT,
+
     AsyncGenerator(AsyncGenerator<'a>) = ASYNC_GENERATOR_DISCRIMINANT,
     ArrayIterator(ArrayIterator<'a>) = ARRAY_ITERATOR_DISCRIMINANT,
     #[cfg(feature = "set")]
@@ -196,10 +251,6 @@ impl<'a> From<WeakKey<'a>> for Value<'a> {
             WeakKey::PrimitiveObject(d) => Self::PrimitiveObject(d),
             WeakKey::Arguments(d) => Self::Arguments(d),
             WeakKey::Array(d) => Self::Array(d),
-            #[cfg(feature = "array-buffer")]
-            WeakKey::ArrayBuffer(d) => Self::ArrayBuffer(d),
-            #[cfg(feature = "array-buffer")]
-            WeakKey::DataView(d) => Self::DataView(d),
             #[cfg(feature = "date")]
             WeakKey::Date(d) => Self::Date(d),
             WeakKey::Error(d) => Self::Error(d),
@@ -211,38 +262,71 @@ impl<'a> From<WeakKey<'a>> for Value<'a> {
             WeakKey::RegExp(d) => Self::RegExp(d),
             #[cfg(feature = "set")]
             WeakKey::Set(d) => Self::Set(d),
-            #[cfg(feature = "shared-array-buffer")]
-            WeakKey::SharedArrayBuffer(d) => Self::SharedArrayBuffer(d),
             #[cfg(feature = "weak-refs")]
             WeakKey::WeakMap(d) => Self::WeakMap(d),
             #[cfg(feature = "weak-refs")]
             WeakKey::WeakRef(d) => Self::WeakRef(d),
             #[cfg(feature = "weak-refs")]
             WeakKey::WeakSet(d) => Self::WeakSet(d),
+
             #[cfg(feature = "array-buffer")]
-            WeakKey::Int8Array(d) => Self::Int8Array(d),
+            WeakKey::ArrayBuffer(ab) => Self::ArrayBuffer(ab),
             #[cfg(feature = "array-buffer")]
-            WeakKey::Uint8Array(d) => Self::Uint8Array(d),
+            WeakKey::DataView(dv) => Self::DataView(dv),
             #[cfg(feature = "array-buffer")]
-            WeakKey::Uint8ClampedArray(d) => Self::Uint8ClampedArray(d),
+            WeakKey::Int8Array(ta) => Self::Int8Array(ta),
             #[cfg(feature = "array-buffer")]
-            WeakKey::Int16Array(d) => Self::Int16Array(d),
+            WeakKey::Uint8Array(ta) => Self::Uint8Array(ta),
             #[cfg(feature = "array-buffer")]
-            WeakKey::Uint16Array(d) => Self::Uint16Array(d),
+            WeakKey::Uint8ClampedArray(ta) => Self::Uint8ClampedArray(ta),
             #[cfg(feature = "array-buffer")]
-            WeakKey::Int32Array(d) => Self::Int32Array(d),
+            WeakKey::Int16Array(ta) => Self::Int16Array(ta),
             #[cfg(feature = "array-buffer")]
-            WeakKey::Uint32Array(d) => Self::Uint32Array(d),
+            WeakKey::Uint16Array(ta) => Self::Uint16Array(ta),
             #[cfg(feature = "array-buffer")]
-            WeakKey::BigInt64Array(d) => Self::BigInt64Array(d),
+            WeakKey::Int32Array(ta) => Self::Int32Array(ta),
             #[cfg(feature = "array-buffer")]
-            WeakKey::BigUint64Array(d) => Self::BigUint64Array(d),
+            WeakKey::Uint32Array(ta) => Self::Uint32Array(ta),
+            #[cfg(feature = "array-buffer")]
+            WeakKey::BigInt64Array(ta) => Self::BigInt64Array(ta),
+            #[cfg(feature = "array-buffer")]
+            WeakKey::BigUint64Array(ta) => Self::BigUint64Array(ta),
             #[cfg(feature = "proposal-float16array")]
-            WeakKey::Float16Array(d) => Self::Float16Array(d),
+            WeakKey::Float16Array(ta) => Self::Float16Array(ta),
             #[cfg(feature = "array-buffer")]
-            WeakKey::Float32Array(d) => Self::Float32Array(d),
+            WeakKey::Float32Array(ta) => Self::Float32Array(ta),
             #[cfg(feature = "array-buffer")]
-            WeakKey::Float64Array(d) => Self::Float64Array(d),
+            WeakKey::Float64Array(ta) => Self::Float64Array(ta),
+
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedArrayBuffer(sab) => Self::SharedArrayBuffer(sab),
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedDataView(sdv) => Self::SharedDataView(sdv),
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedInt8Array(sta) => Self::SharedInt8Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedUint8Array(sta) => Self::SharedUint8Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedUint8ClampedArray(sta) => Self::SharedUint8ClampedArray(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedInt16Array(sta) => Self::SharedInt16Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedUint16Array(sta) => Self::SharedUint16Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedInt32Array(sta) => Self::SharedInt32Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedUint32Array(sta) => Self::SharedUint32Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedBigInt64Array(sta) => Self::SharedBigInt64Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedBigUint64Array(sta) => Self::SharedBigUint64Array(sta),
+            #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+            WeakKey::SharedFloat16Array(sta) => Self::SharedFloat16Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedFloat32Array(sta) => Self::SharedFloat32Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedFloat64Array(sta) => Self::SharedFloat64Array(sta),
+
             WeakKey::AsyncGenerator(d) => Self::AsyncGenerator(d),
             WeakKey::ArrayIterator(d) => Self::ArrayIterator(d),
             #[cfg(feature = "set")]
@@ -274,10 +358,6 @@ impl<'a> From<Object<'a>> for WeakKey<'a> {
             Object::PrimitiveObject(d) => Self::PrimitiveObject(d),
             Object::Arguments(d) => Self::Arguments(d),
             Object::Array(d) => Self::Array(d),
-            #[cfg(feature = "array-buffer")]
-            Object::ArrayBuffer(d) => Self::ArrayBuffer(d),
-            #[cfg(feature = "array-buffer")]
-            Object::DataView(d) => Self::DataView(d),
             #[cfg(feature = "date")]
             Object::Date(d) => Self::Date(d),
             Object::Error(d) => Self::Error(d),
@@ -289,38 +369,71 @@ impl<'a> From<Object<'a>> for WeakKey<'a> {
             Object::RegExp(d) => Self::RegExp(d),
             #[cfg(feature = "set")]
             Object::Set(d) => Self::Set(d),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedArrayBuffer(d) => Self::SharedArrayBuffer(d),
             #[cfg(feature = "weak-refs")]
             Object::WeakMap(d) => Self::WeakMap(d),
             #[cfg(feature = "weak-refs")]
             Object::WeakRef(d) => Self::WeakRef(d),
             #[cfg(feature = "weak-refs")]
             Object::WeakSet(d) => Self::WeakSet(d),
+
             #[cfg(feature = "array-buffer")]
-            Object::Int8Array(d) => Self::Int8Array(d),
+            Object::ArrayBuffer(ab) => Self::ArrayBuffer(ab),
             #[cfg(feature = "array-buffer")]
-            Object::Uint8Array(d) => Self::Uint8Array(d),
+            Object::DataView(dv) => Self::DataView(dv),
             #[cfg(feature = "array-buffer")]
-            Object::Uint8ClampedArray(d) => Self::Uint8ClampedArray(d),
+            Object::Int8Array(ta) => Self::Int8Array(ta),
             #[cfg(feature = "array-buffer")]
-            Object::Int16Array(d) => Self::Int16Array(d),
+            Object::Uint8Array(ta) => Self::Uint8Array(ta),
             #[cfg(feature = "array-buffer")]
-            Object::Uint16Array(d) => Self::Uint16Array(d),
+            Object::Uint8ClampedArray(ta) => Self::Uint8ClampedArray(ta),
             #[cfg(feature = "array-buffer")]
-            Object::Int32Array(d) => Self::Int32Array(d),
+            Object::Int16Array(ta) => Self::Int16Array(ta),
             #[cfg(feature = "array-buffer")]
-            Object::Uint32Array(d) => Self::Uint32Array(d),
+            Object::Uint16Array(ta) => Self::Uint16Array(ta),
             #[cfg(feature = "array-buffer")]
-            Object::BigInt64Array(d) => Self::BigInt64Array(d),
+            Object::Int32Array(ta) => Self::Int32Array(ta),
             #[cfg(feature = "array-buffer")]
-            Object::BigUint64Array(d) => Self::BigUint64Array(d),
+            Object::Uint32Array(ta) => Self::Uint32Array(ta),
+            #[cfg(feature = "array-buffer")]
+            Object::BigInt64Array(ta) => Self::BigInt64Array(ta),
+            #[cfg(feature = "array-buffer")]
+            Object::BigUint64Array(ta) => Self::BigUint64Array(ta),
             #[cfg(feature = "proposal-float16array")]
-            Object::Float16Array(d) => Self::Float16Array(d),
+            Object::Float16Array(ta) => Self::Float16Array(ta),
             #[cfg(feature = "array-buffer")]
-            Object::Float32Array(d) => Self::Float32Array(d),
+            Object::Float32Array(ta) => Self::Float32Array(ta),
             #[cfg(feature = "array-buffer")]
-            Object::Float64Array(d) => Self::Float64Array(d),
+            Object::Float64Array(ta) => Self::Float64Array(ta),
+
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedArrayBuffer(sab) => Self::SharedArrayBuffer(sab),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedDataView(sdv) => Self::SharedDataView(sdv),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedInt8Array(sta) => Self::SharedInt8Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedUint8Array(sta) => Self::SharedUint8Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedUint8ClampedArray(sta) => Self::SharedUint8ClampedArray(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedInt16Array(sta) => Self::SharedInt16Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedUint16Array(sta) => Self::SharedUint16Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedInt32Array(sta) => Self::SharedInt32Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedUint32Array(sta) => Self::SharedUint32Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedBigInt64Array(sta) => Self::SharedBigInt64Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedBigUint64Array(sta) => Self::SharedBigUint64Array(sta),
+            #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+            Object::SharedFloat16Array(sta) => Self::SharedFloat16Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedFloat32Array(sta) => Self::SharedFloat32Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedFloat64Array(sta) => Self::SharedFloat64Array(sta),
+
             Object::AsyncGenerator(d) => Self::AsyncGenerator(d),
             Object::ArrayIterator(d) => Self::ArrayIterator(d),
             #[cfg(feature = "set")]
@@ -356,10 +469,6 @@ impl<'a> TryFrom<WeakKey<'a>> for Object<'a> {
             WeakKey::PrimitiveObject(d) => Ok(Self::PrimitiveObject(d)),
             WeakKey::Arguments(d) => Ok(Self::Arguments(d)),
             WeakKey::Array(d) => Ok(Self::Array(d)),
-            #[cfg(feature = "array-buffer")]
-            WeakKey::ArrayBuffer(d) => Ok(Self::ArrayBuffer(d)),
-            #[cfg(feature = "array-buffer")]
-            WeakKey::DataView(d) => Ok(Self::DataView(d)),
             #[cfg(feature = "date")]
             WeakKey::Date(d) => Ok(Self::Date(d)),
             WeakKey::Error(d) => Ok(Self::Error(d)),
@@ -371,38 +480,71 @@ impl<'a> TryFrom<WeakKey<'a>> for Object<'a> {
             WeakKey::RegExp(d) => Ok(Self::RegExp(d)),
             #[cfg(feature = "set")]
             WeakKey::Set(d) => Ok(Self::Set(d)),
-            #[cfg(feature = "shared-array-buffer")]
-            WeakKey::SharedArrayBuffer(d) => Ok(Self::SharedArrayBuffer(d)),
             #[cfg(feature = "weak-refs")]
             WeakKey::WeakMap(d) => Ok(Self::WeakMap(d)),
             #[cfg(feature = "weak-refs")]
             WeakKey::WeakRef(d) => Ok(Self::WeakRef(d)),
             #[cfg(feature = "weak-refs")]
             WeakKey::WeakSet(d) => Ok(Self::WeakSet(d)),
+
             #[cfg(feature = "array-buffer")]
-            WeakKey::Int8Array(d) => Ok(Self::Int8Array(d)),
+            WeakKey::ArrayBuffer(ab) => Ok(Self::ArrayBuffer(ab)),
             #[cfg(feature = "array-buffer")]
-            WeakKey::Uint8Array(d) => Ok(Self::Uint8Array(d)),
+            WeakKey::DataView(dv) => Ok(Self::DataView(dv)),
             #[cfg(feature = "array-buffer")]
-            WeakKey::Uint8ClampedArray(d) => Ok(Self::Uint8ClampedArray(d)),
+            WeakKey::Int8Array(ta) => Ok(Self::Int8Array(ta)),
             #[cfg(feature = "array-buffer")]
-            WeakKey::Int16Array(d) => Ok(Self::Int16Array(d)),
+            WeakKey::Uint8Array(ta) => Ok(Self::Uint8Array(ta)),
             #[cfg(feature = "array-buffer")]
-            WeakKey::Uint16Array(d) => Ok(Self::Uint16Array(d)),
+            WeakKey::Uint8ClampedArray(ta) => Ok(Self::Uint8ClampedArray(ta)),
             #[cfg(feature = "array-buffer")]
-            WeakKey::Int32Array(d) => Ok(Self::Int32Array(d)),
+            WeakKey::Int16Array(ta) => Ok(Self::Int16Array(ta)),
             #[cfg(feature = "array-buffer")]
-            WeakKey::Uint32Array(d) => Ok(Self::Uint32Array(d)),
+            WeakKey::Uint16Array(ta) => Ok(Self::Uint16Array(ta)),
             #[cfg(feature = "array-buffer")]
-            WeakKey::BigInt64Array(d) => Ok(Self::BigInt64Array(d)),
+            WeakKey::Int32Array(ta) => Ok(Self::Int32Array(ta)),
             #[cfg(feature = "array-buffer")]
-            WeakKey::BigUint64Array(d) => Ok(Self::BigUint64Array(d)),
+            WeakKey::Uint32Array(ta) => Ok(Self::Uint32Array(ta)),
+            #[cfg(feature = "array-buffer")]
+            WeakKey::BigInt64Array(ta) => Ok(Self::BigInt64Array(ta)),
+            #[cfg(feature = "array-buffer")]
+            WeakKey::BigUint64Array(ta) => Ok(Self::BigUint64Array(ta)),
             #[cfg(feature = "proposal-float16array")]
-            WeakKey::Float16Array(d) => Ok(Self::Float16Array(d)),
+            WeakKey::Float16Array(ta) => Ok(Self::Float16Array(ta)),
             #[cfg(feature = "array-buffer")]
-            WeakKey::Float32Array(d) => Ok(Self::Float32Array(d)),
+            WeakKey::Float32Array(ta) => Ok(Self::Float32Array(ta)),
             #[cfg(feature = "array-buffer")]
-            WeakKey::Float64Array(d) => Ok(Self::Float64Array(d)),
+            WeakKey::Float64Array(ta) => Ok(Self::Float64Array(ta)),
+
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedArrayBuffer(sab) => Ok(Self::SharedArrayBuffer(sab)),
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedDataView(sdv) => Ok(Self::SharedDataView(sdv)),
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedInt8Array(sta) => Ok(Self::SharedInt8Array(sta)),
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedUint8Array(sta) => Ok(Self::SharedUint8Array(sta)),
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedUint8ClampedArray(sta) => Ok(Self::SharedUint8ClampedArray(sta)),
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedInt16Array(sta) => Ok(Self::SharedInt16Array(sta)),
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedUint16Array(sta) => Ok(Self::SharedUint16Array(sta)),
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedInt32Array(sta) => Ok(Self::SharedInt32Array(sta)),
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedUint32Array(sta) => Ok(Self::SharedUint32Array(sta)),
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedBigInt64Array(sta) => Ok(Self::SharedBigInt64Array(sta)),
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedBigUint64Array(sta) => Ok(Self::SharedBigUint64Array(sta)),
+            #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+            WeakKey::SharedFloat16Array(sta) => Ok(Self::SharedFloat16Array(sta)),
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedFloat32Array(sta) => Ok(Self::SharedFloat32Array(sta)),
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedFloat64Array(sta) => Ok(Self::SharedFloat64Array(sta)),
+
             WeakKey::AsyncGenerator(d) => Ok(Self::AsyncGenerator(d)),
             WeakKey::ArrayIterator(d) => Ok(Self::ArrayIterator(d)),
             #[cfg(feature = "set")]
@@ -469,10 +611,6 @@ impl HeapMarkAndSweep for WeakKey<'static> {
             Self::PrimitiveObject(d) => d.mark_values(queues),
             Self::Arguments(d) => d.mark_values(queues),
             Self::Array(d) => d.mark_values(queues),
-            #[cfg(feature = "array-buffer")]
-            Self::ArrayBuffer(d) => d.mark_values(queues),
-            #[cfg(feature = "array-buffer")]
-            Self::DataView(d) => d.mark_values(queues),
             #[cfg(feature = "date")]
             Self::Date(d) => d.mark_values(queues),
             Self::Error(d) => d.mark_values(queues),
@@ -484,38 +622,71 @@ impl HeapMarkAndSweep for WeakKey<'static> {
             Self::RegExp(d) => d.mark_values(queues),
             #[cfg(feature = "set")]
             Self::Set(d) => d.mark_values(queues),
-            #[cfg(feature = "shared-array-buffer")]
-            Self::SharedArrayBuffer(d) => d.mark_values(queues),
             #[cfg(feature = "weak-refs")]
             Self::WeakMap(d) => d.mark_values(queues),
             #[cfg(feature = "weak-refs")]
             Self::WeakRef(d) => d.mark_values(queues),
             #[cfg(feature = "weak-refs")]
             Self::WeakSet(d) => d.mark_values(queues),
+
             #[cfg(feature = "array-buffer")]
-            Self::Int8Array(d) => d.mark_values(queues),
+            Self::ArrayBuffer(ab) => ab.mark_values(queues),
             #[cfg(feature = "array-buffer")]
-            Self::Uint8Array(d) => d.mark_values(queues),
+            Self::DataView(dv) => dv.mark_values(queues),
             #[cfg(feature = "array-buffer")]
-            Self::Uint8ClampedArray(d) => d.mark_values(queues),
+            Self::Int8Array(ta) => ta.mark_values(queues),
             #[cfg(feature = "array-buffer")]
-            Self::Int16Array(d) => d.mark_values(queues),
+            Self::Uint8Array(ta) => ta.mark_values(queues),
             #[cfg(feature = "array-buffer")]
-            Self::Uint16Array(d) => d.mark_values(queues),
+            Self::Uint8ClampedArray(ta) => ta.mark_values(queues),
             #[cfg(feature = "array-buffer")]
-            Self::Int32Array(d) => d.mark_values(queues),
+            Self::Int16Array(ta) => ta.mark_values(queues),
             #[cfg(feature = "array-buffer")]
-            Self::Uint32Array(d) => d.mark_values(queues),
+            Self::Uint16Array(ta) => ta.mark_values(queues),
             #[cfg(feature = "array-buffer")]
-            Self::BigInt64Array(d) => d.mark_values(queues),
+            Self::Int32Array(ta) => ta.mark_values(queues),
             #[cfg(feature = "array-buffer")]
-            Self::BigUint64Array(d) => d.mark_values(queues),
+            Self::Uint32Array(ta) => ta.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
+            Self::BigInt64Array(ta) => ta.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
+            Self::BigUint64Array(ta) => ta.mark_values(queues),
             #[cfg(feature = "proposal-float16array")]
-            Self::Float16Array(d) => d.mark_values(queues),
+            Self::Float16Array(ta) => ta.mark_values(queues),
             #[cfg(feature = "array-buffer")]
-            Self::Float32Array(d) => d.mark_values(queues),
+            Self::Float32Array(ta) => ta.mark_values(queues),
             #[cfg(feature = "array-buffer")]
-            Self::Float64Array(d) => d.mark_values(queues),
+            Self::Float64Array(ta) => ta.mark_values(queues),
+
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedArrayBuffer(sab) => sab.mark_values(queues),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedDataView(sdv) => sdv.mark_values(queues),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedInt8Array(sta) => sta.mark_values(queues),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedUint8Array(sta) => sta.mark_values(queues),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedUint8ClampedArray(sta) => sta.mark_values(queues),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedInt16Array(sta) => sta.mark_values(queues),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedUint16Array(sta) => sta.mark_values(queues),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedInt32Array(sta) => sta.mark_values(queues),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedUint32Array(sta) => sta.mark_values(queues),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedBigInt64Array(sta) => sta.mark_values(queues),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedBigUint64Array(sta) => sta.mark_values(queues),
+            #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+            Self::SharedFloat16Array(sta) => sta.mark_values(queues),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedFloat32Array(sta) => sta.mark_values(queues),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedFloat64Array(sta) => sta.mark_values(queues),
+
             Self::AsyncGenerator(d) => d.mark_values(queues),
             Self::ArrayIterator(d) => d.mark_values(queues),
             #[cfg(feature = "set")]
@@ -545,10 +716,6 @@ impl HeapMarkAndSweep for WeakKey<'static> {
             Self::PrimitiveObject(d) => d.sweep_values(compactions),
             Self::Arguments(d) => d.sweep_values(compactions),
             Self::Array(d) => d.sweep_values(compactions),
-            #[cfg(feature = "array-buffer")]
-            Self::ArrayBuffer(d) => d.sweep_values(compactions),
-            #[cfg(feature = "array-buffer")]
-            Self::DataView(d) => d.sweep_values(compactions),
             #[cfg(feature = "date")]
             Self::Date(d) => d.sweep_values(compactions),
             Self::Error(d) => d.sweep_values(compactions),
@@ -560,38 +727,71 @@ impl HeapMarkAndSweep for WeakKey<'static> {
             Self::RegExp(d) => d.sweep_values(compactions),
             #[cfg(feature = "set")]
             Self::Set(d) => d.sweep_values(compactions),
-            #[cfg(feature = "shared-array-buffer")]
-            Self::SharedArrayBuffer(d) => d.sweep_values(compactions),
             #[cfg(feature = "weak-refs")]
             Self::WeakMap(d) => d.sweep_values(compactions),
             #[cfg(feature = "weak-refs")]
             Self::WeakRef(d) => d.sweep_values(compactions),
             #[cfg(feature = "weak-refs")]
             Self::WeakSet(d) => d.sweep_values(compactions),
+
             #[cfg(feature = "array-buffer")]
-            Self::Int8Array(d) => d.sweep_values(compactions),
+            Self::ArrayBuffer(ab) => ab.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
-            Self::Uint8Array(d) => d.sweep_values(compactions),
+            Self::DataView(dv) => dv.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
-            Self::Uint8ClampedArray(d) => d.sweep_values(compactions),
+            Self::Int8Array(ta) => ta.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
-            Self::Int16Array(d) => d.sweep_values(compactions),
+            Self::Uint8Array(ta) => ta.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
-            Self::Uint16Array(d) => d.sweep_values(compactions),
+            Self::Uint8ClampedArray(ta) => ta.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
-            Self::Int32Array(d) => d.sweep_values(compactions),
+            Self::Int16Array(ta) => ta.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
-            Self::Uint32Array(d) => d.sweep_values(compactions),
+            Self::Uint16Array(ta) => ta.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
-            Self::BigInt64Array(d) => d.sweep_values(compactions),
+            Self::Int32Array(ta) => ta.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
-            Self::BigUint64Array(d) => d.sweep_values(compactions),
+            Self::Uint32Array(ta) => ta.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
+            Self::BigInt64Array(ta) => ta.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
+            Self::BigUint64Array(ta) => ta.sweep_values(compactions),
             #[cfg(feature = "proposal-float16array")]
-            Self::Float16Array(d) => d.sweep_values(compactions),
+            Self::Float16Array(ta) => ta.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
-            Self::Float32Array(d) => d.sweep_values(compactions),
+            Self::Float32Array(ta) => ta.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
-            Self::Float64Array(d) => d.sweep_values(compactions),
+            Self::Float64Array(ta) => ta.sweep_values(compactions),
+
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedArrayBuffer(sab) => sab.sweep_values(compactions),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedDataView(sdv) => sdv.sweep_values(compactions),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedInt8Array(sta) => sta.sweep_values(compactions),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedUint8Array(sta) => sta.sweep_values(compactions),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedUint8ClampedArray(sta) => sta.sweep_values(compactions),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedInt16Array(sta) => sta.sweep_values(compactions),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedUint16Array(sta) => sta.sweep_values(compactions),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedInt32Array(sta) => sta.sweep_values(compactions),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedUint32Array(sta) => sta.sweep_values(compactions),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedBigInt64Array(sta) => sta.sweep_values(compactions),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedBigUint64Array(sta) => sta.sweep_values(compactions),
+            #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+            Self::SharedFloat16Array(sta) => sta.sweep_values(compactions),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedFloat32Array(sta) => sta.sweep_values(compactions),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedFloat64Array(sta) => sta.sweep_values(compactions),
+
             Self::AsyncGenerator(d) => d.sweep_values(compactions),
             Self::ArrayIterator(d) => d.sweep_values(compactions),
             #[cfg(feature = "set")]
@@ -637,12 +837,6 @@ impl HeapSweepWeakReference for WeakKey<'static> {
                 .map(Self::PrimitiveObject),
             Self::Arguments(data) => data.sweep_weak_reference(compactions).map(Self::Arguments),
             Self::Array(data) => data.sweep_weak_reference(compactions).map(Self::Array),
-            #[cfg(feature = "array-buffer")]
-            Self::ArrayBuffer(data) => data
-                .sweep_weak_reference(compactions)
-                .map(Self::ArrayBuffer),
-            #[cfg(feature = "array-buffer")]
-            Self::DataView(data) => data.sweep_weak_reference(compactions).map(Self::DataView),
             #[cfg(feature = "date")]
             Self::Date(data) => data.sweep_weak_reference(compactions).map(Self::Date),
             Self::Error(data) => data.sweep_weak_reference(compactions).map(Self::Error),
@@ -656,56 +850,105 @@ impl HeapSweepWeakReference for WeakKey<'static> {
             Self::RegExp(data) => data.sweep_weak_reference(compactions).map(Self::RegExp),
             #[cfg(feature = "set")]
             Self::Set(data) => data.sweep_weak_reference(compactions).map(Self::Set),
-            #[cfg(feature = "shared-array-buffer")]
-            Self::SharedArrayBuffer(data) => data
-                .sweep_weak_reference(compactions)
-                .map(Self::SharedArrayBuffer),
             #[cfg(feature = "weak-refs")]
             Self::WeakMap(data) => data.sweep_weak_reference(compactions).map(Self::WeakMap),
             #[cfg(feature = "weak-refs")]
             Self::WeakRef(data) => data.sweep_weak_reference(compactions).map(Self::WeakRef),
             #[cfg(feature = "weak-refs")]
             Self::WeakSet(data) => data.sweep_weak_reference(compactions).map(Self::WeakSet),
+
             #[cfg(feature = "array-buffer")]
-            Self::Int8Array(data) => data.sweep_weak_reference(compactions).map(Self::Int8Array),
+            Self::ArrayBuffer(ab) => ab.sweep_weak_reference(compactions).map(Self::ArrayBuffer),
             #[cfg(feature = "array-buffer")]
-            Self::Uint8Array(data) => data.sweep_weak_reference(compactions).map(Self::Uint8Array),
+            Self::DataView(dv) => dv.sweep_weak_reference(compactions).map(Self::DataView),
             #[cfg(feature = "array-buffer")]
-            Self::Uint8ClampedArray(data) => data
+            Self::Int8Array(ta) => ta.sweep_weak_reference(compactions).map(Self::Int8Array),
+            #[cfg(feature = "array-buffer")]
+            Self::Uint8Array(ta) => ta.sweep_weak_reference(compactions).map(Self::Uint8Array),
+            #[cfg(feature = "array-buffer")]
+            Self::Uint8ClampedArray(ta) => ta
                 .sweep_weak_reference(compactions)
                 .map(Self::Uint8ClampedArray),
             #[cfg(feature = "array-buffer")]
-            Self::Int16Array(data) => data.sweep_weak_reference(compactions).map(Self::Int16Array),
+            Self::Int16Array(ta) => ta.sweep_weak_reference(compactions).map(Self::Int16Array),
             #[cfg(feature = "array-buffer")]
-            Self::Uint16Array(data) => data
-                .sweep_weak_reference(compactions)
-                .map(Self::Uint16Array),
+            Self::Uint16Array(ta) => ta.sweep_weak_reference(compactions).map(Self::Uint16Array),
             #[cfg(feature = "array-buffer")]
-            Self::Int32Array(data) => data.sweep_weak_reference(compactions).map(Self::Int32Array),
+            Self::Int32Array(ta) => ta.sweep_weak_reference(compactions).map(Self::Int32Array),
             #[cfg(feature = "array-buffer")]
-            Self::Uint32Array(data) => data
-                .sweep_weak_reference(compactions)
-                .map(Self::Uint32Array),
+            Self::Uint32Array(ta) => ta.sweep_weak_reference(compactions).map(Self::Uint32Array),
             #[cfg(feature = "array-buffer")]
-            Self::BigInt64Array(data) => data
+            Self::BigInt64Array(ta) => ta
                 .sweep_weak_reference(compactions)
                 .map(Self::BigInt64Array),
             #[cfg(feature = "array-buffer")]
-            Self::BigUint64Array(data) => data
+            Self::BigUint64Array(ta) => ta
                 .sweep_weak_reference(compactions)
                 .map(Self::BigUint64Array),
             #[cfg(feature = "proposal-float16array")]
-            Self::Float16Array(data) => data
-                .sweep_weak_reference(compactions)
-                .map(Self::Float16Array),
+            Self::Float16Array(ta) => ta.sweep_weak_reference(compactions).map(Self::Float16Array),
             #[cfg(feature = "array-buffer")]
-            Self::Float32Array(data) => data
-                .sweep_weak_reference(compactions)
-                .map(Self::Float32Array),
+            Self::Float32Array(ta) => ta.sweep_weak_reference(compactions).map(Self::Float32Array),
             #[cfg(feature = "array-buffer")]
-            Self::Float64Array(data) => data
+            Self::Float64Array(ta) => ta.sweep_weak_reference(compactions).map(Self::Float64Array),
+
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedArrayBuffer(sab) => sab
                 .sweep_weak_reference(compactions)
-                .map(Self::Float64Array),
+                .map(Self::SharedArrayBuffer),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedDataView(sdv) => sdv
+                .sweep_weak_reference(compactions)
+                .map(Self::SharedDataView),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedInt8Array(sta) => sta
+                .sweep_weak_reference(compactions)
+                .map(Self::SharedInt8Array),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedUint8Array(sta) => sta
+                .sweep_weak_reference(compactions)
+                .map(Self::SharedUint8Array),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedUint8ClampedArray(sta) => sta
+                .sweep_weak_reference(compactions)
+                .map(Self::SharedUint8ClampedArray),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedInt16Array(sta) => sta
+                .sweep_weak_reference(compactions)
+                .map(Self::SharedInt16Array),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedUint16Array(sta) => sta
+                .sweep_weak_reference(compactions)
+                .map(Self::SharedUint16Array),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedInt32Array(sta) => sta
+                .sweep_weak_reference(compactions)
+                .map(Self::SharedInt32Array),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedUint32Array(sta) => sta
+                .sweep_weak_reference(compactions)
+                .map(Self::SharedUint32Array),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedBigInt64Array(sta) => sta
+                .sweep_weak_reference(compactions)
+                .map(Self::SharedBigInt64Array),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedBigUint64Array(sta) => sta
+                .sweep_weak_reference(compactions)
+                .map(Self::SharedBigUint64Array),
+            #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+            Self::SharedFloat16Array(sta) => sta
+                .sweep_weak_reference(compactions)
+                .map(Self::SharedFloat16Array),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedFloat32Array(sta) => sta
+                .sweep_weak_reference(compactions)
+                .map(Self::SharedFloat32Array),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedFloat64Array(sta) => sta
+                .sweep_weak_reference(compactions)
+                .map(Self::SharedFloat64Array),
+
             Self::AsyncGenerator(data) => data
                 .sweep_weak_reference(compactions)
                 .map(Self::AsyncGenerator),
