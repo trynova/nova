@@ -315,6 +315,16 @@ macro_rules! array_buffer_delegate {
 }
 
 impl<'ab> AnyArrayBuffer<'ab> {
+    /// Returns true if the ArrayBuffer is a SharedArrayBuffer.
+    #[inline(always)]
+    pub fn is_shared(self) -> bool {
+        match self {
+            Self::ArrayBuffer(_) => false,
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedArrayBuffer(_) => true,
+        }
+    }
+
     #[inline(always)]
     pub fn is_detached(self, agent: &Agent) -> bool {
         array_buffer_delegate!(self, is_detached, agent)

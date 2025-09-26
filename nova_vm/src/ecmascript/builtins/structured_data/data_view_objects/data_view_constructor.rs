@@ -8,13 +8,9 @@ use crate::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            array_buffer::{
-                ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset, array_buffer_byte_length,
-                is_detached_buffer, is_fixed_length_array_buffer,
-            },
-            data_view::DataView,
+            array_buffer::is_fixed_length_array_buffer, data_view::AnyDataView,
             ordinary::ordinary_create_from_constructor,
-            structured_data::array_buffer_objects::array_buffer_prototype::require_internal_slot_array_buffer,
+            structured_data::array_buffer_objects::array_buffer_prototype::require_internal_slot_any_array_buffer,
         },
         execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
@@ -65,7 +61,7 @@ impl DataViewConstructor {
         let byte_length = arguments.get(2).scope(agent, gc.nogc());
 
         // 2. Perform ? RequireInternalSlot(buffer, [[ArrayBufferData]]).
-        let scoped_buffer = require_internal_slot_array_buffer(agent, buffer, gc.nogc())
+        let scoped_buffer = require_internal_slot_any_array_buffer(agent, buffer, gc.nogc())
             .unbind()?
             .scope(agent, gc.nogc());
 
@@ -76,7 +72,7 @@ impl DataViewConstructor {
 
         // 4. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
         let buffer = scoped_buffer.get(agent).bind(gc.nogc());
-        if is_detached_buffer(agent, buffer) {
+        if buffer.is_detached(agent) {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "attempting to access detached ArrayBuffer",
@@ -85,7 +81,7 @@ impl DataViewConstructor {
         }
 
         // 5. Let bufferByteLength be ArrayBufferByteLength(buffer, seq-cst).
-        let buffer_byte_length = array_buffer_byte_length(agent, buffer);
+        let buffer_byte_length = buffer.byte_length(agent);
 
         // 6. If offset > bufferByteLength, throw a RangeError exception.
         if offset > buffer_byte_length {
@@ -98,6 +94,7 @@ impl DataViewConstructor {
 
         // 7. Let bufferIsFixedLength be IsFixedLengthArrayBuffer(buffer).
         let buffer_is_fixed_length = is_fixed_length_array_buffer(agent, buffer.into());
+        let buffer_is_shared = buffer.is_shared();
 
         // 8. If byteLength is undefined, then
         let byte_length = byte_length.get(agent).bind(gc.nogc());
@@ -132,7 +129,11 @@ impl DataViewConstructor {
         let o = ordinary_create_from_constructor(
             agent,
             new_target.get(agent),
-            ProtoIntrinsics::DataView,
+            if buffer_is_shared {
+                ProtoIntrinsics::SharedDataView
+            } else {
+                ProtoIntrinsics::DataView
+            },
             gc.reborrow(),
         )
         .unbind()?;
@@ -140,7 +141,7 @@ impl DataViewConstructor {
         let o = o.bind(gc);
         let buffer = scoped_buffer.get(agent).bind(gc);
         // 11. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
-        if is_detached_buffer(agent, buffer) {
+        if buffer.is_detached(agent) {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "attempting to access detached ArrayBuffer",
@@ -149,7 +150,7 @@ impl DataViewConstructor {
         }
 
         // 12. Set bufferByteLength to ArrayBufferByteLength(buffer, seq-cst).
-        let buffer_byte_length = array_buffer_byte_length(agent, buffer);
+        let buffer_byte_length = buffer.byte_length(agent);
 
         // 13. If offset > bufferByteLength, throw a RangeError exception.
         if offset > buffer_byte_length {
@@ -172,26 +173,13 @@ impl DataViewConstructor {
             }
         }
 
-        let o = DataView::try_from(o).unwrap();
-        let byte_length = view_byte_length.into();
-        let byte_offset = offset.into();
+        let o = AnyDataView::try_from(o).unwrap();
 
         // 15. Set O.[[ViewedArrayBuffer]] to buffer.
         // 16. Set O.[[ByteLength]] to viewByteLength.
         // 17. Set O.[[ByteOffset]] to offset.
         // SAFETY: Initialising O.
-        unsafe { o.initialise_data(agent, buffer, byte_length, byte_offset) };
-
-        if byte_length == ViewedArrayBufferByteLength::heap() {
-            agent
-                .heap
-                .data_view_byte_lengths
-                .insert(o.unbind(), view_byte_length.unwrap());
-        }
-
-        if byte_offset == ViewedArrayBufferByteOffset::heap() {
-            agent.heap.data_view_byte_offsets.insert(o.unbind(), offset);
-        }
+        unsafe { o.initialise_data(agent, buffer, view_byte_length, offset) };
 
         // 18. Return O.
         Ok(o.into_value())
