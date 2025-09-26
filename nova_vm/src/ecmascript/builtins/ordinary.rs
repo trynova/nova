@@ -13,6 +13,8 @@ use std::{
 
 use caches::{CacheToPopulate, Caches, PropertyLookupCache, PropertyOffset};
 
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::builtins::data_view::data::SharedDataViewRecord;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::{
@@ -1706,6 +1708,11 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
         }
         #[cfg(feature = "array-buffer")]
         ProtoIntrinsics::DataView => agent.heap.create(DataViewRecord::default()).into_object(),
+        #[cfg(feature = "shared-array-buffer")]
+        ProtoIntrinsics::SharedDataView => agent
+            .heap
+            .create(SharedDataViewRecord::default())
+            .into_object(),
         ProtoIntrinsics::FinalizationRegistry => agent
             .heap
             .create(FinalizationRegistryHeapData::default())
@@ -1904,6 +1911,8 @@ pub(crate) fn get_prototype_from_constructor<'a>(
             ProtoIntrinsics::Boolean => Some(intrinsics.boolean().into_function()),
             #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::DataView => Some(intrinsics.data_view().into_function()),
+            #[cfg(feature = "shared-array-buffer")]
+            ProtoIntrinsics::SharedDataView => Some(intrinsics.data_view().into_function()),
             #[cfg(feature = "date")]
             ProtoIntrinsics::Date => Some(intrinsics.date().into_function()),
             ProtoIntrinsics::Error => Some(intrinsics.error().into_function()),

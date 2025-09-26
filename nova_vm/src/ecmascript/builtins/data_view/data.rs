@@ -40,7 +40,7 @@ impl Default for DataViewRecord<'_> {
 }
 
 #[cfg(feature = "shared-array-buffer")]
-pub struct SharedDataViewHeapData<'a> {
+pub struct SharedDataViewRecord<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     // TODO: Add a helper function for a u32::MAX value which signifies an a under-construction value:
     // See https://github.com/trynova/nova/pull/447#discussion_r1806247107 for reference.
@@ -52,10 +52,10 @@ pub struct SharedDataViewHeapData<'a> {
     pub(crate) byte_offset: ViewedArrayBufferByteOffset,
 }
 #[cfg(feature = "shared-array-buffer")]
-bindable_handle!(SharedDataViewHeapData);
+bindable_handle!(SharedDataViewRecord);
 
 #[cfg(feature = "shared-array-buffer")]
-impl Default for SharedDataViewHeapData<'_> {
+impl Default for SharedDataViewRecord<'_> {
     fn default() -> Self {
         Self {
             object_index: None,
@@ -91,7 +91,7 @@ impl HeapMarkAndSweep for DataViewRecord<'static> {
 }
 
 #[cfg(feature = "shared-array-buffer")]
-impl HeapMarkAndSweep for SharedDataViewHeapData<'static> {
+impl HeapMarkAndSweep for SharedDataViewRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_index,

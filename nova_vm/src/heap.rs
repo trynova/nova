@@ -66,7 +66,7 @@ use crate::{
                     promise_resolving_functions::PromiseResolvingFunctionHeapData,
                 },
             },
-            data_view::{SharedDataView, data::SharedDataViewHeapData},
+            data_view::{SharedDataView, data::SharedDataViewRecord},
             embedder_object::data::EmbedderObjectHeapData,
             error::ErrorHeapData,
             finalization_registry::data::FinalizationRegistryHeapData,
@@ -203,7 +203,7 @@ pub(crate) struct Heap {
     #[cfg(feature = "shared-array-buffer")]
     pub(crate) shared_typed_array_array_lengths: AHashMap<SharedVoidArray<'static>, usize>,
     #[cfg(feature = "shared-array-buffer")]
-    pub(crate) shared_data_views: Vec<SharedDataViewHeapData<'static>>,
+    pub(crate) shared_data_views: Vec<SharedDataViewRecord<'static>>,
     #[cfg(feature = "shared-array-buffer")]
     pub(crate) shared_data_view_byte_lengths: AHashMap<SharedDataView<'static>, usize>,
     #[cfg(feature = "shared-array-buffer")]

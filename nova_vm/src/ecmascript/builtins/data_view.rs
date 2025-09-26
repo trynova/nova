@@ -20,7 +20,7 @@ use crate::{
     },
 };
 
-use self::data::{DataViewRecord, SharedDataViewHeapData};
+use self::data::{DataViewRecord, SharedDataViewRecord};
 
 use super::{
     ArrayBuffer,
@@ -107,13 +107,30 @@ impl<'gc> DataView<'gc> {
         self,
         agent: &mut Agent,
         ab: ArrayBuffer<'gc>,
-        byte_length: ViewedArrayBufferByteLength,
-        byte_offset: ViewedArrayBufferByteOffset,
+        byte_length: Option<usize>,
+        byte_offset: usize,
     ) {
+        let heap_byte_length = byte_length.into();
+        let heap_byte_offset = byte_offset.into();
+
         let d = self.get_mut(agent);
         d.viewed_array_buffer = ab;
-        d.byte_length = byte_length;
-        d.byte_offset = byte_offset;
+        d.byte_length = heap_byte_length;
+        d.byte_offset = heap_byte_offset;
+
+        if heap_byte_length == ViewedArrayBufferByteLength::heap() {
+            agent
+                .heap
+                .data_view_byte_lengths
+                .insert(self.unbind(), byte_length.unwrap());
+        }
+
+        if heap_byte_offset == ViewedArrayBufferByteOffset::heap() {
+            agent
+                .heap
+                .data_view_byte_offsets
+                .insert(self.unbind(), byte_offset);
+        }
     }
 
     pub(crate) const fn _def() -> Self {
@@ -161,7 +178,7 @@ impl<'gc> DataView<'gc> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 #[cfg(feature = "shared-array-buffer")]
-pub struct SharedDataView<'a>(BaseIndex<'a, SharedDataViewHeapData<'static>>);
+pub struct SharedDataView<'a>(BaseIndex<'a, SharedDataViewRecord<'static>>);
 bindable_handle!(SharedDataView);
 
 #[cfg(feature = "shared-array-buffer")]
@@ -233,6 +250,41 @@ impl<'gc> SharedDataView<'gc> {
         block.load_unaligned::<T>(byte_index).unwrap()
     }
 
+    /// Initialise the SharedDataView's internal slots.
+    ///
+    /// # Safety
+    ///
+    /// The SharedDataView must be uninitialised. Reinitialisation is not allowed.
+    pub(crate) unsafe fn initialise_data(
+        self,
+        agent: &mut Agent,
+        sab: SharedArrayBuffer<'gc>,
+        byte_length: Option<usize>,
+        byte_offset: usize,
+    ) {
+        let heap_byte_length = byte_length.into();
+        let heap_byte_offset = byte_offset.into();
+
+        let d = self.get_mut(agent);
+        d.viewed_array_buffer = sab;
+        d.byte_length = heap_byte_length;
+        d.byte_offset = heap_byte_offset;
+
+        if heap_byte_length == ViewedArrayBufferByteLength::heap() {
+            agent
+                .heap
+                .shared_data_view_byte_lengths
+                .insert(self.unbind(), byte_length.unwrap());
+        }
+
+        if heap_byte_offset == ViewedArrayBufferByteOffset::heap() {
+            agent
+                .heap
+                .shared_data_view_byte_offsets
+                .insert(self.unbind(), byte_offset);
+        }
+    }
+
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -242,20 +294,20 @@ impl<'gc> SharedDataView<'gc> {
     }
 
     #[inline(always)]
-    fn get<'a>(self, agent: &'a Agent) -> &'a SharedDataViewHeapData<'gc> {
+    fn get<'a>(self, agent: &'a Agent) -> &'a SharedDataViewRecord<'gc> {
         self.get_direct(&agent.heap.shared_data_views)
     }
 
     #[inline(always)]
-    fn get_mut<'a>(self, agent: &'a mut Agent) -> &'a mut SharedDataViewHeapData<'gc> {
+    fn get_mut<'a>(self, agent: &'a mut Agent) -> &'a mut SharedDataViewRecord<'gc> {
         self.get_direct_mut(&mut agent.heap.shared_data_views)
     }
 
     #[inline(always)]
     fn get_direct<'a>(
         self,
-        shared_data_views: &'a [SharedDataViewHeapData<'static>],
-    ) -> &'a SharedDataViewHeapData<'gc> {
+        shared_data_views: &'a [SharedDataViewRecord<'static>],
+    ) -> &'a SharedDataViewRecord<'gc> {
         shared_data_views
             .get(self.get_index())
             .expect("Invalid DataView reference")
@@ -264,14 +316,14 @@ impl<'gc> SharedDataView<'gc> {
     #[inline(always)]
     fn get_direct_mut<'a>(
         self,
-        shared_data_views: &'a mut [SharedDataViewHeapData<'static>],
-    ) -> &'a mut SharedDataViewHeapData<'gc> {
+        shared_data_views: &'a mut [SharedDataViewRecord<'static>],
+    ) -> &'a mut SharedDataViewRecord<'gc> {
         // SAFETY: Lifetime transmute to thread GC lifetime to temporary heap
         // reference.
         unsafe {
             core::mem::transmute::<
-                &'a mut SharedDataViewHeapData<'static>,
-                &'a mut SharedDataViewHeapData<'gc>,
+                &'a mut SharedDataViewRecord<'static>,
+                &'a mut SharedDataViewRecord<'gc>,
             >(
                 shared_data_views
                     .get_mut(self.get_index())
@@ -424,7 +476,7 @@ impl Rootable for SharedDataView<'_> {
 impl<'a> CreateHeapData<DataViewRecord<'a>, DataView<'a>> for Heap {
     fn create(&mut self, data: DataViewRecord<'a>) -> DataView<'a> {
         self.data_views.push(data.unbind());
-        self.alloc_counter += core::mem::size_of::<Option<DataViewRecord<'static>>>();
+        self.alloc_counter += core::mem::size_of::<DataViewRecord<'static>>();
         DataView(BaseIndex::last_t(&self.data_views))
     }
 }
@@ -442,6 +494,14 @@ impl HeapMarkAndSweep for DataView<'static> {
 impl HeapSweepWeakReference for DataView<'static> {
     fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
         compactions.data_views.shift_weak_index(self.0).map(Self)
+    }
+}
+
+impl<'a> CreateHeapData<SharedDataViewRecord<'a>, SharedDataView<'a>> for Heap {
+    fn create(&mut self, data: SharedDataViewRecord<'a>) -> SharedDataView<'a> {
+        self.shared_data_views.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<SharedDataViewRecord<'static>>();
+        SharedDataView(BaseIndex::last_t(&self.shared_data_views))
     }
 }
 
@@ -531,6 +591,31 @@ impl<'gc> AnyDataView<'gc> {
             Self::SharedDataView(sta) => unsafe { sta.get_value_from_buffer(agent, byte_index) },
         }
     }
+
+    /// Initialise the DataView's internal slots.
+    ///
+    /// # Safety
+    ///
+    /// The DataView must be uninitialised. Reinitialisation is not allowed.
+    pub(crate) unsafe fn initialise_data(
+        self,
+        agent: &mut Agent,
+        buffer: AnyArrayBuffer<'gc>,
+        byte_length: Option<usize>,
+        byte_offset: usize,
+    ) {
+        match (self, buffer) {
+            (AnyDataView::DataView(dv), AnyArrayBuffer::ArrayBuffer(ab)) => {
+                // SAFETY: pass-through
+                unsafe { dv.initialise_data(agent, ab, byte_length, byte_offset) }
+            }
+            (AnyDataView::SharedDataView(sdv), AnyArrayBuffer::SharedArrayBuffer(sab)) => {
+                // SAFETY: pass-through
+                unsafe { sdv.initialise_data(agent, sab, byte_length, byte_offset) }
+            }
+            _ => unreachable!(),
+        }
+    }
 }
 
 impl<'a> From<DataView<'a>> for AnyDataView<'a> {
@@ -566,6 +651,34 @@ impl<'a> From<AnyDataView<'a>> for Object<'a> {
             AnyDataView::DataView(dv) => Self::DataView(dv),
             #[cfg(feature = "shared-array-buffer")]
             AnyDataView::SharedDataView(sdv) => Self::SharedDataView(sdv),
+        }
+    }
+}
+
+impl<'a> TryFrom<Value<'a>> for AnyDataView<'a> {
+    type Error = ();
+
+    #[inline]
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Value::DataView(dv) => Ok(Self::DataView(dv)),
+            #[cfg(feature = "shared-array-buffer")]
+            Value::SharedDataView(sdv) => Ok(Self::SharedDataView(sdv)),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<'a> TryFrom<Object<'a>> for AnyDataView<'a> {
+    type Error = ();
+
+    #[inline]
+    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Object::DataView(dv) => Ok(Self::DataView(dv)),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedDataView(sdv) => Ok(Self::SharedDataView(sdv)),
+            _ => Err(()),
         }
     }
 }
