@@ -97,7 +97,7 @@ impl DataViewConstructor {
         }
 
         // 7. Let bufferIsFixedLength be IsFixedLengthArrayBuffer(buffer).
-        let buffer_is_fixed_length = is_fixed_length_array_buffer(agent, buffer);
+        let buffer_is_fixed_length = is_fixed_length_array_buffer(agent, buffer.into());
 
         // 8. If byteLength is undefined, then
         let byte_length = byte_length.get(agent).bind(gc.nogc());
@@ -173,17 +173,14 @@ impl DataViewConstructor {
         }
 
         let o = DataView::try_from(o).unwrap();
-
-        let heap_data = &mut agent[o];
+        let byte_length = view_byte_length.into();
+        let byte_offset = offset.into();
 
         // 15. Set O.[[ViewedArrayBuffer]] to buffer.
-        heap_data.viewed_array_buffer = buffer.unbind();
         // 16. Set O.[[ByteLength]] to viewByteLength.
-        let byte_length = view_byte_length.into();
-        heap_data.byte_length = byte_length;
         // 17. Set O.[[ByteOffset]] to offset.
-        let byte_offset = offset.into();
-        heap_data.byte_offset = byte_offset;
+        // SAFETY: Initialising O.
+        unsafe { o.initialise_data(agent, buffer, byte_length, byte_offset) };
 
         if byte_length == ViewedArrayBufferByteLength::heap() {
             agent

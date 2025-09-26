@@ -10,6 +10,12 @@ use data::{SharedTypedArrayRecord, TypedArrayArrayLength};
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::canonical_numeric_index_string,
+        builtins::indexed_collections::typed_array_objects::abstract_operations::{
+            is_typed_array_fixed_length, is_typed_array_out_of_bounds_specialised,
+            is_valid_integer_index_specialised,
+            make_typed_array_with_buffer_witness_record_specialised,
+            typed_array_length_specialised,
+        },
         execution::{
             Agent, JsResult, ProtoIntrinsics,
             agent::{TryResult, js_result_into_try, unwrap_try},
@@ -43,12 +49,7 @@ use super::{
     ArrayBuffer,
     array_buffer::{Ordering, ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset},
     indexed_collections::typed_array_objects::abstract_operations::{
-        is_typed_array_fixed_length, is_typed_array_out_of_bounds, is_valid_integer_index,
-        is_valid_integer_index_generic, make_generic_typed_array_with_buffer_witness_record,
-        make_typed_array_with_buffer_witness_record, try_typed_array_set_element,
-        try_typed_array_set_element_generic, typed_array_get_element,
-        typed_array_get_element_generic, typed_array_length, typed_array_set_element,
-        typed_array_set_element_generic,
+        try_typed_array_set_element, typed_array_get_element, typed_array_set_element,
     },
     ordinary::{
         caches::{PropertyLookupCache, PropertyOffset},
@@ -192,9 +193,9 @@ impl<'ta, T: Viewable> GenericTypedArray<'ta, T> {
         agent: &mut Agent,
         index: i64,
         value: Value,
-        gc: NoGcScope<'gc, '_>,
+        _: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, ()> {
-        try_typed_array_set_element(agent, self, index, value, gc)
+        try_typed_array_set_element(agent, self, index, value)
     }
 
     /// ### [10.4.5.16 IsValidIntegerIndex ( O, index )](https://tc39.es/ecma262/#sec-isvalidintegerindex)
@@ -202,7 +203,52 @@ impl<'ta, T: Viewable> GenericTypedArray<'ta, T> {
     /// The abstract operation IsValidIntegerIndex takes arguments O (a TypedArray)
     /// and index (a Number) and returns a Boolean.
     pub(crate) fn is_valid_integer_index(self, agent: &Agent, index: i64) -> Option<usize> {
-        is_valid_integer_index(agent, self, index)
+        is_valid_integer_index_specialised(agent, self, index)
+    }
+
+    /// Initialise the heap data of a TypedArray.
+    ///
+    /// # Safety
+    ///
+    /// The TypedArray must be newly created; re-initialising is not allowed.
+    pub(crate) unsafe fn initialise_data(
+        self,
+        agent: &mut Agent,
+        ab: ArrayBuffer,
+        byte_length: ViewedArrayBufferByteLength,
+        byte_offset: ViewedArrayBufferByteOffset,
+        array_length: TypedArrayArrayLength,
+    ) {
+        let d = self.into_void_array().get_mut(agent);
+
+        d.viewed_array_buffer = ab;
+        d.byte_length = byte_length;
+        d.byte_offset = byte_offset;
+        d.array_length = array_length;
+    }
+
+    pub(crate) fn set_overflowing_byte_offset(self, agent: &mut Agent, byte_offset: usize) {
+        agent.heap.alloc_counter += core::mem::size_of::<(Uint8Array, usize)>();
+        agent
+            .heap
+            .typed_array_byte_offsets
+            .insert(self.into_void_array().unbind(), byte_offset);
+    }
+
+    pub(crate) fn set_overflowing_byte_length(self, agent: &mut Agent, byte_length: usize) {
+        agent.heap.alloc_counter += core::mem::size_of::<(Uint8Array, usize)>();
+        agent
+            .heap
+            .typed_array_byte_lengths
+            .insert(self.into_void_array().unbind(), byte_length);
+    }
+
+    pub(crate) fn set_overflowing_array_length(self, agent: &mut Agent, array_length: usize) {
+        agent.heap.alloc_counter += core::mem::size_of::<(Uint8Array, usize)>();
+        agent
+            .heap
+            .typed_array_array_lengths
+            .insert(self.into_void_array().unbind(), array_length);
     }
 }
 
@@ -539,25 +585,6 @@ bindable_handle!(TypedArray);
 
 impl<'a> TypedArray<'a> {
     #[inline(always)]
-    pub(crate) const fn get_index(self) -> usize {
-        match self {
-            TypedArray::Int8Array(ta) => ta.0.into_index(),
-            TypedArray::Uint8Array(ta) => ta.0.into_index(),
-            TypedArray::Uint8ClampedArray(ta) => ta.0.into_index(),
-            TypedArray::Int16Array(ta) => ta.0.into_index(),
-            TypedArray::Uint16Array(ta) => ta.0.into_index(),
-            TypedArray::Int32Array(ta) => ta.0.into_index(),
-            TypedArray::Uint32Array(ta) => ta.0.into_index(),
-            TypedArray::BigInt64Array(ta) => ta.0.into_index(),
-            TypedArray::BigUint64Array(ta) => ta.0.into_index(),
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(ta) => ta.0.into_index(),
-            TypedArray::Float32Array(ta) => ta.0.into_index(),
-            TypedArray::Float64Array(ta) => ta.0.into_index(),
-        }
-    }
-
-    #[inline(always)]
     const fn into_void_array(self) -> VoidArray<'a> {
         match self {
             TypedArray::Int8Array(ta) => ta.into_void_array(),
@@ -630,30 +657,6 @@ impl<'a> TypedArray<'a> {
     pub fn get_viewed_array_buffer(self, agent: &Agent) -> ArrayBuffer<'a> {
         self.into_void_array().get(agent).viewed_array_buffer
     }
-
-    pub(crate) fn set_overflowing_byte_offset(self, agent: &mut Agent, byte_offset: usize) {
-        agent.heap.alloc_counter += core::mem::size_of::<(Uint8Array, usize)>();
-        agent
-            .heap
-            .typed_array_byte_offsets
-            .insert(self.into_void_array().unbind(), byte_offset);
-    }
-
-    pub(crate) fn set_overflowing_byte_length(self, agent: &mut Agent, byte_length: usize) {
-        agent.heap.alloc_counter += core::mem::size_of::<(Uint8Array, usize)>();
-        agent
-            .heap
-            .typed_array_byte_lengths
-            .insert(self.into_void_array().unbind(), byte_length);
-    }
-
-    pub(crate) fn set_overflowing_array_length(self, agent: &mut Agent, array_length: usize) {
-        agent.heap.alloc_counter += core::mem::size_of::<(Uint8Array, usize)>();
-        agent
-            .heap
-            .typed_array_array_lengths
-            .insert(self.into_void_array().unbind(), array_length);
-    }
 }
 
 impl<'a> From<TypedArray<'a>> for Value<'a> {
@@ -721,13 +724,82 @@ impl<'a> TryFrom<Value<'a>> for TypedArray<'a> {
 
 impl<'a, T: Viewable> From<GenericTypedArray<'a, T>> for Object<'a> {
     fn from(value: GenericTypedArray<'a, T>) -> Self {
-        todo!()
+        if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>() {
+            // SAFETY: type checked.
+            Self::Uint8Array(unsafe {
+                core::mem::transmute::<GenericTypedArray<'a, T>, GenericTypedArray<'a, u8>>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>() {
+            // SAFETY: type checked.
+            Self::Uint8ClampedArray(unsafe {
+                core::mem::transmute::<GenericTypedArray<'a, T>, GenericTypedArray<'a, U8Clamped>>(
+                    value,
+                )
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>() {
+            // SAFETY: type checked.
+            Self::Int8Array(unsafe {
+                core::mem::transmute::<GenericTypedArray<'a, T>, GenericTypedArray<'a, i8>>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u16>() {
+            // SAFETY: type checked.
+            Self::Uint16Array(unsafe {
+                core::mem::transmute::<GenericTypedArray<'a, T>, GenericTypedArray<'a, u16>>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i16>() {
+            // SAFETY: type checked.
+            Self::Int16Array(unsafe {
+                core::mem::transmute::<GenericTypedArray<'a, T>, GenericTypedArray<'a, i16>>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>() {
+            // SAFETY: type checked.
+            Self::Uint32Array(unsafe {
+                core::mem::transmute::<GenericTypedArray<'a, T>, GenericTypedArray<'a, u32>>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>() {
+            // SAFETY: type checked.
+            Self::Int32Array(unsafe {
+                core::mem::transmute::<GenericTypedArray<'a, T>, GenericTypedArray<'a, i32>>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>() {
+            // SAFETY: type checked.
+            Self::BigUint64Array(unsafe {
+                core::mem::transmute::<GenericTypedArray<'a, T>, GenericTypedArray<'a, u64>>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>() {
+            // SAFETY: type checked.
+            Self::BigInt64Array(unsafe {
+                core::mem::transmute::<GenericTypedArray<'a, T>, GenericTypedArray<'a, i64>>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>() {
+            // SAFETY: type checked.
+            Self::Float32Array(unsafe {
+                core::mem::transmute::<GenericTypedArray<'a, T>, GenericTypedArray<'a, f32>>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>() {
+            // SAFETY: type checked.
+            Self::Float64Array(unsafe {
+                core::mem::transmute::<GenericTypedArray<'a, T>, GenericTypedArray<'a, f64>>(value)
+            })
+        } else {
+            #[cfg(feature = "proposal-float16array")]
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f16>() {
+                // SAFETY: type checked.
+                return Self::Float16Array(unsafe {
+                    core::mem::transmute::<GenericTypedArray<'a, T>, GenericTypedArray<'a, f16>>(
+                        value,
+                    )
+                });
+            }
+            unreachable!()
+        }
     }
 }
 
 impl<'a, T: Viewable> From<GenericTypedArray<'a, T>> for Value<'a> {
     fn from(value: GenericTypedArray<'a, T>) -> Self {
-        todo!()
+        let value: Object = value.into();
+        value.into()
     }
 }
 
@@ -792,7 +864,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericTypedArray<'a, T> {
         //    do not allow this method to return true when O can gain (or lose
         //    and then regain) properties, which might occur for properties
         //    with integer index names when its underlying buffer is resized.
-        if !is_typed_array_fixed_length(agent, self.into_void_array()) {
+        if !is_typed_array_fixed_length(agent, self) {
             // 2. If IsTypedArrayFixedLength(O) is false, return false.
             TryResult::Continue(false)
         } else {
@@ -870,7 +942,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericTypedArray<'a, T> {
         // b. If numericIndex is not undefined, return IsValidIntegerIndex(O, numericIndex).
         if let PropertyKey::Integer(numeric_index) = property_key {
             let numeric_index = numeric_index.into_i64();
-            let result = is_valid_integer_index(agent, self, numeric_index);
+            let result = is_valid_integer_index_specialised(agent, self, numeric_index);
             if let Some(result) = result {
                 TryHasResult::Custom(
                     result.min(u32::MAX as usize) as u32,
@@ -927,7 +999,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericTypedArray<'a, T> {
         if let PropertyKey::Integer(numeric_index) = property_key {
             // i. If IsValidIntegerIndex(O, numericIndex) is false, return false.
             let numeric_index = numeric_index.into_i64();
-            let numeric_index = is_valid_integer_index(agent, self, numeric_index);
+            let numeric_index = is_valid_integer_index_specialised(agent, self, numeric_index);
             let Some(numeric_index) = numeric_index else {
                 return TryResult::Continue(false);
             };
@@ -954,7 +1026,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericTypedArray<'a, T> {
             //     TypedArraySetElement(O, numericIndex, Desc.[[Value]]).
             if let Some(value) = property_descriptor.value {
                 let numeric_index = numeric_index as i64;
-                try_typed_array_set_element(agent, self, numeric_index, value, gc)?;
+                try_typed_array_set_element(agent, self, numeric_index, value)?;
             }
             // vii. Return true.
             TryResult::Continue(true)
@@ -992,7 +1064,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericTypedArray<'a, T> {
         if let PropertyKey::Integer(numeric_index) = property_key {
             let numeric_index = numeric_index.into_i64();
             // i. If IsValidIntegerIndex(O, numericIndex) is false, return false.
-            let numeric_index = is_valid_integer_index(agent, o, numeric_index);
+            let numeric_index = is_valid_integer_index_specialised(agent, o, numeric_index);
             let Some(numeric_index) = numeric_index else {
                 return Ok(false);
             };
@@ -1237,12 +1309,12 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericTypedArray<'a, T> {
     ) -> TryResult<'gc, Vec<PropertyKey<'gc>>> {
         let o = self.bind(gc);
         // 1. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, seq-cst).
-        let ta_record =
-            make_generic_typed_array_with_buffer_witness_record(agent, o, Ordering::SeqCst);
+        let (o, cached_byte_length) =
+            make_typed_array_with_buffer_witness_record_specialised(agent, o, Ordering::SeqCst);
         // 3. If IsTypedArrayOutOfBounds(taRecord) is false, then
-        let length = if !ta_record.is_out_of_bounds(agent) {
+        let length = if !is_typed_array_out_of_bounds_specialised(agent, o, cached_byte_length) {
             // a. Let length be TypedArrayLength(taRecord).
-            ta_record.array_length(agent)
+            typed_array_length_specialised(agent, o, cached_byte_length)
         } else {
             0
         };
@@ -1682,30 +1754,41 @@ impl<T: Viewable> core::fmt::Debug for GenericTypedArray<'_, T> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
 pub enum SharedTypedArray<'a> {
+    #[expect(dead_code)]
     Int8Array(Int8Array<'a>) = INT_8_ARRAY_DISCRIMINANT,
+    #[expect(dead_code)]
     Uint8Array(Uint8Array<'a>) = UINT_8_ARRAY_DISCRIMINANT,
+    #[expect(dead_code)]
     Uint8ClampedArray(Uint8ClampedArray<'a>) = UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+    #[expect(dead_code)]
     Int16Array(Int16Array<'a>) = INT_16_ARRAY_DISCRIMINANT,
+    #[expect(dead_code)]
     Uint16Array(Uint16Array<'a>) = UINT_16_ARRAY_DISCRIMINANT,
+    #[expect(dead_code)]
     Int32Array(Int32Array<'a>) = INT_32_ARRAY_DISCRIMINANT,
+    #[expect(dead_code)]
     Uint32Array(Uint32Array<'a>) = UINT_32_ARRAY_DISCRIMINANT,
+    #[expect(dead_code)]
     BigInt64Array(BigInt64Array<'a>) = BIGINT_64_ARRAY_DISCRIMINANT,
+    #[expect(dead_code)]
     BigUint64Array(BigUint64Array<'a>) = BIGUINT_64_ARRAY_DISCRIMINANT,
     #[cfg(feature = "proposal-float16array")]
     Float16Array(Float16Array<'a>) = FLOAT_16_ARRAY_DISCRIMINANT,
+    #[expect(dead_code)]
     Float32Array(Float32Array<'a>) = FLOAT_32_ARRAY_DISCRIMINANT,
+    #[expect(dead_code)]
     Float64Array(Float64Array<'a>) = FLOAT_64_ARRAY_DISCRIMINANT,
 }
 bindable_handle!(SharedTypedArray);
 
 impl<'a, T: Viewable> From<GenericSharedTypedArray<'a, T>> for Object<'a> {
-    fn from(value: GenericSharedTypedArray<'a, T>) -> Self {
+    fn from(_value: GenericSharedTypedArray<'a, T>) -> Self {
         todo!()
     }
 }
 
 impl<'a, T: Viewable> From<GenericSharedTypedArray<'a, T>> for Value<'a> {
-    fn from(value: GenericSharedTypedArray<'a, T>) -> Self {
+    fn from(_value: GenericSharedTypedArray<'a, T>) -> Self {
         todo!()
     }
 }
@@ -1908,7 +1991,7 @@ impl<T: Viewable> HeapSweepWeakReference for GenericSharedTypedArray<'static, T>
         compactions
             .shared_typed_arrays
             .shift_weak_index(self.0)
-            .map(|i| GenericTypedArray(i, PhantomData))
+            .map(|i| GenericSharedTypedArray(i, PhantomData))
     }
 }
 

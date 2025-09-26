@@ -74,53 +74,51 @@ impl ArrayIteratorPrototype {
         #[cfg(feature = "array-buffer")]
         macro_rules! handle_typed_array {
             ($array:expr) => {{
-                let nogc = gc.nogc();
                 let array = $array;
                 // 1. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(array, seq-cst).
                 let ta_record = make_typed_array_with_buffer_witness_record(
                     agent,
                     array,
                     crate::ecmascript::builtins::array_buffer::Ordering::SeqCst,
-                    nogc,
                 );
                 // 2. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
                 if match array {
                     TypedArray::Int8Array(_) => {
-                        is_typed_array_out_of_bounds::<i8>(agent, &ta_record, nogc)
+                        is_typed_array_out_of_bounds::<i8>(agent, &ta_record)
                     }
                     TypedArray::Uint8Array(_) => {
-                        is_typed_array_out_of_bounds::<u8>(agent, &ta_record, nogc)
+                        is_typed_array_out_of_bounds::<u8>(agent, &ta_record)
                     }
                     TypedArray::Uint8ClampedArray(_) => {
-                        is_typed_array_out_of_bounds::<U8Clamped>(agent, &ta_record, nogc)
+                        is_typed_array_out_of_bounds::<U8Clamped>(agent, &ta_record)
                     }
                     TypedArray::Int16Array(_) => {
-                        is_typed_array_out_of_bounds::<i16>(agent, &ta_record, nogc)
+                        is_typed_array_out_of_bounds::<i16>(agent, &ta_record)
                     }
                     TypedArray::Uint16Array(_) => {
-                        is_typed_array_out_of_bounds::<u16>(agent, &ta_record, nogc)
+                        is_typed_array_out_of_bounds::<u16>(agent, &ta_record)
                     }
                     TypedArray::Int32Array(_) => {
-                        is_typed_array_out_of_bounds::<i32>(agent, &ta_record, nogc)
+                        is_typed_array_out_of_bounds::<i32>(agent, &ta_record)
                     }
                     TypedArray::Uint32Array(_) => {
-                        is_typed_array_out_of_bounds::<u32>(agent, &ta_record, nogc)
+                        is_typed_array_out_of_bounds::<u32>(agent, &ta_record)
                     }
                     TypedArray::BigInt64Array(_) => {
-                        is_typed_array_out_of_bounds::<i64>(agent, &ta_record, nogc)
+                        is_typed_array_out_of_bounds::<i64>(agent, &ta_record)
                     }
                     TypedArray::BigUint64Array(_) => {
-                        is_typed_array_out_of_bounds::<u64>(agent, &ta_record, nogc)
+                        is_typed_array_out_of_bounds::<u64>(agent, &ta_record)
                     }
                     #[cfg(feature = "proposal-float16array")]
                     TypedArray::Float16Array(_) => {
-                        is_typed_array_out_of_bounds::<f16>(agent, &ta_record, nogc)
+                        is_typed_array_out_of_bounds::<f16>(agent, &ta_record)
                     }
                     TypedArray::Float32Array(_) => {
-                        is_typed_array_out_of_bounds::<f32>(agent, &ta_record, nogc)
+                        is_typed_array_out_of_bounds::<f32>(agent, &ta_record)
                     }
                     TypedArray::Float64Array(_) => {
-                        is_typed_array_out_of_bounds::<f64>(agent, &ta_record, nogc)
+                        is_typed_array_out_of_bounds::<f64>(agent, &ta_record)
                     }
                 } {
                     return Err(agent.throw_exception_with_static_message(
@@ -132,35 +130,21 @@ impl ArrayIteratorPrototype {
 
                 // 3. Let len be TypedArrayLength(taRecord).
                 (match array {
-                    TypedArray::Int8Array(_) => typed_array_length::<i8>(agent, &ta_record, nogc),
-                    TypedArray::Uint8Array(_) => typed_array_length::<u8>(agent, &ta_record, nogc),
+                    TypedArray::Int8Array(_) => typed_array_length::<i8>(agent, &ta_record),
+                    TypedArray::Uint8Array(_) => typed_array_length::<u8>(agent, &ta_record),
                     TypedArray::Uint8ClampedArray(_) => {
-                        typed_array_length::<U8Clamped>(agent, &ta_record, nogc)
+                        typed_array_length::<U8Clamped>(agent, &ta_record)
                     }
-                    TypedArray::Int16Array(_) => typed_array_length::<i16>(agent, &ta_record, nogc),
-                    TypedArray::Uint16Array(_) => {
-                        typed_array_length::<u16>(agent, &ta_record, nogc)
-                    }
-                    TypedArray::Int32Array(_) => typed_array_length::<i32>(agent, &ta_record, nogc),
-                    TypedArray::Uint32Array(_) => {
-                        typed_array_length::<u32>(agent, &ta_record, nogc)
-                    }
-                    TypedArray::BigInt64Array(_) => {
-                        typed_array_length::<i64>(agent, &ta_record, nogc)
-                    }
-                    TypedArray::BigUint64Array(_) => {
-                        typed_array_length::<u64>(agent, &ta_record, nogc)
-                    }
+                    TypedArray::Int16Array(_) => typed_array_length::<i16>(agent, &ta_record),
+                    TypedArray::Uint16Array(_) => typed_array_length::<u16>(agent, &ta_record),
+                    TypedArray::Int32Array(_) => typed_array_length::<i32>(agent, &ta_record),
+                    TypedArray::Uint32Array(_) => typed_array_length::<u32>(agent, &ta_record),
+                    TypedArray::BigInt64Array(_) => typed_array_length::<i64>(agent, &ta_record),
+                    TypedArray::BigUint64Array(_) => typed_array_length::<u64>(agent, &ta_record),
                     #[cfg(feature = "proposal-float16array")]
-                    TypedArray::Float16Array(_) => {
-                        typed_array_length::<f16>(agent, &ta_record, nogc)
-                    }
-                    TypedArray::Float32Array(_) => {
-                        typed_array_length::<f32>(agent, &ta_record, nogc)
-                    }
-                    TypedArray::Float64Array(_) => {
-                        typed_array_length::<f64>(agent, &ta_record, nogc)
-                    }
+                    TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record),
+                    TypedArray::Float32Array(_) => typed_array_length::<f32>(agent, &ta_record),
+                    TypedArray::Float64Array(_) => typed_array_length::<f64>(agent, &ta_record),
                 }) as i64
             }};
         }
