@@ -39,6 +39,7 @@ impl Default for DataViewRecord<'_> {
     }
 }
 
+#[cfg(feature = "shared-array-buffer")]
 pub struct SharedDataViewHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     // TODO: Add a helper function for a u32::MAX value which signifies an a under-construction value:
@@ -50,8 +51,10 @@ pub struct SharedDataViewHeapData<'a> {
     /// ### [\[\[ByteOffset\]\]](https://tc39.es/ecma262/#sec-properties-of-dataview-instances)
     pub(crate) byte_offset: ViewedArrayBufferByteOffset,
 }
+#[cfg(feature = "shared-array-buffer")]
 bindable_handle!(SharedDataViewHeapData);
 
+#[cfg(feature = "shared-array-buffer")]
 impl Default for SharedDataViewHeapData<'_> {
     fn default() -> Self {
         Self {
@@ -87,6 +90,7 @@ impl HeapMarkAndSweep for DataViewRecord<'static> {
     }
 }
 
+#[cfg(feature = "shared-array-buffer")]
 impl HeapMarkAndSweep for SharedDataViewHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {

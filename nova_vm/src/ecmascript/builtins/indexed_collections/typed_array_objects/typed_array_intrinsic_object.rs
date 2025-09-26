@@ -30,9 +30,16 @@ use crate::{
             array_buffer::{
                 Ordering, get_value_from_buffer, is_detached_buffer, set_value_in_buffer,
             },
-            indexed_collections::array_objects::{
-                array_iterator_objects::array_iterator::{ArrayIterator, CollectionIteratorKind},
-                array_prototype::find_via_predicate,
+            indexed_collections::{
+                array_objects::{
+                    array_iterator_objects::array_iterator::{
+                        ArrayIterator, CollectionIteratorKind,
+                    },
+                    array_prototype::find_via_predicate,
+                },
+                typed_array_objects::abstract_operations::{
+                    match_typed_array, typed_array_length_specialised,
+                },
             },
             typed_array::TypedArray,
         },
@@ -642,45 +649,50 @@ impl TypedArrayPrototype {
         let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())
             .unbind()?
             .bind(gc.nogc());
-        let mut o = ta_record.object;
+        let o = ta_record.object;
+        let cached_byte_length = ta_record.cached_buffer_byte_length;
 
         // 3. Let len be TypedArrayLength(taRecord).
-        let len =
-            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc.nogc()))
-                as i64;
-
-        // 4. Let relativeIndex be ? ToIntegerOrInfinity(index).
-        let relative_index = if let Value::Integer(index) = index {
-            index.into_i64()
-        } else {
-            let scoped_o = o.scope(agent, gc.nogc());
-            let result = to_integer_or_infinity(agent, index.unbind(), gc.reborrow())
-                .unbind()?
-                .into_i64();
-            o = scoped_o.get(agent).bind(gc.nogc());
-            result
-        };
-        // 5. If relativeIndex ≥ 0, then
-        let k = if relative_index >= 0 {
-            // a. Let k be relativeIndex.
-            relative_index
-        } else {
-            // 6. Else,
-            // a. Let k be len + relativeIndex.
-            len + relative_index
-        };
-        // 7. If k < 0 or k ≥ len, return undefined.
-        if k < 0 || k >= len {
-            return Ok(Value::Undefined);
-        };
-        // 8. Return ! Get(O, ! ToString(𝔽(k))).
-        Ok(unwrap_try_get_value_or_unset(try_get(
-            agent,
-            o.unbind(),
-            PropertyKey::Integer(k.try_into().unwrap()),
-            None,
-            gc.into_nogc(),
-        )))
+        match_typed_array!(
+            o,
+            {
+                let mut o = o;
+                let len = typed_array_length_specialised(agent, o, cached_byte_length) as i64;
+                // 4. Let relativeIndex be ? ToIntegerOrInfinity(index).
+                let relative_index = if let Value::Integer(index) = index {
+                    index.into_i64()
+                } else {
+                    let scoped_o = o.scope(agent, gc.nogc());
+                    let result = to_integer_or_infinity(agent, index.unbind(), gc.reborrow())
+                        .unbind()?
+                        .into_i64();
+                    o = scoped_o.get(agent).bind(gc.nogc());
+                    result
+                };
+                // 5. If relativeIndex ≥ 0, then
+                let k = if relative_index >= 0 {
+                    // a. Let k be relativeIndex.
+                    relative_index
+                } else {
+                    // 6. Else,
+                    // a. Let k be len + relativeIndex.
+                    len + relative_index
+                };
+                // 7. If k < 0 or k ≥ len, return undefined.
+                if k < 0 || k >= len {
+                    return Ok(Value::Undefined);
+                };
+                // 8. Return ! Get(O, ! ToString(𝔽(k))).
+                Ok(unwrap_try_get_value_or_unset(try_get(
+                    agent,
+                    o.unbind(),
+                    PropertyKey::Integer(k.try_into().unwrap()),
+                    None,
+                    gc.into_nogc(),
+                )))
+            },
+            o
+        )
     }
 
     /// ### [23.2.3.2 get %TypedArray%.prototype.buffer](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype.buffer)
@@ -701,7 +713,7 @@ impl TypedArrayPrototype {
         let o = require_internal_slot_typed_array(agent, this_value, gc)?;
 
         // 5. Return buffer.
-        Ok(o.get_viewed_array_buffer(agent, gc).into_value())
+        Ok(o.get_viewed_array_buffer(agent).into_value())
     }
 
     /// ### [23.2.3.3 get %TypedArray%.prototype.byteLength](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype.bytelength)
@@ -721,11 +733,10 @@ impl TypedArrayPrototype {
         let o = require_internal_slot_typed_array(agent, this_value, gc)?;
 
         // 4. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, seq-cst).
-        let ta_record = make_typed_array_with_buffer_witness_record(agent, o, Ordering::SeqCst, gc);
+        let ta_record = make_typed_array_with_buffer_witness_record(agent, o, Ordering::SeqCst);
 
         // 5. Let size be TypedArrayByteLength(taRecord).
-        let size =
-            with_typed_array_viewable!(o, typed_array_byte_length::<T>(agent, &ta_record, gc));
+        let size = with_typed_array_viewable!(o, typed_array_byte_length::<T>(agent, &ta_record));
 
         // 6. Return 𝔽(size).
         Ok(Value::try_from(size as i64).unwrap())
@@ -748,10 +759,10 @@ impl TypedArrayPrototype {
         let o = require_internal_slot_typed_array(agent, this_value, gc)?;
 
         // 4. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, seq-cst).
-        let ta_record = make_typed_array_with_buffer_witness_record(agent, o, Ordering::SeqCst, gc);
+        let ta_record = make_typed_array_with_buffer_witness_record(agent, o, Ordering::SeqCst);
 
         // 5. If IsTypedArrayOutOfBounds(taRecord) is true, return +0𝔽.
-        if with_typed_array_viewable!(o, is_typed_array_out_of_bounds::<T>(agent, &ta_record, gc)) {
+        if with_typed_array_viewable!(o, is_typed_array_out_of_bounds::<T>(agent, &ta_record)) {
             return Ok(Value::pos_zero());
         }
 
@@ -840,7 +851,7 @@ impl TypedArrayPrototype {
             .bind(nogc);
         let mut o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
-        let len = with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, nogc));
+        let len = with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record));
         // 4. If IsCallable(callback) is false, throw a TypeError exception.
         let Some(callback) = is_callable(callback, nogc) else {
             return Err(agent.throw_exception_with_static_message(
@@ -989,9 +1000,7 @@ impl TypedArrayPrototype {
             .bind(gc.nogc());
         let o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
-        let len =
-            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc.nogc()))
-                as i64;
+        let len = with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record)) as i64;
         let o = o.scope(agent, gc.nogc());
         // 4. Let findRec be ? FindViaPredicate(O, len, ascending, predicate, thisArg).
         let find_rec = find_via_predicate(agent, o, len, true, predicate, this_arg, gc)?;
@@ -1020,9 +1029,7 @@ impl TypedArrayPrototype {
             .bind(gc.nogc());
         let o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
-        let len =
-            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc.nogc()))
-                as i64;
+        let len = with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record)) as i64;
         let o = o.into_object().scope(agent, gc.nogc());
         // 4. Let findRec be ? FindViaPredicate(O, len, ascending, predicate, thisArg).
         let find_rec = find_via_predicate(agent, o, len, true, predicate, this_arg, gc)?;
@@ -1050,9 +1057,7 @@ impl TypedArrayPrototype {
             .bind(gc.nogc());
         let o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
-        let len =
-            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc.nogc()))
-                as i64;
+        let len = with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record)) as i64;
         let o = o.scope(agent, gc.nogc());
         // 4. Let findRec be ? FindViaPredicate(O, len, ascending, predicate, thisArg).
         let find_rec = find_via_predicate(agent, o, len, false, predicate, this_arg, gc)?;
@@ -1081,9 +1086,7 @@ impl TypedArrayPrototype {
             .bind(gc.nogc());
         let o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
-        let len =
-            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc.nogc()))
-                as i64;
+        let len = with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record)) as i64;
         let o = o.into_object().scope(agent, gc.nogc());
         // 4. Let findRec be ? FindViaPredicate(O, len, descending, predicate, thisArg).
         let find_rec = find_via_predicate(agent, o, len, false, predicate, this_arg, gc)?;
@@ -1114,9 +1117,7 @@ impl TypedArrayPrototype {
         // 3. Let len be TypedArrayLength(taRecord).
         let mut o = ta_record.object;
         let scoped_o = o.scope(agent, nogc);
-        let len =
-            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc.nogc()))
-                as i64;
+        let len = with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record)) as i64;
         // 4. If IsCallable(callback) is false, throw a TypeError exception.
         let Some(callback) = is_callable(callback, nogc) else {
             return Err(agent.throw_exception_with_static_message(
@@ -1181,9 +1182,7 @@ impl TypedArrayPrototype {
             .bind(nogc);
         // 3. Let len be TypedArrayLength(taRecord).
         let mut o = ta_record.object;
-        let len =
-            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc.nogc()))
-                as i64;
+        let len = with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record)) as i64;
         // 4. If len = 0, return false.
         if len == 0 {
             return Ok(false.into());
@@ -1275,9 +1274,7 @@ impl TypedArrayPrototype {
             .bind(gc.nogc());
         // 3. Let len be TypedArrayLength(taRecord).
         let mut o = ta_record.object;
-        let len =
-            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc.nogc()))
-                as i64;
+        let len = with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record)) as i64;
         // 4. If len = 0, return -1𝔽.
         if len == 0 {
             return Ok((-1).into());
@@ -1327,14 +1324,7 @@ impl TypedArrayPrototype {
         // 11. Repeat, while k < len,
         let result = with_typed_array_viewable!(
             o,
-            search_typed_element::<T, true>(
-                agent,
-                o.unbind(),
-                search_element.unbind(),
-                k,
-                len,
-                gc.into_nogc(),
-            )
+            search_typed_element::<T, true>(agent, o.unbind(), search_element.unbind(), k, len,)
         );
 
         Ok(result.map_or(-1, |v| v as i64).try_into().unwrap())
@@ -1367,7 +1357,7 @@ impl TypedArrayPrototype {
         let (len, element_size) = with_typed_array_viewable!(
             o,
             (
-                typed_array_length::<T>(agent, &ta_record, nogc),
+                typed_array_length::<T>(agent, &ta_record),
                 core::mem::size_of::<T>(),
             )
         );
@@ -1401,20 +1391,20 @@ impl TypedArrayPrototype {
         // 7. Let k be 0.
         // 8. Repeat, while k < len,
         let offset = o.byte_offset(agent);
-        let viewed_array_buffer = o.get_viewed_array_buffer(agent, gc);
+        let viewed_array_buffer = o.get_viewed_array_buffer(agent);
         // Note: Above ToString might have detached the ArrayBuffer or shrunk its length.
         let after_len = if recheck_buffer {
             let is_detached = is_detached_buffer(agent, viewed_array_buffer);
             let ta_record =
-                make_typed_array_with_buffer_witness_record(agent, o, Ordering::Unordered, gc);
+                make_typed_array_with_buffer_witness_record(agent, o, Ordering::Unordered);
 
             with_typed_array_viewable!(o, {
                 let is_invalid =
-                    is_detached || is_typed_array_out_of_bounds::<T>(agent, &ta_record, gc);
+                    is_detached || is_typed_array_out_of_bounds::<T>(agent, &ta_record);
                 if is_invalid {
                     None
                 } else {
-                    Some(typed_array_length::<T>(agent, &ta_record, gc))
+                    Some(typed_array_length::<T>(agent, &ta_record))
                 }
             })
         } else {
@@ -1449,7 +1439,7 @@ impl TypedArrayPrototype {
                 o,
                 get_value_from_buffer::<T>(
                     agent,
-                    viewed_array_buffer,
+                    viewed_array_buffer.into(),
                     byte_index_in_buffer,
                     true,
                     Ordering::Unordered,
@@ -1510,9 +1500,7 @@ impl TypedArrayPrototype {
             .bind(gc.nogc());
         // 3. Let len be TypedArrayLength(taRecord).
         let o = ta_record.object;
-        let len =
-            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc.nogc()))
-                as i64;
+        let len = with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record)) as i64;
         // 4. If len = 0, return -1𝔽.
         if len == 0 {
             return Ok((-1).into());
@@ -1548,14 +1536,7 @@ impl TypedArrayPrototype {
         let o = o.get(agent);
         let result = with_typed_array_viewable!(
             o,
-            search_typed_element::<T, false>(
-                agent,
-                o,
-                search_element.get(agent),
-                k,
-                len,
-                gc.nogc(),
-            )
+            search_typed_element::<T, false>(agent, o, search_element.get(agent), k, len,)
         );
 
         Ok(result.map_or(-1, |v| v as i64).try_into().unwrap())
@@ -1574,14 +1555,14 @@ impl TypedArrayPrototype {
         // 3. Assert: O has [[ViewedArrayBuffer]] and [[ArrayLength]] internal slots.
         let o = require_internal_slot_typed_array(agent, this_value, gc)?;
         // 4. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, seq-cst).
-        let ta_record = make_typed_array_with_buffer_witness_record(agent, o, Ordering::SeqCst, gc);
+        let ta_record = make_typed_array_with_buffer_witness_record(agent, o, Ordering::SeqCst);
         // 5. If IsTypedArrayOutOfBounds(taRecord) is true, return +0𝔽.
-        if with_typed_array_viewable!(o, is_typed_array_out_of_bounds::<T>(agent, &ta_record, gc)) {
+        if with_typed_array_viewable!(o, is_typed_array_out_of_bounds::<T>(agent, &ta_record)) {
             return Ok(Value::pos_zero());
         }
         // 6. Let length be TypedArrayLength(taRecord).
         let length =
-            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc)) as i64;
+            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record)) as i64;
         // 7. Return 𝔽(length).
         Ok(Value::try_from(length).unwrap())
     }
@@ -1651,9 +1632,7 @@ impl TypedArrayPrototype {
             .bind(gc.nogc());
         let o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
-        let len =
-            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc.nogc()))
-                as i64;
+        let len = with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record)) as i64;
         // 4. If IsCallable(callback) is false, throw a TypeError exception.
         let Some(callback) = is_callable(callback, gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
@@ -1751,9 +1730,7 @@ impl TypedArrayPrototype {
             .bind(gc.nogc());
         let o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
-        let len =
-            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc.nogc()))
-                as i64;
+        let len = with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record)) as i64;
         // 4. If IsCallable(callback) is false, throw a TypeError exception.
         let Some(callback) = is_callable(callback, gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
@@ -1844,7 +1821,7 @@ impl TypedArrayPrototype {
             .unbind()?
             .bind(gc);
         let o = ta_record.object;
-        with_typed_array_viewable!(o, reverse_typed_array::<T>(agent, ta_record, o, gc));
+        with_typed_array_viewable!(o, reverse_typed_array::<T>(agent, ta_record, o));
         // 7. Return O.
         Ok(o.into_value())
     }
@@ -1933,7 +1910,7 @@ impl TypedArrayPrototype {
             .bind(nogc);
         let mut o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
-        let len = with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, nogc));
+        let len = with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record));
         // 4. If IsCallable(callback) is false, throw a TypeError exception.
         let Some(callback) = is_callable(callback, nogc) else {
             return Err(agent.throw_exception_with_static_message(
@@ -2049,42 +2026,28 @@ impl TypedArrayPrototype {
             let ta_record = ta_record.bind(nogc);
             let obj = ta_record.object;
             match obj {
-                TypedArray::Int8Array(_) => {
-                    sort_total_cmp_typed_array::<i8>(agent, ta_record, nogc)
-                }
-                TypedArray::Uint8Array(_) => {
-                    sort_total_cmp_typed_array::<u8>(agent, ta_record, nogc)
-                }
+                TypedArray::Int8Array(_) => sort_total_cmp_typed_array::<i8>(agent, ta_record),
+                TypedArray::Uint8Array(_) => sort_total_cmp_typed_array::<u8>(agent, ta_record),
                 TypedArray::Uint8ClampedArray(_) => {
-                    sort_total_cmp_typed_array::<U8Clamped>(agent, ta_record, nogc)
+                    sort_total_cmp_typed_array::<U8Clamped>(agent, ta_record)
                 }
-                TypedArray::Int16Array(_) => {
-                    sort_total_cmp_typed_array::<i16>(agent, ta_record, nogc)
-                }
-                TypedArray::Uint16Array(_) => {
-                    sort_total_cmp_typed_array::<u16>(agent, ta_record, nogc)
-                }
-                TypedArray::Int32Array(_) => {
-                    sort_total_cmp_typed_array::<i32>(agent, ta_record, nogc)
-                }
-                TypedArray::Uint32Array(_) => {
-                    sort_total_cmp_typed_array::<u32>(agent, ta_record, nogc)
-                }
-                TypedArray::BigInt64Array(_) => {
-                    sort_total_cmp_typed_array::<i64>(agent, ta_record, nogc)
-                }
+                TypedArray::Int16Array(_) => sort_total_cmp_typed_array::<i16>(agent, ta_record),
+                TypedArray::Uint16Array(_) => sort_total_cmp_typed_array::<u16>(agent, ta_record),
+                TypedArray::Int32Array(_) => sort_total_cmp_typed_array::<i32>(agent, ta_record),
+                TypedArray::Uint32Array(_) => sort_total_cmp_typed_array::<u32>(agent, ta_record),
+                TypedArray::BigInt64Array(_) => sort_total_cmp_typed_array::<i64>(agent, ta_record),
                 TypedArray::BigUint64Array(_) => {
-                    sort_total_cmp_typed_array::<u64>(agent, ta_record, nogc)
+                    sort_total_cmp_typed_array::<u64>(agent, ta_record)
                 }
                 #[cfg(feature = "proposal-float16array")]
                 TypedArray::Float16Array(_) => {
-                    sort_ecmascript_cmp_typed_array::<f16>(agent, ta_record, nogc)
+                    sort_ecmascript_cmp_typed_array::<f16>(agent, ta_record)
                 }
                 TypedArray::Float32Array(_) => {
-                    sort_ecmascript_cmp_typed_array::<f32>(agent, ta_record, nogc)
+                    sort_ecmascript_cmp_typed_array::<f32>(agent, ta_record)
                 }
                 TypedArray::Float64Array(_) => {
-                    sort_ecmascript_cmp_typed_array::<f64>(agent, ta_record, nogc)
+                    sort_ecmascript_cmp_typed_array::<f64>(agent, ta_record)
                 }
             };
             Ok(obj.into_value())
@@ -2114,12 +2077,13 @@ impl TypedArrayPrototype {
         let o = this_value;
         // 2. Perform ? RequireInternalSlot(O, [[TypedArrayName]]).
         // 3. Assert: O has a [[ViewedArrayBuffer]] internal slot.
-        let o = require_internal_slot_typed_array(agent, o, gc.nogc()).unbind()?;
+        let o = require_internal_slot_typed_array(agent, o, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         // 4. Let buffer be O.[[ViewedArrayBuffer]].
-        let buffer = o.get_viewed_array_buffer(agent, gc.nogc());
+        let buffer = o.get_viewed_array_buffer(agent);
         // 5. Let srcRecord be MakeTypedArrayWithBufferWitnessRecord(O, seq-cst).
-        let src_record =
-            make_typed_array_with_buffer_witness_record(agent, o, Ordering::SeqCst, gc.nogc());
+        let src_record = make_typed_array_with_buffer_witness_record(agent, o, Ordering::SeqCst);
         let res = with_typed_array_viewable!(
             src_record.object,
             subarray_typed_array::<T>(
@@ -2167,10 +2131,9 @@ impl TypedArrayPrototype {
         let o = ta_record.object;
         let o = o.scope(agent, gc.nogc());
         // 2. Let len be ? LengthOfArrayLike(array).
-        let len = with_typed_array_viewable!(
-            o.get(agent),
-            typed_array_length::<T>(agent, &ta_record, gc.nogc())
-        ) as i64;
+        let len =
+            with_typed_array_viewable!(o.get(agent), typed_array_length::<T>(agent, &ta_record))
+                as i64;
         // 3. Let separator be the implementation-defined list-separator String value appropriate for the host environment's current locale (such as ", ").
         let separator = ", ";
         // 4. Let R be the empty String.
@@ -2232,9 +2195,7 @@ impl TypedArrayPrototype {
             .bind(gc.nogc());
         let o = ta_record.object;
         // 3. Let length be TypedArrayLength(taRecord).
-        let len =
-            with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record, gc.nogc()))
-                as i64;
+        let len = with_typed_array_viewable!(o, typed_array_length::<T>(agent, &ta_record)) as i64;
 
         let scoped_o = o.scope(agent, gc.nogc());
         // 4. Let A be ? TypedArrayCreateSameType(O, « 𝔽(length) »).
@@ -2520,12 +2481,8 @@ pub(crate) fn require_internal_slot_typed_array<'a>(
     })
 }
 
-pub(crate) fn viewable_slice<'a, T: Viewable>(
-    agent: &'a mut Agent,
-    ta: TypedArray,
-    gc: NoGcScope,
-) -> &'a [T] {
-    let array_buffer = ta.get_viewed_array_buffer(agent, gc);
+pub(crate) fn viewable_slice<'a, T: Viewable>(agent: &'a mut Agent, ta: TypedArray) -> &'a [T] {
+    let array_buffer = ta.get_viewed_array_buffer(agent);
     let byte_offset = ta.byte_offset(agent);
     let byte_length = ta.byte_length(agent);
     let byte_slice = array_buffer.as_slice(agent);
@@ -2555,12 +2512,8 @@ pub(crate) fn byte_slice_to_viewable<T: Viewable>(
     slice
 }
 
-fn viewable_slice_mut<'a, T: Viewable>(
-    agent: &'a mut Agent,
-    ta: TypedArray,
-    gc: NoGcScope,
-) -> &'a mut [T] {
-    let array_buffer = ta.get_viewed_array_buffer(agent, gc);
+fn viewable_slice_mut<'a, T: Viewable>(agent: &'a mut Agent, ta: TypedArray) -> &'a mut [T] {
+    let array_buffer = ta.get_viewed_array_buffer(agent);
     let byte_offset = ta.byte_offset(agent);
     let byte_length = ta.byte_length(agent);
     let byte_slice = array_buffer.as_mut_slice(agent);
@@ -2603,7 +2556,7 @@ fn map_typed_array<'a, T: Viewable>(
     let this_arg = this_arg.scope(agent, nogc);
     let o = ta_record.object.scope(agent, nogc);
     // 3. Let len be TypedArrayLength(taRecord).
-    let len = typed_array_length::<T>(agent, &ta_record, nogc);
+    let len = typed_array_length::<T>(agent, &ta_record);
 
     // 5. Let A be ? TypedArraySpeciesCreate(O, « 𝔽(len) »).
     let a = typed_array_species_create_with_length::<T>(
@@ -2662,10 +2615,9 @@ fn search_typed_element<T: Viewable, const ASCENDING: bool>(
     search_element: Value,
     k: usize,
     len: usize,
-    gc: NoGcScope,
 ) -> Option<usize> {
     let search_element = T::try_from_value(agent, search_element)?;
-    let slice = viewable_slice::<T>(agent, ta, gc);
+    let slice = viewable_slice::<T>(agent, ta);
     // Length of the TypedArray may have changed between when we measured it
     // and here: We'll never try to access past the boundary of the slice if
     // the backing ArrayBuffer shrank.
@@ -2691,10 +2643,9 @@ fn reverse_typed_array<T: Viewable>(
     agent: &mut Agent,
     ta_record: TypedArrayWithBufferWitnessRecords,
     ta: TypedArray,
-    gc: NoGcScope,
 ) {
     // 3. Let len be TypedArrayLength(taRecord).
-    let len = typed_array_length::<T>(agent, &ta_record, gc);
+    let len = typed_array_length::<T>(agent, &ta_record);
     // 4. Let middle be floor(len / 2).
     // 5. Let lower be 0.
     // 6. Repeat, while lower ≠ middle,
@@ -2706,7 +2657,7 @@ fn reverse_typed_array<T: Viewable>(
     //    f. Perform ! Set(O, lowerP, upperValue, true).
     //    g. Perform ! Set(O, upperP, lowerValue, true).
     //    h. Set lower to lower + 1.
-    let slice = viewable_slice_mut::<T>(agent, ta, gc);
+    let slice = viewable_slice_mut::<T>(agent, ta);
     let slice = &mut slice[..len];
     slice.reverse();
 }
@@ -2726,9 +2677,7 @@ fn copy_within_typed_array<'a, T: Viewable>(
     let start = start.bind(gc.nogc());
     let end = end.bind(gc.nogc());
     // 3. Let len be TypedArrayLength(taRecord).
-    let len = typed_array_length::<T>(agent, &ta_record, gc.nogc())
-        .to_i64()
-        .unwrap();
+    let len = typed_array_length::<T>(agent, &ta_record).to_i64().unwrap();
     let end = end.map(|e| e.scope(agent, gc.nogc()));
     let start = start.scope(agent, gc.nogc());
     let target = target.scope(agent, gc.nogc());
@@ -2782,16 +2731,16 @@ fn copy_within_typed_array<'a, T: Viewable>(
     let gc = gc.into_nogc();
     let ta = scoped_o.get(agent).bind(gc);
     let end_bound = (end_index - start_index).max(0).min(len - target_index) as usize;
-    let ta_record = make_typed_array_with_buffer_witness_record(agent, ta, Ordering::SeqCst, gc);
-    if is_typed_array_out_of_bounds::<T>(agent, &ta_record, gc) {
+    let ta_record = make_typed_array_with_buffer_witness_record(agent, ta, Ordering::SeqCst);
+    if is_typed_array_out_of_bounds::<T>(agent, &ta_record) {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Callback is not callable",
             gc,
         ));
     }
-    let after_len = typed_array_length::<T>(agent, &ta_record, gc) as usize;
-    let slice = viewable_slice_mut::<T>(agent, ta, gc);
+    let after_len = typed_array_length::<T>(agent, &ta_record) as usize;
+    let slice = viewable_slice_mut::<T>(agent, ta);
     let slice = &mut slice[..after_len];
     let start_bound = start_index as usize;
     let target_index = target_index as usize;
@@ -2825,7 +2774,7 @@ fn fill_typed_array<'a, T: Viewable>(
     let scoped_value = value.scope(agent, gc.nogc());
     let start = start.scope(agent, gc.nogc());
     let end = end.scope(agent, gc.nogc());
-    let len = typed_array_length::<T>(agent, &ta_record, gc.nogc()) as i64;
+    let len = typed_array_length::<T>(agent, &ta_record) as i64;
     let value = if T::IS_BIGINT {
         // 4. If O.[[ContentType]] is bigint, set value to ? ToBigInt(value).
         to_big_int(agent, scoped_value.get(agent), gc.reborrow())
@@ -2872,9 +2821,9 @@ fn fill_typed_array<'a, T: Viewable>(
     let ta = scoped_o.get(agent).bind(gc);
     let value = value.get(agent).bind(gc);
     // 14. Set taRecord to MakeTypedArrayWithBufferWitnessRecord(O, seq-cst).
-    let ta_record = make_typed_array_with_buffer_witness_record(agent, ta, Ordering::SeqCst, gc);
+    let ta_record = make_typed_array_with_buffer_witness_record(agent, ta, Ordering::SeqCst);
     // 15. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-    if is_typed_array_out_of_bounds::<T>(agent, &ta_record, gc) {
+    if is_typed_array_out_of_bounds::<T>(agent, &ta_record) {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Callback is not callable",
@@ -2882,14 +2831,14 @@ fn fill_typed_array<'a, T: Viewable>(
         ));
     };
     // 16. Set len to TypedArrayLength(taRecord).
-    let len = typed_array_length::<T>(agent, &ta_record, gc) as i64;
+    let len = typed_array_length::<T>(agent, &ta_record) as i64;
     // 17. Set endIndex to min(endIndex, len).
     let end_index = len.min(end_index) as usize;
     // 18. Let k be startIndex.
     let k = start_index as usize;
     // 19. Repeat, while k < endIndex,
     let value = T::from_ne_value(agent, value);
-    let slice = viewable_slice_mut::<T>(agent, ta, gc);
+    let slice = viewable_slice_mut::<T>(agent, ta);
     if k >= end_index {
         return Ok(ta);
     }
@@ -2902,11 +2851,10 @@ fn fill_typed_array<'a, T: Viewable>(
 fn sort_total_cmp_typed_array<'a, T: Viewable + Ord>(
     agent: &mut Agent,
     ta_record: TypedArrayWithBufferWitnessRecords<'a>,
-    gc: NoGcScope<'a, '_>,
 ) {
     let ta = ta_record.object;
-    let len = typed_array_length::<T>(agent, &ta_record, gc);
-    let slice = viewable_slice_mut::<T>(agent, ta, gc);
+    let len = typed_array_length::<T>(agent, &ta_record);
+    let slice = viewable_slice_mut::<T>(agent, ta);
     let slice = &mut slice[..len];
     slice.sort();
 }
@@ -2920,13 +2868,12 @@ fn to_sorted_total_cmp_typed_array<'a, T: Viewable + Ord>(
     let ta = ta_record.object;
     let scoped_ta = ta.scope(agent, gc.nogc());
     // 4. Let len be TypedArrayLength(taRecord).
-    let len = typed_array_length::<T>(agent, &ta_record, gc.nogc()) as i64;
+    let len = typed_array_length::<T>(agent, &ta_record) as i64;
     // 5. Let A be ? TypedArrayCreateSameType(O, « 𝔽(len) »).
     let a = typed_array_create_same_type(agent, scoped_ta.get(agent), len, gc.reborrow())
         .unbind()?
         .bind(gc.nogc());
-    let (a_slice, o_slice) =
-        split_typed_array_views::<T>(agent, a, scoped_ta.get(agent), gc.nogc());
+    let (a_slice, o_slice) = split_typed_array_views::<T>(agent, a, scoped_ta.get(agent));
     let len = len as usize;
     let a_slice = &mut a_slice[..len];
     let o_slice = &o_slice[..len];
@@ -3027,11 +2974,10 @@ impl ECMAScriptOrd for f64 {
 fn sort_ecmascript_cmp_typed_array<T: Viewable + ECMAScriptOrd>(
     agent: &mut Agent,
     ta_record: TypedArrayWithBufferWitnessRecords,
-    gc: NoGcScope,
 ) {
     let ta = ta_record.object;
-    let len = typed_array_length::<T>(agent, &ta_record, gc);
-    let slice = viewable_slice_mut::<T>(agent, ta, gc);
+    let len = typed_array_length::<T>(agent, &ta_record);
+    let slice = viewable_slice_mut::<T>(agent, ta);
     let slice = &mut slice[..len];
     slice.sort_by(|a, b| a.ecmascript_cmp(b));
 }
@@ -3044,12 +2990,12 @@ fn to_sorted_ecmascript_cmp_typed_array<'a, T: Viewable + ECMAScriptOrd>(
     let ta_record = ta_record.bind(gc.nogc());
     let ta = ta_record.object.scope(agent, gc.nogc());
     // 4. Let len be TypedArrayLength(taRecord).
-    let len = typed_array_length::<T>(agent, &ta_record, gc.nogc());
+    let len = typed_array_length::<T>(agent, &ta_record);
     // 5. Let A be ? TypedArrayCreateSameType(O, « 𝔽(len) »).
     let a = typed_array_create_same_type(agent, ta.get(agent), len as i64, gc.reborrow())
         .unbind()?
         .bind(gc.nogc());
-    let (a_slice, o_slice) = split_typed_array_views::<T>(agent, a, ta.get(agent), gc.nogc());
+    let (a_slice, o_slice) = split_typed_array_views::<T>(agent, a, ta.get(agent));
     let a_slice = &mut a_slice[..len];
     let o_slice = &o_slice[..len];
     // 9. Let j be 0.
@@ -3078,8 +3024,8 @@ fn sort_comparator_typed_array<'a, T: Viewable>(
 ) -> JsResult<'a, ()> {
     let ta_record = ta_record.bind(gc.nogc());
     let local_ta = ta_record.object;
-    let len = typed_array_length::<T>(agent, &ta_record, gc.nogc());
-    let slice = viewable_slice::<T>(agent, local_ta, gc.nogc());
+    let len = typed_array_length::<T>(agent, &ta_record);
+    let slice = viewable_slice::<T>(agent, local_ta);
     let slice = &slice[..len];
     let mut items: Vec<T> = slice.to_vec();
     let mut error: Option<JsError> = None;
@@ -3121,7 +3067,7 @@ fn sort_comparator_typed_array<'a, T: Viewable>(
     if let Some(error) = error {
         return Err(error);
     }
-    let slice = viewable_slice_mut::<T>(agent, ta.get(agent), gc.nogc());
+    let slice = viewable_slice_mut::<T>(agent, ta.get(agent));
     let len = len.min(slice.len());
     let slice = &mut slice[..len];
     let copy_len = items.len().min(len);
@@ -3138,14 +3084,14 @@ fn to_sorted_comparator_typed_array<'a, T: Viewable>(
     let ta_record = ta_record.bind(gc.nogc());
     let o = ta_record.object;
     // 4. Let len be TypedArrayLength(taRecord).
-    let len = typed_array_length::<T>(agent, &ta_record, gc.nogc());
+    let len = typed_array_length::<T>(agent, &ta_record);
     let scoped_o = o.scope(agent, gc.nogc());
     // 5. Let A be ? TypedArrayCreateSameType(O, « 𝔽(len) »).
     let a = typed_array_create_same_type(agent, o.unbind(), len as i64, gc.reborrow())
         .unbind()?
         .bind(gc.nogc());
     let scoped_a = a.scope(agent, gc.nogc());
-    let (a_slice, o_slice) = split_typed_array_views::<T>(agent, a, scoped_o.get(agent), gc.nogc());
+    let (a_slice, o_slice) = split_typed_array_views::<T>(agent, a, scoped_o.get(agent));
     let a_slice = &mut a_slice[..len];
     let from_slice = &o_slice[..len];
     a_slice.copy_from_slice(from_slice);
@@ -3196,7 +3142,7 @@ fn to_sorted_comparator_typed_array<'a, T: Viewable>(
     if let Some(error) = error {
         return Err(error);
     }
-    let slice = viewable_slice_mut::<T>(agent, scoped_a.get(agent), gc.nogc());
+    let slice = viewable_slice_mut::<T>(agent, scoped_a.get(agent));
     let len = len.min(slice.len());
     let slice = &mut slice[..len];
     let copy_len = items.len().min(len);
@@ -3217,7 +3163,7 @@ fn filter_typed_array<'a, T: Viewable>(
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, TypedArray<'a>> {
     let o = ta_record.object.bind(gc.nogc());
-    let len = typed_array_length::<T>(agent, &ta_record, gc.nogc()) as i64;
+    let len = typed_array_length::<T>(agent, &ta_record) as i64;
     let callback = callback.bind(gc.nogc());
     let this_arg = this_arg.bind(gc.nogc());
     let o = o.bind(gc.nogc());
@@ -3232,9 +3178,7 @@ fn filter_typed_array<'a, T: Viewable>(
     // b. Let kValue be ! Get(O, Pk).
     let byte_offset = scoped_o.get(agent).byte_offset(agent);
     let byte_length = scoped_o.get(agent).byte_length(agent);
-    let local_array_buffer = scoped_o
-        .get(agent)
-        .get_viewed_array_buffer(agent, gc.nogc());
+    let local_array_buffer = scoped_o.get(agent).get_viewed_array_buffer(agent);
     let array_buffer = local_array_buffer.scope(agent, gc.nogc());
     let properly_aligned = unsafe {
         local_array_buffer
@@ -3299,7 +3243,7 @@ fn filter_typed_array<'a, T: Viewable>(
     .bind(gc.nogc());
     // 10. Let n be 0.
     // 11. For each element e of kept, do
-    let array_buffer = a.get_viewed_array_buffer(agent, gc.nogc());
+    let array_buffer = a.get_viewed_array_buffer(agent);
     let byte_offset = a.byte_offset(agent);
     let byte_length = a.byte_length(agent);
     let byte_slice = array_buffer.as_mut_slice(agent);
@@ -3369,10 +3313,9 @@ pub(crate) fn split_typed_array_views<'a, T: Viewable>(
     agent: &'a mut Agent,
     a: TypedArray<'a>,
     o: TypedArray<'a>,
-    gc: NoGcScope<'a, '_>,
 ) -> (&'a mut [T], &'a [T]) {
-    let a_buf = a.get_viewed_array_buffer(agent, gc);
-    let o_buf = o.get_viewed_array_buffer(agent, gc);
+    let a_buf = a.get_viewed_array_buffer(agent);
+    let o_buf = o.get_viewed_array_buffer(agent);
     let a_buf = a_buf.as_slice(agent);
     let o_buf = o_buf.as_slice(agent);
     if !a_buf.is_empty() || !o_buf.is_empty() {
@@ -3381,10 +3324,10 @@ pub(crate) fn split_typed_array_views<'a, T: Viewable>(
             "Must not point to the same buffer"
         );
     }
-    let a_slice = viewable_slice_mut::<T>(agent, a, gc);
+    let a_slice = viewable_slice_mut::<T>(agent, a);
     let a_ptr = a_slice.as_mut_ptr();
     let a_len = a_slice.len();
-    let o_aligned = viewable_slice::<T>(agent, o, gc);
+    let o_aligned = viewable_slice::<T>(agent, o);
     // SAFETY: Confirmed beforehand that the two ArrayBuffers are in separate memory regions.
     let a_aligned = unsafe { std::slice::from_raw_parts_mut(a_ptr, a_len) };
     (a_aligned, o_aligned)
@@ -3437,7 +3380,7 @@ fn with_typed_array<'a, T: Viewable>(
     let scoped_o = o.scope(agent, gc.nogc());
     let scoped_value = value.scope(agent, gc.nogc());
     // 3. Let len be TypedArrayLength(taRecord).
-    let len = typed_array_length::<T>(agent, &ta_record, gc.nogc()) as i64;
+    let len = typed_array_length::<T>(agent, &ta_record) as i64;
     // 4. Let relativeIndex be ? ToIntegerOrInfinity(index).
     // 5. If relativeIndex ≥ 0, let actualIndex be relativeIndex.
     let relative_index = if let Value::Integer(index) = index {
@@ -3470,7 +3413,7 @@ fn with_typed_array<'a, T: Viewable>(
         len + relative_index
     };
     // 9. If IsValidIntegerIndex(O, 𝔽(actualIndex)) is false, throw a RangeError exception.
-    if is_valid_integer_index::<T>(agent, scoped_o.get(agent), actual_index, gc.nogc()).is_none() {
+    if is_valid_integer_index::<T>(agent, scoped_o.get(agent), actual_index).is_none() {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::RangeError,
             "Index out of bounds",
@@ -3488,7 +3431,7 @@ fn with_typed_array<'a, T: Viewable>(
     //  c. Else, let fromValue be ! Get(O, Pk).
     //  d. Perform ! Set(A, Pk, fromValue, true).
     //  e. Set k to k + 1.
-    let (a_slice, o_slice) = split_typed_array_views::<T>(agent, a, scoped_o.get(agent), gc.nogc());
+    let (a_slice, o_slice) = split_typed_array_views::<T>(agent, a, scoped_o.get(agent));
     let len = len as usize;
     let a_slice = &mut a_slice[..len];
     let from_slice = &o_slice[..len];
@@ -3515,13 +3458,13 @@ fn subarray_typed_array<'a, T: Viewable>(
     let start = start.scope(agent, gc.nogc());
     let end = end.scope(agent, gc.nogc());
     // 6. If IsTypedArrayOutOfBounds(srcRecord) is true, then
-    let src_length = if is_typed_array_out_of_bounds::<T>(agent, &src_record, gc.nogc()) {
+    let src_length = if is_typed_array_out_of_bounds::<T>(agent, &src_record) {
         // a. Let srcLength be 0.
         0
     } else {
         // 7. Else,
         //  a. Let srcLength be TypedArrayLength(srcRecord).
-        typed_array_length::<T>(agent, &src_record, gc.nogc())
+        typed_array_length::<T>(agent, &src_record)
     } as i64;
     // 8. Let relativeStart be ? ToIntegerOrInfinity(start).
     let relative_start = to_integer_or_infinity(agent, start.get(agent), gc.reborrow())
@@ -3626,15 +3569,12 @@ fn set_typed_array<'a, T: Viewable + std::fmt::Debug>(
     } else {
         // 7. Else,
         //  a. Perform ? SetTypedArrayFromArrayLike(target, targetOffset, source).
-        with_typed_array_viewable!(
-            scoped_o.get(agent),
-            set_typed_array_from_array_like::<T>(
-                agent,
-                scoped_o,
-                target_offset,
-                scoped_source,
-                gc
-            )?
+        // SAFETY: not shared.
+        let o = unsafe { scoped_o.take(agent) };
+        match_typed_array!(
+            o,
+            set_typed_array_from_array_like(agent, ta, target_offset, scoped_source, gc)?,
+            ta
         )
     }
     Ok(())
@@ -3654,7 +3594,7 @@ fn slice_typed_array<'a, SrcType: Viewable + std::fmt::Debug>(
     let o = o.scope(agent, gc.nogc());
     let end = end.scope(agent, gc.nogc());
     // 3. Let srcArrayLength be TypedArrayLength(taRecord).
-    let src_array_length = typed_array_length::<SrcType>(agent, &ta_record, gc.nogc()) as i64;
+    let src_array_length = typed_array_length::<SrcType>(agent, &ta_record) as i64;
     // 4. Let relativeStart be ? ToIntegerOrInfinity(start).
     let relative_start = to_integer_or_infinity(agent, start.unbind(), gc.reborrow())
         .unbind()?
@@ -3708,9 +3648,9 @@ fn slice_typed_array<'a, SrcType: Viewable + std::fmt::Debug>(
     // SAFETY: o is not shared.
     let o = unsafe { o.take(agent) }.bind(gc);
     // a. Set taRecord to MakeTypedArrayWithBufferWitnessRecord(O, seq-cst).
-    let ta_record = make_typed_array_with_buffer_witness_record(agent, o, Ordering::SeqCst, gc);
+    let ta_record = make_typed_array_with_buffer_witness_record(agent, o, Ordering::SeqCst);
     // b. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-    if is_typed_array_out_of_bounds::<SrcType>(agent, &ta_record, gc) {
+    if is_typed_array_out_of_bounds::<SrcType>(agent, &ta_record) {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "TypedArray out of bounds",
@@ -3718,8 +3658,7 @@ fn slice_typed_array<'a, SrcType: Viewable + std::fmt::Debug>(
         ));
     };
     // c. Set endIndex to min(endIndex, TypedArrayLength(taRecord)).
-    let end_index =
-        end_index.min(typed_array_length::<SrcType>(agent, &ta_record, gc) as i64) as usize;
+    let end_index = end_index.min(typed_array_length::<SrcType>(agent, &ta_record) as i64) as usize;
     with_typed_array_viewable!(
         a,
         {
@@ -3743,8 +3682,8 @@ fn slice_typed_array<'a, SrcType: Viewable + std::fmt::Debug>(
                 //  2. Perform SetValueInBuffer(targetBuffer, targetByteIndex, uint8, value, true, unordered).
                 //  3. Set srcByteIndex to srcByteIndex + 1.
                 //  4. Set targetByteIndex to targetByteIndex + 1.
-                let a_buf = a.get_viewed_array_buffer(agent, gc);
-                let o_buf = o.get_viewed_array_buffer(agent, gc);
+                let a_buf = a.get_viewed_array_buffer(agent);
+                let o_buf = o.get_viewed_array_buffer(agent);
                 if a_buf == o_buf {
                     slice_typed_array_same_buffer_same_type::<SrcType>(
                         agent,
@@ -3755,7 +3694,7 @@ fn slice_typed_array<'a, SrcType: Viewable + std::fmt::Debug>(
                         gc,
                     );
                 } else {
-                    let (a_slice, o_slice) = split_typed_array_views::<SrcType>(agent, a, o, gc);
+                    let (a_slice, o_slice) = split_typed_array_views::<SrcType>(agent, a, o);
                     let end_index = end_index.min(o_slice.len());
                     let src_slice = &o_slice[start_index..end_index];
                     let dst_slice = &mut a_slice[..src_slice.len()];
@@ -3771,8 +3710,8 @@ fn slice_typed_array<'a, SrcType: Viewable + std::fmt::Debug>(
                 //      3. Perform ! Set(A, ! ToString(𝔽(n)), kValue, true).
                 //      4. Set k to k + 1.
                 //      5. Set n to n + 1.
-                let a_buf = a.get_viewed_array_buffer(agent, gc);
-                let o_buf = o.get_viewed_array_buffer(agent, gc);
+                let a_buf = a.get_viewed_array_buffer(agent);
+                let o_buf = o.get_viewed_array_buffer(agent);
                 if a_buf == o_buf {
                     slice_typed_array_same_buffer_different_type(
                         agent,
@@ -3783,10 +3722,10 @@ fn slice_typed_array<'a, SrcType: Viewable + std::fmt::Debug>(
                         gc,
                     );
                 } else {
-                    let a_slice = viewable_slice_mut::<TargetType>(agent, a, gc);
+                    let a_slice = viewable_slice_mut::<TargetType>(agent, a);
                     let a_ptr = a_slice.as_mut_ptr();
                     let a_len = a_slice.len();
-                    let o_aligned = viewable_slice::<SrcType>(agent, o, gc);
+                    let o_aligned = viewable_slice::<SrcType>(agent, o);
                     // SAFETY: Confirmed beforehand that the two ArrayBuffers are in separate memory regions.
                     let a_aligned = unsafe { std::slice::from_raw_parts_mut(a_ptr, a_len) };
                     let src_slice = &o_aligned[start_index..end_index];
@@ -3814,7 +3753,7 @@ fn slice_typed_array_same_buffer_same_type<T: Viewable>(
     //    preserves the bit-level encoding of the source data.
     // ii. Let srcBuffer be O.[[ViewedArrayBuffer]].
     // iii. Let targetBuffer be A.[[ViewedArrayBuffer]].
-    let buffer = a.get_viewed_array_buffer(agent, gc);
+    let buffer = a.get_viewed_array_buffer(agent);
     // iv. Let elementSize be TypedArrayElementSize(O).
     let element_size = core::mem::size_of::<T>();
     // v. Let srcByteOffset be O.[[ByteOffset]].
@@ -3830,7 +3769,7 @@ fn slice_typed_array_same_buffer_same_type<T: Viewable>(
         //  1. Let value be GetValueFromBuffer(srcBuffer, srcByteIndex, uint8, true, unordered).
         let value = get_value_from_buffer::<u8>(
             agent,
-            buffer,
+            buffer.into(),
             src_byte_index,
             true,
             Ordering::Unordered,
@@ -3840,7 +3779,7 @@ fn slice_typed_array_same_buffer_same_type<T: Viewable>(
         //  2. Perform SetValueInBuffer(targetBuffer, targetByteIndex, uint8, value, true, unordered).
         set_value_in_buffer::<u8>(
             agent,
-            buffer,
+            buffer.into(),
             target_byte_index,
             value,
             true,

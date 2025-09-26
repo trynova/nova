@@ -8,7 +8,7 @@ use crate::{
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 pub struct SharedArrayBufferRecord<'a> {
     pub(super) backing_object: Option<OrdinaryObject<'a>>,
     pub(super) data_block: SharedDataBlock,

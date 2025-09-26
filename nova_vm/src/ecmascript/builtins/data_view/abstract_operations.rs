@@ -2,25 +2,22 @@ use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{to_big_int, to_index, to_number, try_to_index},
         builtins::{
-            array_buffer::{
-                Ordering, array_buffer_byte_length, get_value_from_buffer,
-                is_fixed_length_array_buffer, set_value_in_buffer,
-            },
+            array_buffer::{Ordering, is_fixed_length_array_buffer, set_value_in_buffer},
             structured_data::data_view_objects::data_view_prototype::require_internal_slot_data_view,
         },
         execution::{
             Agent, JsResult,
             agent::{ExceptionType, try_result_into_js},
         },
-        types::{BigInt, IntoNumeric, Number, Numeric, Value, Viewable},
+        types::{BigInt, IntoNumeric, Number, Value, Viewable},
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope},
+        context::{Bindable, GcScope},
         rootable::Scopable,
     },
 };
 
-use super::DataView;
+use super::AnyDataView;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct ByteLength(pub usize);
@@ -48,7 +45,7 @@ impl ByteLength {
 #[derive(Debug, Clone)]
 pub(crate) struct DataViewWithBufferWitnessRecord<'a> {
     /// ### [\[\[Object\]\]](https://tc39.es/ecma262/#table-dataview-with-buffer-witness-record-fields)
-    object: DataView<'a>,
+    object: AnyDataView<'a>,
     /// ### [\[\[CachedBufferByteLength\]\]](https://tc39.es/ecma262/#table-dataview-with-buffer-witness-record-fields)
     cached_buffer_byte_length: ByteLength,
 }
@@ -58,20 +55,20 @@ pub(crate) struct DataViewWithBufferWitnessRecord<'a> {
 /// The abstract operation MakeDataViewWithBufferWitnessRecord takes arguments
 /// obj (a DataView) and order (seq-cst or unordered) and returns a DataView
 /// With Buffer Witness Record.
+#[inline(always)]
 pub(crate) fn make_data_view_with_buffer_witness_record<'a>(
     agent: &Agent,
-    obj: DataView,
+    obj: AnyDataView<'a>,
     _order: Ordering,
-    gc: NoGcScope<'a, '_>,
 ) -> DataViewWithBufferWitnessRecord<'a> {
-    let buffer = obj.get_viewed_array_buffer(agent, gc);
+    let buffer = obj.viewed_array_buffer(agent);
     let byte_length = if buffer.is_detached(agent) {
         ByteLength::detached()
     } else {
-        ByteLength::value(array_buffer_byte_length(agent, buffer))
+        ByteLength::value(buffer.byte_length(agent))
     };
     DataViewWithBufferWitnessRecord {
-        object: obj.unbind(),
+        object: obj,
         cached_buffer_byte_length: byte_length,
     }
 }
@@ -80,13 +77,13 @@ pub(crate) fn make_data_view_with_buffer_witness_record<'a>(
 ///
 /// The abstract operation GetViewByteLength takes argument viewRecord
 /// (a DataView With Buffer Witness Record) and returns a non-negative integer.
+#[inline(always)]
 pub(crate) fn get_view_byte_length(
     agent: &Agent,
     view_record: &DataViewWithBufferWitnessRecord,
-    gc: NoGcScope,
 ) -> usize {
     // 1. Assert: IsViewOutOfBounds(viewRecord) is false.
-    assert!(!is_view_out_of_bounds(agent, view_record, gc));
+    assert!(!is_view_out_of_bounds(agent, view_record));
 
     // 2. Let view be viewRecord.[[Object]].
     let view = view_record.object;
@@ -101,7 +98,7 @@ pub(crate) fn get_view_byte_length(
     // 4. Assert: IsFixedLengthArrayBuffer(view.[[ViewedArrayBuffer]]) is false.
     debug_assert!(!is_fixed_length_array_buffer(
         agent,
-        view.get_viewed_array_buffer(agent, gc)
+        view.viewed_array_buffer(agent)
     ));
 
     // 5. Let byteOffset be view.[[ByteOffset]].
@@ -120,14 +117,17 @@ pub(crate) fn get_view_byte_length(
 ///
 /// The abstract operation IsViewOutOfBounds takes argument viewRecord
 /// (a DataView With Buffer Witness Record) and returns a Boolean.
+#[inline(always)]
 pub(crate) fn is_view_out_of_bounds(
     agent: &Agent,
     view_record: &DataViewWithBufferWitnessRecord,
-    gc: NoGcScope,
 ) -> bool {
     // 1. Let view be viewRecord.[[Object]].
     let view = view_record.object;
-    let ab = view.get_viewed_array_buffer(agent, gc);
+    let ab = view.viewed_array_buffer(agent);
+    // 5. Let byteOffsetStart be view.[[ByteOffset]].
+    let byte_offset_start = view.byte_offset(agent);
+    let byte_length = view.byte_length(agent);
 
     // 2. Let bufferByteLength be viewRecord.[[CachedBufferByteLength]].
     let buffer_byte_length = view_record.cached_buffer_byte_length;
@@ -141,11 +141,8 @@ pub(crate) fn is_view_out_of_bounds(
     }
     let buffer_byte_length = buffer_byte_length.0;
 
-    // 5. Let byteOffsetStart be view.[[ByteOffset]].
-    let byte_offset_start = view.byte_offset(agent);
-
     // 6. If view.[[ByteLength]] is auto, then
-    let byte_offset_end = if let Some(byte_length) = view.byte_length(agent) {
+    let byte_offset_end = if let Some(byte_length) = byte_length {
         // 7. Else,
         // a. Let byteOffsetEnd be byteOffsetStart + view.[[ByteLength]].
         byte_offset_start + byte_length
@@ -179,7 +176,7 @@ pub(crate) fn get_view_value<'gc, T: Viewable>(
     // 4. Set isLittleEndian to ToBoolean(isLittleEndian).
     is_little_endian: bool,
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, Numeric<'gc>> {
+) -> JsResult<'gc, T> {
     // 1. Perform ? RequireInternalSlot(view, [[DataView]]).
     // 2. Assert: view has a [[ViewedArrayBuffer]] internal slot.
     let mut view = require_internal_slot_data_view(agent, view, gc.nogc())
@@ -192,10 +189,14 @@ pub(crate) fn get_view_value<'gc, T: Viewable>(
     {
         res as usize
     } else {
-        let scoped_view = view.scope(agent, gc.nogc());
-        let res = to_index(agent, request_index, gc.reborrow()).unbind()? as usize;
-        view = scoped_view.get(agent).bind(gc.nogc());
-        res
+        match get_view_value_scope_slow(agent, view.unbind(), request_index.unbind(), gc.reborrow())
+        {
+            Ok((v, res)) => {
+                view = v.unbind().bind(gc.nogc());
+                res
+            }
+            Err(err) => return Err(err.unbind().bind(gc.into_nogc())),
+        }
     };
     // No GC is possible beyond this point.
     let view = view.unbind();
@@ -205,12 +206,11 @@ pub(crate) fn get_view_value<'gc, T: Viewable>(
     let view_offset = view.byte_offset(agent);
 
     // 6. Let viewRecord be MakeDataViewWithBufferWitnessRecord(view, unordered).
-    let view_record =
-        make_data_view_with_buffer_witness_record(agent, view, Ordering::Unordered, gc);
+    let view_record = make_data_view_with_buffer_witness_record(agent, view, Ordering::Unordered);
 
     // 7. NOTE: Bounds checking is not a synchronizing operation when view's backing buffer is a growable SharedArrayBuffer.
     // 8. If IsViewOutOfBounds(viewRecord) is true, throw a TypeError exception.
-    if is_view_out_of_bounds(agent, &view_record, gc) {
+    if is_view_out_of_bounds(agent, &view_record) {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "DataView is out of bounds",
@@ -219,7 +219,7 @@ pub(crate) fn get_view_value<'gc, T: Viewable>(
     }
 
     // 9. Let viewSize be GetViewByteLength(viewRecord).
-    let view_size = get_view_byte_length(agent, &view_record, gc);
+    let view_size = get_view_byte_length(agent, &view_record);
 
     // 10. Let elementSize be the Element Size value specified in Table 69 for Element Type type.
     let element_size = size_of::<T>();
@@ -237,15 +237,30 @@ pub(crate) fn get_view_value<'gc, T: Viewable>(
     let buffer_index = get_index + view_offset;
 
     // 13. Return GetValueFromBuffer(view.[[ViewedArrayBuffer]], bufferIndex, type, false, unordered, isLittleEndian).
-    Ok(get_value_from_buffer::<T>(
-        agent,
-        view.get_viewed_array_buffer(agent, gc),
-        buffer_index,
-        false,
-        Ordering::Unordered,
-        Some(is_little_endian),
-        gc,
-    ))
+    // SAFETY: Checked that view is not detached and that bufferIndex is
+    // within bounds.
+    let result = unsafe { view.get_value_from_buffer::<T>(agent, buffer_index) };
+    if is_little_endian && cfg!(target_endian = "big")
+        || !is_little_endian && cfg!(target_endian = "little")
+    {
+        Ok(result.flip_endian())
+    } else {
+        Ok(result)
+    }
+}
+
+#[inline(never)]
+#[cold]
+fn get_view_value_scope_slow<'gc>(
+    agent: &mut Agent,
+    view: AnyDataView,
+    request_index: Value,
+    gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, (AnyDataView<'gc>, usize)> {
+    let scoped_view = view.scope(agent, gc.nogc());
+    let index = to_index(agent, request_index, gc).unbind()? as usize;
+    // SAFETY: not shared.
+    Ok((unsafe { scoped_view.take(agent) }, index))
 }
 
 /// ### [25.3.1.6 SetViewValue ( view, requestIndex, isLittleEndian, type, value )](https://tc39.es/ecma262/#sec-setviewvalue)
@@ -320,12 +335,11 @@ pub(crate) fn set_view_value<'gc, T: Viewable>(
     let view_offset = view.byte_offset(agent);
 
     // 8. Let viewRecord be MakeDataViewWithBufferWitnessRecord(view, unordered).
-    let view_record =
-        make_data_view_with_buffer_witness_record(agent, view, Ordering::Unordered, gc);
+    let view_record = make_data_view_with_buffer_witness_record(agent, view, Ordering::Unordered);
 
     // 9. NOTE: Bounds checking is not a synchronizing operation when view's backing buffer is a growable SharedArrayBuffer.
     // 10. If IsViewOutOfBounds(viewRecord) is true, throw a TypeError exception.
-    if is_view_out_of_bounds(agent, &view_record, gc) {
+    if is_view_out_of_bounds(agent, &view_record) {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "DataView is out of bounds",
@@ -334,7 +348,7 @@ pub(crate) fn set_view_value<'gc, T: Viewable>(
     }
 
     // 11. Let viewSize be GetViewByteLength(viewRecord).
-    let view_size = get_view_byte_length(agent, &view_record, gc);
+    let view_size = get_view_byte_length(agent, &view_record);
 
     // 12. Let elementSize be the Element Size value specified in Table 69 for Element Type type.
     let element_size = size_of::<T>();
@@ -353,7 +367,7 @@ pub(crate) fn set_view_value<'gc, T: Viewable>(
     // 15. Perform SetValueInBuffer(view.[[ViewedArrayBuffer]], bufferIndex, type, numberValue, false, unordered, isLittleEndian).
     set_value_in_buffer::<T>(
         agent,
-        view.get_viewed_array_buffer(agent, gc),
+        view.viewed_array_buffer(agent),
         buffer_index,
         number_value,
         false,
