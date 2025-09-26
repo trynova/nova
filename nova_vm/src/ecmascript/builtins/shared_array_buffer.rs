@@ -31,6 +31,31 @@ impl<'sab> SharedArrayBuffer<'sab> {
     /// Constant to be used only for creating a build-time Self.
     pub(crate) const _DEF: Self = Self(BaseIndex::ZERO);
 
+    #[inline]
+    pub fn is_detached(self, agent: &Agent) -> bool {
+        self.get(agent).data_block.is_dangling()
+    }
+
+    /// Returns true if the SharedArrayBuffer is growable.
+    pub fn is_growable(self, agent: &Agent) -> bool {
+        self.get(agent).data_block.is_growable()
+    }
+
+    /// Get the byte length of the SharedArrayBuffer.
+    ///
+    /// Note, if this is a growable SharedArrayBuffer then this is a
+    /// synchronising operation.
+    #[inline]
+    pub fn byte_length(self, agent: &Agent) -> usize {
+        self.get(agent).data_block.byte_length()
+    }
+
+    /// Get the maximum byte length of the SharedArrayBuffer.
+    #[inline]
+    pub fn max_byte_length(self, agent: &Agent) -> usize {
+        self.get(agent).data_block.max_byte_length()
+    }
+
     /// Get the SharedDataBlock of a SharedArrayBuffer for sharing.
     pub fn get_data_block(self, agent: &Agent) -> &SharedDataBlock {
         &self.unbind().get(agent).data_block
@@ -105,24 +130,6 @@ impl<'sab> SharedArrayBuffer<'sab> {
                 gc,
             ))
         }
-    }
-
-    /// Returns true if the SharedArrayBuffer is growable.
-    pub fn is_growable(self, agent: &Agent) -> bool {
-        self.get(agent).data_block.is_growable()
-    }
-
-    /// Get the byte length of the SharedArrayBuffer.
-    ///
-    /// Note, if this is a growable SharedArrayBuffer then this is a
-    /// synchronising operation.
-    pub fn byte_length(self, agent: &Agent) -> usize {
-        self.get(agent).data_block.byte_length()
-    }
-
-    /// Get the maximum byte length of the SharedArrayBuffer.
-    pub fn max_byte_length(self, agent: &Agent) -> usize {
-        self.get(agent).data_block.max_byte_length()
     }
 
     /// Set the SharedArrayBuffer's internal buffer to `data_block`.

@@ -13,6 +13,7 @@ categories.workspace = true
 
 [dependencies]
 ahash = { workspace = true }
+ecmascript_atomics = { workspace = true }
 fast-float = { workspace = true }
 hashbrown = { workspace = true }
 lexical = { workspace = true }
@@ -31,9 +32,9 @@ rand = { workspace = true }
 regex = { workspace = true }
 ryu-js = { workspace = true }
 small_string = { path = "../small_string", version = "0.2.0" }
-sonic-rs = { workspace = true, optional = true }
 soavec = { workspace = true }
 soavec_derive = { workspace = true }
+sonic-rs = { workspace = true, optional = true }
 unicode-normalization = { workspace = true }
 usdt = { workspace = true }
 wtf8 = { workspace = true }

@@ -5,10 +5,13 @@
 use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
+        types::{
+            DATA_VIEW_DISCRIMINANT, InternalMethods, InternalSlots, Object, OrdinaryObject,
+            SHARED_DATA_VIEW_DISCRIMINANT, Value, Viewable,
+        },
     },
     engine::{
-        context::{Bindable, NoGcScope, bindable_handle},
+        context::{Bindable, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
@@ -21,7 +24,7 @@ use self::data::{DataViewRecord, SharedDataViewHeapData};
 
 use super::{
     ArrayBuffer,
-    array_buffer::{ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset},
+    array_buffer::{AnyArrayBuffer, ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset},
     shared_array_buffer::SharedArrayBuffer,
 };
 
@@ -34,6 +37,7 @@ pub struct DataView<'a>(BaseIndex<'a, DataViewRecord<'static>>);
 bindable_handle!(DataView);
 
 impl<'gc> DataView<'gc> {
+    /// \[\[ByteLength]]
     #[inline]
     pub fn byte_length(self, agent: &Agent) -> Option<usize> {
         let byte_length = self.get(agent).byte_length;
@@ -46,6 +50,7 @@ impl<'gc> DataView<'gc> {
         }
     }
 
+    /// \[\[ByteOffset]]
     #[inline]
     pub fn byte_offset(self, agent: &Agent) -> usize {
         let byte_offset = self.get(agent).byte_offset;
@@ -56,13 +61,59 @@ impl<'gc> DataView<'gc> {
         }
     }
 
+    /// \[\[ViewedArrayBuffer]]
     #[inline]
-    pub fn get_viewed_array_buffer(
+    pub fn viewed_array_buffer(self, agent: &Agent) -> ArrayBuffer<'gc> {
+        self.get(agent).viewed_array_buffer
+    }
+
+    /// ### [25.1.3.15 GetValueFromBuffer ( arrayBuffer, byteIndex, type, isTypedArray, order \[ , isLittleEndian \] )](https://tc39.es/ecma262/#sec-getvaluefrombuffer)
+    ///
+    /// # Safety
+    ///
+    /// The backing buffer must have enough room to read a T at `byte_index`
+    /// and must not be detached.
+    #[inline(always)]
+    pub(crate) unsafe fn get_value_from_buffer<T: Viewable>(
         self,
-        agent: &Agent,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ArrayBuffer<'gc> {
-        self.get(agent).viewed_array_buffer.bind(gc)
+        agent: &mut Agent,
+        byte_index: usize,
+    ) -> T {
+        let array_buffer = self.viewed_array_buffer(agent);
+        // 1. Assert: IsDetachedBuffer(arrayBuffer) is false.
+        debug_assert!(!array_buffer.is_detached(agent));
+        // 2. Assert: There are sufficient bytes in arrayBuffer starting at byteIndex to represent a value of type.
+        // 4. Let elementSize be the Element Size value specified in Table 71 for Element Type type.
+        // 3. Let block be arrayBuffer.[[ArrayBufferData]].
+        let block = agent[array_buffer].get_data_block();
+        // 5. If IsSharedArrayBuffer(arrayBuffer) is true, then
+        // a. Assert: block is a Shared Data Block.
+        // b. Let rawValue be GetRawBytesFromSharedBlock(block, byteIndex, type,
+        //    isTypedArray, order).
+        // 6. Else,
+        // a. Let rawValue be a List whose elements are bytes from block at indices
+        //    in the interval from byteIndex (inclusive) to byteIndex + elementSize
+        //    (exclusive).
+        // SAFETY: Caller guarantees the buffer has been checked for size.
+        unsafe { block.read_unaligned::<T>(byte_index) }
+    }
+
+    /// Initialise the DataView's internal slots.
+    ///
+    /// # Safety
+    ///
+    /// The DataView must be uninitialised. Reinitialisation is not allowed.
+    pub(crate) unsafe fn initialise_data(
+        self,
+        agent: &mut Agent,
+        ab: ArrayBuffer<'gc>,
+        byte_length: ViewedArrayBufferByteLength,
+        byte_offset: ViewedArrayBufferByteOffset,
+    ) {
+        let d = self.get_mut(agent);
+        d.viewed_array_buffer = ab;
+        d.byte_length = byte_length;
+        d.byte_offset = byte_offset;
     }
 
     pub(crate) const fn _def() -> Self {
@@ -109,10 +160,13 @@ impl<'gc> DataView<'gc> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
+#[cfg(feature = "shared-array-buffer")]
 pub struct SharedDataView<'a>(BaseIndex<'a, SharedDataViewHeapData<'static>>);
 bindable_handle!(SharedDataView);
 
+#[cfg(feature = "shared-array-buffer")]
 impl<'gc> SharedDataView<'gc> {
+    /// \[\[ByteLength]]
     #[inline]
     pub fn byte_length(self, agent: &Agent) -> Option<usize> {
         let byte_length = self.get(agent).byte_length;
@@ -125,6 +179,7 @@ impl<'gc> SharedDataView<'gc> {
         }
     }
 
+    /// \[\[ByteOffset]]
     #[inline]
     pub fn byte_offset(self, agent: &Agent) -> usize {
         let byte_offset = self.get(agent).byte_offset;
@@ -135,13 +190,47 @@ impl<'gc> SharedDataView<'gc> {
         }
     }
 
+    /// \[\[ViewedArrayBuffer]]
     #[inline]
-    pub fn get_viewed_array_buffer(
+    pub fn viewed_array_buffer(self, agent: &Agent) -> SharedArrayBuffer<'gc> {
+        self.get(agent).viewed_array_buffer
+    }
+
+    /// ### [25.1.3.15 GetValueFromBuffer ( arrayBuffer, byteIndex, type, isTypedArray, order \[ , isLittleEndian \] )](https://tc39.es/ecma262/#sec-getvaluefrombuffer)
+    ///
+    /// # Safety
+    ///
+    /// The backing buffer must have enough room to read a T at `byte_index`
+    /// and must not be detached.
+    ///
+    /// # Soundness
+    ///
+    /// This method is unsound, as it can cause data races depending on user
+    /// code actions.
+    #[inline(always)]
+    pub(crate) unsafe fn get_value_from_buffer<T: Viewable>(
         self,
-        agent: &Agent,
-        gc: NoGcScope<'gc, '_>,
-    ) -> SharedArrayBuffer<'gc> {
-        self.get(agent).viewed_array_buffer.bind(gc)
+        agent: &mut Agent,
+        byte_index: usize,
+    ) -> T {
+        let array_buffer = self.viewed_array_buffer(agent);
+        // 1. Assert: IsDetachedBuffer(arrayBuffer) is false.
+        debug_assert!(!array_buffer.is_detached(agent));
+        // 2. Assert: There are sufficient bytes in arrayBuffer starting at byteIndex to represent a value of type.
+        // 4. Let elementSize be the Element Size value specified in Table 71 for Element Type type.
+        // 3. Let block be arrayBuffer.[[ArrayBufferData]].
+        let block = array_buffer.get_data_block(agent);
+        // 5. If IsSharedArrayBuffer(arrayBuffer) is true, then
+        // a. Assert: block is a Shared Data Block.
+        // b. Let rawValue be GetRawBytesFromSharedBlock(block, byteIndex, type,
+        //    isTypedArray, order).
+        // 6. Else,
+        // a. Let rawValue be a List whose elements are bytes from block at indices
+        //    in the interval from byteIndex (inclusive) to byteIndex + elementSize
+        //    (exclusive).
+        // SAFETY: We're entirely on unsound ground here; there's nothing I can
+        // say to make this okay.
+        block.load_unaligned::<T>(byte_index).unwrap()
     }
 
     pub(crate) const fn _def() -> Self {
@@ -259,18 +348,21 @@ impl Rootable for DataView<'_> {
     }
 }
 
+#[cfg(feature = "shared-array-buffer")]
 impl<'a> From<SharedDataView<'a>> for Value<'a> {
     fn from(value: SharedDataView<'a>) -> Self {
         Value::SharedDataView(value)
     }
 }
 
+#[cfg(feature = "shared-array-buffer")]
 impl<'a> From<SharedDataView<'a>> for Object<'a> {
     fn from(value: SharedDataView<'a>) -> Self {
         Object::SharedDataView(value)
     }
 }
 
+#[cfg(feature = "shared-array-buffer")]
 impl<'a> TryFrom<Object<'a>> for SharedDataView<'a> {
     type Error = ();
 
@@ -282,6 +374,7 @@ impl<'a> TryFrom<Object<'a>> for SharedDataView<'a> {
     }
 }
 
+#[cfg(feature = "shared-array-buffer")]
 impl<'a> InternalSlots<'a> for SharedDataView<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::DataView;
 
@@ -301,8 +394,10 @@ impl<'a> InternalSlots<'a> for SharedDataView<'a> {
     }
 }
 
+#[cfg(feature = "shared-array-buffer")]
 impl<'a> InternalMethods<'a> for SharedDataView<'a> {}
 
+#[cfg(feature = "shared-array-buffer")]
 impl Rootable for SharedDataView<'_> {
     type RootRepr = HeapRootRef;
 
@@ -350,6 +445,7 @@ impl HeapSweepWeakReference for DataView<'static> {
     }
 }
 
+#[cfg(feature = "shared-array-buffer")]
 impl HeapMarkAndSweep for SharedDataView<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.shared_data_views.push(*self);
@@ -360,11 +456,130 @@ impl HeapMarkAndSweep for SharedDataView<'static> {
     }
 }
 
+#[cfg(feature = "shared-array-buffer")]
 impl HeapSweepWeakReference for SharedDataView<'static> {
     fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
         compactions
             .shared_data_views
             .shift_weak_index(self.0)
             .map(Self)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(u8)]
+pub enum AnyDataView<'a> {
+    DataView(DataView<'a>) = DATA_VIEW_DISCRIMINANT,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedDataView(SharedDataView<'a>) = SHARED_DATA_VIEW_DISCRIMINANT,
+}
+bindable_handle!(AnyDataView);
+
+macro_rules! data_view_delegate {
+    ($value: ident, $method: ident, $($arg:expr),*) => {
+        match $value {
+            Self::DataView(ta) => ta.$method($($arg),+),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedDataView(sta) => sta.$method($($arg),+),
+        }
+    };
+}
+
+impl<'gc> AnyDataView<'gc> {
+    /// \[\[ByteLength]]
+    #[inline(always)]
+    pub fn byte_length(self, agent: &Agent) -> Option<usize> {
+        data_view_delegate!(self, byte_length, agent)
+    }
+
+    /// \[\[ByteOffset]]
+    #[inline(always)]
+    pub fn byte_offset(self, agent: &Agent) -> usize {
+        data_view_delegate!(self, byte_offset, agent)
+    }
+
+    /// \[\[ViewedArrayBuffer]]
+    #[inline(always)]
+    pub fn viewed_array_buffer(self, agent: &Agent) -> AnyArrayBuffer<'gc> {
+        match self {
+            Self::DataView(ta) => ta.viewed_array_buffer(agent).into(),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedDataView(sta) => sta.viewed_array_buffer(agent).into(),
+        }
+    }
+
+    /// ### [25.1.3.15 GetValueFromBuffer ( arrayBuffer, byteIndex, type, isTypedArray, order \[ , isLittleEndian \] )](https://tc39.es/ecma262/#sec-getvaluefrombuffer)
+    ///
+    /// # Safety
+    ///
+    /// The backing buffer must have enough room to read a T at `byte_index`
+    /// and must not be detached.
+    ///
+    /// # Soundness
+    ///
+    /// This method is unsound, as it can cause data races depending on user
+    /// code actions.
+    #[inline(always)]
+    pub(crate) unsafe fn get_value_from_buffer<T: Viewable>(
+        self,
+        agent: &mut Agent,
+        byte_index: usize,
+    ) -> T {
+        match self {
+            Self::DataView(ta) => unsafe { ta.get_value_from_buffer(agent, byte_index) },
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedDataView(sta) => unsafe { sta.get_value_from_buffer(agent, byte_index) },
+        }
+    }
+}
+
+impl<'a> From<DataView<'a>> for AnyDataView<'a> {
+    #[inline(always)]
+    fn from(value: DataView<'a>) -> Self {
+        Self::DataView(value)
+    }
+}
+
+#[cfg(feature = "shared-array-buffer")]
+impl<'a> From<SharedDataView<'a>> for AnyDataView<'a> {
+    #[inline(always)]
+    fn from(value: SharedDataView<'a>) -> Self {
+        Self::SharedDataView(value)
+    }
+}
+
+impl<'a> From<AnyDataView<'a>> for Value<'a> {
+    #[inline(always)]
+    fn from(value: AnyDataView<'a>) -> Self {
+        match value {
+            AnyDataView::DataView(dv) => Self::DataView(dv),
+            #[cfg(feature = "shared-array-buffer")]
+            AnyDataView::SharedDataView(sdv) => Self::SharedDataView(sdv),
+        }
+    }
+}
+
+impl<'a> From<AnyDataView<'a>> for Object<'a> {
+    #[inline(always)]
+    fn from(value: AnyDataView<'a>) -> Self {
+        match value {
+            AnyDataView::DataView(dv) => Self::DataView(dv),
+            #[cfg(feature = "shared-array-buffer")]
+            AnyDataView::SharedDataView(sdv) => Self::SharedDataView(sdv),
+        }
+    }
+}
+
+impl TryFrom<HeapRootData> for AnyDataView<'_> {
+    type Error = ();
+
+    #[inline]
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        match value {
+            HeapRootData::DataView(dv) => Ok(AnyDataView::DataView(dv)),
+            #[cfg(feature = "shared-array-buffer")]
+            HeapRootData::SharedDataView(sdv) => Ok(AnyDataView::SharedDataView(sdv)),
+            _ => Err(()),
+        }
     }
 }

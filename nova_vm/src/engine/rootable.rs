@@ -167,9 +167,11 @@ pub mod private {
             builtins::{
                 ArgumentsList, Array, BuiltinConstructorFunction, BuiltinFunction,
                 ECMAScriptFunction,
+                array_buffer::AnyArrayBuffer,
                 async_function_objects::await_reaction::AwaitReaction,
                 async_generator_objects::AsyncGenerator,
                 bound_function::BoundFunction,
+                data_view::AnyDataView,
                 embedder_object::EmbedderObject,
                 error::Error,
                 finalization_registry::FinalizationRegistry,
@@ -265,6 +267,10 @@ pub mod private {
 
     #[cfg(feature = "array-buffer")]
     impl RootableSealed for ArrayBuffer<'_> {}
+    #[cfg(feature = "array-buffer")]
+    impl RootableSealed for AnyArrayBuffer<'_> {}
+    #[cfg(feature = "array-buffer")]
+    impl RootableSealed for AnyDataView<'_> {}
     #[cfg(feature = "array-buffer")]
     impl RootableSealed for DataView<'_> {}
     #[cfg(feature = "array-buffer")]

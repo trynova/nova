@@ -16,8 +16,20 @@ use crate::{
 };
 
 #[repr(transparent)]
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub(crate) struct TypedArrayArrayLength(pub u32);
+
+impl core::fmt::Debug for TypedArrayArrayLength {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.is_auto() {
+            f.write_str("AUTO")
+        } else if self.is_overflowing() {
+            f.write_str("> u32::MAX - 2")
+        } else {
+            self.0.fmt(f)
+        }
+    }
+}
 
 impl TypedArrayArrayLength {
     pub(crate) const fn value(value: u32) -> Self {
@@ -105,10 +117,13 @@ pub struct SharedTypedArrayRecord<'a> {
     /// ### [\[\[ViewedArrayBuffer\]\]](https://tc39.es/ecma262/#sec-properties-of-typedarray-instances)
     pub(crate) viewed_array_buffer: SharedArrayBuffer<'a>,
     /// ### [\[\[ByteLength\]\]](https://tc39.es/ecma262/#sec-properties-of-typedarray-instances)
+    #[expect(dead_code)]
     pub(crate) byte_length: ViewedArrayBufferByteLength,
     /// ### [\[\[ByteOffset\]\]](https://tc39.es/ecma262/#sec-properties-of-typedarray-instances)
+    #[expect(dead_code)]
     pub(crate) byte_offset: ViewedArrayBufferByteOffset,
     /// ### [\[\[ArrayLength\]\]](https://tc39.es/ecma262/#sec-properties-of-typedarray-instances)
+    #[expect(dead_code)]
     pub(crate) array_length: TypedArrayArrayLength,
 }
 bindable_handle!(SharedTypedArrayRecord);

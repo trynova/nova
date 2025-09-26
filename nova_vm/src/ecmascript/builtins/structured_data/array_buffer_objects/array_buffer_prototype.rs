@@ -169,7 +169,7 @@ impl ArrayBufferPrototype {
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.´
         let o = require_internal_slot_array_buffer(agent, this_value, gc.into_nogc())?;
         // 4. If IsFixedLengthArrayBuffer(O) is false, return true; otherwise return false.
-        Ok((!is_fixed_length_array_buffer(agent, o)).into())
+        Ok((!is_fixed_length_array_buffer(agent, o.into())).into())
     }
 
     /// ### [25.1.6.6 ArrayBuffer.prototype.resize ( newLength )](https://tc39.es/ecma262/#sec-arraybuffer.prototype.resize)
