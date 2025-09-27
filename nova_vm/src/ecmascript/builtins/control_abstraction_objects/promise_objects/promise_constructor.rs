@@ -412,20 +412,18 @@ impl PromiseConstructor {
             return Err(throw_not_callable(agent, gc.into_nogc()));
         };
 
-        let result_promise = Self::perform_promise_all(
+        // 8. If result is an abrupt completion, then
+        //         a. If iteratorRecord.[[Done]] is false, set result to Completion(IteratorClose(iteratorRecord, result)).
+        //         b. IfAbruptRejectPromise(result, promiseCapability).
+        // 9. Return ! result.
+        Self::perform_promise_all(
             agent,
             iterator_record.unbind(),
             constructor.get(agent),
             promise_capability.unbind(),
             promise_resolve.get(agent),
             gc,
-        )?;
-
-        // 8. If result is an abrupt completion, then
-        //         a. If iteratorRecord.[[Done]] is false, set result to Completion(IteratorClose(iteratorRecord, result)).
-        //         b. IfAbruptRejectPromise(result, promiseCapability).
-        // 9. Return ! result.
-        Ok(result_promise.into_value())
+        )
     }
 
     /// ### [27.2.4.2 Promise.allSettled ( iterable )](https://tc39.es/ecma262/#sec-promise.allsettled)
