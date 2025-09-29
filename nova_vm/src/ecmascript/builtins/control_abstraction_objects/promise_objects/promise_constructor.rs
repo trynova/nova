@@ -237,7 +237,7 @@ impl PromiseConstructor {
 
         let iterator = iterator_record.iterator.scope(agent, gc.nogc());
         let next_method = iterator_record.next_method.scope(agent, gc.nogc());
-        //     1. Let values be a new empty List.
+        // 1. Let values be a new empty List.
         let capacity = match iterator.get(agent) {
             Object::Array(array) => array.len(agent),
             Object::Map(map) => agent[map].size(),
