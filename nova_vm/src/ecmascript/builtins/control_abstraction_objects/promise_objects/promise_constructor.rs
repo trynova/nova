@@ -231,6 +231,7 @@ impl PromiseConstructor {
         constructor: Scoped<Function>,
         result_capability: PromiseCapability,
         promise_resolve: Scoped<Function>,
+        _iterator_done: &mut bool,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         let result_capability = result_capability.bind(gc.nogc());
@@ -240,6 +241,7 @@ impl PromiseConstructor {
         } = iterator_record.bind(gc.nogc());
         let iterator = iterator.scope(agent, gc.nogc());
         let next_method = next_method.scope(agent, gc.nogc());
+        *_iterator_done = false;
 
         // 1. Let values be a new empty List.
         let capacity = match iterator.get(agent) {
@@ -286,6 +288,7 @@ impl PromiseConstructor {
 
             // b. If next is done, then
             let Some(next) = next else {
+                *_iterator_done = true;
                 break;
             };
 
@@ -426,20 +429,20 @@ impl PromiseConstructor {
         let iterator = iterator_record.iterator.scope(agent, gc.nogc());
         let next_method = iterator_record.next_method.scope(agent, gc.nogc());
 
-        // TODO: Fix - Make it a return value from `perform_promise_all`
-        let iterator_done = false;
-
         // 7. Let result be Completion(PerformPromiseAll(iteratorRecord, C, promiseCapability, promiseResolve)).
         let iterator_record = IteratorRecord {
             iterator: iterator.get(agent),
             next_method: next_method.get(agent),
-        };
+        }
+        .bind(gc.nogc());
+        let mut iterator_done = false;
         let result = Self::perform_promise_all(
             agent,
-            iterator_record,
+            iterator_record.unbind(),
             constructor,
             promise_capability.unbind(),
             promise_resolve,
+            &mut iterator_done,
             gc.reborrow(),
         )
         .unbind()
@@ -449,7 +452,6 @@ impl PromiseConstructor {
         let result = match result {
             Err(err) => {
                 // a. If iteratorRecord.[[Done]] is false, set result to Completion(IteratorClose(iteratorRecord, result)).
-                // todo: the error result somehow needs to tell us if iterator_record reached done; this could perhaps be an extra `iterator_done: &mut bool` parameter passed to `perform_promise_all` that is set to `true`.
                 let result = if !iterator_done {
                     Err(iterator_close_with_error(
                         agent,
