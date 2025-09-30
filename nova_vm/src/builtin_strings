@@ -426,6 +426,7 @@ Symbol.toPrimitive
 Symbol.toStringTag
 Symbol.unscopables
 SyntaxError
+#[cfg(feature = "temporal")]Temporal
 #[cfg(feature = "math")]tan
 #[cfg(feature = "math")]tanh
 #[cfg(feature = "regexp")]test

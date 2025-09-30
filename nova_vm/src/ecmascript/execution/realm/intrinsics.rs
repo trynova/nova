@@ -11,6 +11,8 @@ use crate::ecmascript::AtomicsObject;
 use crate::ecmascript::JSONObject;
 #[cfg(feature = "math")]
 use crate::ecmascript::MathObject;
+#[cfg(feature = "temporal")]
+use crate::ecmascript::builtins::TemporalObject;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::{
     ArrayBufferConstructor, ArrayBufferPrototype, DataViewConstructor, DataViewPrototype,
@@ -210,6 +212,10 @@ impl Intrinsics {
         BigIntConstructor::create_intrinsic(agent, realm);
         #[cfg(feature = "math")]
         MathObject::create_intrinsic(agent, realm, gc);
+
+        #[cfg(feature = "temporal")]
+        TemporalObject::create_intrinsic(agent, realm, gc);
+
         #[cfg(feature = "date")]
         DatePrototype::create_intrinsic(agent, realm);
         #[cfg(feature = "date")]
@@ -912,6 +918,11 @@ impl Intrinsics {
     #[cfg(feature = "math")]
     pub(crate) const fn math(&self) -> OrdinaryObject<'static> {
         IntrinsicObjectIndexes::MathObject.get_backing_object(self.object_index_base)
+    }
+
+    /// %Temporal%
+    pub(crate) const fn temporal(&self) -> OrdinaryObject<'static> {
+        IntrinsicObjectIndexes::TemporalObject.get_backing_object(self.object_index_base)
     }
 
     /// %Number.prototype%

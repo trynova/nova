@@ -66,6 +66,8 @@ mod set;
 #[cfg(feature = "shared-array-buffer")]
 mod shared_array_buffer;
 mod structured_data;
+#[cfg(feature = "temporal")]
+mod temporal;
 mod text_processing;
 #[cfg(feature = "array-buffer")]
 mod typed_array;
@@ -112,6 +114,8 @@ pub use set::*;
 #[cfg(feature = "shared-array-buffer")]
 pub use shared_array_buffer::*;
 pub(crate) use structured_data::*;
+#[cfg(feature = "temporal")]
+pub use temporal::*;
 pub use text_processing::*;
 #[cfg(feature = "array-buffer")]
 pub use typed_array::*;
