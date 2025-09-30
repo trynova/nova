@@ -39,6 +39,7 @@ use crate::{
         },
     },
     engine::{
+        Scoped,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
@@ -227,15 +228,13 @@ impl PromiseConstructor {
     fn perform_promise_all<'gc>(
         agent: &mut Agent,
         iterator_record: IteratorRecord,
-        constructor: Function,
+        constructor: Scoped<Function>,
         result_capability: PromiseCapability,
-        promise_resolve: Function,
+        promise_resolve: Scoped<Function>,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         let iterator_record = iterator_record.bind(gc.nogc());
-        let constructor = constructor.scope(agent, gc.nogc());
         let result_capability = result_capability.bind(gc.nogc());
-        let promise_resolve = promise_resolve.scope(agent, gc.nogc());
 
         let iterator = iterator_record.iterator.scope(agent, gc.nogc());
         let next_method = iterator_record.next_method.scope(agent, gc.nogc());
@@ -422,9 +421,9 @@ impl PromiseConstructor {
         let result = Self::perform_promise_all(
             agent,
             iterator_record.unbind(),
-            constructor.get(agent),
+            constructor,
             promise_capability.unbind(),
-            promise_resolve.get(agent),
+            promise_resolve,
             gc.reborrow(),
         )
         .unbind()
