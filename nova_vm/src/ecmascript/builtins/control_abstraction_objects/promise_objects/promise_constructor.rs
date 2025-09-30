@@ -387,11 +387,13 @@ impl PromiseConstructor {
         let promise = promise_capability.promise().scope(agent, gc.nogc());
 
         // 3. Let promiseResolve be Completion(GetPromiseResolve(C)).
-        let promise_resolve = get_promise_resolve(agent, constructor.get(agent), gc.reborrow());
+        let promise_resolve = get_promise_resolve(agent, constructor.get(agent), gc.reborrow())
+            .unbind()
+            .bind(gc.nogc());
 
         // 4. IfAbruptRejectPromise(promiseResolve, promiseCapability).
         let promise_capability = PromiseCapability {
-            promise: promise.get(agent),
+            promise: promise.get(agent).bind(gc.nogc()),
             must_be_unresolved: true,
         };
         let promise_resolve =
@@ -399,11 +401,13 @@ impl PromiseConstructor {
         let promise_resolve = promise_resolve.scope(agent, gc.nogc());
 
         // 5. Let iteratorRecord be Completion(GetIterator(iterable, sync)).
-        let iterator_record = get_iterator(agent, iterable.get(agent), false, gc.reborrow());
+        let iterator_record = get_iterator(agent, iterable.get(agent), false, gc.reborrow())
+            .unbind()
+            .bind(gc.nogc());
 
         // 6. IfAbruptRejectPromise(iteratorRecord, promiseCapability).
         let promise_capability = PromiseCapability {
-            promise: promise.get(agent),
+            promise: promise.get(agent).bind(gc.nogc()),
             must_be_unresolved: true,
         };
         let iterator_record =
@@ -450,7 +454,7 @@ impl PromiseConstructor {
                 };
 
                 let promise_capability = PromiseCapability {
-                    promise: promise.get(agent),
+                    promise: promise.get(agent).bind(gc.nogc()),
                     must_be_unresolved: true,
                 };
                 let result = if_abrupt_reject_promise_m!(agent, result, promise_capability, gc);
