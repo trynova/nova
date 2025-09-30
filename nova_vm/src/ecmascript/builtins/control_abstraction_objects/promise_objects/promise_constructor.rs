@@ -271,9 +271,11 @@ impl PromiseConstructor {
             let iterator_record = IteratorRecord {
                 iterator: iterator.get(agent),
                 next_method: next_method.get(agent),
-            };
+            }
+            .bind(gc.nogc());
+
             // a. Let next be ? IteratorStepValue(iteratorRecord).
-            let next = iterator_step_value(agent, iterator_record, gc.reborrow())
+            let next = iterator_step_value(agent, iterator_record.unbind(), gc.reborrow())
                 .unbind()?
                 .bind(gc.nogc());
 
