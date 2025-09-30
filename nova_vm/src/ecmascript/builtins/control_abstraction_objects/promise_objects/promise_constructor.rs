@@ -227,17 +227,15 @@ impl PromiseConstructor {
     /// ### [27.2.4.1.2 PerformPromiseAll ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiseall)
     fn perform_promise_all<'gc>(
         agent: &mut Agent,
-        iterator_record: IteratorRecord,
+        iterator: Scoped<Object>,
+        next_method: Scoped<Function>,
         constructor: Scoped<Function>,
         result_capability: PromiseCapability,
         promise_resolve: Scoped<Function>,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        let iterator_record = iterator_record.bind(gc.nogc());
         let result_capability = result_capability.bind(gc.nogc());
 
-        let iterator = iterator_record.iterator.scope(agent, gc.nogc());
-        let next_method = iterator_record.next_method.scope(agent, gc.nogc());
         // 1. Let values be a new empty List.
         let capacity = match iterator.get(agent) {
             Object::Array(array) => array.len(agent),
@@ -413,6 +411,7 @@ impl PromiseConstructor {
             return Err(throw_not_callable(agent, gc.into_nogc()));
         };
         let iterator = iterator_record.iterator.scope(agent, gc.nogc());
+        let next_method = iterator_record.next_method.scope(agent, gc.nogc());
 
         // TODO: Fix - Make it a return value from `perform_promise_all`
         let iterator_done = false;
@@ -420,7 +419,8 @@ impl PromiseConstructor {
         // 7. Let result be Completion(PerformPromiseAll(iteratorRecord, C, promiseCapability, promiseResolve)).
         let result = Self::perform_promise_all(
             agent,
-            iterator_record.unbind(),
+            iterator.clone(),
+            next_method,
             constructor,
             promise_capability.unbind(),
             promise_resolve,
@@ -435,7 +435,6 @@ impl PromiseConstructor {
                 // a. If iteratorRecord.[[Done]] is false, set result to Completion(IteratorClose(iteratorRecord, result)).
                 // todo: the error result somehow needs to tell us if iterator_record reached done; this could perhaps be an extra `iterator_done: &mut bool` parameter passed to `perform_promise_all` that is set to `true`.
                 let result = if !iterator_done {
-                    // let iterator_record = iterator_record.iterator; // get scoped iterator_record basically.
                     Err(iterator_close_with_error(
                         agent,
                         iterator.get(agent),
