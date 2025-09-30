@@ -225,6 +225,7 @@ impl PromiseConstructor {
     }
 
     /// ### [27.2.4.1.2 PerformPromiseAll ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiseall)
+    #[allow(clippy::too_many_arguments)]
     fn perform_promise_all<'gc>(
         agent: &mut Agent,
         iterator: &Scoped<Object>,
