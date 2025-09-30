@@ -39,6 +39,7 @@ sonic-rs = { workspace = true, optional = true }
 unicode-normalization = { workspace = true }
 usdt = { workspace = true }
 wtf8 = { workspace = true }
+temporal_rs = { workspace = true, optional = true }
 
 [features]
 default = [
@@ -52,6 +53,7 @@ default = [
     "regexp",
     "set",
     "annex-b",
+    "temporal", 
 ]
 array-buffer = ["ecmascript_atomics"]
 atomics = ["array-buffer", "shared-array-buffer", "ecmascript_atomics", "ecmascript_futex"]
@@ -63,6 +65,7 @@ shared-array-buffer = ["array-buffer", "ecmascript_atomics"]
 weak-refs = []
 set = []
 typescript = []
+temporal = ["temporal_rs"] 
 
 # Enables features defined by [Annex B](https://tc39.es/ecma262/#sec-additional-ecmascript-features-for-web-browsers)
 annex-b = ["annex-b-string", "annex-b-global", "annex-b-date", "annex-b-regexp"]
@@ -84,6 +87,7 @@ proposals = [
     "proposal-math-clamp",
     "proposal-is-error",
     "proposal-atomics-microwait",
+    "proposal-temporal",
 ]
 # Enables the [Float16Array proposal](https://tc39.es/proposal-float16array/)
 proposal-float16array = ["array-buffer"]
@@ -95,6 +99,8 @@ proposal-math-clamp = ["math"]
 proposal-is-error = []
 # Enables the [Atomics.pause proposal](https://tc39.es/proposal-atomics-microwait/)
 proposal-atomics-microwait = ["atomics"]
+# Enable the [Temporal proposal](https://tc39.es/proposal-temporal/)
+proposal-temporal = ["temporal"]
 
 [build-dependencies]
 small_string = { path = "../small_string", version = "0.2.0" }

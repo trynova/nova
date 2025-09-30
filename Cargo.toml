@@ -51,6 +51,7 @@ sonic-rs = "0.3.17"
 unicode-normalization = "0.1.24"
 usdt = { git = "https://github.com/aapoalas/usdt.git", branch = "nova-aarch64-branch" }
 wtf8 = "0.1"
+temporal_rs = "0.0.16"
 
 [workspace.metadata.dylint]
 libraries = [{ path = "nova_lint" }]
