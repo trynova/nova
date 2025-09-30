@@ -440,7 +440,7 @@ impl PromiseConstructor {
         .bind(gc.nogc());
 
         // 8. If result is an abrupt completion, then
-        let result = match result {
+        match result {
             Err(err) => {
                 // a. If iteratorRecord.[[Done]] is false, set result to Completion(IteratorClose(iteratorRecord, result)).
                 let result = if !iterator_done {
@@ -468,8 +468,8 @@ impl PromiseConstructor {
                 // 9. Return ! result.
                 Ok(result)
             }
-        };
-        result.unbind()
+        }
+        .unbind()
     }
 
     /// ### [27.2.4.2 Promise.allSettled ( iterable )](https://tc39.es/ecma262/#sec-promise.allsettled)
