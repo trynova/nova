@@ -227,14 +227,19 @@ impl PromiseConstructor {
     /// ### [27.2.4.1.2 PerformPromiseAll ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiseall)
     fn perform_promise_all<'gc>(
         agent: &mut Agent,
-        iterator: Scoped<Object>,
-        next_method: Scoped<Function>,
+        iterator_record: IteratorRecord,
         constructor: Scoped<Function>,
         result_capability: PromiseCapability,
         promise_resolve: Scoped<Function>,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         let result_capability = result_capability.bind(gc.nogc());
+        let IteratorRecord {
+            iterator,
+            next_method,
+        } = iterator_record.bind(gc.nogc());
+        let iterator = iterator.scope(agent, gc.nogc());
+        let next_method = next_method.scope(agent, gc.nogc());
 
         // 1. Let values be a new empty List.
         let capacity = match iterator.get(agent) {
@@ -425,10 +430,13 @@ impl PromiseConstructor {
         let iterator_done = false;
 
         // 7. Let result be Completion(PerformPromiseAll(iteratorRecord, C, promiseCapability, promiseResolve)).
+        let iterator_record = IteratorRecord {
+            iterator: iterator.get(agent),
+            next_method: next_method.get(agent),
+        };
         let result = Self::perform_promise_all(
             agent,
-            iterator.clone(),
-            next_method,
+            iterator_record,
             constructor,
             promise_capability.unbind(),
             promise_resolve,
