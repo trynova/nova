@@ -5,7 +5,9 @@
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_iterator_objects::{IteratorRecord, get_iterator, iterator_step_value},
+            operations_on_iterator_objects::{
+                IteratorRecord, get_iterator, iterator_close_with_error, iterator_step_value,
+            },
             operations_on_objects::{call, call_function, get, throw_not_callable},
             testing_and_comparison::{is_callable, is_constructor},
         },
@@ -411,19 +413,56 @@ impl PromiseConstructor {
         let Some(iterator_record) = iterator_record.into_iterator_record() else {
             return Err(throw_not_callable(agent, gc.into_nogc()));
         };
+        let iterator = iterator_record.iterator.scope(agent, gc.nogc());
 
-        // 8. If result is an abrupt completion, then
-        //         a. If iteratorRecord.[[Done]] is false, set result to Completion(IteratorClose(iteratorRecord, result)).
-        //         b. IfAbruptRejectPromise(result, promiseCapability).
-        // 9. Return ! result.
-        Self::perform_promise_all(
+        // TODO: Fix - Make it a return value from `perform_promise_all`
+        let iterator_done = false;
+
+        // 7. Let result be Completion(PerformPromiseAll(iteratorRecord, C, promiseCapability, promiseResolve)).
+        let result = Self::perform_promise_all(
             agent,
             iterator_record.unbind(),
             constructor.get(agent),
             promise_capability.unbind(),
             promise_resolve.get(agent),
-            gc,
+            gc.reborrow(),
         )
+        .unbind()
+        .bind(gc.nogc());
+
+        // 8. If result is an abrupt completion, then
+        let result = match result {
+            Err(err) => {
+                // a. If iteratorRecord.[[Done]] is false, set result to Completion(IteratorClose(iteratorRecord, result)).
+                // todo: the error result somehow needs to tell us if iterator_record reached done; this could perhaps be an extra `iterator_done: &mut bool` parameter passed to `perform_promise_all` that is set to `true`.
+                let result = if !iterator_done {
+                    // let iterator_record = iterator_record.iterator; // get scoped iterator_record basically.
+                    Err(iterator_close_with_error(
+                        agent,
+                        iterator.get(agent),
+                        err.unbind(),
+                        gc.reborrow(),
+                    )
+                    .unbind()
+                    .bind(gc.nogc()))
+                } else {
+                    Ok(err)
+                };
+
+                let promise_capability = PromiseCapability {
+                    promise: promise.get(agent),
+                    must_be_unresolved: true,
+                };
+                let result = if_abrupt_reject_promise_m!(agent, result, promise_capability, gc);
+                // 9. Return ! result.
+                Err(result)
+            }
+            Ok(result) => {
+                // 9. Return ! result.
+                Ok(result)
+            }
+        };
+        result.unbind()
     }
 
     /// ### [27.2.4.2 Promise.allSettled ( iterable )](https://tc39.es/ecma262/#sec-promise.allsettled)
