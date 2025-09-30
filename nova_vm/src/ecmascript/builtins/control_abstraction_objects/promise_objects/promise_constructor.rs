@@ -306,17 +306,6 @@ impl PromiseConstructor {
                 _ => Promise::resolve(agent, call_result.unbind(), gc.reborrow()),
             };
 
-            // e. Let steps be the algorithm steps defined in Promise.all Resolve Element Functions.
-            // f. Let length be the number of non-optional parameters of the function definition in Promise.all Resolve Element Functions.
-            // g. Let onFulfilled be CreateBuiltinFunction(steps, length, "", « [[AlreadyCalled]], [[Index]], [[Values]], [[Capability]], [[RemainingElements]] »).
-            // h. Set onFulfilled.[[AlreadyCalled]] to false.
-            // i. Set onFulfilled.[[Index]] to index.
-            // j. Set onFulfilled.[[Values]] to values.
-            // k. Set onFulfilled.[[Capability]] to resultCapability.
-            // l. Set onFulfilled.[[RemainingElements]] to remainingElementsCount.
-            // m. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] + 1.
-            // n. Perform ? Invoke(nextPromise, "then", « onFulfilled, resultCapability.[[Reject]] »).
-            // o. Set index to index + 1.
             let capability = PromiseCapability {
                 promise: next_promise.unbind(),
                 must_be_unresolved: true,
@@ -336,8 +325,20 @@ impl PromiseConstructor {
                 gc.nogc(),
             );
 
+            // e. Let steps be the algorithm steps defined in Promise.all Resolve Element Functions.
+            // f. Let length be the number of non-optional parameters of the function definition in Promise.all Resolve Element Functions.
+            // g. Let onFulfilled be CreateBuiltinFunction(steps, length, "", « [[AlreadyCalled]], [[Index]], [[Values]], [[Capability]], [[RemainingElements]] »).
+            // h. Set onFulfilled.[[AlreadyCalled]] to false.
+            // i. Set onFulfilled.[[Index]] to index.
+            // j. Set onFulfilled.[[Values]] to values.
+            // k. Set onFulfilled.[[Capability]] to resultCapability.
+            // l. Set onFulfilled.[[RemainingElements]] to remainingElementsCount.
             index += 1;
             let promise_all = promise_all_reference.get(agent).bind(gc.nogc());
+
+            // m. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] + 1.
+            // n. Perform ? Invoke(nextPromise, "then", « onFulfilled, resultCapability.[[Reject]] »).
+            // o. Set index to index + 1.
             promise_all.get_mut(agent).remaining_elements_count = index;
         }
 
