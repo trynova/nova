@@ -231,7 +231,7 @@ impl PromiseConstructor {
         constructor: Scoped<Function>,
         result_capability: PromiseCapability,
         promise_resolve: Scoped<Function>,
-        _iterator_done: &mut bool,
+        iterator_done: &mut bool,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         let result_capability = result_capability.bind(gc.nogc());
@@ -241,7 +241,7 @@ impl PromiseConstructor {
         } = iterator_record.bind(gc.nogc());
         let iterator = iterator.scope(agent, gc.nogc());
         let next_method = next_method.scope(agent, gc.nogc());
-        *_iterator_done = false;
+        *iterator_done = false;
 
         // 1. Let values be a new empty List.
         let capacity = match iterator.get(agent) {
@@ -288,7 +288,7 @@ impl PromiseConstructor {
 
             // b. If next is done, then
             let Some(next) = next else {
-                *_iterator_done = true;
+                *iterator_done = true;
                 break;
             };
 
