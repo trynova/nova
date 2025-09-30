@@ -444,25 +444,25 @@ impl PromiseConstructor {
             Err(err) => {
                 // a. If iteratorRecord.[[Done]] is false, set result to Completion(IteratorClose(iteratorRecord, result)).
                 let result = if !iterator_done {
-                    Err(iterator_close_with_error(
+                    iterator_close_with_error(
                         agent,
                         iterator.get(agent),
                         err.unbind(),
                         gc.reborrow(),
                     )
                     .unbind()
-                    .bind(gc.nogc()))
+                    .bind(gc.nogc())
                 } else {
-                    Ok(err)
+                    err
                 };
 
+                // b. IfAbruptRejectPromise(result, promiseCapability).
                 let promise_capability = PromiseCapability {
                     promise: promise.get(agent).bind(gc.nogc()),
                     must_be_unresolved: true,
                 };
-                let result = if_abrupt_reject_promise_m!(agent, result, promise_capability, gc);
-                // 9. Return ! result.
-                Err(result)
+                promise_capability.reject(agent, result.value().unbind(), gc.nogc());
+                Err(JsError::new(promise_capability.promise().into_value()))
             }
             Ok(result) => {
                 // 9. Return ! result.
