@@ -39,6 +39,8 @@ use crate::ecmascript::builtins::structured_data::shared_array_buffer_objects::{
     shared_array_buffer_constructor::SharedArrayBufferConstructor,
     shared_array_buffer_prototype::SharedArrayBufferPrototype,
 };
+#[cfg(feature = "temporal")]
+use crate::ecmascript::builtins::temporal::TemporalObject;
 #[cfg(feature = "regexp")]
 use crate::ecmascript::builtins::text_processing::regexp_objects::{
     regexp_constructor::RegExpConstructor, regexp_prototype::RegExpPrototype,
@@ -307,6 +309,11 @@ impl Intrinsics {
         BigIntConstructor::create_intrinsic(agent, realm);
         #[cfg(feature = "math")]
         MathObject::create_intrinsic(agent, realm, gc);
+
+        #[cfg(feature = "temporal")]
+        TemporalObject::create_intrinsic(agent, realm, gc);
+        
+
         #[cfg(feature = "date")]
         DatePrototype::create_intrinsic(agent, realm);
         #[cfg(feature = "date")]
@@ -1009,6 +1016,11 @@ impl Intrinsics {
     #[cfg(feature = "math")]
     pub(crate) const fn math(&self) -> OrdinaryObject<'static> {
         IntrinsicObjectIndexes::MathObject.get_backing_object(self.object_index_base)
+    }
+
+    /// %Temporal%
+    pub(crate) const fn temporal(&self) -> OrdinaryObject<'static> {
+        IntrinsicObjectIndexes::TemporalObject.get_backing_object(self.object_index_base)
     }
 
     /// %Number.prototype%
