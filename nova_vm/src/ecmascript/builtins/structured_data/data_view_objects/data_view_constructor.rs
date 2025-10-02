@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use ecmascript_atomics::Ordering;
+
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_index,
@@ -81,7 +83,7 @@ impl DataViewConstructor {
         }
 
         // 5. Let bufferByteLength be ArrayBufferByteLength(buffer, seq-cst).
-        let buffer_byte_length = buffer.byte_length(agent);
+        let buffer_byte_length = buffer.byte_length(agent, Ordering::SeqCst);
 
         // 6. If offset > bufferByteLength, throw a RangeError exception.
         if offset > buffer_byte_length {
@@ -150,7 +152,7 @@ impl DataViewConstructor {
         }
 
         // 12. Set bufferByteLength to ArrayBufferByteLength(buffer, seq-cst).
-        let buffer_byte_length = buffer.byte_length(agent);
+        let buffer_byte_length = buffer.byte_length(agent, Ordering::SeqCst);
 
         // 13. If offset > bufferByteLength, throw a RangeError exception.
         if offset > buffer_byte_length {

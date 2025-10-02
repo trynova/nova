@@ -84,6 +84,17 @@ pub struct NoGcScope<'a, 'b> {
     _scope_marker: PhantomData<&'b ScopeToken>,
 }
 
+impl<'a, 'b> NoGcScope<'a, 'b> {
+    /// If you're intentionally calling this function, you've probably made a
+    /// mistake. You already hold a NoGcScope and are trying to it into a
+    /// NoGcScope again: there is no need. Just remove this call.
+    #[inline(always)]
+    #[must_use]
+    pub(crate) fn into_nogc(self) -> Self {
+        self
+    }
+}
+
 impl GcToken {
     unsafe fn new() -> Self {
         Self
@@ -151,6 +162,7 @@ impl<'a, 'b> GcScope<'a, 'b> {
     /// that all engine values that were bound to the NoGcScope are dropped or
     /// are registered with the heap using Scoped or Global roots.
     #[inline]
+    #[must_use]
     pub fn nogc(&self) -> NoGcScope<'_, 'b> {
         NoGcScope::from_gc(self)
     }
@@ -164,6 +176,7 @@ impl<'a, 'b> GcScope<'a, 'b> {
     /// borrow checker does not like this with the `nogc()` method but allows
     /// it with this method.
     #[inline]
+    #[must_use]
     pub fn into_nogc(self) -> NoGcScope<'a, 'b> {
         NoGcScope {
             _gc_marker: PhantomData,
@@ -397,8 +410,8 @@ pub(crate) use bindable_handle;
 macro_rules! trivially_bindable {
     ($self:ty) => {
         // SAFETY: Trivially safe.
-        unsafe impl Bindable for $self {
-            type Of<'a> = $self;
+        unsafe impl crate::engine::context::Bindable for $self {
+            type Of<'a> = Self;
 
             #[inline(always)]
             fn unbind(self) -> Self::Of<'static> {
@@ -630,5 +643,122 @@ where
         // SAFETY: We assume that T properly implements Bindable. In that case
         // we can safely transmute the lifetime into the T's in the slice.
         unsafe { core::mem::transmute::<&'slice [T], &'slice [T::Of<'a>]>(self) }
+    }
+}
+
+// SAFETY: The blanket impls are safe if the implementors are.
+unsafe impl<'slice, T: Bindable, U: Bindable> Bindable for (T, U) {
+    type Of<'gc> = (T::Of<'gc>, U::Of<'gc>);
+
+    fn unbind(self) -> Self::Of<'static> {
+        (self.0.unbind(), self.1.unbind())
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        (self.0.bind(gc), self.1.bind(gc))
+    }
+}
+
+// SAFETY: The blanket impls are safe if the implementors are.
+unsafe impl<'slice, T: Bindable, U: Bindable, V: Bindable> Bindable for (T, U, V) {
+    type Of<'gc> = (T::Of<'gc>, U::Of<'gc>, V::Of<'gc>);
+
+    fn unbind(self) -> Self::Of<'static> {
+        (self.0.unbind(), self.1.unbind(), self.2.unbind())
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        (self.0.bind(gc), self.1.bind(gc), self.2.unbind())
+    }
+}
+
+// SAFETY: The blanket impls are safe if the implementors are.
+unsafe impl<'slice, T: Bindable, U: Bindable, V: Bindable, W: Bindable> Bindable for (T, U, V, W) {
+    type Of<'gc> = (T::Of<'gc>, U::Of<'gc>, V::Of<'gc>, W::Of<'gc>);
+
+    fn unbind(self) -> Self::Of<'static> {
+        (
+            self.0.unbind(),
+            self.1.unbind(),
+            self.2.unbind(),
+            self.3.unbind(),
+        )
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        (
+            self.0.bind(gc),
+            self.1.bind(gc),
+            self.2.unbind(),
+            self.3.bind(gc),
+        )
+    }
+}
+
+// SAFETY: The blanket impls are safe if the implementors are.
+unsafe impl<'slice, T: Bindable, U: Bindable, V: Bindable, W: Bindable, X: Bindable> Bindable
+    for (T, U, V, W, X)
+{
+    type Of<'gc> = (T::Of<'gc>, U::Of<'gc>, V::Of<'gc>, W::Of<'gc>, X::Of<'gc>);
+
+    fn unbind(self) -> Self::Of<'static> {
+        (
+            self.0.unbind(),
+            self.1.unbind(),
+            self.2.unbind(),
+            self.3.unbind(),
+            self.4.unbind(),
+        )
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        (
+            self.0.bind(gc),
+            self.1.bind(gc),
+            self.2.unbind(),
+            self.3.bind(gc),
+            self.4.bind(gc),
+        )
+    }
+}
+
+// SAFETY: The blanket impls are safe if the implementors are.
+unsafe impl<'slice, T: Bindable, U: Bindable, V: Bindable, W: Bindable, X: Bindable, Y: Bindable>
+    Bindable for (T, U, V, W, X, Y)
+{
+    type Of<'gc> = (
+        T::Of<'gc>,
+        U::Of<'gc>,
+        V::Of<'gc>,
+        W::Of<'gc>,
+        X::Of<'gc>,
+        Y::Of<'gc>,
+    );
+
+    fn unbind(self) -> Self::Of<'static> {
+        (
+            self.0.unbind(),
+            self.1.unbind(),
+            self.2.unbind(),
+            self.3.unbind(),
+            self.4.unbind(),
+            self.5.unbind(),
+        )
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        (
+            self.0.bind(gc),
+            self.1.bind(gc),
+            self.2.unbind(),
+            self.3.bind(gc),
+            self.4.bind(gc),
+            self.5.bind(gc),
+        )
     }
 }
