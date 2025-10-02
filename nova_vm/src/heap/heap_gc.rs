@@ -156,7 +156,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             promise_finally_functions,
             promises,
             promise_all_records,
-            proxys,
+            proxies,
             realms,
             #[cfg(feature = "regexp")]
             regexps,
@@ -706,17 +706,17 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                     .mark_values(&mut queues);
             }
         });
-        let mut proxy_marks: Box<[Proxy]> = queues.proxys.drain(..).collect();
+        let mut proxy_marks: Box<[Proxy]> = queues.proxies.drain(..).collect();
         proxy_marks.sort();
         proxy_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if let Some(marked) = bits.proxys.get_mut(index) {
+            if let Some(marked) = bits.proxies.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
                     return;
                 }
                 *marked = true;
-                proxys.get(index).mark_values(&mut queues);
+                proxies.get(index).mark_values(&mut queues);
             }
         });
         let mut map_marks: Box<[Map]> = queues.maps.drain(..).collect();
@@ -1458,7 +1458,7 @@ fn sweep(
         promise_finally_functions,
         promises,
         promise_all_records,
-        proxys,
+        proxies,
         realms,
         #[cfg(feature = "regexp")]
         regexps,
@@ -1969,9 +1969,9 @@ fn sweep(
                 );
             });
         }
-        if !proxys.is_empty() {
+        if !proxies.is_empty() {
             s.spawn(|| {
-                sweep_heap_vector_values(proxys, &compactions, &bits.proxys);
+                sweep_heap_vector_values(proxies, &compactions, &bits.proxies);
             });
         }
         if !realms.is_empty() {

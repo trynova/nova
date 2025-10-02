@@ -252,7 +252,7 @@ impl<'a> SourceCode<'a> {
         // SAFETY: AstNodes refers to the bump heap allocations of allocator.
         // We move allocator onto the heap together with nodes, making this
         // self-referential. The bump allocations are never moved or
-        // dellocated until dropping the entire struct, at which point the
+        // deallocated until dropping the entire struct, at which point the
         // "allocator" field is dropped last.
         let nodes = unsafe { core::mem::transmute::<AstNodes, AstNodes<'static>>(nodes) };
         let source_code = agent.heap.create(SourceCodeHeapData {

@@ -172,7 +172,7 @@ pub(crate) struct Heap {
     pub(crate) promise_resolving_functions: Vec<Option<PromiseResolvingFunctionHeapData<'static>>>,
     pub(crate) promise_finally_functions: Vec<PromiseFinallyFunctionHeapData<'static>>,
     pub(crate) promises: Vec<Option<PromiseHeapData<'static>>>,
-    pub(crate) proxys: Vec<Option<ProxyHeapData<'static>>>,
+    pub(crate) proxies: Vec<Option<ProxyHeapData<'static>>>,
     pub(crate) realms: Vec<Option<RealmRecord<'static>>>,
     pub(crate) promise_all_records: Vec<PromiseAllRecord<'static>>,
     #[cfg(feature = "regexp")]
@@ -328,7 +328,7 @@ impl Heap {
             promise_finally_functions: Vec::with_capacity(0),
             promises: Vec::with_capacity(0),
             promise_all_records: Vec::with_capacity(0),
-            proxys: Vec::with_capacity(0),
+            proxies: Vec::with_capacity(0),
             realms: Vec::with_capacity(1),
             #[cfg(feature = "regexp")]
             regexps: Vec::with_capacity(1024),
