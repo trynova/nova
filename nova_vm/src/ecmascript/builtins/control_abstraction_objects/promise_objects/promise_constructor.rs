@@ -6,7 +6,8 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_iterator_objects::{
-                IteratorRecord, get_iterator, iterator_close_with_error, iterator_step_value,
+                IteratorRecord, MaybeInvalidIteratorRecord, get_iterator,
+                iterator_close_with_error, iterator_step_value,
             },
             operations_on_objects::{call, call_function, get, throw_not_callable},
             testing_and_comparison::{is_callable, is_constructor},
@@ -289,21 +290,19 @@ impl PromiseConstructor {
             promise: promise.get(agent).bind(gc.nogc()),
             must_be_unresolved: true,
         };
-        let iterator_record =
-            if_abrupt_reject_promise_m!(agent, iterator_record, promise_capability, gc);
+        let MaybeInvalidIteratorRecord {
+            iterator,
+            next_method,
+        } = if_abrupt_reject_promise_m!(agent, iterator_record, promise_capability, gc);
 
-        let Some(iterator_record) = iterator_record.into_iterator_record() else {
-            return Err(throw_not_callable(agent, gc.into_nogc()));
-        };
-        let iterator = iterator_record.iterator.scope(agent, gc.nogc());
-        let next_method = iterator_record.next_method.scope(agent, gc.nogc());
+        let iterator = iterator.scope(agent, gc.nogc());
 
         // 7. Let result be Completion(PerformPromiseAll(iteratorRecord, C, promiseCapability, promiseResolve)).
         let mut iterator_done = false;
         let result = perform_promise_all(
             agent,
-            &iterator,
-            &next_method,
+            iterator.clone(),
+            next_method,
             constructor,
             promise_capability.unbind(),
             promise_resolve,
@@ -667,8 +666,8 @@ fn get_promise_resolve<'gc>(
 #[allow(clippy::too_many_arguments)]
 fn perform_promise_all<'gc>(
     agent: &mut Agent,
-    iterator: &Scoped<Object>,
-    next_method: &Scoped<Function>,
+    iterator: Scoped<Object>,
+    next_method: Option<Function>,
     constructor: Scoped<Function>,
     result_capability: PromiseCapability,
     promise_resolve: Scoped<Function>,
@@ -676,7 +675,12 @@ fn perform_promise_all<'gc>(
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Value<'gc>> {
     let result_capability = result_capability.bind(gc.nogc());
-    *iterator_done = false;
+
+    let Some(next_method) = next_method else {
+        return Err(throw_not_callable(agent, gc.into_nogc()));
+    };
+
+    let next_method = next_method.scope(agent, gc.nogc());
 
     // 1. Let values be a new empty List.
     let capacity = match iterator.get(agent) {
