@@ -695,16 +695,13 @@ fn perform_promise_all<'gc>(
 
     // 2. Let remainingElementsCount be the Record { [[Value]]: 1 }.
     let promise = result_capability.promise.scope(agent, gc.nogc());
-    let promise_all = PromiseAllRecord {
-        remaining_elements_count: 1,
-        result_array: result_array.get(agent),
-        promise: promise.get(agent),
-    }
-    .bind(gc.nogc());
-
     let promise_all_reference = agent
         .heap
-        .create(promise_all.unbind())
+        .create(PromiseAllRecord {
+            remaining_elements_count: 1,
+            result_array: result_array.get(agent),
+            promise: promise.get(agent),
+        })
         .scope(agent, gc.nogc());
 
     // 3. Let index be 0.
@@ -769,27 +766,13 @@ fn perform_promise_all<'gc>(
         .unbind()?
         .bind(gc.nogc());
 
+        // Note: as we don't yet support Promise subclassing, if we see a
+        // non-Promise return we wrap it inside a resolved Promise to get
+        // then-chaining.
         let next_promise = match call_result {
             Value::Promise(next_promise) => next_promise,
-            _ => Promise::resolve(agent, call_result.unbind(), gc.reborrow())
-                .unbind()
-                .bind(gc.nogc()),
+            _ => Promise::new_resolved(agent, call_result),
         };
-
-        let capability = PromiseCapability {
-            promise: next_promise,
-            must_be_unresolved: true,
-        };
-        let promise_all = promise_all_reference.get(agent).bind(gc.nogc());
-        let reaction = PromiseReactionHandler::PromiseAll { index, promise_all };
-        inner_promise_then(
-            agent,
-            next_promise.unbind(),
-            reaction.unbind(),
-            reaction.unbind(),
-            Some(capability.unbind()),
-            gc.nogc(),
-        );
 
         // e. Let steps be the algorithm steps defined in Promise.all Resolve Element Functions.
         // f. Let length be the number of non-optional parameters of the function definition in Promise.all Resolve Element Functions.
@@ -797,14 +780,24 @@ fn perform_promise_all<'gc>(
         // h. Set onFulfilled.[[AlreadyCalled]] to false.
         // i. Set onFulfilled.[[Index]] to index.
         // j. Set onFulfilled.[[Values]] to values.
+        let promise_all = promise_all_reference.get(agent).bind(gc.nogc());
+        let reaction = PromiseReactionHandler::PromiseAll { index, promise_all };
         // k. Set onFulfilled.[[Capability]] to resultCapability.
         // l. Set onFulfilled.[[RemainingElements]] to remainingElementsCount.
-        index += 1;
-
         // m. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] + 1.
+        promise_all.get_mut(agent).remaining_elements_count += 1;
         // n. Perform ? Invoke(nextPromise, "then", « onFulfilled, resultCapability.[[Reject]] »).
+        inner_promise_then(
+            agent,
+            next_promise.unbind(),
+            reaction.unbind(),
+            reaction.unbind(),
+            None,
+            gc.nogc(),
+        );
+
         // o. Set index to index + 1.
-        promise_all.get_mut(agent).remaining_elements_count = index;
+        index += 1;
     }
 }
 

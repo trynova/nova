@@ -41,6 +41,16 @@ impl<'a> Promise<'a> {
         self.0.into_index()
     }
 
+    /// Create a new resolved Promise.
+    pub(crate) fn new_resolved(agent: &mut Agent, value: Value<'a>) -> Self {
+        agent.heap.create(PromiseHeapData {
+            object_index: None,
+            promise_state: PromiseState::Fulfilled {
+                promise_result: value,
+            },
+        })
+    }
+
     /// Create a new rejected, unhandled Promise.
     pub(crate) fn new_rejected(agent: &mut Agent, error: Value, gc: NoGcScope<'a, '_>) -> Self {
         agent

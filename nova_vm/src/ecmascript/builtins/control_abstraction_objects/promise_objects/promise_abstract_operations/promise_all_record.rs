@@ -42,7 +42,7 @@ impl<'a> PromiseAll<'a> {
         let promise_all = self.bind(gc.nogc());
         let value = value.bind(gc.nogc());
 
-        let result_array = self.get_result_array(agent, gc.nogc());
+        let result_array = promise_all.get_result_array(agent, gc.nogc());
 
         let elements = result_array.as_mut_slice(agent);
         elements[index as usize] = Some(value.unbind());

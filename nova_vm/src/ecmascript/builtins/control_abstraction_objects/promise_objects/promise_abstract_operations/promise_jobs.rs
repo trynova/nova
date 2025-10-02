@@ -286,26 +286,20 @@ impl PromiseReactionJob {
             }
             PromiseReactionHandler::PromiseAll { promise_all, index } => {
                 let reaction_type = agent[reaction].reaction_type;
-                let capability = agent[reaction].capability.clone().unwrap();
-                let scoped_arg = argument.scope(agent, gc.nogc());
                 match reaction_type {
                     PromiseReactionType::Fulfill => {
                         promise_all.on_promise_fulfilled(
                             agent,
                             index,
-                            scoped_arg.get(agent),
+                            argument.unbind(),
                             gc.reborrow(),
                         );
-                        (Ok(scoped_arg.get(agent)), capability.bind(gc.nogc()))
                     }
                     PromiseReactionType::Reject => {
-                        promise_all.on_promise_rejected(agent, scoped_arg.get(agent), gc.nogc());
-                        (
-                            Err(JsError::new(scoped_arg.get(agent))),
-                            capability.bind(gc.nogc()),
-                        )
+                        promise_all.on_promise_rejected(agent, argument.unbind(), gc.nogc());
                     }
                 }
+                return Ok(());
             }
         };
 
