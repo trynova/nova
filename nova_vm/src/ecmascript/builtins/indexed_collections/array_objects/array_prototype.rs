@@ -644,11 +644,13 @@ impl ArrayPrototype {
         // 11. If end is undefined, let relativeEnd be len; else let relativeEnd be ? ToIntegerOrInfinity(end).
         // SAFETY: end has not been shared.
         let end = end.map(|e| unsafe { e.take(agent) }.bind(gc.nogc()));
-        let final_end = if end.is_none() || end.unwrap().is_undefined() {
+        let final_end = if end.is_none_or(|e| e.is_undefined()) {
             len
         } else {
+            // SAFETY: checked.
+            let end = unsafe { end.unwrap_unchecked() };
             let relative_end =
-                to_integer_or_infinity(agent, end.unwrap().unbind(), gc.reborrow()).unbind()?;
+                to_integer_or_infinity(agent, end.unbind(), gc.reborrow()).unbind()?;
             // 12. If relativeEnd = -∞, let final be 0.
             if relative_end.is_neg_infinity() {
                 0
