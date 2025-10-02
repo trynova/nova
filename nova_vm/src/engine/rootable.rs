@@ -141,7 +141,11 @@ pub mod private {
     #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
     use crate::ecmascript::builtins::typed_array::Float16Array;
     #[cfg(feature = "array-buffer")]
-    use crate::ecmascript::builtins::{ArrayBuffer, data_view::DataView, typed_array::TypedArray};
+    use crate::ecmascript::builtins::{
+        ArrayBuffer,
+        data_view::DataView,
+        typed_array::{AnyTypedArray, TypedArray},
+    };
     #[cfg(feature = "shared-array-buffer")]
     use crate::ecmascript::builtins::{
         data_view::SharedDataView, shared_array_buffer::SharedArrayBuffer,
@@ -273,6 +277,8 @@ pub mod private {
     impl RootableSealed for AnyDataView<'_> {}
     #[cfg(feature = "array-buffer")]
     impl RootableSealed for DataView<'_> {}
+    #[cfg(feature = "array-buffer")]
+    impl RootableSealed for AnyTypedArray<'_> {}
     #[cfg(feature = "array-buffer")]
     impl RootableSealed for TypedArray<'_> {}
     #[cfg(feature = "array-buffer")]
@@ -453,8 +459,8 @@ pub use scoped::{Scopable, ScopableCollection, Scoped, ScopedCollection};
 
 use super::{Executable, context::Bindable};
 
-pub trait Rootable: core::fmt::Debug + Copy + RootableSealed {
-    type RootRepr: Sized + Clone + core::fmt::Debug;
+pub trait Rootable: Copy + RootableSealed {
+    type RootRepr: Sized + Clone;
 
     /// Convert a rootable value to a root representation directly if the value
     /// does not need to be rooted, or return its heap root representation as
@@ -476,9 +482,7 @@ pub trait Rootable: core::fmt::Debug + Copy + RootableSealed {
 }
 
 // Blanket impl for Objects
-impl<'a, T: core::fmt::Debug + RootableSealed + IntoObject<'a> + TryFrom<HeapRootData>> Rootable
-    for T
-{
+impl<'a, T: RootableSealed + IntoObject<'a> + TryFrom<HeapRootData>> Rootable for T {
     type RootRepr = HeapRootRef;
 
     #[inline]

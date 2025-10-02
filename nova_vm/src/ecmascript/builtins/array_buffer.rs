@@ -13,7 +13,7 @@ use crate::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
             ARRAY_BUFFER_DISCRIMINANT, InternalMethods, InternalSlots, Object, OrdinaryObject,
-            Value, copy_data_block_bytes, create_byte_data_block,
+            Value, Viewable, copy_data_block_bytes, create_byte_data_block,
         },
     },
     engine::{
@@ -30,6 +30,7 @@ use abstract_operations::detach_array_buffer;
 pub(crate) use abstract_operations::*;
 use core::ops::{Index, IndexMut};
 pub use data::*;
+use ecmascript_atomics::Ordering;
 
 #[cfg(feature = "shared-array-buffer")]
 use super::shared_array_buffer::SharedArrayBuffer;
@@ -113,6 +114,7 @@ impl ArrayBuffer<'_> {
     /// The function itself has no safety implications, but the caller should
     /// keep in mind that if JavaScript is called into the contents of the
     /// ArrayBuffer may be rewritten or reallocated.
+    #[inline]
     pub fn as_slice(self, agent: &Agent) -> &[u8] {
         agent[self].get_data_block()
     }
@@ -126,8 +128,67 @@ impl ArrayBuffer<'_> {
     /// The function itself has no safety implications, but the caller should
     /// keep in mind that if JavaScript is called into the contents of the
     /// ArrayBuffer may be rewritten or reallocated.
+    #[inline]
     pub fn as_mut_slice(self, agent: &mut Agent) -> &mut [u8] {
-        &mut *agent[self].get_data_block_mut()
+        agent[self].get_data_block_mut()
+    }
+
+    /// Create a T slice from an ArrayBuffer and byte offset and length values.
+    ///
+    /// This method should be used when looping over items of a TypedArray.
+    pub(crate) fn as_viewable_slice<'a, T: Viewable>(
+        self,
+        agent: &Agent,
+        byte_offset: usize,
+        byte_length: Option<usize>,
+    ) -> &[T] {
+        let byte_slice = self.as_slice(agent);
+        let byte_limit = byte_length.map(|byte_length| byte_offset.saturating_add(byte_length));
+        if byte_limit.unwrap_or(byte_offset) > byte_slice.len() {
+            return &[];
+        }
+        let byte_slice = if let Some(byte_limit) = byte_limit {
+            &byte_slice[byte_offset..byte_limit]
+        } else {
+            &byte_slice[byte_offset..]
+        };
+        // SAFETY: All bytes in byte_slice are initialized, and all bitwise
+        // combinations of T are valid values. Alignment of T's is
+        // guaranteed by align_to_mut itself.
+        let (head, slice, _) = unsafe { byte_slice.align_to::<T>() };
+        if !head.is_empty() {
+            panic!("ArrayBuffer is not properly aligned for T");
+        }
+        slice
+    }
+
+    /// Create a T slice from an ArrayBuffer and byte offset and length values.
+    ///
+    /// This method should be used when looping over items of a TypedArray.
+    pub(crate) fn as_mut_viewable_slice<'a, T: Viewable>(
+        self,
+        agent: &mut Agent,
+        byte_offset: usize,
+        byte_length: Option<usize>,
+    ) -> &mut [T] {
+        let byte_slice = self.as_mut_slice(agent);
+        let byte_limit = byte_length.map(|byte_length| byte_offset.saturating_add(byte_length));
+        if byte_limit.unwrap_or(byte_offset) > byte_slice.len() {
+            return &mut [];
+        }
+        let byte_slice = if let Some(byte_limit) = byte_limit {
+            &mut byte_slice[byte_offset..byte_limit]
+        } else {
+            &mut byte_slice[byte_offset..]
+        };
+        // SAFETY: All bytes in byte_slice are initialized, and all bitwise
+        // combinations of T are valid values. Alignment of T's is
+        // guaranteed by align_to_mut itself.
+        let (head, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
+        if !head.is_empty() {
+            panic!("ArrayBuffer is not properly aligned for T");
+        }
+        slice
     }
 
     /// Copy data from `source` ArrayBuffer to this ArrayBuffer.
@@ -342,8 +403,12 @@ impl<'ab> AnyArrayBuffer<'ab> {
 
     /// \[\[ByteLength]]
     #[inline(always)]
-    pub fn byte_length(self, agent: &Agent) -> usize {
-        array_buffer_delegate!(self, byte_length, agent)
+    pub fn byte_length(self, agent: &Agent, order: Ordering) -> usize {
+        match self {
+            Self::ArrayBuffer(ta) => ta.byte_length(agent),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedArrayBuffer(sta) => sta.byte_length(agent, order),
+        }
     }
 }
 

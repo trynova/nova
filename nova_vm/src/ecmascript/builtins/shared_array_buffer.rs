@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use ecmascript_atomics::Ordering;
+
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
@@ -46,8 +48,8 @@ impl<'sab> SharedArrayBuffer<'sab> {
     /// Note, if this is a growable SharedArrayBuffer then this is a
     /// synchronising operation.
     #[inline]
-    pub fn byte_length(self, agent: &Agent) -> usize {
-        self.get(agent).data_block.byte_length()
+    pub fn byte_length(self, agent: &Agent, order: Ordering) -> usize {
+        self.get(agent).data_block.byte_length(order)
     }
 
     /// Get the maximum byte length of the SharedArrayBuffer.

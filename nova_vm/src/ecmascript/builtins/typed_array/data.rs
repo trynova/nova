@@ -2,12 +2,15 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use ahash::AHashMap;
+
 use crate::{
     ecmascript::{
         builtins::{
             ArrayBuffer,
             array_buffer::{ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset},
             shared_array_buffer::SharedArrayBuffer,
+            typed_array::{SharedVoidArray, VoidArray},
         },
         types::OrdinaryObject,
     },
@@ -97,7 +100,40 @@ pub struct TypedArrayRecord<'a> {
 }
 bindable_handle!(TypedArrayRecord);
 
-impl<'a> TypedArrayRecord<'a> {}
+impl<'a> TypedArrayRecord<'a> {
+    /// Get the byte offset value of this TypedArrayRecord.
+    #[inline(always)]
+    pub(crate) fn get_byte_offset(
+        &self,
+        key: VoidArray,
+        byte_offsets: &AHashMap<VoidArray, usize>,
+    ) -> usize {
+        let byte_offset = self.byte_offset;
+        if byte_offset == ViewedArrayBufferByteOffset::heap() {
+            *byte_offsets.get(&key).unwrap()
+        } else {
+            byte_offset.0 as usize
+        }
+    }
+
+    /// Get the byte length value of this TypedArrayRecord, or None if it is
+    /// AUTO.
+    #[inline(always)]
+    pub(crate) fn get_byte_length(
+        &self,
+        key: VoidArray,
+        byte_lengths: &AHashMap<VoidArray, usize>,
+    ) -> Option<usize> {
+        let byte_length = self.byte_length;
+        if byte_length == ViewedArrayBufferByteLength::heap() {
+            Some(*byte_lengths.get(&key).unwrap())
+        } else if byte_length == ViewedArrayBufferByteLength::auto() {
+            None
+        } else {
+            Some(byte_length.0 as usize)
+        }
+    }
+}
 
 impl Default for TypedArrayRecord<'_> {
     fn default() -> Self {
@@ -128,7 +164,40 @@ pub struct SharedTypedArrayRecord<'a> {
 }
 bindable_handle!(SharedTypedArrayRecord);
 
-impl<'a> SharedTypedArrayRecord<'a> {}
+impl<'a> SharedTypedArrayRecord<'a> {
+    /// Get the byte offset value of this SharedTypedArrayRecord.
+    #[inline(always)]
+    pub(crate) fn get_byte_offset(
+        &self,
+        key: SharedVoidArray,
+        byte_offsets: &AHashMap<SharedVoidArray, usize>,
+    ) -> usize {
+        let byte_offset = self.byte_offset;
+        if byte_offset == ViewedArrayBufferByteOffset::heap() {
+            *byte_offsets.get(&key).unwrap()
+        } else {
+            byte_offset.0 as usize
+        }
+    }
+
+    /// Get the byte length value of this SharedTypedArrayRecord, or None if it
+    /// is AUTO.
+    #[inline(always)]
+    pub(crate) fn get_byte_length(
+        &self,
+        key: SharedVoidArray,
+        byte_lengths: &AHashMap<SharedVoidArray, usize>,
+    ) -> Option<usize> {
+        let byte_length = self.byte_length;
+        if byte_length == ViewedArrayBufferByteLength::heap() {
+            Some(*byte_lengths.get(&key).unwrap())
+        } else if byte_length == ViewedArrayBufferByteLength::auto() {
+            None
+        } else {
+            Some(byte_length.0 as usize)
+        }
+    }
+}
 
 impl Default for SharedTypedArrayRecord<'_> {
     fn default() -> Self {

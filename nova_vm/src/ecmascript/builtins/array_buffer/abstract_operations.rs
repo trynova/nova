@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use ecmascript_atomics::Ordering;
+
 use super::{AnyArrayBuffer, ArrayBuffer, InternalBuffer};
 use crate::{
     Heap,
@@ -20,26 +22,6 @@ use crate::{
 // TODO: Implement the contents of the `DetachKey` struct?
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
 pub struct DetachKey {}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
-#[repr(u8)]
-pub(crate) enum Ordering {
-    Unordered = core::sync::atomic::Ordering::Relaxed as u8,
-    SeqCst = core::sync::atomic::Ordering::SeqCst as u8,
-    #[expect(dead_code)]
-    Init,
-}
-
-impl From<Ordering> for ecmascript_atomics::Ordering {
-    fn from(value: Ordering) -> Self {
-        match value {
-            Ordering::Unordered => Self::Unordered,
-            Ordering::SeqCst => Self::SeqCst,
-            // This shouldn't ever actually happen.
-            Ordering::Init => Self::SeqCst,
-        }
-    }
-}
 
 /// ### [25.1.3.1 AllocateArrayBuffer ( constructor, byteLength \[ , maxByteLength \] )](https://tc39.es/ecma262/#sec-allocatearraybuffer)
 ///
@@ -176,7 +158,7 @@ pub(crate) fn detach_array_buffer<'a>(
 /// range starting at srcByteOffset and continuing for srcLength bytes.
 pub(crate) fn clone_array_buffer<'a>(
     agent: &mut Agent,
-    src_buffer: ArrayBuffer<'a>,
+    src_buffer: AnyArrayBuffer<'a>,
     src_byte_offset: usize,
     src_length: usize,
     gc: NoGcScope<'a, '_>,
@@ -186,7 +168,11 @@ pub(crate) fn clone_array_buffer<'a>(
     // 2. Let targetBuffer be ? AllocateArrayBuffer(%ArrayBuffer%, srcLength).
     let target_buffer = ArrayBuffer::new(agent, src_length, gc)?;
 
-    let Heap { array_buffers, .. } = &mut agent.heap;
+    let Heap {
+        array_buffers,
+        shared_array_buffers,
+        ..
+    } = &mut agent.heap;
     let (target_buffer_data, array_buffers) = array_buffers.split_last_mut().unwrap();
     let target_buffer_data = target_buffer_data.as_mut().unwrap();
     let src_buffer = array_buffers

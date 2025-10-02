@@ -79,7 +79,7 @@ impl ArrayIteratorPrototype {
                 let ta_record = make_typed_array_with_buffer_witness_record(
                     agent,
                     array,
-                    crate::ecmascript::builtins::array_buffer::Ordering::SeqCst,
+                    ecmascript_atomics::Ordering::SeqCst,
                 );
                 // 2. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
                 if match array {

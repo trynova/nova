@@ -17,6 +17,7 @@ use core::{
 };
 use std::alloc::{Layout, alloc_zeroed, dealloc, handle_alloc_error, realloc};
 
+use ecmascript_atomics::RacyStorage;
 #[cfg(feature = "shared-array-buffer")]
 use ecmascript_atomics::{Ordering as ECMAScriptOrdering, RacyPtr, RacySlice};
 use num_bigint::Sign;
@@ -31,7 +32,7 @@ use crate::{
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{BigInt, IntoNumeric, Number, Numeric, Value},
     },
-    engine::context::NoGcScope,
+    engine::context::{NoGcScope, trivially_bindable},
 };
 
 #[cfg(feature = "array-buffer")]
@@ -51,6 +52,7 @@ pub(crate) struct DataBlock {
     ptr: Option<NonNull<u8>>,
     byte_length: usize,
 }
+trivially_bindable!(DataBlock);
 
 impl core::fmt::Debug for DataBlock {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -123,6 +125,7 @@ impl DataBlock {
         self.ptr.is_none()
     }
 
+    /// Allocate a new DataBlock with the given size.
     fn new(len: usize) -> Option<Self> {
         if len == 0 {
             Some(Self::EMPTY_DATA_BLOCK)
@@ -646,10 +649,12 @@ impl SharedDataBlock {
     }
 
     /// Get a racy memory slice from the SharedDataBlock.
-    fn as_racy_slice(&self) -> RacySlice<'_, u8> {
+    pub(crate) fn as_racy_slice(&self) -> RacySlice<'_, u8> {
         // SAFETY: Type guarantees that ptr is backed by at least byte_length
         // racy bytes.
-        unsafe { RacySlice::from_raw_parts(self.ptr, self.byte_length()) }
+        unsafe {
+            RacySlice::from_raw_parts(self.ptr, self.byte_length(ECMAScriptOrdering::Unordered))
+        }
     }
 
     /// Get a reference to the atomic reference counter.
@@ -678,7 +683,7 @@ impl SharedDataBlock {
     /// can be grown from other threads and reading it is a sequentially
     /// consistent atomic operation.
     #[inline(always)]
-    pub(crate) fn byte_length(&self) -> usize {
+    pub(crate) fn byte_length(&self, order: ECMAScriptOrdering) -> usize {
         if self.is_dangling() {
             return 0;
         }
@@ -688,7 +693,10 @@ impl SharedDataBlock {
             // pointer points to the racy memory of
             // `(AtomicUsize, AtomicUsize, ...racy memory...)`
             let byte_length = unsafe { self.get_byte_length() };
-            byte_length.load(Ordering::SeqCst)
+            byte_length.load(match order {
+                ECMAScriptOrdering::Unordered => Ordering::Relaxed,
+                ECMAScriptOrdering::SeqCst => Ordering::SeqCst,
+            })
         } else {
             self.max_byte_length()
         }
@@ -1223,6 +1231,10 @@ mod private {
 }
 
 pub trait Viewable: 'static + private::Sealed + Copy + PartialEq {
+    /// Type of the data in its storage format. This is used with
+    /// SharedDataBlock.
+    type Storage: RacyStorage;
+
     /// Functions as the \[\[ContentType\]\] internal slot of the TypedArray and
     /// as a marker for data views. Used to determine that the viewable type is
     /// a BigInt.
@@ -1243,10 +1255,10 @@ pub trait Viewable: 'static + private::Sealed + Copy + PartialEq {
             self.into_be_value(agent, gc)
         }
     }
-    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self;
-    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self;
+    fn from_le_value(agent: &Agent, value: Numeric) -> Self;
+    fn from_be_value(agent: &Agent, value: Numeric) -> Self;
     #[inline(always)]
-    fn from_ne_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_ne_value(agent: &Agent, value: Numeric) -> Self {
         if cfg!(target_endian = "little") {
             Self::from_le_value(agent, value)
         } else {
@@ -1278,6 +1290,10 @@ pub trait Viewable: 'static + private::Sealed + Copy + PartialEq {
     /// go through a conversion into Value.
     fn from_bits(bits: u64) -> Self;
 
+    fn into_storage(value: Self) -> Self::Storage;
+
+    fn from_storage(value: Self::Storage) -> Self;
+
     /// Convert a Viewable value into an f64.
     ///
     /// This is used to convert Viewables to other Viewables without having to
@@ -1294,6 +1310,10 @@ pub trait Viewable: 'static + private::Sealed + Copy + PartialEq {
 }
 
 impl Viewable for () {
+    // Note: this is not a valid storage format for () really. VoidArrays never
+    // get stored so it's okay.
+    type Storage = u8;
+
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint8Array;
     const NAME: &str = "VoidArray";
@@ -1306,11 +1326,11 @@ impl Viewable for () {
         panic!("VoidArray is a marker type");
     }
 
-    fn from_be_value(_: &mut Agent, _: Numeric) -> Self {
+    fn from_be_value(_: &Agent, _: Numeric) -> Self {
         panic!("VoidArray is a marker type");
     }
 
-    fn from_le_value(_: &mut Agent, _: Numeric) -> Self {
+    fn from_le_value(_: &Agent, _: Numeric) -> Self {
         panic!("VoidArray is a marker type");
     }
 
@@ -1330,6 +1350,14 @@ impl Viewable for () {
         panic!("VoidArray is a marker type");
     }
 
+    fn from_storage(_: Self::Storage) -> Self {
+        panic!("VoidArray is a marker type");
+    }
+
+    fn into_storage(_: Self) -> Self::Storage {
+        panic!("VoidArray is a marker type");
+    }
+
     fn into_f64(self) -> f64 {
         panic!("VoidArray is a marker type");
     }
@@ -1344,6 +1372,8 @@ impl Viewable for () {
 }
 
 impl Viewable for u8 {
+    type Storage = Self;
+
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint8Array;
     const NAME: &str = "Uint8Array";
@@ -1356,14 +1386,14 @@ impl Viewable for u8 {
         Number::from(self.to_le()).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_be_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
         to_uint8_number(agent, value).to_be()
     }
 
-    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_le_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
@@ -1392,6 +1422,16 @@ impl Viewable for u8 {
         bits as Self
     }
 
+    #[inline(always)]
+    fn from_storage(value: Self::Storage) -> Self {
+        value
+    }
+
+    #[inline(always)]
+    fn into_storage(value: Self) -> Self::Storage {
+        value
+    }
+
     fn into_f64(self) -> f64 {
         self.into()
     }
@@ -1406,6 +1446,8 @@ impl Viewable for u8 {
     }
 }
 impl Viewable for U8Clamped {
+    type Storage = u8;
+
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint8ClampedArray;
     const NAME: &str = "Uint8ClampedArray";
@@ -1418,14 +1460,14 @@ impl Viewable for U8Clamped {
         Number::from(self.0.to_le()).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_be_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
         Self(to_uint8_clamp_number(agent, value).to_be())
     }
 
-    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_le_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
@@ -1454,6 +1496,16 @@ impl Viewable for U8Clamped {
         U8Clamped(bits.clamp(0, 255) as u8)
     }
 
+    #[inline(always)]
+    fn from_storage(value: Self::Storage) -> Self {
+        Self(value)
+    }
+
+    #[inline(always)]
+    fn into_storage(value: Self) -> Self::Storage {
+        value.0
+    }
+
     fn into_f64(self) -> f64 {
         self.0.into()
     }
@@ -1468,6 +1520,8 @@ impl Viewable for U8Clamped {
     }
 }
 impl Viewable for i8 {
+    type Storage = u8;
+
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Int8Array;
     const NAME: &str = "Int8Array";
@@ -1480,14 +1534,14 @@ impl Viewable for i8 {
         Number::from(self.to_le()).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_be_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
         to_int8_number(agent, value).to_be()
     }
 
-    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_le_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
@@ -1516,6 +1570,16 @@ impl Viewable for i8 {
         bits as Self
     }
 
+    #[inline(always)]
+    fn from_storage(value: Self::Storage) -> Self {
+        value.cast_signed()
+    }
+
+    #[inline(always)]
+    fn into_storage(value: Self) -> Self::Storage {
+        value.cast_unsigned()
+    }
+
     fn into_f64(self) -> f64 {
         self.into()
     }
@@ -1530,6 +1594,8 @@ impl Viewable for i8 {
     }
 }
 impl Viewable for u16 {
+    type Storage = Self;
+
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint16Array;
     const NAME: &str = "Uint16Array";
@@ -1542,14 +1608,14 @@ impl Viewable for u16 {
         Number::from(self.to_le()).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_be_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
         to_uint16_number(agent, value).to_be()
     }
 
-    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_le_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
@@ -1578,6 +1644,16 @@ impl Viewable for u16 {
         bits as Self
     }
 
+    #[inline(always)]
+    fn from_storage(value: Self::Storage) -> Self {
+        value
+    }
+
+    #[inline(always)]
+    fn into_storage(value: Self) -> Self::Storage {
+        value
+    }
+
     fn into_f64(self) -> f64 {
         self.into()
     }
@@ -1592,6 +1668,8 @@ impl Viewable for u16 {
     }
 }
 impl Viewable for i16 {
+    type Storage = u16;
+
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Int16Array;
     const NAME: &str = "Int16Array";
@@ -1604,14 +1682,14 @@ impl Viewable for i16 {
         Number::from(self.to_le()).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_be_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
         to_int16_number(agent, value).to_be()
     }
 
-    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_le_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
@@ -1640,6 +1718,16 @@ impl Viewable for i16 {
         bits as Self
     }
 
+    #[inline(always)]
+    fn from_storage(value: Self::Storage) -> Self {
+        value.cast_signed()
+    }
+
+    #[inline(always)]
+    fn into_storage(value: Self) -> Self::Storage {
+        value.cast_unsigned()
+    }
+
     fn into_f64(self) -> f64 {
         self.into()
     }
@@ -1654,6 +1742,8 @@ impl Viewable for i16 {
     }
 }
 impl Viewable for u32 {
+    type Storage = Self;
+
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint32Array;
     const NAME: &str = "Uint32Array";
@@ -1666,14 +1756,14 @@ impl Viewable for u32 {
         Number::from(self.to_le()).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_be_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
         to_uint32_number(agent, value).to_be()
     }
 
-    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_le_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
@@ -1702,6 +1792,16 @@ impl Viewable for u32 {
         bits as Self
     }
 
+    #[inline(always)]
+    fn from_storage(value: Self::Storage) -> Self {
+        value
+    }
+
+    #[inline(always)]
+    fn into_storage(value: Self) -> Self::Storage {
+        value
+    }
+
     fn into_f64(self) -> f64 {
         self.into()
     }
@@ -1716,6 +1816,8 @@ impl Viewable for u32 {
     }
 }
 impl Viewable for i32 {
+    type Storage = u32;
+
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Int32Array;
     const NAME: &str = "Int32Array";
@@ -1728,14 +1830,14 @@ impl Viewable for i32 {
         Number::from(self.to_le()).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_be_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
         to_int32_number(agent, value).to_be()
     }
 
-    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_le_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
@@ -1764,6 +1866,16 @@ impl Viewable for i32 {
         bits as Self
     }
 
+    #[inline(always)]
+    fn from_storage(value: Self::Storage) -> Self {
+        value.cast_signed()
+    }
+
+    #[inline(always)]
+    fn into_storage(value: Self) -> Self::Storage {
+        value.cast_unsigned()
+    }
+
     fn into_f64(self) -> f64 {
         self.into()
     }
@@ -1778,6 +1890,8 @@ impl Viewable for i32 {
     }
 }
 impl Viewable for u64 {
+    type Storage = Self;
+
     const IS_BIGINT: bool = true;
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::BigUint64Array;
@@ -1791,14 +1905,14 @@ impl Viewable for u64 {
         BigInt::from_u64(agent, self.to_le()).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_be_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = BigInt::try_from(value) else {
             unreachable!()
         };
         to_big_uint64_big_int(agent, value).to_be()
     }
 
-    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_le_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = BigInt::try_from(value) else {
             unreachable!()
         };
@@ -1838,6 +1952,16 @@ impl Viewable for u64 {
         bits
     }
 
+    #[inline(always)]
+    fn from_storage(value: Self::Storage) -> Self {
+        value
+    }
+
+    #[inline(always)]
+    fn into_storage(value: Self) -> Self::Storage {
+        value
+    }
+
     fn into_f64(self) -> f64 {
         self as f64
     }
@@ -1852,6 +1976,8 @@ impl Viewable for u64 {
     }
 }
 impl Viewable for i64 {
+    type Storage = u64;
+
     const IS_BIGINT: bool = true;
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::BigInt64Array;
@@ -1865,14 +1991,14 @@ impl Viewable for i64 {
         BigInt::from_i64(agent, self.to_le()).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_be_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = BigInt::try_from(value) else {
             unreachable!()
         };
         to_big_int64_big_int(agent, value).to_be()
     }
 
-    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_le_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = BigInt::try_from(value) else {
             unreachable!()
         };
@@ -1918,6 +2044,16 @@ impl Viewable for i64 {
         bits as Self
     }
 
+    #[inline(always)]
+    fn from_storage(value: Self::Storage) -> Self {
+        value.cast_signed()
+    }
+
+    #[inline(always)]
+    fn into_storage(value: Self) -> Self::Storage {
+        value.cast_unsigned()
+    }
+
     fn into_f64(self) -> f64 {
         self as f64
     }
@@ -1933,6 +2069,8 @@ impl Viewable for i64 {
 }
 #[cfg(feature = "proposal-float16array")]
 impl Viewable for f16 {
+    type Storage = u16;
+
     const IS_FLOAT: bool = true;
     const NAME: &str = "Float16Array";
 
@@ -1947,14 +2085,14 @@ impl Viewable for f16 {
         Number::from(Self::from_ne_bytes(self.to_le_bytes())).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_be_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
         Self::from_ne_bytes((value.to_real(agent) as Self).to_be_bytes())
     }
 
-    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_le_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
@@ -1987,12 +2125,24 @@ impl Viewable for f16 {
         bits as Self
     }
 
-    fn into_f64(self) -> f64 {
-        self.into()
+    #[inline(always)]
+    fn from_storage(value: Self::Storage) -> Self {
+        value.cast_signed()
     }
 
-    fn from_f64(value: f64) -> Self {
-        value as Self
+    #[inline(always)]
+    fn into_storage(value: Self) -> Self::Storage {
+        value.cast_unsigned()
+    }
+
+    #[inline(always)]
+    fn from_storage(value: Self::Storage) -> Self {
+        f16::from_bits(value)
+    }
+
+    #[inline(always)]
+    fn into_storage(value: Self) -> Self::Storage {
+        f16::to_bits(value)
     }
 
     #[inline(always)]
@@ -2001,6 +2151,8 @@ impl Viewable for f16 {
     }
 }
 impl Viewable for f32 {
+    type Storage = u32;
+
     const IS_FLOAT: bool = true;
     const NAME: &str = "Float32Array";
 
@@ -2015,14 +2167,14 @@ impl Viewable for f32 {
         Number::from(Self::from_ne_bytes(self.to_le_bytes())).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_be_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
         Self::from_ne_bytes((value.to_real(agent) as Self).to_be_bytes())
     }
 
-    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_le_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
@@ -2056,6 +2208,16 @@ impl Viewable for f32 {
         bits as Self
     }
 
+    #[inline(always)]
+    fn from_storage(value: Self::Storage) -> Self {
+        f32::from_bits(value)
+    }
+
+    #[inline(always)]
+    fn into_storage(value: Self) -> Self::Storage {
+        f32::to_bits(value)
+    }
+
     fn into_f64(self) -> f64 {
         self.into()
     }
@@ -2070,6 +2232,8 @@ impl Viewable for f32 {
     }
 }
 impl Viewable for f64 {
+    type Storage = u64;
+
     const IS_FLOAT: bool = true;
     const NAME: &str = "Float64Array";
 
@@ -2084,14 +2248,14 @@ impl Viewable for f64 {
         Number::from_f64(agent, Self::from_ne_bytes(self.to_le_bytes()), gc).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_be_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
         Self::from_ne_bytes((value.to_real(agent) as Self).to_be_bytes())
     }
 
-    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_le_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
@@ -2115,6 +2279,16 @@ impl Viewable for f64 {
 
     fn from_bits(bits: u64) -> Self {
         bits as Self
+    }
+
+    #[inline(always)]
+    fn from_storage(value: Self::Storage) -> Self {
+        f64::from_bits(value)
+    }
+
+    #[inline(always)]
+    fn into_storage(value: Self) -> Self::Storage {
+        f64::to_bits(value)
     }
 
     fn into_f64(self) -> f64 {
