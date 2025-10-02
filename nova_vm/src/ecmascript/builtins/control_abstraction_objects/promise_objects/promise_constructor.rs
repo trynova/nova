@@ -726,7 +726,28 @@ fn perform_promise_all<'gc>(
         // b. If next is done, then
         let Some(next) = next else {
             *iterator_done = true;
-            break;
+            let promise_all = promise_all_reference.get(agent).bind(gc.nogc());
+            let data = promise_all.get_mut(agent);
+            // i. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] - 1.
+            data.remaining_elements_count -= 1;
+            // ii. If remainingElementsCount.[[Value]] = 0, then
+            if data.remaining_elements_count == 0 {
+                // 1. Let valuesArray be CreateArrayFromList(values).
+                let values_array = result_array.get(agent).bind(gc.nogc());
+                // 2. Perform ? Call(resultCapability.[[Resolve]], undefined, « valuesArray »).
+                let result_capability = PromiseCapability {
+                    promise: promise.get(agent).bind(gc.nogc()),
+                    must_be_unresolved: true,
+                };
+                result_capability.unbind().resolve(
+                    agent,
+                    values_array.into_value().unbind(),
+                    gc.reborrow(),
+                );
+            }
+
+            // iii. Return resultCapability.[[Promise]].
+            return Ok(promise.get(agent));
         };
 
         // c. Append undefined to values.
@@ -785,8 +806,6 @@ fn perform_promise_all<'gc>(
         // o. Set index to index + 1.
         promise_all.get_mut(agent).remaining_elements_count = index;
     }
-
-    Ok(promise.get(agent))
 }
 
 fn throw_promise_subclassing_not_supported<'a>(
