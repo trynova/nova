@@ -75,6 +75,7 @@ pub(crate) enum PromiseReactionHandler<'a> {
     },
     Empty,
 }
+bindable_handle!(PromiseReactionHandler);
 
 impl HeapMarkAndSweep for PromiseReactionHandler<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

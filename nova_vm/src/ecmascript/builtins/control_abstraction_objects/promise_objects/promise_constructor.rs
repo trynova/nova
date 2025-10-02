@@ -224,133 +224,6 @@ impl PromiseConstructor {
         Ok(scoped_promise.get(agent).into_value())
     }
 
-    /// ### [27.2.4.1.2 PerformPromiseAll ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiseall)
-    #[allow(clippy::too_many_arguments)]
-    fn perform_promise_all<'gc>(
-        agent: &mut Agent,
-        iterator: &Scoped<Object>,
-        next_method: &Scoped<Function>,
-        constructor: Scoped<Function>,
-        result_capability: PromiseCapability,
-        promise_resolve: Scoped<Function>,
-        iterator_done: &mut bool,
-        mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let result_capability = result_capability.bind(gc.nogc());
-        *iterator_done = false;
-
-        // 1. Let values be a new empty List.
-        let capacity = match iterator.get(agent) {
-            Object::Array(array) => array.len(agent),
-            Object::Map(map) => agent[map].size(),
-            Object::Set(set) => agent[set].size(),
-            _ => 0,
-        };
-
-        let result_array = array_create(agent, 0, capacity as usize, None, gc.nogc())
-            .unbind()?
-            .bind(gc.nogc());
-        let result_array = result_array.scope(agent, gc.nogc());
-
-        //     2. Let remainingElementsCount be the Record { [[Value]]: 1 }.
-        let promise = result_capability.promise.scope(agent, gc.nogc());
-        let promise_all = PromiseAllRecord {
-            remaining_elements_count: 1,
-            result_array: result_array.get(agent),
-            promise: promise.get(agent),
-        }
-        .bind(gc.nogc());
-
-        let promise_all_reference = agent
-            .heap
-            .create(promise_all.unbind())
-            .scope(agent, gc.nogc());
-
-        //     3. Let index be 0.
-        let mut index = 0;
-
-        //     4. Repeat,
-        loop {
-            let iterator_record = IteratorRecord {
-                iterator: iterator.get(agent),
-                next_method: next_method.get(agent),
-            }
-            .bind(gc.nogc());
-
-            // a. Let next be ? IteratorStepValue(iteratorRecord).
-            let next = iterator_step_value(agent, iterator_record.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
-
-            // b. If next is done, then
-            let Some(next) = next else {
-                *iterator_done = true;
-                break;
-            };
-
-            // c. Append undefined to values.
-            let temp_array = result_array.get(agent).bind(gc.nogc());
-            if let Err(err) = temp_array.reserve(agent, 1) {
-                return Err(agent.throw_allocation_exception(err, gc.into_nogc()));
-            }
-            // SAFETY: reserve did not fail.
-            unsafe { temp_array.set_len(agent, index + 1) };
-
-            // d. Let nextPromise be ? Call(promiseResolve, constructor, « next »).
-            let call_result = call_function(
-                agent,
-                promise_resolve.get(agent),
-                constructor.get(agent).into_value(),
-                Some(ArgumentsList::from_mut_value(&mut next.unbind())),
-                gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc());
-
-            let next_promise = match call_result {
-                Value::Promise(next_promise) => next_promise,
-                _ => Promise::resolve(agent, call_result.unbind(), gc.reborrow()),
-            };
-
-            let capability = PromiseCapability {
-                promise: next_promise.unbind(),
-                must_be_unresolved: true,
-            };
-            inner_promise_then(
-                agent,
-                next_promise.unbind(),
-                PromiseReactionHandler::PromiseAll {
-                    index,
-                    promise_all: promise_all_reference.get(agent),
-                },
-                PromiseReactionHandler::PromiseAll {
-                    index,
-                    promise_all: promise_all_reference.get(agent),
-                },
-                Some(capability),
-                gc.nogc(),
-            );
-
-            // e. Let steps be the algorithm steps defined in Promise.all Resolve Element Functions.
-            // f. Let length be the number of non-optional parameters of the function definition in Promise.all Resolve Element Functions.
-            // g. Let onFulfilled be CreateBuiltinFunction(steps, length, "", « [[AlreadyCalled]], [[Index]], [[Values]], [[Capability]], [[RemainingElements]] »).
-            // h. Set onFulfilled.[[AlreadyCalled]] to false.
-            // i. Set onFulfilled.[[Index]] to index.
-            // j. Set onFulfilled.[[Values]] to values.
-            // k. Set onFulfilled.[[Capability]] to resultCapability.
-            // l. Set onFulfilled.[[RemainingElements]] to remainingElementsCount.
-            index += 1;
-            let promise_all = promise_all_reference.get(agent).bind(gc.nogc());
-
-            // m. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] + 1.
-            // n. Perform ? Invoke(nextPromise, "then", « onFulfilled, resultCapability.[[Reject]] »).
-            // o. Set index to index + 1.
-            promise_all.get_mut(agent).remaining_elements_count = index;
-        }
-
-        Ok(promise.get(agent).into_value())
-    }
-
     /// ### [27.2.4.1 Promise.all ( iterable )](https://tc39.es/ecma262/#sec-promise.all)
     ///
     /// > NOTE: This function requires its **this** value to be a constructor
@@ -427,7 +300,7 @@ impl PromiseConstructor {
 
         // 7. Let result be Completion(PerformPromiseAll(iteratorRecord, C, promiseCapability, promiseResolve)).
         let mut iterator_done = false;
-        let result = Self::perform_promise_all(
+        let result = perform_promise_all(
             agent,
             &iterator,
             &next_method,
@@ -788,6 +661,130 @@ fn get_promise_resolve<'gc>(
 
     // 3. Return promiseResolve.
     Ok(promise_resolve.unbind())
+}
+
+/// ### [27.2.4.1.2 PerformPromiseAll ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiseall)
+#[allow(clippy::too_many_arguments)]
+fn perform_promise_all<'gc>(
+    agent: &mut Agent,
+    iterator: &Scoped<Object>,
+    next_method: &Scoped<Function>,
+    constructor: Scoped<Function>,
+    result_capability: PromiseCapability,
+    promise_resolve: Scoped<Function>,
+    iterator_done: &mut bool,
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, Value<'gc>> {
+    let result_capability = result_capability.bind(gc.nogc());
+    *iterator_done = false;
+
+    // 1. Let values be a new empty List.
+    let capacity = match iterator.get(agent) {
+        Object::Array(array) => array.len(agent),
+        Object::Map(map) => agent[map].size(),
+        Object::Set(set) => agent[set].size(),
+        _ => 0,
+    };
+
+    let result_array = array_create(agent, 0, capacity as usize, None, gc.nogc())
+        .unbind()?
+        .bind(gc.nogc());
+    let result_array = result_array.scope(agent, gc.nogc());
+
+    // 2. Let remainingElementsCount be the Record { [[Value]]: 1 }.
+    let promise = result_capability.promise.scope(agent, gc.nogc());
+    let promise_all = PromiseAllRecord {
+        remaining_elements_count: 1,
+        result_array: result_array.get(agent),
+        promise: promise.get(agent),
+    }
+    .bind(gc.nogc());
+
+    let promise_all_reference = agent
+        .heap
+        .create(promise_all.unbind())
+        .scope(agent, gc.nogc());
+
+    // 3. Let index be 0.
+    let mut index = 0;
+
+    // 4. Repeat,
+    loop {
+        let iterator_record = IteratorRecord {
+            iterator: iterator.get(agent),
+            next_method: next_method.get(agent),
+        }
+        .bind(gc.nogc());
+
+        // a. Let next be ? IteratorStepValue(iteratorRecord).
+        let next = iterator_step_value(agent, iterator_record.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+
+        // b. If next is done, then
+        let Some(next) = next else {
+            *iterator_done = true;
+            break;
+        };
+
+        // c. Append undefined to values.
+        let temp_array = result_array.get(agent).bind(gc.nogc());
+        if let Err(err) = temp_array.reserve(agent, 1) {
+            return Err(agent.throw_allocation_exception(err, gc.into_nogc()));
+        }
+        // SAFETY: reserve did not fail.
+        unsafe { temp_array.set_len(agent, index + 1) };
+
+        // d. Let nextPromise be ? Call(promiseResolve, constructor, « next »).
+        let call_result = call_function(
+            agent,
+            promise_resolve.get(agent),
+            constructor.get(agent).into_value(),
+            Some(ArgumentsList::from_mut_value(&mut next.unbind())),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+
+        let next_promise = match call_result {
+            Value::Promise(next_promise) => next_promise,
+            _ => Promise::resolve(agent, call_result.unbind(), gc.reborrow())
+                .unbind()
+                .bind(gc.nogc()),
+        };
+
+        let capability = PromiseCapability {
+            promise: next_promise,
+            must_be_unresolved: true,
+        };
+        let promise_all = promise_all_reference.get(agent).bind(gc.nogc());
+        let reaction = PromiseReactionHandler::PromiseAll { index, promise_all };
+        inner_promise_then(
+            agent,
+            next_promise.unbind(),
+            reaction.unbind(),
+            reaction.unbind(),
+            Some(capability.unbind()),
+            gc.nogc(),
+        );
+
+        // e. Let steps be the algorithm steps defined in Promise.all Resolve Element Functions.
+        // f. Let length be the number of non-optional parameters of the function definition in Promise.all Resolve Element Functions.
+        // g. Let onFulfilled be CreateBuiltinFunction(steps, length, "", « [[AlreadyCalled]], [[Index]], [[Values]], [[Capability]], [[RemainingElements]] »).
+        // h. Set onFulfilled.[[AlreadyCalled]] to false.
+        // i. Set onFulfilled.[[Index]] to index.
+        // j. Set onFulfilled.[[Values]] to values.
+        // k. Set onFulfilled.[[Capability]] to resultCapability.
+        // l. Set onFulfilled.[[RemainingElements]] to remainingElementsCount.
+        index += 1;
+
+        // m. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] + 1.
+        // n. Perform ? Invoke(nextPromise, "then", « onFulfilled, resultCapability.[[Reject]] »).
+        // o. Set index to index + 1.
+        promise_all.get_mut(agent).remaining_elements_count = index;
+    }
+
+    Ok(promise.get(agent).into_value())
 }
 
 fn throw_promise_subclassing_not_supported<'a>(
