@@ -302,7 +302,7 @@ impl PromiseConstructor {
         let result = perform_promise_all(
             agent,
             iterator.clone(),
-            next_method,
+            next_method.unbind(),
             constructor,
             promise_capability.unbind(),
             promise_resolve,
@@ -313,36 +313,34 @@ impl PromiseConstructor {
         .bind(gc.nogc());
 
         // 8. If result is an abrupt completion, then
-        match result {
-            Err(err) => {
+        let result = match result {
+            Err(mut result) => {
                 // a. If iteratorRecord.[[Done]] is false, set result to Completion(IteratorClose(iteratorRecord, result)).
-                let result = if !iterator_done {
-                    iterator_close_with_error(
+                if !iterator_done {
+                    result = iterator_close_with_error(
                         agent,
                         iterator.get(agent),
-                        err.unbind(),
+                        result.unbind(),
                         gc.reborrow(),
                     )
                     .unbind()
-                    .bind(gc.nogc())
-                } else {
-                    err
-                };
+                    .bind(gc.nogc());
+                }
 
                 // b. IfAbruptRejectPromise(result, promiseCapability).
                 let promise_capability = PromiseCapability {
                     promise: promise.get(agent).bind(gc.nogc()),
                     must_be_unresolved: true,
                 };
+                // a. Perform ? Call(capability.[[Reject]], undefined, « value.[[Value]] »).
                 promise_capability.reject(agent, result.value().unbind(), gc.nogc());
-                Err(JsError::new(promise_capability.promise().into_value()))
+                // b. Return capability.[[Promise]].
+                promise_capability.promise()
             }
-            Ok(result) => {
-                // 9. Return ! result.
-                Ok(result)
-            }
-        }
-        .unbind()
+            Ok(result) => result,
+        };
+        // 9. Return ! result.
+        Ok(result.into_value().unbind())
     }
 
     /// ### [27.2.4.2 Promise.allSettled ( iterable )](https://tc39.es/ecma262/#sec-promise.allsettled)
@@ -673,7 +671,7 @@ fn perform_promise_all<'gc>(
     promise_resolve: Scoped<Function>,
     iterator_done: &mut bool,
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, Value<'gc>> {
+) -> JsResult<'gc, Promise<'gc>> {
     let result_capability = result_capability.bind(gc.nogc());
 
     let Some(next_method) = next_method else {
@@ -788,7 +786,7 @@ fn perform_promise_all<'gc>(
         promise_all.get_mut(agent).remaining_elements_count = index;
     }
 
-    Ok(promise.get(agent).into_value())
+    Ok(promise.get(agent))
 }
 
 fn throw_promise_subclassing_not_supported<'a>(
