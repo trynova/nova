@@ -2762,11 +2762,12 @@ fn copy_within_typed_array<'a, T: Viewable>(
     };
     // 12. If end is undefined, let relativeEnd be len; else let relativeEnd be ? ToIntegerOrInfinity(end).
     let end = end.map(|e| unsafe { e.take(agent) }.bind(gc.nogc()));
-    let end_index = if end.is_none() || end.unwrap().is_undefined() {
+    let end_index = if end.is_none_or(|e| e.is_undefined()) {
         len
     } else {
-        let relative_end =
-            to_integer_or_infinity(agent, end.unwrap().unbind(), gc.reborrow()).unbind()?;
+        // SAFETY: checked.
+        let end = unsafe { end.unwrap_unchecked() };
+        let relative_end = to_integer_or_infinity(agent, end.unbind(), gc.reborrow()).unbind()?;
         // 13. If relativeEnd = -∞, let endIndex be 0.
         if relative_end.is_neg_infinity() {
             0

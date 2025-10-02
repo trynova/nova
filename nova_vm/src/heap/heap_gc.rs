@@ -61,7 +61,10 @@ use crate::{
             ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
             primitive_objects::PrimitiveObject,
             promise::Promise,
-            promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
+            promise_objects::promise_abstract_operations::{
+                promise_all_record::PromiseAll,
+                promise_finally_functions::BuiltinPromiseFinallyFunction,
+            },
             proxy::Proxy,
             text_processing::string_objects::string_iterator_objects::StringIterator,
         },
@@ -152,7 +155,8 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             promise_resolving_functions,
             promise_finally_functions,
             promises,
-            proxys,
+            promise_all_records,
+            proxies,
             realms,
             #[cfg(feature = "regexp")]
             regexps,
@@ -656,6 +660,20 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 promise_reaction_records.get(index).mark_values(&mut queues);
             }
         });
+        let mut promise_all_record_marks: Box<[PromiseAll]> =
+            queues.promise_all_records.drain(..).collect();
+        promise_all_record_marks.sort();
+        promise_all_record_marks.iter().for_each(|&idx| {
+            let index = idx.get_index();
+            if let Some(marked) = bits.promise_all_records.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                promise_all_records.get(index).mark_values(&mut queues);
+            }
+        });
         let mut promise_resolving_function_marks: Box<[BuiltinPromiseResolvingFunction]> =
             queues.promise_resolving_functions.drain(..).collect();
         promise_resolving_function_marks.sort();
@@ -688,17 +706,17 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                     .mark_values(&mut queues);
             }
         });
-        let mut proxy_marks: Box<[Proxy]> = queues.proxys.drain(..).collect();
+        let mut proxy_marks: Box<[Proxy]> = queues.proxies.drain(..).collect();
         proxy_marks.sort();
         proxy_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if let Some(marked) = bits.proxys.get_mut(index) {
+            if let Some(marked) = bits.proxies.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
                     return;
                 }
                 *marked = true;
-                proxys.get(index).mark_values(&mut queues);
+                proxies.get(index).mark_values(&mut queues);
             }
         });
         let mut map_marks: Box<[Map]> = queues.maps.drain(..).collect();
@@ -1439,7 +1457,8 @@ fn sweep(
         promise_resolving_functions,
         promise_finally_functions,
         promises,
-        proxys,
+        promise_all_records,
+        proxies,
         realms,
         #[cfg(feature = "regexp")]
         regexps,
@@ -1941,9 +1960,18 @@ fn sweep(
                 sweep_heap_vector_values(promises, &compactions, &bits.promises);
             });
         }
-        if !proxys.is_empty() {
+        if !promise_all_records.is_empty() {
             s.spawn(|| {
-                sweep_heap_vector_values(proxys, &compactions, &bits.proxys);
+                sweep_heap_vector_values(
+                    promise_all_records,
+                    &compactions,
+                    &bits.promise_all_records,
+                );
+            });
+        }
+        if !proxies.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(proxies, &compactions, &bits.proxies);
             });
         }
         if !realms.is_empty() {

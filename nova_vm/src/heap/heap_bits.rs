@@ -56,6 +56,7 @@ use crate::ecmascript::{
         ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
         primitive_objects::PrimitiveObject,
         promise::Promise,
+        promise_objects::promise_abstract_operations::promise_all_record::PromiseAll,
         promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
         proxy::Proxy,
         text_processing::string_objects::string_iterator_objects::StringIterator,
@@ -140,7 +141,8 @@ pub struct HeapBits {
     pub promise_resolving_functions: Box<[bool]>,
     pub promise_finally_functions: Box<[bool]>,
     pub promises: Box<[bool]>,
-    pub proxys: Box<[bool]>,
+    pub promise_all_records: Box<[bool]>,
+    pub proxies: Box<[bool]>,
     pub realms: Box<[bool]>,
     #[cfg(feature = "regexp")]
     pub regexps: Box<[bool]>,
@@ -231,7 +233,8 @@ pub(crate) struct WorkQueues {
     pub promise_reaction_records: Vec<PromiseReaction<'static>>,
     pub promise_resolving_functions: Vec<BuiltinPromiseResolvingFunction<'static>>,
     pub promise_finally_functions: Vec<BuiltinPromiseFinallyFunction<'static>>,
-    pub proxys: Vec<Proxy<'static>>,
+    pub promise_all_records: Vec<PromiseAll<'static>>,
+    pub proxies: Vec<Proxy<'static>>,
     pub realms: Vec<Realm<'static>>,
     #[cfg(feature = "regexp")]
     pub regexps: Vec<RegExp<'static>>,
@@ -322,7 +325,8 @@ impl HeapBits {
         let promise_finally_functions = vec![false; heap.promise_finally_functions.len()];
         let private_environments = vec![false; heap.environments.private.len()];
         let promises = vec![false; heap.promises.len()];
-        let proxys = vec![false; heap.proxys.len()];
+        let promise_all_records = vec![false; heap.promise_all_records.len()];
+        let proxies = vec![false; heap.proxies.len()];
         let realms = vec![false; heap.realms.len()];
         #[cfg(feature = "regexp")]
         let regexps = vec![false; heap.regexps.len()];
@@ -410,7 +414,8 @@ impl HeapBits {
             promise_finally_functions: promise_finally_functions.into_boxed_slice(),
             private_environments: private_environments.into_boxed_slice(),
             promises: promises.into_boxed_slice(),
-            proxys: proxys.into_boxed_slice(),
+            promise_all_records: promise_all_records.into_boxed_slice(),
+            proxies: proxies.into_boxed_slice(),
             realms: realms.into_boxed_slice(),
             #[cfg(feature = "regexp")]
             regexps: regexps.into_boxed_slice(),
@@ -506,7 +511,8 @@ impl WorkQueues {
             ),
             promise_finally_functions: Vec::with_capacity(heap.promise_finally_functions.len() / 4),
             promises: Vec::with_capacity(heap.promises.len() / 4),
-            proxys: Vec::with_capacity(heap.proxys.len() / 4),
+            promise_all_records: Vec::with_capacity(heap.promise_all_records.len() / 4),
+            proxies: Vec::with_capacity(heap.proxies.len() / 4),
             realms: Vec::with_capacity(heap.realms.len() / 4),
             #[cfg(feature = "regexp")]
             regexps: Vec::with_capacity(heap.regexps.len() / 4),
@@ -600,7 +606,8 @@ impl WorkQueues {
             promise_reaction_records,
             promise_resolving_functions,
             promise_finally_functions,
-            proxys,
+            promise_all_records,
+            proxies,
             realms,
             #[cfg(feature = "regexp")]
             regexps,
@@ -709,8 +716,9 @@ impl WorkQueues {
             && promise_reaction_records.is_empty()
             && promise_resolving_functions.is_empty()
             && promise_finally_functions.is_empty()
+            && promise_all_records.is_empty()
             && promises.is_empty()
-            && proxys.is_empty()
+            && proxies.is_empty()
             && realms.is_empty()
             && regexps.is_empty()
             && regexp_string_iterators.is_empty()
@@ -1063,7 +1071,8 @@ pub(crate) struct CompactionLists {
     pub promise_resolving_functions: CompactionList,
     pub promise_finally_functions: CompactionList,
     pub promises: CompactionList,
-    pub proxys: CompactionList,
+    pub promise_all_records: CompactionList,
+    pub proxies: CompactionList,
     pub realms: CompactionList,
     #[cfg(feature = "regexp")]
     pub regexps: CompactionList,
@@ -1170,6 +1179,7 @@ impl CompactionLists {
                 &bits.promise_finally_functions,
             ),
             promises: CompactionList::from_mark_bits(&bits.promises),
+            promise_all_records: CompactionList::from_mark_bits(&bits.promise_all_records),
             #[cfg(feature = "regexp")]
             regexps: CompactionList::from_mark_bits(&bits.regexps),
             #[cfg(feature = "regexp")]
@@ -1189,7 +1199,7 @@ impl CompactionLists {
             #[cfg(feature = "array-buffer")]
             data_views: CompactionList::from_mark_bits(&bits.data_views),
             finalization_registrys: CompactionList::from_mark_bits(&bits.finalization_registrys),
-            proxys: CompactionList::from_mark_bits(&bits.proxys),
+            proxies: CompactionList::from_mark_bits(&bits.proxies),
             #[cfg(feature = "weak-refs")]
             weak_maps: CompactionList::from_mark_bits(&bits.weak_maps),
             #[cfg(feature = "weak-refs")]

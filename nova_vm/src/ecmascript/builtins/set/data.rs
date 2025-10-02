@@ -250,7 +250,7 @@ impl HeapMarkAndSweep for SetHeapData<'static> {
             match new_entry {
                 hashbrown::hash_table::Entry::Occupied(mut occupied) => {
                     // We found an existing entry that points to a
-                    // (necesssarily) different slot that contains the same
+                    // (necessarily) different slot that contains the same
                     // value. This value will necessarily be removed later; we
                     // can just reuse this slot.
                     *occupied.get_mut() = index;

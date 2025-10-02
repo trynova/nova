@@ -145,7 +145,7 @@ impl PromiseReactionJob {
         let Self { reaction, argument } = self;
         let reaction = reaction.take(agent).bind(gc.nogc());
         let argument = argument.take(agent).bind(gc.nogc());
-        // The following are substeps of point 1 in NewPromiseReactionJob.
+
         let (handler_result, promise_capability) = match agent[reaction].handler {
             PromiseReactionHandler::Empty => {
                 let capability = agent[reaction].capability.clone().unwrap().bind(gc.nogc());
@@ -278,15 +278,28 @@ impl PromiseReactionJob {
                         );
                         return Ok(());
                     }
+                    PromiseReactionType::Reject => (
+                        Err(JsError::new(argument)),
+                        PromiseCapability::from_promise(promise, true),
+                    ),
+                }
+            }
+            PromiseReactionHandler::PromiseAll { promise_all, index } => {
+                let reaction_type = agent[reaction].reaction_type;
+                match reaction_type {
+                    PromiseReactionType::Fulfill => {
+                        promise_all.on_promise_fulfilled(
+                            agent,
+                            index,
+                            argument.unbind(),
+                            gc.reborrow(),
+                        );
+                    }
                     PromiseReactionType::Reject => {
-                        // a. Perform ! Call(promiseCapability.[[Reject]], undefined, « reason »).
-                        // b. Return unused.
-                        (
-                            Err(JsError::new(argument)),
-                            PromiseCapability::from_promise(promise, true),
-                        )
+                        promise_all.on_promise_rejected(agent, argument.unbind(), gc.nogc());
                     }
                 }
+                return Ok(());
             }
         };
 
@@ -348,7 +361,8 @@ pub(crate) fn new_promise_reaction_job(
         | PromiseReactionHandler::AsyncFromSyncIteratorClose(_)
         | PromiseReactionHandler::AsyncModule(_)
         | PromiseReactionHandler::DynamicImport { .. }
-        | PromiseReactionHandler::DynamicImportEvaluate { .. } => None,
+        | PromiseReactionHandler::DynamicImportEvaluate { .. }
+        | PromiseReactionHandler::PromiseAll { .. } => None,
     };
 
     // 4. Return the Record { [[Job]]: job, [[Realm]]: handlerRealm }.

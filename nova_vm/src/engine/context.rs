@@ -148,7 +148,7 @@ impl<'a, 'b> GcScope<'a, 'b> {
     /// build-time proof that garbage collection cannot happen.
     ///
     /// When a garbage collection can happen, the borrow checker will ensure
-    /// that all engine values that were boudn to the NoGcScope are dropped or
+    /// that all engine values that were bound to the NoGcScope are dropped or
     /// are registered with the heap using Scoped or Global roots.
     #[inline]
     pub fn nogc(&self) -> NoGcScope<'_, 'b> {

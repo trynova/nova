@@ -1933,13 +1933,13 @@ impl Index<Proxy<'_>> for Agent {
     type Output = ProxyHeapData<'static>;
 
     fn index(&self, index: Proxy) -> &Self::Output {
-        &self.heap.proxys[index]
+        &self.heap.proxies[index]
     }
 }
 
 impl IndexMut<Proxy<'_>> for Agent {
     fn index_mut(&mut self, index: Proxy) -> &mut Self::Output {
-        &mut self.heap.proxys[index]
+        &mut self.heap.proxies[index]
     }
 }
 
@@ -1978,24 +1978,24 @@ impl TryFrom<HeapRootData> for Proxy<'_> {
 
 impl<'a> CreateHeapData<ProxyHeapData<'a>, Proxy<'a>> for Heap {
     fn create(&mut self, data: ProxyHeapData<'a>) -> Proxy<'a> {
-        self.proxys.push(Some(data.unbind()));
+        self.proxies.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<ProxyHeapData<'static>>>();
-        Proxy(BaseIndex::last(&self.proxys))
+        Proxy(BaseIndex::last(&self.proxies))
     }
 }
 
 impl HeapMarkAndSweep for Proxy<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        queues.proxys.push(*self);
+        queues.proxies.push(*self);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        compactions.proxys.shift_index(&mut self.0);
+        compactions.proxies.shift_index(&mut self.0);
     }
 }
 
 impl HeapSweepWeakReference for Proxy<'static> {
     fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
-        compactions.proxys.shift_weak_index(self.0).map(Self)
+        compactions.proxies.shift_weak_index(self.0).map(Self)
     }
 }
