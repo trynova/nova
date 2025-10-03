@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use ecmascript_atomics::Ordering;
+
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -92,7 +94,7 @@ impl SharedArrayBufferPrototype {
         // 3. If IsSharedArrayBuffer(O) is false, throw a TypeError exception.
         let o = require_internal_slot_shared_array_buffer(agent, o, gc)?;
         // 4. Let length be ArrayBufferByteLength(O, seq-cst).
-        let length = o.byte_length(agent);
+        let length = o.byte_length(agent, Ordering::SeqCst);
         // 5. Return 𝔽(length).
         Ok(Number::from_i64(agent, length as i64, gc).into_value())
     }
@@ -224,7 +226,7 @@ impl SharedArrayBufferPrototype {
             .unbind()?
             .bind(gc.nogc());
         // 4. Let len be ArrayBufferByteLength(O, seq-cst).
-        let len = o.byte_length(agent);
+        let len = o.byte_length(agent, Ordering::SeqCst);
         let o = o.scope(agent, gc.nogc());
         // 5. Let relativeStart be ? ToIntegerOrInfinity(start).
         let relative_start = if let Some(r) =
@@ -305,7 +307,7 @@ impl SharedArrayBufferPrototype {
             ));
         }
         // 19. If ArrayBufferByteLength(new, seq-cst) < newLen,
-        if new.byte_length(agent) < new_len {
+        if new.byte_length(agent, Ordering::SeqCst) < new_len {
             // throw a TypeError exception.
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,

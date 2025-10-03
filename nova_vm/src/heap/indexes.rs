@@ -2,11 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::typed_array::data::TypedArrayHeapData;
 use crate::{
     ecmascript::types::{PropertyKey, Value},
-    engine::context::{GcToken, bindable_handle},
+    engine::context::{Bindable, GcToken, NoGcScope},
 };
 use core::fmt::Debug;
 use core::{
@@ -23,6 +21,19 @@ use core::{marker::PhantomData, mem::size_of, num::NonZeroU32};
 /// struct to T at the given index.
 #[repr(transparent)]
 pub struct BaseIndex<'a, T: ?Sized>(NonZeroU32, PhantomData<T>, PhantomData<&'a GcToken>);
+
+// SAFETY: Marker lifetime transmute.
+unsafe impl<T: ?Sized> Bindable for BaseIndex<'_, T> {
+    type Of<'a> = BaseIndex<'a, T>;
+
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    fn bind<'a>(self, _: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
 
 const _INDEX_SIZE_IS_U32: () = assert!(size_of::<BaseIndex<()>>() == size_of::<u32>());
 const _OPTION_INDEX_SIZE_IS_U32: () =
@@ -159,14 +170,7 @@ impl<T> Default for BaseIndex<'_, T> {
 }
 
 pub type ElementIndex<'a> = BaseIndex<'a, [Option<Value<'static>>]>;
-bindable_handle!(ElementIndex);
 pub type PropertyKeyIndex<'a> = BaseIndex<'a, [PropertyKey<'static>]>;
-bindable_handle!(PropertyKeyIndex);
-
-#[cfg(feature = "array-buffer")]
-pub type TypedArrayIndex<'a> = BaseIndex<'a, TypedArrayHeapData<'static>>;
-#[cfg(feature = "array-buffer")]
-bindable_handle!(TypedArrayIndex);
 
 // Implement Default for ElementIndex: This is done to support Default
 // constructor of ElementsVector.

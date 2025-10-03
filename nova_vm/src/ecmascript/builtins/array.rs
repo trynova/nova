@@ -54,7 +54,7 @@ use super::ordinary::{
     ordinary_has_property, ordinary_try_get, ordinary_try_has_property,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Array<'a>(BaseIndex<'a, ArrayHeapData<'static>>);
 

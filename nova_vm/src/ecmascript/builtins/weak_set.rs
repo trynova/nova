@@ -26,7 +26,7 @@ use super::{Behaviour, keyed_collections::weak_set_objects::weak_set_prototype::
 
 pub mod data;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct WeakSet<'a>(BaseIndex<'a, WeakSetHeapData<'static>>);
 
