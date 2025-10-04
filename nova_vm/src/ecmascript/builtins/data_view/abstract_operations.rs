@@ -61,13 +61,13 @@ pub(crate) struct DataViewWithBufferWitnessRecord<'a> {
 pub(crate) fn make_data_view_with_buffer_witness_record<'a>(
     agent: &Agent,
     obj: AnyDataView<'a>,
-    _order: Ordering,
+    order: Ordering,
 ) -> DataViewWithBufferWitnessRecord<'a> {
     let buffer = obj.viewed_array_buffer(agent);
     let byte_length = if buffer.is_detached(agent) {
         ByteLength::detached()
     } else {
-        ByteLength::value(buffer.byte_length(agent))
+        ByteLength::value(buffer.byte_length(agent, order))
     };
     DataViewWithBufferWitnessRecord {
         object: obj,

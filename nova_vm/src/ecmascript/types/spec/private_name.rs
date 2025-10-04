@@ -18,7 +18,7 @@ use crate::{
         execution::Agent,
         types::{PropertyKey, String},
     },
-    engine::context::{Bindable, NoGcScope, trivially_bindable},
+    engine::context::{NoGcScope, trivially_bindable},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 

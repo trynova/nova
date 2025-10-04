@@ -153,13 +153,10 @@ pub struct SharedTypedArrayRecord<'a> {
     /// ### [\[\[ViewedArrayBuffer\]\]](https://tc39.es/ecma262/#sec-properties-of-typedarray-instances)
     pub(crate) viewed_array_buffer: SharedArrayBuffer<'a>,
     /// ### [\[\[ByteLength\]\]](https://tc39.es/ecma262/#sec-properties-of-typedarray-instances)
-    #[expect(dead_code)]
     pub(crate) byte_length: ViewedArrayBufferByteLength,
     /// ### [\[\[ByteOffset\]\]](https://tc39.es/ecma262/#sec-properties-of-typedarray-instances)
-    #[expect(dead_code)]
     pub(crate) byte_offset: ViewedArrayBufferByteOffset,
     /// ### [\[\[ArrayLength\]\]](https://tc39.es/ecma262/#sec-properties-of-typedarray-instances)
-    #[expect(dead_code)]
     pub(crate) array_length: TypedArrayArrayLength,
 }
 bindable_handle!(SharedTypedArrayRecord);

@@ -31,12 +31,12 @@ use crate::{
                 Int32Array, SharedBigInt64Array, SharedBigUint64Array, SharedFloat32Array,
                 SharedFloat64Array, SharedInt8Array, SharedInt16Array, SharedInt32Array,
                 SharedUint8Array, SharedUint8ClampedArray, SharedUint16Array, SharedUint32Array,
-                Uint8Array, Uint8ClampedArray, Uint16Array, Uint32Array,
+                TypedArray, Uint8Array, Uint8ClampedArray, Uint16Array, Uint32Array,
             },
         },
         execution::{Agent, JsResult, ProtoIntrinsics, agent::TryResult},
         types::{
-            BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
+            BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT, DataBlock,
             FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, Function,
             INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
             InternalMethods, InternalSlots, Numeric, Object, OrdinaryObject, PropertyDescriptor,
@@ -46,6 +46,7 @@ use crate::{
         },
     },
     engine::{
+        Scoped,
         context::{GcScope, NoGcScope, bindable_handle},
         rootable::HeapRootData,
     },
@@ -105,7 +106,7 @@ pub enum AnyTypedArray<'a> {
 bindable_handle!(AnyTypedArray);
 
 impl AnyTypedArray<'_> {
-    /// Returns true if the TypedArray is contains bigints.
+    /// Returns true if the TypedArray contains bigints.
     #[inline]
     pub(crate) fn is_bigint(self) -> bool {
         #[cfg(not(feature = "shared-array-buffer"))]
@@ -212,45 +213,120 @@ macro_rules! any_typed_array_delegate {
 }
 
 macro_rules! for_any_typed_array {
-    ($value: ident, $ta: ident, $expr: expr) => {
+    ($value: tt, $ta: tt, $expr: tt) => {
+        for_any_typed_array!($value, $ta, $expr, _TA)
+    };
+    ($value: ident, $ta: ident, $expr: expr, $TA: ident) => {
         match $value {
-            AnyTypedArray::Int8Array($ta) => $expr,
-            AnyTypedArray::Uint8Array($ta) => $expr,
-            AnyTypedArray::Uint8ClampedArray($ta) => $expr,
-            AnyTypedArray::Int16Array($ta) => $expr,
-            AnyTypedArray::Uint16Array($ta) => $expr,
-            AnyTypedArray::Int32Array($ta) => $expr,
-            AnyTypedArray::Uint32Array($ta) => $expr,
-            AnyTypedArray::BigInt64Array($ta) => $expr,
-            AnyTypedArray::BigUint64Array($ta) => $expr,
+            AnyTypedArray::Int8Array($ta) => {
+                type $TA = i8;
+                $expr
+            }
+            AnyTypedArray::Uint8Array($ta) => {
+                type $TA = u8;
+                $expr
+            }
+            AnyTypedArray::Uint8ClampedArray($ta) => {
+                type $TA = crate::ecmascript::types::U8Clamped;
+                $expr
+            }
+            AnyTypedArray::Int16Array($ta) => {
+                type $TA = i16;
+                $expr
+            }
+            AnyTypedArray::Uint16Array($ta) => {
+                type $TA = u16;
+                $expr
+            }
+            AnyTypedArray::Int32Array($ta) => {
+                type $TA = i32;
+                $expr
+            }
+            AnyTypedArray::Uint32Array($ta) => {
+                type $TA = u32;
+                $expr
+            }
+            AnyTypedArray::BigInt64Array($ta) => {
+                type $TA = i64;
+                $expr
+            }
+            AnyTypedArray::BigUint64Array($ta) => {
+                type $TA = u64;
+                $expr
+            }
             #[cfg(feature = "proposal-float16array")]
-            AnyTypedArray::Float16Array($ta) => $expr,
-            AnyTypedArray::Float32Array($ta) => $expr,
-            AnyTypedArray::Float64Array($ta) => $expr,
+            AnyTypedArray::Float16Array($ta) => {
+                type $TA = f16;
+                $expr
+            }
+            AnyTypedArray::Float32Array($ta) => {
+                type $TA = f32;
+                $expr
+            }
+            AnyTypedArray::Float64Array($ta) => {
+                type $TA = f64;
+                $expr
+            }
             #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedInt8Array($ta) => $expr,
+            AnyTypedArray::SharedInt8Array($ta) => {
+                type $TA = i8;
+                $expr
+            }
             #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedUint8Array($ta) => $expr,
+            AnyTypedArray::SharedUint8Array($ta) => {
+                type $TA = u8;
+                $expr
+            }
             #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedUint8ClampedArray($ta) => $expr,
+            AnyTypedArray::SharedUint8ClampedArray($ta) => {
+                type $TA = crate::ecmascript::types::U8Clamped;
+                $expr
+            }
             #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedInt16Array($ta) => $expr,
+            AnyTypedArray::SharedInt16Array($ta) => {
+                type $TA = i16;
+                $expr
+            }
             #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedUint16Array($ta) => $expr,
+            AnyTypedArray::SharedUint16Array($ta) => {
+                type $TA = u16;
+                $expr
+            }
             #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedInt32Array($ta) => $expr,
+            AnyTypedArray::SharedInt32Array($ta) => {
+                type $TA = i32;
+                $expr
+            }
             #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedUint32Array($ta) => $expr,
+            AnyTypedArray::SharedUint32Array($ta) => {
+                type $TA = u32;
+                $expr
+            }
             #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedBigInt64Array($ta) => $expr,
+            AnyTypedArray::SharedBigInt64Array($ta) => {
+                type $TA = i64;
+                $expr
+            }
             #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedBigUint64Array($ta) => $expr,
+            AnyTypedArray::SharedBigUint64Array($ta) => {
+                type $TA = u64;
+                $expr
+            }
             #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
-            AnyTypedArray::SharedFloat16Array($ta) => $expr,
+            AnyTypedArray::SharedFloat16Array($ta) => {
+                type $TA = f16;
+                $expr
+            }
             #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedFloat32Array($ta) => $expr,
+            AnyTypedArray::SharedFloat32Array($ta) => {
+                type $TA = f32;
+                $expr
+            }
             #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedFloat64Array($ta) => $expr,
+            AnyTypedArray::SharedFloat64Array($ta) => {
+                type $TA = f64;
+                $expr
+            }
         }
     };
 }
@@ -553,6 +629,10 @@ impl<'a> TypedArrayAbstractOperations<'a> for AnyTypedArray<'a> {
         any_typed_array_delegate!(self, is_detached, agent)
     }
 
+    fn is_shared(self) -> bool {
+        TypedArray::try_from(self).is_err()
+    }
+
     fn byte_offset(self, agent: &Agent) -> usize {
         any_typed_array_delegate!(self, byte_offset, agent)
     }
@@ -567,6 +647,19 @@ impl<'a> TypedArrayAbstractOperations<'a> for AnyTypedArray<'a> {
 
     fn typed_array_element_size(self) -> usize {
         any_typed_array_delegate!(self, typed_array_element_size,)
+    }
+
+    fn typed_array_set_element(self, agent: &mut Agent, index: i64, num_value: Numeric) {
+        any_typed_array_delegate!(self, typed_array_set_element, agent, index, num_value)
+    }
+
+    fn typed_array_get_element<'gc>(
+        self,
+        agent: &mut Agent,
+        index: i64,
+        gc: NoGcScope<'gc, '_>,
+    ) -> Option<Numeric<'gc>> {
+        any_typed_array_delegate!(self, typed_array_get_element, agent, index, gc)
     }
 
     fn viewed_array_buffer(self, agent: &Agent) -> AnyArrayBuffer<'a> {
@@ -689,12 +782,23 @@ impl<'a> TypedArrayAbstractOperations<'a> for AnyTypedArray<'a> {
         any_typed_array_delegate!(self, reverse, agent, len)
     }
 
+    fn set_into_data_block<'gc>(
+        self,
+        agent: &Agent,
+        target: &mut DataBlock,
+        start_index: usize,
+        count: usize,
+    ) {
+        any_typed_array_delegate!(self, set_into_data_block, agent, target, start_index, count)
+    }
+
     fn set_from_typed_array<'gc>(
         self,
         agent: &mut Agent,
         target_offset: usize,
         source: AnyTypedArray,
-        src_length: usize,
+        source_offset: usize,
+        length: usize,
         gc: NoGcScope<'gc, '_>,
     ) -> JsResult<'gc, ()> {
         any_typed_array_delegate!(
@@ -703,7 +807,38 @@ impl<'a> TypedArrayAbstractOperations<'a> for AnyTypedArray<'a> {
             agent,
             target_offset,
             source,
-            src_length,
+            source_offset,
+            length,
+            gc
+        )
+    }
+
+    fn sort_with_comparator<'gc>(
+        self,
+        agent: &mut Agent,
+        len: usize,
+        comparator: Scoped<Function>,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, ()> {
+        any_typed_array_delegate!(self, sort_with_comparator, agent, len, comparator, gc)
+    }
+
+    fn sort<'gc>(self, agent: &mut Agent, len: usize) {
+        any_typed_array_delegate!(self, sort, agent, len)
+    }
+
+    #[inline(always)]
+    fn typed_array_create_same_type_and_copy_data<'gc>(
+        self,
+        agent: &mut Agent,
+        len: usize,
+        gc: NoGcScope<'gc, '_>,
+    ) -> JsResult<'gc, TypedArray<'gc>> {
+        any_typed_array_delegate!(
+            self,
+            typed_array_create_same_type_and_copy_data,
+            agent,
+            len,
             gc
         )
     }

@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use ecmascript_atomics::Ordering;
+use ecmascript_atomics::{Ordering, RacySlice};
 
 use crate::{
     ecmascript::{
@@ -32,6 +32,10 @@ bindable_handle!(SharedArrayBuffer);
 impl<'sab> SharedArrayBuffer<'sab> {
     /// Constant to be used only for creating a build-time Self.
     pub(crate) const _DEF: Self = Self(BaseIndex::ZERO);
+
+    pub(crate) fn as_slice(self, agent: &Agent) -> RacySlice<'_, u8> {
+        self.get_data_block(agent).as_racy_slice()
+    }
 
     #[inline]
     pub fn is_detached(self, agent: &Agent) -> bool {

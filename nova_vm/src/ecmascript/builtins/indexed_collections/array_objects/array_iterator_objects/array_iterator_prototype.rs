@@ -2,17 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use ecmascript_atomics::Ordering;
+
 #[cfg(feature = "array-buffer")]
-use crate::ecmascript::{
-    builtins::{
-        indexed_collections::typed_array_objects::abstract_operations::{
-            is_typed_array_out_of_bounds, make_typed_array_with_buffer_witness_record,
-            typed_array_length,
-        },
-        typed_array::TypedArray,
-    },
-    types::U8Clamped,
-};
+use crate::ecmascript::builtins::indexed_collections::typed_array_objects::abstract_operations::make_typed_array_with_buffer_witness_record;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -23,6 +16,7 @@ use crate::{
         builtins::{
             ArgumentsList, Behaviour, Builtin, array::ARRAY_INDEX_RANGE,
             indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
+            typed_array::AnyTypedArray,
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, InternalSlots, IntoValue, Object, String, Value},
@@ -71,110 +65,36 @@ impl ArrayIteratorPrototype {
         };
         let mut array = array.bind(gc.nogc());
 
-        #[cfg(feature = "array-buffer")]
-        macro_rules! handle_typed_array {
-            ($array:expr) => {{
-                let array = $array;
-                // 1. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(array, seq-cst).
-                let ta_record = make_typed_array_with_buffer_witness_record(
-                    agent,
-                    array,
-                    ecmascript_atomics::Ordering::SeqCst,
-                );
-                // 2. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-                if match array {
-                    TypedArray::Int8Array(_) => {
-                        is_typed_array_out_of_bounds::<i8>(agent, &ta_record)
-                    }
-                    TypedArray::Uint8Array(_) => {
-                        is_typed_array_out_of_bounds::<u8>(agent, &ta_record)
-                    }
-                    TypedArray::Uint8ClampedArray(_) => {
-                        is_typed_array_out_of_bounds::<U8Clamped>(agent, &ta_record)
-                    }
-                    TypedArray::Int16Array(_) => {
-                        is_typed_array_out_of_bounds::<i16>(agent, &ta_record)
-                    }
-                    TypedArray::Uint16Array(_) => {
-                        is_typed_array_out_of_bounds::<u16>(agent, &ta_record)
-                    }
-                    TypedArray::Int32Array(_) => {
-                        is_typed_array_out_of_bounds::<i32>(agent, &ta_record)
-                    }
-                    TypedArray::Uint32Array(_) => {
-                        is_typed_array_out_of_bounds::<u32>(agent, &ta_record)
-                    }
-                    TypedArray::BigInt64Array(_) => {
-                        is_typed_array_out_of_bounds::<i64>(agent, &ta_record)
-                    }
-                    TypedArray::BigUint64Array(_) => {
-                        is_typed_array_out_of_bounds::<u64>(agent, &ta_record)
-                    }
-                    #[cfg(feature = "proposal-float16array")]
-                    TypedArray::Float16Array(_) => {
-                        is_typed_array_out_of_bounds::<f16>(agent, &ta_record)
-                    }
-                    TypedArray::Float32Array(_) => {
-                        is_typed_array_out_of_bounds::<f32>(agent, &ta_record)
-                    }
-                    TypedArray::Float64Array(_) => {
-                        is_typed_array_out_of_bounds::<f64>(agent, &ta_record)
-                    }
-                } {
-                    return Err(agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "TypedArray out of bounds",
-                        gc.into_nogc(),
-                    ));
-                }
-
-                // 3. Let len be TypedArrayLength(taRecord).
-                (match array {
-                    TypedArray::Int8Array(_) => typed_array_length::<i8>(agent, &ta_record),
-                    TypedArray::Uint8Array(_) => typed_array_length::<u8>(agent, &ta_record),
-                    TypedArray::Uint8ClampedArray(_) => {
-                        typed_array_length::<U8Clamped>(agent, &ta_record)
-                    }
-                    TypedArray::Int16Array(_) => typed_array_length::<i16>(agent, &ta_record),
-                    TypedArray::Uint16Array(_) => typed_array_length::<u16>(agent, &ta_record),
-                    TypedArray::Int32Array(_) => typed_array_length::<i32>(agent, &ta_record),
-                    TypedArray::Uint32Array(_) => typed_array_length::<u32>(agent, &ta_record),
-                    TypedArray::BigInt64Array(_) => typed_array_length::<i64>(agent, &ta_record),
-                    TypedArray::BigUint64Array(_) => typed_array_length::<u64>(agent, &ta_record),
-                    #[cfg(feature = "proposal-float16array")]
-                    TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record),
-                    TypedArray::Float32Array(_) => typed_array_length::<f32>(agent, &ta_record),
-                    TypedArray::Float64Array(_) => typed_array_length::<f64>(agent, &ta_record),
-                }) as i64
-            }};
-        }
-
         let len: i64 = match array {
-            // i. If array has a [[TypedArrayName]] internal slot, then
-            #[cfg(feature = "array-buffer")]
-            Object::Int8Array(_)
-            | Object::Uint8Array(_)
-            | Object::Uint8ClampedArray(_)
-            | Object::Int16Array(_)
-            | Object::Uint16Array(_)
-            | Object::Int32Array(_)
-            | Object::Uint32Array(_)
-            | Object::BigInt64Array(_)
-            | Object::BigUint64Array(_)
-            | Object::Float32Array(_)
-            | Object::Float64Array(_) => handle_typed_array!(array.try_into().unwrap()),
-            #[cfg(feature = "proposal-float16array")]
-            Object::Float16Array(_) => handle_typed_array!(array.try_into().unwrap()),
             // ii. Else,
             //     1. Let len be ? LengthOfArrayLike(array).
             Object::Array(array) => array.len(agent).into(),
             _ => {
-                let scoped_iterator = iterator.scope(agent, gc.nogc());
-                let scoped_array = array.scope(agent, gc.nogc());
-                let res = length_of_array_like(agent, array.unbind(), gc.reborrow()).unbind()?;
-                array = unsafe { scoped_array.take(agent) }.bind(gc.nogc());
-                iterator = unsafe { scoped_iterator.take(agent) }.bind(gc.nogc());
-                res
+                // i. If array has a [[TypedArrayName]] internal slot, then
+                #[cfg(feature = "array-buffer")]
+                if let Ok(array) = AnyTypedArray::try_from(array) {
+                    // a. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(array, seq-cst).
+                    let ta_record =
+                        make_typed_array_with_buffer_witness_record(agent, array, Ordering::SeqCst);
+                    // b. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
+                    if ta_record.is_typed_array_out_of_bounds(agent) {
+                        return Err(agent.throw_exception_with_static_message(
+                            ExceptionType::TypeError,
+                            "TypedArray out of bounds",
+                            gc.into_nogc(),
+                        ));
+                    }
+                    // c. Let len be TypedArrayLength(taRecord).
+                    i64::try_from(ta_record.typed_array_length(agent)).unwrap()
+                } else {
+                    let scoped_iterator = iterator.scope(agent, gc.nogc());
+                    let scoped_array = array.scope(agent, gc.nogc());
+                    let res =
+                        length_of_array_like(agent, array.unbind(), gc.reborrow()).unbind()?;
+                    array = unsafe { scoped_array.take(agent) }.bind(gc.nogc());
+                    iterator = unsafe { scoped_iterator.take(agent) }.bind(gc.nogc());
+                    res
+                }
             }
         };
 

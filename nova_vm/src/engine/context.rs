@@ -670,7 +670,7 @@ unsafe impl<'slice, T: Bindable, U: Bindable, V: Bindable> Bindable for (T, U, V
 
     #[inline(always)]
     fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        (self.0.bind(gc), self.1.bind(gc), self.2.unbind())
+        (self.0.bind(gc), self.1.bind(gc), self.2.bind(gc))
     }
 }
 
@@ -692,7 +692,7 @@ unsafe impl<'slice, T: Bindable, U: Bindable, V: Bindable, W: Bindable> Bindable
         (
             self.0.bind(gc),
             self.1.bind(gc),
-            self.2.unbind(),
+            self.2.bind(gc),
             self.3.bind(gc),
         )
     }
@@ -719,7 +719,7 @@ unsafe impl<'slice, T: Bindable, U: Bindable, V: Bindable, W: Bindable, X: Binda
         (
             self.0.bind(gc),
             self.1.bind(gc),
-            self.2.unbind(),
+            self.2.bind(gc),
             self.3.bind(gc),
             self.4.bind(gc),
         )
@@ -755,7 +755,7 @@ unsafe impl<'slice, T: Bindable, U: Bindable, V: Bindable, W: Bindable, X: Binda
         (
             self.0.bind(gc),
             self.1.bind(gc),
-            self.2.unbind(),
+            self.2.bind(gc),
             self.3.bind(gc),
             self.4.bind(gc),
             self.5.bind(gc),

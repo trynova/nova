@@ -2,10 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::hash::{Hash, Hasher};
-use std::{hint::unreachable_unchecked, marker::PhantomData, ops::ControlFlow};
+use core::{
+    hash::{Hash, Hasher},
+    hint::{assert_unchecked, unreachable_unchecked},
+    marker::PhantomData,
+    ops::ControlFlow,
+};
 
-use ecmascript_atomics::{Ordering, RacySlice};
+use ecmascript_atomics::Ordering;
 
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::types::FLOAT_16_ARRAY_DISCRIMINANT;
@@ -13,25 +17,18 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{call_function, set},
-            testing_and_comparison::same_value,
             type_conversion::{
-                IntegerOrInfinity, to_big_int, to_big_int_primitive, to_boolean, to_number,
-                to_number_primitive,
+                to_big_int, to_big_int_primitive, to_boolean, to_number, to_number_primitive,
             },
         },
         builtins::{
-            ArgumentsList, ArrayBuffer, array,
+            ArgumentsList, ArrayBuffer,
             array_buffer::{
                 AnyArrayBuffer, ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset,
-                clone_array_buffer,
             },
-            indexed_collections::typed_array_objects::{
-                abstract_operations::{
-                    CachedBufferByteLength, TypedArrayAbstractOperations,
-                    make_typed_array_with_buffer_witness_record,
-                    typed_array_species_create_with_length,
-                },
-                typed_array_intrinsic_object::byte_slice_to_viewable,
+            indexed_collections::typed_array_objects::abstract_operations::{
+                CachedBufferByteLength, TypedArrayAbstractOperations,
+                typed_array_create_from_data_block, typed_array_species_create_with_length,
             },
             ordinary::{
                 caches::{PropertyLookupCache, PropertyOffset},
@@ -44,12 +41,11 @@ use crate::{
             typed_array::{
                 AnyTypedArray, canonicalize_numeric_index_string,
                 data::{TypedArrayArrayLength, TypedArrayRecord},
-                for_any_typed_array,
             },
         },
         execution::{
             Agent, JsResult, ProtoIntrinsics,
-            agent::{ExceptionType, TryError, TryResult, js_result_into_try, unwrap_try},
+            agent::{JsError, TryError, TryResult, js_result_into_try, unwrap_try},
         },
         types::{
             BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT, BigInt, DataBlock,
@@ -64,6 +60,7 @@ use crate::{
         },
     },
     engine::{
+        Scoped,
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
@@ -255,16 +252,37 @@ impl<'ta, T: Viewable> GenericTypedArray<'ta, T> {
         self,
         agent: &mut Agent,
         ab: ArrayBuffer,
-        byte_length: ViewedArrayBufferByteLength,
-        byte_offset: ViewedArrayBufferByteOffset,
-        array_length: TypedArrayArrayLength,
+        byte_offset: usize,
+        byte_and_array_length: Option<(usize, usize)>,
     ) {
+        let heap_byte_offset = byte_offset.into();
         let d = self.into_void_array().get_mut(agent);
-
         d.viewed_array_buffer = ab;
-        d.byte_length = byte_length;
-        d.byte_offset = byte_offset;
-        d.array_length = array_length;
+        d.byte_offset = heap_byte_offset;
+
+        if let Some((byte_length, array_length)) = byte_and_array_length {
+            let heap_byte_length = byte_length.into();
+            let heap_array_length = array_length.into();
+
+            d.byte_length = heap_byte_length;
+            d.array_length = heap_array_length;
+
+            if heap_byte_length.is_overflowing() {
+                self.set_overflowing_byte_length(agent, byte_length);
+                // Note: if byte length doesn't overflow then array length cannot
+                // overflow either.
+                if heap_array_length.is_overflowing() {
+                    self.set_overflowing_array_length(agent, array_length);
+                }
+            }
+        } else {
+            d.byte_length = ViewedArrayBufferByteLength::auto();
+            d.array_length = TypedArrayArrayLength::auto();
+        }
+
+        if heap_byte_offset.is_overflowing() {
+            self.set_overflowing_byte_offset(agent, byte_offset);
+        }
     }
 
     pub(crate) fn set_overflowing_byte_offset(self, agent: &mut Agent, byte_offset: usize) {
@@ -296,6 +314,17 @@ impl<'ta, T: Viewable> GenericTypedArray<'ta, T> {
 pub(crate) type VoidArray<'a> = GenericTypedArray<'a, ()>;
 
 impl<'gc> VoidArray<'gc> {
+    /// Cast a VoidArray into a concrete TypedArray.
+    ///
+    /// # Safety
+    ///
+    /// The concrete type has to match the [[ArrayLength]] / [[ByteLength]]
+    /// relation in the heap data, and any previous representations of the
+    /// TypedArray.
+    pub(crate) unsafe fn cast<T: Viewable>(self) -> GenericTypedArray<'gc, T> {
+        GenericTypedArray(self.0, PhantomData)
+    }
+
     #[inline(always)]
     pub(crate) fn get_index(self) -> usize {
         self.0.into_index()
@@ -657,101 +686,23 @@ impl<'a> TypedArray<'a> {
     }
 }
 
-impl<'a, T: Viewable> From<GenericTypedArray<'a, T>> for AnyTypedArray<'a> {
-    fn from(value: GenericTypedArray<'a, T>) -> Self {
-        if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>() {
-            // SAFETY: type checked.
-            Self::Uint8Array(unsafe {
-                core::mem::transmute::<GenericTypedArray<'a, T>, GenericTypedArray<'a, u8>>(value)
-            })
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>() {
-            // SAFETY: type checked.
-            Self::Uint8ClampedArray(unsafe {
-                core::mem::transmute::<GenericTypedArray<'a, T>, GenericTypedArray<'a, U8Clamped>>(
-                    value,
-                )
-            })
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>() {
-            // SAFETY: type checked.
-            Self::Int8Array(unsafe {
-                core::mem::transmute::<GenericTypedArray<'a, T>, GenericTypedArray<'a, i8>>(value)
-            })
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u16>() {
-            // SAFETY: type checked.
-            Self::Uint16Array(unsafe {
-                core::mem::transmute::<GenericTypedArray<'a, T>, GenericTypedArray<'a, u16>>(value)
-            })
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i16>() {
-            // SAFETY: type checked.
-            Self::Int16Array(unsafe {
-                core::mem::transmute::<GenericTypedArray<'a, T>, GenericTypedArray<'a, i16>>(value)
-            })
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>() {
-            // SAFETY: type checked.
-            Self::Uint32Array(unsafe {
-                core::mem::transmute::<GenericTypedArray<'a, T>, GenericTypedArray<'a, u32>>(value)
-            })
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>() {
-            // SAFETY: type checked.
-            Self::Int32Array(unsafe {
-                core::mem::transmute::<GenericTypedArray<'a, T>, GenericTypedArray<'a, i32>>(value)
-            })
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>() {
-            // SAFETY: type checked.
-            Self::BigUint64Array(unsafe {
-                core::mem::transmute::<GenericTypedArray<'a, T>, GenericTypedArray<'a, u64>>(value)
-            })
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>() {
-            // SAFETY: type checked.
-            Self::BigInt64Array(unsafe {
-                core::mem::transmute::<GenericTypedArray<'a, T>, GenericTypedArray<'a, i64>>(value)
-            })
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>() {
-            // SAFETY: type checked.
-            Self::Float32Array(unsafe {
-                core::mem::transmute::<GenericTypedArray<'a, T>, GenericTypedArray<'a, f32>>(value)
-            })
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>() {
-            // SAFETY: type checked.
-            Self::Float64Array(unsafe {
-                core::mem::transmute::<GenericTypedArray<'a, T>, GenericTypedArray<'a, f64>>(value)
-            })
-        } else {
-            #[cfg(feature = "proposal-float16array")]
-            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f16>() {
-                // SAFETY: type checked.
-                return Self::Float16Array(unsafe {
-                    core::mem::transmute::<GenericTypedArray<'a, T>, GenericTypedArray<'a, f16>>(
-                        value,
-                    )
-                });
-            }
-            unreachable!()
-        }
-    }
-}
-
 impl<'a> From<TypedArray<'a>> for Value<'a> {
+    #[inline(always)]
     fn from(value: TypedArray<'a>) -> Self {
-        match value {
-            TypedArray::Int8Array(ta) => Self::Int8Array(ta),
-            TypedArray::Uint8Array(ta) => Self::Uint8Array(ta),
-            TypedArray::Uint8ClampedArray(ta) => Self::Uint8ClampedArray(ta),
-            TypedArray::Int16Array(ta) => Self::Int16Array(ta),
-            TypedArray::Uint16Array(ta) => Self::Uint16Array(ta),
-            TypedArray::Int32Array(ta) => Self::Int32Array(ta),
-            TypedArray::Uint32Array(ta) => Self::Uint32Array(ta),
-            TypedArray::BigInt64Array(ta) => Self::BigInt64Array(ta),
-            TypedArray::BigUint64Array(ta) => Self::BigUint64Array(ta),
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(ta) => Self::Float16Array(ta),
-            TypedArray::Float32Array(ta) => Self::Float32Array(ta),
-            TypedArray::Float64Array(ta) => Self::Float64Array(ta),
-        }
+        value.into_object().into_value()
     }
 }
 
 impl<'a> From<TypedArray<'a>> for Object<'a> {
+    #[inline(always)]
+    fn from(value: TypedArray<'a>) -> Self {
+        let value: AnyTypedArray = value.into();
+        value.into_object()
+    }
+}
+
+impl<'a> From<TypedArray<'a>> for AnyTypedArray<'a> {
+    #[inline(always)]
     fn from(value: TypedArray<'a>) -> Self {
         match value {
             TypedArray::Int8Array(ta) => Self::Int8Array(ta),
@@ -840,7 +791,63 @@ impl<'a> TryFrom<AnyTypedArray<'a>> for TypedArray<'a> {
     }
 }
 
+impl<'a, T: Viewable> From<GenericTypedArray<'a, T>> for TypedArray<'a> {
+    #[inline(always)]
+    fn from(value: GenericTypedArray<'a, T>) -> Self {
+        if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>() {
+            // SAFETY: type checked.
+            Self::Uint8Array(unsafe { value.into_void_array().cast() })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>() {
+            // SAFETY: type checked.
+            Self::Uint8ClampedArray(unsafe { value.into_void_array().cast() })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>() {
+            // SAFETY: type checked.
+            Self::Int8Array(unsafe { value.into_void_array().cast() })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u16>() {
+            // SAFETY: type checked.
+            Self::Uint16Array(unsafe { value.into_void_array().cast() })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i16>() {
+            // SAFETY: type checked.
+            Self::Int16Array(unsafe { value.into_void_array().cast() })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>() {
+            // SAFETY: type checked.
+            Self::Uint32Array(unsafe { value.into_void_array().cast() })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>() {
+            // SAFETY: type checked.
+            Self::Int32Array(unsafe { value.into_void_array().cast() })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>() {
+            // SAFETY: type checked.
+            Self::BigUint64Array(unsafe { value.into_void_array().cast() })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>() {
+            // SAFETY: type checked.
+            Self::BigInt64Array(unsafe { value.into_void_array().cast() })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>() {
+            // SAFETY: type checked.
+            Self::Float32Array(unsafe { value.into_void_array().cast() })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>() {
+            // SAFETY: type checked.
+            Self::Float64Array(unsafe { value.into_void_array().cast() })
+        } else {
+            #[cfg(feature = "proposal-float16array")]
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f16>() {
+                // SAFETY: type checked.
+                return Self::Float16Array(unsafe { value.into_void_array().cast() });
+            }
+            unreachable!()
+        }
+    }
+}
+
+impl<'a, T: Viewable> From<GenericTypedArray<'a, T>> for AnyTypedArray<'a> {
+    #[inline(always)]
+    fn from(value: GenericTypedArray<'a, T>) -> Self {
+        let value: TypedArray = value.into();
+        value.into()
+    }
+}
+
 impl<'a, T: Viewable> From<GenericTypedArray<'a, T>> for Object<'a> {
+    #[inline(always)]
     fn from(value: GenericTypedArray<'a, T>) -> Self {
         let value: AnyTypedArray = value.into();
         value.into()
@@ -848,6 +855,7 @@ impl<'a, T: Viewable> From<GenericTypedArray<'a, T>> for Object<'a> {
 }
 
 impl<'a, T: Viewable> From<GenericTypedArray<'a, T>> for Value<'a> {
+    #[inline(always)]
     fn from(value: GenericTypedArray<'a, T>) -> Self {
         let value: Object = value.into();
         value.into()
@@ -1730,6 +1738,11 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
     }
 
     #[inline(always)]
+    fn is_shared(self) -> bool {
+        false
+    }
+
+    #[inline(always)]
     fn byte_offset(self, agent: &Agent) -> usize {
         let ta = self.into_void_array();
         ta.get(agent)
@@ -1770,6 +1783,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
         }
     }
 
+    #[inline(always)]
     fn typed_array_element_size(self) -> usize {
         size_of::<T>()
     }
@@ -1840,9 +1854,13 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
         let scoped_buffer = buffer.scope(agent, gc.nogc());
 
         // 5. Let kept be a new empty List.
-        let mut kept = create_byte_data_block(agent, len as u64, gc.nogc())
-            .unbind()?
-            .bind(gc.nogc());
+        let mut kept = create_byte_data_block(
+            agent,
+            (len as u64).saturating_mul(size_of::<T>() as u64),
+            gc.nogc(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
         // SAFETY: All viewable types are trivially transmutable.
         let (head, kept_slice, _) = unsafe { (&mut kept).align_to_mut::<T>() };
         // Should be properly aligned for all T.
@@ -1882,10 +1900,10 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
             }
         }
         // 9. Let A be ? TypedArraySpeciesCreate(O, « 𝔽(captured) »).
-        let a = typed_array_species_create_with_length::<T>(
+        let a = typed_array_species_create_with_length(
             agent,
-            unsafe { scoped_o.take(agent) }.into_object().unbind(),
-            captured as i64,
+            unsafe { scoped_o.take(agent) }.unbind().into(),
+            captured,
             gc.reborrow(),
         )
         .unbind()?;
@@ -1981,14 +1999,10 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
         let scoped_buffer = buffer.scope(agent, gc.nogc());
 
         // 5. Let A be ? TypedArraySpeciesCreate(O, « 𝔽(len) »).
-        let a = typed_array_species_create_with_length::<T>(
-            agent,
-            o.into_object().unbind(),
-            len as i64,
-            gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        let a =
+            typed_array_species_create_with_length(agent, o.unbind().into(), len, gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
         // 6. Let k be 0.
         // 7. Repeat, while k < len,
         let a = a.scope(agent, gc.nogc());
@@ -2051,12 +2065,36 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
         self.as_mut_slice(agent)[..len].reverse();
     }
 
+    fn set_into_data_block<'gc>(
+        self,
+        agent: &Agent,
+        target: &mut DataBlock,
+        start_index: usize,
+        count: usize,
+    ) {
+        // SAFETY: precondition.
+        unsafe {
+            assert_unchecked(
+                target.len() >= count * self.typed_array_element_size()
+                    && target.as_ptr_range().start.cast::<usize>().is_aligned()
+                    && target.as_ptr_range().end.cast::<T>().is_aligned(),
+            )
+        };
+        let source = &self.as_slice(agent)[start_index..start_index + count];
+        // SAFETY: Viewables are safe to transmute from u8.
+        let (head, target, _) = unsafe { target.align_to_mut::<T>() };
+        // SAFETY: precondition.
+        unsafe { assert_unchecked(target.len() >= count && head.is_empty()) };
+        target[..count].copy_from_slice(source);
+    }
+
     fn set_from_typed_array<'gc>(
         self,
         agent: &mut Agent,
         target_offset: usize,
         source: AnyTypedArray,
-        src_length: usize,
+        source_offset: usize,
+        length: usize,
         gc: NoGcScope<'gc, '_>,
     ) -> JsResult<'gc, ()> {
         let target = self;
@@ -2066,16 +2104,15 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
         let src_buffer = source.viewed_array_buffer(agent);
         // 9. Let targetType be TypedArrayElementType(target).
         // 10. Let targetElementSize be TypedArrayElementSize(target).
-        let target_element_size = size_of::<T>();
         // 11. Let targetByteOffset be target.[[ByteOffset]].
         let target_byte_offset = target.byte_offset(agent);
         // 12. Let srcType be TypedArrayElementType(source).
         // 13. Let srcElementSize be TypedArrayElementSize(source).
         let src_element_size = source.typed_array_element_size();
         // 14. Let srcByteOffset be source.[[ByteOffset]].
-        let src_byte_offset = source.byte_offset(agent);
+        let src_byte_offset = source_offset * src_element_size + source.byte_offset(agent);
         // a. Let srcByteLength be TypedArrayByteLength(srcRecord).
-        let src_byte_length = src_length * src_element_size;
+        let src_byte_length = length * src_element_size;
         let src_byte_end_offset = src_byte_offset + src_byte_length;
         // 18. If IsSharedArrayBuffer(srcBuffer) is true,
         //     IsSharedArrayBuffer(targetBuffer) is true, and
@@ -2099,11 +2136,11 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
                     );
                     // c. Let srcByteIndex be 0.
 
-                    let target_slice = target_buffer.as_mut_viewable_slice::<T>(
+                    let target_slice = &mut target_buffer.as_mut_viewable_slice::<T>(
                         agent,
                         target_byte_offset,
-                        Some(src_length * target_element_size),
-                    );
+                        None,
+                    )[target_offset..target_offset + length];
 
                     for_normal_typed_array!(
                         source,
@@ -2116,11 +2153,11 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
                         &src_buffer.as_slice(agent)[src_byte_offset..src_byte_end_offset];
                     let src_slice = src_slice as *const [u8];
 
-                    let target_slice = target_buffer.as_mut_viewable_slice::<T>(
+                    let target_slice = &mut target_buffer.as_mut_viewable_slice::<T>(
                         agent,
                         target_byte_offset,
-                        Some(src_length * target_element_size),
-                    );
+                        None,
+                    )[target_offset..target_offset + length];
 
                     // SAFETY: taking mut slice of target_buffer doesn't invalidate
                     // src_slice pointer and we've checked that they're not the same
@@ -2147,11 +2184,9 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
                 };
                 let sdb = sab.get_data_block(agent) as *const SharedDataBlock;
 
-                let target_slice = target_buffer.as_mut_viewable_slice::<T>(
-                    agent,
-                    target_byte_offset,
-                    Some(src_length * size_of::<T>()),
-                );
+                let target_slice =
+                    &mut target_buffer.as_mut_viewable_slice::<T>(agent, target_byte_offset, None)
+                        [target_offset..target_offset + length];
 
                 // SAFETY: accessing target_slice as mut cannot invalidate sdb
                 // pointer or alias the memory.
@@ -2171,6 +2206,91 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
         }
         // 25. Return unused.
         Ok(())
+    }
+
+    fn sort_with_comparator<'gc>(
+        self,
+        agent: &mut Agent,
+        len: usize,
+        comparator: Scoped<Function>,
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, ()> {
+        let ta = self.bind(gc.nogc());
+        let slice = &ta.as_slice(agent)[..len];
+        let mut items: Vec<T> = slice.to_vec();
+        let mut error: Option<JsError> = None;
+        let ta = ta.scope(agent, gc.nogc());
+        items.sort_by(|a, b| {
+            if error.is_some() {
+                return std::cmp::Ordering::Equal;
+            }
+            let a_val = a.into_ne_value(agent, gc.nogc()).into_value();
+            let b_val = b.into_ne_value(agent, gc.nogc()).into_value();
+            let result = call_function(
+                agent,
+                comparator.get(agent),
+                Value::Undefined,
+                Some(ArgumentsList::from_mut_slice(&mut [
+                    a_val.unbind(),
+                    b_val.unbind(),
+                ])),
+                gc.reborrow(),
+            )
+            .unbind()
+            .and_then(|v| v.to_number(agent, gc.reborrow()));
+            let num = match result {
+                Ok(n) => n,
+                Err(e) => {
+                    error = Some(e.unbind());
+                    return std::cmp::Ordering::Equal;
+                }
+            };
+            if num.is_nan(agent) {
+                std::cmp::Ordering::Equal
+            } else if num.is_sign_positive(agent) {
+                std::cmp::Ordering::Greater
+            } else if num.is_sign_negative(agent) {
+                std::cmp::Ordering::Less
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        });
+        if let Some(error) = error {
+            return Err(error);
+        }
+        // SAFETY: not shared.
+        let ta = unsafe { ta.take(agent) }.bind(gc.into_nogc());
+        let slice = ta.as_mut_slice(agent);
+        let len = len.min(slice.len());
+        let slice = &mut slice[..len];
+        slice.copy_from_slice(&items[..len]);
+        Ok(())
+    }
+
+    fn sort<'gc>(self, agent: &mut Agent, len: usize) {
+        let slice = &mut self.as_mut_slice(agent)[..len];
+        slice.sort_by(|a, b| a.ecmascript_cmp(b));
+    }
+
+    fn typed_array_create_same_type_and_copy_data<'gc>(
+        self,
+        agent: &mut Agent,
+        len: usize,
+        gc: NoGcScope<'gc, '_>,
+    ) -> JsResult<'gc, TypedArray<'gc>> {
+        let byte_length = (len as u64).saturating_mul(self.typed_array_element_size() as u64);
+        let mut data_block = create_byte_data_block(agent, byte_length as u64, gc)?;
+        let source = &self.as_slice(agent)[..len];
+        // SAFETY: Viewables can be safely transmuted from bytes.
+        let (head, target, tail) = unsafe { data_block.align_to_mut::<T>() };
+        // SAFETY: cannot have any head or tail since we created length by
+        // multiplying with `size_of::<T>()`, and allocation is done 8-byte
+        // aligned.
+        unsafe { assert_unchecked(head.is_empty() && tail.is_empty() && target.len() == len) };
+        target.copy_from_slice(source);
+        let result = typed_array_create_from_data_block(agent, self, data_block).bind(gc);
+        // SAFETY: we know the type matches.
+        Ok(unsafe { result.cast::<T>().into() })
     }
 }
 

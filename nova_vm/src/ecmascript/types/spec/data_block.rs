@@ -1307,6 +1307,12 @@ pub trait Viewable: 'static + private::Sealed + Copy + PartialEq {
 
     /// Reverses the byte order of the value.
     fn flip_endian(self) -> Self;
+
+    /// Compare A and B of a Viewable type and always return an Ordering.
+    ///
+    /// This ordering is the usual total order for integers, and the special
+    /// ECMAScript defined ordering for floats.
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering;
 }
 
 impl Viewable for () {
@@ -1368,6 +1374,11 @@ impl Viewable for () {
 
     fn flip_endian(self) -> Self {
         panic!("VoidArray is a marker type");
+    }
+
+    #[inline(always)]
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.cmp(other)
     }
 }
 
@@ -1444,6 +1455,11 @@ impl Viewable for u8 {
     fn flip_endian(self) -> Self {
         self.swap_bytes()
     }
+
+    #[inline(always)]
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.cmp(other)
+    }
 }
 impl Viewable for U8Clamped {
     type Storage = u8;
@@ -1517,6 +1533,11 @@ impl Viewable for U8Clamped {
     #[inline(always)]
     fn flip_endian(self) -> Self {
         Self(self.0.swap_bytes())
+    }
+
+    #[inline(always)]
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.cmp(other)
     }
 }
 impl Viewable for i8 {
@@ -1592,6 +1613,11 @@ impl Viewable for i8 {
     fn flip_endian(self) -> Self {
         self.swap_bytes()
     }
+
+    #[inline(always)]
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.cmp(other)
+    }
 }
 impl Viewable for u16 {
     type Storage = Self;
@@ -1665,6 +1691,11 @@ impl Viewable for u16 {
     #[inline(always)]
     fn flip_endian(self) -> Self {
         self.swap_bytes()
+    }
+
+    #[inline(always)]
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.cmp(other)
     }
 }
 impl Viewable for i16 {
@@ -1740,6 +1771,11 @@ impl Viewable for i16 {
     fn flip_endian(self) -> Self {
         self.swap_bytes()
     }
+
+    #[inline(always)]
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.cmp(other)
+    }
 }
 impl Viewable for u32 {
     type Storage = Self;
@@ -1814,6 +1850,11 @@ impl Viewable for u32 {
     fn flip_endian(self) -> Self {
         self.swap_bytes()
     }
+
+    #[inline(always)]
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.cmp(other)
+    }
 }
 impl Viewable for i32 {
     type Storage = u32;
@@ -1887,6 +1928,11 @@ impl Viewable for i32 {
     #[inline(always)]
     fn flip_endian(self) -> Self {
         self.swap_bytes()
+    }
+
+    #[inline(always)]
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.cmp(other)
     }
 }
 impl Viewable for u64 {
@@ -1973,6 +2019,11 @@ impl Viewable for u64 {
     #[inline(always)]
     fn flip_endian(self) -> Self {
         self.swap_bytes()
+    }
+
+    #[inline(always)]
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.cmp(other)
     }
 }
 impl Viewable for i64 {
@@ -2066,6 +2117,11 @@ impl Viewable for i64 {
     fn flip_endian(self) -> Self {
         self.swap_bytes()
     }
+
+    #[inline(always)]
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.cmp(other)
+    }
 }
 #[cfg(feature = "proposal-float16array")]
 impl Viewable for f16 {
@@ -2149,6 +2205,29 @@ impl Viewable for f16 {
     fn viewable_swap_bytes(self) -> Self {
         Self::from_bits(self.to_bits().swap_bytes())
     }
+
+    #[inline(always)]
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
+        if self.is_nan() {
+            if other.is_nan() {
+                return core::cmp::Ordering::Equal;
+            }
+            return core::cmp::Ordering::Greater;
+        }
+        if other.is_nan() {
+            return core::cmp::Ordering::Less;
+        }
+        if *self == 0.0 && *other == 0.0 {
+            if self.is_sign_negative() && other.is_sign_positive() {
+                return core::cmp::Ordering::Less;
+            }
+            if self.is_sign_positive() && other.is_sign_negative() {
+                return core::cmp::Ordering::Greater;
+            }
+            return core::cmp::Ordering::Equal;
+        }
+        self.partial_cmp(other).unwrap()
+    }
 }
 impl Viewable for f32 {
     type Storage = u32;
@@ -2230,6 +2309,29 @@ impl Viewable for f32 {
     fn flip_endian(self) -> Self {
         Self::from_bits(self.to_bits().swap_bytes())
     }
+
+    #[inline(always)]
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
+        if self.is_nan() {
+            if other.is_nan() {
+                return core::cmp::Ordering::Equal;
+            }
+            return core::cmp::Ordering::Greater;
+        }
+        if other.is_nan() {
+            return core::cmp::Ordering::Less;
+        }
+        if *self == 0.0 && *other == 0.0 {
+            if self.is_sign_negative() && other.is_sign_positive() {
+                return core::cmp::Ordering::Less;
+            }
+            if self.is_sign_positive() && other.is_sign_negative() {
+                return core::cmp::Ordering::Greater;
+            }
+            return core::cmp::Ordering::Equal;
+        }
+        self.partial_cmp(other).unwrap()
+    }
 }
 impl Viewable for f64 {
     type Storage = u64;
@@ -2302,6 +2404,29 @@ impl Viewable for f64 {
     #[inline(always)]
     fn flip_endian(self) -> Self {
         Self::from_bits(self.to_bits().swap_bytes())
+    }
+
+    #[inline(always)]
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
+        if self.is_nan() {
+            if other.is_nan() {
+                return core::cmp::Ordering::Equal;
+            }
+            return core::cmp::Ordering::Greater;
+        }
+        if other.is_nan() {
+            return core::cmp::Ordering::Less;
+        }
+        if *self == 0.0 && *other == 0.0 {
+            if self.is_sign_negative() && other.is_sign_positive() {
+                return core::cmp::Ordering::Less;
+            }
+            if self.is_sign_positive() && other.is_sign_negative() {
+                return core::cmp::Ordering::Greater;
+            }
+            return core::cmp::Ordering::Equal;
+        }
+        self.partial_cmp(other).unwrap()
     }
 }
 

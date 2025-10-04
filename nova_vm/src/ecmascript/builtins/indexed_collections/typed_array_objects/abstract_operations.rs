@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::any::TypeId;
+use ecmascript_atomics::Ordering;
 
 use crate::{
     SmallInteger,
@@ -12,168 +12,37 @@ use crate::{
                 construct, get, length_of_array_like, set, species_constructor,
                 try_species_constructor,
             },
-            type_conversion::{
-                IntegerOrInfinity, to_big_int, to_index, to_number, to_object, validate_index,
-            },
+            type_conversion::to_index,
         },
         builtins::{
-            ArgumentsList, ArrayBuffer,
+            ArgumentsList, ArrayBuffer, ArrayBufferHeapData,
             array_buffer::{
-                AnyArrayBuffer, ViewedArrayBufferByteLength, array_buffer_byte_length,
-                clone_array_buffer, get_value_from_buffer, is_detached_buffer,
-                is_fixed_length_array_buffer, set_value_in_buffer,
+                AnyArrayBuffer, array_buffer_byte_length, clone_array_buffer,
+                get_value_from_buffer, is_detached_buffer, is_fixed_length_array_buffer,
+                set_value_in_buffer,
             },
-            indexed_collections::typed_array_objects::typed_array_intrinsic_object::{
-                byte_slice_to_viewable, byte_slice_to_viewable_mut,
-                require_internal_slot_typed_array, split_typed_array_buffers,
-            },
+            indexed_collections::typed_array_objects::typed_array_intrinsic_object::require_internal_slot_typed_array,
             ordinary::get_prototype_from_constructor,
             typed_array::{
-                AnyTypedArray, GenericTypedArray, TypedArray,
-                data::{TypedArrayArrayLength, TypedArrayRecord},
+                AnyTypedArray, GenericTypedArray, TypedArray, VoidArray, data::TypedArrayRecord,
             },
         },
         execution::{
-            Agent, JsResult, ProtoIntrinsics,
+            Agent, JsResult,
             agent::{ExceptionType, TryError, TryResult, js_result_into_try},
         },
         types::{
-            BigInt, DataBlock, Function, InternalSlots, IntoFunction, IntoNumeric, IntoObject,
-            IntoValue, Number, Numeric, Object, PropertyKey, U8Clamped, Value, Viewable,
-            create_byte_data_block,
+            DataBlock, Function, InternalSlots, IntoObject, IntoValue, Number, Numeric, Object,
+            PropertyKey, Value, Viewable, create_byte_data_block,
         },
     },
     engine::{
         Scoped, ScopedCollection,
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{Rootable, Scopable},
+        rootable::Scopable,
     },
     heap::CreateHeapData,
 };
-
-use super::typed_array_intrinsic_object::copy_between_different_type_typed_arrays;
-
-/// Matches a TypedArray and defines a type T in the expression which
-/// is the generic type of the viewable.
-macro_rules! with_typed_array_viewable {
-    ($value:expr, $expr:expr) => {
-        with_typed_array_viewable!($value, $expr, T)
-    };
-    ($value:expr, $expr:expr, $as:ident) => {
-        match $value {
-            TypedArray::Int8Array(_) => {
-                type $as = i8;
-                $expr
-            }
-            TypedArray::Uint8Array(_) => {
-                type $as = u8;
-                $expr
-            }
-            TypedArray::Uint8ClampedArray(_) => {
-                type $as = $crate::ecmascript::types::U8Clamped;
-                $expr
-            }
-            TypedArray::Int16Array(_) => {
-                type $as = i16;
-                $expr
-            }
-            TypedArray::Uint16Array(_) => {
-                type $as = u16;
-                $expr
-            }
-            TypedArray::Int32Array(_) => {
-                type $as = i32;
-                $expr
-            }
-            TypedArray::Uint32Array(_) => {
-                type $as = u32;
-                $expr
-            }
-            TypedArray::BigInt64Array(_) => {
-                type $as = i64;
-                $expr
-            }
-            TypedArray::BigUint64Array(_) => {
-                type $as = u64;
-                $expr
-            }
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => {
-                type $as = f16;
-                $expr
-            }
-            TypedArray::Float32Array(_) => {
-                type $as = f32;
-                $expr
-            }
-            TypedArray::Float64Array(_) => {
-                type $as = f64;
-                $expr
-            }
-        }
-    };
-}
-use ecmascript_atomics::Ordering;
-pub(crate) use with_typed_array_viewable;
-
-/// Matches a TypedArray and defines a type T in the expression which
-/// is the generic type of the viewable.
-macro_rules! match_typed_array {
-    ($value:expr, $expr:expr, $as:ident) => {
-        match $value {
-            TypedArray::Int8Array(ta) => {
-                let $as = ta;
-                $expr
-            }
-            TypedArray::Uint8Array(ta) => {
-                let $as = ta;
-                $expr
-            }
-            TypedArray::Uint8ClampedArray(ta) => {
-                let $as = ta;
-                $expr
-            }
-            TypedArray::Int16Array(ta) => {
-                let $as = ta;
-                $expr
-            }
-            TypedArray::Uint16Array(ta) => {
-                let $as = ta;
-                $expr
-            }
-            TypedArray::Int32Array(ta) => {
-                let $as = ta;
-                $expr
-            }
-            TypedArray::Uint32Array(ta) => {
-                let $as = ta;
-                $expr
-            }
-            TypedArray::BigInt64Array(ta) => {
-                let $as = ta;
-                $expr
-            }
-            TypedArray::BigUint64Array(ta) => {
-                let $as = ta;
-                $expr
-            }
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(ta) => {
-                let $as = ta;
-                $expr
-            }
-            TypedArray::Float32Array(ta) => {
-                let $as = ta;
-                $expr
-            }
-            TypedArray::Float64Array(ta) => {
-                let $as = ta;
-                $expr
-            }
-        }
-    };
-}
-pub(crate) use match_typed_array;
 
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -263,28 +132,6 @@ pub(crate) fn make_typed_array_with_buffer_witness_record<'a>(
     }
 }
 
-pub(crate) fn make_typed_array_with_buffer_witness_record_specialised<'a, O: Viewable>(
-    agent: &Agent,
-    obj: GenericTypedArray<'a, O>,
-    order: Ordering,
-) -> (GenericTypedArray<'a, O>, CachedBufferByteLength) {
-    // 1. Let buffer be obj.[[ViewedArrayBuffer]].
-    let buffer = obj.viewed_array_buffer(agent);
-
-    // 2. If IsDetachedBuffer(buffer) is true, then
-    let byte_length = if buffer.is_detached(agent) {
-        // a. Let byteLength be detached.
-        CachedBufferByteLength::detached()
-    } else {
-        // 3. Else,
-        // a. Let byteLength be ArrayBufferByteLength(buffer, order).
-        CachedBufferByteLength::value(buffer.byte_length(agent, order))
-    };
-
-    // 4. Return the TypedArray With Buffer Witness Record { [[Object]]: obj, [[CachedBufferByteLength]]: byteLength }.
-    (obj, byte_length)
-}
-
 /// ### [10.4.5.10 TypedArrayCreate ( prototype )](https://tc39.es/ecma262/#sec-typedarraycreate)
 ///
 /// The abstract operation TypedArrayCreate takes argument prototype (an Object)
@@ -325,6 +172,8 @@ pub(crate) trait TypedArrayAbstractOperations<'ta>: Copy + Sized {
     /// Return `IsDetachedBuffer(O.[[ViewedArrayBuffer]])`.
     fn is_detached(self, agent: &Agent) -> bool;
     fn is_fixed_length(self, agent: &Agent) -> bool;
+    /// Return `true` if this TypedArray is backed by a SharedArrayBuffer.
+    fn is_shared(self) -> bool;
 
     /// \[\[ByteOffset]]
     fn byte_offset(self, agent: &Agent) -> usize;
@@ -373,7 +222,7 @@ pub(crate) trait TypedArrayAbstractOperations<'ta>: Copy + Sized {
         }
 
         // 6. Let elementSize be TypedArrayElementSize(O).
-        let element_size = size_of::<Self::ElementType>();
+        let element_size = self.typed_array_element_size();
         // 7. Return length × elementSize.
         length * element_size
     }
@@ -402,7 +251,7 @@ pub(crate) trait TypedArrayAbstractOperations<'ta>: Copy + Sized {
         let byte_offset = self.byte_offset(agent);
 
         // 6. Let elementSize be TypedArrayElementSize(O).
-        let element_size = size_of::<Self::ElementType>();
+        let element_size = self.typed_array_element_size();
 
         // 7. Let byteLength be taRecord.[[CachedBufferByteLength]].
         // 8. Assert: byteLength is not detached.
@@ -442,7 +291,7 @@ pub(crate) trait TypedArrayAbstractOperations<'ta>: Copy + Sized {
         let byte_offset_end = if let Some(array_length) = self.array_length(agent) {
             // 7. Else,
             // a. Let elementSize be TypedArrayElementSize(O).
-            let element_size = size_of::<Self::ElementType>();
+            let element_size = self.typed_array_element_size();
             // b. Let byteOffsetEnd be byteOffsetStart + O.[[ArrayLength]] × elementSize.
             byte_offset_start + array_length * element_size
         } else {
@@ -528,12 +377,13 @@ pub(crate) trait TypedArrayAbstractOperations<'ta>: Copy + Sized {
         index: i64,
         gc: NoGcScope<'gc, '_>,
     ) -> Option<Numeric<'gc>> {
+        check_not_void_array::<Self::ElementType>();
         // 1. If IsValidIntegerIndex(O, index) is false, return undefined.
         let index = self.is_valid_integer_index(agent, index)?;
         // 2. Let offset be O.[[ByteOffset]].
         let offset = self.byte_offset(agent);
         // 3. Let elementSize be TypedArrayElementSize(O).
-        let element_size = core::mem::size_of::<Self::ElementType>();
+        let element_size = self.typed_array_element_size();
         // 4. Let byteIndexInBuffer be (ℝ(index) × elementSize) + offset.
         let byte_index_in_buffer = (index * element_size) + offset;
         // 5. Let elementType be TypedArrayElementType(O).
@@ -562,12 +412,13 @@ pub(crate) trait TypedArrayAbstractOperations<'ta>: Copy + Sized {
     /// > NOTE 2: This operation implements steps 3 onwards; steps 1 and 2 must
     /// > be done separately.
     fn typed_array_set_element(self, agent: &mut Agent, index: i64, num_value: Numeric) {
+        check_not_void_array::<Self::ElementType>();
         // 3. If IsValidIntegerIndex(O, index) is true, then
         if let Some(index) = self.is_valid_integer_index(agent, index) {
             // a. Let offset be O.[[ByteOffset]].
             let offset = self.byte_offset(agent);
             // b. Let elementSize be TypedArrayElementSize(O).
-            let element_size = core::mem::size_of::<Self::ElementType>();
+            let element_size = self.typed_array_element_size();
             // c. Let byteIndexInBuffer be (ℝ(index) × elementSize) + offset.
             let byte_index_in_buffer = index * element_size + offset;
             // d. Let elementType be TypedArrayElementType(O).
@@ -620,6 +471,14 @@ pub(crate) trait TypedArrayAbstractOperations<'ta>: Copy + Sized {
 
     fn reverse(self, agent: &mut Agent, len: usize);
 
+    fn set_into_data_block<'gc>(
+        self,
+        agent: &Agent,
+        target: &mut DataBlock,
+        start_index: usize,
+        count: usize,
+    );
+
     /// [23.2.3.26.2 SetTypedArrayFromTypedArray ( target, targetOffset, source )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-settypedarrayfromtypedarray)
     ///
     /// The abstract operation SetTypedArrayFromTypedArray takes arguments
@@ -632,424 +491,34 @@ pub(crate) trait TypedArrayAbstractOperations<'ta>: Copy + Sized {
         agent: &mut Agent,
         target_offset: usize,
         source: AnyTypedArray,
-        src_length: usize,
+        source_offset: usize,
+        length: usize,
         gc: NoGcScope<'gc, '_>,
     ) -> JsResult<'gc, ()>;
+
+    fn sort_with_comparator<'gc>(
+        self,
+        agent: &mut Agent,
+        len: usize,
+        comparator: Scoped<Function>,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, ()>;
+
+    fn sort(self, agent: &mut Agent, len: usize);
+
+    fn typed_array_create_same_type_and_copy_data<'gc>(
+        self,
+        agent: &mut Agent,
+        len: usize,
+        gc: NoGcScope<'gc, '_>,
+    ) -> JsResult<'gc, TypedArray<'gc>>;
 }
 
-/// Matches a TypedArray and defines a type T in the expression which
-/// is the generic type of the viewable.
-macro_rules! validate_typed_array_macro {
-    ($agent:expr, $value:expr, $ta:ident, $order:expr, $gc:expr, $expr:expr) => {
-        match $value {
-            Value::Int8Array($ta) => {
-                // 3. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, order).
-                let cached_buffer_byte_length = $ta.get_cached_buffer_byte_length($agent, $order);
-                // 4. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-                if $ta.is_typed_array_out_of_bounds($agent, cached_buffer_byte_length) {
-                    return Err($agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "TypedArray out of bounds",
-                        $gc.into_nogc(),
-                    ));
-                }
-
-                // 5. Return taRecord.
-                let $ta = ($ta, cached_buffer_byte_length);
-                $expr
-            }
-            Value::Uint8Array($ta) => {
-                // 3. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, order).
-                let cached_buffer_byte_length = $ta.get_cached_buffer_byte_length($agent, $order);
-                // 4. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-                if $ta.is_typed_array_out_of_bounds($agent, cached_buffer_byte_length) {
-                    return Err($agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "TypedArray out of bounds",
-                        $gc.into_nogc(),
-                    ));
-                }
-
-                // 5. Return taRecord.
-                let $ta = ($ta, cached_buffer_byte_length);
-                $expr
-            }
-            Value::Uint8ClampedArray($ta) => {
-                // 3. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, order).
-                let cached_buffer_byte_length = $ta.get_cached_buffer_byte_length($agent, $order);
-                // 4. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-                if $ta.is_typed_array_out_of_bounds($agent, cached_buffer_byte_length) {
-                    return Err($agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "TypedArray out of bounds",
-                        $gc.into_nogc(),
-                    ));
-                }
-
-                // 5. Return taRecord.
-                let $ta = ($ta, cached_buffer_byte_length);
-                $expr
-            }
-            Value::Int16Array($ta) => {
-                // 3. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, order).
-                let cached_buffer_byte_length = $ta.get_cached_buffer_byte_length($agent, $order);
-                // 4. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-                if $ta.is_typed_array_out_of_bounds($agent, cached_buffer_byte_length) {
-                    return Err($agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "TypedArray out of bounds",
-                        $gc.into_nogc(),
-                    ));
-                }
-
-                // 5. Return taRecord.
-                let $ta = ($ta, cached_buffer_byte_length);
-                $expr
-            }
-            Value::Uint16Array($ta) => {
-                // 3. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, order).
-                let cached_buffer_byte_length = $ta.get_cached_buffer_byte_length($agent, $order);
-                // 4. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-                if $ta.is_typed_array_out_of_bounds($agent, cached_buffer_byte_length) {
-                    return Err($agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "TypedArray out of bounds",
-                        $gc.into_nogc(),
-                    ));
-                }
-
-                // 5. Return taRecord.
-                let $ta = ($ta, cached_buffer_byte_length);
-                $expr
-            }
-            Value::Int32Array($ta) => {
-                // 3. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, order).
-                let cached_buffer_byte_length = $ta.get_cached_buffer_byte_length($agent, $order);
-                // 4. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-                if $ta.is_typed_array_out_of_bounds($agent, cached_buffer_byte_length) {
-                    return Err($agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "TypedArray out of bounds",
-                        $gc.into_nogc(),
-                    ));
-                }
-
-                // 5. Return taRecord.
-                let $ta = ($ta, cached_buffer_byte_length);
-                $expr
-            }
-            Value::Uint32Array($ta) => {
-                // 3. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, order).
-                let cached_buffer_byte_length = $ta.get_cached_buffer_byte_length($agent, $order);
-                // 4. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-                if $ta.is_typed_array_out_of_bounds($agent, cached_buffer_byte_length) {
-                    return Err($agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "TypedArray out of bounds",
-                        $gc.into_nogc(),
-                    ));
-                }
-
-                // 5. Return taRecord.
-                let $ta = ($ta, cached_buffer_byte_length);
-                $expr
-            }
-            Value::BigInt64Array($ta) => {
-                // 3. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, order).
-                let cached_buffer_byte_length = $ta.get_cached_buffer_byte_length($agent, $order);
-                // 4. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-                if $ta.is_typed_array_out_of_bounds($agent, cached_buffer_byte_length) {
-                    return Err($agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "TypedArray out of bounds",
-                        $gc.into_nogc(),
-                    ));
-                }
-
-                // 5. Return taRecord.
-                let $ta = ($ta, cached_buffer_byte_length);
-                $expr
-            }
-            Value::BigUint64Array($ta) => {
-                // 3. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, order).
-                let cached_buffer_byte_length = $ta.get_cached_buffer_byte_length($agent, $order);
-                // 4. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-                if $ta.is_typed_array_out_of_bounds($agent, cached_buffer_byte_length) {
-                    return Err($agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "TypedArray out of bounds",
-                        $gc.into_nogc(),
-                    ));
-                }
-
-                // 5. Return taRecord.
-                let $ta = ($ta, cached_buffer_byte_length);
-                $expr
-            }
-            #[cfg(feature = "proposal-float16array")]
-            Value::Float16Array($ta) => {
-                // 3. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, order).
-                let cached_buffer_byte_length = $ta.get_cached_buffer_byte_length($agent, $order);
-                // 4. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-                if $ta.is_typed_array_out_of_bounds($agent, cached_buffer_byte_length) {
-                    return Err($agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "TypedArray out of bounds",
-                        $gc.into_nogc(),
-                    ));
-                }
-
-                // 5. Return taRecord.
-                let $ta = ($ta, cached_buffer_byte_length);
-                $expr
-            }
-            Value::Float32Array($ta) => {
-                // 3. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, order).
-                let cached_buffer_byte_length = $ta.get_cached_buffer_byte_length($agent, $order);
-                // 4. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-                if $ta.is_typed_array_out_of_bounds($agent, cached_buffer_byte_length) {
-                    return Err($agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "TypedArray out of bounds",
-                        $gc.into_nogc(),
-                    ));
-                }
-
-                // 5. Return taRecord.
-                let $ta = ($ta, cached_buffer_byte_length);
-                $expr
-            }
-            Value::Float64Array($ta) => {
-                // 3. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, order).
-                let cached_buffer_byte_length = $ta.get_cached_buffer_byte_length($agent, $order);
-                // 4. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-                if $ta.is_typed_array_out_of_bounds($agent, cached_buffer_byte_length) {
-                    return Err($agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "TypedArray out of bounds",
-                        $gc.into_nogc(),
-                    ));
-                }
-
-                // 5. Return taRecord.
-                let $ta = ($ta, cached_buffer_byte_length);
-                $expr
-            }
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedInt8Array($ta) => {
-                // 3. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, order).
-                let cached_buffer_byte_length = $ta.get_cached_buffer_byte_length($agent, $order);
-                // 4. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-                if $ta.is_typed_array_out_of_bounds($agent, cached_buffer_byte_length) {
-                    return Err($agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "TypedArray out of bounds",
-                        $gc.into_nogc(),
-                    ));
-                }
-
-                // 5. Return taRecord.
-                let $ta = ($ta, cached_buffer_byte_length);
-                $expr
-            }
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedUint8Array($ta) => {
-                // 3. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, order).
-                let cached_buffer_byte_length = $ta.get_cached_buffer_byte_length($agent, $order);
-                // 4. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-                if $ta.is_typed_array_out_of_bounds($agent, cached_buffer_byte_length) {
-                    return Err($agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "TypedArray out of bounds",
-                        $gc.into_nogc(),
-                    ));
-                }
-
-                // 5. Return taRecord.
-                let $ta = ($ta, cached_buffer_byte_length);
-                $expr
-            }
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedUint8ClampedArray($ta) => {
-                // 3. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, order).
-                let cached_buffer_byte_length = $ta.get_cached_buffer_byte_length($agent, $order);
-                // 4. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-                if $ta.is_typed_array_out_of_bounds($agent, cached_buffer_byte_length) {
-                    return Err($agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "TypedArray out of bounds",
-                        $gc.into_nogc(),
-                    ));
-                }
-
-                // 5. Return taRecord.
-                let $ta = ($ta, cached_buffer_byte_length);
-                $expr
-            }
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedInt16Array($ta) => {
-                // 3. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, order).
-                let cached_buffer_byte_length = $ta.get_cached_buffer_byte_length($agent, $order);
-                // 4. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-                if $ta.is_typed_array_out_of_bounds($agent, cached_buffer_byte_length) {
-                    return Err($agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "TypedArray out of bounds",
-                        $gc.into_nogc(),
-                    ));
-                }
-
-                // 5. Return taRecord.
-                let $ta = ($ta, cached_buffer_byte_length);
-                $expr
-            }
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedUint16Array($ta) => {
-                // 3. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, order).
-                let cached_buffer_byte_length = $ta.get_cached_buffer_byte_length($agent, $order);
-                // 4. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-                if $ta.is_typed_array_out_of_bounds($agent, cached_buffer_byte_length) {
-                    return Err($agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "TypedArray out of bounds",
-                        $gc.into_nogc(),
-                    ));
-                }
-
-                // 5. Return taRecord.
-                let $ta = ($ta, cached_buffer_byte_length);
-                $expr
-            }
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedInt32Array($ta) => {
-                // 3. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, order).
-                let cached_buffer_byte_length = $ta.get_cached_buffer_byte_length($agent, $order);
-                // 4. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-                if $ta.is_typed_array_out_of_bounds($agent, cached_buffer_byte_length) {
-                    return Err($agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "TypedArray out of bounds",
-                        $gc.into_nogc(),
-                    ));
-                }
-
-                // 5. Return taRecord.
-                let $ta = ($ta, cached_buffer_byte_length);
-                $expr
-            }
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedUint32Array($ta) => {
-                // 3. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, order).
-                let cached_buffer_byte_length = $ta.get_cached_buffer_byte_length($agent, $order);
-                // 4. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-                if $ta.is_typed_array_out_of_bounds($agent, cached_buffer_byte_length) {
-                    return Err($agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "TypedArray out of bounds",
-                        $gc.into_nogc(),
-                    ));
-                }
-
-                // 5. Return taRecord.
-                let $ta = ($ta, cached_buffer_byte_length);
-                $expr
-            }
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedBigInt64Array($ta) => {
-                // 3. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, order).
-                let cached_buffer_byte_length = $ta.get_cached_buffer_byte_length($agent, $order);
-                // 4. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-                if $ta.is_typed_array_out_of_bounds($agent, cached_buffer_byte_length) {
-                    return Err($agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "TypedArray out of bounds",
-                        $gc.into_nogc(),
-                    ));
-                }
-
-                // 5. Return taRecord.
-                let $ta = ($ta, cached_buffer_byte_length);
-                $expr
-            }
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedBigUint64Array($ta) => {
-                // 3. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, order).
-                let cached_buffer_byte_length = $ta.get_cached_buffer_byte_length($agent, $order);
-                // 4. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-                if $ta.is_typed_array_out_of_bounds($agent, cached_buffer_byte_length) {
-                    return Err($agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "TypedArray out of bounds",
-                        $gc.into_nogc(),
-                    ));
-                }
-
-                // 5. Return taRecord.
-                let $ta = ($ta, cached_buffer_byte_length);
-                $expr
-            }
-            #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
-            Value::SharedFloat16Array($ta) => {
-                // 3. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, order).
-                let cached_buffer_byte_length = $ta.get_cached_buffer_byte_length($agent, $order);
-                // 4. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-                if $ta.is_typed_array_out_of_bounds($agent, cached_buffer_byte_length) {
-                    return Err($agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "TypedArray out of bounds",
-                        $gc.into_nogc(),
-                    ));
-                }
-
-                // 5. Return taRecord.
-                let $ta = ($ta, cached_buffer_byte_length);
-                $expr
-            }
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedFloat32Array($ta) => {
-                // 3. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, order).
-                let cached_buffer_byte_length = $ta.get_cached_buffer_byte_length($agent, $order);
-                // 4. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-                if $ta.is_typed_array_out_of_bounds($agent, cached_buffer_byte_length) {
-                    return Err($agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "TypedArray out of bounds",
-                        $gc.into_nogc(),
-                    ));
-                }
-
-                // 5. Return taRecord.
-                let $ta = ($ta, cached_buffer_byte_length);
-                $expr
-            }
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedFloat64Array($ta) => {
-                // 3. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, order).
-                let cached_buffer_byte_length = $ta.get_cached_buffer_byte_length($agent, $order);
-                // 4. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-                if $ta.is_typed_array_out_of_bounds($agent, cached_buffer_byte_length) {
-                    return Err($agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "TypedArray out of bounds",
-                        $gc.into_nogc(),
-                    ));
-                }
-
-                // 5. Return taRecord.
-                let $ta = ($ta, cached_buffer_byte_length);
-                $expr
-            }
-            _ => {
-                return Err($agent.throw_exception_with_static_message(
-                    crate::ecmascript::execution::agent::ExceptionType::TypeError,
-                    "Expected this to be TypedArray",
-                    $gc.into_nogc(),
-                ))
-            }
-        }
-    };
+fn check_not_void_array<T: Viewable>() {
+    if core::any::TypeId::of::<T>() == core::any::TypeId::of::<()>() {
+        panic!("Cannot call method on VoidArray");
+    }
 }
-pub(crate) use validate_typed_array_macro;
 
 /// ### [23.2.4.4 ValidateTypedArray ( O, order )](https://tc39.es/ecma262/#sec-validatetypedarray)
 ///
@@ -1231,24 +700,12 @@ pub(crate) fn initialize_typed_array_from_typed_array<'a, O: Viewable, Src: View
         data
     };
 
-    let heap_byte_length = byte_length.into();
-    let heap_array_length = element_length.into();
-
     // 13. Set O.[[ViewedArrayBuffer]] to data.
     // 14. Set O.[[ByteLength]] to byteLength.
     // 15. Set O.[[ByteOffset]] to 0.
     // 16. Set O.[[ArrayLength]] to elementLength.
     // SAFETY: this method is for initialising O.
-    unsafe { o.initialise_data(agent, data, heap_byte_length, 0.into(), heap_array_length) };
-
-    if heap_byte_length.is_overflowing() {
-        o.set_overflowing_byte_length(agent, byte_length);
-        // Note: if byte length doesn't overflow then array length cannot
-        // overflow either.
-        if heap_array_length.is_overflowing() {
-            o.set_overflowing_array_length(agent, element_length);
-        }
-    }
+    unsafe { o.initialise_data(agent, data, 0, Some((byte_length, element_length))) };
 
     // 17. Return unused.
     Ok(())
@@ -1331,26 +788,12 @@ pub(crate) fn initialize_typed_array_from_array_buffer<'a, T: Viewable>(
             ));
         }
 
-        let heap_byte_offset = offset.into();
-
         // b. Set O.[[ByteLength]] to auto.
         // c. Set O.[[ArrayLength]] to auto.
         // 10. Set O.[[ViewedArrayBuffer]] to buffer.
         // 11. Set O.[[ByteOffset]] to offset.
         // SAFETY: We are initialising O.
-        unsafe {
-            o.initialise_data(
-                agent,
-                buffer,
-                ViewedArrayBufferByteLength::auto(),
-                heap_byte_offset,
-                TypedArrayArrayLength::auto(),
-            )
-        };
-
-        if heap_byte_offset.is_overflowing() {
-            o.set_overflowing_byte_offset(agent, offset);
-        }
+        unsafe { o.initialise_data(agent, buffer, offset, None) };
     } else {
         // 9. Else,
         let new_byte_length = if let Some(new_length) = new_length {
@@ -1389,11 +832,6 @@ pub(crate) fn initialize_typed_array_from_array_buffer<'a, T: Viewable>(
             ));
         };
 
-        let heap_byte_length = new_byte_length.into();
-        let length = new_byte_length / element_size;
-        let heap_array_length = length.into();
-        let heap_byte_offset = offset.into();
-
         // c. Set O.[[ByteLength]] to newByteLength.
         // d. Set O.[[ArrayLength]] to newByteLength / elementSize.
         // 10. Set O.[[ViewedArrayBuffer]] to buffer.
@@ -1403,23 +841,10 @@ pub(crate) fn initialize_typed_array_from_array_buffer<'a, T: Viewable>(
             o.initialise_data(
                 agent,
                 buffer,
-                heap_byte_length,
-                heap_byte_offset,
-                heap_array_length,
+                offset,
+                Some((new_byte_length, new_byte_length / element_size)),
             )
         };
-
-        if heap_byte_length.is_overflowing() {
-            o.set_overflowing_byte_length(agent, new_byte_length);
-            // Note: if byte length doesn't overflow then array length cannot
-            // overflow either.
-            if heap_array_length.is_overflowing() {
-                o.set_overflowing_array_length(agent, length);
-            }
-        }
-        if heap_byte_offset.is_overflowing() {
-            o.set_overflowing_byte_offset(agent, offset);
-        }
     }
 
     // 12. Return unused.
@@ -1537,24 +962,12 @@ pub(crate) fn allocate_typed_array_buffer<'a, T: Viewable>(
     // 4. Let data be ? AllocateArrayBuffer(%ArrayBuffer%, byteLength).
     let data = ArrayBuffer::new(agent, byte_length, gc)?;
 
-    let heap_byte_length = byte_length.into();
-    let heap_array_length = length.into();
-
     // 5. Set O.[[ViewedArrayBuffer]] to data.
     // 6. Set O.[[ByteLength]] to byteLength.
     // 7. Set O.[[ByteOffset]] to 0.
     // 8. Set O.[[ArrayLength]] to length.
     // SAFETY: We're initialising O.
-    unsafe { o.initialise_data(agent, data, heap_byte_length, 0.into(), heap_array_length) };
-
-    if heap_byte_length.is_overflowing() {
-        o.set_overflowing_byte_length(agent, byte_length);
-        // Note: if byte length doesn't overflow then array length cannot
-        // overflow either.
-        if heap_array_length.is_overflowing() {
-            o.set_overflowing_array_length(agent, length);
-        }
-    }
+    unsafe { o.initialise_data(agent, data, 0, Some((byte_length, length))) };
 
     // 9. Return unused.
     Ok(())
@@ -1571,39 +984,35 @@ fn typed_array_create_from_constructor_internal<'a>(
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, AnyTypedArray<'a>> {
     // 2. Let taRecord be ? ValidateTypedArray(newTypedArray, seq-cst).
-    validate_typed_array_macro!(
-        agent,
-        new_typed_array.into_value(),
-        ta_record,
-        Ordering::SeqCst,
-        gc,
-        {
-            let (o, cached_buffer_byte_length) = ta_record;
-            // 3. If the number of elements in argumentList is 1 and argumentList[0] is a Number, then
-            if let Some(first_arg) = length {
-                // a. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-                if o.is_typed_array_out_of_bounds(agent, cached_buffer_byte_length) {
-                    return Err(agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "TypedArray out of bounds",
-                        gc,
-                    ));
-                }
-                // b. Let length be TypedArrayLength(taRecord).
-                let len = o.typed_array_length(agent, cached_buffer_byte_length) as i64;
-                // c. If length < ℝ(argumentList[0]), throw a TypeError exception.
-                if len < first_arg {
-                    return Err(agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "TypedArray out of bounds",
-                        gc,
-                    ));
-                };
-            }
-            // 4. Return newTypedArray.
-            Ok(o.into())
+    let ta_record =
+        validate_typed_array(agent, new_typed_array.into_value(), Ordering::SeqCst, gc)?;
+    // 3. If the number of elements in argumentList is 1 and argumentList[0] is a Number, then
+    if let Some(length) = length {
+        // a. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
+        if ta_record.is_typed_array_out_of_bounds(agent) {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "TypedArray out of bounds",
+                gc,
+            ));
         }
-    )
+        // b. Let length be TypedArrayLength(taRecord).
+        let len = ta_record.typed_array_length(agent);
+        // c. If length < ℝ(argumentList[0]), throw a TypeError exception.
+        if length > 0
+            && usize::try_from(length)
+                .ok()
+                .is_none_or(|length| len < length)
+        {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "TypedArray out of bounds",
+                gc,
+            ));
+        };
+    }
+    // 4. Return newTypedArray.
+    Ok(ta_record.object)
 }
 
 /// ### [23.2.4.2 TypedArrayCreateFromConstructor ( constructor, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-typedarraycreatefromconstructor)
@@ -1618,13 +1027,12 @@ pub(crate) fn typed_array_create_from_constructor_with_length<'a>(
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, AnyTypedArray<'a>> {
     let constructor = constructor.bind(gc.nogc());
+    let arg0 = Number::from_i64(agent, length, gc.nogc()).into_value();
     // 1. Let newTypedArray be ? Construct(constructor, argumentList).
     let new_typed_array = construct(
         agent,
         constructor.unbind(),
-        Some(ArgumentsList::from_mut_value(
-            &mut Value::try_from(length).unwrap(),
-        )),
+        Some(ArgumentsList::from_mut_value(&mut arg0.unbind())),
         None,
         gc.reborrow(),
     )
@@ -1646,35 +1054,45 @@ pub(crate) fn typed_array_create_from_constructor_with_length<'a>(
 pub(crate) fn typed_array_create_from_constructor_with_buffer<'a>(
     agent: &mut Agent,
     constructor: Function,
-    array_buffer: ArrayBuffer,
-    byte_offset: i64,
-    length: Option<i64>,
+    buffer: AnyArrayBuffer,
+    byte_offset: usize,
+    length: Option<usize>,
     mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, TypedArray<'a>> {
+) -> JsResult<'a, AnyTypedArray<'a>> {
     let constructor = constructor.bind(gc.nogc());
-    let array_buffer = array_buffer.bind(gc.nogc());
-    let args: &mut [Value] = if let Some(length) = length {
-        &mut [
-            array_buffer.into_value().unbind(),
-            Value::try_from(byte_offset).unwrap(),
-            Value::try_from(length).unwrap(),
-        ]
-    } else {
-        &mut [
-            array_buffer.into_value().unbind(),
-            Value::try_from(byte_offset).unwrap(),
-        ]
-    };
+    let buffer = buffer.bind(gc.nogc());
     // 1. Let newTypedArray be ? Construct(constructor, argumentList).
-    let new_typed_array = construct(
-        agent,
-        constructor.unbind(),
-        Some(ArgumentsList::from_mut_slice(args)),
-        None,
-        gc.reborrow(),
-    )
+    let new_typed_array = {
+        let args: &mut [Value] = if let Some(length) = length {
+            &mut [
+                buffer.into_value().unbind(),
+                Number::from_usize(agent, byte_offset, gc.nogc())
+                    .into_value()
+                    .unbind(),
+                Number::from_usize(agent, length, gc.nogc())
+                    .into_value()
+                    .unbind(),
+            ]
+        } else {
+            &mut [
+                buffer.into_value().unbind(),
+                Number::from_usize(agent, byte_offset, gc.nogc())
+                    .into_value()
+                    .unbind(),
+            ]
+        };
+
+        construct(
+            agent,
+            constructor.unbind(),
+            Some(ArgumentsList::from_mut_slice(args)),
+            None,
+            gc.reborrow(),
+        )
+    }
     .unbind()?
     .bind(gc.nogc());
+    let length = length.map(|l| i64::try_from(l).unwrap());
     typed_array_create_from_constructor_internal(
         agent,
         new_typed_array.unbind(),
@@ -1683,95 +1101,23 @@ pub(crate) fn typed_array_create_from_constructor_with_buffer<'a>(
     )
 }
 
-/// ### [23.2.4.3 TypedArrayCreateSameType ( exemplar, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-typedarray-create-same-type)
-/// The abstract operation TypedArrayCreateSameType takes arguments exemplar (a TypedArray)
-/// and argumentList (a List of ECMAScript language values) and returns either
-/// a normal completion containing a TypedArray or a throw completion.
-/// It is used to specify the creation of a new TypedArray using a constructor function that is derived from exemplar.
-/// Unlike TypedArraySpeciesCreate, which can construct custom TypedArray subclasses through the use of %Symbol.species%,
-/// this operation always uses one of the built-in TypedArray constructors.
-pub(crate) fn typed_array_create_same_type<'a>(
+pub(crate) fn typed_array_create_from_data_block<'a>(
     agent: &mut Agent,
-    exemplar: TypedArray,
-    length: i64,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, TypedArray<'a>> {
-    // 1. Let constructor be the intrinsic object associated with the constructor name exemplar.[[TypedArrayName]] in Table 73.
-    let constructor = match exemplar {
-        TypedArray::Int8Array(_) => agent.current_realm_record().intrinsics().int8_array(),
-        TypedArray::Uint8Array(_) => agent.current_realm_record().intrinsics().uint8_array(),
-        TypedArray::Uint8ClampedArray(_) => agent
-            .current_realm_record()
-            .intrinsics()
-            .uint8_clamped_array(),
-        TypedArray::Int16Array(_) => agent.current_realm_record().intrinsics().int16_array(),
-        TypedArray::Uint16Array(_) => agent.current_realm_record().intrinsics().uint16_array(),
-        TypedArray::Int32Array(_) => agent.current_realm_record().intrinsics().int32_array(),
-        TypedArray::Uint32Array(_) => agent.current_realm_record().intrinsics().uint32_array(),
-        TypedArray::BigInt64Array(_) => agent.current_realm_record().intrinsics().big_int64_array(),
-        TypedArray::BigUint64Array(_) => {
-            agent.current_realm_record().intrinsics().big_uint64_array()
-        }
-        #[cfg(feature = "proposal-float16array")]
-        TypedArray::Float16Array(_) => agent.current_realm_record().intrinsics().float16_array(),
-        TypedArray::Float32Array(_) => agent.current_realm_record().intrinsics().float32_array(),
-        TypedArray::Float64Array(_) => agent.current_realm_record().intrinsics().float64_array(),
-    };
-    let constructor = constructor.bind(gc.nogc());
-    // 2. Let result be ? TypedArrayCreateFromConstructor(constructor, argumentList).
-    let result = typed_array_create_from_constructor_with_length(
-        agent,
-        constructor.into_function().unbind(),
-        length,
-        gc.reborrow(),
-    )
-    .unbind()?
-    .bind(gc.nogc());
-    // 3. Assert: result has [[TypedArrayName]] and [[ContentType]] internal slots.
-    // 4. Assert: result.[[ContentType]] is exemplar.[[ContentType]].
+    exemplar: impl Into<AnyTypedArray<'a>>,
+    data_block: DataBlock,
+) -> VoidArray<'a> {
+    let exemplar = exemplar.into();
+    let element_size = exemplar.typed_array_element_size();
+    let byte_length = data_block.len();
+    let array_length = byte_length / element_size;
+    let ab = agent
+        .heap
+        .create(ArrayBufferHeapData::new_fixed_length(data_block));
+    let result: VoidArray = agent.heap.create(TypedArrayRecord::default());
+    // SAFETY: Initialising new TypedArrayRecord.
+    unsafe { result.initialise_data(agent, ab, 0, Some((byte_length, array_length))) };
     // 5. Return result.
-    Ok(result.unbind())
-}
-
-#[inline(always)]
-fn intrinsic_default_constructor<T: Viewable>() -> ProtoIntrinsics {
-    {
-        if TypeId::of::<T>() == TypeId::of::<i8>() {
-            ProtoIntrinsics::Int8Array
-        } else if TypeId::of::<T>() == TypeId::of::<u8>() {
-            ProtoIntrinsics::Uint8Array
-        } else if TypeId::of::<T>() == TypeId::of::<U8Clamped>() {
-            ProtoIntrinsics::Uint8ClampedArray
-        } else if TypeId::of::<T>() == TypeId::of::<i16>() {
-            ProtoIntrinsics::Int16Array
-        } else if TypeId::of::<T>() == TypeId::of::<u16>() {
-            ProtoIntrinsics::Uint16Array
-        } else if TypeId::of::<T>() == TypeId::of::<i32>() {
-            ProtoIntrinsics::Int32Array
-        } else if TypeId::of::<T>() == TypeId::of::<u32>() {
-            ProtoIntrinsics::Uint32Array
-        } else if TypeId::of::<T>() == TypeId::of::<i64>() {
-            ProtoIntrinsics::BigInt64Array
-        } else if TypeId::of::<T>() == TypeId::of::<u64>() {
-            ProtoIntrinsics::BigUint64Array
-        } else if TypeId::of::<T>() == TypeId::of::<f32>() {
-            ProtoIntrinsics::Float32Array
-        } else if TypeId::of::<T>() == TypeId::of::<f64>() {
-            ProtoIntrinsics::Float64Array
-        } else {
-            #[cfg(feature = "proposal-float16array")]
-            if TypeId::of::<T>() == TypeId::of::<f16>() {
-                return ProtoIntrinsics::Float16Array;
-            }
-            unreachable!()
-        }
-    }
-}
-
-fn has_matching_content_type<T: Viewable>(result: AnyTypedArray) -> bool {
-    let is_bigint = T::IS_BIGINT;
-    let result_is_bigint = result.is_bigint();
-    is_bigint == result_is_bigint
+    result
 }
 
 /// ### [23.2.4.1 TypedArraySpeciesCreate ( exemplar, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#typedarray-species-create)
@@ -1792,31 +1138,36 @@ pub(crate) fn try_typed_array_species_create_with_length<'gc>(
         // this is the end of the road.
         return TryError::GcError.into();
     }
-    let Some(byte_length) = length.checked_mul(element_size) else {
-        // We could actually throw an error here but this is really rare.
-        return TryError::GcError.into();
-    };
+    let byte_length = (length as u64).saturating_mul(element_size as u64);
     // 3. Let result be ? TypedArrayCreateFromConstructor(constructor, argumentList).
     // 4. Assert: result has [[TypedArrayName]] and [[ContentType]] internal slots.
     // 5. If result.[[ContentType]] is not exemplar.[[ContentType]], throw a TypeError exception.
     // 6. Return result.
     // Note: we don't set the type ahead of time.
-    js_result_into_try(create_byte_data_block(agent, byte_length as u64, gc))
+    js_result_into_try(create_byte_data_block(agent, byte_length, gc))
 }
 
 /// ### [23.2.4.1 TypedArraySpeciesCreate ( exemplar, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#typedarray-species-create)
-pub(crate) fn typed_array_species_create_with_length<'a, T: Viewable>(
+pub(crate) fn typed_array_species_create_with_length<'gc>(
     agent: &mut Agent,
-    exemplar: Object,
-    length: i64,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, AnyTypedArray<'a>> {
+    exemplar: AnyTypedArray,
+    length: usize,
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, AnyTypedArray<'gc>> {
+    let exemplar = exemplar.bind(gc.nogc());
     // 1. Let defaultConstructor be the intrinsic object associated with the constructor name exemplar.[[TypedArrayName]] in Table 73.
-    let default_constructor = intrinsic_default_constructor::<T>();
+    let default_constructor = exemplar.intrinsic_default_constructor();
+    let is_bigint = exemplar.is_bigint();
     // 2. Let constructor be ? SpeciesConstructor(exemplar, defaultConstructor).
-    let constructor = species_constructor(agent, exemplar, default_constructor, gc.reborrow())
-        .unbind()?
-        .bind(gc.nogc());
+    let constructor = species_constructor(
+        agent,
+        exemplar.into_object().unbind(),
+        default_constructor,
+        gc.reborrow(),
+    )
+    .unbind()?
+    .bind(gc.nogc());
+    let length = i64::try_from(length).unwrap();
     // 3. Let result be ? TypedArrayCreateFromConstructor(constructor, argumentList).
     let result = typed_array_create_from_constructor_with_length(
         agent,
@@ -1828,8 +1179,7 @@ pub(crate) fn typed_array_species_create_with_length<'a, T: Viewable>(
     .bind(gc.nogc());
     // 4. Assert: result has [[TypedArrayName]] and [[ContentType]] internal slots.
     // 5. If result.[[ContentType]] is not exemplar.[[ContentType]], throw a TypeError exception.
-    let is_type_match = has_matching_content_type::<T>(result);
-    if !is_type_match {
+    if is_bigint != result.is_bigint() {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "TypedArray species did not match exemplar",
@@ -1841,20 +1191,23 @@ pub(crate) fn typed_array_species_create_with_length<'a, T: Viewable>(
 }
 
 /// ### [23.2.4.1 TypedArraySpeciesCreate ( exemplar, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#typedarray-species-create)
-pub(crate) fn typed_array_species_create_with_buffer<'a, T: Viewable>(
+pub(crate) fn typed_array_species_create_with_buffer<'a>(
     agent: &mut Agent,
-    exemplar: TypedArray,
-    array_buffer: ArrayBuffer,
-    byte_offset: i64,
-    length: Option<i64>,
+    exemplar: AnyTypedArray,
+    buffer: AnyArrayBuffer,
+    byte_offset: usize,
+    length: Option<usize>,
     mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, TypedArray<'a>> {
+) -> JsResult<'a, AnyTypedArray<'a>> {
+    let exemplar = exemplar.bind(gc.nogc());
+    let buffer = buffer.scope(agent, gc.nogc());
     // 1. Let defaultConstructor be the intrinsic object associated with the constructor name exemplar.[[TypedArrayName]] in Table 73.
-    let default_constructor = intrinsic_default_constructor::<T>();
+    let default_constructor = exemplar.intrinsic_default_constructor();
+    let is_bigint = exemplar.is_bigint();
     // 2. Let constructor be ? SpeciesConstructor(exemplar, defaultConstructor).
     let constructor = species_constructor(
         agent,
-        exemplar.into_object(),
+        exemplar.into_object().unbind(),
         default_constructor,
         gc.reborrow(),
     )
@@ -1864,7 +1217,8 @@ pub(crate) fn typed_array_species_create_with_buffer<'a, T: Viewable>(
     let result = typed_array_create_from_constructor_with_buffer(
         agent,
         constructor.unbind(),
-        array_buffer,
+        // SAFETY: not shared.
+        unsafe { buffer.take(agent) },
         byte_offset,
         length,
         gc.reborrow(),
@@ -1873,8 +1227,7 @@ pub(crate) fn typed_array_species_create_with_buffer<'a, T: Viewable>(
     .bind(gc.nogc());
     // 4. Assert: result has [[TypedArrayName]] and [[ContentType]] internal slots.
     // 5. If result.[[ContentType]] is not exemplar.[[ContentType]], throw a TypeError exception.
-    let is_type_match = has_matching_content_type::<T>(result);
-    if !is_type_match {
+    if is_bigint != result.is_bigint() {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "can't convert BigInt to number",
@@ -1883,90 +1236,4 @@ pub(crate) fn typed_array_species_create_with_buffer<'a, T: Viewable>(
     }
     // 6. Return result.
     Ok(result.unbind())
-}
-
-/// ### [23.2.3.26.2 SetTypedArrayFromArrayLike ( target, targetOffset, source )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-settypedarrayfromarraylike)
-/// The abstract operation SetTypedArrayFromArrayLike takes arguments target
-/// (a TypedArray), targetOffset (a non-negative integer or +∞), and source
-/// (an ECMAScript language value, but not a TypedArray) and returns either
-/// a normal completion containing unused or a throw completion. It sets
-/// multiple values in target, starting at index targetOffset, reading the
-/// values from source.
-pub(crate) fn set_typed_array_from_array_like<'a, T: Viewable>(
-    agent: &mut Agent,
-    target: GenericTypedArray<'a, T>,
-    target_offset: IntegerOrInfinity,
-    source: Scoped<Value>,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, ()> {
-    let target = target.bind(gc.nogc());
-    // 1. Let targetRecord be MakeTypedArrayWithBufferWitnessRecord(target, seq-cst).
-    let (target, cached_buffer_byte_length) =
-        make_typed_array_with_buffer_witness_record_specialised(agent, target, Ordering::SeqCst);
-    // 2. If IsTypedArrayOutOfBounds(targetRecord) is true, throw a TypeError exception.
-    if is_typed_array_out_of_bounds_specialised(agent, target, cached_buffer_byte_length) {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "TypedArray out of bounds",
-            gc.into_nogc(),
-        ));
-    };
-    // 3. Let targetLength be TypedArrayLength(targetRecord).
-    let target_length =
-        typed_array_length_specialised::<T>(agent, target, cached_buffer_byte_length) as u64;
-    // 4. Let src be ? ToObject(source).
-    let src = to_object(agent, source.get(agent), gc.nogc())
-        .unbind()?
-        .bind(gc.nogc());
-    // SAFETY: source is not shared.
-    let source = unsafe { source.replace_self(agent, src.unbind()) };
-    let target = target.scope(agent, gc.nogc());
-    // 5. Let srcLength be ? LengthOfArrayLike(src).
-    let src_length = length_of_array_like(agent, src.unbind(), gc.reborrow()).unbind()? as u64;
-    let src = source;
-    // 6. If targetOffset = +∞, throw a RangeError exception.
-    if target_offset.is_pos_infinity() {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::RangeError,
-            "count must be less than infinity",
-            gc.into_nogc(),
-        ));
-    };
-    let target_offset = target_offset.into_i64() as u64;
-    // 7. If srcLength + targetOffset > targetLength, throw a RangeError exception.
-    if src_length + target_offset > target_length {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::RangeError,
-            "count must be less than infinity",
-            gc.into_nogc(),
-        ));
-    };
-    let target_offset = target_offset as usize;
-    let src_length = src_length as usize;
-    // 8. Let k be 0.
-    let mut k = 0;
-    // 9. Repeat, while k < srcLength,
-    while k < src_length {
-        // a. Let Pk be ! ToString(𝔽(k)).
-        let pk = PropertyKey::Integer(k.try_into().unwrap());
-        // b. Let value be ? Get(src, Pk).
-        let value = get(agent, src.get(agent), pk, gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
-        // c. Let targetIndex be 𝔽(targetOffset + k).
-        let target_index = target_offset + k;
-        // d. Perform ? TypedArraySetElement(target, targetIndex, value).
-        typed_array_set_element(
-            agent,
-            target.get(agent),
-            target_index as i64,
-            value.unbind(),
-            gc.reborrow(),
-        )
-        .unbind()?;
-        // e. Set k to k + 1.
-        k += 1;
-    }
-    // 10. Return unused.
-    Ok(())
 }

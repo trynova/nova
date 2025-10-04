@@ -3,11 +3,11 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use core::hash::{Hash, Hasher};
-use std::hint::unreachable_unchecked;
+use std::hint::{assert_unchecked, unreachable_unchecked};
 use std::marker::PhantomData;
 use std::ops::ControlFlow;
 
-use ecmascript_atomics::{Ordering, RacyPtr, RacySlice};
+use ecmascript_atomics::{Ordering, RacySlice};
 
 use crate::ecmascript::abstract_operations::operations_on_objects::{call_function, set};
 use crate::ecmascript::abstract_operations::type_conversion::{
@@ -18,7 +18,8 @@ use crate::ecmascript::builtins::array_buffer::{
     AnyArrayBuffer, ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset,
 };
 use crate::ecmascript::builtins::indexed_collections::typed_array_objects::abstract_operations::{
-    CachedBufferByteLength, TypedArrayAbstractOperations, typed_array_species_create_with_length,
+    CachedBufferByteLength, TypedArrayAbstractOperations, typed_array_create_from_data_block,
+    typed_array_species_create_with_length,
 };
 use crate::ecmascript::builtins::ordinary::caches::{PropertyLookupCache, PropertyOffset};
 use crate::ecmascript::builtins::ordinary::shape::ObjectShape;
@@ -27,16 +28,13 @@ use crate::ecmascript::builtins::ordinary::{
     ordinary_has_property_entry, ordinary_prevent_extensions, ordinary_set, ordinary_try_get,
     ordinary_try_has_property, ordinary_try_set,
 };
-use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 use crate::ecmascript::builtins::typed_array::data::{
     SharedTypedArrayRecord, TypedArrayArrayLength,
 };
 use crate::ecmascript::builtins::typed_array::{
     AnyTypedArray, TypedArray, canonicalize_numeric_index_string, for_normal_typed_array,
 };
-use crate::ecmascript::execution::agent::{
-    ExceptionType, TryError, js_result_into_try, unwrap_try,
-};
+use crate::ecmascript::execution::agent::{JsError, TryError, js_result_into_try, unwrap_try};
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::types::SHARED_FLOAT_16_ARRAY_DISCRIMINANT;
 use crate::ecmascript::types::{
@@ -48,6 +46,7 @@ use crate::ecmascript::types::{
     SHARED_UINT_8_CLAMPED_ARRAY_DISCRIMINANT, SHARED_UINT_16_ARRAY_DISCRIMINANT,
     SHARED_UINT_32_ARRAY_DISCRIMINANT, SharedDataBlock, create_byte_data_block,
 };
+use crate::engine::Scoped;
 use crate::engine::rootable::{HeapRootRef, Rootable, Scopable};
 use crate::{
     ecmascript::{
@@ -201,51 +200,6 @@ impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
         let (head, slice, _) = slice.align_to::<T::Storage>();
         assert!(head.is_empty());
         slice
-    }
-
-    /// Initialise the heap data of a TypedArray.
-    ///
-    /// # Safety
-    ///
-    /// The TypedArray must be newly created; re-initialising is not allowed.
-    pub(crate) unsafe fn initialise_data(
-        self,
-        agent: &mut Agent,
-        ab: SharedArrayBuffer,
-        byte_length: ViewedArrayBufferByteLength,
-        byte_offset: ViewedArrayBufferByteOffset,
-        array_length: TypedArrayArrayLength,
-    ) {
-        let d = self.into_void_array().get_mut(agent);
-
-        d.viewed_array_buffer = ab;
-        d.byte_length = byte_length;
-        d.byte_offset = byte_offset;
-        d.array_length = array_length;
-    }
-
-    pub(crate) fn set_overflowing_byte_offset(self, agent: &mut Agent, byte_offset: usize) {
-        agent.heap.alloc_counter += core::mem::size_of::<(SharedUint8Array, usize)>();
-        agent
-            .heap
-            .shared_typed_array_byte_offsets
-            .insert(self.into_void_array().unbind(), byte_offset);
-    }
-
-    pub(crate) fn set_overflowing_byte_length(self, agent: &mut Agent, byte_length: usize) {
-        agent.heap.alloc_counter += core::mem::size_of::<(SharedUint8Array, usize)>();
-        agent
-            .heap
-            .shared_typed_array_byte_lengths
-            .insert(self.into_void_array().unbind(), byte_length);
-    }
-
-    pub(crate) fn set_overflowing_array_length(self, agent: &mut Agent, array_length: usize) {
-        agent.heap.alloc_counter += core::mem::size_of::<(SharedUint8Array, usize)>();
-        agent
-            .heap
-            .shared_typed_array_array_lengths
-            .insert(self.into_void_array().unbind(), array_length);
     }
 }
 
@@ -895,26 +849,22 @@ macro_rules! for_shared_typed_array {
 pub(crate) use for_shared_typed_array;
 
 impl<'a> From<SharedTypedArray<'a>> for Value<'a> {
+    #[inline(always)]
     fn from(value: SharedTypedArray<'a>) -> Self {
-        match value {
-            SharedTypedArray::SharedInt8Array(ta) => Self::SharedInt8Array(ta),
-            SharedTypedArray::SharedUint8Array(ta) => Self::SharedUint8Array(ta),
-            SharedTypedArray::SharedUint8ClampedArray(ta) => Self::SharedUint8ClampedArray(ta),
-            SharedTypedArray::SharedInt16Array(ta) => Self::SharedInt16Array(ta),
-            SharedTypedArray::SharedUint16Array(ta) => Self::SharedUint16Array(ta),
-            SharedTypedArray::SharedInt32Array(ta) => Self::SharedInt32Array(ta),
-            SharedTypedArray::SharedUint32Array(ta) => Self::SharedUint32Array(ta),
-            SharedTypedArray::SharedBigInt64Array(ta) => Self::SharedBigInt64Array(ta),
-            SharedTypedArray::SharedBigUint64Array(ta) => Self::SharedBigUint64Array(ta),
-            #[cfg(feature = "proposal-float16array")]
-            SharedTypedArray::SharedFloat16Array(ta) => Self::SharedFloat16Array(ta),
-            SharedTypedArray::SharedFloat32Array(ta) => Self::SharedFloat32Array(ta),
-            SharedTypedArray::SharedFloat64Array(ta) => Self::SharedFloat64Array(ta),
-        }
+        value.into_object().into_value()
     }
 }
 
 impl<'a> From<SharedTypedArray<'a>> for Object<'a> {
+    #[inline(always)]
+    fn from(value: SharedTypedArray<'a>) -> Self {
+        let value: AnyTypedArray = value.into();
+        value.into_object()
+    }
+}
+
+impl<'a> From<SharedTypedArray<'a>> for AnyTypedArray<'a> {
+    #[inline(always)]
     fn from(value: SharedTypedArray<'a>) -> Self {
         match value {
             SharedTypedArray::SharedInt8Array(ta) => Self::SharedInt8Array(ta),
@@ -1728,6 +1678,11 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
     }
 
     #[inline(always)]
+    fn is_shared(self) -> bool {
+        true
+    }
+
+    #[inline(always)]
     fn byte_offset(self, agent: &Agent) -> usize {
         let byte_offset = self.into_void_array().get(agent).byte_offset;
         if byte_offset == ViewedArrayBufferByteOffset::heap() {
@@ -1811,7 +1766,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         count: usize,
     ) {
         let slice = self.as_slice(agent);
-        delegate_shared_data_block!(T, T, slice, {
+        delegate_shared_data_block!(T, _T, slice, {
             let src_slice = slice.slice(start_index, start_index + count);
             let dst_slice = slice.slice(target_index, target_index + count);
             dst_slice.copy_from_racy_slice(&src_slice);
@@ -1899,10 +1854,10 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
             }
         }
         // 9. Let A be ? TypedArraySpeciesCreate(O, « 𝔽(captured) »).
-        let a = typed_array_species_create_with_length::<T>(
+        let a = typed_array_species_create_with_length(
             agent,
-            unsafe { scoped_o.take(agent) }.into_object().unbind(),
-            captured as i64,
+            unsafe { scoped_o.take(agent) }.unbind().into(),
+            captured,
             gc.reborrow(),
         )
         .unbind()?;
@@ -2011,14 +1966,10 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         debug_assert!(slice.len() >= len);
 
         // 5. Let A be ? TypedArraySpeciesCreate(O, « 𝔽(len) »).
-        let a = typed_array_species_create_with_length::<T>(
-            agent,
-            o.into_object().unbind(),
-            len as i64,
-            gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        let a =
+            typed_array_species_create_with_length(agent, o.unbind().into(), len, gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
 
         // 6. Let k be 0.
         // 7. Repeat, while k < len,
@@ -2086,12 +2037,36 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         }
     }
 
+    fn set_into_data_block<'gc>(
+        self,
+        agent: &Agent,
+        target: &mut DataBlock,
+        start_index: usize,
+        count: usize,
+    ) {
+        // SAFETY: precondition.
+        unsafe {
+            assert_unchecked(
+                target.len() >= count * self.typed_array_element_size()
+                    && target.as_ptr_range().start.cast::<usize>().is_aligned()
+                    && target.as_ptr_range().end.cast::<usize>().is_aligned(),
+            )
+        };
+        let source = self.as_slice(agent).slice(start_index, start_index + count);
+        // SAFETY: Viewables are safe to transmute from u8.
+        let (head, target, _) = unsafe { target.align_to_mut::<T::Storage>() };
+        // SAFETY: precondition.
+        unsafe { assert_unchecked(target.len() >= count && head.is_empty()) };
+        source.copy_into_slice(&mut target[..count]);
+    }
+
     fn set_from_typed_array<'gc>(
         self,
         agent: &mut Agent,
         target_offset: usize,
         source: AnyTypedArray,
-        src_length: usize,
+        source_offset: usize,
+        length: usize,
         gc: NoGcScope<'gc, '_>,
     ) -> JsResult<'gc, ()> {
         let target = self;
@@ -2108,7 +2083,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         // 13. Let srcElementSize be TypedArrayElementSize(source).
         let src_element_size = source.typed_array_element_size();
         // 14. Let srcByteOffset be source.[[ByteOffset]].
-        let src_byte_offset = source.byte_offset(agent);
+        let src_byte_offset = source_offset * src_element_size + source.byte_offset(agent);
         // 18. If IsSharedArrayBuffer(srcBuffer) is true,
         //     IsSharedArrayBuffer(targetBuffer) is true, and
         //     srcBuffer.[[ArrayBufferData]] is targetBuffer.[[ArrayBufferData]],
@@ -2122,7 +2097,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
                     // SAFETY: Cannot get ArrayBuffer from SharedTypedArray.
                     unsafe { unreachable_unchecked() }
                 };
-                let src_byte_end_offset = src_byte_offset + src_element_size * src_length;
+                let src_byte_end_offset = src_byte_offset + src_element_size * length;
                 let src_slice = &src_buffer.as_slice(agent)[src_byte_offset..src_byte_end_offset];
 
                 let target_slice = sdb_as_viewable_slice::<T>(
@@ -2131,7 +2106,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
                     None,
                 )
                 .slice_from(target_offset)
-                .slice_to(src_length);
+                .slice_to(length);
 
                 for_normal_typed_array!(
                     source,
@@ -2153,7 +2128,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
                 let target_sdb = target_buffer.get_data_block(agent);
                 let source_sdb = source_buffer.get_data_block(agent);
 
-                let src_byte_end_offset = src_byte_offset + src_element_size * src_length;
+                let src_byte_end_offset = src_byte_offset + src_element_size * length;
 
                 if target_sdb == source_sdb {
                     let source_sdb = source_sdb as *const SharedDataBlock;
@@ -2178,7 +2153,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
                     let target_slice =
                         sdb_as_viewable_slice::<T>(target_sdb, target_byte_offset, None)
                             .slice_from(target_offset)
-                            .slice_to(src_length);
+                            .slice_to(length);
 
                     for_shared_typed_array!(
                         source,
@@ -2194,7 +2169,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
                         .as_racy_slice()
                         .slice(
                             target_byte_offset,
-                            target_byte_offset + src_length * target_element_size,
+                            target_byte_offset + length * target_element_size,
                         )
                         .align_to::<T::Storage>();
                     assert!(head.is_empty());
@@ -2210,6 +2185,105 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         }
         // 25. Return unused.
         Ok(())
+    }
+
+    fn sort_with_comparator<'gc>(
+        self,
+        agent: &mut Agent,
+        len: usize,
+        comparator: Scoped<Function>,
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, ()> {
+        let ta = self.bind(gc.nogc());
+        let slice = ta.as_slice(agent).slice_to(len);
+        let mut items: Vec<T> = Vec::with_capacity(slice.len());
+        for i in 0..slice.len() {
+            items.push(T::from_storage(slice.load(i, Ordering::Unordered).unwrap()));
+        }
+        let mut error: Option<JsError> = None;
+        let ta = ta.scope(agent, gc.nogc());
+        items.sort_by(|a, b| {
+            if error.is_some() {
+                return std::cmp::Ordering::Equal;
+            }
+            let a_val = a.into_ne_value(agent, gc.nogc()).into_value();
+            let b_val = b.into_ne_value(agent, gc.nogc()).into_value();
+            let result = call_function(
+                agent,
+                comparator.get(agent),
+                Value::Undefined,
+                Some(ArgumentsList::from_mut_slice(&mut [
+                    a_val.unbind(),
+                    b_val.unbind(),
+                ])),
+                gc.reborrow(),
+            )
+            .unbind()
+            .and_then(|v| v.to_number(agent, gc.reborrow()));
+            let num = match result {
+                Ok(n) => n,
+                Err(e) => {
+                    error = Some(e.unbind());
+                    return std::cmp::Ordering::Equal;
+                }
+            };
+            if num.is_nan(agent) {
+                std::cmp::Ordering::Equal
+            } else if num.is_sign_positive(agent) {
+                std::cmp::Ordering::Greater
+            } else if num.is_sign_negative(agent) {
+                std::cmp::Ordering::Less
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        });
+        if let Some(error) = error {
+            return Err(error);
+        }
+        // SAFETY: not shared.
+        let ta = unsafe { ta.take(agent) }.bind(gc.into_nogc());
+        let slice = ta.as_slice(agent);
+        let len = len.min(slice.len());
+        let items = &items[..len];
+        // SAFETY: T::Storage is a different representation of T.
+        let items = unsafe { core::mem::transmute::<&[T], &[T::Storage]>(items) };
+        slice.copy_from_slice(&items[..len]);
+        Ok(())
+    }
+
+    fn sort<'gc>(self, agent: &mut Agent, len: usize) {
+        let mut items = vec![T::default(); len];
+        // SAFETY: Transmute to storage is always safe.
+        let items_storage =
+            unsafe { core::mem::transmute::<&mut [T], &mut [T::Storage]>(&mut items) };
+        let slice = self.as_slice(agent).slice_to(len);
+        slice.copy_into_slice(items_storage);
+        items.sort_by(|a, b| a.ecmascript_cmp(b));
+        // SAFETY: Transmute to storage is always safe.
+        let items_storage =
+            unsafe { core::mem::transmute::<&mut [T], &mut [T::Storage]>(&mut items) };
+        slice.copy_from_slice(items_storage);
+    }
+
+    fn typed_array_create_same_type_and_copy_data<'gc>(
+        self,
+        agent: &mut Agent,
+        len: usize,
+        gc: NoGcScope<'gc, '_>,
+    ) -> JsResult<'gc, TypedArray<'gc>> {
+        let byte_length = (len as u64).saturating_mul(self.typed_array_element_size() as u64);
+        let mut data_block = create_byte_data_block(agent, byte_length as u64, gc)?;
+        let source = self.as_slice(agent).slice_to(len);
+        // SAFETY: Viewables can be safely transmuted from bytes.
+        let (head, target, tail) = unsafe { data_block.align_to_mut::<T::Storage>() };
+        // SAFETY: cannot have any head or tail since we created length by
+        // multiplying with `size_of::<T>()`, and allocation is done 8-byte
+        // aligned.
+        unsafe { assert_unchecked(head.is_empty() && tail.is_empty() && target.len() == len) };
+        source.copy_into_slice(target);
+        let result = typed_array_create_from_data_block(agent, self, data_block).bind(gc);
+        // SAFETY: we know the type matches.
+        Ok(unsafe { result.cast::<T>().into() })
     }
 }
 

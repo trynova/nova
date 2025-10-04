@@ -6,17 +6,17 @@ use ecmascript_atomics::Ordering;
 
 use super::{AnyArrayBuffer, ArrayBuffer, InternalBuffer};
 use crate::{
-    Heap,
     ecmascript::{
         abstract_operations::{operations_on_objects::get, type_conversion::to_index},
-        builtins::ordinary::ordinary_create_from_constructor,
+        builtins::{ArrayBufferHeapData, ordinary::ordinary_create_from_constructor},
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
             BUILTIN_STRING_MEMORY, Function, Number, Numeric, Object, SharedDataBlock, Value,
-            Viewable, copy_data_block_bytes, create_byte_data_block,
+            Viewable, create_byte_data_block,
         },
     },
     engine::context::{Bindable, GcScope, NoGcScope},
+    heap::CreateHeapData,
 };
 
 // TODO: Implement the contents of the `DetachKey` struct?
@@ -166,28 +166,30 @@ pub(crate) fn clone_array_buffer<'a>(
     // 1. Assert: IsDetachedBuffer(srcBuffer) is false.
     debug_assert!(!src_buffer.is_detached(agent));
     // 2. Let targetBuffer be ? AllocateArrayBuffer(%ArrayBuffer%, srcLength).
-    let target_buffer = ArrayBuffer::new(agent, src_length, gc)?;
-
-    let Heap {
-        array_buffers,
-        shared_array_buffers,
-        ..
-    } = &mut agent.heap;
-    let (target_buffer_data, array_buffers) = array_buffers.split_last_mut().unwrap();
-    let target_buffer_data = target_buffer_data.as_mut().unwrap();
-    let src_buffer = array_buffers
-        .get(src_buffer.get_index())
-        .unwrap()
-        .as_ref()
-        .unwrap();
-    // 3. Let srcBlock be srcBuffer.[[ArrayBufferData]].
-    let src_block = src_buffer.get_data_block();
-    // 4. Let targetBlock be targetBuffer.[[ArrayBufferData]].
-    let target_block = target_buffer_data.get_data_block_mut();
-    // 5. Perform CopyDataBlockBytes(targetBlock, 0, srcBlock, srcByteOffset, srcLength).
-    copy_data_block_bytes(target_block, 0, src_block, src_byte_offset, src_length);
+    let mut target_data_block = create_byte_data_block(agent, src_length as u64, gc)?;
+    match src_buffer {
+        AnyArrayBuffer::ArrayBuffer(ab) => {
+            // 3. Let srcBlock be srcBuffer.[[ArrayBufferData]].
+            // 4. Let targetBlock be targetBuffer.[[ArrayBufferData]].
+            // 5. Perform CopyDataBlockBytes(targetBlock, 0, srcBlock, srcByteOffset, srcLength).
+            let src_slice = &ab.as_slice(agent)[src_byte_offset..src_byte_offset + src_length];
+            target_data_block[..src_length].copy_from_slice(src_slice);
+        }
+        AnyArrayBuffer::SharedArrayBuffer(sab) => {
+            // 3. Let srcBlock be srcBuffer.[[ArrayBufferData]].
+            // 4. Let targetBlock be targetBuffer.[[ArrayBufferData]].
+            // 5. Perform CopyDataBlockBytes(targetBlock, 0, srcBlock, srcByteOffset, srcLength).
+            let src_slice = sab
+                .as_slice(agent)
+                .slice(src_byte_offset, src_byte_offset + src_length);
+            src_slice.copy_into_slice(&mut target_data_block[..src_length]);
+        }
+    }
     // 6. Return targetBuffer.
-    Ok(target_buffer)
+    Ok(agent
+        .heap
+        .create(ArrayBufferHeapData::new_fixed_length(target_data_block))
+        .bind(gc))
 }
 
 /// ### [25.1.3.6 GetArrayBufferMaxByteLengthOption ( options )](https://tc39.es/ecma262/#sec-getarraybuffermaxbytelengthoption)
