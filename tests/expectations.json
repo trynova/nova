@@ -6559,7 +6559,6 @@
   "built-ins/Temporal/prop-desc.js": "FAIL",
   "built-ins/Temporal/toStringTag/prop-desc.js": "FAIL",
   "built-ins/Temporal/toStringTag/string.js": "FAIL",
-  "built-ins/TypedArray/prototype/copyWithin/coerced-target-start-end-shrink.js": "FAIL",
   "built-ins/TypedArray/prototype/lastIndexOf/negative-index-and-resize-to-smaller.js": "FAIL",
   "built-ins/TypedArray/prototype/set/BigInt/typedarray-arg-set-values-diff-buffer-other-type-sab.js": "FAIL",
   "built-ins/TypedArray/prototype/set/BigInt/typedarray-arg-set-values-diff-buffer-same-type-sab.js": "FAIL",
