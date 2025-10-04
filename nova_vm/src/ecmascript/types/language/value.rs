@@ -1249,6 +1249,7 @@ impl Rootable for Value<'_> {
             | HeapRootData::AwaitReaction(_)
             | HeapRootData::PromiseReaction(_)
             | HeapRootData::PromiseAll(_)
+            | HeapRootData::PromiseAllSettled(_)
             | HeapRootData::DeclarativeEnvironment(_)
             | HeapRootData::FunctionEnvironment(_)
             | HeapRootData::GlobalEnvironment(_)
