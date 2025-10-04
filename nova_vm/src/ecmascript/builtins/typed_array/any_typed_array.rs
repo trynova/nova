@@ -813,6 +813,10 @@ impl<'a> TypedArrayAbstractOperations<'a> for AnyTypedArray<'a> {
         )
     }
 
+    fn slice(self, agent: &mut Agent, source: AnyTypedArray, source_offset: usize, length: usize) {
+        any_typed_array_delegate!(self, slice, agent, source, source_offset, length)
+    }
+
     fn sort_with_comparator<'gc>(
         self,
         agent: &mut Agent,

@@ -1600,7 +1600,7 @@ impl TypedArrayPrototype {
         let mut r = Wtf8Buf::with_capacity(after_len * 3);
         // 7. Let k be 0.
         // 8. Repeat, while k < len,
-        for k in 0..after_len {
+        for k in 0..len {
             // a. If k > 0, set R to the string-concatenation of R and sep.
             if k > 0 {
                 r.push_wtf8(sep);
@@ -1671,8 +1671,9 @@ impl TypedArrayPrototype {
         let len = ta_record.typed_array_length(agent);
 
         let mut o = ta_record.object;
-        // 4. If len = 0, return -1𝔽.
+        // 4. If len = 0,
         if len == 0 {
+            // return -1𝔽.
             return Ok((-1).into());
         };
         // 5. If fromIndex is present,
@@ -1696,15 +1697,29 @@ impl TypedArrayPrototype {
                 }
                 result
             };
-            // 6. If n = -∞, return -1𝔽.
+            // 6. If n = -∞,
             if n.is_neg_infinity() {
+                // return -1𝔽.
                 return Ok((-1).into());
             }
+            let n = n.into_i64();
             // 7. If n ≥ 0, then
-            // a. Let k be min(n, len - 1).
-            // 8. Else,
-            // a. Let k be len + n.
-            calculate_relative_index(n.into_i64(), len)
+            let len = u64::try_from(len).unwrap();
+            let k = if n >= 0 {
+                let n = n.unsigned_abs();
+                // a. Let k be min(n, len - 1).
+                usize::try_from(n.min(len - 1)).unwrap()
+            } else {
+                // 8. Else,
+                // a. Let k be len + n.
+                let Some(k) = len.checked_add_signed(n) else {
+                    // Underflow; while k >= 0 is never performed and we
+                    // immediately enter step 10. Return -1F.
+                    return Ok((-1).into());
+                };
+                usize::try_from(k).unwrap()
+            };
+            k
         } else {
             // 5. ... else let n be len - 1.
             len - 1
@@ -2347,7 +2362,7 @@ impl TypedArrayPrototype {
                 // d. Set countBytes to max(endIndex - startIndex, 0).
                 count = end_index.saturating_sub(start_index);
             }
-            a.set_from_typed_array(agent, 0, o, start_index, count, gc)?;
+            a.slice(agent, o, start_index, count);
             a
         };
         // 15. Return A.
@@ -2389,7 +2404,7 @@ impl TypedArrayPrototype {
             // SAFETY: not shared.
             unsafe { o.take(agent) },
             start_index,
-            end_index.saturating_sub(start_index),
+            end_index,
         ))
     }
 
@@ -2711,15 +2726,17 @@ impl TypedArrayPrototype {
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let array be ? ToObject(this value).
-        let array = to_object(agent, this_value, gc.nogc())
+        // "ValidateTypedArray is called with the **this** value and SEQ-CST as arguments".
+        let ta_record = validate_typed_array(agent, this_value, Ordering::SeqCst, gc.nogc())
             .unbind()?
             .bind(gc.nogc());
-        let scoped_array = array.scope(agent, gc.nogc());
+        let scoped_obj = ta_record.object.scope(agent, gc.nogc());
         // 2. Let len be ? LengthOfArrayLike(array).
-        let len = length_of_array_like(agent, array.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
-        // 3. Let separator be the implementation-defined list-separator String value appropriate for the host environment's current locale (such as ", ").
+        // "TypedArrayLength is called in place of performing a [[Get]] of 'length'"
+        let len = ta_record.typed_array_length(agent);
+        // 3. Let separator be the implementation-defined list-separator String
+        //    value appropriate for the host environment's current locale (such
+        //    as ", ").
         let separator = ", ";
         // 4. Let R be the empty String.
         let mut r = Wtf8Buf::new();
@@ -2731,15 +2748,14 @@ impl TypedArrayPrototype {
             if k > 0 {
                 r.push_str(separator);
             };
-            // b. Let element be ? Get(array, ! ToString(𝔽(k))).
-            let element = get(
+            // b. Let element be ! Get(array, ! ToString(𝔽(k))).
+            let element = unwrap_try_get_value_or_unset(try_get(
                 agent,
-                scoped_array.get(agent),
+                scoped_obj.get(agent),
                 PropertyKey::Integer(k.try_into().unwrap()),
-                gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc());
+                None,
+                gc.nogc(),
+            ));
             // c. If element is neither undefined nor null, then
             if !element.is_undefined() && !element.is_null() {
                 //  i. Let S be ? ToString(? Invoke(element, "toLocaleString")).

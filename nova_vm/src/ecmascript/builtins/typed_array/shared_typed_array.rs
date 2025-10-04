@@ -2187,6 +2187,96 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         Ok(())
     }
 
+    fn slice<'gc>(
+        self,
+        agent: &mut Agent,
+        source: AnyTypedArray,
+        source_offset: usize,
+        length: usize,
+    ) {
+        let target = self;
+        // 1. Let targetBuffer be target.[[ViewedArrayBuffer]].
+        let target_buffer = target.into_void_array().get(agent).viewed_array_buffer;
+        // 5. Let srcBuffer be source.[[ViewedArrayBuffer]].
+        let src_buffer = source.viewed_array_buffer(agent);
+        // 9. Let targetType be TypedArrayElementType(target).
+        // 10. Let targetElementSize be TypedArrayElementSize(target).
+        let target_element_size = size_of::<T>();
+        // 11. Let targetByteOffset be target.[[ByteOffset]].
+        let target_byte_offset = target.byte_offset(agent);
+        // 12. Let srcType be TypedArrayElementType(source).
+        // 13. Let srcElementSize be TypedArrayElementSize(source).
+        let src_element_size = source.typed_array_element_size();
+        // 14. Let srcByteOffset be source.[[ByteOffset]].
+        let src_byte_offset = source_offset * src_element_size + source.byte_offset(agent);
+        // 18. If IsSharedArrayBuffer(srcBuffer) is true,
+        //     IsSharedArrayBuffer(targetBuffer) is true, and
+        //     srcBuffer.[[ArrayBufferData]] is targetBuffer.[[ArrayBufferData]],
+        //     let sameSharedArrayBuffer be true; otherwise, let
+        //     sameSharedArrayBuffer be false.
+        // 19. If SameValue(srcBuffer, targetBuffer) is true or
+        //     sameSharedArrayBuffer is true, then
+        match src_buffer {
+            AnyArrayBuffer::ArrayBuffer(src_buffer) => {
+                let Ok(source) = TypedArray::try_from(source) else {
+                    // SAFETY: Cannot get ArrayBuffer from SharedTypedArray.
+                    unsafe { unreachable_unchecked() }
+                };
+                let src_byte_end_offset = src_byte_offset + src_element_size * length;
+                let src_slice = &src_buffer.as_slice(agent)[src_byte_offset..src_byte_end_offset];
+
+                let target_slice = sdb_as_viewable_slice::<T>(
+                    target_buffer.get_data_block(agent),
+                    target_byte_offset,
+                    None,
+                )
+                .slice_to(length);
+
+                for_normal_typed_array!(
+                    source,
+                    _ta,
+                    copy_into_shared_typed_array::<Source, T>(src_slice, target_slice),
+                    Source
+                );
+            }
+            #[cfg(feature = "shared-array-buffer")]
+            AnyArrayBuffer::SharedArrayBuffer(source_buffer) => {
+                use crate::ecmascript::builtins::typed_array::{
+                    SharedTypedArray, for_shared_typed_array,
+                };
+
+                let Ok(source) = SharedTypedArray::try_from(source) else {
+                    // SAFETY: Cannot get SharedArrayBuffer from TypedArray.
+                    unsafe { unreachable_unchecked() }
+                };
+                let target_sdb = target_buffer.get_data_block(agent);
+                let source_sdb = source_buffer.get_data_block(agent);
+
+                let src_byte_end_offset = src_byte_offset + src_element_size * length;
+
+                let source_slice = source_sdb
+                    .as_racy_slice()
+                    .slice(src_byte_offset, src_byte_end_offset);
+                let (head, target_slice, _) = target_sdb
+                    .as_racy_slice()
+                    .slice(
+                        target_byte_offset,
+                        target_byte_offset + length * target_element_size,
+                    )
+                    .align_to::<T::Storage>();
+                assert!(head.is_empty());
+
+                for_shared_typed_array!(
+                    source,
+                    _ta,
+                    copy_between_shared_typed_arrays::<Source, T>(source_slice, target_slice),
+                    Source
+                );
+            }
+        }
+        // 25. Return unused.
+    }
+
     fn sort_with_comparator<'gc>(
         self,
         agent: &mut Agent,

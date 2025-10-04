@@ -496,6 +496,8 @@ pub(crate) trait TypedArrayAbstractOperations<'ta>: Copy + Sized {
         gc: NoGcScope<'gc, '_>,
     ) -> JsResult<'gc, ()>;
 
+    fn slice(self, agent: &mut Agent, source: AnyTypedArray, source_offset: usize, length: usize);
+
     fn sort_with_comparator<'gc>(
         self,
         agent: &mut Agent,

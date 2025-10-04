@@ -409,8 +409,27 @@ pub(crate) fn string_to_number<'gc>(
 ///
 /// If the JavaScript number was infinite, then the appropriate i64 minimum or
 /// maximum value is used as a sentinel.
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, PartialEq, PartialOrd)]
 pub(crate) struct IntegerOrInfinity(i64);
+
+impl core::fmt::Display for IntegerOrInfinity {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if self.is_finite() {
+            self.0.fmt(f)
+        } else if self.is_neg_infinity() {
+            f.write_str("-Infinity")
+        } else {
+            f.write_str("Infinity")
+        }
+    }
+}
+
+impl core::fmt::Debug for IntegerOrInfinity {
+    #[inline(always)]
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        <Self as core::fmt::Display>::fmt(self, f)
+    }
+}
 
 impl IntegerOrInfinity {
     pub(crate) const NEG_INFINITY: Self = Self(i64::MIN);
