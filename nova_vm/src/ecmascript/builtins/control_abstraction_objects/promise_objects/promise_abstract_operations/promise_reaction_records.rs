@@ -10,7 +10,9 @@ use crate::{
             async_generator_objects::AsyncGenerator,
             control_abstraction_objects::async_function_objects::await_reaction::AwaitReaction,
             promise::Promise,
-            promise_objects::promise_abstract_operations::promise_all_record::PromiseAll,
+            promise_objects::promise_abstract_operations::{
+                promise_all_record::PromiseAll, promise_all_settled_record::PromiseAllSettled,
+            },
         },
         execution::Agent,
         scripts_and_modules::module::module_semantics::{
@@ -73,6 +75,10 @@ pub(crate) enum PromiseReactionHandler<'a> {
         index: u32,
         promise_all: PromiseAll<'a>,
     },
+    PromiseAllSettled {
+        index: u32,
+        promise_all_settled: PromiseAllSettled<'a>,
+    },
     Empty,
 }
 bindable_handle!(PromiseReactionHandler);
@@ -95,6 +101,10 @@ impl HeapMarkAndSweep for PromiseReactionHandler<'static> {
                 index: _,
                 promise_all,
             } => promise_all.mark_values(queues),
+            Self::PromiseAllSettled {
+                index: _,
+                promise_all_settled,
+            } => promise_all_settled.mark_values(queues),
             Self::Empty => {}
         }
     }
@@ -120,6 +130,10 @@ impl HeapMarkAndSweep for PromiseReactionHandler<'static> {
             } => {
                 promise_all.sweep_values(compactions);
             }
+            Self::PromiseAllSettled {
+                index: _,
+                promise_all_settled,
+            } => promise_all_settled.sweep_values(compactions),
             Self::Empty => {}
         }
     }
