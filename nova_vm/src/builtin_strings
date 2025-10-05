@@ -150,6 +150,7 @@ fromCharCode
 fromCodePoint
 fromEntries
 #[cfg(feature = "math")]fround
+fulfilled
 function
 Function
 Generator
@@ -320,6 +321,7 @@ race
 #[cfg(feature = "math")]random
 RangeError
 raw
+reason
 reduce
 reduceRight
 ReferenceError
@@ -328,6 +330,7 @@ Reflect
 #[cfg(feature = "regexp")]RegExp String Iterator
 register
 reject
+rejected
 repeat
 replace
 replaceAll
@@ -389,6 +392,7 @@ split
 #[cfg(feature = "math")]SQRT1_2
 #[cfg(feature = "math")]SQRT2
 startsWith
+status
 #[cfg(feature = "regexp")]sticky
 #[cfg(feature = "atomics")]store
 #[cfg(feature = "annex-b-string")]strike
