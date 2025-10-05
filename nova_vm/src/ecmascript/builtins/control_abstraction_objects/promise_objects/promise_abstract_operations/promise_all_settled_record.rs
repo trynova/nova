@@ -9,14 +9,15 @@ use crate::{
             promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
         },
         execution::Agent,
-        types::{IntoValue, Value},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, OrdinaryObject, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, indexes::BaseIndex,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, ObjectEntry, WorkQueues,
+        indexes::BaseIndex,
     },
 };
 
@@ -44,18 +45,40 @@ impl<'a> PromiseAllSettled<'a> {
 
         let result_array = promise_all.get_result_array(agent, gc.nogc());
 
+        // Let obj be OrdinaryObjectCreate(%Object.prototype%).
+        // 10. Perform ! CreateDataPropertyOrThrow(obj, "status", "fulfilled").
+        // 11. Perform ! CreateDataPropertyOrThrow(obj, "value", x).
+        let obj = OrdinaryObject::create_object(
+            agent,
+            Some(
+                agent
+                    .current_realm_record()
+                    .intrinsics()
+                    .object_prototype()
+                    .into(),
+            ),
+            &[
+                ObjectEntry::new_data_entry(
+                    BUILTIN_STRING_MEMORY.status.into(),
+                    BUILTIN_STRING_MEMORY.fulfilled.into(),
+                ),
+                ObjectEntry::new_data_entry(BUILTIN_STRING_MEMORY.value.into(), value.unbind()),
+            ],
+        )
+        .bind(gc.nogc());
+
         let elements = result_array.as_mut_slice(agent);
-        elements[index as usize] = Some(value.unbind());
+        elements[index as usize] = Some(obj.unbind().into_value());
 
         let data = promise_all.get_mut(agent);
 
-        // i. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] - 1.
+        // 13. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] - 1.
         data.remaining_elements_count = data.remaining_elements_count.saturating_sub(1);
 
-        //ii. If remainingElementsCount.[[Value]] = 0, then
+        // 14. If remainingElementsCount.[[Value]] = 0, then
         if data.remaining_elements_count == 0 {
-            // 1. Let valuesArray be CreateArrayFromList(values).
-            // 2. Perform ? Call(resultCapability.[[Resolve]], undefined, « valuesArray »).
+            // a. Let valuesArray be CreateArrayFromList(values).
+            // b. Return ? Call(promiseCapability.[[Resolve]], undefined, « valuesArray »).
             let capability = PromiseCapability::from_promise(data.promise, true);
             capability.resolve(agent, result_array.into_value().unbind(), gc);
         }
@@ -64,15 +87,52 @@ impl<'a> PromiseAllSettled<'a> {
     pub(crate) fn on_promise_rejected(
         self,
         agent: &mut Agent,
+        index: u32,
         value: Value<'a>,
-        gc: NoGcScope<'a, '_>,
+        gc: GcScope<'a, '_>,
     ) {
-        let value = value.bind(gc);
-        let promise_all = self.bind(gc);
+        let promise_all = self.bind(gc.nogc());
+        let value = value.bind(gc.nogc());
+
+        let result_array = promise_all.get_result_array(agent, gc.nogc());
+
+        // Let obj be OrdinaryObjectCreate(%Object.prototype%).
+        // 10. Perform ! CreateDataPropertyOrThrow(obj, "status", "rejected").
+        // 11. Perform ! CreateDataPropertyOrThrow(obj, "reason", x).
+        let obj = OrdinaryObject::create_object(
+            agent,
+            Some(
+                agent
+                    .current_realm_record()
+                    .intrinsics()
+                    .object_prototype()
+                    .into(),
+            ),
+            &[
+                ObjectEntry::new_data_entry(
+                    BUILTIN_STRING_MEMORY.status.into(),
+                    BUILTIN_STRING_MEMORY.rejected.into(),
+                ),
+                ObjectEntry::new_data_entry(BUILTIN_STRING_MEMORY.reason.into(), value.unbind()),
+            ],
+        )
+        .bind(gc.nogc());
+
+        let elements = result_array.as_mut_slice(agent);
+        elements[index as usize] = Some(obj.unbind().into_value());
+
         let data = promise_all.get_mut(agent);
 
-        let capability = PromiseCapability::from_promise(data.promise, true);
-        capability.reject(agent, value.unbind(), gc);
+        // 13. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] - 1.
+        data.remaining_elements_count = data.remaining_elements_count.saturating_sub(1);
+
+        // 14. If remainingElementsCount.[[Value]] = 0, then
+        if data.remaining_elements_count == 0 {
+            // a. Let valuesArray be CreateArrayFromList(values).
+            // b. Return ? Call(promiseCapability.[[Resolve]], undefined, « valuesArray »).
+            let capability = PromiseCapability::from_promise(data.promise, true);
+            capability.resolve(agent, result_array.into_value().unbind(), gc);
+        }
     }
 
     pub(crate) fn get_result_array(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> Array<'a> {
