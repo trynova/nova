@@ -301,6 +301,31 @@ impl PromiseReactionJob {
                 }
                 return Ok(());
             }
+            PromiseReactionHandler::PromiseAllSettled {
+                promise_all_settled,
+                index,
+            } => {
+                let reaction_type = agent[reaction].reaction_type;
+                match reaction_type {
+                    PromiseReactionType::Fulfill => {
+                        promise_all_settled.on_promise_fulfilled(
+                            agent,
+                            index,
+                            argument.unbind(),
+                            gc.reborrow(),
+                        );
+                    }
+                    PromiseReactionType::Reject => {
+                        promise_all_settled.on_promise_rejected(
+                            agent,
+                            index,
+                            argument.unbind(),
+                            gc.reborrow(),
+                        );
+                    }
+                }
+                return Ok(());
+            }
         };
 
         // f. If promiseCapability is undefined, then
@@ -363,6 +388,7 @@ pub(crate) fn new_promise_reaction_job(
         | PromiseReactionHandler::DynamicImport { .. }
         | PromiseReactionHandler::DynamicImportEvaluate { .. }
         | PromiseReactionHandler::PromiseAll { .. } => None,
+        PromiseReactionHandler::PromiseAllSettled { .. } => None,
     };
 
     // 4. Return the Record { [[Job]]: job, [[Realm]]: handlerRealm }.
