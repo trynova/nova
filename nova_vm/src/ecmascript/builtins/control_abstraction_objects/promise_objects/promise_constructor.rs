@@ -416,7 +416,7 @@ impl PromiseConstructor {
 
         let iterator = iterator.scope(agent, gc.nogc());
 
-        // 7. Let result be Completion(PerformPromiseAll(iteratorRecord, C, promiseCapability, promiseResolve)).
+        // 7. Let result be Completion(PerformPromiseAllSettled(iteratorRecord, C, promiseCapability, promiseResolve)).
         let mut iterator_done = false;
         let result = perform_promise_all_settled(
             agent,
@@ -451,9 +451,7 @@ impl PromiseConstructor {
                     promise: promise.get(agent).bind(gc.nogc()),
                     must_be_unresolved: true,
                 };
-                // a. Perform ? Call(capability.[[Reject]], undefined, « value.[[Value]] »).
                 promise_capability.reject(agent, result.value().unbind(), gc.nogc());
-                // b. Return capability.[[Promise]].
                 promise_capability.promise()
             }
             Ok(result) => result,
@@ -1020,22 +1018,32 @@ fn perform_promise_all_settled<'gc>(
             _ => Promise::new_resolved(agent, call_result),
         };
 
-        // e. Let steps be the algorithm steps defined in Promise.all Resolve Element Functions.
-        // f. Let length be the number of non-optional parameters of the function definition in Promise.all Resolve Element Functions.
-        // g. Let onFulfilled be CreateBuiltinFunction(steps, length, "", « [[AlreadyCalled]], [[Index]], [[Values]], [[Capability]], [[RemainingElements]] »).
-        // h. Set onFulfilled.[[AlreadyCalled]] to false.
-        // i. Set onFulfilled.[[Index]] to index.
-        // j. Set onFulfilled.[[Values]] to values.
+        // e. Let stepsFulfilled be the algorithm steps defined in Promise.allSettled Resolve Element Functions.
+        // f. Let lengthFulfilled be the number of non-optional parameters of the function definition in Promise.allSettled Resolve Element Functions.
+        // g. Let onFulfilled be CreateBuiltinFunction(stepsFulfilled, lengthFulfilled, "", « [[AlreadyCalled]], [[Index]], [[Values]], [[Capability]], [[RemainingElements]] »).
+        // h. Let alreadyCalled be the Record { [[Value]]: false }.
+        // i. Set onFulfilled.[[AlreadyCalled]] to alreadyCalled.
+        // j. Set onFulfilled.[[Index]] to index.
+        // k. Set onFulfilled.[[Values]] to values.
+        // l. Set onFulfilled.[[Capability]] to resultCapability.
+        // m. Set onFulfilled.[[RemainingElements]] to remainingElementsCount.
+        // n. Let stepsRejected be the algorithm steps defined in Promise.allSettled Reject Element Functions.
+        // o. Let lengthRejected be the number of non-optional parameters of the function definition in Promise.allSettled Reject Element Functions.
+        // p. Let onRejected be CreateBuiltinFunction(stepsRejected, lengthRejected, "", « [[AlreadyCalled]], [[Index]], [[Values]], [[Capability]], [[RemainingElements]] »).
+        // q. Set onRejected.[[AlreadyCalled]] to alreadyCalled.
+        // r. Set onRejected.[[Index]] to index.
+        // s. Set onRejected.[[Values]] to values.
+        // t. Set onRejected.[[Capability]] to resultCapability.
+        // u. Set onRejected.[[RemainingElements]] to remainingElementsCount.
         let promise_all_settled = promise_all_settled_reference.get(agent).bind(gc.nogc());
         let reaction = PromiseReactionHandler::PromiseAllSettled {
             index,
             promise_all_settled,
         };
-        // k. Set onFulfilled.[[Capability]] to resultCapability.
-        // l. Set onFulfilled.[[RemainingElements]] to remainingElementsCount.
-        // m. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] + 1.
+
+        // v. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] + 1.
         promise_all_settled.get_mut(agent).remaining_elements_count += 1;
-        // n. Perform ? Invoke(nextPromise, "then", « onFulfilled, resultCapability.[[Reject]] »).
+        // w. Perform ? Invoke(nextPromise, "then", « onFulfilled, onRejected »).
         inner_promise_then(
             agent,
             next_promise.unbind(),
@@ -1045,7 +1053,7 @@ fn perform_promise_all_settled<'gc>(
             gc.nogc(),
         );
 
-        // o. Set index to index + 1.
+        // x. Set index to index + 1.
         index += 1;
     }
 }
