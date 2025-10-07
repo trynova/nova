@@ -12,7 +12,10 @@ use crate::{
             },
             operations_on_objects::{call_function, get_function_realm},
         },
-        builtins::{ArgumentsList, promise::Promise},
+        builtins::{
+            ArgumentsList, promise::Promise,
+            promise_objects::promise_abstract_operations::promise_all::PromiseAllReactionHandler,
+        },
         execution::{
             Agent, JsResult,
             agent::{InnerJob, Job, JsError},
@@ -296,7 +299,12 @@ impl PromiseReactionJob {
                         );
                     }
                     PromiseReactionType::Reject => {
-                        promise_all.on_promise_rejected(agent, argument.unbind(), gc.nogc());
+                        promise_all.on_promise_rejected(
+                            agent,
+                            index,
+                            argument.unbind(),
+                            gc.reborrow(),
+                        );
                     }
                 }
                 return Ok(());

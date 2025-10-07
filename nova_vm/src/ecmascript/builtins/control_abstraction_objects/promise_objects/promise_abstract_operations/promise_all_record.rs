@@ -5,8 +5,13 @@
 use crate::{
     ecmascript::{
         builtins::{
-            Array, promise::Promise,
-            promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
+            Array,
+            promise::Promise,
+            promise_objects::promise_abstract_operations::{
+                promise_all::PromiseAllReactionHandler,
+                promise_capability_records::PromiseCapability,
+                promise_reaction_records::PromiseReactionHandler,
+            },
         },
         execution::Agent,
         types::{IntoValue, Value},
@@ -32,7 +37,38 @@ pub struct PromiseAllRecord<'a> {
 pub struct PromiseAll<'a>(BaseIndex<'a, PromiseAllRecord<'static>>);
 
 impl<'a> PromiseAll<'a> {
-    pub(crate) fn on_promise_fulfilled(
+    // pub(crate) fn get_result_array(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> Array<'a> {
+    //     let data = self.get(agent);
+    //     data.result_array.bind(gc).unbind()
+    // }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+
+    pub fn get(self, agent: &Agent) -> &PromiseAllRecord<'a> {
+        agent
+            .heap
+            .promise_all_records
+            .get(self.get_index())
+            .expect("PromiseAllRecord not found")
+    }
+
+    pub fn get_mut(self, agent: &mut Agent) -> &mut PromiseAllRecord<'static> {
+        agent
+            .heap
+            .promise_all_records
+            .get_mut(self.get_index())
+            .expect("PromiseAllRecord not found")
+    }
+
+    pub(crate) const fn _def() -> Self {
+        Self(BaseIndex::from_u32_index(0))
+    }
+}
+
+impl<'a> PromiseAllReactionHandler<'a> for PromiseAll<'a> {
+    fn on_promise_fulfilled(
         self,
         agent: &mut Agent,
         index: u32,
@@ -61,47 +97,49 @@ impl<'a> PromiseAll<'a> {
         }
     }
 
-    pub(crate) fn on_promise_rejected(
+    fn on_promise_rejected(
         self,
         agent: &mut Agent,
+        _index: u32,
         value: Value<'a>,
-        gc: NoGcScope<'a, '_>,
+        gc: GcScope<'a, '_>,
     ) {
-        let value = value.bind(gc);
-        let promise_all = self.bind(gc);
+        let value = value.bind(gc.nogc());
+        let promise_all = self.bind(gc.nogc());
         let data = promise_all.get_mut(agent);
 
         let capability = PromiseCapability::from_promise(data.promise, true);
-        capability.reject(agent, value.unbind(), gc);
+        capability.reject(agent, value.unbind(), gc.nogc());
     }
 
-    pub(crate) fn get_result_array(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> Array<'a> {
+    fn get_result_array(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> Array<'a> {
         let data = self.get(agent);
         data.result_array.bind(gc).unbind()
     }
 
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
+    fn increase_remaining_elements_count(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) {
+        let promise_all = self.bind(gc);
+        let data = promise_all.get_mut(agent);
+        data.remaining_elements_count = data.remaining_elements_count.saturating_add(1);
     }
 
-    pub fn get(self, agent: &Agent) -> &PromiseAllRecord<'a> {
-        agent
-            .heap
-            .promise_all_records
-            .get(self.get_index())
-            .expect("PromiseAllRecord not found")
+    fn decrease_remaining_elements_count(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) {
+        let promise_all = self.bind(gc);
+        let data = promise_all.get_mut(agent);
+        data.remaining_elements_count = data.remaining_elements_count.saturating_sub(1);
     }
 
-    pub fn get_mut(self, agent: &mut Agent) -> &mut PromiseAllRecord<'static> {
-        agent
-            .heap
-            .promise_all_records
-            .get_mut(self.get_index())
-            .expect("PromiseAllRecord not found")
+    fn get_remaining_elements_count(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> u32 {
+        let promise_all = self.bind(gc);
+        promise_all.get(agent).remaining_elements_count
     }
 
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
+    fn to_reaction_handler(self, index: u32, gc: NoGcScope<'a, '_>) -> PromiseReactionHandler<'a> {
+        let promise_all = self.bind(gc);
+        PromiseReactionHandler::PromiseAll {
+            index,
+            promise_all: promise_all.unbind(),
+        }
     }
 }
 
