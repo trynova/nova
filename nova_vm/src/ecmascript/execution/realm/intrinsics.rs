@@ -40,7 +40,9 @@ use crate::ecmascript::builtins::structured_data::shared_array_buffer_objects::{
     shared_array_buffer_prototype::SharedArrayBufferPrototype,
 };
 #[cfg(feature = "temporal")]
-use crate::ecmascript::builtins::temporal::TemporalObject;
+use crate::ecmascript::builtins::temporal::{
+    TemporalObject, instant::InstantConstructor, instant::InstantPrototype,
+};
 #[cfg(feature = "regexp")]
 use crate::ecmascript::builtins::text_processing::regexp_objects::{
     regexp_constructor::RegExpConstructor, regexp_prototype::RegExpPrototype,
@@ -311,8 +313,12 @@ impl Intrinsics {
         MathObject::create_intrinsic(agent, realm, gc);
 
         #[cfg(feature = "temporal")]
-        TemporalObject::create_intrinsic(agent, realm, gc);
-        
+        {
+            TemporalObject::create_intrinsic(agent, realm, gc);
+            // Instant
+            InstantConstructor::create_intrinsic(agent, realm, gc);
+            InstantPrototype::create_intrinsic(agent, realm, gc);
+        }
 
         #[cfg(feature = "date")]
         DatePrototype::create_intrinsic(agent, realm);
@@ -1021,6 +1027,16 @@ impl Intrinsics {
     /// %Temporal%
     pub(crate) const fn temporal(&self) -> OrdinaryObject<'static> {
         IntrinsicObjectIndexes::TemporalObject.get_backing_object(self.object_index_base)
+    }
+
+    /// %Temporal.Instant%
+    pub(crate) const fn temporal_instant(&self) -> BuiltinFunction<'static> {
+        IntrinsicConstructorIndexes::TemporalInstant
+            .get_builtin_function(self.builtin_function_index_base)
+    }
+    /// %Temporal.Instant.Prototype%
+    pub(crate) const fn temporal_instant_prototype(&self) -> OrdinaryObject<'static> {
+        IntrinsicObjectIndexes::TemporalInstantPrototype.get_backing_object(self.object_index_base)
     }
 
     /// %Number.prototype%
