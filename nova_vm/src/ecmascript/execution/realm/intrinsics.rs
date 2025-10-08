@@ -40,7 +40,9 @@ use crate::ecmascript::builtins::structured_data::shared_array_buffer_objects::{
     shared_array_buffer_prototype::SharedArrayBufferPrototype,
 };
 #[cfg(feature = "temporal")]
-use crate::ecmascript::builtins::temporal::TemporalObject;
+use crate::ecmascript::builtins::temporal::{
+    instant::InstantConstructor, instant::InstantPrototype, TemporalObject
+};
 #[cfg(feature = "regexp")]
 use crate::ecmascript::builtins::text_processing::regexp_objects::{
     regexp_constructor::RegExpConstructor, regexp_prototype::RegExpPrototype,
@@ -65,7 +67,6 @@ use crate::ecmascript::builtins::{
 use crate::{
     ecmascript::{
         builtins::{
-            Array, BuiltinFunction,
             control_abstraction_objects::{
                 async_function_objects::{
                     async_function_constructor::AsyncFunctionConstructor,
@@ -88,31 +89,22 @@ use crate::{
                 promise_objects::{
                     promise_constructor::PromiseConstructor, promise_prototype::PromisePrototype,
                 },
-            },
-            global_object::GlobalObject,
-            indexed_collections::array_objects::{
+            }, global_object::GlobalObject, indexed_collections::array_objects::{
                 array_constructor::ArrayConstructor,
                 array_iterator_objects::array_iterator_prototype::ArrayIteratorPrototype,
                 array_prototype::ArrayPrototype,
-            },
-            iteration::iterator_constructor::IteratorConstructor,
-            keyed_collections::map_objects::{
+            }, iteration::iterator_constructor::IteratorConstructor, keyed_collections::map_objects::{
                 map_constructor::MapConstructor,
                 map_iterator_objects::map_iterator_prototype::MapIteratorPrototype,
                 map_prototype::MapPrototype,
-            },
-            managing_memory::finalization_registry_objects::{
+            }, managing_memory::finalization_registry_objects::{
                 finalization_registry_constructor::FinalizationRegistryConstructor,
                 finalization_registry_prototype::FinalizationRegistryPrototype,
-            },
-            ordinary::shape::ObjectShape,
-            primitive_objects::{PrimitiveObject, PrimitiveObjectHeapData},
-            reflection::{proxy_constructor::ProxyConstructor, reflect_object::ReflectObject},
-            text_processing::string_objects::{
+            }, ordinary::shape::ObjectShape, primitive_objects::{PrimitiveObject, PrimitiveObjectHeapData}, reflection::{proxy_constructor::ProxyConstructor, reflect_object::ReflectObject}, text_processing::string_objects::{
                 string_constructor::StringConstructor,
                 string_iterator_objects::StringIteratorPrototype,
                 string_prototype::StringPrototype,
-            },
+            }, Array, BuiltinFunction
         },
         execution::Agent,
         fundamental_objects::{
@@ -148,10 +140,7 @@ use crate::{
     },
     engine::context::NoGcScope,
     heap::{
-        CompactionLists, HeapMarkAndSweep, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes,
-        IntrinsicObjectIndexes, IntrinsicObjectShapes, IntrinsicPrimitiveObjectIndexes, WorkQueues,
-        indexes::BaseIndex, intrinsic_function_count, intrinsic_object_count,
-        intrinsic_primitive_object_count,
+        indexes::BaseIndex, intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count, CompactionLists, HeapMarkAndSweep, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, IntrinsicObjectIndexes, IntrinsicObjectShapes, IntrinsicPrimitiveObjectIndexes, WorkQueues
     },
 };
 #[derive(Debug, Clone)]
@@ -310,9 +299,12 @@ impl Intrinsics {
         #[cfg(feature = "math")]
         MathObject::create_intrinsic(agent, realm, gc);
 
-        #[cfg(feature = "temporal")]
-        TemporalObject::create_intrinsic(agent, realm, gc);
-        
+        #[cfg(feature = "temporal")] {
+            TemporalObject::create_intrinsic(agent, realm, gc);
+            // Instant
+            InstantConstructor::create_intrinsic(agent, realm, gc);
+            InstantPrototype::create_intrinsic(agent, realm, gc);
+        }
 
         #[cfg(feature = "date")]
         DatePrototype::create_intrinsic(agent, realm);
@@ -1021,6 +1013,15 @@ impl Intrinsics {
     /// %Temporal%
     pub(crate) const fn temporal(&self) -> OrdinaryObject<'static> {
         IntrinsicObjectIndexes::TemporalObject.get_backing_object(self.object_index_base)
+    }
+
+    /// %Temporal.Instant%
+    pub(crate) const fn temporal_instant(&self) -> BuiltinFunction<'static> {
+        IntrinsicConstructorIndexes::TemporalInstant.get_builtin_function(self.builtin_function_index_base)
+    }
+    /// %Temporal.Instant.Prototype%
+    pub(crate) const fn temporal_instant_prototype(&self) -> OrdinaryObject<'static> {
+        IntrinsicObjectIndexes::TemporalInstantPrototype.get_backing_object(self.object_index_base)
     }
 
     /// %Number.prototype%
