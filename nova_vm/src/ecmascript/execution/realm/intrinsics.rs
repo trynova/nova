@@ -12,7 +12,9 @@ use crate::ecmascript::JSONObject;
 #[cfg(feature = "math")]
 use crate::ecmascript::MathObject;
 #[cfg(feature = "temporal")]
-use crate::ecmascript::builtins::TemporalObject;
+use crate::ecmascript::builtins::{
+    TemporalObject, instant::InstantConstructor, instant::InstantPrototype,
+};
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::{
     ArrayBufferConstructor, ArrayBufferPrototype, DataViewConstructor, DataViewPrototype,
@@ -214,7 +216,12 @@ impl Intrinsics {
         MathObject::create_intrinsic(agent, realm, gc);
 
         #[cfg(feature = "temporal")]
-        TemporalObject::create_intrinsic(agent, realm, gc);
+        {
+            TemporalObject::create_intrinsic(agent, realm, gc);
+            // Instant
+            InstantConstructor::create_intrinsic(agent, realm, gc);
+            InstantPrototype::create_intrinsic(agent, realm, gc);
+        }
 
         #[cfg(feature = "date")]
         DatePrototype::create_intrinsic(agent, realm);
@@ -923,6 +930,16 @@ impl Intrinsics {
     /// %Temporal%
     pub(crate) const fn temporal(&self) -> OrdinaryObject<'static> {
         IntrinsicObjectIndexes::TemporalObject.get_backing_object(self.object_index_base)
+    }
+
+    /// %Temporal.Instant%
+    pub(crate) const fn temporal_instant(&self) -> BuiltinFunction<'static> {
+        IntrinsicConstructorIndexes::TemporalInstant
+            .get_builtin_function(self.builtin_function_index_base)
+    }
+    /// %Temporal.Instant.Prototype%
+    pub(crate) const fn temporal_instant_prototype(&self) -> OrdinaryObject<'static> {
+        IntrinsicObjectIndexes::TemporalInstantPrototype.get_backing_object(self.object_index_base)
     }
 
     /// %Number.prototype%

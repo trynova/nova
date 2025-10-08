@@ -2,11 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-
-use temporal_rs::{Instant, Duration, /* etc */};
-
-use core::f64::consts;
-use std::thread::Builder;
+pub mod instant;
 
 use crate::{
     ecmascript::{
@@ -38,7 +34,7 @@ impl TemporalObject {
         let this = intrinsics.temporal();
 
         let builders = OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
-            .with_property_capacity(1)
+            .with_property_capacity(2)
             .with_prototype(object_prototype)
             .with_property(|builder| {
                 builder
@@ -48,58 +44,7 @@ impl TemporalObject {
                     .with_configurable(true)
                     .build()
             })
+            .with_builtin_function_property::<instant::InstantConstructor>()
             .build();
     }  
 }
-
-
-
-/* 
-struct TemporalPlainDateTime;
-impl Builtin for TemporalPlainDateTime {
-    const NAME: String<'static> = BUILTIN_STRING_MEMORY.PlainDateTime;
-    const LENGTH: u8 = 1;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalObject::PlainDateTime);
-}
-
-struct TemporalPlainDate;
-impl Builtin for TemporalPlainDate {
-    const NAME: String<'static> = BUILTIN_STRING_MEMORY.PlainDate;
-    const LENGTH: u8 = 1;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalObject::PlainDate);
-}
-
-struct TemporalPlainTime;
-impl Builtin for TemporalPlainTime {
-    const NAME: String<'static> = BUILTIN_STRING_MEMORY.PlainTime;
-    const LENGTH: u8 = 1;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalObject::PlainTime);
-}
-
-struct TemporalPlainYearMonth;
-impl Builtin for TemporalPlainYearMonth {
-    const NAME: String<'static> = BUILTIN_STRING_MEMORY.PlainYearMonth;
-    const LENGTH: u8 = 1;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalObject::PlainYearMonth);
-}
-
-struct TemporalPlainMonthDay;
-impl Builtin for TemporalPlainMonthDay {
-    const NAME: String<'static> = BUILTIN_STRING_MEMORY.PlainMonthDay;
-    const LENGTH: u8 = 1;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalObject::PlainMonthDay);
-}
-
-struct TemporalDuration;
-impl Builtin for TemporalDuration {
-    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Duration;
-    const LENGTH: u8 = 1;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalObject::Duration);
-}
-
-struct TemporalZonedDateTime;
-impl Builtin for TemporalZonedDateTime {
-    const NAME: String<'static> = BUILTIN_STRING_MEMORY.ZonedDateTime;
-    const LENGTH: u8 = 1;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalObject::ZonedDateTime);
-}*/
