@@ -743,13 +743,11 @@ fn typed_array_constructor<'gc, T: Viewable>(
 
     // 2. Let constructorName be the String value of the Constructor Name value specified in Table 69 for this TypedArray constructor.
     // 3. Let proto be "%TypedArray.prototype%".
-    let proto = T::PROTO;
-
     // 5. If numberOfArgs = 0, then
     if arguments.is_empty() {
         // a. Return ? AllocateTypedArray(constructorName, NewTarget, proto, 0).
-        return allocate_typed_array::<T>(agent, new_target.unbind(), proto, Some(0), gc)
-            .map(TypedArray::into_value);
+        return allocate_typed_array::<T>(agent, new_target.unbind(), Some(0), gc)
+            .map(|ta| ta.into_value());
     }
 
     // 6. Else,
@@ -758,7 +756,7 @@ fn typed_array_constructor<'gc, T: Viewable>(
     if first_argument_is_object {
         let scoped_first_argument = first_argument.scope(agent, gc.nogc());
         // i. Let O be ? AllocateTypedArray(constructorName, NewTarget, proto).
-        let o = allocate_typed_array::<T>(agent, new_target.unbind(), proto, None, gc.reborrow())
+        let o = allocate_typed_array::<T>(agent, new_target.unbind(), None, gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
         let scoped_o = o.scope(agent, gc.nogc());
@@ -768,103 +766,125 @@ fn typed_array_constructor<'gc, T: Viewable>(
         if let Ok(first_argument) = TypedArray::try_from(first_argument) {
             // 1. Perform ? InitializeTypedArrayFromTypedArray(O, firstArgument).
             match first_argument {
-                TypedArray::Int8Array(_) => initialize_typed_array_from_typed_array::<T, i8>(
-                    agent,
-                    o,
-                    first_argument,
-                    gc.nogc(),
-                )
-                .unbind()?
-                .bind(gc.nogc()),
-                TypedArray::Uint8Array(_) => initialize_typed_array_from_typed_array::<T, u8>(
-                    agent,
-                    o,
-                    first_argument,
-                    gc.nogc(),
-                )
-                .unbind()?
-                .bind(gc.nogc()),
-                TypedArray::Uint8ClampedArray(_) => initialize_typed_array_from_typed_array::<
+                TypedArray::Int8Array(first_argument) => initialize_typed_array_from_typed_array::<
                     T,
-                    U8Clamped,
+                    i8,
                 >(
                     agent, o, first_argument, gc.nogc()
                 )
                 .unbind()?
                 .bind(gc.nogc()),
-                TypedArray::Int16Array(_) => initialize_typed_array_from_typed_array::<T, i16>(
-                    agent,
-                    o,
-                    first_argument,
-                    gc.nogc(),
-                )
-                .unbind()?
-                .bind(gc.nogc()),
-                TypedArray::Uint16Array(_) => initialize_typed_array_from_typed_array::<T, u16>(
-                    agent,
-                    o,
-                    first_argument,
-                    gc.nogc(),
-                )
-                .unbind()?
-                .bind(gc.nogc()),
-                TypedArray::Int32Array(_) => initialize_typed_array_from_typed_array::<T, i32>(
-                    agent,
-                    o,
-                    first_argument,
-                    gc.nogc(),
-                )
-                .unbind()?
-                .bind(gc.nogc()),
-                TypedArray::Uint32Array(_) => initialize_typed_array_from_typed_array::<T, u32>(
-                    agent,
-                    o,
-                    first_argument,
-                    gc.nogc(),
-                )
-                .unbind()?
-                .bind(gc.nogc()),
-                TypedArray::BigInt64Array(_) => initialize_typed_array_from_typed_array::<T, i64>(
-                    agent,
-                    o,
-                    first_argument,
-                    gc.nogc(),
-                )
-                .unbind()?
-                .bind(gc.nogc()),
-                TypedArray::BigUint64Array(_) => initialize_typed_array_from_typed_array::<T, u64>(
-                    agent,
-                    o,
-                    first_argument,
-                    gc.nogc(),
-                )
-                .unbind()?
-                .bind(gc.nogc()),
+                TypedArray::Uint8Array(first_argument) => {
+                    initialize_typed_array_from_typed_array::<T, u8>(
+                        agent,
+                        o,
+                        first_argument,
+                        gc.nogc(),
+                    )
+                    .unbind()?
+                    .bind(gc.nogc())
+                }
+                TypedArray::Uint8ClampedArray(first_argument) => {
+                    initialize_typed_array_from_typed_array::<T, U8Clamped>(
+                        agent,
+                        o,
+                        first_argument,
+                        gc.nogc(),
+                    )
+                    .unbind()?
+                    .bind(gc.nogc())
+                }
+                TypedArray::Int16Array(first_argument) => {
+                    initialize_typed_array_from_typed_array::<T, i16>(
+                        agent,
+                        o,
+                        first_argument,
+                        gc.nogc(),
+                    )
+                    .unbind()?
+                    .bind(gc.nogc())
+                }
+                TypedArray::Uint16Array(first_argument) => {
+                    initialize_typed_array_from_typed_array::<T, u16>(
+                        agent,
+                        o,
+                        first_argument,
+                        gc.nogc(),
+                    )
+                    .unbind()?
+                    .bind(gc.nogc())
+                }
+                TypedArray::Int32Array(first_argument) => {
+                    initialize_typed_array_from_typed_array::<T, i32>(
+                        agent,
+                        o,
+                        first_argument,
+                        gc.nogc(),
+                    )
+                    .unbind()?
+                    .bind(gc.nogc())
+                }
+                TypedArray::Uint32Array(first_argument) => {
+                    initialize_typed_array_from_typed_array::<T, u32>(
+                        agent,
+                        o,
+                        first_argument,
+                        gc.nogc(),
+                    )
+                    .unbind()?
+                    .bind(gc.nogc())
+                }
+                TypedArray::BigInt64Array(first_argument) => {
+                    initialize_typed_array_from_typed_array::<T, i64>(
+                        agent,
+                        o,
+                        first_argument,
+                        gc.nogc(),
+                    )
+                    .unbind()?
+                    .bind(gc.nogc())
+                }
+                TypedArray::BigUint64Array(first_argument) => {
+                    initialize_typed_array_from_typed_array::<T, u64>(
+                        agent,
+                        o,
+                        first_argument,
+                        gc.nogc(),
+                    )
+                    .unbind()?
+                    .bind(gc.nogc())
+                }
                 #[cfg(feature = "proposal-float16array")]
-                TypedArray::Float16Array(_) => initialize_typed_array_from_typed_array::<T, f16>(
-                    agent,
-                    o,
-                    first_argument,
-                    gc.nogc(),
-                )
-                .unbind()?
-                .bind(gc.nogc()),
-                TypedArray::Float32Array(_) => initialize_typed_array_from_typed_array::<T, f32>(
-                    agent,
-                    o,
-                    first_argument,
-                    gc.nogc(),
-                )
-                .unbind()?
-                .bind(gc.nogc()),
-                TypedArray::Float64Array(_) => initialize_typed_array_from_typed_array::<T, f64>(
-                    agent,
-                    o,
-                    first_argument,
-                    gc.nogc(),
-                )
-                .unbind()?
-                .bind(gc.nogc()),
+                TypedArray::Float16Array(first_argument) => {
+                    initialize_typed_array_from_typed_array::<T, f16>(
+                        agent,
+                        o,
+                        first_argument,
+                        gc.nogc(),
+                    )
+                    .unbind()?
+                    .bind(gc.nogc())
+                }
+                TypedArray::Float32Array(first_argument) => {
+                    initialize_typed_array_from_typed_array::<T, f32>(
+                        agent,
+                        o,
+                        first_argument,
+                        gc.nogc(),
+                    )
+                    .unbind()?
+                    .bind(gc.nogc())
+                }
+                TypedArray::Float64Array(first_argument) => {
+                    initialize_typed_array_from_typed_array::<T, f64>(
+                        agent,
+                        o,
+                        first_argument,
+                        gc.nogc(),
+                    )
+                    .unbind()?
+                    .bind(gc.nogc())
+                }
             }
         } else if let Ok(first_argument) = ArrayBuffer::try_from(first_argument) {
             // SAFETY: scoped_first_argument is not shared.
@@ -962,7 +982,6 @@ fn typed_array_constructor<'gc, T: Viewable>(
     allocate_typed_array::<T>(
         agent,
         new_target.unbind(),
-        proto,
         Some(element_length as usize),
         gc,
     )

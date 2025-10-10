@@ -1374,9 +1374,8 @@ pub(crate) fn species_constructor<'a>(
     }
     // 3. If C is not an Object, throw a TypeError exception.
     let Ok(c) = Object::try_from(c) else {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "constructor property value is not an object",
+        return Err(throw_constructor_property_not_an_object(
+            agent,
             gc.into_nogc(),
         ));
     };
@@ -1401,11 +1400,87 @@ pub(crate) fn species_constructor<'a>(
         return Ok(s.unbind());
     }
     // 7. Throw a TypeError exception.
-    Err(agent.throw_exception_with_static_message(
-        ExceptionType::TypeError,
-        "constructor species is not a constructor",
+    Err(throw_species_constructor_is_not_a_constructor(
+        agent,
         gc.into_nogc(),
     ))
+}
+
+#[cold]
+#[inline(never)]
+fn throw_constructor_property_not_an_object<'gc>(
+    agent: &mut Agent,
+    gc: NoGcScope<'gc, '_>,
+) -> JsError<'gc> {
+    agent.throw_exception_with_static_message(
+        ExceptionType::TypeError,
+        "constructor property value is not an object",
+        gc.into_nogc(),
+    )
+}
+
+#[cold]
+#[inline(never)]
+fn throw_species_constructor_is_not_a_constructor<'gc>(
+    agent: &mut Agent,
+    gc: NoGcScope<'gc, '_>,
+) -> JsError<'gc> {
+    agent.throw_exception_with_static_message(
+        ExceptionType::TypeError,
+        "species constructor is not a constructor",
+        gc.into_nogc(),
+    )
+}
+
+/// ### [7.3.22 SpeciesConstructor ( O, defaultConstructor )](https://tc39.es/ecma262/multipage/abstract-operations.html#sec-speciesconstructor)
+pub(crate) fn try_species_constructor<'gc>(
+    agent: &mut Agent,
+    o: Object<'gc>,
+    default_constructor: ProtoIntrinsics,
+    gc: NoGcScope<'gc, '_>,
+) -> TryResult<'gc, Option<Function<'gc>>> {
+    // 1. Let C be ? Get(O, "constructor").
+    let c = try_get_result_into_value(try_get(
+        agent,
+        o,
+        BUILTIN_STRING_MEMORY.constructor.into(),
+        None,
+        gc,
+    ))?;
+    // 2. If C is undefined, return defaultConstructor.
+    if c.is_undefined() {
+        return TryResult::Continue(None);
+    }
+    // 3. If C is not an Object, throw a TypeError exception.
+    let Ok(c) = Object::try_from(c) else {
+        return throw_constructor_property_not_an_object(agent, gc).into();
+    };
+    // 4. Let S be ? Get(C, %Symbol.species%).
+    let s = try_get_result_into_value(try_get(
+        agent,
+        c,
+        WellKnownSymbolIndexes::Species.into(),
+        None,
+        gc,
+    ))?;
+    // 5. If S is either undefined or null, return defaultConstructor.
+    if s.is_undefined() || s.is_null() {
+        return TryResult::Continue(None);
+    }
+    // 6. If IsConstructor(S) is true, return S.
+    if let Some(s) = is_constructor(agent, s) {
+        let default_constructor = agent
+            .current_realm_record()
+            .intrinsics()
+            .get_intrinsic_default_constructor(default_constructor);
+        return TryResult::Continue(if s == default_constructor {
+            None
+        } else {
+            Some(s)
+        });
+    }
+    // 7. Throw a TypeError exception.
+    throw_species_constructor_is_not_a_constructor(agent, gc).into()
 }
 
 pub(crate) fn is_prototype_of_loop<'a>(

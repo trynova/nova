@@ -24,7 +24,7 @@ use self::data::MapHeapData;
 
 pub mod data;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Map<'a>(BaseIndex<'a, MapHeapData<'static>>);
 

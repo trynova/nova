@@ -44,7 +44,7 @@ use super::ordinary::{
 
 pub mod data;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Module<'a>(u32, PhantomData<&'a ()>);
 

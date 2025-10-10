@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use ecmascript_atomics::Ordering;
+
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
@@ -21,13 +23,41 @@ use self::data::SharedArrayBufferRecord;
 
 pub mod data;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct SharedArrayBuffer<'a>(BaseIndex<'a, SharedArrayBufferRecord<'static>>);
 
 bindable_handle!(SharedArrayBuffer);
 
 impl<'sab> SharedArrayBuffer<'sab> {
+    /// Constant to be used only for creating a build-time Self.
+    pub(crate) const _DEF: Self = Self(BaseIndex::ZERO);
+
+    #[inline]
+    pub fn is_detached(self, agent: &Agent) -> bool {
+        self.get(agent).data_block.is_dangling()
+    }
+
+    /// Returns true if the SharedArrayBuffer is growable.
+    pub fn is_growable(self, agent: &Agent) -> bool {
+        self.get(agent).data_block.is_growable()
+    }
+
+    /// Get the byte length of the SharedArrayBuffer.
+    ///
+    /// Note, if this is a growable SharedArrayBuffer then this is a
+    /// synchronising operation.
+    #[inline]
+    pub fn byte_length(self, agent: &Agent, order: Ordering) -> usize {
+        self.get(agent).data_block.byte_length(order)
+    }
+
+    /// Get the maximum byte length of the SharedArrayBuffer.
+    #[inline]
+    pub fn max_byte_length(self, agent: &Agent) -> usize {
+        self.get(agent).data_block.max_byte_length()
+    }
+
     /// Get the SharedDataBlock of a SharedArrayBuffer for sharing.
     pub fn get_data_block(self, agent: &Agent) -> &SharedDataBlock {
         &self.unbind().get(agent).data_block
@@ -47,10 +77,6 @@ impl<'sab> SharedArrayBuffer<'sab> {
                 data_block,
             })
             .bind(gc)
-    }
-
-    pub(crate) const fn _def() -> Self {
-        SharedArrayBuffer(BaseIndex::from_u32_index(0))
     }
 
     #[inline(always)]
@@ -106,24 +132,6 @@ impl<'sab> SharedArrayBuffer<'sab> {
                 gc,
             ))
         }
-    }
-
-    /// Returns true if the SharedArrayBuffer is growable.
-    pub fn is_growable(self, agent: &Agent) -> bool {
-        self.get(agent).data_block.is_growable()
-    }
-
-    /// Get the byte length of the SharedArrayBuffer.
-    ///
-    /// Note, if this is a growable SharedArrayBuffer then this is a
-    /// synchronising operation.
-    pub fn byte_length(self, agent: &Agent) -> usize {
-        self.get(agent).data_block.byte_length()
-    }
-
-    /// Get the maximum byte length of the SharedArrayBuffer.
-    pub fn max_byte_length(self, agent: &Agent) -> usize {
-        self.get(agent).data_block.max_byte_length()
     }
 
     /// Set the SharedArrayBuffer's internal buffer to `data_block`.

@@ -22,7 +22,7 @@ use self::data::EmbedderObjectHeapData;
 
 pub mod data;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct EmbedderObject<'a>(BaseIndex<'a, EmbedderObjectHeapData>);
 

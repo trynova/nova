@@ -4,6 +4,8 @@
 
 use std::thread;
 
+#[cfg(feature = "array-buffer")]
+use super::heap_bits::sweep_side_table_values;
 use super::{
     Heap, WellKnownSymbolIndexes,
     element_array::ElementArrays,
@@ -18,8 +20,6 @@ use super::{
     },
     indexes::{ElementIndex, PropertyKeyIndex},
 };
-#[cfg(feature = "array-buffer")]
-use super::{heap_bits::sweep_side_table_values, indexes::TypedArrayIndex};
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
 #[cfg(feature = "shared-array-buffer")]
@@ -51,6 +51,7 @@ use crate::{
                     promise_resolving_functions::BuiltinPromiseResolvingFunction,
                 },
             },
+            data_view::SharedDataView,
             embedder_object::EmbedderObject,
             error::Error,
             finalization_registry::FinalizationRegistry,
@@ -67,6 +68,7 @@ use crate::{
             },
             proxy::Proxy,
             text_processing::string_objects::string_iterator_objects::StringIterator,
+            typed_array::{SharedVoidArray, VoidArray},
         },
         execution::{
             Agent, DeclarativeEnvironment, Environments, FunctionEnvironment, GlobalEnvironment,
@@ -123,12 +125,6 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             builtin_constructors,
             builtin_functions,
             caches,
-            #[cfg(feature = "array-buffer")]
-            data_views,
-            #[cfg(feature = "array-buffer")]
-                data_view_byte_lengths: _,
-            #[cfg(feature = "array-buffer")]
-                data_view_byte_offsets: _,
             #[cfg(feature = "date")]
             dates,
             ecmascript_functions,
@@ -183,6 +179,27 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 typed_array_byte_offsets: _,
             #[cfg(feature = "array-buffer")]
                 typed_array_array_lengths: _,
+            #[cfg(feature = "array-buffer")]
+            data_views,
+            #[cfg(feature = "array-buffer")]
+                data_view_byte_lengths: _,
+            #[cfg(feature = "array-buffer")]
+                data_view_byte_offsets: _,
+            #[cfg(feature = "shared-array-buffer")]
+            shared_typed_arrays,
+            #[cfg(feature = "shared-array-buffer")]
+                shared_typed_array_byte_lengths: _,
+            #[cfg(feature = "shared-array-buffer")]
+                shared_typed_array_byte_offsets: _,
+            #[cfg(feature = "shared-array-buffer")]
+                shared_typed_array_array_lengths: _,
+            #[cfg(feature = "weak-refs")]
+            #[cfg(feature = "shared-array-buffer")]
+            shared_data_views,
+            #[cfg(feature = "shared-array-buffer")]
+                shared_data_view_byte_lengths: _,
+            #[cfg(feature = "shared-array-buffer")]
+                shared_data_view_byte_offsets: _,
             #[cfg(feature = "weak-refs")]
             weak_maps,
             #[cfg(feature = "weak-refs")]
@@ -867,6 +884,40 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 }
             });
         }
+        #[cfg(feature = "shared-array-buffer")]
+        {
+            let mut shared_data_view_marks: Box<[SharedDataView]> =
+                queues.shared_data_views.drain(..).collect();
+            shared_data_view_marks.sort();
+            shared_data_view_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if let Some(marked) = bits.shared_data_views.get_mut(index) {
+                    if *marked {
+                        // Already marked, ignore
+                        return;
+                    }
+                    *marked = true;
+                    shared_data_views.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+        #[cfg(feature = "shared-array-buffer")]
+        {
+            let mut shared_typed_array_marks: Box<[SharedVoidArray]> =
+                queues.shared_typed_arrays.drain(..).collect();
+            shared_typed_array_marks.sort();
+            shared_typed_array_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if let Some(marked) = bits.shared_typed_arrays.get_mut(index) {
+                    if *marked {
+                        // Already marked, ignore
+                        return;
+                    }
+                    *marked = true;
+                    shared_typed_arrays.get(index).mark_values(&mut queues);
+                }
+            });
+        }
         let mut source_text_module_record_marks: Box<[SourceTextModule]> =
             queues.source_text_module_records.drain(..).collect();
         source_text_module_record_marks.sort();
@@ -925,11 +976,10 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         });
         #[cfg(feature = "array-buffer")]
         {
-            let mut typed_arrays_marks: Box<[TypedArrayIndex]> =
-                queues.typed_arrays.drain(..).collect();
+            let mut typed_arrays_marks: Box<[VoidArray]> = queues.typed_arrays.drain(..).collect();
             typed_arrays_marks.sort();
             typed_arrays_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if let Some(marked) = bits.typed_arrays.get_mut(index) {
                     if *marked {
                         // Already marked, ignore
@@ -1425,12 +1475,6 @@ fn sweep(
         builtin_constructors,
         builtin_functions,
         caches,
-        #[cfg(feature = "array-buffer")]
-        data_views,
-        #[cfg(feature = "array-buffer")]
-        data_view_byte_lengths,
-        #[cfg(feature = "array-buffer")]
-        data_view_byte_offsets,
         #[cfg(feature = "date")]
         dates,
         ecmascript_functions,
@@ -1486,6 +1530,27 @@ fn sweep(
         #[cfg(feature = "array-buffer")]
         typed_array_array_lengths,
         #[cfg(feature = "weak-refs")]
+        #[cfg(feature = "array-buffer")]
+        data_views,
+        #[cfg(feature = "array-buffer")]
+        data_view_byte_lengths,
+        #[cfg(feature = "array-buffer")]
+        data_view_byte_offsets,
+        #[cfg(feature = "shared-array-buffer")]
+        shared_typed_arrays,
+        #[cfg(feature = "shared-array-buffer")]
+        shared_typed_array_byte_lengths,
+        #[cfg(feature = "shared-array-buffer")]
+        shared_typed_array_byte_offsets,
+        #[cfg(feature = "shared-array-buffer")]
+        shared_typed_array_array_lengths,
+        #[cfg(feature = "weak-refs")]
+        #[cfg(feature = "shared-array-buffer")]
+        shared_data_views,
+        #[cfg(feature = "shared-array-buffer")]
+        shared_data_view_byte_lengths,
+        #[cfg(feature = "shared-array-buffer")]
+        shared_data_view_byte_offsets,
         weak_maps,
         #[cfg(feature = "weak-refs")]
         weak_refs,
@@ -1800,6 +1865,14 @@ fn sweep(
                 sweep_side_table_values(data_view_byte_offsets, &compactions);
             });
         }
+        #[cfg(feature = "shared-array-buffer")]
+        if !shared_data_views.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(shared_data_views, &compactions, &bits.shared_data_views);
+                sweep_side_table_values(shared_data_view_byte_lengths, &compactions);
+                sweep_side_table_values(shared_data_view_byte_offsets, &compactions);
+            });
+        }
         #[cfg(feature = "date")]
         if !dates.is_empty() {
             s.spawn(|| {
@@ -2059,6 +2132,19 @@ fn sweep(
                 sweep_side_table_values(typed_array_byte_lengths, &compactions);
                 sweep_side_table_values(typed_array_byte_offsets, &compactions);
                 sweep_side_table_values(typed_array_array_lengths, &compactions);
+            });
+        }
+        #[cfg(feature = "shared-array-buffer")]
+        if !shared_typed_arrays.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(
+                    shared_typed_arrays,
+                    &compactions,
+                    &bits.shared_typed_arrays,
+                );
+                sweep_side_table_values(shared_typed_array_byte_lengths, &compactions);
+                sweep_side_table_values(shared_typed_array_byte_offsets, &compactions);
+                sweep_side_table_values(shared_typed_array_array_lengths, &compactions);
             });
         }
         #[cfg(feature = "weak-refs")]

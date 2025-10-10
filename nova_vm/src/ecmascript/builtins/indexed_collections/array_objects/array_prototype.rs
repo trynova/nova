@@ -1134,7 +1134,7 @@ impl ArrayPrototype {
             .unbind()?
             .scope(agent, gc.nogc());
         // 2. Let len be ? LengthOfArrayLike(O).
-        let len = length_of_array_like(agent, o.get(agent), gc.reborrow()).unbind()?;
+        let len = length_of_array_like(agent, o.get(agent), gc.reborrow()).unbind()? as u64;
         // 3. Let findRec be ? FindViaPredicate(O, len, ascending, predicate, thisArg).
         let find_rec = find_via_predicate(agent, o, len, true, predicate, this_arg, gc)?;
         // 4. Return findRec.[[Value]].
@@ -1174,7 +1174,7 @@ impl ArrayPrototype {
             .unbind()?
             .scope(agent, gc.nogc());
         // 2. Let len be ? LengthOfArrayLike(O).
-        let len = length_of_array_like(agent, o.get(agent), gc.reborrow()).unbind()?;
+        let len = length_of_array_like(agent, o.get(agent), gc.reborrow()).unbind()? as u64;
         // 3. Let findRec be ? FindViaPredicate(O, len, ascending, predicate, thisArg).
         let find_rec = find_via_predicate(agent, o, len, true, predicate, this_arg, gc)?;
         // 4. Return findRec.[[Index]].
@@ -1198,7 +1198,7 @@ impl ArrayPrototype {
             .unbind()?
             .scope(agent, gc.nogc());
         // 2. Let len be ? LengthOfArrayLike(O).
-        let len = length_of_array_like(agent, o.get(agent), gc.reborrow()).unbind()?;
+        let len = length_of_array_like(agent, o.get(agent), gc.reborrow()).unbind()? as u64;
         // 3. Let findRec be ? FindViaPredicate(O, len, descending, predicate, thisArg).
         let find_rec = find_via_predicate(agent, o, len, false, predicate, this_arg, gc)?;
         // 4. Return findRec.[[Value]].
@@ -1222,7 +1222,7 @@ impl ArrayPrototype {
             .unbind()?
             .scope(agent, nogc);
         // 2. Let len be ? LengthOfArrayLike(O).
-        let len = length_of_array_like(agent, o.get(agent), gc.reborrow()).unbind()?;
+        let len = length_of_array_like(agent, o.get(agent), gc.reborrow()).unbind()? as u64;
         // 3. Let findRec be ? FindViaPredicate(O, len, descending, predicate, thisArg).
         let find_rec = find_via_predicate(agent, o, len, false, predicate, this_arg, gc)?;
         // 4. Return findRec.[[Index]].
@@ -4317,7 +4317,7 @@ fn is_concat_spreadable<'a>(
 pub(crate) fn find_via_predicate<'gc, T: 'static + Rootable + InternalMethods<'static>>(
     agent: &mut Agent,
     o: Scoped<T>,
-    len: i64,
+    len: u64,
     ascending: bool,
     predicate: Scoped<Value>,
     this_arg: Scoped<Value>,
@@ -4340,9 +4340,9 @@ pub(crate) fn find_via_predicate<'gc, T: 'static + Rootable + InternalMethods<'s
         o: Scoped<T>,
         predicate: Scoped<Function>,
         this_arg: Scoped<Value>,
-        k: i64,
+        k: u64,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Option<(i64, Value<'gc>)>> {
+    ) -> JsResult<'gc, Option<(u64, Value<'gc>)>> {
         // a. Let Pk be ! ToString(𝔽(k)).
         let pk = PropertyKey::Integer(k.try_into().unwrap());
         // b. NOTE: If O is a TypedArray, the following invocation of Get will
@@ -4394,6 +4394,7 @@ pub(crate) fn find_via_predicate<'gc, T: 'static + Rootable + InternalMethods<'s
                 }
             };
             if let Some((index, value)) = result {
+                let index = i64::try_from(index).expect("Index overflowed JavaScript safe integer");
                 return Ok((index, value.unbind().bind(gc.into_nogc())));
             }
         }
@@ -4413,6 +4414,7 @@ pub(crate) fn find_via_predicate<'gc, T: 'static + Rootable + InternalMethods<'s
                 Err(err) => return Err(err.unbind()),
             };
             if let Some((index, value)) = result {
+                let index = i64::try_from(index).expect("Index overflowed JavaScript safe integer");
                 return Ok((index, value.unbind().bind(gc.into_nogc())));
             }
         }
