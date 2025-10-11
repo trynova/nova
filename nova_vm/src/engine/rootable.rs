@@ -72,7 +72,7 @@ use crate::{
             promise_objects::promise_abstract_operations::{
                 promise_all_record::PromiseAll, promise_all_settled_record::PromiseAllSettled,
                 promise_finally_functions::BuiltinPromiseFinallyFunction,
-                promise_reaction_records::PromiseReaction,
+                promise_group_record::PromiseGroup, promise_reaction_records::PromiseReaction,
                 promise_resolving_functions::BuiltinPromiseResolvingFunction,
             },
             proxy::Proxy,
@@ -150,7 +150,7 @@ pub mod private {
                 promise_objects::promise_abstract_operations::{
                     promise_all_record::PromiseAll, promise_all_settled_record::PromiseAllSettled,
                     promise_finally_functions::BuiltinPromiseFinallyFunction,
-                    promise_reaction_records::PromiseReaction,
+                    promise_group_record::PromiseGroup, promise_reaction_records::PromiseReaction,
                     promise_resolving_functions::BuiltinPromiseResolvingFunction,
                 },
                 proxy::Proxy,
@@ -216,6 +216,7 @@ pub mod private {
     impl RootableSealed for PromiseReaction<'_> {}
     impl RootableSealed for PromiseAll<'_> {}
     impl RootableSealed for PromiseAllSettled<'_> {}
+    impl RootableSealed for PromiseGroup<'_> {}
     impl RootableSealed for PropertyKey<'_> {}
     impl RootableSealed for Proxy<'_> {}
     impl RootableSealed for Realm<'_> {}
@@ -559,6 +560,7 @@ pub enum HeapRootData {
     PromiseReaction(PromiseReaction<'static>),
     PromiseAll(PromiseAll<'static>),
     PromiseAllSettled(PromiseAllSettled<'static>),
+    PromiseGroup(PromiseGroup<'static>),
     Realm(Realm<'static>),
     Script(Script<'static>),
     SourceTextModule(SourceTextModule<'static>),
@@ -797,6 +799,7 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::PromiseAllSettled(promise_all_settled) => {
                 promise_all_settled.mark_values(queues)
             }
+            HeapRootData::PromiseGroup(promise_group) => promise_group.mark_values(queues),
             HeapRootData::Realm(realm) => realm.mark_values(queues),
             HeapRootData::Script(script) => script.mark_values(queues),
             HeapRootData::SourceCode(source_code) => source_code.mark_values(queues),
@@ -930,6 +933,7 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::PromiseAllSettled(promise_all_settled) => {
                 promise_all_settled.sweep_values(compactions)
             }
+            HeapRootData::PromiseGroup(promise_group) => promise_group.sweep_values(compactions),
             HeapRootData::Realm(realm) => realm.sweep_values(compactions),
             HeapRootData::Script(script) => script.sweep_values(compactions),
             HeapRootData::SourceCode(source_code) => source_code.sweep_values(compactions),
