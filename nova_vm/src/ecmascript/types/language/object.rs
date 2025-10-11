@@ -1760,6 +1760,7 @@ impl TryFrom<HeapRootData> for Object<'_> {
             | HeapRootData::PromiseReaction(_)
             | HeapRootData::PromiseAll(_)
             | HeapRootData::PromiseAllSettled(_)
+            | HeapRootData::PromiseGroup(_)
             | HeapRootData::Executable(_)
             | HeapRootData::Realm(_)
             | HeapRootData::Script(_)

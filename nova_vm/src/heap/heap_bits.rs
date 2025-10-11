@@ -58,6 +58,7 @@ use crate::ecmascript::{
         promise_objects::promise_abstract_operations::{
             promise_all_record::PromiseAll, promise_all_settled_record::PromiseAllSettled,
             promise_finally_functions::BuiltinPromiseFinallyFunction,
+            promise_group_record::PromiseGroup,
         },
         proxy::Proxy,
         text_processing::string_objects::string_iterator_objects::StringIterator,
@@ -145,6 +146,7 @@ pub struct HeapBits {
     pub promises: Box<[bool]>,
     pub promise_all_records: Box<[bool]>,
     pub promise_all_settled_records: Box<[bool]>,
+    pub promise_group_records: Box<[bool]>,
     pub proxies: Box<[bool]>,
     pub realms: Box<[bool]>,
     #[cfg(feature = "regexp")]
@@ -242,6 +244,7 @@ pub(crate) struct WorkQueues {
     pub promise_finally_functions: Vec<BuiltinPromiseFinallyFunction<'static>>,
     pub promise_all_records: Vec<PromiseAll<'static>>,
     pub promise_all_settled_records: Vec<PromiseAllSettled<'static>>,
+    pub promise_group_records: Vec<PromiseGroup<'static>>,
     pub proxies: Vec<Proxy<'static>>,
     pub realms: Vec<Realm<'static>>,
     #[cfg(feature = "regexp")]
@@ -339,6 +342,7 @@ impl HeapBits {
         let promises = vec![false; heap.promises.len()];
         let promise_all_records = vec![false; heap.promise_all_records.len()];
         let promise_all_settled_records = vec![false; heap.promise_all_settled_records.len()];
+        let promise_group_records = vec![false; heap.promise_group_records.len()];
         let proxies = vec![false; heap.proxies.len()];
         let realms = vec![false; heap.realms.len()];
         #[cfg(feature = "regexp")]
@@ -433,6 +437,7 @@ impl HeapBits {
             promises: promises.into_boxed_slice(),
             promise_all_records: promise_all_records.into_boxed_slice(),
             promise_all_settled_records: promise_all_settled_records.into_boxed_slice(),
+            promise_group_records: promise_group_records.into_boxed_slice(),
             proxies: proxies.into_boxed_slice(),
             realms: realms.into_boxed_slice(),
             #[cfg(feature = "regexp")]
@@ -537,6 +542,7 @@ impl WorkQueues {
             promise_all_settled_records: Vec::with_capacity(
                 heap.promise_all_settled_records.len() / 4,
             ),
+            promise_group_records: Vec::with_capacity(heap.promise_group_records.len() / 4),
             proxies: Vec::with_capacity(heap.proxies.len() / 4),
             realms: Vec::with_capacity(heap.realms.len() / 4),
             #[cfg(feature = "regexp")]
@@ -637,6 +643,7 @@ impl WorkQueues {
             promise_finally_functions,
             promise_all_records,
             promise_all_settled_records,
+            promise_group_records,
             proxies,
             realms,
             #[cfg(feature = "regexp")]
@@ -756,6 +763,7 @@ impl WorkQueues {
             && promise_finally_functions.is_empty()
             && promise_all_records.is_empty()
             && promise_all_settled_records.is_empty()
+            && promise_group_records.is_empty()
             && promises.is_empty()
             && proxies.is_empty()
             && realms.is_empty()
@@ -1114,6 +1122,7 @@ pub(crate) struct CompactionLists {
     pub promises: CompactionList,
     pub promise_all_records: CompactionList,
     pub promise_all_settled_records: CompactionList,
+    pub promise_group_records: CompactionList,
     pub proxies: CompactionList,
     pub realms: CompactionList,
     #[cfg(feature = "regexp")]
@@ -1229,6 +1238,7 @@ impl CompactionLists {
             promise_all_settled_records: CompactionList::from_mark_bits(
                 &bits.promise_all_settled_records,
             ),
+            promise_group_records: CompactionList::from_mark_bits(&bits.promise_group_records),
             #[cfg(feature = "regexp")]
             regexps: CompactionList::from_mark_bits(&bits.regexps),
             #[cfg(feature = "regexp")]
