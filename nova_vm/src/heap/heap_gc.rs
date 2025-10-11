@@ -64,6 +64,7 @@ use crate::{
             promise_objects::promise_abstract_operations::{
                 promise_all_record::PromiseAll, promise_all_settled_record::PromiseAllSettled,
                 promise_finally_functions::BuiltinPromiseFinallyFunction,
+                promise_group_record::PromiseGroup,
             },
             proxy::Proxy,
             text_processing::string_objects::string_iterator_objects::StringIterator,
@@ -157,6 +158,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             promises,
             promise_all_records,
             promise_all_settled_records,
+            promise_group_records,
             proxies,
             realms,
             #[cfg(feature = "regexp")]
@@ -689,6 +691,20 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 promise_all_settled_records
                     .get(index)
                     .mark_values(&mut queues);
+            }
+        });
+        let mut promise_group_record_marks: Box<[PromiseGroup]> =
+            queues.promise_group_records.drain(..).collect();
+        promise_group_record_marks.sort();
+        promise_group_record_marks.iter().for_each(|&idx| {
+            let index = idx.get_index();
+            if let Some(marked) = bits.promise_group_records.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                promise_group_records.get(index).mark_values(&mut queues);
             }
         });
         let mut promise_resolving_function_marks: Box<[BuiltinPromiseResolvingFunction]> =
@@ -1476,6 +1492,7 @@ fn sweep(
         promises,
         promise_all_records,
         promise_all_settled_records,
+        promise_group_records,
         proxies,
         realms,
         #[cfg(feature = "regexp")]
@@ -1993,6 +2010,15 @@ fn sweep(
                     promise_all_settled_records,
                     &compactions,
                     &bits.promise_all_settled_records,
+                );
+            });
+        }
+        if !promise_group_records.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(
+                    promise_group_records,
+                    &compactions,
+                    &bits.promise_group_records,
                 );
             });
         }
