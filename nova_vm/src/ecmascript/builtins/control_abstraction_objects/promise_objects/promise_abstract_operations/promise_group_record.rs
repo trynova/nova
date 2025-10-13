@@ -4,10 +4,14 @@ use crate::{
             promise_all_record::{PromiseAll, PromiseAllRecord},
             promise_all_settled_record::{PromiseAllSettled, PromiseAllSettledRecord},
         },
-        execution::Agent,
+        execution::{
+            Agent, JsResult,
+            agent::{ExceptionType, JsError},
+        },
+        types::Value,
     },
     engine::{
-        context::{Bindable, bindable_handle},
+        context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
@@ -26,6 +30,46 @@ pub enum PromiseGroupRecord<'a> {
 pub struct PromiseGroup<'a>(BaseIndex<'a, PromiseGroupRecord<'static>>);
 
 impl<'a> PromiseGroup<'a> {
+    pub(crate) fn on_promise_fulfilled(
+        self,
+        agent: &mut Agent,
+        index: u32,
+        value: Value<'a>,
+        mut gc: GcScope<'a, '_>,
+    ) {
+        let value = value.bind(gc.nogc());
+
+        let promise_group_record = self.get(agent);
+        match promise_group_record {
+            PromiseGroupRecord::PromiseAll(promise_all) => {
+                promise_all.on_promise_fulfilled(agent, index, value.unbind(), gc.reborrow())
+            }
+            PromiseGroupRecord::PromiseAllSettled(promise_all_settled) => {
+                // promise_all_settled.on_promise_fulfilled(agent, index, value, gc)
+                todo!()
+            }
+        }
+    }
+
+    pub(crate) fn on_promise_rejected(
+        self,
+        agent: &mut Agent,
+        value: Value<'a>,
+        gc: GcScope<'a, '_>,
+    ) {
+        let value = value.bind(gc.nogc());
+
+        let promise_group_record = self.get(agent);
+        match promise_group_record {
+            PromiseGroupRecord::PromiseAll(promise_all) => {
+                promise_all.on_promise_rejected(agent, value.unbind(), gc.nogc())
+            }
+            PromiseGroupRecord::PromiseAllSettled(promise_all_settled) => {
+                todo!()
+            }
+        }
+    }
+
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
     }
@@ -64,9 +108,23 @@ impl AsMut<[PromiseGroupRecord<'static>]> for Agent {
 }
 
 impl HeapMarkAndSweep for PromiseGroupRecord<'static> {
-    fn mark_values(&self, queues: &mut WorkQueues) {}
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        match self {
+            PromiseGroupRecord::PromiseAll(promise_all) => promise_all.mark_values(queues),
+            PromiseGroupRecord::PromiseAllSettled(promise_all_settled) => {
+                promise_all_settled.mark_values(queues)
+            }
+        }
+    }
 
-    fn sweep_values(&mut self, compactions: &CompactionLists) {}
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        match self {
+            PromiseGroupRecord::PromiseAll(promise_all) => promise_all.sweep_values(compactions),
+            PromiseGroupRecord::PromiseAllSettled(promise_all_settled) => {
+                promise_all_settled.sweep_values(compactions)
+            }
+        }
+    }
 }
 
 impl Rootable for PromiseGroup<'_> {
