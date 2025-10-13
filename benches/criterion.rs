@@ -11,7 +11,7 @@ macro_rules! bench_harness {
 
                     c.bench_function(concat!($name, " (Execution)"), move |b| {
                         b.iter_batched(
-                            || -> runner::ParsedScript { runner::ParsedScript::new(CODE, true) },
+                            || -> runner::ParsedScript { runner::ParsedScript::new(CODE, true, true) },
                             |script| { script.run(); },
                             BatchSize::PerIteration,
                         )

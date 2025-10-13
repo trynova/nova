@@ -1,3 +1,5 @@
+use std::hint::black_box;
+
 use nova_vm::{
     ecmascript::{
         builtins::{ArgumentsList, Behaviour, BuiltinFunctionArgs, create_builtin_function},
@@ -62,7 +64,7 @@ pub struct ParsedScript {
 }
 
 impl ParsedScript {
-    pub fn new(source_str: &str, gc: bool) -> Self {
+    pub fn new(source_str: &str, gc: bool, strict_mode: bool) -> Self {
         let mut agent = GcAgent::new(
             Options {
                 disable_gc: !gc,
@@ -83,7 +85,7 @@ impl ParsedScript {
         let script = agent.run_in_realm(&realm, |agent, gc| -> HeapRootData {
             let source_text = JsString::from_str(agent, source_str, gc.nogc());
             let realm = agent.current_realm(gc.nogc());
-            let script = parse_script(agent, source_text, realm, true, None, gc.nogc())
+            let script = parse_script(agent, source_text, realm, strict_mode, None, gc.nogc())
                 .expect("parse error");
             Rootable::to_root_repr(script).unwrap_err()
         });
@@ -103,7 +105,8 @@ impl ParsedScript {
 
         let script = Script::from_heap_data(script).unwrap();
         agent.run_in_realm(&realm, |agent, gc| {
-            script_evaluation(agent, script, gc).expect("execution error");
+            let result = script_evaluation(agent, script, gc).expect("execution error");
+            black_box(result);
         });
     }
 }

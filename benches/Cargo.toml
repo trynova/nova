@@ -5,12 +5,23 @@ edition = "2024"
 publish = false
 
 [[bench]]
+# Microbenchmarks measuring wall-time using criterion.rs
+# Needs a consistent environment for results to be comparable
 name = "criterion"
 harness = false
 path = "criterion.rs"
 
+[[bench]]
+# Microbenchmarks measuring cpu-cycles using valgrind
+# Ideal for inconsistent environments like CI
+# Requires valgrind and gungraun-runner to be installed
+name = "gungraun"
+harness = false
+path = "gungraun.rs"
+
 [dependencies]
 criterion = "0.7.0"
+gungraun = "0.17.0"
 nova_vm = { path = "../nova_vm", version = "0.3.0" }
 oxc_ast = { workspace = true }
 oxc_parser = { workspace = true }

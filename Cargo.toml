@@ -62,6 +62,11 @@ codegen-units = 1
 # Strips debug information and symbols from the binary, reducing its size
 strip = "symbols"
 
+# Profile used for benchmarks. Inherits from release, but we need full debug symbols for tools like valgrind to work.
+[profile.bench]
+debug = true
+strip = false
+
 # This profile has all the same safety checks as dev builds. It trades slightly
 # longer compile times for faster runs, which is worth it when running test262.
 [profile.dev-fast]
