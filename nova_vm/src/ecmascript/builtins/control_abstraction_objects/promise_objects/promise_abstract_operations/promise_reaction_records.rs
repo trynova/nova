@@ -10,10 +10,7 @@ use crate::{
             async_generator_objects::AsyncGenerator,
             control_abstraction_objects::async_function_objects::await_reaction::AwaitReaction,
             promise::Promise,
-            promise_objects::promise_abstract_operations::{
-                promise_all_record::PromiseAll, promise_all_settled_record::PromiseAllSettled,
-                promise_group_record::PromiseGroup,
-            },
+            promise_objects::promise_abstract_operations::promise_group_record::PromiseGroup,
         },
         execution::Agent,
         scripts_and_modules::module::module_semantics::{
@@ -72,14 +69,6 @@ pub(crate) enum PromiseReactionHandler<'a> {
         promise: Promise<'a>,
         module: AbstractModule<'a>,
     },
-    PromiseAll {
-        index: u32,
-        promise_all: PromiseAll<'a>,
-    },
-    PromiseAllSettled {
-        index: u32,
-        promise_all_settled: PromiseAllSettled<'a>,
-    },
     PromiseGroup {
         index: u32,
         promise_group: PromiseGroup<'a>,
@@ -102,14 +91,6 @@ impl HeapMarkAndSweep for PromiseReactionHandler<'static> {
                 promise.mark_values(queues);
                 module.mark_values(queues);
             }
-            Self::PromiseAll {
-                index: _,
-                promise_all,
-            } => promise_all.mark_values(queues),
-            Self::PromiseAllSettled {
-                index: _,
-                promise_all_settled,
-            } => promise_all_settled.mark_values(queues),
             Self::PromiseGroup {
                 index: _,
                 promise_group,
@@ -133,16 +114,6 @@ impl HeapMarkAndSweep for PromiseReactionHandler<'static> {
                 promise.sweep_values(compactions);
                 module.sweep_values(compactions);
             }
-            Self::PromiseAll {
-                index: _,
-                promise_all,
-            } => {
-                promise_all.sweep_values(compactions);
-            }
-            Self::PromiseAllSettled {
-                index: _,
-                promise_all_settled,
-            } => promise_all_settled.sweep_values(compactions),
             Self::PromiseGroup {
                 index: _,
                 promise_group,

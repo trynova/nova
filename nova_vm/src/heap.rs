@@ -80,8 +80,6 @@ use crate::{
             primitive_objects::PrimitiveObjectHeapData,
             promise::data::PromiseHeapData,
             promise_objects::promise_abstract_operations::{
-                promise_all_record::PromiseAllRecord,
-                promise_all_settled_record::PromiseAllSettledRecord,
                 promise_finally_functions::PromiseFinallyFunctionHeapData,
                 promise_group_record::PromiseGroupRecord,
             },
@@ -178,8 +176,6 @@ pub(crate) struct Heap {
     pub(crate) promises: Vec<Option<PromiseHeapData<'static>>>,
     pub(crate) proxies: Vec<Option<ProxyHeapData<'static>>>,
     pub(crate) realms: Vec<Option<RealmRecord<'static>>>,
-    pub(crate) promise_all_records: Vec<PromiseAllRecord<'static>>,
-    pub(crate) promise_all_settled_records: Vec<PromiseAllSettledRecord<'static>>,
     pub(crate) promise_group_records: Vec<PromiseGroupRecord<'static>>,
     #[cfg(feature = "regexp")]
     pub(crate) regexps: Vec<Option<RegExpHeapData<'static>>>,
@@ -333,8 +329,6 @@ impl Heap {
             promise_resolving_functions: Vec::with_capacity(0),
             promise_finally_functions: Vec::with_capacity(0),
             promises: Vec::with_capacity(0),
-            promise_all_records: Vec::with_capacity(0),
-            promise_all_settled_records: Vec::with_capacity(0),
             promise_group_records: Vec::with_capacity(0),
             proxies: Vec::with_capacity(0),
             realms: Vec::with_capacity(1),

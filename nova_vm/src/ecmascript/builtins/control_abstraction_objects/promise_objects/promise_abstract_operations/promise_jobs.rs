@@ -284,48 +284,6 @@ impl PromiseReactionJob {
                     ),
                 }
             }
-            PromiseReactionHandler::PromiseAll { promise_all, index } => {
-                let reaction_type = agent[reaction].reaction_type;
-                match reaction_type {
-                    PromiseReactionType::Fulfill => {
-                        promise_all.on_promise_fulfilled(
-                            agent,
-                            index,
-                            argument.unbind(),
-                            gc.reborrow(),
-                        );
-                    }
-                    PromiseReactionType::Reject => {
-                        promise_all.on_promise_rejected(agent, argument.unbind(), gc.nogc());
-                    }
-                }
-                return Ok(());
-            }
-            PromiseReactionHandler::PromiseAllSettled {
-                promise_all_settled,
-                index,
-            } => {
-                let reaction_type = agent[reaction].reaction_type;
-                match reaction_type {
-                    PromiseReactionType::Fulfill => {
-                        promise_all_settled.on_promise_fulfilled(
-                            agent,
-                            index,
-                            argument.unbind(),
-                            gc.reborrow(),
-                        );
-                    }
-                    PromiseReactionType::Reject => {
-                        promise_all_settled.on_promise_rejected(
-                            agent,
-                            index,
-                            argument.unbind(),
-                            gc.reborrow(),
-                        );
-                    }
-                }
-                return Ok(());
-            }
             PromiseReactionHandler::PromiseGroup {
                 promise_group,
                 index,
@@ -412,9 +370,7 @@ pub(crate) fn new_promise_reaction_job(
         | PromiseReactionHandler::AsyncModule(_)
         | PromiseReactionHandler::DynamicImport { .. }
         | PromiseReactionHandler::DynamicImportEvaluate { .. }
-        | PromiseReactionHandler::PromiseAll { .. } => None,
-        PromiseReactionHandler::PromiseGroup { .. } => None,
-        PromiseReactionHandler::PromiseAllSettled { .. } => None,
+        | PromiseReactionHandler::PromiseGroup { .. } => None,
     };
 
     // 4. Return the Record { [[Job]]: job, [[Realm]]: handlerRealm }.
