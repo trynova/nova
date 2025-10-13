@@ -27,6 +27,43 @@ pub struct PromiseAllRecord<'a> {
     pub(crate) promise: Promise<'a>,
 }
 
+impl<'a> PromiseAllRecord<'a> {
+    pub(crate) fn on_promise_fulfilled(
+        mut self,
+        agent: &mut Agent,
+        index: u32,
+        value: Value<'a>,
+        gc: GcScope<'a, '_>,
+    ) {
+        let value = value.bind(gc.nogc());
+
+        let elements = self.result_array.as_mut_slice(agent);
+        elements[index as usize] = Some(value.unbind());
+
+        // i. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] - 1.
+        self.remaining_elements_count = self.remaining_elements_count.saturating_sub(1);
+
+        //ii. If remainingElementsCount.[[Value]] = 0, then
+        if self.remaining_elements_count == 0 {
+            // 1. Let valuesArray be CreateArrayFromList(values).
+            // 2. Perform ? Call(resultCapability.[[Resolve]], undefined, « valuesArray »).
+            let capability = PromiseCapability::from_promise(self.promise, true);
+            capability.resolve(agent, self.result_array.into_value().unbind(), gc);
+        }
+    }
+
+    pub(crate) fn on_promise_rejected(
+        self,
+        agent: &mut Agent,
+        value: Value<'a>,
+        gc: NoGcScope<'a, '_>,
+    ) {
+        let value = value.bind(gc);
+        let capability = PromiseCapability::from_promise(self.promise, true);
+        capability.reject(agent, value.unbind(), gc);
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct PromiseAll<'a>(BaseIndex<'a, PromiseAllRecord<'static>>);

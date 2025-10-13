@@ -12,6 +12,7 @@ use crate::{
             promise::Promise,
             promise_objects::promise_abstract_operations::{
                 promise_all_record::PromiseAll, promise_all_settled_record::PromiseAllSettled,
+                promise_group_record::PromiseGroup,
             },
         },
         execution::Agent,
@@ -79,6 +80,10 @@ pub(crate) enum PromiseReactionHandler<'a> {
         index: u32,
         promise_all_settled: PromiseAllSettled<'a>,
     },
+    PromiseGroup {
+        index: u32,
+        promise_group: PromiseGroup<'a>,
+    },
     Empty,
 }
 bindable_handle!(PromiseReactionHandler);
@@ -105,6 +110,10 @@ impl HeapMarkAndSweep for PromiseReactionHandler<'static> {
                 index: _,
                 promise_all_settled,
             } => promise_all_settled.mark_values(queues),
+            Self::PromiseGroup {
+                index: _,
+                promise_group,
+            } => promise_group.mark_values(queues),
             Self::Empty => {}
         }
     }
@@ -134,6 +143,10 @@ impl HeapMarkAndSweep for PromiseReactionHandler<'static> {
                 index: _,
                 promise_all_settled,
             } => promise_all_settled.sweep_values(compactions),
+            Self::PromiseGroup {
+                index: _,
+                promise_group,
+            } => promise_group.sweep_values(compactions),
             Self::Empty => {}
         }
     }
