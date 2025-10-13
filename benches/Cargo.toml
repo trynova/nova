@@ -1,0 +1,19 @@
+[package]
+name = "benches"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[[bench]]
+name = "criterion"
+harness = false
+path = "criterion.rs"
+
+[dependencies]
+criterion = "0.7.0"
+nova_vm = { path = "../nova_vm", version = "0.3.0" }
+oxc_ast = { workspace = true }
+oxc_parser = { workspace = true }
+oxc_semantic = { workspace = true }
+oxc_span = { workspace = true }
+oxc_diagnostics = { workspace = true }
