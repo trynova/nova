@@ -46,8 +46,16 @@ impl<'a> PromiseGroup<'a> {
                 promise_all.on_promise_fulfilled(agent, index, value.unbind(), gc.reborrow());
             }
             PromiseGroupRecord::PromiseAllSettled(promise_all_settled) => {
-                // promise_all_settled.on_promise_fulfilled(agent, index, value, gc)
-                todo!()
+                // 13. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] - 1.
+                promise_all_settled.remaining_elements_count = promise_all_settled
+                    .remaining_elements_count
+                    .saturating_sub(1);
+                promise_all_settled.on_promise_fulfilled(
+                    agent,
+                    index,
+                    value.unbind(),
+                    gc.reborrow(),
+                );
             }
         };
     }
@@ -55,18 +63,29 @@ impl<'a> PromiseGroup<'a> {
     pub(crate) fn on_promise_rejected(
         self,
         agent: &mut Agent,
+        index: u32,
         value: Value<'a>,
-        gc: GcScope<'a, '_>,
+        mut gc: GcScope<'a, '_>,
     ) {
         let value = value.bind(gc.nogc());
+        let promise_group = self.bind(gc.nogc());
 
-        let promise_group_record = self.get(agent);
-        match promise_group_record {
+        let promise_group = promise_group.get_mut(agent);
+        match promise_group {
             PromiseGroupRecord::PromiseAll(promise_all) => {
                 promise_all.on_promise_rejected(agent, value.unbind(), gc.nogc())
             }
             PromiseGroupRecord::PromiseAllSettled(promise_all_settled) => {
-                todo!()
+                // 13. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] - 1.
+                promise_all_settled.remaining_elements_count = promise_all_settled
+                    .remaining_elements_count
+                    .saturating_sub(1);
+                promise_all_settled.on_promise_rejected(
+                    agent,
+                    index,
+                    value.unbind(),
+                    gc.reborrow(),
+                );
             }
         }
     }
