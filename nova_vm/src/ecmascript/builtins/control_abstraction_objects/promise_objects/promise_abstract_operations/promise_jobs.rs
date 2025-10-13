@@ -341,7 +341,12 @@ impl PromiseReactionJob {
                         );
                     }
                     PromiseReactionType::Reject => {
-                        promise_group.on_promise_rejected(agent, argument.unbind(), gc.reborrow());
+                        promise_group.on_promise_rejected(
+                            agent,
+                            index,
+                            argument.unbind(),
+                            gc.reborrow(),
+                        );
                     }
                 }
                 return Ok(());
