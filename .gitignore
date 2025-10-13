@@ -3,3 +3,5 @@ Cargo.lock
 /.vscode
 # e.g. `test.js` for local testing/development
 /*.js
+# macOS filesystem support file
+.DS_store
