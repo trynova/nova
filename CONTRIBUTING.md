@@ -227,9 +227,11 @@ being said, we do not want to write slow-by-construction code. Heap data clones
 should be kept to a minimum where reasonable, and fast-paths for the most common
 cases are highly recommended in abstract operations.
 
-That being said, we do not have performance metrics at present. Therefore, it is
-also not a supremely important or reasonable thing to require code to be
-supremely optimal since we cannot prove it one way or the other.
+We have a very minimal performance benchmark in the `benches` directory. It can
+be run with `cargo bench` or `cargo criterion` (the latter requires
+[`cargo-criterion`] to be installed). Only execution time is currently measured.
+Memory usage and parsing time are not. For now, take the benchmarks with grain
+of salt.
 
 ## What are all the `bind(gc.nogc())`, `unbind()`, `scope(agent, gc.nogc())` and other those calls?
 
@@ -490,3 +492,5 @@ Some more long-term prospects and/or wild ideas:
    **Important:** The test runner executes the compiled `nova_cli` directly. If
    you have made changes to CLI or VM, ensure that the `nova_cli` target is
    rebuilt before executing the test runner.
+
+[`cargo-criterion`]: https://crates.io/crates/cargo-criterion
