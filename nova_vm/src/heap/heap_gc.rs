@@ -63,7 +63,6 @@ use crate::{
             primitive_objects::PrimitiveObject,
             promise::Promise,
             promise_objects::promise_abstract_operations::{
-                promise_all_record::PromiseAll, promise_all_settled_record::PromiseAllSettled,
                 promise_finally_functions::BuiltinPromiseFinallyFunction,
                 promise_group_record::PromiseGroup,
             },
@@ -152,8 +151,6 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             promise_resolving_functions,
             promise_finally_functions,
             promises,
-            promise_all_records,
-            promise_all_settled_records,
             promise_group_records,
             proxies,
             realms,
@@ -678,36 +675,6 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 }
                 *marked = true;
                 promise_reaction_records.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut promise_all_record_marks: Box<[PromiseAll]> =
-            queues.promise_all_records.drain(..).collect();
-        promise_all_record_marks.sort();
-        promise_all_record_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if let Some(marked) = bits.promise_all_records.get_mut(index) {
-                if *marked {
-                    // Already marked, ignore
-                    return;
-                }
-                *marked = true;
-                promise_all_records.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut promise_all_settled_record_marks: Box<[PromiseAllSettled]> =
-            queues.promise_all_settled_records.drain(..).collect();
-        promise_all_settled_record_marks.sort();
-        promise_all_settled_record_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if let Some(marked) = bits.promise_all_settled_records.get_mut(index) {
-                if *marked {
-                    // Already marked, ignore
-                    return;
-                }
-                *marked = true;
-                promise_all_settled_records
-                    .get(index)
-                    .mark_values(&mut queues);
             }
         });
         let mut promise_group_record_marks: Box<[PromiseGroup]> =
@@ -1534,8 +1501,6 @@ fn sweep(
         promise_resolving_functions,
         promise_finally_functions,
         promises,
-        promise_all_records,
-        promise_all_settled_records,
         promise_group_records,
         proxies,
         realms,
@@ -2066,24 +2031,6 @@ fn sweep(
         if !promises.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(promises, &compactions, &bits.promises);
-            });
-        }
-        if !promise_all_records.is_empty() {
-            s.spawn(|| {
-                sweep_heap_vector_values(
-                    promise_all_records,
-                    &compactions,
-                    &bits.promise_all_records,
-                );
-            });
-        }
-        if !promise_all_settled_records.is_empty() {
-            s.spawn(|| {
-                sweep_heap_vector_values(
-                    promise_all_settled_records,
-                    &compactions,
-                    &bits.promise_all_settled_records,
-                );
             });
         }
         if !promise_group_records.is_empty() {

@@ -1248,8 +1248,6 @@ impl Rootable for Value<'_> {
             | HeapRootData::SourceTextModule(_)
             | HeapRootData::AwaitReaction(_)
             | HeapRootData::PromiseReaction(_)
-            | HeapRootData::PromiseAll(_)
-            | HeapRootData::PromiseAllSettled(_)
             | HeapRootData::PromiseGroup(_)
             | HeapRootData::DeclarativeEnvironment(_)
             | HeapRootData::FunctionEnvironment(_)

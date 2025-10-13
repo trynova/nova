@@ -56,7 +56,6 @@ use crate::ecmascript::{
         primitive_objects::PrimitiveObject,
         promise::Promise,
         promise_objects::promise_abstract_operations::{
-            promise_all_record::PromiseAll, promise_all_settled_record::PromiseAllSettled,
             promise_finally_functions::BuiltinPromiseFinallyFunction,
             promise_group_record::PromiseGroup,
         },
@@ -144,8 +143,6 @@ pub struct HeapBits {
     pub promise_resolving_functions: Box<[bool]>,
     pub promise_finally_functions: Box<[bool]>,
     pub promises: Box<[bool]>,
-    pub promise_all_records: Box<[bool]>,
-    pub promise_all_settled_records: Box<[bool]>,
     pub promise_group_records: Box<[bool]>,
     pub proxies: Box<[bool]>,
     pub realms: Box<[bool]>,
@@ -242,8 +239,6 @@ pub(crate) struct WorkQueues {
     pub promise_reaction_records: Vec<PromiseReaction<'static>>,
     pub promise_resolving_functions: Vec<BuiltinPromiseResolvingFunction<'static>>,
     pub promise_finally_functions: Vec<BuiltinPromiseFinallyFunction<'static>>,
-    pub promise_all_records: Vec<PromiseAll<'static>>,
-    pub promise_all_settled_records: Vec<PromiseAllSettled<'static>>,
     pub promise_group_records: Vec<PromiseGroup<'static>>,
     pub proxies: Vec<Proxy<'static>>,
     pub realms: Vec<Realm<'static>>,
@@ -340,8 +335,6 @@ impl HeapBits {
         let promise_finally_functions = vec![false; heap.promise_finally_functions.len()];
         let private_environments = vec![false; heap.environments.private.len()];
         let promises = vec![false; heap.promises.len()];
-        let promise_all_records = vec![false; heap.promise_all_records.len()];
-        let promise_all_settled_records = vec![false; heap.promise_all_settled_records.len()];
         let promise_group_records = vec![false; heap.promise_group_records.len()];
         let proxies = vec![false; heap.proxies.len()];
         let realms = vec![false; heap.realms.len()];
@@ -435,8 +428,6 @@ impl HeapBits {
             promise_finally_functions: promise_finally_functions.into_boxed_slice(),
             private_environments: private_environments.into_boxed_slice(),
             promises: promises.into_boxed_slice(),
-            promise_all_records: promise_all_records.into_boxed_slice(),
-            promise_all_settled_records: promise_all_settled_records.into_boxed_slice(),
             promise_group_records: promise_group_records.into_boxed_slice(),
             proxies: proxies.into_boxed_slice(),
             realms: realms.into_boxed_slice(),
@@ -538,10 +529,6 @@ impl WorkQueues {
             ),
             promise_finally_functions: Vec::with_capacity(heap.promise_finally_functions.len() / 4),
             promises: Vec::with_capacity(heap.promises.len() / 4),
-            promise_all_records: Vec::with_capacity(heap.promise_all_records.len() / 4),
-            promise_all_settled_records: Vec::with_capacity(
-                heap.promise_all_settled_records.len() / 4,
-            ),
             promise_group_records: Vec::with_capacity(heap.promise_group_records.len() / 4),
             proxies: Vec::with_capacity(heap.proxies.len() / 4),
             realms: Vec::with_capacity(heap.realms.len() / 4),
@@ -641,8 +628,6 @@ impl WorkQueues {
             promise_reaction_records,
             promise_resolving_functions,
             promise_finally_functions,
-            promise_all_records,
-            promise_all_settled_records,
             promise_group_records,
             proxies,
             realms,
@@ -761,8 +746,6 @@ impl WorkQueues {
             && promise_reaction_records.is_empty()
             && promise_resolving_functions.is_empty()
             && promise_finally_functions.is_empty()
-            && promise_all_records.is_empty()
-            && promise_all_settled_records.is_empty()
             && promise_group_records.is_empty()
             && promises.is_empty()
             && proxies.is_empty()
@@ -1120,8 +1103,6 @@ pub(crate) struct CompactionLists {
     pub promise_resolving_functions: CompactionList,
     pub promise_finally_functions: CompactionList,
     pub promises: CompactionList,
-    pub promise_all_records: CompactionList,
-    pub promise_all_settled_records: CompactionList,
     pub promise_group_records: CompactionList,
     pub proxies: CompactionList,
     pub realms: CompactionList,
@@ -1234,10 +1215,6 @@ impl CompactionLists {
                 &bits.promise_finally_functions,
             ),
             promises: CompactionList::from_mark_bits(&bits.promises),
-            promise_all_records: CompactionList::from_mark_bits(&bits.promise_all_records),
-            promise_all_settled_records: CompactionList::from_mark_bits(
-                &bits.promise_all_settled_records,
-            ),
             promise_group_records: CompactionList::from_mark_bits(&bits.promise_group_records),
             #[cfg(feature = "regexp")]
             regexps: CompactionList::from_mark_bits(&bits.regexps),

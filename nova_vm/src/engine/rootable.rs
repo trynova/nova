@@ -97,7 +97,6 @@ use crate::{
             primitive_objects::PrimitiveObject,
             promise::Promise,
             promise_objects::promise_abstract_operations::{
-                promise_all_record::PromiseAll, promise_all_settled_record::PromiseAllSettled,
                 promise_finally_functions::BuiltinPromiseFinallyFunction,
                 promise_group_record::PromiseGroup, promise_reaction_records::PromiseReaction,
                 promise_resolving_functions::BuiltinPromiseResolvingFunction,
@@ -184,7 +183,6 @@ pub mod private {
                 primitive_objects::PrimitiveObject,
                 promise::Promise,
                 promise_objects::promise_abstract_operations::{
-                    promise_all_record::PromiseAll, promise_all_settled_record::PromiseAllSettled,
                     promise_finally_functions::BuiltinPromiseFinallyFunction,
                     promise_group_record::PromiseGroup, promise_reaction_records::PromiseReaction,
                     promise_resolving_functions::BuiltinPromiseResolvingFunction,
@@ -247,8 +245,6 @@ pub mod private {
     impl RootableSealed for PrimitiveObject<'_> {}
     impl RootableSealed for Promise<'_> {}
     impl RootableSealed for PromiseReaction<'_> {}
-    impl RootableSealed for PromiseAll<'_> {}
-    impl RootableSealed for PromiseAllSettled<'_> {}
     impl RootableSealed for PromiseGroup<'_> {}
     impl RootableSealed for PropertyKey<'_> {}
     impl RootableSealed for Proxy<'_> {}
@@ -640,8 +636,6 @@ pub enum HeapRootData {
     Executable(Executable<'static>),
     AwaitReaction(AwaitReaction<'static>),
     PromiseReaction(PromiseReaction<'static>),
-    PromiseAll(PromiseAll<'static>),
-    PromiseAllSettled(PromiseAllSettled<'static>),
     PromiseGroup(PromiseGroup<'static>),
     Realm(Realm<'static>),
     Script(Script<'static>),
@@ -929,10 +923,6 @@ impl HeapMarkAndSweep for HeapRootData {
             Self::Executable(exe) => exe.mark_values(queues),
             Self::AwaitReaction(await_reaction) => await_reaction.mark_values(queues),
             Self::PromiseReaction(promise_reaction) => promise_reaction.mark_values(queues),
-            Self::PromiseAll(promise_all) => promise_all.mark_values(queues),
-            HeapRootData::PromiseAllSettled(promise_all_settled) => {
-                promise_all_settled.mark_values(queues)
-            }
             Self::PromiseGroup(promise_group) => promise_group.mark_values(queues),
             Self::Realm(realm) => realm.mark_values(queues),
             Self::Script(script) => script.mark_values(queues),
@@ -1084,10 +1074,6 @@ impl HeapMarkAndSweep for HeapRootData {
             Self::Executable(exe) => exe.sweep_values(compactions),
             Self::AwaitReaction(await_reaction) => await_reaction.sweep_values(compactions),
             Self::PromiseReaction(promise_reaction) => promise_reaction.sweep_values(compactions),
-            Self::PromiseAll(promise_all) => promise_all.sweep_values(compactions),
-            Self::PromiseAllSettled(promise_all_settled) => {
-                promise_all_settled.sweep_values(compactions)
-            }
             Self::PromiseGroup(promise_group) => promise_group.sweep_values(compactions),
             Self::Realm(realm) => realm.sweep_values(compactions),
             Self::Script(script) => script.sweep_values(compactions),

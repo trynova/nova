@@ -11,13 +11,8 @@ use crate::{
         execution::Agent,
         types::{IntoValue, Value},
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
-    heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, indexes::BaseIndex,
-    },
+    engine::context::{Bindable, GcScope, NoGcScope, bindable_handle},
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -61,96 +56,6 @@ impl<'a> PromiseAllRecord<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[repr(transparent)]
-pub struct PromiseAll<'a>(BaseIndex<'a, PromiseAllRecord<'static>>);
-
-impl<'a> PromiseAll<'a> {
-    pub(crate) fn on_promise_fulfilled(
-        self,
-        agent: &mut Agent,
-        index: u32,
-        value: Value<'a>,
-        gc: GcScope<'a, '_>,
-    ) {
-        let promise_all = self.bind(gc.nogc());
-        let value = value.bind(gc.nogc());
-
-        let result_array = promise_all.get_result_array(agent, gc.nogc());
-
-        let elements = result_array.as_mut_slice(agent);
-        elements[index as usize] = Some(value.unbind());
-
-        let data = promise_all.get_mut(agent);
-
-        // i. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] - 1.
-        data.remaining_elements_count = data.remaining_elements_count.saturating_sub(1);
-
-        //ii. If remainingElementsCount.[[Value]] = 0, then
-        if data.remaining_elements_count == 0 {
-            // 1. Let valuesArray be CreateArrayFromList(values).
-            // 2. Perform ? Call(resultCapability.[[Resolve]], undefined, « valuesArray »).
-            let capability = PromiseCapability::from_promise(data.promise, true);
-            capability.resolve(agent, result_array.into_value().unbind(), gc);
-        }
-    }
-
-    pub(crate) fn on_promise_rejected(
-        self,
-        agent: &mut Agent,
-        value: Value<'a>,
-        gc: NoGcScope<'a, '_>,
-    ) {
-        let value = value.bind(gc);
-        let promise_all = self.bind(gc);
-        let data = promise_all.get_mut(agent);
-
-        let capability = PromiseCapability::from_promise(data.promise, true);
-        capability.reject(agent, value.unbind(), gc);
-    }
-
-    pub(crate) fn get_result_array(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> Array<'a> {
-        let data = self.get(agent);
-        data.result_array.bind(gc).unbind()
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
-    pub fn get(self, agent: &Agent) -> &PromiseAllRecord<'a> {
-        agent
-            .heap
-            .promise_all_records
-            .get(self.get_index())
-            .expect("PromiseAllRecord not found")
-    }
-
-    pub fn get_mut(self, agent: &mut Agent) -> &mut PromiseAllRecord<'static> {
-        agent
-            .heap
-            .promise_all_records
-            .get_mut(self.get_index())
-            .expect("PromiseAllRecord not found")
-    }
-
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-}
-
-impl AsRef<[PromiseAllRecord<'static>]> for Agent {
-    fn as_ref(&self) -> &[PromiseAllRecord<'static>] {
-        &self.heap.promise_all_records
-    }
-}
-
-impl AsMut<[PromiseAllRecord<'static>]> for Agent {
-    fn as_mut(&mut self) -> &mut [PromiseAllRecord<'static>] {
-        &mut self.heap.promise_all_records
-    }
-}
-
 impl HeapMarkAndSweep for PromiseAllRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
@@ -173,46 +78,4 @@ impl HeapMarkAndSweep for PromiseAllRecord<'static> {
     }
 }
 
-impl Rootable for PromiseAll<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::PromiseAll(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::PromiseAll(object) => Some(object),
-            _ => None,
-        }
-    }
-}
-
-impl HeapMarkAndSweep for PromiseAll<'static> {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        queues.promise_all_records.push(*self);
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        compactions.promise_all_records.shift_index(&mut self.0);
-    }
-}
-
 bindable_handle!(PromiseAllRecord);
-bindable_handle!(PromiseAll);
-
-impl<'a> CreateHeapData<PromiseAllRecord<'a>, PromiseAll<'a>> for Heap {
-    fn create(&mut self, data: PromiseAllRecord<'a>) -> PromiseAll<'a> {
-        self.promise_all_records.push(data.unbind());
-        self.alloc_counter += core::mem::size_of::<PromiseAllRecord<'static>>();
-        PromiseAll(BaseIndex::last_t(&self.promise_all_records))
-    }
-}
