@@ -26,6 +26,7 @@ use crate::{
                     promise_all_record::PromiseAllRecord,
                     promise_all_settled_record::PromiseAllSettledRecord,
                     promise_capability_records::if_abrupt_reject_promise_m,
+                    promise_group_record::PromiseGroupRecord,
                     promise_reaction_records::PromiseReactionHandler,
                 },
                 promise_prototype::inner_promise_then,
@@ -800,11 +801,11 @@ fn perform_promise_all<'gc>(
     let promise = result_capability.promise.scope(agent, gc.nogc());
     let promise_all_reference = agent
         .heap
-        .create(PromiseAllRecord {
+        .create(PromiseGroupRecord::PromiseAll(PromiseAllRecord {
             remaining_elements_count: 1,
             result_array: result_array.get(agent),
             promise: promise.get(agent),
-        })
+        }))
         .scope(agent, gc.nogc());
 
     // 3. Let index be 0.
@@ -826,12 +827,22 @@ fn perform_promise_all<'gc>(
         // b. If next is done, then
         let Some(next) = next else {
             *iterator_done = true;
-            let promise_all = promise_all_reference.get(agent).bind(gc.nogc());
-            let data = promise_all.get_mut(agent);
+            let promise_group = promise_all_reference.get(agent).bind(gc.nogc());
+            let promise_all = match promise_group.get_mut(agent) {
+                PromiseGroupRecord::PromiseAll(data) => data,
+                _ => {
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "Expected PromiseGroupRecord::PromiseAll",
+                        gc.into_nogc(),
+                    ));
+                }
+            };
+
             // i. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] - 1.
-            data.remaining_elements_count -= 1;
+            promise_all.remaining_elements_count -= 1;
             // ii. If remainingElementsCount.[[Value]] = 0, then
-            if data.remaining_elements_count == 0 {
+            if promise_all.remaining_elements_count == 0 {
                 // 1. Let valuesArray be CreateArrayFromList(values).
                 let values_array = result_array.get(agent).bind(gc.nogc());
                 // 2. Perform ? Call(resultCapability.[[Resolve]], undefined, « valuesArray »).
@@ -883,12 +894,28 @@ fn perform_promise_all<'gc>(
         // h. Set onFulfilled.[[AlreadyCalled]] to false.
         // i. Set onFulfilled.[[Index]] to index.
         // j. Set onFulfilled.[[Values]] to values.
-        let promise_all = promise_all_reference.get(agent).bind(gc.nogc());
-        let reaction = PromiseReactionHandler::PromiseAll { index, promise_all };
+        let promise_group = promise_all_reference.get(agent).bind(gc.nogc());
+        match promise_group.get_mut(agent) {
+            PromiseGroupRecord::PromiseAll(data) => {
+                data.remaining_elements_count += 1;
+                data
+            }
+            _ => {
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Expected PromiseGroupRecord::PromiseAll",
+                    gc.into_nogc(),
+                ));
+            }
+        };
+        let reaction = PromiseReactionHandler::PromiseGroup {
+            index,
+            promise_group,
+        };
+
         // k. Set onFulfilled.[[Capability]] to resultCapability.
         // l. Set onFulfilled.[[RemainingElements]] to remainingElementsCount.
         // m. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] + 1.
-        promise_all.get_mut(agent).remaining_elements_count += 1;
         // n. Perform ? Invoke(nextPromise, "then", « onFulfilled, resultCapability.[[Reject]] »).
         inner_promise_then(
             agent,

@@ -1,17 +1,14 @@
 use crate::{
     ecmascript::{
         builtins::promise_objects::promise_abstract_operations::{
-            promise_all_record::{PromiseAll, PromiseAllRecord},
-            promise_all_settled_record::{PromiseAllSettled, PromiseAllSettledRecord},
+            promise_all_record::PromiseAllRecord,
+            promise_all_settled_record::PromiseAllSettledRecord,
         },
-        execution::{
-            Agent, JsResult,
-            agent::{ExceptionType, JsError},
-        },
+        execution::Agent,
         types::Value,
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
+        context::{Bindable, GcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
@@ -38,17 +35,21 @@ impl<'a> PromiseGroup<'a> {
         mut gc: GcScope<'a, '_>,
     ) {
         let value = value.bind(gc.nogc());
+        let promise_group = self.bind(gc.nogc());
 
-        let promise_group_record = self.get(agent);
-        match promise_group_record {
+        let promise_group = promise_group.get_mut(agent);
+        match promise_group {
             PromiseGroupRecord::PromiseAll(promise_all) => {
-                promise_all.on_promise_fulfilled(agent, index, value.unbind(), gc.reborrow())
+                // i. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] - 1.
+                promise_all.remaining_elements_count =
+                    promise_all.remaining_elements_count.saturating_sub(1);
+                promise_all.on_promise_fulfilled(agent, index, value.unbind(), gc.reborrow());
             }
             PromiseGroupRecord::PromiseAllSettled(promise_all_settled) => {
                 // promise_all_settled.on_promise_fulfilled(agent, index, value, gc)
                 todo!()
             }
-        }
+        };
     }
 
     pub(crate) fn on_promise_rejected(

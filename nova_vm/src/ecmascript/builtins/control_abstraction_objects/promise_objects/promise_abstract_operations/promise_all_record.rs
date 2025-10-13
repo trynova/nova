@@ -29,7 +29,7 @@ pub struct PromiseAllRecord<'a> {
 
 impl<'a> PromiseAllRecord<'a> {
     pub(crate) fn on_promise_fulfilled(
-        mut self,
+        self,
         agent: &mut Agent,
         index: u32,
         value: Value<'a>,
@@ -39,9 +39,6 @@ impl<'a> PromiseAllRecord<'a> {
 
         let elements = self.result_array.as_mut_slice(agent);
         elements[index as usize] = Some(value.unbind());
-
-        // i. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] - 1.
-        self.remaining_elements_count = self.remaining_elements_count.saturating_sub(1);
 
         //ii. If remainingElementsCount.[[Value]] = 0, then
         if self.remaining_elements_count == 0 {
