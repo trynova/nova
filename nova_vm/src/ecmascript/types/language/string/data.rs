@@ -144,7 +144,6 @@ impl StringHeapData {
         }
     }
 
-    // TODO: This should return a wtf8::CodePoint.
     pub fn char_code_at(&self, idx: usize) -> CodePoint {
         let (utf8_idx, take_latter_half): (usize, bool) = if idx != 0 {
             match self.index_mapping() {
