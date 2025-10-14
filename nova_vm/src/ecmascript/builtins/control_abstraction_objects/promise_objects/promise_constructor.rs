@@ -23,10 +23,8 @@ use crate::{
             },
             promise_objects::{
                 promise_abstract_operations::{
-                    promise_all_record::PromiseAllRecord,
-                    promise_all_settled_record::PromiseAllSettledRecord,
                     promise_capability_records::if_abrupt_reject_promise_m,
-                    promise_group_record::PromiseGroupRecord,
+                    promise_group_record::{PromiseGroupRecord, PromiseGroupType},
                     promise_reaction_records::PromiseReactionHandler,
                 },
                 promise_prototype::inner_promise_then,
@@ -53,11 +51,6 @@ use super::promise_abstract_operations::{
     promise_capability_records::PromiseCapability,
     promise_resolving_functions::{PromiseResolvingFunctionHeapData, PromiseResolvingFunctionType},
 };
-
-enum PromiseGroupType {
-    PromiseAll,
-    PromiseAllSettled,
-}
 
 pub(crate) struct PromiseConstructor;
 impl Builtin for PromiseConstructor {
@@ -811,21 +804,21 @@ fn perform_promise_group<'gc>(
     let promise_group_reference = match promise_group_type {
         PromiseGroupType::PromiseAll => agent
             .heap
-            .create(PromiseGroupRecord::PromiseAll(PromiseAllRecord {
+            .create(PromiseGroupRecord {
+                promise_group_type: PromiseGroupType::PromiseAll,
                 remaining_elements_count: 1,
                 result_array: result_array.get(agent),
                 promise: promise.get(agent),
-            }))
+            })
             .scope(agent, gc.nogc()),
         PromiseGroupType::PromiseAllSettled => agent
             .heap
-            .create(PromiseGroupRecord::PromiseAllSettled(
-                PromiseAllSettledRecord {
-                    remaining_elements_count: 1,
-                    result_array: result_array.get(agent),
-                    promise: promise.get(agent),
-                },
-            ))
+            .create(PromiseGroupRecord {
+                promise_group_type: PromiseGroupType::PromiseAllSettled,
+                remaining_elements_count: 1,
+                result_array: result_array.get(agent),
+                promise: promise.get(agent),
+            })
             .scope(agent, gc.nogc()),
     };
 
@@ -849,21 +842,13 @@ fn perform_promise_group<'gc>(
         let Some(next) = next else {
             *iterator_done = true;
             let promise_group = promise_group_reference.get(agent).bind(gc.nogc());
+            let data = promise_group.get_mut(agent);
 
             // i. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] - 1.
-            let remaining_elements_count = match promise_group.get_mut(agent) {
-                PromiseGroupRecord::PromiseAll(promise_all) => {
-                    promise_all.remaining_elements_count -= 1;
-                    promise_all.remaining_elements_count
-                }
-                PromiseGroupRecord::PromiseAllSettled(promise_all_settled) => {
-                    promise_all_settled.remaining_elements_count -= 1;
-                    promise_all_settled.remaining_elements_count
-                }
-            };
+            data.remaining_elements_count -= 1;
 
             // ii. If remainingElementsCount.[[Value]] = 0, then
-            if remaining_elements_count == 0 {
+            if data.remaining_elements_count == 0 {
                 // 1. Let valuesArray be CreateArrayFromList(values).
                 let values_array = result_array.get(agent).bind(gc.nogc());
                 // 2. Perform ? Call(resultCapability.[[Resolve]], undefined, « valuesArray »).
@@ -916,14 +901,7 @@ fn perform_promise_group<'gc>(
         // i. Set onFulfilled.[[Index]] to index.
         // j. Set onFulfilled.[[Values]] to values.
         let promise_group = promise_group_reference.get(agent).bind(gc.nogc());
-        match promise_group.get_mut(agent) {
-            PromiseGroupRecord::PromiseAll(promise_all) => {
-                promise_all.remaining_elements_count += 1;
-            }
-            PromiseGroupRecord::PromiseAllSettled(promise_all_settled) => {
-                promise_all_settled.remaining_elements_count += 1;
-            }
-        };
+        promise_group.get_mut(agent).remaining_elements_count += 1;
         let reaction = PromiseReactionHandler::PromiseGroup {
             index,
             promise_group,

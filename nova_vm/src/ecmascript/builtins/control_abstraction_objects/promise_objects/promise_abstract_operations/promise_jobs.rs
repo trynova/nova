@@ -12,7 +12,10 @@ use crate::{
             },
             operations_on_objects::{call_function, get_function_realm},
         },
-        builtins::{ArgumentsList, promise::Promise},
+        builtins::{
+            ArgumentsList, promise::Promise,
+            promise_objects::promise_abstract_operations::promise_group_record::PromiseGroupType,
+        },
         execution::{
             Agent, JsResult,
             agent::{InnerJob, Job, JsError},
@@ -289,23 +292,43 @@ impl PromiseReactionJob {
                 index,
             } => {
                 let reaction_type = agent[reaction].reaction_type;
-                match reaction_type {
-                    PromiseReactionType::Fulfill => {
-                        promise_group.on_promise_fulfilled(
-                            agent,
-                            index,
-                            argument.unbind(),
-                            gc.reborrow(),
-                        );
-                    }
-                    PromiseReactionType::Reject => {
-                        promise_group.on_promise_rejected(
-                            agent,
-                            index,
-                            argument.unbind(),
-                            gc.reborrow(),
-                        );
-                    }
+                let record = promise_group.get(agent);
+                match record.promise_group_type {
+                    PromiseGroupType::PromiseAll => match reaction_type {
+                        PromiseReactionType::Fulfill => {
+                            promise_group.on_promise_all_fulfilled(
+                                agent,
+                                index,
+                                argument.unbind(),
+                                gc.reborrow(),
+                            );
+                        }
+                        PromiseReactionType::Reject => {
+                            promise_group.on_promise_all_rejected(
+                                agent,
+                                argument.unbind(),
+                                gc.nogc(),
+                            );
+                        }
+                    },
+                    PromiseGroupType::PromiseAllSettled => match reaction_type {
+                        PromiseReactionType::Fulfill => {
+                            promise_group.on_promise_all_settled_fulfilled(
+                                agent,
+                                index,
+                                argument.unbind(),
+                                gc.reborrow(),
+                            );
+                        }
+                        PromiseReactionType::Reject => {
+                            promise_group.on_promise_all_settled_rejected(
+                                agent,
+                                index,
+                                argument.unbind(),
+                                gc.reborrow(),
+                            );
+                        }
+                    },
                 }
                 return Ok(());
             }
