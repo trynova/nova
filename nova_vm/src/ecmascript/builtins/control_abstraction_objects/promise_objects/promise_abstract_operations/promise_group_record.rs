@@ -1,25 +1,34 @@
 use crate::{
     ecmascript::{
-        builtins::promise_objects::promise_abstract_operations::{
-            promise_all_record::PromiseAllRecord,
-            promise_all_settled_record::PromiseAllSettledRecord,
+        builtins::{
+            Array, promise::Promise,
+            promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
         },
         execution::Agent,
-        types::Value,
+        types::{BUILTIN_STRING_MEMORY, IntoValue, OrdinaryObject, Value},
     },
     engine::{
-        context::{Bindable, GcScope, bindable_handle},
+        context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, indexes::BaseIndex,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, ObjectEntry, WorkQueues,
+        indexes::BaseIndex,
     },
 };
 
 #[derive(Debug, Clone, Copy)]
-pub enum PromiseGroupRecord<'a> {
-    PromiseAll(PromiseAllRecord<'a>),
-    PromiseAllSettled(PromiseAllSettledRecord<'a>),
+pub enum PromiseGroupType {
+    PromiseAll,
+    PromiseAllSettled,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PromiseGroupRecord<'a> {
+    pub(crate) promise_group_type: PromiseGroupType,
+    pub(crate) remaining_elements_count: u32,
+    pub(crate) result_array: Array<'a>,
+    pub(crate) promise: Promise<'a>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -27,67 +36,154 @@ pub enum PromiseGroupRecord<'a> {
 pub struct PromiseGroup<'a>(BaseIndex<'a, PromiseGroupRecord<'static>>);
 
 impl<'a> PromiseGroup<'a> {
-    pub(crate) fn on_promise_fulfilled(
+    pub(crate) fn on_promise_all_fulfilled(
         self,
         agent: &mut Agent,
         index: u32,
         value: Value<'a>,
-        mut gc: GcScope<'a, '_>,
+        gc: GcScope<'a, '_>,
     ) {
+        let promise_all = self.bind(gc.nogc());
         let value = value.bind(gc.nogc());
-        let promise_group = self.bind(gc.nogc());
 
-        let promise_group = promise_group.get_mut(agent);
-        match promise_group {
-            PromiseGroupRecord::PromiseAll(promise_all) => {
-                // i. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] - 1.
-                promise_all.remaining_elements_count =
-                    promise_all.remaining_elements_count.saturating_sub(1);
-                promise_all.on_promise_fulfilled(agent, index, value.unbind(), gc.reborrow());
-            }
-            PromiseGroupRecord::PromiseAllSettled(promise_all_settled) => {
-                // 13. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] - 1.
-                promise_all_settled.remaining_elements_count = promise_all_settled
-                    .remaining_elements_count
-                    .saturating_sub(1);
-                promise_all_settled.on_promise_fulfilled(
-                    agent,
-                    index,
-                    value.unbind(),
-                    gc.reborrow(),
-                );
-            }
-        };
+        let result_array = promise_all.get_result_array(agent, gc.nogc());
+
+        let elements = result_array.as_mut_slice(agent);
+        elements[index as usize] = Some(value.unbind());
+
+        let data = promise_all.get_mut(agent);
+
+        // i. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] - 1.
+        data.remaining_elements_count = data.remaining_elements_count.saturating_sub(1);
+
+        //ii. If remainingElementsCount.[[Value]] = 0, then
+        if data.remaining_elements_count == 0 {
+            // 1. Let valuesArray be CreateArrayFromList(values).
+            // 2. Perform ? Call(resultCapability.[[Resolve]], undefined, « valuesArray »).
+            let capability = PromiseCapability::from_promise(data.promise, true);
+            capability.resolve(agent, result_array.into_value().unbind(), gc);
+        }
     }
 
-    pub(crate) fn on_promise_rejected(
+    pub(crate) fn on_promise_all_rejected(
+        self,
+        agent: &mut Agent,
+        value: Value<'a>,
+        gc: NoGcScope<'a, '_>,
+    ) {
+        let value = value.bind(gc);
+        let promise_all = self.bind(gc);
+        let data = promise_all.get_mut(agent);
+
+        let capability = PromiseCapability::from_promise(data.promise, true);
+        capability.reject(agent, value.unbind(), gc);
+    }
+
+    pub(crate) fn on_promise_all_settled_fulfilled(
         self,
         agent: &mut Agent,
         index: u32,
         value: Value<'a>,
-        mut gc: GcScope<'a, '_>,
+        gc: GcScope<'a, '_>,
     ) {
+        let promise_all = self.bind(gc.nogc());
         let value = value.bind(gc.nogc());
-        let promise_group = self.bind(gc.nogc());
 
-        let promise_group = promise_group.get_mut(agent);
-        match promise_group {
-            PromiseGroupRecord::PromiseAll(promise_all) => {
-                promise_all.on_promise_rejected(agent, value.unbind(), gc.nogc())
-            }
-            PromiseGroupRecord::PromiseAllSettled(promise_all_settled) => {
-                // 13. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] - 1.
-                promise_all_settled.remaining_elements_count = promise_all_settled
-                    .remaining_elements_count
-                    .saturating_sub(1);
-                promise_all_settled.on_promise_rejected(
-                    agent,
-                    index,
-                    value.unbind(),
-                    gc.reborrow(),
-                );
-            }
+        let result_array = promise_all.get_result_array(agent, gc.nogc());
+
+        // Let obj be OrdinaryObjectCreate(%Object.prototype%).
+        // 10. Perform ! CreateDataPropertyOrThrow(obj, "status", "fulfilled").
+        // 11. Perform ! CreateDataPropertyOrThrow(obj, "value", x).
+        let obj = OrdinaryObject::create_object(
+            agent,
+            Some(
+                agent
+                    .current_realm_record()
+                    .intrinsics()
+                    .object_prototype()
+                    .into(),
+            ),
+            &[
+                ObjectEntry::new_data_entry(
+                    BUILTIN_STRING_MEMORY.status.into(),
+                    BUILTIN_STRING_MEMORY.fulfilled.into(),
+                ),
+                ObjectEntry::new_data_entry(BUILTIN_STRING_MEMORY.value.into(), value.unbind()),
+            ],
+        )
+        .bind(gc.nogc());
+
+        let elements = result_array.as_mut_slice(agent);
+        elements[index as usize] = Some(obj.unbind().into_value());
+
+        let data = promise_all.get_mut(agent);
+
+        // 13. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] - 1.
+        data.remaining_elements_count = data.remaining_elements_count.saturating_sub(1);
+
+        // 14. If remainingElementsCount.[[Value]] = 0, then
+        if data.remaining_elements_count == 0 {
+            // a. Let valuesArray be CreateArrayFromList(values).
+            // b. Return ? Call(promiseCapability.[[Resolve]], undefined, « valuesArray »).
+            let capability = PromiseCapability::from_promise(data.promise, true);
+            capability.resolve(agent, result_array.into_value().unbind(), gc);
         }
+    }
+
+    pub(crate) fn on_promise_all_settled_rejected(
+        self,
+        agent: &mut Agent,
+        index: u32,
+        value: Value<'a>,
+        gc: GcScope<'a, '_>,
+    ) {
+        let promise_all = self.bind(gc.nogc());
+        let value = value.bind(gc.nogc());
+
+        let result_array = promise_all.get_result_array(agent, gc.nogc());
+
+        // Let obj be OrdinaryObjectCreate(%Object.prototype%).
+        // 10. Perform ! CreateDataPropertyOrThrow(obj, "status", "rejected").
+        // 11. Perform ! CreateDataPropertyOrThrow(obj, "reason", x).
+        let obj = OrdinaryObject::create_object(
+            agent,
+            Some(
+                agent
+                    .current_realm_record()
+                    .intrinsics()
+                    .object_prototype()
+                    .into(),
+            ),
+            &[
+                ObjectEntry::new_data_entry(
+                    BUILTIN_STRING_MEMORY.status.into(),
+                    BUILTIN_STRING_MEMORY.rejected.into(),
+                ),
+                ObjectEntry::new_data_entry(BUILTIN_STRING_MEMORY.reason.into(), value.unbind()),
+            ],
+        )
+        .bind(gc.nogc());
+
+        let elements = result_array.as_mut_slice(agent);
+        elements[index as usize] = Some(obj.unbind().into_value());
+
+        let data = promise_all.get_mut(agent);
+
+        // 13. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] - 1.
+        data.remaining_elements_count = data.remaining_elements_count.saturating_sub(1);
+
+        // 14. If remainingElementsCount.[[Value]] = 0, then
+        if data.remaining_elements_count == 0 {
+            // a. Let valuesArray be CreateArrayFromList(values).
+            // b. Return ? Call(promiseCapability.[[Resolve]], undefined, « valuesArray »).
+            let capability = PromiseCapability::from_promise(data.promise, true);
+            capability.resolve(agent, result_array.into_value().unbind(), gc);
+        }
+    }
+
+    pub(crate) fn get_result_array(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> Array<'a> {
+        let data = self.get(agent);
+        data.result_array.bind(gc).unbind()
     }
 
     pub(crate) const fn get_index(self) -> usize {
@@ -129,21 +225,25 @@ impl AsMut<[PromiseGroupRecord<'static>]> for Agent {
 
 impl HeapMarkAndSweep for PromiseGroupRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        match self {
-            PromiseGroupRecord::PromiseAll(promise_all) => promise_all.mark_values(queues),
-            PromiseGroupRecord::PromiseAllSettled(promise_all_settled) => {
-                promise_all_settled.mark_values(queues)
-            }
-        }
+        let Self {
+            promise_group_type: _,
+            remaining_elements_count: _,
+            result_array,
+            promise,
+        } = self;
+        result_array.mark_values(queues);
+        promise.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        match self {
-            PromiseGroupRecord::PromiseAll(promise_all) => promise_all.sweep_values(compactions),
-            PromiseGroupRecord::PromiseAllSettled(promise_all_settled) => {
-                promise_all_settled.sweep_values(compactions)
-            }
-        }
+        let Self {
+            promise_group_type: _,
+            remaining_elements_count: _,
+            result_array,
+            promise,
+        } = self;
+        result_array.sweep_values(compactions);
+        promise.sweep_values(compactions);
     }
 }
 
