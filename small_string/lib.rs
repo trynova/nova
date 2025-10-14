@@ -134,7 +134,6 @@ impl SmallString {
         unreachable!("Could not find code point index");
     }
 
-    // TODO: This should return a wtf8::CodePoint.
     pub fn char_code_at(&self, idx: usize) -> CodePoint {
         if self.is_ascii() {
             // SAFETY: ASCII is valid UTF-8.
