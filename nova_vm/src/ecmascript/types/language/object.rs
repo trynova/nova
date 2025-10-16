@@ -119,6 +119,7 @@ pub enum Object<'a> {
     Array(Array<'a>) = ARRAY_DISCRIMINANT,
     #[cfg(feature = "date")]
     Date(Date<'a>) = DATE_DISCRIMINANT,
+    Instant(Instant<'a>) = INSTANT_DISCRIMINANT,
     Error(Error<'a>) = ERROR_DISCRIMINANT,
     FinalizationRegistry(FinalizationRegistry<'a>) = FINALIZATION_REGISTRY_DISCRIMINANT,
     Map(Map<'a>) = MAP_DISCRIMINANT,
@@ -645,6 +646,8 @@ impl<'a> From<Object<'a>> for Value<'a> {
             Object::Array(data) => Self::Array(data),
             #[cfg(feature = "date")]
             Object::Date(data) => Self::Date(data),
+            #[cfg(feature = "temporal")]
+            Object::Instant(data) => Value::Instant(data),
             Object::Error(data) => Self::Error(data),
             Object::FinalizationRegistry(data) => Self::FinalizationRegistry(data),
             Object::Map(data) => Self::Map(data),
@@ -769,6 +772,8 @@ macro_rules! object_delegate {
             Self::Array(data) => data.$method($($arg),+),
             #[cfg(feature = "date")]
             Self::Date(data) => data.$method($($arg),+),
+            #[cfg(feature = "temporal")]
+            Object::Instant(data) => data.$method($($arg),+),
             Self::Error(data) => data.$method($($arg),+),
             Self::BoundFunction(data) => data.$method($($arg),+),
             Self::BuiltinFunction(data) => data.$method($($arg),+),
@@ -1534,6 +1539,8 @@ impl TryFrom<HeapRootData> for Object<'_> {
             HeapRootData::Array(array) => Ok(Self::Array(array)),
             #[cfg(feature = "date")]
             HeapRootData::Date(date) => Ok(Self::Date(date)),
+            #[cfg(feature = "temporal")]
+            HeapRootData::Instant(instant) => Ok(Self::Instant(instant)),
             HeapRootData::Error(error) => Ok(Self::Error(error)),
             HeapRootData::FinalizationRegistry(finalization_registry) => {
                 Ok(Self::FinalizationRegistry(finalization_registry))

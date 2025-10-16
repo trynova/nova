@@ -137,6 +137,8 @@ pub enum Value<'a> {
     Array(Array<'a>),
     #[cfg(feature = "date")]
     Date(Date<'a>),
+    #[cfg(feature = "temporal")]
+    Instant(Instant<'a>),
     Error(Error<'a>),
     FinalizationRegistry(FinalizationRegistry<'a>),
     Map(Map<'a>),
@@ -273,6 +275,8 @@ pub(crate) const ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Array(Array:
 #[cfg(feature = "date")]
 pub(crate) const DATE_DISCRIMINANT: u8 = value_discriminant(Value::Date(Date::_DEF));
 pub(crate) const ERROR_DISCRIMINANT: u8 = value_discriminant(Value::Error(Error::_DEF));
+#[cfg(feature = "temporal")]
+pub(crate) const INSTANT_DISCRIMINANT: u8 = value_discriminant(Value::Instant(Instant::_DEF));
 pub(crate) const BUILTIN_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::BuiltinFunction(BuiltinFunction::_DEF));
 pub(crate) const ECMASCRIPT_FUNCTION_DISCRIMINANT: u8 =
@@ -916,6 +920,8 @@ impl Rootable for Value<'_> {
             Self::Array(array) => Err(HeapRootData::Array(array.unbind())),
             #[cfg(feature = "date")]
             Self::Date(date) => Err(HeapRootData::Date(date.unbind())),
+            #[cfg(feature = "temporal")]
+            Self::Instant(instant) => Err(HeapRootData::Instant(instant.unbind())),
             Self::Error(error) => Err(HeapRootData::Error(error.unbind())),
             Self::FinalizationRegistry(finalization_registry) => Err(
                 HeapRootData::FinalizationRegistry(finalization_registry.unbind()),
@@ -1077,6 +1083,8 @@ impl Rootable for Value<'_> {
             HeapRootData::Array(array) => Some(Self::Array(array)),
             #[cfg(feature = "date")]
             HeapRootData::Date(date) => Some(Self::Date(date)),
+            #[cfg(feature = "temporal")]
+            HeapRootData::Instant(instant) => Some(Self::Instant(instant)),
             HeapRootData::Error(error) => Some(Self::Error(error)),
             HeapRootData::FinalizationRegistry(finalization_registry) => {
                 Some(Self::FinalizationRegistry(finalization_registry))
@@ -1493,6 +1501,8 @@ fn map_object_to_static_string_repr(value: Value) -> String<'static> {
         Object::SharedFloat16Array(_) => BUILTIN_STRING_MEMORY._object_Object_,
         #[cfg(feature = "date")]
         Object::Date(_) => BUILTIN_STRING_MEMORY._object_Object_,
+        #[cfg(feature = "temporal")]
+        Object::Instant(_) => BUILTIN_STRING_MEMORY._object_Object_,
         #[cfg(feature = "set")]
         Object::Set(_) | Object::SetIterator(_) => BUILTIN_STRING_MEMORY._object_Object_,
         #[cfg(feature = "weak-refs")]
