@@ -1,16 +1,18 @@
+use core::ops::{Index, IndexMut};
+
 use crate::{
     ecmascript::{
         builders::{builtin_function_builder::BuiltinFunctionBuilder, ordinary_object_builder::OrdinaryObjectBuilder},
         builtins::{
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor
         },
-        execution::{agent::{Agent}, JsResult, Realm},
+        execution::{agent::Agent, JsResult, Realm},
         types::{
-            InternalSlots, IntoObject, Object, OrdinaryObject, String, Value, BUILTIN_STRING_MEMORY
+            InternalMethods, InternalSlots, IntoObject, Object, OrdinaryObject, String, Value, BUILTIN_STRING_MEMORY
         },
     },
-    engine::context::{bindable_handle, GcScope, NoGcScope},
-    heap::{indexes::BaseIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, IntrinsicConstructorIndexes, WorkQueues},
+    engine::{context::{bindable_handle, GcScope, NoGcScope}, rootable::{HeapRootRef, Rootable}},
+    heap::{indexes::BaseIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference, IntrinsicConstructorIndexes, WorkQueues},
 };
 /// Constructor function object for %Temporal.Instant%.
 pub(crate) struct InstantConstructor;
@@ -56,7 +58,7 @@ impl InstantPrototype {
             .build();
     }
 }
-/// HEAP DATA
+/// HEAP DATA -- Move to internal instant/data.rs
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct InstantValue(/*TODO:BigInt*/);
 
@@ -84,33 +86,48 @@ impl HeapMarkAndSweep for InstantHeapData<'static> {
     }
 }
 
-// HANDLES
+// HANDLES -- Keep public facing within instant.rs
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Instant<'a>(BaseIndex<'a, InstantHeapData<'static>>);
 impl Instant<'_> {
     //TODO
     pub(crate) const fn _def() -> Self {
-        todo!()
+        Instant(BaseIndex::from_u32_index(0))
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
     }
 }
 bindable_handle!(Instant);
 
 impl<'a> From<Instant<'a>> for Value<'a> {
-    fn from(v: Instant<'a>) -> Self { todo!() }
+    fn from(value: Instant<'a>) -> Self { 
+        Value::Instant(value) // todo: add to value.rs
+     }
 }
 impl<'a> From<Instant<'a>> for Object<'a> {
-    fn from(v: Instant<'a>) -> Self { todo!() }
+    fn from(value: Instant<'a>) -> Self {
+        Object::Instant(value) // todo: add to object.rs
+    }
 }
 impl<'a> TryFrom<Value<'a>> for Instant<'a> {
     type Error = ();
-    fn try_from(v: Value<'a>) -> Result<Self, ()> {
-        todo!()
+
+    fn try_from(value: Value<'a>) -> Result<Self, ()> {
+        match value {
+            Value::Instant(idx) => Ok(idx), // todo: add to value.rs
+            _ => Err(()),
+        }
     }
 }
 impl<'a> TryFrom<Object<'a>> for Instant<'a> {
     type Error = ();
-    fn try_from(o: Object<'a>) -> Result<Self, ()> {
-        todo!()
+    fn try_from(object: Object<'a>) -> Result<Self, ()> {
+        match object {
+            Object::Instant(idx) => Ok(idx), // todo: add to object.rs
+            _ => Err(()),
+        }
     }
 }
 
@@ -127,6 +144,8 @@ impl<'a> InternalSlots<'a> for Instant<'a> {
     
 }
 
+impl<'a> InternalMethods<'a> for Instant<'a> {}
+
 impl HeapMarkAndSweep for Instant<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         todo!()
@@ -136,8 +155,36 @@ impl HeapMarkAndSweep for Instant<'static> {
     }
 }
 
+impl HeapSweepWeakReference for Instant<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions.dates.shift_weak_index(self.0).map(Self)
+    }
+}
+
 impl<'a> CreateHeapData<InstantHeapData<'a>, Instant<'a>> for Heap {
     fn create(&mut self, data: InstantHeapData<'a>) -> Instant<'a> {
         todo!()
     }
 }
+
+/* todo - impl keep public facing in temporal/instant.rs
+impl Rootable for Instant<'_> {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, crate::engine::rootable::HeapRootData> {
+        todo!()
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, crate::engine::rootable::HeapRootRef> {
+        todo!()
+    }
+
+    fn from_heap_ref(heap_ref: crate::engine::rootable::HeapRootRef) -> Self::RootRepr {
+        todo!()
+    }
+
+    fn from_heap_data(heap_data: crate::engine::rootable::HeapRootData) -> Option<Self> {
+        todo!()
+    }
+}
+*/
