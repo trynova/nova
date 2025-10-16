@@ -230,6 +230,8 @@ pub mod private {
     impl RootableSealed for BuiltinPromiseFinallyFunction<'_> {}
     #[cfg(feature = "date")]
     impl RootableSealed for Date<'_> {}
+    #[cfg(feature = "temporal")]
+    impl RootableSealed for Instant<'_> {}
     impl RootableSealed for ECMAScriptFunction<'_> {}
     impl RootableSealed for EmbedderObject<'_> {}
     impl RootableSealed for Error<'_> {}
@@ -544,6 +546,8 @@ pub enum HeapRootData {
     Array(Array<'static>) = ARRAY_DISCRIMINANT,
     #[cfg(feature = "date")]
     Date(Date<'static>) = DATE_DISCRIMINANT,
+    #[cfg(feature = "temporal")]
+    Instant(Instant<'static>) = INSTANT_DISCRIMINANT,
     Error(Error<'static>) = ERROR_DISCRIMINANT,
     FinalizationRegistry(FinalizationRegistry<'static>) = FINALIZATION_REGISTRY_DISCRIMINANT,
     Map(Map<'static>) = MAP_DISCRIMINANT,
@@ -678,6 +682,8 @@ impl From<Object<'static>> for HeapRootData {
             Object::Array(array) => Self::Array(array),
             #[cfg(feature = "date")]
             Object::Date(date) => Self::Date(date),
+            #[cfg(feature = "temporal")]
+            Object::Instant(instant) => Self::Instant(instant),
             Object::Error(error) => Self::Error(error),
             Object::FinalizationRegistry(finalization_registry) => {
                 Self::FinalizationRegistry(finalization_registry)
@@ -837,6 +843,8 @@ impl HeapMarkAndSweep for HeapRootData {
             Self::Array(array) => array.mark_values(queues),
             #[cfg(feature = "date")]
             Self::Date(date) => date.mark_values(queues),
+            #[cfg(feature = "temporal")]
+            Self::Instant(instant) => instant.mark_values(queues),
             Self::Error(error) => error.mark_values(queues),
             Self::FinalizationRegistry(finalization_registry) => {
                 finalization_registry.mark_values(queues)
@@ -986,6 +994,8 @@ impl HeapMarkAndSweep for HeapRootData {
             Self::Array(array) => array.sweep_values(compactions),
             #[cfg(feature = "date")]
             Self::Date(date) => date.sweep_values(compactions),
+            #[cfg(feature = "temporal")]
+            Self::Instant(date) => date.sweep_values(compactions),
             Self::Error(error) => error.sweep_values(compactions),
             Self::FinalizationRegistry(finalization_registry) => {
                 finalization_registry.sweep_values(compactions)
