@@ -1298,6 +1298,8 @@ pub(crate) fn typeof_operator(agent: &Agent, val: Value, gc: NoGcScope) -> Strin
         Value::SharedFloat16Array(_) => BUILTIN_STRING_MEMORY.object,
         #[cfg(feature = "date")]
         Value::Date(_)  => BUILTIN_STRING_MEMORY.object,
+        #[cfg(feature = "temporal")]
+        Value::Instant(_)  => BUILTIN_STRING_MEMORY.object,
         // 13. If val has a [[Call]] internal slot, return "function".
         Value::BoundFunction(_) | Value::BuiltinFunction(_) | Value::ECMAScriptFunction(_) |
         Value::BuiltinConstructorFunction(_) |

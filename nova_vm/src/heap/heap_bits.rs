@@ -21,6 +21,8 @@ use soavec_derive::SoAble;
 
 #[cfg(feature = "date")]
 use crate::ecmascript::Date;
+#[cfg(feature = "temporal")]
+use crate::ecmascript::builtins::Instant;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::{ArrayBuffer, DataView, VoidArray};
 #[cfg(feature = "regexp")]
@@ -491,6 +493,8 @@ pub(crate) struct WorkQueues<'a> {
     pub(crate) data_views: Vec<DataView<'static>>,
     #[cfg(feature = "date")]
     pub(crate) dates: Vec<Date<'static>>,
+    #[cfg(feature = "date")]
+    pub(crate) instants: Vec<Instant<'static>>,
     pub(crate) declarative_environments: Vec<DeclarativeEnvironment<'static>>,
     pub(crate) e_2_1: Vec<ElementIndex<'static>>,
     pub(crate) e_2_2: Vec<ElementIndex<'static>>,
@@ -994,6 +998,8 @@ impl<'a> WorkQueues<'a> {
             data_views: Vec::with_capacity(heap.data_views.len() / 4),
             #[cfg(feature = "date")]
             dates: Vec::with_capacity(heap.dates.len() / 4),
+            #[cfg(feature = "temporal")]
+            instants: Vec::with_capacity(heap.instants.len() / 4),
             declarative_environments: Vec::with_capacity(heap.environments.declarative.len() / 4),
             e_2_1: Vec::with_capacity(heap.elements.e2pow1.values.len() / 4),
             e_2_2: Vec::with_capacity(heap.elements.e2pow2.values.len() / 4),
@@ -1100,6 +1106,8 @@ impl<'a> WorkQueues<'a> {
             data_views,
             #[cfg(feature = "date")]
             dates,
+            #[cfg(feature = "temporal")]
+            instants,
             declarative_environments,
             e_2_1,
             e_2_2,
@@ -1219,6 +1227,7 @@ impl<'a> WorkQueues<'a> {
             && caches.is_empty()
             && data_views.is_empty()
             && dates.is_empty()
+            && instants.is_empty()
             && declarative_environments.is_empty()
             && e_2_1.is_empty()
             && e_2_2.is_empty()
@@ -1578,6 +1587,8 @@ pub(crate) struct CompactionLists {
     pub(crate) data_views: CompactionList,
     #[cfg(feature = "date")]
     pub(crate) dates: CompactionList,
+    #[cfg(feature = "temporal")]
+    pub(crate) instants: CompactionList,
     pub(crate) declarative_environments: CompactionList,
     pub(crate) e_2_1: CompactionList,
     pub(crate) e_2_2: CompactionList,
@@ -1733,6 +1744,8 @@ impl CompactionLists {
             source_codes: CompactionList::from_mark_bits(&bits.source_codes, &bits.bits),
             #[cfg(feature = "date")]
             dates: CompactionList::from_mark_bits(&bits.dates, &bits.bits),
+            #[cfg(feature = "temporal")]
+            instants: CompactionList::from_mark_bits(&bits.instants, &bits.bits),
             errors: CompactionList::from_mark_bits(&bits.errors, &bits.bits),
             executables: CompactionList::from_mark_bits(&bits.executables, &bits.bits),
             maps: CompactionList::from_mark_bits(&bits.maps, &bits.bits),
