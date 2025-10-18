@@ -60,24 +60,15 @@ impl<'a> PromiseGroup<'a> {
                     self.on_promise_all_rejected(agent, value.unbind(), gc.nogc());
                 }
             },
-            PromiseGroupType::PromiseAllSettled => match reaction_type {
-                PromiseReactionType::Fulfill => {
-                    self.on_promise_all_settled_fulfilled(
-                        agent,
-                        index,
-                        value.unbind(),
-                        gc.reborrow(),
-                    );
-                }
-                PromiseReactionType::Reject => {
-                    self.on_promise_all_settled_rejected(
-                        agent,
-                        index,
-                        value.unbind(),
-                        gc.reborrow(),
-                    );
-                }
-            },
+            PromiseGroupType::PromiseAllSettled => {
+                self.on_promise_all_settled(
+                    agent,
+                    reaction_type,
+                    index,
+                    value.unbind(),
+                    gc.reborrow(),
+                );
+            }
         }
     }
 
@@ -124,9 +115,10 @@ impl<'a> PromiseGroup<'a> {
         capability.reject(agent, value.unbind(), gc);
     }
 
-    pub(crate) fn on_promise_all_settled_fulfilled(
+    pub(crate) fn on_promise_all_settled(
         self,
         agent: &mut Agent,
+        reaction_type: PromiseReactionType,
         index: u32,
         value: Value<'a>,
         gc: GcScope<'a, '_>,
@@ -136,78 +128,47 @@ impl<'a> PromiseGroup<'a> {
 
         let result_array = promise_all.get_result_array(agent, gc.nogc());
 
-        // Let obj be OrdinaryObjectCreate(%Object.prototype%).
-        // 10. Perform ! CreateDataPropertyOrThrow(obj, "status", "fulfilled").
-        // 11. Perform ! CreateDataPropertyOrThrow(obj, "value", x).
-        let obj = OrdinaryObject::create_object(
-            agent,
-            Some(
-                agent
-                    .current_realm_record()
-                    .intrinsics()
-                    .object_prototype()
-                    .into(),
-            ),
-            &[
-                ObjectEntry::new_data_entry(
-                    BUILTIN_STRING_MEMORY.status.into(),
-                    BUILTIN_STRING_MEMORY.fulfilled.into(),
+        let obj = match reaction_type {
+            PromiseReactionType::Fulfill => OrdinaryObject::create_object(
+                agent,
+                Some(
+                    agent
+                        .current_realm_record()
+                        .intrinsics()
+                        .object_prototype()
+                        .into(),
                 ),
-                ObjectEntry::new_data_entry(BUILTIN_STRING_MEMORY.value.into(), value.unbind()),
-            ],
-        )
-        .bind(gc.nogc());
-
-        let elements = result_array.as_mut_slice(agent);
-        elements[index as usize] = Some(obj.unbind().into_value());
-
-        let data = promise_all.get_mut(agent);
-
-        // 13. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] - 1.
-        data.remaining_elements_count = data.remaining_elements_count.saturating_sub(1);
-
-        // 14. If remainingElementsCount.[[Value]] = 0, then
-        if data.remaining_elements_count == 0 {
-            // a. Let valuesArray be CreateArrayFromList(values).
-            // b. Return ? Call(promiseCapability.[[Resolve]], undefined, « valuesArray »).
-            let capability = PromiseCapability::from_promise(data.promise, true);
-            capability.resolve(agent, result_array.into_value().unbind(), gc);
-        }
-    }
-
-    pub(crate) fn on_promise_all_settled_rejected(
-        self,
-        agent: &mut Agent,
-        index: u32,
-        value: Value<'a>,
-        gc: GcScope<'a, '_>,
-    ) {
-        let promise_all = self.bind(gc.nogc());
-        let value = value.bind(gc.nogc());
-
-        let result_array = promise_all.get_result_array(agent, gc.nogc());
-
-        // Let obj be OrdinaryObjectCreate(%Object.prototype%).
-        // 10. Perform ! CreateDataPropertyOrThrow(obj, "status", "rejected").
-        // 11. Perform ! CreateDataPropertyOrThrow(obj, "reason", x).
-        let obj = OrdinaryObject::create_object(
-            agent,
-            Some(
-                agent
-                    .current_realm_record()
-                    .intrinsics()
-                    .object_prototype()
-                    .into(),
-            ),
-            &[
-                ObjectEntry::new_data_entry(
-                    BUILTIN_STRING_MEMORY.status.into(),
-                    BUILTIN_STRING_MEMORY.rejected.into(),
+                &[
+                    ObjectEntry::new_data_entry(
+                        BUILTIN_STRING_MEMORY.status.into(),
+                        BUILTIN_STRING_MEMORY.fulfilled.into(),
+                    ),
+                    ObjectEntry::new_data_entry(BUILTIN_STRING_MEMORY.value.into(), value.unbind()),
+                ],
+            )
+            .bind(gc.nogc()),
+            PromiseReactionType::Reject => OrdinaryObject::create_object(
+                agent,
+                Some(
+                    agent
+                        .current_realm_record()
+                        .intrinsics()
+                        .object_prototype()
+                        .into(),
                 ),
-                ObjectEntry::new_data_entry(BUILTIN_STRING_MEMORY.reason.into(), value.unbind()),
-            ],
-        )
-        .bind(gc.nogc());
+                &[
+                    ObjectEntry::new_data_entry(
+                        BUILTIN_STRING_MEMORY.status.into(),
+                        BUILTIN_STRING_MEMORY.rejected.into(),
+                    ),
+                    ObjectEntry::new_data_entry(
+                        BUILTIN_STRING_MEMORY.reason.into(),
+                        value.unbind(),
+                    ),
+                ],
+            )
+            .bind(gc.nogc()),
+        };
 
         let elements = result_array.as_mut_slice(agent);
         elements[index as usize] = Some(obj.unbind().into_value());
