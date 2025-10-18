@@ -1961,21 +1961,22 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
     ) -> Option<usize> {
         let search_element = T::try_from_value(agent, search_element)?;
         let slice = self.as_slice(agent);
-        // Length of the TypedArray may have changed between when we measured it
-        // and here: We'll never try to access past the boundary of the slice if
-        // the backing ArrayBuffer shrank.
-        let end = end.min(slice.len());
-        if start >= end {
-            return None;
-        }
 
         if ASCENDING {
+            // Length of the TypedArray may have changed between when we measured it
+            // and here: We'll never try to access past the boundary of the slice if
+            // the backing ArrayBuffer shrank.
+            let end = end.min(slice.len());
+            if start >= end {
+                return None;
+            }
             slice[start..end]
                 .iter()
                 .position(|&r| r == search_element)
                 .map(|pos| pos + start)
         } else {
-            slice[..=start].iter().rposition(|&r| r == search_element)
+            let end = start.saturating_add(1).min(slice.len());
+            slice[..end].iter().rposition(|&r| r == search_element)
         }
     }
 
