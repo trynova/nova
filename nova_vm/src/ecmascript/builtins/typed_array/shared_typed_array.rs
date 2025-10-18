@@ -2142,7 +2142,6 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         let src_buffer = source.viewed_array_buffer(agent);
         // 9. Let targetType be TypedArrayElementType(target).
         // 10. Let targetElementSize be TypedArrayElementSize(target).
-        let target_element_size = size_of::<T>();
         // 11. Let targetByteOffset be target.[[ByteOffset]].
         let target_byte_offset = target.byte_offset(agent);
         // 12. Let srcType be TypedArrayElementType(source).

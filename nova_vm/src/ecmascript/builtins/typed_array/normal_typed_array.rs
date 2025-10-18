@@ -6,7 +6,6 @@ use core::{
     hash::{Hash, Hasher},
     hint::{assert_unchecked, unreachable_unchecked},
     marker::PhantomData,
-    ops::ControlFlow,
 };
 
 use ecmascript_atomics::Ordering;
@@ -33,7 +32,7 @@ use crate::{
             ordinary::{
                 caches::{PropertyLookupCache, PropertyOffset},
                 ordinary_define_own_property, ordinary_delete, ordinary_get,
-                ordinary_get_own_property, ordinary_has_property, ordinary_has_property_entry,
+                ordinary_get_own_property, ordinary_has_property_entry,
                 ordinary_prevent_extensions, ordinary_set, ordinary_try_get,
                 ordinary_try_has_property, ordinary_try_set,
                 shape::ObjectShape,
