@@ -1705,7 +1705,8 @@ impl TypedArrayPrototype {
             let n = n.into_i64();
             // 7. If n ≥ 0, then
             let len = u64::try_from(len).unwrap();
-            let k = if n >= 0 {
+            
+            if n >= 0 {
                 let n = n.unsigned_abs();
                 // a. Let k be min(n, len - 1).
                 usize::try_from(n.min(len - 1)).unwrap()
@@ -1718,8 +1719,7 @@ impl TypedArrayPrototype {
                     return Ok((-1).into());
                 };
                 usize::try_from(k).unwrap()
-            };
-            k
+            }
         } else {
             // 5. ... else let n be len - 1.
             len - 1

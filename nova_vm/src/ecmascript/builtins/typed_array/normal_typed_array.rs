@@ -1863,7 +1863,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
         .unbind()?
         .bind(gc.nogc());
         // SAFETY: All viewable types are trivially transmutable.
-        let (head, kept_slice, _) = unsafe { (&mut kept).align_to_mut::<T>() };
+        let (head, kept_slice, _) = unsafe { kept.align_to_mut::<T>() };
         // Should be properly aligned for all T.
         assert!(head.is_empty());
 
@@ -2390,7 +2390,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
         gc: NoGcScope<'gc, '_>,
     ) -> JsResult<'gc, TypedArray<'gc>> {
         let byte_length = (len as u64).saturating_mul(self.typed_array_element_size() as u64);
-        let mut data_block = create_byte_data_block(agent, byte_length as u64, gc)?;
+        let mut data_block = create_byte_data_block(agent, byte_length, gc)?;
         let source = &self.as_slice(agent)[..len];
         // SAFETY: Viewables can be safely transmuted from bytes.
         let (head, target, tail) = unsafe { data_block.align_to_mut::<T>() };
@@ -2492,39 +2492,39 @@ unsafe impl<T: Viewable> Bindable for GenericTypedArray<'_, T> {
     }
 }
 
-impl<T: ?Sized + Viewable> Clone for GenericTypedArray<'_, T> {
+impl<T: Viewable> Clone for GenericTypedArray<'_, T> {
     #[inline(always)]
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<T: ?Sized + Viewable> Copy for GenericTypedArray<'_, T> {}
+impl<T: Viewable> Copy for GenericTypedArray<'_, T> {}
 
-impl<T: ?Sized + Viewable> PartialEq for GenericTypedArray<'_, T> {
+impl<T: Viewable> PartialEq for GenericTypedArray<'_, T> {
     #[inline(always)]
     fn eq(&self, other: &Self) -> bool {
         self.0.eq(&other.0)
     }
 }
 
-impl<T: ?Sized + Viewable> Eq for GenericTypedArray<'_, T> {}
+impl<T: Viewable> Eq for GenericTypedArray<'_, T> {}
 
-impl<T: ?Sized + Viewable> PartialOrd for GenericTypedArray<'_, T> {
+impl<T: Viewable> PartialOrd for GenericTypedArray<'_, T> {
     #[inline(always)]
     fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<T: ?Sized + Viewable> Ord for GenericTypedArray<'_, T> {
+impl<T: Viewable> Ord for GenericTypedArray<'_, T> {
     #[inline(always)]
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.0.cmp(&other.0)
     }
 }
 
-impl<T: ?Sized + Viewable> Hash for GenericTypedArray<'_, T> {
+impl<T: Viewable> Hash for GenericTypedArray<'_, T> {
     #[inline(always)]
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.hash(state);

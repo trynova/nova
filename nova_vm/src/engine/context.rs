@@ -647,7 +647,7 @@ where
 }
 
 // SAFETY: The blanket impls are safe if the implementors are.
-unsafe impl<'slice, T: Bindable, U: Bindable> Bindable for (T, U) {
+unsafe impl<T: Bindable, U: Bindable> Bindable for (T, U) {
     type Of<'gc> = (T::Of<'gc>, U::Of<'gc>);
 
     fn unbind(self) -> Self::Of<'static> {
@@ -661,7 +661,7 @@ unsafe impl<'slice, T: Bindable, U: Bindable> Bindable for (T, U) {
 }
 
 // SAFETY: The blanket impls are safe if the implementors are.
-unsafe impl<'slice, T: Bindable, U: Bindable, V: Bindable> Bindable for (T, U, V) {
+unsafe impl<T: Bindable, U: Bindable, V: Bindable> Bindable for (T, U, V) {
     type Of<'gc> = (T::Of<'gc>, U::Of<'gc>, V::Of<'gc>);
 
     fn unbind(self) -> Self::Of<'static> {
@@ -675,7 +675,7 @@ unsafe impl<'slice, T: Bindable, U: Bindable, V: Bindable> Bindable for (T, U, V
 }
 
 // SAFETY: The blanket impls are safe if the implementors are.
-unsafe impl<'slice, T: Bindable, U: Bindable, V: Bindable, W: Bindable> Bindable for (T, U, V, W) {
+unsafe impl<T: Bindable, U: Bindable, V: Bindable, W: Bindable> Bindable for (T, U, V, W) {
     type Of<'gc> = (T::Of<'gc>, U::Of<'gc>, V::Of<'gc>, W::Of<'gc>);
 
     fn unbind(self) -> Self::Of<'static> {
@@ -699,7 +699,7 @@ unsafe impl<'slice, T: Bindable, U: Bindable, V: Bindable, W: Bindable> Bindable
 }
 
 // SAFETY: The blanket impls are safe if the implementors are.
-unsafe impl<'slice, T: Bindable, U: Bindable, V: Bindable, W: Bindable, X: Bindable> Bindable
+unsafe impl<T: Bindable, U: Bindable, V: Bindable, W: Bindable, X: Bindable> Bindable
     for (T, U, V, W, X)
 {
     type Of<'gc> = (T::Of<'gc>, U::Of<'gc>, V::Of<'gc>, W::Of<'gc>, X::Of<'gc>);
@@ -727,8 +727,8 @@ unsafe impl<'slice, T: Bindable, U: Bindable, V: Bindable, W: Bindable, X: Binda
 }
 
 // SAFETY: The blanket impls are safe if the implementors are.
-unsafe impl<'slice, T: Bindable, U: Bindable, V: Bindable, W: Bindable, X: Bindable, Y: Bindable>
-    Bindable for (T, U, V, W, X, Y)
+unsafe impl<T: Bindable, U: Bindable, V: Bindable, W: Bindable, X: Bindable, Y: Bindable> Bindable
+    for (T, U, V, W, X, Y)
 {
     type Of<'gc> = (
         T::Of<'gc>,

@@ -136,7 +136,7 @@ impl ArrayBuffer<'_> {
     /// Create a T slice from an ArrayBuffer and byte offset and length values.
     ///
     /// This method should be used when looping over items of a TypedArray.
-    pub(crate) fn as_viewable_slice<'a, T: Viewable>(
+    pub(crate) fn as_viewable_slice<T: Viewable>(
         self,
         agent: &Agent,
         byte_offset: usize,
@@ -165,7 +165,7 @@ impl ArrayBuffer<'_> {
     /// Create a T slice from an ArrayBuffer and byte offset and length values.
     ///
     /// This method should be used when looping over items of a TypedArray.
-    pub(crate) fn as_mut_viewable_slice<'a, T: Viewable>(
+    pub(crate) fn as_mut_viewable_slice<T: Viewable>(
         self,
         agent: &mut Agent,
         byte_offset: usize,

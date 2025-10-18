@@ -235,7 +235,7 @@ pub(crate) fn get_raw_bytes_from_shared_block<T: Viewable>(
     // 9. Append Chosen Value Record { [[Event]]: readEvent, [[ChosenValue]]: rawValue } to execution.[[ChosenValues]].
     // 10. Return rawValue.
     if is_typed_array {
-        block.load::<T>(byte_index, order.into()).expect("Invalid GetRawBytesFromSharedBlock call: did not check index alignment and buffer length beforehand")
+        block.load::<T>(byte_index, order).expect("Invalid GetRawBytesFromSharedBlock call: did not check index alignment and buffer length beforehand")
     } else {
         block.load_unaligned::<T>(byte_index).expect(
             "Invalid GetRawBytesFromSharedBlock call: did not check buffer length beforehand",
@@ -386,7 +386,7 @@ pub(crate) fn set_value_in_buffer<T: Viewable>(
             // d. Append WriteSharedMemory { [[Order]]: order, [[NoTear]]: noTear, [[Block]]: block, [[ByteIndex]]: byteIndex, [[ElementSize]]: elementSize, [[Payload]]: rawBytes } to eventsRecord.[[EventList]].
             if is_typed_array {
                 block
-                    .store::<T>(byte_index, raw_bytes, order.into())
+                    .store::<T>(byte_index, raw_bytes, order)
                     .expect("Unaligned store or SharedDataBlock not large enough")
             } else {
                 block

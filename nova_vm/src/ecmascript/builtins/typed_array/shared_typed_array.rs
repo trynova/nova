@@ -1880,7 +1880,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
             .unbind()?
             .bind(gc.nogc());
         // SAFETY: All viewable types are trivially transmutable.
-        let (head, kept_slice, _) = unsafe { (&mut kept).align_to_mut::<T>() };
+        let (head, kept_slice, _) = unsafe { kept.align_to_mut::<T>() };
         // Should be properly aligned for all T.
         assert!(head.is_empty());
 
@@ -2425,7 +2425,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         gc: NoGcScope<'gc, '_>,
     ) -> JsResult<'gc, TypedArray<'gc>> {
         let byte_length = (len as u64).saturating_mul(self.typed_array_element_size() as u64);
-        let mut data_block = create_byte_data_block(agent, byte_length as u64, gc)?;
+        let mut data_block = create_byte_data_block(agent, byte_length, gc)?;
         let source = self.as_slice(agent).slice_to(len);
         // SAFETY: Viewables can be safely transmuted from bytes.
         let (head, target, tail) = unsafe { data_block.align_to_mut::<T::Storage>() };
@@ -2488,14 +2488,14 @@ pub(crate) fn copy_from_shared_typed_array<Source: Viewable, Target: Viewable>(
         assert!(head.is_empty());
         assert_eq!(target.len(), source.len());
         if Target::IS_FLOAT {
-            for i in 0..source.len() {
+            for (i, target) in target.iter_mut().enumerate() {
                 let src = Source::from_storage(source.load(i, Ordering::Unordered).unwrap());
-                target[i] = Target::from_f64(src.into_f64());
+                *target = Target::from_f64(src.into_f64());
             }
         } else {
-            for i in 0..source.len() {
+            for (i, target) in target.iter_mut().enumerate() {
                 let src = Source::from_storage(source.load(i, Ordering::Unordered).unwrap());
-                target[i] = Target::from_bits(src.into_bits());
+                *target = Target::from_bits(src.into_bits());
             }
         }
     };
@@ -2517,13 +2517,13 @@ fn copy_into_shared_typed_array<Source: Viewable, Target: Viewable>(
         assert!(head.is_empty());
         assert_eq!(target.len(), source.len());
         if Target::IS_FLOAT {
-            for i in 0..source.len() {
-                let value = Target::into_storage(Target::from_f64(source[i].into_f64()));
+            for (i, source) in source.iter().enumerate() {
+                let value = Target::into_storage(Target::from_f64(source.into_f64()));
                 target.store(i, value, Ordering::Unordered);
             }
         } else {
-            for i in 0..source.len() {
-                let value = Target::into_storage(Target::from_bits(source[i].into_bits()));
+            for (i, source) in source.iter().enumerate() {
+                let value = Target::into_storage(Target::from_bits(source.into_bits()));
                 target.store(i, value, Ordering::Unordered);
             }
         }
@@ -2558,39 +2558,39 @@ unsafe impl<T: Viewable> Bindable for GenericSharedTypedArray<'_, T> {
     }
 }
 
-impl<T: ?Sized + Viewable> Clone for GenericSharedTypedArray<'_, T> {
+impl<T: Viewable> Clone for GenericSharedTypedArray<'_, T> {
     #[inline(always)]
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<T: ?Sized + Viewable> Copy for GenericSharedTypedArray<'_, T> {}
+impl<T: Viewable> Copy for GenericSharedTypedArray<'_, T> {}
 
-impl<T: ?Sized + Viewable> PartialEq for GenericSharedTypedArray<'_, T> {
+impl<T: Viewable> PartialEq for GenericSharedTypedArray<'_, T> {
     #[inline(always)]
     fn eq(&self, other: &Self) -> bool {
         self.0.eq(&other.0)
     }
 }
 
-impl<T: ?Sized + Viewable> Eq for GenericSharedTypedArray<'_, T> {}
+impl<T: Viewable> Eq for GenericSharedTypedArray<'_, T> {}
 
-impl<T: ?Sized + Viewable> PartialOrd for GenericSharedTypedArray<'_, T> {
+impl<T: Viewable> PartialOrd for GenericSharedTypedArray<'_, T> {
     #[inline(always)]
     fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<T: ?Sized + Viewable> Ord for GenericSharedTypedArray<'_, T> {
+impl<T: Viewable> Ord for GenericSharedTypedArray<'_, T> {
     #[inline(always)]
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.0.cmp(&other.0)
     }
 }
 
-impl<T: ?Sized + Viewable> Hash for GenericSharedTypedArray<'_, T> {
+impl<T: Viewable> Hash for GenericSharedTypedArray<'_, T> {
     #[inline(always)]
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.hash(state);

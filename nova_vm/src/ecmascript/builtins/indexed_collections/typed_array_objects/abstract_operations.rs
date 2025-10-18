@@ -418,7 +418,7 @@ pub(crate) trait TypedArrayAbstractOperations<'ta>: Copy + Sized {
         // 6. Return GetValueFromBuffer(O.[[ViewedArrayBuffer]], byteIndexInBuffer, elementType, true, unordered).
         Some(get_value_from_buffer::<Self::ElementType>(
             agent,
-            self.viewed_array_buffer(agent).into(),
+            self.viewed_array_buffer(agent),
             byte_index_in_buffer,
             true,
             Ordering::Unordered,
@@ -499,7 +499,7 @@ pub(crate) trait TypedArrayAbstractOperations<'ta>: Copy + Sized {
 
     fn reverse(self, agent: &mut Agent, len: usize);
 
-    fn set_into_data_block<'gc>(
+    fn set_into_data_block(
         self,
         agent: &Agent,
         target: &mut DataBlock,

@@ -95,7 +95,7 @@ impl DataViewConstructor {
         }
 
         // 7. Let bufferIsFixedLength be IsFixedLengthArrayBuffer(buffer).
-        let buffer_is_fixed_length = is_fixed_length_array_buffer(agent, buffer.into());
+        let buffer_is_fixed_length = is_fixed_length_array_buffer(agent, buffer);
         let buffer_is_shared = buffer.is_shared();
 
         // 8. If byteLength is undefined, then
