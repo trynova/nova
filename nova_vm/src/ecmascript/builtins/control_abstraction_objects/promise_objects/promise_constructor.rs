@@ -720,26 +720,15 @@ fn perform_promise_group<'gc>(
 
     // 2. Let remainingElementsCount be the Record { [[Value]]: 1 }.
     let promise = result_capability.promise.scope(agent, gc.nogc());
-    let promise_group_reference = match promise_group_type {
-        PromiseGroupType::PromiseAll => agent
-            .heap
-            .create(PromiseGroupRecord {
-                promise_group_type: PromiseGroupType::PromiseAll,
-                remaining_elements_count: 1,
-                result_array: result_array.get(agent),
-                promise: promise.get(agent),
-            })
-            .scope(agent, gc.nogc()),
-        PromiseGroupType::PromiseAllSettled => agent
-            .heap
-            .create(PromiseGroupRecord {
-                promise_group_type: PromiseGroupType::PromiseAllSettled,
-                remaining_elements_count: 1,
-                result_array: result_array.get(agent),
-                promise: promise.get(agent),
-            })
-            .scope(agent, gc.nogc()),
-    };
+    let promise_group_reference = agent
+        .heap
+        .create(PromiseGroupRecord {
+            promise_group_type: promise_group_type,
+            remaining_elements_count: 1,
+            result_array: result_array.get(agent),
+            promise: promise.get(agent),
+        })
+        .scope(agent, gc.nogc());
 
     // 3. Let index be 0.
     let mut index = 0;
