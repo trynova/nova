@@ -1,8 +1,12 @@
 use crate::{
     ecmascript::{
         builtins::{
-            Array, promise::Promise,
-            promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
+            Array,
+            promise::Promise,
+            promise_objects::promise_abstract_operations::{
+                promise_capability_records::PromiseCapability,
+                promise_reaction_records::PromiseReactionType,
+            },
         },
         execution::Agent,
         types::{BUILTIN_STRING_MEMORY, IntoValue, OrdinaryObject, Value},
@@ -36,6 +40,47 @@ pub struct PromiseGroupRecord<'a> {
 pub struct PromiseGroup<'a>(BaseIndex<'a, PromiseGroupRecord<'static>>);
 
 impl<'a> PromiseGroup<'a> {
+    pub(crate) fn settle(
+        self,
+        agent: &mut Agent,
+        reaction_type: PromiseReactionType,
+        index: u32,
+        value: Value<'a>,
+        mut gc: GcScope<'a, '_>,
+    ) {
+        let value = value.bind(gc.nogc());
+        let record = self.get(agent);
+
+        match record.promise_group_type {
+            PromiseGroupType::PromiseAll => match reaction_type {
+                PromiseReactionType::Fulfill => {
+                    self.on_promise_all_fulfilled(agent, index, value.unbind(), gc.reborrow());
+                }
+                PromiseReactionType::Reject => {
+                    self.on_promise_all_rejected(agent, value.unbind(), gc.nogc());
+                }
+            },
+            PromiseGroupType::PromiseAllSettled => match reaction_type {
+                PromiseReactionType::Fulfill => {
+                    self.on_promise_all_settled_fulfilled(
+                        agent,
+                        index,
+                        value.unbind(),
+                        gc.reborrow(),
+                    );
+                }
+                PromiseReactionType::Reject => {
+                    self.on_promise_all_settled_rejected(
+                        agent,
+                        index,
+                        value.unbind(),
+                        gc.reborrow(),
+                    );
+                }
+            },
+        }
+    }
+
     pub(crate) fn on_promise_all_fulfilled(
         self,
         agent: &mut Agent,
