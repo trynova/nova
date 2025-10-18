@@ -1452,7 +1452,10 @@ impl Viewable for u8 {
     }
 
     fn from_f64(value: f64) -> Self {
-        value as Self
+        if !value.is_finite() {
+            return 0;
+        }
+        value.trunc() as i64 as Self
     }
 
     #[inline(always)]
@@ -1531,6 +1534,9 @@ impl Viewable for U8Clamped {
     }
 
     fn from_f64(value: f64) -> Self {
+        if value.is_nan() {
+            return Self(0);
+        }
         U8Clamped(value.clamp(0.0, 255.0).round_ties_even() as u8)
     }
 
@@ -1610,7 +1616,10 @@ impl Viewable for i8 {
     }
 
     fn from_f64(value: f64) -> Self {
-        value as Self
+        if !value.is_finite() {
+            return 0;
+        }
+        value.trunc() as i64 as Self
     }
 
     #[inline(always)]
@@ -1689,7 +1698,10 @@ impl Viewable for u16 {
     }
 
     fn from_f64(value: f64) -> Self {
-        value as Self
+        if !value.is_finite() {
+            return 0;
+        }
+        value.trunc() as i64 as Self
     }
 
     #[inline(always)]
@@ -1768,7 +1780,10 @@ impl Viewable for i16 {
     }
 
     fn from_f64(value: f64) -> Self {
-        value as Self
+        if !value.is_finite() {
+            return 0;
+        }
+        value.trunc() as i64 as Self
     }
 
     #[inline(always)]
@@ -1847,7 +1862,10 @@ impl Viewable for u32 {
     }
 
     fn from_f64(value: f64) -> Self {
-        value as Self
+        if !value.is_finite() {
+            return 0;
+        }
+        value.trunc() as i64 as Self
     }
 
     #[inline(always)]
@@ -1926,7 +1944,10 @@ impl Viewable for i32 {
     }
 
     fn from_f64(value: f64) -> Self {
-        value as Self
+        if !value.is_finite() {
+            return 0;
+        }
+        value.trunc() as i64 as Self
     }
 
     #[inline(always)]
@@ -2017,7 +2038,10 @@ impl Viewable for u64 {
     }
 
     fn from_f64(value: f64) -> Self {
-        value as Self
+        if !value.is_finite() {
+            return 0;
+        }
+        value.trunc() as i64 as Self
     }
 
     #[inline(always)]
@@ -2114,7 +2138,10 @@ impl Viewable for i64 {
     }
 
     fn from_f64(value: f64) -> Self {
-        value as Self
+        if !value.is_finite() {
+            return 0;
+        }
+        value.trunc() as i64 as Self
     }
 
     #[inline(always)]
@@ -2187,22 +2214,23 @@ impl Viewable for f16 {
 
     #[inline(always)]
     fn from_storage(value: Self::Storage) -> Self {
-        value.cast_signed()
-    }
-
-    #[inline(always)]
-    fn into_storage(value: Self) -> Self::Storage {
-        value.cast_unsigned()
-    }
-
-    #[inline(always)]
-    fn from_storage(value: Self::Storage) -> Self {
         f16::from_bits(value)
     }
 
     #[inline(always)]
     fn into_storage(value: Self) -> Self::Storage {
         f16::to_bits(value)
+    }
+
+    fn into_f64(self) -> f64 {
+        self as f64
+    }
+
+    fn from_f64(value: f64) -> Self {
+        if !value.is_finite() {
+            return 0;
+        }
+        value.trunc() as i64 as Self
     }
 
     #[inline(always)]

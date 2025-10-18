@@ -2468,7 +2468,7 @@ fn copy_between_typed_arrays<Source: Viewable, Target: Viewable>(
         let (head, source, _) = unsafe { source.align_to::<Source>() };
         assert!(head.is_empty());
         assert_eq!(target.len(), source.len());
-        if Target::IS_FLOAT {
+        if Target::IS_FLOAT || Source::IS_FLOAT {
             for (dst, src) in target.iter_mut().zip(source.iter()) {
                 *dst = Target::from_f64(src.into_f64());
             }
