@@ -2233,12 +2233,10 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
                         .slice(src_byte_offset, src_byte_end_offset);
                     let (head, target_slice, _) = target_sdb
                         .as_racy_slice()
-                        .slice(
-                            target_byte_offset,
-                            target_byte_offset + length * target_element_size,
-                        )
+                        .slice_from(target_byte_offset)
                         .align_to::<T::Storage>();
                     assert!(head.is_empty());
+                    let target_slice = target_slice.slice_from(target_offset).slice_to(length);
 
                     for_shared_typed_array!(
                         source,

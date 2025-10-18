@@ -33,7 +33,7 @@ use crate::{
             ordinary::{
                 caches::{PropertyLookupCache, PropertyOffset},
                 ordinary_define_own_property, ordinary_delete, ordinary_get,
-                ordinary_get_own_property, ordinary_has_property_entry,
+                ordinary_get_own_property, ordinary_has_property, ordinary_has_property_entry,
                 ordinary_prevent_extensions, ordinary_set, ordinary_try_get,
                 ordinary_try_has_property, ordinary_try_set,
                 shape::ObjectShape,
@@ -1028,14 +1028,16 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericTypedArray<'a, T> {
     fn internal_has_property<'gc>(
         self,
         agent: &mut Agent,
-        property_key: PropertyKey,
+        mut property_key: PropertyKey,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
-        if let PropertyKey::Integer(_) = property_key {
-            Ok(!matches!(
-                self.try_has_property(agent, property_key, None, gc.into_nogc()),
-                ControlFlow::Continue(TryHasResult::Unset)
-            ))
+        // 1. If P is a String, then
+        // a. Let numericIndex be CanonicalNumericIndexString(P).
+        canonicalize_numeric_index_string(agent, &mut property_key, gc.nogc());
+        // b. If numericIndex is not undefined, return IsValidIntegerIndex(O, numericIndex).
+        if let PropertyKey::Integer(numeric_index) = property_key {
+            let numeric_index = numeric_index.into_i64();
+            Ok(self.is_valid_integer_index(agent, numeric_index).is_some())
         } else {
             // 2. Return ? OrdinaryHasProperty(O, P).
             ordinary_has_property_entry(agent, self, property_key, gc)
