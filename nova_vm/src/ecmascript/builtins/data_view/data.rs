@@ -5,9 +5,9 @@
 use crate::{
     ecmascript::{
         builtins::{
-            ArrayBuffer,
             array_buffer::{ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset},
             shared_array_buffer::SharedArrayBuffer,
+            ArrayBuffer,
         },
         types::OrdinaryObject,
     },

@@ -739,6 +739,7 @@ impl SharedDataBlock {
     ) -> Option<T> {
         let slice = self.as_racy_slice().slice_from(byte_offset);
         if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>()
             || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>()
         {
             // SAFETY: Type checked to match.
@@ -804,6 +805,7 @@ impl SharedDataBlock {
     pub(crate) fn load_unaligned<T: Viewable>(&self, byte_offset: usize) -> Option<T> {
         let slice = self.as_racy_slice().slice_from(byte_offset);
         if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>()
             || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>()
         {
             // SAFETY: Type checked to match.
@@ -853,6 +855,7 @@ impl SharedDataBlock {
     ) -> Option<()> {
         let slice = self.as_racy_slice().slice_from(byte_offset);
         if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>()
             || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>()
         {
             // SAFETY: Type checked to match.
@@ -885,7 +888,7 @@ impl SharedDataBlock {
                 let val = unsafe { core::mem::transmute_copy::<T, u16>(&val) };
                 return slice.as_u16().map(|t| t.store(val, order));
             }
-            unreachable!("Unexpected read type")
+            unreachable!("Unexpected read type {:?}", core::any::type_name::<T>())
         }
     }
 
@@ -900,6 +903,7 @@ impl SharedDataBlock {
     pub(crate) fn store_unaligned<T: Viewable>(&self, byte_offset: usize, val: T) -> Option<()> {
         let slice = self.as_racy_slice().slice_from(byte_offset);
         if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>()
             || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>()
         {
             // SAFETY: Type checked to match.

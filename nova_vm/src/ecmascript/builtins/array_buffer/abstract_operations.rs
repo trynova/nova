@@ -8,7 +8,7 @@ use super::{AnyArrayBuffer, ArrayBuffer, InternalBuffer};
 use crate::{
     ecmascript::{
         abstract_operations::{operations_on_objects::get, type_conversion::to_index},
-        builtins::{ArrayBufferHeapData, ordinary::ordinary_create_from_constructor},
+        builtins::ordinary::ordinary_create_from_constructor,
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
             BUILTIN_STRING_MEMORY, Function, Number, Numeric, Object, SharedDataBlock, Value,
@@ -16,7 +16,6 @@ use crate::{
         },
     },
     engine::context::{Bindable, GcScope, NoGcScope},
-    heap::CreateHeapData,
 };
 
 // TODO: Implement the contents of the `DetachKey` struct?
@@ -88,24 +87,6 @@ pub(crate) fn allocate_array_buffer<'a>(
     Ok(obj)
 }
 
-/// ### [25.1.3.2 ArrayBufferByteLength ( arrayBuffer, order )](https://tc39.es/ecma262/#sec-arraybufferbytelength)
-///
-/// The abstract operation ArrayBufferByteLength takes arguments arrayBuffer
-/// (an ArrayBuffer or SharedArrayBuffer) and order (SEQ-CST or UNORDERED)
-/// and returns a non-negative integer.
-pub(crate) fn array_buffer_byte_length(agent: &Agent, array_buffer: ArrayBuffer) -> usize {
-    let array_buffer = &agent[array_buffer];
-    // 1. If IsSharedArrayBuffer(arrayBuffer) is true and arrayBuffer has an [[ArrayBufferByteLengthData]] internal slot, then
-    // a. Let bufferByteLengthBlock be arrayBuffer.[[ArrayBufferByteLengthData]].
-    // b. Let rawLength be GetRawBytesFromSharedBlock(bufferByteLengthBlock, 0, BIGUINT64, true, order).
-    // c. Let isLittleEndian be the value of the [[LittleEndian]] field of the surrounding agent's Agent Record.
-    // d. Return ℝ(RawBytesToNumeric(BIGUINT64, rawLength, isLittleEndian)).
-    // 2. Assert: IsDetachedBuffer(arrayBuffer) is false.
-    debug_assert!(!array_buffer.is_detached());
-    // 3. Return arrayBuffer.[[ArrayBufferByteLength]].
-    array_buffer.byte_length()
-}
-
 /// ### [25.1.3.3 IsDetachedBuffer ( arrayBuffer )](https://tc39.es/ecma262/#sec-isdetachedbuffer)
 ///
 /// The abstract operation IsDetachedBuffer takes argument *arrayBuffer* (an
@@ -146,50 +127,6 @@ pub(crate) fn detach_array_buffer<'a>(
     agent[array_buffer].buffer.detach();
     // 6. Return UNUSED.
     Ok(())
-}
-
-/// ### [25.1.3.5 CloneArrayBuffer ( srcBuffer, srcByteOffset, srcLength )](https://tc39.es/ecma262/#sec-clonearraybuffer)
-///
-/// The abstract operation CloneArrayBuffer takes arguments srcBuffer (an
-/// ArrayBuffer or a SharedArrayBuffer), srcByteOffset (a non-negative
-/// integer), and srcLength (a non-negative integer) and returns either a
-/// normal completion containing an ArrayBuffer or a throw completion. It
-/// creates a new ArrayBuffer whose data is a copy of srcBuffer's data over the
-/// range starting at srcByteOffset and continuing for srcLength bytes.
-pub(crate) fn clone_array_buffer<'a>(
-    agent: &mut Agent,
-    src_buffer: AnyArrayBuffer<'a>,
-    src_byte_offset: usize,
-    src_length: usize,
-    gc: NoGcScope<'a, '_>,
-) -> JsResult<'a, ArrayBuffer<'a>> {
-    // 1. Assert: IsDetachedBuffer(srcBuffer) is false.
-    debug_assert!(!src_buffer.is_detached(agent));
-    // 2. Let targetBuffer be ? AllocateArrayBuffer(%ArrayBuffer%, srcLength).
-    let mut target_data_block = create_byte_data_block(agent, src_length as u64, gc)?;
-    match src_buffer {
-        AnyArrayBuffer::ArrayBuffer(ab) => {
-            // 3. Let srcBlock be srcBuffer.[[ArrayBufferData]].
-            // 4. Let targetBlock be targetBuffer.[[ArrayBufferData]].
-            // 5. Perform CopyDataBlockBytes(targetBlock, 0, srcBlock, srcByteOffset, srcLength).
-            let src_slice = &ab.as_slice(agent)[src_byte_offset..src_byte_offset + src_length];
-            target_data_block[..src_length].copy_from_slice(src_slice);
-        }
-        AnyArrayBuffer::SharedArrayBuffer(sab) => {
-            // 3. Let srcBlock be srcBuffer.[[ArrayBufferData]].
-            // 4. Let targetBlock be targetBuffer.[[ArrayBufferData]].
-            // 5. Perform CopyDataBlockBytes(targetBlock, 0, srcBlock, srcByteOffset, srcLength).
-            let src_slice = sab
-                .as_slice(agent)
-                .slice(src_byte_offset, src_byte_offset + src_length);
-            src_slice.copy_into_slice(&mut target_data_block[..src_length]);
-        }
-    }
-    // 6. Return targetBuffer.
-    Ok(agent
-        .heap
-        .create(ArrayBufferHeapData::new_fixed_length(target_data_block))
-        .bind(gc))
 }
 
 /// ### [25.1.3.6 GetArrayBufferMaxByteLengthOption ( options )](https://tc39.es/ecma262/#sec-getarraybuffermaxbytelengthoption)
@@ -449,11 +386,11 @@ pub(crate) fn set_value_in_buffer<T: Viewable>(
             // d. Append WriteSharedMemory { [[Order]]: order, [[NoTear]]: noTear, [[Block]]: block, [[ByteIndex]]: byteIndex, [[ElementSize]]: elementSize, [[Payload]]: rawBytes } to eventsRecord.[[EventList]].
             if is_typed_array {
                 block
-                    .store(byte_index, raw_bytes, order.into())
+                    .store::<T>(byte_index, raw_bytes, order.into())
                     .expect("Unaligned store or SharedDataBlock not large enough")
             } else {
                 block
-                    .store_unaligned(byte_index, raw_bytes)
+                    .store_unaligned::<T>(byte_index, raw_bytes)
                     .expect("SharedDataBlock not large enough")
             }
         }

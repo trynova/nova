@@ -1940,8 +1940,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
             }
             AnyArrayBuffer::SharedArrayBuffer(sab) => {
                 let slice = sab
-                    .get_data_block(agent)
-                    .as_racy_slice()
+                    .as_slice(agent)
                     .slice_from(byte_offset)
                     .slice_to(expected_byte_length);
                 slice.copy_from_slice(&kept[..expected_byte_length]);

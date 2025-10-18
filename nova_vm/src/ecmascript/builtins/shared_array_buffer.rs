@@ -7,7 +7,10 @@ use ecmascript_atomics::{Ordering, RacySlice};
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, SharedDataBlock, Value},
+        types::{
+            InternalMethods, InternalSlots, Object, OrdinaryObject, SharedDataBlock, Value,
+            create_shared_byte_data_block,
+        },
     },
     engine::{
         context::{Bindable, NoGcScope, bindable_handle},
@@ -30,6 +33,19 @@ pub struct SharedArrayBuffer<'a>(BaseIndex<'a, SharedArrayBufferRecord<'static>>
 bindable_handle!(SharedArrayBuffer);
 
 impl<'sab> SharedArrayBuffer<'sab> {
+    pub fn new<'gc>(
+        agent: &mut Agent,
+        byte_length: usize,
+        gc: NoGcScope<'gc, '_>,
+    ) -> JsResult<'gc, SharedArrayBuffer<'gc>> {
+        // SAFETY: No maxByteLength.
+        let block = unsafe { create_shared_byte_data_block(agent, byte_length as u64, None, gc) }?;
+        Ok(agent
+            .heap
+            .create(SharedArrayBufferRecord::new(block, gc))
+            .bind(gc))
+    }
+
     /// Constant to be used only for creating a build-time Self.
     pub(crate) const _DEF: Self = Self(BaseIndex::ZERO);
 

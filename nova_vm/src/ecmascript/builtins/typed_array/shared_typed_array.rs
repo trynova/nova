@@ -28,6 +28,7 @@ use crate::ecmascript::builtins::ordinary::{
     ordinary_has_property_entry, ordinary_prevent_extensions, ordinary_set, ordinary_try_get,
     ordinary_try_has_property, ordinary_try_set,
 };
+use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 use crate::ecmascript::builtins::typed_array::data::{
     SharedTypedArrayRecord, TypedArrayArrayLength,
 };
@@ -190,16 +191,82 @@ impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
         let key = self.into_void_array();
         let data = self.into_void_array().get(agent);
         let buffer = data.viewed_array_buffer;
-        let data_block = buffer.get_data_block(agent);
         let byte_offset = data.get_byte_offset(key, &agent.heap.shared_typed_array_byte_offsets);
         let byte_length = data.get_byte_length(key, &agent.heap.shared_typed_array_byte_offsets);
-        let mut slice = data_block.as_racy_slice().slice_from(byte_offset);
+        let mut slice = buffer.as_slice(agent).slice_from(byte_offset);
         if let Some(byte_length) = byte_length {
             slice = slice.slice_to(byte_length);
         }
         let (head, slice, _) = slice.align_to::<T::Storage>();
         assert!(head.is_empty());
         slice
+    }
+
+    /// Initialise the heap data of a SharedTypedArray.
+    ///
+    /// # Safety
+    ///
+    /// The SharedTypedArray must be newly created; re-initialising is not
+    /// allowed.
+    pub(crate) unsafe fn initialise_data(
+        self,
+        agent: &mut Agent,
+        ab: SharedArrayBuffer,
+        byte_offset: usize,
+        byte_and_array_length: Option<(usize, usize)>,
+    ) {
+        let heap_byte_offset = byte_offset.into();
+        let d = self.into_void_array().get_mut(agent);
+        d.viewed_array_buffer = ab;
+        d.byte_offset = heap_byte_offset;
+
+        if let Some((byte_length, array_length)) = byte_and_array_length {
+            let heap_byte_length = byte_length.into();
+            let heap_array_length = array_length.into();
+
+            d.byte_length = heap_byte_length;
+            d.array_length = heap_array_length;
+
+            if heap_byte_length.is_overflowing() {
+                self.set_overflowing_byte_length(agent, byte_length);
+                // Note: if byte length doesn't overflow then array length cannot
+                // overflow either.
+                if heap_array_length.is_overflowing() {
+                    self.set_overflowing_array_length(agent, array_length);
+                }
+            }
+        } else {
+            d.byte_length = ViewedArrayBufferByteLength::auto();
+            d.array_length = TypedArrayArrayLength::auto();
+        }
+
+        if heap_byte_offset.is_overflowing() {
+            self.set_overflowing_byte_offset(agent, byte_offset);
+        }
+    }
+
+    pub(crate) fn set_overflowing_byte_offset(self, agent: &mut Agent, byte_offset: usize) {
+        agent.heap.alloc_counter += core::mem::size_of::<(SharedVoidArray, usize)>();
+        agent
+            .heap
+            .shared_typed_array_byte_offsets
+            .insert(self.into_void_array().unbind(), byte_offset);
+    }
+
+    pub(crate) fn set_overflowing_byte_length(self, agent: &mut Agent, byte_length: usize) {
+        agent.heap.alloc_counter += core::mem::size_of::<(SharedVoidArray, usize)>();
+        agent
+            .heap
+            .shared_typed_array_byte_lengths
+            .insert(self.into_void_array().unbind(), byte_length);
+    }
+
+    pub(crate) fn set_overflowing_array_length(self, agent: &mut Agent, array_length: usize) {
+        agent.heap.alloc_counter += core::mem::size_of::<(SharedVoidArray, usize)>();
+        agent
+            .heap
+            .shared_typed_array_array_lengths
+            .insert(self.into_void_array().unbind(), array_length);
     }
 }
 
@@ -1894,8 +1961,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
             }
             AnyArrayBuffer::SharedArrayBuffer(sab) => {
                 let slice = sab
-                    .get_data_block(agent)
-                    .as_racy_slice()
+                    .as_slice(agent)
                     .slice_from(byte_offset)
                     .slice_to(expected_byte_length);
                 slice.copy_from_slice(&kept[..expected_byte_length]);

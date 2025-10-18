@@ -449,6 +449,18 @@ impl<'a> From<AnyArrayBuffer<'a>> for Object<'a> {
     }
 }
 
+impl<'a> TryFrom<Value<'a>> for AnyArrayBuffer<'a> {
+    type Error = ();
+
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Value::ArrayBuffer(ab) => Ok(Self::ArrayBuffer(ab)),
+            Value::SharedArrayBuffer(sab) => Ok(Self::SharedArrayBuffer(sab)),
+            _ => Err(()),
+        }
+    }
+}
+
 impl TryFrom<HeapRootData> for AnyArrayBuffer<'_> {
     type Error = ();
 

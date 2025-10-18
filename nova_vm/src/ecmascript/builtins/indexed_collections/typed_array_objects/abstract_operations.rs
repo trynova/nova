@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::hint::assert_unchecked;
+
 use ecmascript_atomics::Ordering;
 
 use crate::{
@@ -12,24 +14,24 @@ use crate::{
                 construct, get, length_of_array_like, set, species_constructor,
                 try_species_constructor,
             },
-            type_conversion::to_index,
+            type_conversion::{to_index, try_to_index},
         },
         builtins::{
             ArgumentsList, ArrayBuffer, ArrayBufferHeapData,
             array_buffer::{
-                AnyArrayBuffer, array_buffer_byte_length, clone_array_buffer,
-                get_value_from_buffer, is_detached_buffer, is_fixed_length_array_buffer,
+                AnyArrayBuffer, get_value_from_buffer, is_fixed_length_array_buffer,
                 set_value_in_buffer,
             },
             indexed_collections::typed_array_objects::typed_array_intrinsic_object::require_internal_slot_typed_array,
             ordinary::get_prototype_from_constructor,
             typed_array::{
-                AnyTypedArray, GenericTypedArray, TypedArray, VoidArray, data::TypedArrayRecord,
+                AnyTypedArray, GenericSharedTypedArray, GenericTypedArray, TypedArray, VoidArray,
+                data::{SharedTypedArrayRecord, TypedArrayRecord},
             },
         },
         execution::{
             Agent, JsResult,
-            agent::{ExceptionType, TryError, TryResult, js_result_into_try},
+            agent::{ExceptionType, TryError, TryResult, js_result_into_try, try_result_into_js},
         },
         types::{
             DataBlock, Function, InternalSlots, IntoObject, IntoValue, Number, Numeric, Object,
@@ -152,6 +154,32 @@ pub(crate) fn typed_array_create<'a, T: Viewable>(
     // 10. Set A.[[Prototype]] to prototype.
     // 11. Return A.
     let a = TypedArrayRecord::default();
+
+    let a = agent.heap.create(a);
+
+    if prototype.is_some() {
+        a.internal_set_prototype(agent, prototype);
+    }
+
+    a
+}
+
+pub(crate) fn shared_typed_array_create<'a, T: Viewable>(
+    agent: &mut Agent,
+    prototype: Option<Object<'a>>,
+) -> GenericSharedTypedArray<'a, T> {
+    // 1. Let internalSlotsList be « [[Prototype]], [[Extensible]], [[ViewedArrayBuffer]], [[TypedArrayName]], [[ContentType]], [[ByteLength]], [[ByteOffset]], [[ArrayLength]] ».
+    // 2. Let A be MakeBasicObject(internalSlotsList).
+    // 3. Set A.[[GetOwnProperty]] as specified in 10.4.5.1.
+    // 4. Set A.[[HasProperty]] as specified in 10.4.5.2.
+    // 5. Set A.[[DefineOwnProperty]] as specified in 10.4.5.3.
+    // 6. Set A.[[Get]] as specified in 10.4.5.4.
+    // 7. Set A.[[Set]] as specified in 10.4.5.5.
+    // 8. Set A.[[Delete]] as specified in 10.4.5.6.
+    // 9. Set A.[[OwnPropertyKeys]] as specified in 10.4.5.7.
+    // 10. Set A.[[Prototype]] to prototype.
+    // 11. Return A.
+    let a = SharedTypedArrayRecord::default();
 
     let a = agent.heap.create(a);
 
@@ -601,118 +629,6 @@ pub(crate) fn allocate_typed_array<'a, T: Viewable>(
     Ok(obj.unbind().bind(gc.into_nogc()))
 }
 
-/// ### [23.2.5.1.2 InitializeTypedArrayFromTypedArray ( O, srcArray )](https://tc39.es/ecma262/#sec-initializetypedarrayfromtypedarray)
-///
-/// The abstract operation InitializeTypedArrayFromTypedArray takes arguments O
-/// (a TypedArray) and srcArray (a TypedArray) and returns either a normal
-/// completion containing unused or a throw completion.
-pub(crate) fn initialize_typed_array_from_typed_array<'a, O: Viewable, Src: Viewable>(
-    agent: &mut Agent,
-    o: GenericTypedArray<'a, O>,
-    src_array: GenericTypedArray<'a, Src>,
-    gc: NoGcScope<'a, '_>,
-) -> JsResult<'a, ()> {
-    // 1. Let srcData be srcArray.[[ViewedArrayBuffer]].
-    let src_data = src_array.viewed_array_buffer(agent);
-
-    // 2. Let elementType be TypedArrayElementType(O).
-    // 3. Let elementSize be TypedArrayElementSize(O).
-    let element_size = size_of::<O>();
-
-    // 4. Let srcType be TypedArrayElementType(srcArray).
-    // 5. Let srcElementSize be TypedArrayElementSize(srcArray).
-    let src_element_size = size_of::<Src>();
-
-    // 6. Let srcByteOffset be srcArray.[[ByteOffset]].
-    let src_byte_offset = src_array.byte_offset(agent);
-
-    // 7. Let srcRecord be MakeTypedArrayWithBufferWitnessRecord(srcArray, seq-cst).
-    let cached_src_byte_length = src_array.get_cached_buffer_byte_length(agent, Ordering::SeqCst);
-
-    // 8. If IsTypedArrayOutOfBounds(srcRecord) is true, throw a TypeError exception.
-    if src_array.is_typed_array_out_of_bounds(agent, cached_src_byte_length) {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "TypedArray out of bounds",
-            gc,
-        ));
-    }
-
-    // 9. Let elementLength be TypedArrayLength(srcRecord).
-    let element_length = src_array.typed_array_length(agent, cached_src_byte_length);
-
-    // 10. Let byteLength be elementSize × elementLength.
-    let byte_length = element_size * element_length;
-
-    // 11. If elementType is srcType, then
-    let data = if O::PROTO == Src::PROTO {
-        // a. Let data be ? CloneArrayBuffer(srcData, srcByteOffset, byteLength).
-        clone_array_buffer(agent, src_data, src_byte_offset, byte_length, gc)?
-    } else {
-        // 12. Else,
-        // a. Let data be ? AllocateArrayBuffer(%ArrayBuffer%, byteLength).
-        let data = ArrayBuffer::new(agent, byte_length, gc)?;
-
-        // b. If srcArray.[[ContentType]] is not O.[[ContentType]], throw a TypeError exception.
-        if O::IS_BIGINT != Src::IS_BIGINT {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "TypedArray content type mismatch",
-                gc,
-            ));
-        }
-
-        // c. Let srcByteIndex be srcByteOffset.
-        let mut src_byte_index = src_byte_offset;
-        // d. Let targetByteIndex be 0.
-        let mut target_byte_index = 0;
-        // e. Let count be elementLength.
-        let mut count = element_length;
-        // f. Repeat, while count > 0,
-        while count != 0 {
-            // i. Let value be GetValueFromBuffer(srcData, srcByteIndex, srcType, true, unordered).
-            let value = get_value_from_buffer::<Src>(
-                agent,
-                src_data.into(),
-                src_byte_index,
-                true,
-                Ordering::Unordered,
-                None,
-                gc,
-            );
-
-            // ii. Perform SetValueInBuffer(data, targetByteIndex, elementType, value, true, unordered).
-            set_value_in_buffer::<O>(
-                agent,
-                data.into(),
-                target_byte_index,
-                value,
-                true,
-                Ordering::Unordered,
-                None,
-            );
-
-            // iii. Set srcByteIndex to srcByteIndex + srcElementSize.
-            src_byte_index += src_element_size;
-            // iv. Set targetByteIndex to targetByteIndex + elementSize.
-            target_byte_index += element_size;
-            // v. Set count to count - 1.
-            count -= 1;
-        }
-        data
-    };
-
-    // 13. Set O.[[ViewedArrayBuffer]] to data.
-    // 14. Set O.[[ByteLength]] to byteLength.
-    // 15. Set O.[[ByteOffset]] to 0.
-    // 16. Set O.[[ArrayLength]] to elementLength.
-    // SAFETY: this method is for initialising O.
-    unsafe { o.initialise_data(agent, data, 0, Some((byte_length, element_length))) };
-
-    // 17. Return unused.
-    Ok(())
-}
-
 /// ### [23.2.5.1.3 InitializeTypedArrayFromArrayBuffer ( O, buffer, byteOffset, length )](https://tc39.es/ecma262/#sec-initializetypedarrayfromarraybuffer)
 ///
 /// The abstract operation InitializeTypedArrayFromArrayBuffer takes arguments
@@ -720,26 +636,49 @@ pub(crate) fn initialize_typed_array_from_typed_array<'a, O: Viewable, Src: View
 /// byteOffset (an ECMAScript language value), and length (an ECMAScript
 /// language value) and returns either a normal completion containing unused or
 /// a throw completion.
-pub(crate) fn initialize_typed_array_from_array_buffer<'a, T: Viewable>(
+pub(crate) fn initialize_typed_array_from_array_buffer<'gc, T: Viewable>(
     agent: &mut Agent,
-    scoped_o: Scoped<GenericTypedArray<T>>,
-    scoped_buffer: Scoped<ArrayBuffer>,
-    byte_offset: Option<Scoped<Value>>,
-    length: Option<Scoped<Value>>,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, ()> {
+    o_proto: Option<Object>,
+    buffer: AnyArrayBuffer,
+    byte_offset: Option<Value>,
+    length: Option<Value>,
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, AnyTypedArray<'gc>> {
+    let mut o_proto = o_proto.bind(gc.nogc());
+    let mut buffer = buffer.bind(gc.nogc());
+    let byte_offset = byte_offset.bind(gc.nogc());
+    let mut length = length.bind(gc.nogc());
+
     // 1. Let elementSize be TypedArrayElementSize(O).
     let element_size = size_of::<T>();
 
     // 2. Let offset be ? ToIndex(byteOffset).
     let offset = if let Some(byte_offset) = byte_offset {
-        to_index(agent, byte_offset.get(agent), gc.reborrow()).unbind()? as usize
+        if let Some(offset) = try_result_into_js(try_to_index(agent, byte_offset, gc.nogc()))
+            .unbind()?
+            .bind(gc.nogc())
+        {
+            offset as u64
+        } else {
+            let nogc = gc.nogc();
+            let o = o_proto.map(|p| p.scope(agent, nogc));
+            let b = buffer.scope(agent, nogc);
+            let l = length.map(|l| l.scope(agent, nogc));
+            let offset = to_index(agent, byte_offset.unbind(), gc.reborrow()).unbind()? as u64;
+            unsafe {
+                let nogc = gc.nogc();
+                length = l.map(|l| l.take(agent)).bind(nogc);
+                buffer = b.take(agent).bind(nogc);
+                o_proto = o.map(|p| p.take(agent)).bind(nogc);
+            }
+            offset
+        }
     } else {
         0
     };
 
     // 3. If offset modulo elementSize ≠ 0, throw a RangeError exception.
-    if !offset.is_multiple_of(element_size) {
+    if !offset.is_multiple_of(element_size as u64) {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::RangeError,
             "offset is not a multiple of the element size",
@@ -747,26 +686,43 @@ pub(crate) fn initialize_typed_array_from_array_buffer<'a, T: Viewable>(
         ));
     }
 
-    let buffer = scoped_buffer.get(agent).bind(gc.nogc());
     // 4. Let bufferIsFixedLength be IsFixedLengthArrayBuffer(buffer).
-    let buffer_is_fixed_length = is_fixed_length_array_buffer(agent, buffer.into());
+    let buffer_is_fixed_length = is_fixed_length_array_buffer(agent, buffer);
 
     // 5. If length is not undefined, then
     // a. Let newLength be ? ToIndex(length).
     let new_length = if let Some(length) = length {
-        let length = length.get(agent).bind(gc.nogc());
-        if length.is_undefined() {
-            None
+        // SAFETY: caller should have already mapped undefined to None.
+        unsafe { assert_unchecked(!length.is_undefined()) };
+        if let Some(length) = try_result_into_js(try_to_index(agent, length, gc.nogc()))
+            .unbind()?
+            .bind(gc.nogc())
+        {
+            Some(length as u64)
         } else {
-            Some(to_index(agent, length.unbind(), gc.reborrow()).unbind()? as usize)
+            let nogc = gc.nogc();
+            let o = o_proto.map(|p| p.scope(agent, nogc));
+            let b = buffer.scope(agent, nogc);
+            let offset = to_index(agent, length.unbind(), gc.reborrow()).unbind()? as u64;
+            unsafe {
+                let nogc = gc.nogc();
+                buffer = b.take(agent).bind(nogc);
+                o_proto = o.map(|p| p.take(agent).bind(nogc));
+            }
+            Some(offset)
         }
     } else {
         None
     };
 
-    let buffer = scoped_buffer.get(agent).bind(gc.nogc());
+    let o_proto = o_proto.unbind();
+    let buffer = buffer.unbind();
+    let gc = gc.into_nogc();
+    let o_proto = o_proto.bind(gc);
+    let buffer = buffer.bind(gc);
+
     // 6. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
-    if is_detached_buffer(agent, buffer) {
+    if buffer.is_detached(agent) {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "attempting to access detached ArrayBuffer",
@@ -775,14 +731,12 @@ pub(crate) fn initialize_typed_array_from_array_buffer<'a, T: Viewable>(
     }
 
     // 7. Let bufferByteLength be ArrayBufferByteLength(buffer, seq-cst).
-    let buffer_byte_length = array_buffer_byte_length(agent, buffer);
-
-    let o = scoped_o.get(agent).bind(gc.nogc());
+    let buffer_byte_length = buffer.byte_length(agent, Ordering::SeqCst);
 
     // 8. If length is undefined and bufferIsFixedLength is false, then
     if new_length.is_none() && !buffer_is_fixed_length {
         // a. If offset > bufferByteLength, throw a RangeError exception.
-        if offset > buffer_byte_length {
+        if offset > buffer_byte_length as u64 {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::RangeError,
                 "offset is outside the bounds of the buffer",
@@ -794,16 +748,28 @@ pub(crate) fn initialize_typed_array_from_array_buffer<'a, T: Viewable>(
         // c. Set O.[[ArrayLength]] to auto.
         // 10. Set O.[[ViewedArrayBuffer]] to buffer.
         // 11. Set O.[[ByteOffset]] to offset.
-        // SAFETY: We are initialising O.
-        unsafe { o.initialise_data(agent, buffer, offset, None) };
+        match buffer {
+            AnyArrayBuffer::ArrayBuffer(buffer) => {
+                let o = typed_array_create::<T>(agent, o_proto);
+                // SAFETY: We are initialising O.
+                unsafe { o.initialise_data(agent, buffer, offset as usize, None) };
+                Ok(o.into())
+            }
+            AnyArrayBuffer::SharedArrayBuffer(buffer) => {
+                let o = shared_typed_array_create::<T>(agent, o_proto);
+                // SAFETY: We are initialising O.
+                unsafe { o.initialise_data(agent, buffer, offset as usize, None) };
+                Ok(o.into())
+            }
+        }
     } else {
         // 9. Else,
         let new_byte_length = if let Some(new_length) = new_length {
             // b. Else,
             // i. Let newByteLength be newLength × elementSize.
-            let new_byte_length = new_length * element_size;
+            let new_byte_length = new_length.saturating_mul(element_size as u64);
             // ii. If offset + newByteLength > bufferByteLength, throw a RangeError exception.
-            if offset + new_byte_length > buffer_byte_length {
+            if offset.saturating_add(new_byte_length) > buffer_byte_length as u64 {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::RangeError,
                     "offset is outside the bounds of the buffer",
@@ -823,7 +789,7 @@ pub(crate) fn initialize_typed_array_from_array_buffer<'a, T: Viewable>(
             ));
         } else
         // ii. Let newByteLength be bufferByteLength - offset.
-        if let Some(new_byte_length) = buffer_byte_length.checked_sub(offset) {
+        if let Some(new_byte_length) = (buffer_byte_length as u64).checked_sub(offset) {
             new_byte_length
         } else {
             // iii. If newByteLength < 0, throw a RangeError exception.
@@ -834,23 +800,42 @@ pub(crate) fn initialize_typed_array_from_array_buffer<'a, T: Viewable>(
             ));
         };
 
+        let new_byte_length = new_byte_length as usize;
+        let array_length = new_byte_length / element_size;
         // c. Set O.[[ByteLength]] to newByteLength.
         // d. Set O.[[ArrayLength]] to newByteLength / elementSize.
         // 10. Set O.[[ViewedArrayBuffer]] to buffer.
         // 11. Set O.[[ByteOffset]] to offset.
-        // SAFETY: We're initialising O.
-        unsafe {
-            o.initialise_data(
-                agent,
-                buffer,
-                offset,
-                Some((new_byte_length, new_byte_length / element_size)),
-            )
-        };
+        match buffer {
+            AnyArrayBuffer::ArrayBuffer(buffer) => {
+                let o = typed_array_create::<T>(agent, o_proto);
+                // SAFETY: We are initialising O.
+                unsafe {
+                    o.initialise_data(
+                        agent,
+                        buffer,
+                        offset as usize,
+                        Some((new_byte_length, array_length)),
+                    )
+                };
+                Ok(o.into())
+            }
+            AnyArrayBuffer::SharedArrayBuffer(buffer) => {
+                let o = shared_typed_array_create::<T>(agent, o_proto);
+                // SAFETY: We are initialising O.
+                unsafe {
+                    o.initialise_data(
+                        agent,
+                        buffer,
+                        offset as usize,
+                        Some((new_byte_length, array_length)),
+                    )
+                };
+                Ok(o.into())
+            }
+        }
     }
-
     // 12. Return unused.
-    Ok(())
 }
 
 /// ### [23.2.5.1.4 InitializeTypedArrayFromList ( O, values )](https://tc39.es/ecma262/#sec-initializetypedarrayfromlist)
@@ -904,10 +889,11 @@ pub(crate) fn initialize_typed_array_from_list<'a, T: Viewable>(
 /// throw completion.
 pub(crate) fn initialize_typed_array_from_array_like<'a, T: Viewable>(
     agent: &mut Agent,
-    o: Scoped<GenericTypedArray<T>>,
+    o: GenericTypedArray<T>,
     array_like: Object,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
+    let o = o.scope(agent, gc.nogc());
     // 1. Let len be ? LengthOfArrayLike(arrayLike).
     let len = length_of_array_like(agent, array_like, gc.reborrow()).unbind()? as usize;
 

@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use ecmascript_atomics::Ordering;
+
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -15,12 +17,15 @@ use crate::{
         },
         builtins::{
             ArgumentsList, ArrayBuffer, Behaviour, Builtin, BuiltinIntrinsicConstructor,
+            array_buffer::AnyArrayBuffer,
             indexed_collections::typed_array_objects::abstract_operations::{
-                allocate_typed_array, initialize_typed_array_from_array_buffer,
-                initialize_typed_array_from_array_like, initialize_typed_array_from_list,
-                initialize_typed_array_from_typed_array,
+                TypedArrayAbstractOperations, allocate_typed_array,
+                initialize_typed_array_from_array_buffer, initialize_typed_array_from_array_like,
+                initialize_typed_array_from_list, make_typed_array_with_buffer_witness_record,
+                typed_array_create,
             },
-            typed_array::TypedArray,
+            ordinary::{get_prototype_from_constructor, try_get_prototype_from_constructor},
+            typed_array::AnyTypedArray,
         },
         execution::{
             Agent, JsResult, Realm,
@@ -719,15 +724,17 @@ fn typed_array_constructor<'gc, T: Viewable>(
     // 4. Let numberOfArgs be the number of elements in args.
     let number_of_args = arguments.len();
     // a. Let firstArgument be args[0].
-    let first_argument = arguments.get(0).bind(gc.nogc());
+    let mut first_argument = arguments.get(0).bind(gc.nogc());
     let first_argument_is_object = first_argument.is_object();
-    let second_argument = if first_argument_is_object && number_of_args > 1 {
-        Some(arguments.get(1).scope(agent, gc.nogc()))
+    let mut second_argument = if first_argument_is_object && number_of_args > 1 {
+        let arg = arguments.get(1).bind(gc.nogc());
+        if arg.is_undefined() { None } else { Some(arg) }
     } else {
         None
     };
-    let third_argument = if first_argument_is_object && number_of_args > 2 {
-        Some(arguments.get(2).scope(agent, gc.nogc()))
+    let mut third_argument = if first_argument_is_object && number_of_args > 2 {
+        let arg = arguments.get(2).bind(gc.nogc());
+        if arg.is_undefined() { None } else { Some(arg) }
     } else {
         None
     };
@@ -754,162 +761,109 @@ fn typed_array_constructor<'gc, T: Viewable>(
 
     // b. If firstArgument is an Object, then
     if first_argument_is_object {
-        let scoped_first_argument = first_argument.scope(agent, gc.nogc());
         // i. Let O be ? AllocateTypedArray(constructorName, NewTarget, proto).
-        let o = allocate_typed_array::<T>(agent, new_target.unbind(), None, gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
-        let scoped_o = o.scope(agent, gc.nogc());
-        let first_argument = scoped_first_argument.get(agent).bind(gc.nogc());
+        // ### AllocateTypedArray
+        // 1. Let proto be ? GetPrototypeFromConstructor(newTarget, defaultProto).
+        let proto = if let Some(proto) = try_result_into_js(try_get_prototype_from_constructor(
+            agent,
+            new_target,
+            T::PROTO,
+            gc.nogc(),
+        ))
+        .unbind()?
+        .bind(gc.nogc())
+        {
+            proto
+        } else {
+            let nogc = gc.nogc();
+            let a0 = first_argument.scope(agent, nogc);
+            let a1 = second_argument.map(|a| a.scope(agent, nogc));
+            let a2 = third_argument.map(|a| a.scope(agent, nogc));
+            let proto =
+                get_prototype_from_constructor(agent, new_target.unbind(), T::PROTO, gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc());
+            // SAFETY: not shared.
+            unsafe {
+                let nogc = gc.nogc();
+                third_argument = a2.map(|a| a.take(agent).bind(nogc));
+                second_argument = a1.map(|a| a.take(agent).bind(nogc));
+                first_argument = a0.take(agent).bind(nogc);
+            };
+            proto
+        };
+        // 2. Let obj be TypedArrayCreate(proto).
+        // This step is taken in the individual branches as needed.
 
         // ii. If firstArgument has a [[TypedArrayName]] internal slot, then
-        if let Ok(first_argument) = TypedArray::try_from(first_argument) {
+        if let Ok(source) = AnyTypedArray::try_from(first_argument) {
             // 1. Perform ? InitializeTypedArrayFromTypedArray(O, firstArgument).
-            match first_argument {
-                TypedArray::Int8Array(first_argument) => initialize_typed_array_from_typed_array::<
-                    T,
-                    i8,
-                >(
-                    agent, o, first_argument, gc.nogc()
-                )
-                .unbind()?
-                .bind(gc.nogc()),
-                TypedArray::Uint8Array(first_argument) => {
-                    initialize_typed_array_from_typed_array::<T, u8>(
-                        agent,
-                        o,
-                        first_argument,
-                        gc.nogc(),
-                    )
-                    .unbind()?
-                    .bind(gc.nogc())
-                }
-                TypedArray::Uint8ClampedArray(first_argument) => {
-                    initialize_typed_array_from_typed_array::<T, U8Clamped>(
-                        agent,
-                        o,
-                        first_argument,
-                        gc.nogc(),
-                    )
-                    .unbind()?
-                    .bind(gc.nogc())
-                }
-                TypedArray::Int16Array(first_argument) => {
-                    initialize_typed_array_from_typed_array::<T, i16>(
-                        agent,
-                        o,
-                        first_argument,
-                        gc.nogc(),
-                    )
-                    .unbind()?
-                    .bind(gc.nogc())
-                }
-                TypedArray::Uint16Array(first_argument) => {
-                    initialize_typed_array_from_typed_array::<T, u16>(
-                        agent,
-                        o,
-                        first_argument,
-                        gc.nogc(),
-                    )
-                    .unbind()?
-                    .bind(gc.nogc())
-                }
-                TypedArray::Int32Array(first_argument) => {
-                    initialize_typed_array_from_typed_array::<T, i32>(
-                        agent,
-                        o,
-                        first_argument,
-                        gc.nogc(),
-                    )
-                    .unbind()?
-                    .bind(gc.nogc())
-                }
-                TypedArray::Uint32Array(first_argument) => {
-                    initialize_typed_array_from_typed_array::<T, u32>(
-                        agent,
-                        o,
-                        first_argument,
-                        gc.nogc(),
-                    )
-                    .unbind()?
-                    .bind(gc.nogc())
-                }
-                TypedArray::BigInt64Array(first_argument) => {
-                    initialize_typed_array_from_typed_array::<T, i64>(
-                        agent,
-                        o,
-                        first_argument,
-                        gc.nogc(),
-                    )
-                    .unbind()?
-                    .bind(gc.nogc())
-                }
-                TypedArray::BigUint64Array(first_argument) => {
-                    initialize_typed_array_from_typed_array::<T, u64>(
-                        agent,
-                        o,
-                        first_argument,
-                        gc.nogc(),
-                    )
-                    .unbind()?
-                    .bind(gc.nogc())
-                }
-                #[cfg(feature = "proposal-float16array")]
-                TypedArray::Float16Array(first_argument) => {
-                    initialize_typed_array_from_typed_array::<T, f16>(
-                        agent,
-                        o,
-                        first_argument,
-                        gc.nogc(),
-                    )
-                    .unbind()?
-                    .bind(gc.nogc())
-                }
-                TypedArray::Float32Array(first_argument) => {
-                    initialize_typed_array_from_typed_array::<T, f32>(
-                        agent,
-                        o,
-                        first_argument,
-                        gc.nogc(),
-                    )
-                    .unbind()?
-                    .bind(gc.nogc())
-                }
-                TypedArray::Float64Array(first_argument) => {
-                    initialize_typed_array_from_typed_array::<T, f64>(
-                        agent,
-                        o,
-                        first_argument,
-                        gc.nogc(),
-                    )
-                    .unbind()?
-                    .bind(gc.nogc())
-                }
+            // ### InitializeTypedArrayFromTypedArray
+            // 1. Let srcData be srcArray.[[ViewedArrayBuffer]].
+            // 2. Let elementType be TypedArrayElementType(O).
+            // 3. Let elementSize be TypedArrayElementSize(O).
+            let element_size = size_of::<T>();
+
+            // 4. Let srcType be TypedArrayElementType(srcArray).
+            // 5. Let srcElementSize be TypedArrayElementSize(srcArray).
+            // 6. Let srcByteOffset be srcArray.[[ByteOffset]].
+            // 7. Let srcRecord be MakeTypedArrayWithBufferWitnessRecord(srcArray, seq-cst).
+            let src_record =
+                make_typed_array_with_buffer_witness_record(agent, source, Ordering::SeqCst);
+
+            // 8. If IsTypedArrayOutOfBounds(srcRecord) is true, throw a TypeError exception.
+            if src_record.is_typed_array_out_of_bounds(agent) {
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "TypedArray out of bounds",
+                    gc.into_nogc(),
+                ));
+            } else if src_record.object.is_bigint() != T::IS_BIGINT {
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "bigint elements are incompatible with number elements",
+                    gc.into_nogc(),
+                ));
             }
-        } else if let Ok(first_argument) = ArrayBuffer::try_from(first_argument) {
-            // SAFETY: scoped_first_argument is not shared.
-            let scoped_first_argument =
-                unsafe { scoped_first_argument.replace_self(agent, first_argument.unbind()) };
+
+            // 9. Let elementLength be TypedArrayLength(srcRecord).
+            let element_length = src_record.typed_array_length(agent);
+
+            // 10. Let byteLength be elementSize × elementLength.
+            let byte_length = element_size * element_length;
+            let buffer = ArrayBuffer::new(agent, byte_length, gc.nogc())
+                .unbind()?
+                .bind(gc.nogc());
+            let obj = typed_array_create::<T>(agent, proto);
+            // SAFETY: Initialising new TypedArray.
+            unsafe { obj.initialise_data(agent, buffer, 0, Some((byte_length, element_length))) };
+            obj.set_from_typed_array(agent, 0, source, 0, element_length, gc.nogc())
+                .unbind()?;
+            return Ok(obj.into_value().unbind());
+        } else if let Ok(source_buffer) = AnyArrayBuffer::try_from(first_argument) {
             // iii. Else if firstArgument has an [[ArrayBufferData]] internal
             //      slot, then
             // 1. If numberOfArgs > 1, let byteOffset be args[1]; else let
             //    byteOffset be undefined.
-
+            let byte_offset = second_argument;
             // 2. If numberOfArgs > 2, let length be args[2]; else let length
             //    be undefined.
+            let length = third_argument;
 
             // 3. Perform ? InitializeTypedArrayFromArrayBuffer(O, firstArgument, byteOffset, length).
-
-            initialize_typed_array_from_array_buffer::<T>(
+            return Ok(initialize_typed_array_from_array_buffer::<T>(
                 agent,
-                scoped_o.clone(),
-                scoped_first_argument,
-                second_argument,
-                third_argument,
+                proto.unbind(),
+                source_buffer.unbind(),
+                byte_offset.unbind(),
+                length.unbind(),
                 gc,
-            )?;
+            )?
+            .into_value());
         } else {
             // iv. Else,
+            let first_argument = first_argument.scope(agent, gc.nogc());
+            let scoped_o = typed_array_create::<T>(agent, proto).scope(agent, gc.nogc());
 
             // 1. Assert: firstArgument is an Object and firstArgument does not
             //    have either a [[TypedArrayName]] or an [[ArrayBufferData]]
@@ -917,7 +871,7 @@ fn typed_array_constructor<'gc, T: Viewable>(
             // 2. Let usingIterator be ? GetMethod(firstArgument, %Symbol.iterator%).
             let using_iterator = get_method(
                 agent,
-                first_argument.unbind(),
+                first_argument.get(agent),
                 PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
                 gc.reborrow(),
             )
@@ -929,7 +883,7 @@ fn typed_array_constructor<'gc, T: Viewable>(
                 // a. Let values be ? IteratorToList(? GetIteratorFromMethod(firstArgument, usingIterator)).
                 let Some(iterator_record) = get_iterator_from_method(
                     agent,
-                    scoped_first_argument.get(agent),
+                    first_argument.get(agent),
                     using_iterator.unbind(),
                     gc.reborrow(),
                 )
@@ -947,19 +901,18 @@ fn typed_array_constructor<'gc, T: Viewable>(
                 // 4. Else,
                 // a. NOTE: firstArgument is not an iterable object, so assume
                 //    it is already an array-like object.
-                let first_argument = Object::try_from(scoped_first_argument.get(agent)).unwrap();
+                let first_argument = Object::try_from(first_argument.get(agent)).unwrap();
                 // b. Perform ? InitializeTypedArrayFromArrayLike(O, firstArgument).
                 initialize_typed_array_from_array_like::<T>(
                     agent,
-                    scoped_o.clone(),
+                    scoped_o.get(agent),
                     first_argument,
                     gc,
                 )?;
             }
-        }
-
+            return Ok(scoped_o.get(agent).into_value());
+        };
         // v. Return O.
-        return Ok(scoped_o.get(agent).into_value());
     }
 
     // c. Else,
