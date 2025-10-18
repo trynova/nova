@@ -136,10 +136,6 @@ pub mod private {
 
     #[cfg(feature = "date")]
     use crate::ecmascript::builtins::date::Date;
-    #[cfg(feature = "proposal-float16array")]
-    use crate::ecmascript::builtins::typed_array::Float16Array;
-    #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
-    use crate::ecmascript::builtins::typed_array::Float16Array;
     #[cfg(feature = "array-buffer")]
     use crate::ecmascript::builtins::{
         ArrayBuffer,

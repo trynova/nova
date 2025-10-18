@@ -2227,14 +2227,11 @@ impl Viewable for f16 {
     }
 
     fn from_f64(value: f64) -> Self {
-        if !value.is_finite() {
-            return 0;
-        }
-        value.trunc() as i64 as Self
+        value as Self
     }
 
     #[inline(always)]
-    fn viewable_swap_bytes(self) -> Self {
+    fn flip_endian(self) -> Self {
         Self::from_bits(self.to_bits().swap_bytes())
     }
 

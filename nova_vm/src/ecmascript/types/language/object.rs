@@ -1735,7 +1735,7 @@ impl TryFrom<HeapRootData> for Object<'_> {
             #[cfg(feature = "shared-array-buffer")]
             HeapRootData::SharedBigUint64Array(sta) => Ok(Self::SharedBigUint64Array(sta)),
             #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
-            HeapRootData::Float16Array(sta) => Ok(Self::Float16Array(sta)),
+            HeapRootData::SharedFloat16Array(sta) => Ok(Self::SharedFloat16Array(sta)),
             #[cfg(feature = "shared-array-buffer")]
             HeapRootData::SharedFloat32Array(sta) => Ok(Self::SharedFloat32Array(sta)),
             #[cfg(feature = "shared-array-buffer")]

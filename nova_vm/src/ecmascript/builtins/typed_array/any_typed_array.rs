@@ -2,10 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#[cfg(feature = "proposal-float16array")]
-use crate::ecmascript::types::FLOAT_16_ARRAY_DISCRIMINANT;
-#[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
-use crate::ecmascript::types::SHARED_FLOAT_16_ARRAY_DISCRIMINANT;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::types::{
     SHARED_BIGINT_64_ARRAY_DISCRIMINANT, SHARED_BIGUINT_64_ARRAY_DISCRIMINANT,
@@ -14,6 +10,12 @@ use crate::ecmascript::types::{
     SHARED_INT_32_ARRAY_DISCRIMINANT, SHARED_UINT_8_ARRAY_DISCRIMINANT,
     SHARED_UINT_8_CLAMPED_ARRAY_DISCRIMINANT, SHARED_UINT_16_ARRAY_DISCRIMINANT,
     SHARED_UINT_32_ARRAY_DISCRIMINANT,
+};
+#[cfg(feature = "proposal-float16array")]
+use crate::ecmascript::{builtins::typed_array::Float16Array, types::FLOAT_16_ARRAY_DISCRIMINANT};
+#[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+use crate::ecmascript::{
+    builtins::typed_array::SharedFloat16Array, types::SHARED_FLOAT_16_ARRAY_DISCRIMINANT,
 };
 use crate::{
     ecmascript::{
@@ -719,9 +721,7 @@ impl<'a> TypedArrayAbstractOperations<'a> for AnyTypedArray<'a> {
             Self::BigInt64Array(ta) => ta.search::<ASCENDING>(agent, search_element, start, end),
             Self::BigUint64Array(ta) => ta.search::<ASCENDING>(agent, search_element, start, end),
             #[cfg(feature = "proposal-float16array")]
-            Self::Float16Array(ta) => {
-                ta.search_typed_element::<ASCENDING>(agent, search_element, start, end)
-            }
+            Self::Float16Array(ta) => ta.search::<ASCENDING>(agent, search_element, start, end),
             Self::Float32Array(ta) => ta.search::<ASCENDING>(agent, search_element, start, end),
             Self::Float64Array(ta) => ta.search::<ASCENDING>(agent, search_element, start, end),
             #[cfg(feature = "shared-array-buffer")]
@@ -754,7 +754,7 @@ impl<'a> TypedArrayAbstractOperations<'a> for AnyTypedArray<'a> {
             }
             #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
             Self::SharedFloat16Array(ta) => {
-                ta.search_typed_element::<ASCENDING>(agent, search_element, start, end)
+                ta.search::<ASCENDING>(agent, search_element, start, end)
             }
             #[cfg(feature = "shared-array-buffer")]
             Self::SharedFloat32Array(ta) => {

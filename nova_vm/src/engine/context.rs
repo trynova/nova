@@ -439,6 +439,8 @@ trivially_bindable!(i64);
 trivially_bindable!(u64);
 trivially_bindable!(isize);
 trivially_bindable!(usize);
+#[cfg(feature = "proposal-float16array")]
+trivially_bindable!(f16);
 trivially_bindable!(f32);
 trivially_bindable!(f64);
 trivially_bindable!(CodePoint);
