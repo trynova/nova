@@ -11,7 +11,7 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             ArgumentsList, ArrayBuffer, Behaviour, Builtin, BuiltinGetter,
-            array_buffer::{is_detached_buffer, is_fixed_length_array_buffer},
+            array_buffer::{AnyArrayBuffer, is_detached_buffer, is_fixed_length_array_buffer},
         },
         execution::{
             Agent, JsResult, ProtoIntrinsics, Realm,
@@ -169,7 +169,7 @@ impl ArrayBufferPrototype {
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.´
         let o = require_internal_slot_array_buffer(agent, this_value, gc.into_nogc())?;
         // 4. If IsFixedLengthArrayBuffer(O) is false, return true; otherwise return false.
-        Ok((!is_fixed_length_array_buffer(agent, o)).into())
+        Ok((!is_fixed_length_array_buffer(agent, o.into())).into())
     }
 
     /// ### [25.1.6.6 ArrayBuffer.prototype.resize ( newLength )](https://tc39.es/ecma262/#sec-arraybuffer.prototype.resize)
@@ -432,6 +432,24 @@ impl ArrayBufferPrototype {
                     .build()
             })
             .build();
+    }
+}
+
+#[inline]
+pub(crate) fn require_internal_slot_any_array_buffer<'a>(
+    agent: &mut Agent,
+    o: Value<'a>,
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<'a, AnyArrayBuffer<'a>> {
+    match o {
+        // 1. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
+        Value::ArrayBuffer(sab) => Ok(sab.into()),
+        Value::SharedArrayBuffer(sab) => Ok(sab.into()),
+        _ => Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Expected this to be ArrayBuffer",
+            gc,
+        )),
     }
 }
 

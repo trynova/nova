@@ -321,6 +321,25 @@ impl<'a> Number<'a> {
         }
     }
 
+    /// Create a Number from a usize.
+    pub fn from_usize(agent: &mut Agent, value: usize, gc: NoGcScope<'a, '_>) -> Self {
+        if let Ok(value) = Number::try_from(value) {
+            value
+        } else {
+            let value = value as f64;
+            if let Ok(value) = SmallF64::try_from(value) {
+                // Number did not fit the safe integer range but could be
+                // represented as a SmallF64.
+                Number::SmallF64(value)
+            } else {
+                // SAFETY: Number was not representable as a
+                // stack-allocated Number.
+                let id = unsafe { Self::alloc_number(&mut agent.heap, value) };
+                Number::Number(id.unbind().bind(gc))
+            }
+        }
+    }
+
     pub fn nan() -> Self {
         Self::from(f32::NAN)
     }

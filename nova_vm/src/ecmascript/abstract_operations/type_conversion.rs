@@ -409,8 +409,27 @@ pub(crate) fn string_to_number<'gc>(
 ///
 /// If the JavaScript number was infinite, then the appropriate i64 minimum or
 /// maximum value is used as a sentinel.
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, PartialEq, PartialOrd)]
 pub(crate) struct IntegerOrInfinity(i64);
+
+impl core::fmt::Display for IntegerOrInfinity {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if self.is_finite() {
+            self.0.fmt(f)
+        } else if self.is_neg_infinity() {
+            f.write_str("-Infinity")
+        } else {
+            f.write_str("Infinity")
+        }
+    }
+}
+
+impl core::fmt::Debug for IntegerOrInfinity {
+    #[inline(always)]
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        <Self as core::fmt::Display>::fmt(self, f)
+    }
+}
 
 impl IntegerOrInfinity {
     pub(crate) const NEG_INFINITY: Self = Self(i64::MIN);
@@ -596,7 +615,7 @@ pub(crate) fn to_int32<'a>(
 /// ### [7.1.6 ToInt32 ( argument )](https://tc39.es/ecma262/#sec-toint32)
 ///
 /// Implements steps 2 to 5 of the abstract operation, callable only with Numbers.
-pub(crate) fn to_int32_number(agent: &mut Agent, number: Number) -> i32 {
+pub(crate) fn to_int32_number(agent: &Agent, number: Number) -> i32 {
     if let Number::Integer(int) = number {
         let int = int.into_i64();
         return int as i32;
@@ -635,7 +654,7 @@ pub(crate) fn to_uint32<'a>(
 /// ### [7.1.7 ToUint32 ( argument )](https://tc39.es/ecma262/#sec-touint32)
 ///
 /// Implements steps 2 to 5 of the abstract operation, callable only with Numbers.
-pub(crate) fn to_uint32_number(agent: &mut Agent, number: Number) -> u32 {
+pub(crate) fn to_uint32_number(agent: &Agent, number: Number) -> u32 {
     if let Number::Integer(int) = number {
         let int = int.into_i64();
         return int as u32;
@@ -670,7 +689,7 @@ pub(crate) fn to_int16<'a>(
     Ok(to_int16_number(agent, number))
 }
 
-pub(crate) fn to_int16_number(agent: &mut Agent, number: Number) -> i16 {
+pub(crate) fn to_int16_number(agent: &Agent, number: Number) -> i16 {
     if let Number::Integer(int) = number {
         // Fast path: Integer value is very nearly int16 already.
         let int = int.into_i64();
@@ -706,7 +725,7 @@ pub(crate) fn to_uint16<'a>(
     Ok(to_uint16_number(agent, number))
 }
 
-pub(crate) fn to_uint16_number(agent: &mut Agent, number: Number) -> u16 {
+pub(crate) fn to_uint16_number(agent: &Agent, number: Number) -> u16 {
     if let Number::Integer(int) = number {
         // Fast path: Integer value is very nearly uin16 already.
         let int = int.into_i64();
@@ -742,7 +761,7 @@ pub(crate) fn to_int8<'a>(
     Ok(to_int8_number(agent, number))
 }
 
-pub(crate) fn to_int8_number(agent: &mut Agent, number: Number) -> i8 {
+pub(crate) fn to_int8_number(agent: &Agent, number: Number) -> i8 {
     if let Number::Integer(int) = number {
         // Fast path: Integer value is very nearly uint32 already.
         let int = int.into_i64();
@@ -778,7 +797,7 @@ pub(crate) fn to_uint8<'a>(
     Ok(to_uint8_number(agent, number))
 }
 
-pub(crate) fn to_uint8_number(agent: &mut Agent, number: Number) -> u8 {
+pub(crate) fn to_uint8_number(agent: &Agent, number: Number) -> u8 {
     if let Number::Integer(int) = number {
         // Fast path: Integer value is very nearly uint32 already.
         let int = int.into_i64();
@@ -814,7 +833,7 @@ pub(crate) fn to_uint8_clamp<'a>(
     Ok(to_uint8_clamp_number(agent, number))
 }
 
-pub(crate) fn to_uint8_clamp_number(agent: &mut Agent, number: Number) -> u8 {
+pub(crate) fn to_uint8_clamp_number(agent: &Agent, number: Number) -> u8 {
     if let Number::Integer(int) = number {
         // Fast path: Integer value is very nearly uint8 already.
         return int.into_i64().clamp(0, 255) as u8;
@@ -969,7 +988,7 @@ pub(crate) fn to_big_int64<'a>(
     Ok(to_big_int64_big_int(agent, n))
 }
 
-pub(crate) fn to_big_int64_big_int(agent: &mut Agent, n: BigInt) -> i64 {
+pub(crate) fn to_big_int64_big_int(agent: &Agent, n: BigInt) -> i64 {
     // 2. Let int64bit be ℝ(n) modulo 2**64.
     match n {
         BigInt::BigInt(heap_big_int) => {
@@ -1003,7 +1022,7 @@ pub(crate) fn to_big_uint64<'a>(
     Ok(to_big_uint64_big_int(agent, n))
 }
 
-pub(crate) fn to_big_uint64_big_int(agent: &mut Agent, n: BigInt) -> u64 {
+pub(crate) fn to_big_uint64_big_int(agent: &Agent, n: BigInt) -> u64 {
     // 2. Let int64bit be ℝ(n) modulo 2**64.
     match n {
         BigInt::BigInt(heap_big_int) => {

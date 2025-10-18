@@ -4,17 +4,25 @@
 
 use crate::{
     ecmascript::types::{OrdinaryObject, SharedDataBlock},
-    engine::context::bindable_handle,
+    engine::context::{NoGcScope, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 pub struct SharedArrayBufferRecord<'a> {
     pub(super) backing_object: Option<OrdinaryObject<'a>>,
     pub(super) data_block: SharedDataBlock,
 }
-
 bindable_handle!(SharedArrayBufferRecord);
+
+impl<'a> SharedArrayBufferRecord<'a> {
+    pub(crate) fn new(block: SharedDataBlock, _: NoGcScope<'a, '_>) -> Self {
+        Self {
+            backing_object: None,
+            data_block: block,
+        }
+    }
+}
 
 impl HeapMarkAndSweep for SharedArrayBufferRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

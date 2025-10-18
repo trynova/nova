@@ -183,6 +183,8 @@ pub enum ProtoIntrinsics {
     Boolean,
     #[cfg(feature = "array-buffer")]
     DataView,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedDataView,
     #[cfg(feature = "date")]
     Date,
     Error,
@@ -426,6 +428,8 @@ impl Intrinsics {
             ProtoIntrinsics::BigUint64Array => self.big_uint64_array().into(),
             #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::DataView => self.data_view().into(),
+            #[cfg(feature = "shared-array-buffer")]
+            ProtoIntrinsics::SharedDataView => self.data_view().into(),
             ProtoIntrinsics::FinalizationRegistry => self.finalization_registry().into(),
             #[cfg(feature = "proposal-float16array")]
             ProtoIntrinsics::Float16Array => self.float16_array().into(),
@@ -515,6 +519,8 @@ impl Intrinsics {
             ProtoIntrinsics::BigUint64Array => self.big_uint64_array_prototype().into(),
             #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::DataView => self.data_view_prototype().into(),
+            #[cfg(feature = "shared-array-buffer")]
+            ProtoIntrinsics::SharedDataView => self.data_view_prototype().into(),
             ProtoIntrinsics::FinalizationRegistry => self.finalization_registry_prototype().into(),
             #[cfg(feature = "proposal-float16array")]
             ProtoIntrinsics::Float16Array => self.float16_array_prototype().into(),

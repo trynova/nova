@@ -50,7 +50,7 @@ use super::ordinary::{
 pub(crate) mod abstract_operations;
 pub mod data;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Proxy<'a>(BaseIndex<'a, ProxyHeapData<'static>>);
 

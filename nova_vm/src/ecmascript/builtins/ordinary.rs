@@ -13,14 +13,20 @@ use std::{
 
 use caches::{CacheToPopulate, Caches, PropertyLookupCache, PropertyOffset};
 
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::builtins::data_view::data::SharedDataViewRecord;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::{
             try_create_data_property, try_get, try_get_function_realm,
         },
-        execution::agent::{TryError, TryResult, unwrap_try},
+        execution::{
+            Realm,
+            agent::{TryError, TryResult, unwrap_try},
+        },
         types::{
-            IntoValue, SetCachedProps, SetResult, TryGetResult, TryHasResult, handle_try_get_result,
+            IntoValue, SetCachedProps, SetResult, TryGetResult, TryHasResult,
+            handle_try_get_result, try_get_result_into_value,
         },
     },
     engine::{
@@ -55,7 +61,7 @@ use super::regexp::RegExpHeapData;
 use super::shared_array_buffer::data::SharedArrayBufferRecord;
 #[cfg(feature = "array-buffer")]
 use super::{
-    ArrayBufferHeapData, data_view::data::DataViewHeapData, typed_array::data::TypedArrayHeapData,
+    ArrayBufferHeapData, data_view::data::DataViewRecord, typed_array::data::TypedArrayRecord,
 };
 use super::{
     ArrayHeapData, async_generator_objects::AsyncGeneratorHeapData,
@@ -1698,29 +1704,34 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
         ProtoIntrinsics::AsyncGeneratorFunction => todo!(),
         #[cfg(feature = "array-buffer")]
         ProtoIntrinsics::BigInt64Array => {
-            Object::BigInt64Array(agent.heap.create(TypedArrayHeapData::default()))
+            Object::BigInt64Array(agent.heap.create(TypedArrayRecord::default()))
         }
         #[cfg(feature = "array-buffer")]
         ProtoIntrinsics::BigUint64Array => {
-            Object::BigUint64Array(agent.heap.create(TypedArrayHeapData::default()))
+            Object::BigUint64Array(agent.heap.create(TypedArrayRecord::default()))
         }
         #[cfg(feature = "array-buffer")]
-        ProtoIntrinsics::DataView => agent.heap.create(DataViewHeapData::default()).into_object(),
+        ProtoIntrinsics::DataView => agent.heap.create(DataViewRecord::default()).into_object(),
+        #[cfg(feature = "shared-array-buffer")]
+        ProtoIntrinsics::SharedDataView => agent
+            .heap
+            .create(SharedDataViewRecord::default())
+            .into_object(),
         ProtoIntrinsics::FinalizationRegistry => agent
             .heap
             .create(FinalizationRegistryHeapData::default())
             .into_object(),
         #[cfg(feature = "proposal-float16array")]
         ProtoIntrinsics::Float16Array => {
-            Object::Float16Array(agent.heap.create(TypedArrayHeapData::default()))
+            Object::Float16Array(agent.heap.create(TypedArrayRecord::default()))
         }
         #[cfg(feature = "array-buffer")]
         ProtoIntrinsics::Float32Array => {
-            Object::Float32Array(agent.heap.create(TypedArrayHeapData::default()))
+            Object::Float32Array(agent.heap.create(TypedArrayRecord::default()))
         }
         #[cfg(feature = "array-buffer")]
         ProtoIntrinsics::Float64Array => {
-            Object::Float64Array(agent.heap.create(TypedArrayHeapData::default()))
+            Object::Float64Array(agent.heap.create(TypedArrayRecord::default()))
         }
         ProtoIntrinsics::Generator => agent
             .heap
@@ -1729,15 +1740,15 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
         ProtoIntrinsics::GeneratorFunction => todo!(),
         #[cfg(feature = "array-buffer")]
         ProtoIntrinsics::Int16Array => {
-            Object::Int16Array(agent.heap.create(TypedArrayHeapData::default()))
+            Object::Int16Array(agent.heap.create(TypedArrayRecord::default()))
         }
         #[cfg(feature = "array-buffer")]
         ProtoIntrinsics::Int32Array => {
-            Object::Int32Array(agent.heap.create(TypedArrayHeapData::default()))
+            Object::Int32Array(agent.heap.create(TypedArrayRecord::default()))
         }
         #[cfg(feature = "array-buffer")]
         ProtoIntrinsics::Int8Array => {
-            Object::Int8Array(agent.heap.create(TypedArrayHeapData::default()))
+            Object::Int8Array(agent.heap.create(TypedArrayRecord::default()))
         }
         ProtoIntrinsics::Iterator => OrdinaryObject::create_object(
             agent,
@@ -1775,19 +1786,19 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
             .into_object(),
         #[cfg(feature = "array-buffer")]
         ProtoIntrinsics::Uint16Array => {
-            Object::Uint16Array(agent.heap.create(TypedArrayHeapData::default()))
+            Object::Uint16Array(agent.heap.create(TypedArrayRecord::default()))
         }
         #[cfg(feature = "array-buffer")]
         ProtoIntrinsics::Uint32Array => {
-            Object::Uint32Array(agent.heap.create(TypedArrayHeapData::default()))
+            Object::Uint32Array(agent.heap.create(TypedArrayRecord::default()))
         }
         #[cfg(feature = "array-buffer")]
         ProtoIntrinsics::Uint8Array => {
-            Object::Uint8Array(agent.heap.create(TypedArrayHeapData::default()))
+            Object::Uint8Array(agent.heap.create(TypedArrayRecord::default()))
         }
         #[cfg(feature = "array-buffer")]
         ProtoIntrinsics::Uint8ClampedArray => {
-            Object::Uint8ClampedArray(agent.heap.create(TypedArrayHeapData::default()))
+            Object::Uint8ClampedArray(agent.heap.create(TypedArrayRecord::default()))
         }
         #[cfg(feature = "weak-refs")]
         ProtoIntrinsics::WeakMap => agent.heap.create(WeakMapHeapData::default()).into_object(),
@@ -1882,95 +1893,9 @@ pub(crate) fn get_prototype_from_constructor<'a>(
     // check if we %Constructor% is the ProtoIntrinsic we expect and if it is,
     // return None because we know %Constructor%.prototype corresponds to the
     // ProtoIntrinsic.
-    if let Some(intrinsics) =
-        function_realm.map(|realm| agent.get_realm_record_by_id(realm).intrinsics())
-    {
-        let intrinsic_constructor = match intrinsic_default_proto {
-            ProtoIntrinsics::AggregateError => Some(intrinsics.aggregate_error().into_function()),
-            ProtoIntrinsics::Array => Some(intrinsics.array().into_function()),
-            ProtoIntrinsics::ArrayIterator => None,
-            #[cfg(feature = "array-buffer")]
-            ProtoIntrinsics::ArrayBuffer => Some(intrinsics.array_buffer().into_function()),
-            ProtoIntrinsics::AsyncFunction => Some(intrinsics.async_function().into_function()),
-            ProtoIntrinsics::AsyncGenerator => None,
-            ProtoIntrinsics::AsyncGeneratorFunction => {
-                Some(intrinsics.async_generator_function().into_function())
-            }
-            ProtoIntrinsics::BigInt => Some(intrinsics.big_int().into_function()),
-            #[cfg(feature = "array-buffer")]
-            ProtoIntrinsics::BigInt64Array => Some(intrinsics.big_int64_array().into_function()),
-            #[cfg(feature = "array-buffer")]
-            ProtoIntrinsics::BigUint64Array => Some(intrinsics.big_uint64_array().into_function()),
-            ProtoIntrinsics::Boolean => Some(intrinsics.boolean().into_function()),
-            #[cfg(feature = "array-buffer")]
-            ProtoIntrinsics::DataView => Some(intrinsics.data_view().into_function()),
-            #[cfg(feature = "date")]
-            ProtoIntrinsics::Date => Some(intrinsics.date().into_function()),
-            ProtoIntrinsics::Error => Some(intrinsics.error().into_function()),
-            ProtoIntrinsics::EvalError => Some(intrinsics.eval_error().into_function()),
-            ProtoIntrinsics::FinalizationRegistry => {
-                Some(intrinsics.finalization_registry().into_function())
-            }
-            #[cfg(feature = "proposal-float16array")]
-            ProtoIntrinsics::Float16Array => Some(intrinsics.float16_array().into_function()),
-            #[cfg(feature = "array-buffer")]
-            ProtoIntrinsics::Float32Array => Some(intrinsics.float32_array().into_function()),
-            #[cfg(feature = "array-buffer")]
-            ProtoIntrinsics::Float64Array => Some(intrinsics.float64_array().into_function()),
-            ProtoIntrinsics::Function => Some(intrinsics.function().into_function()),
-            ProtoIntrinsics::Generator => None,
-            ProtoIntrinsics::GeneratorFunction => {
-                Some(intrinsics.generator_function().into_function())
-            }
-            #[cfg(feature = "array-buffer")]
-            ProtoIntrinsics::Int16Array => Some(intrinsics.int16_array().into_function()),
-            #[cfg(feature = "array-buffer")]
-            ProtoIntrinsics::Int32Array => Some(intrinsics.int32_array().into_function()),
-            #[cfg(feature = "array-buffer")]
-            ProtoIntrinsics::Int8Array => Some(intrinsics.int8_array().into_function()),
-            ProtoIntrinsics::Iterator => Some(intrinsics.iterator().into_function()),
-            ProtoIntrinsics::Map => Some(intrinsics.map().into_function()),
-            ProtoIntrinsics::MapIterator => None,
-            ProtoIntrinsics::Number => Some(intrinsics.number().into_function()),
-            ProtoIntrinsics::Object => Some(intrinsics.object().into_function()),
-            ProtoIntrinsics::Promise => Some(intrinsics.promise().into_function()),
-            ProtoIntrinsics::RangeError => Some(intrinsics.range_error().into_function()),
-            ProtoIntrinsics::ReferenceError => Some(intrinsics.reference_error().into_function()),
-            #[cfg(feature = "regexp")]
-            ProtoIntrinsics::RegExp => Some(intrinsics.reg_exp().into_function()),
-            #[cfg(feature = "set")]
-            ProtoIntrinsics::Set => Some(intrinsics.set().into_function()),
-            #[cfg(feature = "set")]
-            ProtoIntrinsics::SetIterator => None,
-            #[cfg(feature = "shared-array-buffer")]
-            ProtoIntrinsics::SharedArrayBuffer => {
-                Some(intrinsics.shared_array_buffer().into_function())
-            }
-            ProtoIntrinsics::String => Some(intrinsics.string().into_function()),
-            ProtoIntrinsics::StringIterator => None,
-            #[cfg(feature = "regexp")]
-            ProtoIntrinsics::RegExpStringIterator => None,
-            ProtoIntrinsics::Symbol => Some(intrinsics.symbol().into_function()),
-            ProtoIntrinsics::SyntaxError => Some(intrinsics.syntax_error().into_function()),
-            ProtoIntrinsics::TypeError => Some(intrinsics.type_error().into_function()),
-            #[cfg(feature = "array-buffer")]
-            ProtoIntrinsics::Uint16Array => Some(intrinsics.uint16_array().into_function()),
-            #[cfg(feature = "array-buffer")]
-            ProtoIntrinsics::Uint32Array => Some(intrinsics.uint32_array().into_function()),
-            #[cfg(feature = "array-buffer")]
-            ProtoIntrinsics::Uint8Array => Some(intrinsics.uint8_array().into_function()),
-            #[cfg(feature = "array-buffer")]
-            ProtoIntrinsics::Uint8ClampedArray => {
-                Some(intrinsics.uint8_clamped_array().into_function())
-            }
-            ProtoIntrinsics::URIError => Some(intrinsics.uri_error().into_function()),
-            #[cfg(feature = "weak-refs")]
-            ProtoIntrinsics::WeakMap => Some(intrinsics.weak_map().into_function()),
-            #[cfg(feature = "weak-refs")]
-            ProtoIntrinsics::WeakRef => Some(intrinsics.weak_ref().into_function()),
-            #[cfg(feature = "weak-refs")]
-            ProtoIntrinsics::WeakSet => Some(intrinsics.weak_set().into_function()),
-        };
+    if let Some(function_realm) = function_realm {
+        let intrinsic_constructor =
+            get_intrinsic_constructor(agent, function_realm, intrinsic_default_proto);
         if Some(constructor) == intrinsic_constructor {
             // The ProtoIntrinsic's constructor matches the constructor we're
             // being called with, so the constructor's prototype matches the
@@ -2046,6 +1971,167 @@ pub(crate) fn get_prototype_from_constructor<'a>(
                 }
             }
             Ok(Some(proto.unbind().bind(gc.into_nogc())))
+        }
+    }
+}
+
+fn get_intrinsic_constructor<'a>(
+    agent: &Agent,
+    function_realm: Realm<'a>,
+    intrinsic_default_proto: ProtoIntrinsics,
+) -> Option<Function<'a>> {
+    let intrinsics = agent.get_realm_record_by_id(function_realm).intrinsics();
+    match intrinsic_default_proto {
+        ProtoIntrinsics::AggregateError => Some(intrinsics.aggregate_error().into_function()),
+        ProtoIntrinsics::Array => Some(intrinsics.array().into_function()),
+        ProtoIntrinsics::ArrayIterator => None,
+        #[cfg(feature = "array-buffer")]
+        ProtoIntrinsics::ArrayBuffer => Some(intrinsics.array_buffer().into_function()),
+        ProtoIntrinsics::AsyncFunction => Some(intrinsics.async_function().into_function()),
+        ProtoIntrinsics::AsyncGenerator => None,
+        ProtoIntrinsics::AsyncGeneratorFunction => {
+            Some(intrinsics.async_generator_function().into_function())
+        }
+        ProtoIntrinsics::BigInt => Some(intrinsics.big_int().into_function()),
+        #[cfg(feature = "array-buffer")]
+        ProtoIntrinsics::BigInt64Array => Some(intrinsics.big_int64_array().into_function()),
+        #[cfg(feature = "array-buffer")]
+        ProtoIntrinsics::BigUint64Array => Some(intrinsics.big_uint64_array().into_function()),
+        ProtoIntrinsics::Boolean => Some(intrinsics.boolean().into_function()),
+        #[cfg(feature = "array-buffer")]
+        ProtoIntrinsics::DataView => Some(intrinsics.data_view().into_function()),
+        #[cfg(feature = "shared-array-buffer")]
+        ProtoIntrinsics::SharedDataView => Some(intrinsics.data_view().into_function()),
+        #[cfg(feature = "date")]
+        ProtoIntrinsics::Date => Some(intrinsics.date().into_function()),
+        ProtoIntrinsics::Error => Some(intrinsics.error().into_function()),
+        ProtoIntrinsics::EvalError => Some(intrinsics.eval_error().into_function()),
+        ProtoIntrinsics::FinalizationRegistry => {
+            Some(intrinsics.finalization_registry().into_function())
+        }
+        #[cfg(feature = "proposal-float16array")]
+        ProtoIntrinsics::Float16Array => Some(intrinsics.float16_array().into_function()),
+        #[cfg(feature = "array-buffer")]
+        ProtoIntrinsics::Float32Array => Some(intrinsics.float32_array().into_function()),
+        #[cfg(feature = "array-buffer")]
+        ProtoIntrinsics::Float64Array => Some(intrinsics.float64_array().into_function()),
+        ProtoIntrinsics::Function => Some(intrinsics.function().into_function()),
+        ProtoIntrinsics::Generator => None,
+        ProtoIntrinsics::GeneratorFunction => Some(intrinsics.generator_function().into_function()),
+        #[cfg(feature = "array-buffer")]
+        ProtoIntrinsics::Int16Array => Some(intrinsics.int16_array().into_function()),
+        #[cfg(feature = "array-buffer")]
+        ProtoIntrinsics::Int32Array => Some(intrinsics.int32_array().into_function()),
+        #[cfg(feature = "array-buffer")]
+        ProtoIntrinsics::Int8Array => Some(intrinsics.int8_array().into_function()),
+        ProtoIntrinsics::Iterator => Some(intrinsics.iterator().into_function()),
+        ProtoIntrinsics::Map => Some(intrinsics.map().into_function()),
+        ProtoIntrinsics::MapIterator => None,
+        ProtoIntrinsics::Number => Some(intrinsics.number().into_function()),
+        ProtoIntrinsics::Object => Some(intrinsics.object().into_function()),
+        ProtoIntrinsics::Promise => Some(intrinsics.promise().into_function()),
+        ProtoIntrinsics::RangeError => Some(intrinsics.range_error().into_function()),
+        ProtoIntrinsics::ReferenceError => Some(intrinsics.reference_error().into_function()),
+        #[cfg(feature = "regexp")]
+        ProtoIntrinsics::RegExp => Some(intrinsics.reg_exp().into_function()),
+        #[cfg(feature = "set")]
+        ProtoIntrinsics::Set => Some(intrinsics.set().into_function()),
+        #[cfg(feature = "set")]
+        ProtoIntrinsics::SetIterator => None,
+        #[cfg(feature = "shared-array-buffer")]
+        ProtoIntrinsics::SharedArrayBuffer => {
+            Some(intrinsics.shared_array_buffer().into_function())
+        }
+        ProtoIntrinsics::String => Some(intrinsics.string().into_function()),
+        ProtoIntrinsics::StringIterator => None,
+        #[cfg(feature = "regexp")]
+        ProtoIntrinsics::RegExpStringIterator => None,
+        ProtoIntrinsics::Symbol => Some(intrinsics.symbol().into_function()),
+        ProtoIntrinsics::SyntaxError => Some(intrinsics.syntax_error().into_function()),
+        ProtoIntrinsics::TypeError => Some(intrinsics.type_error().into_function()),
+        #[cfg(feature = "array-buffer")]
+        ProtoIntrinsics::Uint16Array => Some(intrinsics.uint16_array().into_function()),
+        #[cfg(feature = "array-buffer")]
+        ProtoIntrinsics::Uint32Array => Some(intrinsics.uint32_array().into_function()),
+        #[cfg(feature = "array-buffer")]
+        ProtoIntrinsics::Uint8Array => Some(intrinsics.uint8_array().into_function()),
+        #[cfg(feature = "array-buffer")]
+        ProtoIntrinsics::Uint8ClampedArray => {
+            Some(intrinsics.uint8_clamped_array().into_function())
+        }
+        ProtoIntrinsics::URIError => Some(intrinsics.uri_error().into_function()),
+        #[cfg(feature = "weak-refs")]
+        ProtoIntrinsics::WeakMap => Some(intrinsics.weak_map().into_function()),
+        #[cfg(feature = "weak-refs")]
+        ProtoIntrinsics::WeakRef => Some(intrinsics.weak_ref().into_function()),
+        #[cfg(feature = "weak-refs")]
+        ProtoIntrinsics::WeakSet => Some(intrinsics.weak_set().into_function()),
+    }
+}
+
+pub(crate) fn try_get_prototype_from_constructor<'a>(
+    agent: &mut Agent,
+    constructor: Function<'a>,
+    intrinsic_default_proto: ProtoIntrinsics,
+    gc: NoGcScope<'a, '_>,
+) -> TryResult<'a, Option<Object<'a>>> {
+    let function_realm = try_get_function_realm(agent, constructor, gc);
+    // NOTE: %Constructor%.prototype is an immutable property; we can thus
+    // check if we %Constructor% is the ProtoIntrinsic we expect and if it is,
+    // return None because we know %Constructor%.prototype corresponds to the
+    // ProtoIntrinsic.
+    if let Some(function_realm) = function_realm {
+        let intrinsic_constructor =
+            get_intrinsic_constructor(agent, function_realm, intrinsic_default_proto);
+        if Some(constructor) == intrinsic_constructor {
+            // The ProtoIntrinsic's constructor matches the constructor we're
+            // being called with, so the constructor's prototype matches the
+            // ProtoIntrinsic.
+            return TryResult::Continue(None);
+        }
+    }
+
+    // 1. Assert: intrinsicDefaultProto is this specification's name of an
+    // intrinsic object. The corresponding object must be an intrinsic that is
+    // intended to be used as the [[Prototype]] value of an object.
+    // 2. Let proto be ? Get(constructor, "prototype").
+    let key = BUILTIN_STRING_MEMORY.prototype.to_property_key();
+    let proto = try_get_result_into_value(try_get(
+        agent,
+        constructor,
+        key,
+        PropertyLookupCache::get(agent, key),
+        gc,
+    ))?;
+    match Object::try_from(proto) {
+        // 3. If proto is not an Object, then
+        Err(_) => {
+            // a. Let realm be ? GetFunctionRealm(constructor).
+            // b. Set proto to realm's intrinsic object named intrinsicDefaultProto.
+            // Note: We signify using the default proto by returning None.
+            // We only need to call the get_function_realm function if it would
+            // throw an error.
+            if function_realm.is_none() {
+                let err = get_function_realm(agent, constructor.unbind(), gc).unwrap_err();
+                return err.into();
+            }
+            TryResult::Continue(None)
+        }
+        Ok(proto) => {
+            // 4. Return proto.
+            // Note: We should still check if the proto is the default proto.
+            // It's possible that a user's custom constructor object has
+            // prototype property set to the default.
+            if let Some(realm) = function_realm {
+                let default_proto = agent
+                    .get_realm_record_by_id(realm)
+                    .intrinsics()
+                    .get_intrinsic_default_proto(intrinsic_default_proto);
+                if proto == default_proto {
+                    return TryResult::Continue(None);
+                }
+            }
+            TryResult::Continue(Some(proto))
         }
     }
 }

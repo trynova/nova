@@ -6,12 +6,14 @@
 
 mod abstract_operations;
 mod data;
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::types::SHARED_ARRAY_BUFFER_DISCRIMINANT;
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            InternalMethods, InternalSlots, Object, OrdinaryObject, Value, copy_data_block_bytes,
-            create_byte_data_block,
+            ARRAY_BUFFER_DISCRIMINANT, InternalMethods, InternalSlots, Object, OrdinaryObject,
+            Value, Viewable, copy_data_block_bytes, create_byte_data_block,
         },
     },
     engine::{
@@ -28,6 +30,10 @@ use abstract_operations::detach_array_buffer;
 pub(crate) use abstract_operations::*;
 use core::ops::{Index, IndexMut};
 pub use data::*;
+use ecmascript_atomics::Ordering;
+
+#[cfg(feature = "shared-array-buffer")]
+use super::shared_array_buffer::SharedArrayBuffer;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
@@ -108,6 +114,7 @@ impl ArrayBuffer<'_> {
     /// The function itself has no safety implications, but the caller should
     /// keep in mind that if JavaScript is called into the contents of the
     /// ArrayBuffer may be rewritten or reallocated.
+    #[inline]
     pub fn as_slice(self, agent: &Agent) -> &[u8] {
         agent[self].get_data_block()
     }
@@ -121,8 +128,67 @@ impl ArrayBuffer<'_> {
     /// The function itself has no safety implications, but the caller should
     /// keep in mind that if JavaScript is called into the contents of the
     /// ArrayBuffer may be rewritten or reallocated.
+    #[inline]
     pub fn as_mut_slice(self, agent: &mut Agent) -> &mut [u8] {
-        &mut *agent[self].get_data_block_mut()
+        agent[self].get_data_block_mut()
+    }
+
+    /// Create a T slice from an ArrayBuffer and byte offset and length values.
+    ///
+    /// This method should be used when looping over items of a TypedArray.
+    pub(crate) fn as_viewable_slice<T: Viewable>(
+        self,
+        agent: &Agent,
+        byte_offset: usize,
+        byte_length: Option<usize>,
+    ) -> &[T] {
+        let byte_slice = self.as_slice(agent);
+        let byte_limit = byte_length.map(|byte_length| byte_offset.saturating_add(byte_length));
+        if byte_limit.unwrap_or(byte_offset) > byte_slice.len() {
+            return &[];
+        }
+        let byte_slice = if let Some(byte_limit) = byte_limit {
+            &byte_slice[byte_offset..byte_limit]
+        } else {
+            &byte_slice[byte_offset..]
+        };
+        // SAFETY: All bytes in byte_slice are initialized, and all bitwise
+        // combinations of T are valid values. Alignment of T's is
+        // guaranteed by align_to_mut itself.
+        let (head, slice, _) = unsafe { byte_slice.align_to::<T>() };
+        if !head.is_empty() {
+            panic!("ArrayBuffer is not properly aligned for T");
+        }
+        slice
+    }
+
+    /// Create a T slice from an ArrayBuffer and byte offset and length values.
+    ///
+    /// This method should be used when looping over items of a TypedArray.
+    pub(crate) fn as_mut_viewable_slice<T: Viewable>(
+        self,
+        agent: &mut Agent,
+        byte_offset: usize,
+        byte_length: Option<usize>,
+    ) -> &mut [T] {
+        let byte_slice = self.as_mut_slice(agent);
+        let byte_limit = byte_length.map(|byte_length| byte_offset.saturating_add(byte_length));
+        if byte_limit.unwrap_or(byte_offset) > byte_slice.len() {
+            return &mut [];
+        }
+        let byte_slice = if let Some(byte_limit) = byte_limit {
+            &mut byte_slice[byte_offset..byte_limit]
+        } else {
+            &mut byte_slice[byte_offset..]
+        };
+        // SAFETY: All bytes in byte_slice are initialized, and all bitwise
+        // combinations of T are valid values. Alignment of T's is
+        // guaranteed by align_to_mut itself.
+        let (head, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
+        if !head.is_empty() {
+            panic!("ArrayBuffer is not properly aligned for T");
+        }
+        slice
     }
 
     /// Copy data from `source` ArrayBuffer to this ArrayBuffer.
@@ -287,5 +353,124 @@ impl<'a> CreateHeapData<ArrayBufferHeapData<'a>, ArrayBuffer<'a>> for Heap {
         self.array_buffers.push(Some(data.unbind()));
         self.alloc_counter += core::mem::size_of::<Option<ArrayBufferHeapData<'static>>>();
         ArrayBuffer(BaseIndex::last(&self.array_buffers))
+    }
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
+#[repr(u8)]
+pub enum AnyArrayBuffer<'a> {
+    ArrayBuffer(ArrayBuffer<'a>) = ARRAY_BUFFER_DISCRIMINANT,
+    #[cfg(feature = "shared-array-buffer")]
+    SharedArrayBuffer(SharedArrayBuffer<'a>) = SHARED_ARRAY_BUFFER_DISCRIMINANT,
+}
+bindable_handle!(AnyArrayBuffer);
+
+macro_rules! array_buffer_delegate {
+    ($value: ident, $method: ident, $($arg:expr),*) => {
+        match $value {
+            Self::ArrayBuffer(ta) => ta.$method($($arg),+),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedArrayBuffer(sta) => sta.$method($($arg),+),
+        }
+    };
+}
+
+impl<'ab> AnyArrayBuffer<'ab> {
+    /// Returns true if the ArrayBuffer is a SharedArrayBuffer.
+    #[inline(always)]
+    pub fn is_shared(self) -> bool {
+        match self {
+            Self::ArrayBuffer(_) => false,
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedArrayBuffer(_) => true,
+        }
+    }
+
+    #[inline(always)]
+    pub fn is_detached(self, agent: &Agent) -> bool {
+        array_buffer_delegate!(self, is_detached, agent)
+    }
+
+    /// Returns true if the ArrayBuffer is resizable.
+    #[inline(always)]
+    pub fn is_resizable(self, agent: &Agent) -> bool {
+        match self {
+            Self::ArrayBuffer(ta) => ta.is_resizable(agent),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedArrayBuffer(sta) => sta.is_growable(agent),
+        }
+    }
+
+    /// \[\[ByteLength]]
+    #[inline(always)]
+    pub fn byte_length(self, agent: &Agent, order: Ordering) -> usize {
+        match self {
+            Self::ArrayBuffer(ta) => ta.byte_length(agent),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedArrayBuffer(sta) => sta.byte_length(agent, order),
+        }
+    }
+}
+
+impl<'a> From<ArrayBuffer<'a>> for AnyArrayBuffer<'a> {
+    #[inline(always)]
+    fn from(value: ArrayBuffer<'a>) -> Self {
+        Self::ArrayBuffer(value)
+    }
+}
+
+#[cfg(feature = "shared-array-buffer")]
+impl<'a> From<SharedArrayBuffer<'a>> for AnyArrayBuffer<'a> {
+    #[inline(always)]
+    fn from(value: SharedArrayBuffer<'a>) -> Self {
+        Self::SharedArrayBuffer(value)
+    }
+}
+
+impl<'a> From<AnyArrayBuffer<'a>> for Value<'a> {
+    #[inline(always)]
+    fn from(value: AnyArrayBuffer<'a>) -> Self {
+        match value {
+            AnyArrayBuffer::ArrayBuffer(dv) => Self::ArrayBuffer(dv),
+            #[cfg(feature = "shared-array-buffer")]
+            AnyArrayBuffer::SharedArrayBuffer(sdv) => Self::SharedArrayBuffer(sdv),
+        }
+    }
+}
+
+impl<'a> From<AnyArrayBuffer<'a>> for Object<'a> {
+    #[inline(always)]
+    fn from(value: AnyArrayBuffer<'a>) -> Self {
+        match value {
+            AnyArrayBuffer::ArrayBuffer(dv) => Self::ArrayBuffer(dv),
+            #[cfg(feature = "shared-array-buffer")]
+            AnyArrayBuffer::SharedArrayBuffer(sdv) => Self::SharedArrayBuffer(sdv),
+        }
+    }
+}
+
+impl<'a> TryFrom<Value<'a>> for AnyArrayBuffer<'a> {
+    type Error = ();
+
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Value::ArrayBuffer(ab) => Ok(Self::ArrayBuffer(ab)),
+            Value::SharedArrayBuffer(sab) => Ok(Self::SharedArrayBuffer(sab)),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<HeapRootData> for AnyArrayBuffer<'_> {
+    type Error = ();
+
+    #[inline]
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        match value {
+            HeapRootData::ArrayBuffer(dv) => Ok(AnyArrayBuffer::ArrayBuffer(dv)),
+            #[cfg(feature = "shared-array-buffer")]
+            HeapRootData::SharedArrayBuffer(sdv) => Ok(AnyArrayBuffer::SharedArrayBuffer(sdv)),
+            _ => Err(()),
+        }
     }
 }

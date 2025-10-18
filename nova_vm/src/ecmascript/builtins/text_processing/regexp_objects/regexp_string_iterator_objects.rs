@@ -62,7 +62,7 @@ pub(crate) fn create_reg_exp_string_iterator<'gc>(
 /// RegExp instance object. There is not a named constructor for RegExp String
 /// Iterator objects. Instead, RegExp String Iterator objects are created by
 /// calling certain methods of RegExp instance objects.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct RegExpStringIterator<'a>(BaseIndex<'a, RegExpStringIteratorRecord<'static>>);
 bindable_handle!(RegExpStringIterator);

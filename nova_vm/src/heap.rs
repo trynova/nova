@@ -35,8 +35,8 @@ use crate::ecmascript::builtins::shared_array_buffer::data::SharedArrayBufferRec
 use crate::ecmascript::builtins::{
     ArrayBuffer, ArrayBufferHeapData,
     array_buffer::DetachKey,
-    data_view::{DataView, data::DataViewHeapData},
-    typed_array::data::TypedArrayHeapData,
+    data_view::{DataView, data::DataViewRecord},
+    typed_array::data::TypedArrayRecord,
 };
 #[cfg(feature = "set")]
 use crate::ecmascript::builtins::{
@@ -66,6 +66,7 @@ use crate::{
                     promise_resolving_functions::PromiseResolvingFunctionHeapData,
                 },
             },
+            data_view::{SharedDataView, data::SharedDataViewRecord},
             embedder_object::data::EmbedderObjectHeapData,
             error::ErrorHeapData,
             finalization_registry::data::FinalizationRegistryHeapData,
@@ -83,6 +84,7 @@ use crate::{
             promise_objects::promise_abstract_operations::promise_finally_functions::PromiseFinallyFunctionHeapData,
             proxy::data::ProxyHeapData,
             text_processing::string_objects::string_iterator_objects::StringIteratorHeapData,
+            typed_array::{SharedVoidArray, VoidArray, data::SharedTypedArrayRecord},
         },
         execution::{Agent, Environments, Realm, RealmRecord},
         scripts_and_modules::{
@@ -120,8 +122,6 @@ pub(crate) use heap_bits::{
     CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WeakReference, WorkQueues,
     sweep_heap_vector_values,
 };
-#[cfg(feature = "array-buffer")]
-use indexes::TypedArrayIndex;
 use soavec::SoAVec;
 use wtf8::{Wtf8, Wtf8Buf};
 
@@ -139,12 +139,6 @@ pub(crate) struct Heap {
     pub(crate) builtin_constructors: Vec<Option<BuiltinConstructorRecord<'static>>>,
     pub(crate) builtin_functions: Vec<Option<BuiltinFunctionHeapData<'static>>>,
     pub(crate) caches: Caches<'static>,
-    #[cfg(feature = "array-buffer")]
-    pub(crate) data_views: Vec<Option<DataViewHeapData<'static>>>,
-    #[cfg(feature = "array-buffer")]
-    pub(crate) data_view_byte_lengths: AHashMap<DataView<'static>, usize>,
-    #[cfg(feature = "array-buffer")]
-    pub(crate) data_view_byte_offsets: AHashMap<DataView<'static>, usize>,
     #[cfg(feature = "date")]
     pub(crate) dates: Vec<Option<DateHeapData<'static>>>,
     pub(crate) ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData<'static>>>,
@@ -187,13 +181,33 @@ pub(crate) struct Heap {
     pub(crate) shared_array_buffers: Vec<SharedArrayBufferRecord<'static>>,
     pub(crate) symbols: Vec<Option<SymbolHeapData<'static>>>,
     #[cfg(feature = "array-buffer")]
-    pub(crate) typed_arrays: Vec<Option<TypedArrayHeapData<'static>>>,
+    pub(crate) typed_arrays: Vec<TypedArrayRecord<'static>>,
     #[cfg(feature = "array-buffer")]
-    pub(crate) typed_array_byte_lengths: AHashMap<TypedArrayIndex<'static>, usize>,
+    pub(crate) typed_array_byte_lengths: AHashMap<VoidArray<'static>, usize>,
     #[cfg(feature = "array-buffer")]
-    pub(crate) typed_array_byte_offsets: AHashMap<TypedArrayIndex<'static>, usize>,
+    pub(crate) typed_array_byte_offsets: AHashMap<VoidArray<'static>, usize>,
     #[cfg(feature = "array-buffer")]
-    pub(crate) typed_array_array_lengths: AHashMap<TypedArrayIndex<'static>, usize>,
+    pub(crate) typed_array_array_lengths: AHashMap<VoidArray<'static>, usize>,
+    #[cfg(feature = "array-buffer")]
+    pub(crate) data_views: Vec<DataViewRecord<'static>>,
+    #[cfg(feature = "array-buffer")]
+    pub(crate) data_view_byte_lengths: AHashMap<DataView<'static>, usize>,
+    #[cfg(feature = "array-buffer")]
+    pub(crate) data_view_byte_offsets: AHashMap<DataView<'static>, usize>,
+    #[cfg(feature = "shared-array-buffer")]
+    pub(crate) shared_typed_arrays: Vec<SharedTypedArrayRecord<'static>>,
+    #[cfg(feature = "shared-array-buffer")]
+    pub(crate) shared_typed_array_byte_lengths: AHashMap<SharedVoidArray<'static>, usize>,
+    #[cfg(feature = "shared-array-buffer")]
+    pub(crate) shared_typed_array_byte_offsets: AHashMap<SharedVoidArray<'static>, usize>,
+    #[cfg(feature = "shared-array-buffer")]
+    pub(crate) shared_typed_array_array_lengths: AHashMap<SharedVoidArray<'static>, usize>,
+    #[cfg(feature = "shared-array-buffer")]
+    pub(crate) shared_data_views: Vec<SharedDataViewRecord<'static>>,
+    #[cfg(feature = "shared-array-buffer")]
+    pub(crate) shared_data_view_byte_lengths: AHashMap<SharedDataView<'static>, usize>,
+    #[cfg(feature = "shared-array-buffer")]
+    pub(crate) shared_data_view_byte_offsets: AHashMap<SharedDataView<'static>, usize>,
     #[cfg(feature = "weak-refs")]
     pub(crate) weak_maps: Vec<Option<WeakMapHeapData<'static>>>,
     #[cfg(feature = "weak-refs")]
@@ -272,12 +286,6 @@ impl Heap {
             builtin_constructors: Vec::with_capacity(256),
             builtin_functions: Vec::with_capacity(1024),
             caches: Caches::with_capacity(1024),
-            #[cfg(feature = "array-buffer")]
-            data_views: Vec::with_capacity(0),
-            #[cfg(feature = "array-buffer")]
-            data_view_byte_lengths: AHashMap::with_capacity(0),
-            #[cfg(feature = "array-buffer")]
-            data_view_byte_offsets: AHashMap::with_capacity(0),
             #[cfg(feature = "date")]
             dates: Vec::with_capacity(1024),
             ecmascript_functions: Vec::with_capacity(1024),
@@ -355,6 +363,26 @@ impl Heap {
             typed_array_byte_offsets: AHashMap::with_capacity(0),
             #[cfg(feature = "array-buffer")]
             typed_array_array_lengths: AHashMap::with_capacity(0),
+            #[cfg(feature = "array-buffer")]
+            data_views: Vec::with_capacity(0),
+            #[cfg(feature = "array-buffer")]
+            data_view_byte_lengths: AHashMap::with_capacity(0),
+            #[cfg(feature = "array-buffer")]
+            data_view_byte_offsets: AHashMap::with_capacity(0),
+            #[cfg(feature = "shared-array-buffer")]
+            shared_typed_arrays: Vec::with_capacity(0),
+            #[cfg(feature = "shared-array-buffer")]
+            shared_typed_array_byte_lengths: AHashMap::with_capacity(0),
+            #[cfg(feature = "shared-array-buffer")]
+            shared_typed_array_byte_offsets: AHashMap::with_capacity(0),
+            #[cfg(feature = "shared-array-buffer")]
+            shared_typed_array_array_lengths: AHashMap::with_capacity(0),
+            #[cfg(feature = "shared-array-buffer")]
+            shared_data_views: Vec::with_capacity(0),
+            #[cfg(feature = "shared-array-buffer")]
+            shared_data_view_byte_lengths: AHashMap::with_capacity(0),
+            #[cfg(feature = "shared-array-buffer")]
+            shared_data_view_byte_offsets: AHashMap::with_capacity(0),
             #[cfg(feature = "weak-refs")]
             weak_maps: Vec::with_capacity(0),
             #[cfg(feature = "weak-refs")]

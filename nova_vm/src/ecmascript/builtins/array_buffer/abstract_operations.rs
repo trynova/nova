@@ -2,16 +2,17 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{ArrayBuffer, InternalBuffer};
+use ecmascript_atomics::Ordering;
+
+use super::{AnyArrayBuffer, ArrayBuffer, InternalBuffer};
 use crate::{
-    Heap,
     ecmascript::{
         abstract_operations::{operations_on_objects::get, type_conversion::to_index},
         builtins::ordinary::ordinary_create_from_constructor,
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, DataBlock, Function, Number, Numeric, Object, Value, Viewable,
-            copy_data_block_bytes, create_byte_data_block,
+            BUILTIN_STRING_MEMORY, Function, Number, Numeric, Object, SharedDataBlock, Value,
+            Viewable, create_byte_data_block,
         },
     },
     engine::context::{Bindable, GcScope, NoGcScope},
@@ -20,15 +21,6 @@ use crate::{
 // TODO: Implement the contents of the `DetachKey` struct?
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
 pub struct DetachKey {}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
-#[repr(u8)]
-pub(crate) enum Ordering {
-    Unordered = core::sync::atomic::Ordering::Relaxed as u8,
-    SeqCst = core::sync::atomic::Ordering::SeqCst as u8,
-    #[expect(dead_code)]
-    Init,
-}
 
 /// ### [25.1.3.1 AllocateArrayBuffer ( constructor, byteLength \[ , maxByteLength \] )](https://tc39.es/ecma262/#sec-allocatearraybuffer)
 ///
@@ -95,24 +87,6 @@ pub(crate) fn allocate_array_buffer<'a>(
     Ok(obj)
 }
 
-/// ### [25.1.3.2 ArrayBufferByteLength ( arrayBuffer, order )](https://tc39.es/ecma262/#sec-arraybufferbytelength)
-///
-/// The abstract operation ArrayBufferByteLength takes arguments arrayBuffer
-/// (an ArrayBuffer or SharedArrayBuffer) and order (SEQ-CST or UNORDERED)
-/// and returns a non-negative integer.
-pub(crate) fn array_buffer_byte_length(agent: &Agent, array_buffer: ArrayBuffer) -> usize {
-    let array_buffer = &agent[array_buffer];
-    // 1. If IsSharedArrayBuffer(arrayBuffer) is true and arrayBuffer has an [[ArrayBufferByteLengthData]] internal slot, then
-    // a. Let bufferByteLengthBlock be arrayBuffer.[[ArrayBufferByteLengthData]].
-    // b. Let rawLength be GetRawBytesFromSharedBlock(bufferByteLengthBlock, 0, BIGUINT64, true, order).
-    // c. Let isLittleEndian be the value of the [[LittleEndian]] field of the surrounding agent's Agent Record.
-    // d. Return ℝ(RawBytesToNumeric(BIGUINT64, rawLength, isLittleEndian)).
-    // 2. Assert: IsDetachedBuffer(arrayBuffer) is false.
-    debug_assert!(!array_buffer.is_detached());
-    // 3. Return arrayBuffer.[[ArrayBufferByteLength]].
-    array_buffer.byte_length()
-}
-
 /// ### [25.1.3.3 IsDetachedBuffer ( arrayBuffer )](https://tc39.es/ecma262/#sec-isdetachedbuffer)
 ///
 /// The abstract operation IsDetachedBuffer takes argument *arrayBuffer* (an
@@ -155,44 +129,6 @@ pub(crate) fn detach_array_buffer<'a>(
     Ok(())
 }
 
-/// ### [25.1.3.5 CloneArrayBuffer ( srcBuffer, srcByteOffset, srcLength )](https://tc39.es/ecma262/#sec-clonearraybuffer)
-///
-/// The abstract operation CloneArrayBuffer takes arguments srcBuffer (an
-/// ArrayBuffer or a SharedArrayBuffer), srcByteOffset (a non-negative
-/// integer), and srcLength (a non-negative integer) and returns either a
-/// normal completion containing an ArrayBuffer or a throw completion. It
-/// creates a new ArrayBuffer whose data is a copy of srcBuffer's data over the
-/// range starting at srcByteOffset and continuing for srcLength bytes.
-pub(crate) fn clone_array_buffer<'a>(
-    agent: &mut Agent,
-    src_buffer: ArrayBuffer<'a>,
-    src_byte_offset: usize,
-    src_length: usize,
-    gc: NoGcScope<'a, '_>,
-) -> JsResult<'a, ArrayBuffer<'a>> {
-    // 1. Assert: IsDetachedBuffer(srcBuffer) is false.
-    debug_assert!(!src_buffer.is_detached(agent));
-    // 2. Let targetBuffer be ? AllocateArrayBuffer(%ArrayBuffer%, srcLength).
-    let target_buffer = ArrayBuffer::new(agent, src_length, gc)?;
-
-    let Heap { array_buffers, .. } = &mut agent.heap;
-    let (target_buffer_data, array_buffers) = array_buffers.split_last_mut().unwrap();
-    let target_buffer_data = target_buffer_data.as_mut().unwrap();
-    let src_buffer = array_buffers
-        .get(src_buffer.get_index())
-        .unwrap()
-        .as_ref()
-        .unwrap();
-    // 3. Let srcBlock be srcBuffer.[[ArrayBufferData]].
-    let src_block = src_buffer.get_data_block();
-    // 4. Let targetBlock be targetBuffer.[[ArrayBufferData]].
-    let target_block = target_buffer_data.get_data_block_mut();
-    // 5. Perform CopyDataBlockBytes(targetBlock, 0, srcBlock, srcByteOffset, srcLength).
-    copy_data_block_bytes(target_block, 0, src_block, src_byte_offset, src_length);
-    // 6. Return targetBuffer.
-    Ok(target_buffer)
-}
-
 /// ### [25.1.3.6 GetArrayBufferMaxByteLengthOption ( options )](https://tc39.es/ecma262/#sec-getarraybuffermaxbytelengthoption)
 ///
 /// The abstract operation GetArrayBufferMaxByteLengthOption takes argument
@@ -233,10 +169,11 @@ pub(crate) fn get_array_buffer_max_byte_length_option<'a>(
 /// The abstract operation IsFixedLengthArrayBuffer takes argument
 /// arrayBuffer (an ArrayBuffer or a SharedArrayBuffer) and returns a
 /// Boolean.
-pub(crate) fn is_fixed_length_array_buffer(agent: &Agent, array_buffer: ArrayBuffer) -> bool {
+#[inline(always)]
+pub(crate) fn is_fixed_length_array_buffer(agent: &Agent, array_buffer: AnyArrayBuffer) -> bool {
     // 1. If arrayBuffer has an [[ArrayBufferMaxByteLength]] internal slot, return false.
     // 2. Return true.
-    !agent[array_buffer].is_resizable()
+    !array_buffer.is_resizable(agent)
 }
 
 /// ### [25.1.3.13 RawBytesToNumeric ( type, rawBytes, isLittleEndian )](https://tc39.es/ecma262/#sec-rawbytestonumeric)
@@ -244,6 +181,7 @@ pub(crate) fn is_fixed_length_array_buffer(agent: &Agent, array_buffer: ArrayBuf
 /// The abstract operation RawBytesToNumeric takes arguments type (a
 /// TypedArray element type), rawBytes (a List of byte values), and
 /// isLittleEndian (a Boolean) and returns a Number or a BigInt.
+#[inline(always)]
 pub(crate) fn raw_bytes_to_numeric<'a, T: Viewable>(
     agent: &mut Agent,
     raw_bytes: T,
@@ -279,15 +217,13 @@ pub(crate) fn raw_bytes_to_numeric<'a, T: Viewable>(
 /// (a Shared Data Block), byteIndex (a non-negative integer), type (a
 /// TypedArray element type), isTypedArray (a Boolean), and order (SEQ-CST
 /// or UNORDERED) and returns a List of byte values.
-#[expect(dead_code)]
-pub(crate) fn get_raw_bytes_from_shared_block(
-    _array_buffer: ArrayBuffer,
-    _block: &DataBlock,
-    _byte_index: u32,
-    _type: (),
-    _is_typed_array: bool,
-    _order: Ordering,
-) {
+#[inline(always)]
+pub(crate) fn get_raw_bytes_from_shared_block<T: Viewable>(
+    block: &SharedDataBlock,
+    byte_index: usize,
+    is_typed_array: bool,
+    order: Ordering,
+) -> T {
     // 1. Let elementSize be the Element Size value specified in Table 71 for Element Type type.
     // 2. Let execution be the [[CandidateExecution]] field of the surrounding agent's Agent Record.
     // 3. Let eventsRecord be the Agent Events Record of execution.[[EventsRecords]] whose [[AgentSignifier]] is AgentSignifier().
@@ -298,6 +234,13 @@ pub(crate) fn get_raw_bytes_from_shared_block(
     // 8. Append readEvent to eventsRecord.[[EventList]].
     // 9. Append Chosen Value Record { [[Event]]: readEvent, [[ChosenValue]]: rawValue } to execution.[[ChosenValues]].
     // 10. Return rawValue.
+    if is_typed_array {
+        block.load::<T>(byte_index, order).expect("Invalid GetRawBytesFromSharedBlock call: did not check index alignment and buffer length beforehand")
+    } else {
+        block.load_unaligned::<T>(byte_index).expect(
+            "Invalid GetRawBytesFromSharedBlock call: did not check buffer length beforehand",
+        )
+    }
 }
 
 /// ### [25.1.3.15 GetValueFromBuffer ( arrayBuffer, byteIndex, type, isTypedArray, order \[ , isLittleEndian \] )](https://tc39.es/ecma262/#sec-getvaluefrombuffer)
@@ -309,10 +252,10 @@ pub(crate) fn get_raw_bytes_from_shared_block(
 /// (a Boolean) and returns a Number or a BigInt.
 pub(crate) fn get_value_from_buffer<'a, T: Viewable>(
     agent: &mut Agent,
-    array_buffer: ArrayBuffer,
+    array_buffer: AnyArrayBuffer,
     byte_index: usize,
-    _is_typed_array: bool,
-    _order: Ordering,
+    is_typed_array: bool,
+    order: Ordering,
     is_little_endian: Option<bool>,
     gc: NoGcScope<'a, '_>,
 ) -> Numeric<'a> {
@@ -320,17 +263,32 @@ pub(crate) fn get_value_from_buffer<'a, T: Viewable>(
     debug_assert!(!array_buffer.is_detached(agent));
     // 2. Assert: There are sufficient bytes in arrayBuffer starting at byteIndex to represent a value of type.
     // 4. Let elementSize be the Element Size value specified in Table 71 for Element Type type.
-    // 3. Let block be arrayBuffer.[[ArrayBufferData]].
-    let block = agent[array_buffer].get_data_block();
-    // 5. If IsSharedArrayBuffer(arrayBuffer) is true, then
-    // a. Assert: block is a Shared Data Block.
-    // b. Let rawValue be GetRawBytesFromSharedBlock(block, byteIndex, type,
-    //    isTypedArray, order).
-    // 6. Else,
-    // a. Let rawValue be a List whose elements are bytes from block at indices
-    //    in the interval from byteIndex (inclusive) to byteIndex + elementSize
-    //    (exclusive).
-    let raw_value = block.get_offset_by_byte::<T>(byte_index).unwrap();
+    let raw_value = match array_buffer {
+        // 5. If IsSharedArrayBuffer(arrayBuffer) is true, then
+        AnyArrayBuffer::SharedArrayBuffer(sab) => {
+            // 3. Let block be arrayBuffer.[[ArrayBufferData]].
+            let block = sab.get_data_block(agent);
+            // a. Assert: block is a Shared Data Block.
+            // b. Let rawValue be GetRawBytesFromSharedBlock(block, byteIndex, type,
+            //    isTypedArray, order).
+            get_raw_bytes_from_shared_block::<T>(block, byte_index, is_typed_array, order)
+        }
+        // 6. Else,
+        AnyArrayBuffer::ArrayBuffer(ab) => {
+            // 3. Let block be arrayBuffer.[[ArrayBufferData]].
+            let block = agent[ab].get_data_block();
+            // a. Let rawValue be a List whose elements are bytes from block at indices
+            //    in the interval from byteIndex (inclusive) to byteIndex + elementSize
+            //    (exclusive).
+            if is_typed_array {
+                // SAFETY: Caller checked.
+                unsafe { block.read_aligned(byte_index) }
+            } else {
+                // SAFETY: Caller checked.
+                unsafe { block.read_unaligned(byte_index) }
+            }
+        }
+    };
     // 7. Assert: The number of elements in rawValue is elementSize.
     // 8. If isLittleEndian is not present, set isLittleEndian to the value of
     //    the [[LittleEndian]] field of the surrounding agent's Agent Record.
@@ -390,11 +348,11 @@ pub(crate) fn numeric_to_raw_bytes<T: Viewable>(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn set_value_in_buffer<T: Viewable>(
     agent: &mut Agent,
-    array_buffer: ArrayBuffer,
+    array_buffer: AnyArrayBuffer,
     byte_index: usize,
     value: Numeric,
-    _is_typed_array: bool,
-    _order: Ordering,
+    is_typed_array: bool,
+    order: Ordering,
     is_little_endian: Option<bool>,
 ) {
     // 1. Assert: IsDetachedBuffer(arrayBuffer) is false.
@@ -417,18 +375,34 @@ pub(crate) fn set_value_in_buffer<T: Viewable>(
 
     // 7. Let rawBytes be NumericToRawBytes(type, value, isLittleEndian).
     let raw_bytes = numeric_to_raw_bytes::<T>(agent, value, is_little_endian);
-    // 8. If IsSharedArrayBuffer(arrayBuffer) is true, then
-    // a. Let execution be the [[CandidateExecution]] field of the surrounding agent's Agent Record.
-    // b. Let eventsRecord be the Agent Events Record of execution.[[EventsRecords]] whose [[AgentSignifier]] is AgentSignifier().
-    // c. If isTypedArray is true and IsNoTearConfiguration(type, order) is true, let noTear be true; otherwise let noTear be false.
-    // d. Append WriteSharedMemory { [[Order]]: order, [[NoTear]]: noTear, [[Block]]: block, [[ByteIndex]]: byteIndex, [[ElementSize]]: elementSize, [[Payload]]: rawBytes } to eventsRecord.[[EventList]].
-    // 9. Else,
+    match array_buffer {
+        // 8. If IsSharedArrayBuffer(arrayBuffer) is true, then
+        AnyArrayBuffer::SharedArrayBuffer(sab) => {
+            // 4. Let block be arrayBuffer.[[ArrayBufferData]].
+            let block = sab.get_data_block(agent);
+            // a. Let execution be the [[CandidateExecution]] field of the surrounding agent's Agent Record.
+            // b. Let eventsRecord be the Agent Events Record of execution.[[EventsRecords]] whose [[AgentSignifier]] is AgentSignifier().
+            // c. If isTypedArray is true and IsNoTearConfiguration(type, order) is true, let noTear be true; otherwise let noTear be false.
+            // d. Append WriteSharedMemory { [[Order]]: order, [[NoTear]]: noTear, [[Block]]: block, [[ByteIndex]]: byteIndex, [[ElementSize]]: elementSize, [[Payload]]: rawBytes } to eventsRecord.[[EventList]].
+            if is_typed_array {
+                block
+                    .store::<T>(byte_index, raw_bytes, order)
+                    .expect("Unaligned store or SharedDataBlock not large enough")
+            } else {
+                block
+                    .store_unaligned::<T>(byte_index, raw_bytes)
+                    .expect("SharedDataBlock not large enough")
+            }
+        }
+        // 9. Else,
+        AnyArrayBuffer::ArrayBuffer(ab) => {
+            // 4. Let block be arrayBuffer.[[ArrayBufferData]].
+            let block = agent[ab].get_data_block_mut();
+            // a. Store the individual bytes of rawBytes into block, starting at block[byteIndex].
+            block.set_offset_by_byte::<T>(byte_index, raw_bytes);
+        }
+    }
 
-    // 4. Let block be arrayBuffer.[[ArrayBufferData]].
-    let block = agent[array_buffer].get_data_block_mut();
-
-    // a. Store the individual bytes of rawBytes into block, starting at block[byteIndex].
-    block.set_offset_by_byte::<T>(byte_index, raw_bytes);
     // 10. Return UNUSED.
 }
 

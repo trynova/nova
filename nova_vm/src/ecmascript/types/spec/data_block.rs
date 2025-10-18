@@ -5,7 +5,7 @@
 //! ### [6.2.9 Data Blocks](https://tc39.es/ecma262/#sec-data-blocks)
 
 #[cfg(feature = "shared-array-buffer")]
-use core::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
+use core::sync::atomic::{AtomicUsize, Ordering};
 #[cfg(feature = "shared-array-buffer")]
 use std::hint::assert_unchecked;
 
@@ -17,6 +17,9 @@ use core::{
 };
 use std::alloc::{Layout, alloc_zeroed, dealloc, handle_alloc_error, realloc};
 
+use ecmascript_atomics::RacyStorage;
+#[cfg(feature = "shared-array-buffer")]
+use ecmascript_atomics::{Ordering as ECMAScriptOrdering, RacyPtr, RacySlice};
 use num_bigint::Sign;
 
 use crate::{
@@ -29,7 +32,7 @@ use crate::{
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{BigInt, IntoNumeric, Number, Numeric, Value},
     },
-    engine::context::NoGcScope,
+    engine::context::{NoGcScope, trivially_bindable},
 };
 
 #[cfg(feature = "array-buffer")]
@@ -49,6 +52,7 @@ pub(crate) struct DataBlock {
     ptr: Option<NonNull<u8>>,
     byte_length: usize,
 }
+trivially_bindable!(DataBlock);
 
 impl core::fmt::Debug for DataBlock {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -121,6 +125,7 @@ impl DataBlock {
         self.ptr.is_none()
     }
 
+    /// Allocate a new DataBlock with the given size.
     fn new(len: usize) -> Option<Self> {
         if len == 0 {
             Some(Self::EMPTY_DATA_BLOCK)
@@ -183,17 +188,45 @@ impl DataBlock {
         }
     }
 
-    pub(crate) fn get_offset_by_byte<T: Viewable>(&self, byte_offset: usize) -> Option<T> {
-        let size = core::mem::size_of::<T>();
-        let end_byte_offset = byte_offset + size;
-        if end_byte_offset > self.byte_length {
-            None
-        } else {
-            self.ptr.map(|data| {
-                // SAFETY: The data is properly initialized, and the T being read is
-                // checked to be fully within the length of the data allocation.
-                unsafe { read_unaligned(data.as_ptr().byte_add(byte_offset).cast()) }
-            })
+    /// Read a T from the buffer at `byte_offset`.
+    ///
+    /// # Safety
+    ///
+    /// The buffer must have enough room to read a T at `byte_offset` and must
+    /// not be detached. The offset must be aligned.
+    #[inline(always)]
+    pub(crate) unsafe fn read_aligned<T: Viewable>(&self, byte_offset: usize) -> T {
+        // SAFETY: The data is properly initialized, and the T being read is
+        // checked to be fully within the length of the data allocation.
+        unsafe {
+            core::ptr::read(
+                self.ptr
+                    .unwrap_unchecked()
+                    .as_ptr()
+                    .byte_add(byte_offset)
+                    .cast(),
+            )
+        }
+    }
+
+    /// Read a T from the buffer at `byte_offset`.
+    ///
+    /// # Safety
+    ///
+    /// The buffer must have enough room to read a T at `byte_offset` and must
+    /// not be detached.
+    #[inline(always)]
+    pub(crate) unsafe fn read_unaligned<T: Viewable>(&self, byte_offset: usize) -> T {
+        // SAFETY: The data is properly initialized, and the T being read is
+        // checked to be fully within the length of the data allocation.
+        unsafe {
+            core::ptr::read_unaligned(
+                self.ptr
+                    .unwrap_unchecked()
+                    .as_ptr()
+                    .byte_add(byte_offset)
+                    .cast(),
+            )
         }
     }
 
@@ -431,7 +464,7 @@ impl SharedDataBlockMaxByteLength {
 #[derive(PartialEq, Eq)]
 #[cfg(feature = "shared-array-buffer")]
 pub struct SharedDataBlock {
-    ptr: NonNull<AtomicU8>,
+    ptr: RacyPtr<u8>,
     max_byte_length: SharedDataBlockMaxByteLength,
 }
 
@@ -441,14 +474,6 @@ unsafe impl Send for SharedDataBlock {}
 // SAFETY: Atomic RC.
 #[cfg(feature = "shared-array-buffer")]
 unsafe impl Sync for SharedDataBlock {}
-
-#[cfg(feature = "shared-array-buffer")]
-impl core::fmt::Debug for SharedDataBlock {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        // SAFETY: ptr points to a valid allocation of byte_length bytes.
-        unsafe { core::slice::from_raw_parts(self.ptr.as_ptr(), self.byte_length()) }.fmt(f)
-    }
-}
 
 #[cfg(feature = "shared-array-buffer")]
 impl core::default::Default for SharedDataBlock {
@@ -476,6 +501,8 @@ impl Clone for SharedDataBlock {
 #[cfg(feature = "shared-array-buffer")]
 impl Drop for SharedDataBlock {
     fn drop(&mut self) {
+        use ecmascript_atomics::RacyMemory;
+
         if self.is_dangling() {
             // dangling shared data block; don't dealloc.
             return;
@@ -483,7 +510,7 @@ impl Drop for SharedDataBlock {
         let growable = self.is_growable();
         // SAFETY: SharedDataBlock guarantees we have a AtomicUsize allocated
         // before the bytes.
-        let rc_ptr = unsafe { self.ptr.cast::<AtomicUsize>().sub(1) };
+        let rc_ptr = unsafe { self.ptr.as_ptr().cast::<AtomicUsize>().sub(1) };
         {
             // SAFETY: the RC is definitely still allocated, as we haven't
             // subtracted ourselves from it yet.
@@ -508,6 +535,7 @@ impl Drop for SharedDataBlock {
                 return;
             }
         }
+        let max_byte_length = self.max_byte_length();
         // SAFETY: if we're here then we're the last holder of the data block.
         let (size, base_ptr) = if growable {
             // This is a growable SharedDataBlock that we're working with here.
@@ -515,7 +543,7 @@ impl Drop for SharedDataBlock {
             // SAFETY: layout guaranteed by type
             unsafe {
                 (
-                    self.max_byte_length()
+                    max_byte_length
                         .unchecked_add(core::mem::size_of::<(AtomicUsize, AtomicUsize)>()),
                     rc_ptr.sub(1),
                 )
@@ -523,12 +551,18 @@ impl Drop for SharedDataBlock {
         } else {
             unsafe {
                 (
-                    self.max_byte_length()
-                        .unchecked_add(core::mem::size_of::<AtomicUsize>()),
+                    max_byte_length.unchecked_add(core::mem::size_of::<AtomicUsize>()),
                     rc_ptr,
                 )
             }
         };
+        let memory = RacyMemory::from_raw_parts(self.ptr, max_byte_length);
+        // SAFETY: As per the CAS loop on the reference count, we are the only
+        // referrer to the racy memory. We can thus deallocate the ECMAScript
+        // memory; this effectively grows our Rust memory from being just the
+        // RC and possible byte length value, into also containing the byte
+        // data.
+        let _ = unsafe { memory.exit() };
         // SAFETY: layout guaranteed by type.
         let layout = unsafe { Layout::from_size_align(size, 8).unwrap_unchecked() };
         unsafe { dealloc(base_ptr.cast::<u8>().as_ptr(), layout) }
@@ -538,12 +572,12 @@ impl Drop for SharedDataBlock {
 #[cfg(feature = "shared-array-buffer")]
 impl SharedDataBlock {
     const DANGLING_STATIC_SHARED_DATA_BLOCK: Self = Self {
-        ptr: NonNull::<AtomicUsize>::dangling().cast(),
+        ptr: RacyPtr::dangling(),
         max_byte_length: SharedDataBlockMaxByteLength(0),
     };
 
     const DANGLING_GROWABLE_SHARED_DATA_BLOCK: Self = Self {
-        ptr: NonNull::<AtomicUsize>::dangling().cast(),
+        ptr: RacyPtr::dangling(),
         max_byte_length: SharedDataBlockMaxByteLength(1usize.rotate_right(1)),
     };
 
@@ -568,6 +602,8 @@ impl SharedDataBlock {
             // Note: if we start supporting 32-bit environments which do not
             // have 64-bit atomics, then we need to allocate a lock word to the
             // beginning as well.
+
+            use ecmascript_atomics::RacyMemory;
             let alloc_size = if growable {
                 // Growable SharedArrayBuffer
                 size.checked_add(core::mem::size_of::<(AtomicUsize, AtomicUsize)>())?
@@ -598,10 +634,26 @@ impl SharedDataBlock {
             }
             // SAFETY: the pointer is len + usize
             let ptr = unsafe { rc_ptr.add(1) };
+            // SAFETY: ptr does point to size bytes of readable and writable
+            // Rust memory. After this call, that memory is deallocated and we
+            // receive a new RacyMemory in its stead. Reads and writes through
+            // it are undefined behaviour. Note though that we still have the
+            // RC and possible length values before the pointer; those are in
+            // normal Rust memory.
+            let ptr = unsafe { RacyMemory::<u8>::enter(ptr.cast(), size) };
             Some(Self {
-                ptr: ptr.cast(),
+                ptr: ptr.as_slice().into_raw_parts().0,
                 max_byte_length: SharedDataBlockMaxByteLength::new(size, growable),
             })
+        }
+    }
+
+    /// Get a racy memory slice from the SharedDataBlock.
+    pub(crate) fn as_racy_slice(&self) -> RacySlice<'_, u8> {
+        // SAFETY: Type guarantees that ptr is backed by at least byte_length
+        // racy bytes.
+        unsafe {
+            RacySlice::from_raw_parts(self.ptr, self.byte_length(ECMAScriptOrdering::Unordered))
         }
     }
 
@@ -612,7 +664,7 @@ impl SharedDataBlock {
     /// Must not be a dangling SharedDataBlock.
     unsafe fn get_rc(&self) -> &AtomicUsize {
         // SAFETY: type guarantees layout
-        unsafe { self.ptr.cast::<AtomicUsize>().sub(1).as_ref() }
+        unsafe { self.ptr.as_ptr().cast::<AtomicUsize>().sub(1).as_ref() }
     }
 
     /// Get a reference to the atomic byte length.
@@ -622,7 +674,7 @@ impl SharedDataBlock {
     /// Must be a growable, non-dangling SharedDataBlock.
     unsafe fn get_byte_length(&self) -> &AtomicUsize {
         // SAFETY: caller guarantees growable; type guarantees layout.
-        unsafe { self.ptr.cast::<AtomicUsize>().sub(2).as_ref() }
+        unsafe { self.ptr.as_ptr().cast::<AtomicUsize>().sub(2).as_ref() }
     }
 
     /// Returns the byte length of the SharedArrayBuffer.
@@ -631,22 +683,20 @@ impl SharedDataBlock {
     /// can be grown from other threads and reading it is a sequentially
     /// consistent atomic operation.
     #[inline(always)]
-    pub(crate) fn byte_length(&self) -> usize {
+    pub(crate) fn byte_length(&self, order: ECMAScriptOrdering) -> usize {
         if self.is_dangling() {
             return 0;
         }
         if self.is_growable() {
             // Need to read the byte length atomically.
             // SAFETY: This is non-dangling growable SharedDataBlock, so the
-            // pointer points to the AtomicU8 slice of
-            // `(AtomicUsize, AtomicUsize, [AtomicU8; N])`
-            let byte_length = unsafe {
-                self.ptr
-                    .sub(core::mem::size_of::<(AtomicUsize, AtomicUsize)>())
-                    .cast::<AtomicUsize>()
-                    .as_ref()
-            };
-            byte_length.load(Ordering::SeqCst)
+            // pointer points to the racy memory of
+            // `(AtomicUsize, AtomicUsize, ...racy memory...)`
+            let byte_length = unsafe { self.get_byte_length() };
+            byte_length.load(match order {
+                ECMAScriptOrdering::Unordered => Ordering::Relaxed,
+                ECMAScriptOrdering::SeqCst => Ordering::SeqCst,
+            })
         } else {
             self.max_byte_length()
         }
@@ -669,6 +719,225 @@ impl SharedDataBlock {
     #[inline(always)]
     pub(crate) fn is_growable(&self) -> bool {
         self.max_byte_length.is_growable()
+    }
+
+    /// Read a value at the given aligned offset and with the given ordering.
+    ///
+    /// Returns `None` if the offset is not correctly aligned or the index is
+    /// out of bounds.
+    ///
+    /// # Soundness
+    ///
+    /// There is no read in the Rust world: we use the racy atomic operations
+    /// of ecmascript_atomics, which tries its best to make sure we don't leak
+    /// the status of the memory to Rust. As such, this should be pretty okay.
+    #[inline(always)]
+    pub(crate) fn load<T: Viewable>(
+        &self,
+        byte_offset: usize,
+        order: ECMAScriptOrdering,
+    ) -> Option<T> {
+        let slice = self.as_racy_slice().slice_from(byte_offset);
+        if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>()
+        {
+            // SAFETY: Type checked to match.
+            unsafe {
+                core::mem::transmute_copy::<Option<u8>, Option<T>>(
+                    &slice.as_u8().map(|t| t.load(order)),
+                )
+            }
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u16>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i16>()
+        {
+            // SAFETY: Type checked to match.
+            unsafe {
+                core::mem::transmute_copy::<Option<u16>, Option<T>>(
+                    &slice.as_u16().map(|t| t.load(order)),
+                )
+            }
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>()
+        {
+            // SAFETY: Type checked to match.
+            unsafe {
+                core::mem::transmute_copy::<Option<u32>, Option<T>>(
+                    &slice.as_u32().map(|t| t.load(order)),
+                )
+            }
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>()
+        {
+            // SAFETY: Type checked to match.
+            unsafe {
+                core::mem::transmute_copy::<Option<u64>, Option<T>>(
+                    &slice.as_u64().map(|t| t.load(order)),
+                )
+            }
+        } else {
+            #[cfg(feature = "proposal-float16array")]
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f16>() {
+                // SAFETY: Type checked to match.
+                return unsafe {
+                    core::mem::transmute_copy::<Option<u16>, Option<T>>(
+                        &slice.as_u16().map(|t| t.load(order)),
+                    )
+                };
+            }
+            unreachable!("Unexpected load type")
+        }
+    }
+
+    /// Read a value at the given possibly unaligned offset with no
+    /// synchronisation. This read may tear.
+    ///
+    /// Returns `None` if the index is out of bounds.
+    ///
+    /// # Soundness
+    ///
+    /// There is no read in the Rust world: we use the racy atomic operations
+    /// of ecmascript_atomics, which tries its best to make sure we don't leak
+    /// the status of the memory to Rust. As such, this should be pretty okay.
+    #[inline(always)]
+    pub(crate) fn load_unaligned<T: Viewable>(&self, byte_offset: usize) -> Option<T> {
+        let slice = self.as_racy_slice().slice_from(byte_offset);
+        if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>()
+        {
+            // SAFETY: Type checked to match.
+            unsafe { core::mem::transmute_copy::<Option<u8>, Option<T>>(&slice.load_u8()) }
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u16>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i16>()
+        {
+            // SAFETY: Type checked to match.
+            unsafe { core::mem::transmute_copy::<Option<u16>, Option<T>>(&slice.load_u16()) }
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>()
+        {
+            // SAFETY: Type checked to match.
+            unsafe { core::mem::transmute_copy::<Option<u32>, Option<T>>(&slice.load_u32()) }
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>()
+        {
+            // SAFETY: Type checked to match.
+            unsafe { core::mem::transmute_copy::<Option<u64>, Option<T>>(&slice.load_u64()) }
+        } else {
+            #[cfg(feature = "proposal-float16array")]
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f16>() {
+                // SAFETY: Type checked to match.
+                return unsafe {
+                    core::mem::transmute_copy::<Option<u16>, Option<T>>(&slice.load_u16())
+                };
+            }
+            unreachable!("Unexpected load_unaligned type")
+        }
+    }
+
+    /// Write a value at the given offset and the given ordering.
+    ///
+    /// Returns `None` if the offset is not correctly aligned or the index is
+    /// out of bounds.
+    ///
+    /// # Soundness
+    ///
+    /// There is no write in the Rust world: this should be pretty okay.
+    pub(crate) fn store<T: Viewable>(
+        &self,
+        byte_offset: usize,
+        val: T,
+        order: ECMAScriptOrdering,
+    ) -> Option<()> {
+        let slice = self.as_racy_slice().slice_from(byte_offset);
+        if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>()
+        {
+            // SAFETY: Type checked to match.
+            let val = unsafe { core::mem::transmute_copy::<T, u8>(&val) };
+            slice.as_u8().map(|t| t.store(val, order))
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u16>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i16>()
+        {
+            // SAFETY: Type checked to match.
+            let val = unsafe { core::mem::transmute_copy::<T, u16>(&val) };
+            slice.as_u16().map(|t| t.store(val, order))
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>()
+        {
+            // SAFETY: Type checked to match.
+            let val = unsafe { core::mem::transmute_copy::<T, u32>(&val) };
+            slice.as_u32().map(|t| t.store(val, order))
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>()
+        {
+            // SAFETY: Type checked to match.
+            let val = unsafe { core::mem::transmute_copy::<T, u64>(&val) };
+            slice.as_u64().map(|t| t.store(val, order))
+        } else {
+            #[cfg(feature = "proposal-float16array")]
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f16>() {
+                // SAFETY: Type checked to match.
+                let val = unsafe { core::mem::transmute_copy::<T, u16>(&val) };
+                return slice.as_u16().map(|t| t.store(val, order));
+            }
+            unreachable!("Unexpected read type {:?}", core::any::type_name::<T>())
+        }
+    }
+
+    /// Write a value at the given possibly unaligned offset with no
+    /// synchronisation. This write may tear.
+    ///
+    /// Returns `None` if the index is out of bounds.
+    ///
+    /// # Soundness
+    ///
+    /// There is no write in the Rust world: this should be pretty okay.
+    pub(crate) fn store_unaligned<T: Viewable>(&self, byte_offset: usize, val: T) -> Option<()> {
+        let slice = self.as_racy_slice().slice_from(byte_offset);
+        if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>()
+        {
+            // SAFETY: Type checked to match.
+            let val = unsafe { core::mem::transmute_copy::<T, u8>(&val) };
+            slice.store_u8(val)
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u16>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i16>()
+        {
+            // SAFETY: Type checked to match.
+            let val = unsafe { core::mem::transmute_copy::<T, u16>(&val) };
+            slice.store_u16(val)
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>()
+        {
+            // SAFETY: Type checked to match.
+            let val = unsafe { core::mem::transmute_copy::<T, u32>(&val) };
+            slice.store_u32(val)
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>()
+            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>()
+        {
+            // SAFETY: Type checked to match.
+            let val = unsafe { core::mem::transmute_copy::<T, u64>(&val) };
+            slice.store_u64(val)
+        } else {
+            #[cfg(feature = "proposal-float16array")]
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f16>() {
+                // SAFETY: Type checked to match.
+                let val = unsafe { core::mem::transmute_copy::<T, u16>(&val) };
+                return slice.store_u16(val);
+            }
+            unreachable!("Unexpected read type")
+        }
     }
 
     /// Attempt to grow the SharedDataBlock. Returns false if `new_byte_length`
@@ -923,16 +1192,21 @@ pub(crate) fn copy_shared_data_block_bytes(
     // Rust, so this is very much undefined behaviour _if_ the JavaScript code
     // causes a data race. The ECMAScript specification helpfully "recommends
     // programs be kept data races free". We'll trust that, I guess!?
-    let to_ptr = to_block.ptr.cast::<u8>();
-    let from_ptr = from_block.ptr.cast::<u8>();
     // SAFETY: Pointers have been checked to not overlap.
-    unsafe { to_ptr.copy_from_nonoverlapping(from_ptr, count) };
+    to_block
+        .as_racy_slice()
+        .slice(to_index, to_index + count)
+        .copy_from_racy_slice(
+            &from_block
+                .as_racy_slice()
+                .slice(from_index, from_index + count),
+        );
     // 7. Return UNUSED.
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub(crate) struct U8Clamped(pub u8);
+pub struct U8Clamped(pub u8);
 
 impl core::fmt::Debug for U8Clamped {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -944,6 +1218,7 @@ mod private {
     use super::U8Clamped;
 
     pub trait Sealed {}
+    impl Sealed for () {}
     impl Sealed for u8 {}
     impl Sealed for U8Clamped {}
     impl Sealed for i8 {}
@@ -959,12 +1234,17 @@ mod private {
     impl Sealed for f64 {}
 }
 
-pub trait Viewable: 'static + private::Sealed + Copy + PartialEq {
+pub trait Viewable: 'static + private::Sealed + Copy + PartialEq + core::fmt::Debug {
+    /// Type of the data in its storage format. This is used with
+    /// SharedDataBlock.
+    type Storage: RacyStorage;
+
     /// Functions as the \[\[ContentType\]\] internal slot of the TypedArray and
     /// as a marker for data views. Used to determine that the viewable type is
     /// a BigInt.
     const IS_BIGINT: bool = false;
     const IS_FLOAT: bool = false;
+    const NAME: &str;
 
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics;
@@ -979,10 +1259,10 @@ pub trait Viewable: 'static + private::Sealed + Copy + PartialEq {
             self.into_be_value(agent, gc)
         }
     }
-    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self;
-    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self;
+    fn from_le_value(agent: &Agent, value: Numeric) -> Self;
+    fn from_be_value(agent: &Agent, value: Numeric) -> Self;
     #[inline(always)]
-    fn from_ne_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_ne_value(agent: &Agent, value: Numeric) -> Self {
         if cfg!(target_endian = "little") {
             Self::from_le_value(agent, value)
         } else {
@@ -1014,6 +1294,10 @@ pub trait Viewable: 'static + private::Sealed + Copy + PartialEq {
     /// go through a conversion into Value.
     fn from_bits(bits: u64) -> Self;
 
+    fn into_storage(value: Self) -> Self::Storage;
+
+    fn from_storage(value: Self::Storage) -> Self;
+
     /// Convert a Viewable value into an f64.
     ///
     /// This is used to convert Viewables to other Viewables without having to
@@ -1024,11 +1308,90 @@ pub trait Viewable: 'static + private::Sealed + Copy + PartialEq {
     /// This is used to convert Viewables to other Viewables without having to
     /// go through a conversion into Value.
     fn from_f64(value: f64) -> Self;
+
+    /// Reverses the byte order of the value.
+    fn flip_endian(self) -> Self;
+
+    /// Compare A and B of a Viewable type and always return an Ordering.
+    ///
+    /// This ordering is the usual total order for integers, and the special
+    /// ECMAScript defined ordering for floats.
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering;
+}
+
+impl Viewable for () {
+    // Note: this is not a valid storage format for () really. VoidArrays never
+    // get stored so it's okay.
+    type Storage = u8;
+
+    #[cfg(feature = "array-buffer")]
+    const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint8Array;
+    const NAME: &str = "VoidArray";
+
+    fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        panic!("VoidArray is a marker type");
+    }
+
+    fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        panic!("VoidArray is a marker type");
+    }
+
+    fn from_be_value(_: &Agent, _: Numeric) -> Self {
+        panic!("VoidArray is a marker type");
+    }
+
+    fn from_le_value(_: &Agent, _: Numeric) -> Self {
+        panic!("VoidArray is a marker type");
+    }
+
+    fn try_from_value(_: &mut Agent, _: Value) -> Option<Self> {
+        panic!("VoidArray is a marker type");
+    }
+
+    fn default() -> Self {
+        panic!("VoidArray is a marker type");
+    }
+
+    fn into_bits(self) -> u64 {
+        panic!("VoidArray is a marker type");
+    }
+
+    fn from_bits(_: u64) -> Self {
+        panic!("VoidArray is a marker type");
+    }
+
+    fn from_storage(_: Self::Storage) -> Self {
+        panic!("VoidArray is a marker type");
+    }
+
+    fn into_storage(_: Self) -> Self::Storage {
+        panic!("VoidArray is a marker type");
+    }
+
+    fn into_f64(self) -> f64 {
+        panic!("VoidArray is a marker type");
+    }
+
+    fn from_f64(_: f64) -> Self {
+        panic!("VoidArray is a marker type");
+    }
+
+    fn flip_endian(self) -> Self {
+        panic!("VoidArray is a marker type");
+    }
+
+    #[inline(always)]
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.cmp(other)
+    }
 }
 
 impl Viewable for u8 {
+    type Storage = Self;
+
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint8Array;
+    const NAME: &str = "Uint8Array";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
         Number::from(self.to_be()).into_numeric()
@@ -1038,14 +1401,14 @@ impl Viewable for u8 {
         Number::from(self.to_le()).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_be_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
         to_uint8_number(agent, value).to_be()
     }
 
-    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_le_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
@@ -1074,17 +1437,43 @@ impl Viewable for u8 {
         bits as Self
     }
 
+    #[inline(always)]
+    fn from_storage(value: Self::Storage) -> Self {
+        value
+    }
+
+    #[inline(always)]
+    fn into_storage(value: Self) -> Self::Storage {
+        value
+    }
+
     fn into_f64(self) -> f64 {
         self.into()
     }
 
     fn from_f64(value: f64) -> Self {
-        value as Self
+        if !value.is_finite() {
+            return 0;
+        }
+        value.trunc() as i64 as Self
+    }
+
+    #[inline(always)]
+    fn flip_endian(self) -> Self {
+        self.swap_bytes()
+    }
+
+    #[inline(always)]
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.cmp(other)
     }
 }
 impl Viewable for U8Clamped {
+    type Storage = u8;
+
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint8ClampedArray;
+    const NAME: &str = "Uint8ClampedArray";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
         Number::from(self.0.to_be()).into_numeric()
@@ -1094,14 +1483,14 @@ impl Viewable for U8Clamped {
         Number::from(self.0.to_le()).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_be_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
         Self(to_uint8_clamp_number(agent, value).to_be())
     }
 
-    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_le_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
@@ -1130,17 +1519,43 @@ impl Viewable for U8Clamped {
         U8Clamped(bits.clamp(0, 255) as u8)
     }
 
+    #[inline(always)]
+    fn from_storage(value: Self::Storage) -> Self {
+        Self(value)
+    }
+
+    #[inline(always)]
+    fn into_storage(value: Self) -> Self::Storage {
+        value.0
+    }
+
     fn into_f64(self) -> f64 {
         self.0.into()
     }
 
     fn from_f64(value: f64) -> Self {
+        if value.is_nan() {
+            return Self(0);
+        }
         U8Clamped(value.clamp(0.0, 255.0).round_ties_even() as u8)
+    }
+
+    #[inline(always)]
+    fn flip_endian(self) -> Self {
+        Self(self.0.swap_bytes())
+    }
+
+    #[inline(always)]
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.cmp(other)
     }
 }
 impl Viewable for i8 {
+    type Storage = u8;
+
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Int8Array;
+    const NAME: &str = "Int8Array";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
         Number::from(self.to_be()).into_numeric()
@@ -1150,14 +1565,14 @@ impl Viewable for i8 {
         Number::from(self.to_le()).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_be_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
         to_int8_number(agent, value).to_be()
     }
 
-    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_le_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
@@ -1186,17 +1601,43 @@ impl Viewable for i8 {
         bits as Self
     }
 
+    #[inline(always)]
+    fn from_storage(value: Self::Storage) -> Self {
+        value.cast_signed()
+    }
+
+    #[inline(always)]
+    fn into_storage(value: Self) -> Self::Storage {
+        value.cast_unsigned()
+    }
+
     fn into_f64(self) -> f64 {
         self.into()
     }
 
     fn from_f64(value: f64) -> Self {
-        value as Self
+        if !value.is_finite() {
+            return 0;
+        }
+        value.trunc() as i64 as Self
+    }
+
+    #[inline(always)]
+    fn flip_endian(self) -> Self {
+        self.swap_bytes()
+    }
+
+    #[inline(always)]
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.cmp(other)
     }
 }
 impl Viewable for u16 {
+    type Storage = Self;
+
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint16Array;
+    const NAME: &str = "Uint16Array";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
         Number::from(self.to_be()).into_numeric()
@@ -1206,14 +1647,14 @@ impl Viewable for u16 {
         Number::from(self.to_le()).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_be_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
         to_uint16_number(agent, value).to_be()
     }
 
-    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_le_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
@@ -1242,17 +1683,43 @@ impl Viewable for u16 {
         bits as Self
     }
 
+    #[inline(always)]
+    fn from_storage(value: Self::Storage) -> Self {
+        value
+    }
+
+    #[inline(always)]
+    fn into_storage(value: Self) -> Self::Storage {
+        value
+    }
+
     fn into_f64(self) -> f64 {
         self.into()
     }
 
     fn from_f64(value: f64) -> Self {
-        value as Self
+        if !value.is_finite() {
+            return 0;
+        }
+        value.trunc() as i64 as Self
+    }
+
+    #[inline(always)]
+    fn flip_endian(self) -> Self {
+        self.swap_bytes()
+    }
+
+    #[inline(always)]
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.cmp(other)
     }
 }
 impl Viewable for i16 {
+    type Storage = u16;
+
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Int16Array;
+    const NAME: &str = "Int16Array";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
         Number::from(self.to_be()).into_numeric()
@@ -1262,14 +1729,14 @@ impl Viewable for i16 {
         Number::from(self.to_le()).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_be_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
         to_int16_number(agent, value).to_be()
     }
 
-    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_le_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
@@ -1298,17 +1765,43 @@ impl Viewable for i16 {
         bits as Self
     }
 
+    #[inline(always)]
+    fn from_storage(value: Self::Storage) -> Self {
+        value.cast_signed()
+    }
+
+    #[inline(always)]
+    fn into_storage(value: Self) -> Self::Storage {
+        value.cast_unsigned()
+    }
+
     fn into_f64(self) -> f64 {
         self.into()
     }
 
     fn from_f64(value: f64) -> Self {
-        value as Self
+        if !value.is_finite() {
+            return 0;
+        }
+        value.trunc() as i64 as Self
+    }
+
+    #[inline(always)]
+    fn flip_endian(self) -> Self {
+        self.swap_bytes()
+    }
+
+    #[inline(always)]
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.cmp(other)
     }
 }
 impl Viewable for u32 {
+    type Storage = Self;
+
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint32Array;
+    const NAME: &str = "Uint32Array";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
         Number::from(self.to_be()).into_numeric()
@@ -1318,14 +1811,14 @@ impl Viewable for u32 {
         Number::from(self.to_le()).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_be_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
         to_uint32_number(agent, value).to_be()
     }
 
-    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_le_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
@@ -1354,17 +1847,43 @@ impl Viewable for u32 {
         bits as Self
     }
 
+    #[inline(always)]
+    fn from_storage(value: Self::Storage) -> Self {
+        value
+    }
+
+    #[inline(always)]
+    fn into_storage(value: Self) -> Self::Storage {
+        value
+    }
+
     fn into_f64(self) -> f64 {
         self.into()
     }
 
     fn from_f64(value: f64) -> Self {
-        value as Self
+        if !value.is_finite() {
+            return 0;
+        }
+        value.trunc() as i64 as Self
+    }
+
+    #[inline(always)]
+    fn flip_endian(self) -> Self {
+        self.swap_bytes()
+    }
+
+    #[inline(always)]
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.cmp(other)
     }
 }
 impl Viewable for i32 {
+    type Storage = u32;
+
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Int32Array;
+    const NAME: &str = "Int32Array";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
         Number::from(self.to_be()).into_numeric()
@@ -1374,14 +1893,14 @@ impl Viewable for i32 {
         Number::from(self.to_le()).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_be_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
         to_int32_number(agent, value).to_be()
     }
 
-    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_le_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
@@ -1410,18 +1929,44 @@ impl Viewable for i32 {
         bits as Self
     }
 
+    #[inline(always)]
+    fn from_storage(value: Self::Storage) -> Self {
+        value.cast_signed()
+    }
+
+    #[inline(always)]
+    fn into_storage(value: Self) -> Self::Storage {
+        value.cast_unsigned()
+    }
+
     fn into_f64(self) -> f64 {
         self.into()
     }
 
     fn from_f64(value: f64) -> Self {
-        value as Self
+        if !value.is_finite() {
+            return 0;
+        }
+        value.trunc() as i64 as Self
+    }
+
+    #[inline(always)]
+    fn flip_endian(self) -> Self {
+        self.swap_bytes()
+    }
+
+    #[inline(always)]
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.cmp(other)
     }
 }
 impl Viewable for u64 {
+    type Storage = Self;
+
     const IS_BIGINT: bool = true;
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::BigUint64Array;
+    const NAME: &str = "BigUint64Array";
 
     fn into_be_value<'a>(self, agent: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
         BigInt::from_u64(agent, self.to_be()).into_numeric()
@@ -1431,14 +1976,14 @@ impl Viewable for u64 {
         BigInt::from_u64(agent, self.to_le()).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_be_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = BigInt::try_from(value) else {
             unreachable!()
         };
         to_big_uint64_big_int(agent, value).to_be()
     }
 
-    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_le_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = BigInt::try_from(value) else {
             unreachable!()
         };
@@ -1478,18 +2023,44 @@ impl Viewable for u64 {
         bits
     }
 
+    #[inline(always)]
+    fn from_storage(value: Self::Storage) -> Self {
+        value
+    }
+
+    #[inline(always)]
+    fn into_storage(value: Self) -> Self::Storage {
+        value
+    }
+
     fn into_f64(self) -> f64 {
         self as f64
     }
 
     fn from_f64(value: f64) -> Self {
-        value as Self
+        if !value.is_finite() {
+            return 0;
+        }
+        value.trunc() as i64 as Self
+    }
+
+    #[inline(always)]
+    fn flip_endian(self) -> Self {
+        self.swap_bytes()
+    }
+
+    #[inline(always)]
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.cmp(other)
     }
 }
 impl Viewable for i64 {
+    type Storage = u64;
+
     const IS_BIGINT: bool = true;
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::BigInt64Array;
+    const NAME: &str = "BigInt64Array";
 
     fn into_be_value<'a>(self, agent: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
         BigInt::from_i64(agent, self.to_be()).into_numeric()
@@ -1499,14 +2070,14 @@ impl Viewable for i64 {
         BigInt::from_i64(agent, self.to_le()).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_be_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = BigInt::try_from(value) else {
             unreachable!()
         };
         to_big_int64_big_int(agent, value).to_be()
     }
 
-    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_le_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = BigInt::try_from(value) else {
             unreachable!()
         };
@@ -1552,17 +2123,43 @@ impl Viewable for i64 {
         bits as Self
     }
 
+    #[inline(always)]
+    fn from_storage(value: Self::Storage) -> Self {
+        value.cast_signed()
+    }
+
+    #[inline(always)]
+    fn into_storage(value: Self) -> Self::Storage {
+        value.cast_unsigned()
+    }
+
     fn into_f64(self) -> f64 {
         self as f64
     }
 
     fn from_f64(value: f64) -> Self {
-        value as Self
+        if !value.is_finite() {
+            return 0;
+        }
+        value.trunc() as i64 as Self
+    }
+
+    #[inline(always)]
+    fn flip_endian(self) -> Self {
+        self.swap_bytes()
+    }
+
+    #[inline(always)]
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.cmp(other)
     }
 }
 #[cfg(feature = "proposal-float16array")]
 impl Viewable for f16 {
+    type Storage = u16;
+
     const IS_FLOAT: bool = true;
+    const NAME: &str = "Float16Array";
 
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float16Array;
@@ -1575,14 +2172,14 @@ impl Viewable for f16 {
         Number::from(Self::from_ne_bytes(self.to_le_bytes())).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_be_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
         Self::from_ne_bytes((value.to_real(agent) as Self).to_be_bytes())
     }
 
-    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_le_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
@@ -1615,16 +2212,57 @@ impl Viewable for f16 {
         bits as Self
     }
 
+    #[inline(always)]
+    fn from_storage(value: Self::Storage) -> Self {
+        f16::from_bits(value)
+    }
+
+    #[inline(always)]
+    fn into_storage(value: Self) -> Self::Storage {
+        f16::to_bits(value)
+    }
+
     fn into_f64(self) -> f64 {
-        self.into()
+        self as f64
     }
 
     fn from_f64(value: f64) -> Self {
         value as Self
     }
+
+    #[inline(always)]
+    fn flip_endian(self) -> Self {
+        Self::from_bits(self.to_bits().swap_bytes())
+    }
+
+    #[inline(always)]
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
+        if self.is_nan() {
+            if other.is_nan() {
+                return core::cmp::Ordering::Equal;
+            }
+            return core::cmp::Ordering::Greater;
+        }
+        if other.is_nan() {
+            return core::cmp::Ordering::Less;
+        }
+        if *self == 0.0 && *other == 0.0 {
+            if self.is_sign_negative() && other.is_sign_positive() {
+                return core::cmp::Ordering::Less;
+            }
+            if self.is_sign_positive() && other.is_sign_negative() {
+                return core::cmp::Ordering::Greater;
+            }
+            return core::cmp::Ordering::Equal;
+        }
+        self.partial_cmp(other).unwrap()
+    }
 }
 impl Viewable for f32 {
+    type Storage = u32;
+
     const IS_FLOAT: bool = true;
+    const NAME: &str = "Float32Array";
 
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float32Array;
@@ -1637,14 +2275,14 @@ impl Viewable for f32 {
         Number::from(Self::from_ne_bytes(self.to_le_bytes())).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_be_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
         Self::from_ne_bytes((value.to_real(agent) as Self).to_be_bytes())
     }
 
-    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_le_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
@@ -1678,6 +2316,16 @@ impl Viewable for f32 {
         bits as Self
     }
 
+    #[inline(always)]
+    fn from_storage(value: Self::Storage) -> Self {
+        f32::from_bits(value)
+    }
+
+    #[inline(always)]
+    fn into_storage(value: Self) -> Self::Storage {
+        f32::to_bits(value)
+    }
+
     fn into_f64(self) -> f64 {
         self.into()
     }
@@ -1685,9 +2333,40 @@ impl Viewable for f32 {
     fn from_f64(value: f64) -> Self {
         value as Self
     }
+
+    #[inline(always)]
+    fn flip_endian(self) -> Self {
+        Self::from_bits(self.to_bits().swap_bytes())
+    }
+
+    #[inline(always)]
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
+        if self.is_nan() {
+            if other.is_nan() {
+                return core::cmp::Ordering::Equal;
+            }
+            return core::cmp::Ordering::Greater;
+        }
+        if other.is_nan() {
+            return core::cmp::Ordering::Less;
+        }
+        if *self == 0.0 && *other == 0.0 {
+            if self.is_sign_negative() && other.is_sign_positive() {
+                return core::cmp::Ordering::Less;
+            }
+            if self.is_sign_positive() && other.is_sign_negative() {
+                return core::cmp::Ordering::Greater;
+            }
+            return core::cmp::Ordering::Equal;
+        }
+        self.partial_cmp(other).unwrap()
+    }
 }
 impl Viewable for f64 {
+    type Storage = u64;
+
     const IS_FLOAT: bool = true;
+    const NAME: &str = "Float64Array";
 
     #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float64Array;
@@ -1700,14 +2379,14 @@ impl Viewable for f64 {
         Number::from_f64(agent, Self::from_ne_bytes(self.to_le_bytes()), gc).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_be_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
         Self::from_ne_bytes((value.to_real(agent) as Self).to_be_bytes())
     }
 
-    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+    fn from_le_value(agent: &Agent, value: Numeric) -> Self {
         let Ok(value) = Number::try_from(value) else {
             unreachable!()
         };
@@ -1733,12 +2412,50 @@ impl Viewable for f64 {
         bits as Self
     }
 
+    #[inline(always)]
+    fn from_storage(value: Self::Storage) -> Self {
+        f64::from_bits(value)
+    }
+
+    #[inline(always)]
+    fn into_storage(value: Self) -> Self::Storage {
+        f64::to_bits(value)
+    }
+
     fn into_f64(self) -> f64 {
         self
     }
 
     fn from_f64(value: f64) -> Self {
         value
+    }
+
+    #[inline(always)]
+    fn flip_endian(self) -> Self {
+        Self::from_bits(self.to_bits().swap_bytes())
+    }
+
+    #[inline(always)]
+    fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
+        if self.is_nan() {
+            if other.is_nan() {
+                return core::cmp::Ordering::Equal;
+            }
+            return core::cmp::Ordering::Greater;
+        }
+        if other.is_nan() {
+            return core::cmp::Ordering::Less;
+        }
+        if *self == 0.0 && *other == 0.0 {
+            if self.is_sign_negative() && other.is_sign_positive() {
+                return core::cmp::Ordering::Less;
+            }
+            if self.is_sign_positive() && other.is_sign_negative() {
+                return core::cmp::Ordering::Greater;
+            }
+            return core::cmp::Ordering::Equal;
+        }
+        self.partial_cmp(other).unwrap()
     }
 }
 

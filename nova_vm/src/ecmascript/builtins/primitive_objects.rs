@@ -43,7 +43,7 @@ use super::ordinary::{
     ordinary_try_has_property, ordinary_try_set, shape::ObjectShape,
 };
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct PrimitiveObject<'a>(BaseIndex<'a, PrimitiveObjectHeapData<'static>>);
 
