@@ -1,17 +1,19 @@
 use core::ops::{Index, IndexMut};
 
+pub(crate) mod data;
+
 use crate::{
     ecmascript::{
         builders::{builtin_function_builder::BuiltinFunctionBuilder, ordinary_object_builder::OrdinaryObjectBuilder},
         builtins::{
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor
         },
-        execution::{agent::Agent, JsResult, Realm},
+        execution::{agent::Agent, JsResult, ProtoIntrinsics, Realm},
         types::{
             InternalMethods, InternalSlots, IntoObject, Object, OrdinaryObject, String, Value, BUILTIN_STRING_MEMORY
         },
     },
-    engine::{context::{bindable_handle, GcScope, NoGcScope}, rootable::{HeapRootRef, Rootable}},
+    engine::{context::{bindable_handle, Bindable, GcScope, NoGcScope}, rootable::{HeapRootData, HeapRootRef, Rootable}},
     heap::{indexes::BaseIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference, IntrinsicConstructorIndexes, WorkQueues},
 };
 /// Constructor function object for %Temporal.Instant%.
@@ -58,36 +60,11 @@ impl InstantPrototype {
             .build();
     }
 }
-/// HEAP DATA -- Move to internal instant/data.rs
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct InstantValue(/*TODO:BigInt*/);
 
-impl InstantValue {
-    // TODO
-}
-#[derive(Debug, Clone, Copy)]
-pub struct InstantHeapData<'a> {
-    pub(crate) object_index: Option<OrdinaryObject<'a>>,
-    pub(crate) date: InstantValue,
-}
 
-impl InstantHeapData<'_> {
-    // TODO
-}
-
-bindable_handle!(InstantHeapData);
-
-impl HeapMarkAndSweep for InstantHeapData<'static> {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
-        todo!()
-    }
-    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
-        todo!()
-    }
-}
-
-// HANDLES -- Keep public facing within instant.rs
+use self::data::InstantHeapData;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct Instant<'a>(BaseIndex<'a, InstantHeapData<'static>>);
 impl Instant<'_> {
     //TODO
@@ -103,12 +80,12 @@ bindable_handle!(Instant);
 
 impl<'a> From<Instant<'a>> for Value<'a> {
     fn from(value: Instant<'a>) -> Self { 
-        Value::Instant(value) // todo: add to value.rs
+        Value::Instant(value)
      }
 }
 impl<'a> From<Instant<'a>> for Object<'a> {
     fn from(value: Instant<'a>) -> Self {
-        Object::Instant(value) // todo: add to object.rs
+        Object::Instant(value)
     }
 }
 impl<'a> TryFrom<Value<'a>> for Instant<'a> {
@@ -116,7 +93,7 @@ impl<'a> TryFrom<Value<'a>> for Instant<'a> {
 
     fn try_from(value: Value<'a>) -> Result<Self, ()> {
         match value {
-            Value::Instant(idx) => Ok(idx), // todo: add to value.rs
+            Value::Instant(idx) => Ok(idx),
             _ => Err(()),
         }
     }
@@ -125,33 +102,90 @@ impl<'a> TryFrom<Object<'a>> for Instant<'a> {
     type Error = ();
     fn try_from(object: Object<'a>) -> Result<Self, ()> {
         match object {
-            Object::Instant(idx) => Ok(idx), // todo: add to object.rs
+            Object::Instant(idx) => Ok(idx),
             _ => Err(()),
         }
     }
 }
 
-// TODO impl trait bounds properly
 impl<'a> InternalSlots<'a> for Instant<'a> {
-    // TODO: Add TemporalInstant to ProtoIntrinsics
-    //const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::TemporalInstant;
+    const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::TemporalInstant;
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        todo!()
+        agent[self].object_index // not implemented for `agent::Agent`
     }
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        todo!()
+        assert!(agent[self].object_index.replace(backing_object).is_none()); // not implemented for `agent::Agent`
     }
     
 }
 
 impl<'a> InternalMethods<'a> for Instant<'a> {}
 
+impl Index<Instant<'_>> for Agent {
+    type Output = InstantHeapData<'static>;
+
+    fn index(&self, index: Instant<'_>) -> &Self::Output {
+        &self.heap.instants[index]
+    }
+}
+
+impl IndexMut<Instant<'_>> for Agent {
+    fn index_mut(&mut self, index: Instant) -> &mut Self::Output {
+        &mut self.heap.instants[index]
+    }
+}
+
+impl Index<Instant<'_>> for Vec<Option<InstantHeapData<'static>>> {
+    type Output = InstantHeapData<'static>;
+
+    fn index(&self, index: Instant<'_>) -> &Self::Output {
+        self.get(index.get_index())
+        .expect("heap access out of bounds")
+        .as_ref()
+        .expect("")
+    }
+}
+
+impl IndexMut<Instant<'_>> for Vec<Option<InstantHeapData<'static>>> {
+    fn index_mut(&mut self, index: Instant<'_>) -> &mut Self::Output {
+        self.get_mut(index.get_index())
+            .expect("dasdas")
+            .as_mut()
+            .expect("")
+    }
+}
+
+
+impl Rootable for Instant<'_> {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, crate::engine::rootable::HeapRootData> {
+        Err(HeapRootData::Instant(value.unbind()))
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, crate::engine::rootable::HeapRootRef> {
+        Err(*value)
+    }
+
+    fn from_heap_ref(heap_ref: crate::engine::rootable::HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    fn from_heap_data(heap_data: crate::engine::rootable::HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::Instant(object) => Some(object),
+            _ => None,
+        }
+    }
+}
+
+
 impl HeapMarkAndSweep for Instant<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        todo!()
+        queues.instants.push(*self);
     }
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        todo!()
+        compactions.instants.shift_index(&mut self.0);
     }
 }
 
@@ -163,28 +197,8 @@ impl HeapSweepWeakReference for Instant<'static> {
 
 impl<'a> CreateHeapData<InstantHeapData<'a>, Instant<'a>> for Heap {
     fn create(&mut self, data: InstantHeapData<'a>) -> Instant<'a> {
-        todo!()
+        self.instants.push(Some(data.unbind()));
+        self.alloc_counter += core::mem::size_of::<Option<InstantHeapData<'static>>>();
+        Instant(BaseIndex::last(&self.instants))
     }
 }
-
-/* todo - impl keep public facing in temporal/instant.rs
-impl Rootable for Instant<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, crate::engine::rootable::HeapRootData> {
-        todo!()
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, crate::engine::rootable::HeapRootRef> {
-        todo!()
-    }
-
-    fn from_heap_ref(heap_ref: crate::engine::rootable::HeapRootRef) -> Self::RootRepr {
-        todo!()
-    }
-
-    fn from_heap_data(heap_data: crate::engine::rootable::HeapRootData) -> Option<Self> {
-        todo!()
-    }
-}
-*/

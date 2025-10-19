@@ -218,6 +218,8 @@ pub enum ProtoIntrinsics {
     RegExpStringIterator,
     Symbol,
     SyntaxError,
+    #[cfg(feature = "temporal")]
+    TemporalInstant,
     TypeError,
     #[cfg(feature = "array-buffer")]
     Uint16Array,
@@ -415,6 +417,7 @@ impl Intrinsics {
             ProtoIntrinsics::String => self.string().into(),
             ProtoIntrinsics::Symbol => self.symbol().into(),
             ProtoIntrinsics::SyntaxError => self.syntax_error().into(),
+            ProtoIntrinsics::TemporalInstant => self.temporal_instant().into(),
             ProtoIntrinsics::TypeError => self.type_error().into(),
             ProtoIntrinsics::URIError => self.uri_error().into(),
             ProtoIntrinsics::AggregateError => self.aggregate_error().into(),
@@ -504,6 +507,7 @@ impl Intrinsics {
             ProtoIntrinsics::String => self.string_prototype().into(),
             ProtoIntrinsics::Symbol => self.symbol_prototype().into(),
             ProtoIntrinsics::SyntaxError => self.syntax_error_prototype().into(),
+            ProtoIntrinsics::TemporalInstant => self.temporal().into(),
             ProtoIntrinsics::TypeError => self.type_error_prototype().into(),
             ProtoIntrinsics::URIError => self.uri_error_prototype().into(),
             ProtoIntrinsics::AggregateError => self.aggregate_error_prototype().into(),

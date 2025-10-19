@@ -32,7 +32,7 @@ use crate::ecmascript::builtins::date::data::DateHeapData;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::data::SharedArrayBufferRecord;
 #[cfg(feature = "temporal")]
-use crate::ecmascript::builtins::temporal::instant::InstantHeapData;
+use crate::ecmascript::builtins::temporal::instant::data::InstantHeapData;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{
     ArrayBuffer, ArrayBufferHeapData,
