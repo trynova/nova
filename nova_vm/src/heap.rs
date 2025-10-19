@@ -30,7 +30,7 @@ pub(crate) use self::object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor};
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::data::DateHeapData;
 #[cfg(feature = "temporal")]
-use crate::ecmascript::builtins::temporal::instant::InstantHeapData;
+use crate::ecmascript::builtins::temporal::instant::data::InstantHeapData;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{
     ArrayBuffer, ArrayBufferHeapData,
