@@ -127,6 +127,66 @@ impl AnyTypedArray<'_> {
         }
     }
 
+    /// Returns true if the TypedArray is an Int32Array or BigInt64Array
+    /// (shared or not), false otherwise.
+    pub(crate) fn is_waitable(self) -> bool {
+        #[cfg(not(feature = "shared-array-buffer"))]
+        {
+            matches!(self, Self::Int32Array(_) | Self::BigInt64Array(_))
+        }
+        #[cfg(feature = "shared-array-buffer")]
+        {
+            matches!(
+                self,
+                Self::Int32Array(_)
+                    | Self::BigInt64Array(_)
+                    | Self::SharedInt32Array(_)
+                    | Self::SharedBigInt64Array(_)
+            )
+        }
+    }
+
+    /// Returns true if the TypedArray contains integers with wrapping overflow
+    /// semantics.
+    pub(crate) fn is_integer(self) -> bool {
+        #[cfg(not(feature = "shared-array-buffer"))]
+        {
+            matches!(
+                self,
+                Self::Uint8Array(_)
+                    | Self::Int8Array(_)
+                    | Self::Uint16Array(_)
+                    | Self::Int16Array(_)
+                    | Self::Uint32Array(_)
+                    | Self::Int32Array(_)
+                    | Self::BigUint64Array(_)
+                    | Self::BigInt64Array(_)
+            )
+        }
+        #[cfg(feature = "shared-array-buffer")]
+        {
+            matches!(
+                self,
+                Self::Uint8Array(_)
+                    | Self::Int8Array(_)
+                    | Self::Uint16Array(_)
+                    | Self::Int16Array(_)
+                    | Self::Uint32Array(_)
+                    | Self::Int32Array(_)
+                    | Self::BigUint64Array(_)
+                    | Self::BigInt64Array(_)
+                    | Self::SharedUint8Array(_)
+                    | Self::SharedInt8Array(_)
+                    | Self::SharedUint16Array(_)
+                    | Self::SharedInt16Array(_)
+                    | Self::SharedUint32Array(_)
+                    | Self::SharedInt32Array(_)
+                    | Self::SharedBigUint64Array(_)
+                    | Self::SharedBigInt64Array(_)
+            )
+        }
+    }
+
     pub(crate) fn intrinsic_default_constructor(self) -> ProtoIntrinsics {
         match self {
             Self::Int8Array(_) => ProtoIntrinsics::Int8Array,
