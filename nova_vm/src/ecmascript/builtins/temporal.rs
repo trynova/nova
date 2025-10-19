@@ -7,8 +7,9 @@ pub mod instant;
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
+        builtins::Builtin,
         execution::{Agent, Realm},
-        types::BUILTIN_STRING_MEMORY,
+        types::{BUILTIN_STRING_MEMORY, IntoValue},
     },
     engine::context::NoGcScope,
     heap::WellKnownSymbolIndexes,
@@ -22,6 +23,8 @@ impl TemporalObject {
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.temporal();
 
+        let temporal_instant_constructor = intrinsics.temporal_instant();
+
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(2)
             .with_prototype(object_prototype)
@@ -33,7 +36,14 @@ impl TemporalObject {
                     .with_configurable(true)
                     .build()
             })
-            .with_builtin_function_property::<instant::InstantConstructor>()
+            .with_property(|builder| {
+                builder
+                    .with_key(BUILTIN_STRING_MEMORY.Instant.into())
+                    .with_value(temporal_instant_constructor.into_value())
+                    .with_enumerable(instant::TemporalInstantConstructor::ENUMERABLE)
+                    .with_configurable(instant::TemporalInstantConstructor::CONFIGURABLE)
+                    .build()
+            })
             .build();
     }
 }
