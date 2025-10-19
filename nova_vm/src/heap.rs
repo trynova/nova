@@ -22,7 +22,7 @@ use std::ops::Deref;
 #[cfg(feature = "date")]
 use crate::ecmascript::DateHeapData;
 #[cfg(feature = "temporal")]
-use crate::ecmascript::builtins::InstantHeapData;
+use crate::ecmascript::InstantHeapData;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::{
     ArrayBuffer, ArrayBufferHeapData, DataView, DataViewRecord, DetachKey, TypedArrayRecord,
