@@ -14,7 +14,7 @@
 //! The BigInt type has no implicit conversions in the ECMAScript language;
 //! programmers must call BigInt explicitly to convert values from other types.
 
-use std::{convert::Infallible, hint::unreachable_unchecked};
+use std::convert::Infallible;
 
 use num_bigint::Sign;
 use wtf8::Wtf8;

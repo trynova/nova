@@ -9,14 +9,19 @@ use crate::{
         abstract_operations::type_conversion::{to_index, try_to_index, validate_index},
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
-            array_buffer::{get_modify_set_value_in_buffer, AnyArrayBuffer}, indexed_collections::typed_array_objects::abstract_operations::{
-                validate_typed_array, TypedArrayAbstractOperations, TypedArrayWithBufferWitnessRecords
-            }, typed_array::{for_any_typed_array, AnyTypedArray}, ArgumentsList, Behaviour, Builtin
+            ArgumentsList, Behaviour, Builtin,
+            array_buffer::get_modify_set_value_in_buffer,
+            indexed_collections::typed_array_objects::abstract_operations::{
+                TypedArrayAbstractOperations, TypedArrayWithBufferWitnessRecords,
+                validate_typed_array,
+            },
+            typed_array::{AnyTypedArray, for_any_typed_array},
         },
         execution::{
-            agent::{try_result_into_js, ExceptionType}, Agent, JsResult, Realm
+            Agent, JsResult, Realm,
+            agent::{ExceptionType, try_result_into_js},
         },
-        types::{Numeric, String, Value, BUILTIN_STRING_MEMORY},
+        types::{BUILTIN_STRING_MEMORY, Numeric, String, Value},
     },
     engine::{
         context::{Bindable, GcScope},
@@ -414,8 +419,13 @@ fn atomic_read_modify_write<'gc, const Op: u8>(
     }
     // 1. Let length be TypedArrayLength(taRecord).
     let length = ta_record.typed_array_length(agent);
-    let index = if let (Value::Integer(index), Ok(value)) = (index, Numeric::try_from(value)) {
+    if let (Value::Integer(index), Ok(value)) = (index, Numeric::try_from(value)) {
+        // 7. Let offset be typedArray.[[ByteOffset]].
+        let typed_array = ta_record.object.unbind();
+        let value = value.unbind();
         let gc = gc.into_nogc();
+        let value = value.bind(gc);
+        let typed_array = typed_array.bind(gc);
         // 2. Let accessIndex be ? ToIndex(requestIndex).
         let access_index = validate_index(agent, index.into_i64(), gc)?;
         // 3. If accessIndex ≥ length, throw a RangeError exception.
@@ -423,21 +433,31 @@ fn atomic_read_modify_write<'gc, const Op: u8>(
             todo!();
         }
         // 5. Let typedArray be taRecord.[[Object]].
-        let typed_array = ta_record.object;
-        // 7. Let offset be typedArray.[[ByteOffset]].
         let offset = typed_array.byte_offset(agent);
         // 2. If typedArray.[[ContentType]] is bigint, let v be ? ToBigInt(value).
         if typed_array.is_bigint() != value.is_bigint() {
             todo!();
         }
-        let byte_index_in_buffer = offset + access_index as usize * typed_array.typed_array_element_size();
+        let byte_index_in_buffer =
+            offset + access_index as usize * typed_array.typed_array_element_size();
         // 5. Let buffer be typedArray.[[ViewedArrayBuffer]].
         let buffer = typed_array.viewed_array_buffer(agent);
         // 6. Let elementType be TypedArrayElementType(typedArray).
         // 7. Return GetModifySetValueInBuffer(buffer, byteIndexInBuffer, elementType, v, op).
-        for_any_typed_array!(typed_array, _t, {
-            get_modify_set_value_in_buffer::<ElementType, Op>(agent, buffer, byte_index_in_buffer, value, gc)
-        }, ElementType)
+        return Ok(for_any_typed_array!(
+            typed_array,
+            _t,
+            {
+                get_modify_set_value_in_buffer::<ElementType, Op>(
+                    agent,
+                    buffer,
+                    byte_index_in_buffer,
+                    value,
+                    gc,
+                )
+            },
+            ElementType
+        ));
     } else {
         atomic_read_modify_write_slow(
             agent,
@@ -445,8 +465,9 @@ fn atomic_read_modify_write<'gc, const Op: u8>(
             index.unbind(),
             value.unbind(),
             gc,
-        )
-    }
+        );
+        todo!()
+    };
     // 2. If typedArray.[[ContentType]] is bigint, let v be ? ToBigInt(value).
     // 3. Otherwise, let v be 𝔽(? ToIntegerOrInfinity(value)).
     // 4. Perform ? RevalidateAtomicAccess(typedArray, byteIndexInBuffer).
