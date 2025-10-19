@@ -17,6 +17,8 @@ use crate::ecmascript::types::DATE_DISCRIMINANT;
 use crate::ecmascript::types::{
     WEAK_MAP_DISCRIMINANT, WEAK_REF_DISCRIMINANT, WEAK_SET_DISCRIMINANT,
 };
+#[cfg(feature = "temporal")]
+use crate::ecmascript::{builtins::temporal::instant::Instant, types::INSTANT_DISCRIMINANT};
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::{builtins::typed_array::Float16Array, types::FLOAT_16_ARRAY_DISCRIMINANT};
 #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
@@ -135,6 +137,8 @@ pub mod private {
 
     #[cfg(feature = "date")]
     use crate::ecmascript::builtins::date::Date;
+    #[cfg(feature = "temporal")]
+    use crate::ecmascript::builtins::temporal::instant::Instant;
     #[cfg(feature = "shared-array-buffer")]
     use crate::ecmascript::builtins::{
         data_view::SharedDataView,

@@ -11,6 +11,8 @@ use super::{
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
+#[cfg(feature = "temporal")]
+use crate::ecmascript::builtins::temporal::instant::Instant;
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::builtins::typed_array::Float16Array;
 #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
@@ -1308,6 +1310,8 @@ impl HeapMarkAndSweep for Value<'static> {
             Self::Array(data) => data.mark_values(queues),
             #[cfg(feature = "date")]
             Self::Date(dv) => dv.mark_values(queues),
+            #[cfg(feature = "temporal")]
+            Self::Instant(dv) => dv.mark_values(queues),
             Self::Error(data) => data.mark_values(queues),
             Self::BoundFunction(data) => data.mark_values(queues),
             Self::BuiltinFunction(data) => data.mark_values(queues),
@@ -1328,7 +1332,6 @@ impl HeapMarkAndSweep for Value<'static> {
             Self::WeakRef(data) => data.mark_values(queues),
             #[cfg(feature = "weak-refs")]
             Self::WeakSet(data) => data.mark_values(queues),
-
             #[cfg(feature = "array-buffer")]
             Self::ArrayBuffer(ab) => ab.mark_values(queues),
             #[cfg(feature = "array-buffer")]
@@ -1357,7 +1360,6 @@ impl HeapMarkAndSweep for Value<'static> {
             Self::Float32Array(ta) => ta.mark_values(queues),
             #[cfg(feature = "array-buffer")]
             Self::Float64Array(ta) => ta.mark_values(queues),
-
             #[cfg(feature = "shared-array-buffer")]
             Self::SharedArrayBuffer(data) => data.mark_values(queues),
             #[cfg(feature = "shared-array-buffer")]
@@ -1386,7 +1388,6 @@ impl HeapMarkAndSweep for Value<'static> {
             Self::SharedFloat32Array(sta) => sta.mark_values(queues),
             #[cfg(feature = "shared-array-buffer")]
             Self::SharedFloat64Array(sta) => sta.mark_values(queues),
-
             Self::BuiltinConstructorFunction(data) => data.mark_values(queues),
             Self::BuiltinPromiseResolvingFunction(data) => data.mark_values(queues),
             Self::BuiltinPromiseFinallyFunction(data) => data.mark_values(queues),
@@ -1425,6 +1426,8 @@ impl HeapMarkAndSweep for Value<'static> {
             Self::Array(data) => data.sweep_values(compactions),
             #[cfg(feature = "date")]
             Self::Date(data) => data.sweep_values(compactions),
+            #[cfg(feature = "temporal")]
+            Self::Instant(dv) => dv.sweep_values(compactions),
             Self::Error(data) => data.sweep_values(compactions),
             Self::BoundFunction(data) => data.sweep_values(compactions),
             Self::BuiltinFunction(data) => data.sweep_values(compactions),

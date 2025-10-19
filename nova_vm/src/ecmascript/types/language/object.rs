@@ -124,10 +124,11 @@ use crate::{
             promise::Promise,
             promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
             proxy::Proxy,
+            temporal::instant::Instant,
             text_processing::string_objects::string_iterator_objects::StringIterator,
         },
         execution::{Agent, JsResult, ProtoIntrinsics, agent::TryResult},
-        types::PropertyDescriptor,
+        types::{INSTANT_DISCRIMINANT, PropertyDescriptor},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
@@ -179,6 +180,7 @@ pub enum Object<'a> {
     Array(Array<'a>) = ARRAY_DISCRIMINANT,
     #[cfg(feature = "date")]
     Date(Date<'a>) = DATE_DISCRIMINANT,
+    #[cfg(feature = "temporal")]
     Instant(Instant<'a>) = INSTANT_DISCRIMINANT,
     Error(Error<'a>) = ERROR_DISCRIMINANT,
     FinalizationRegistry(FinalizationRegistry<'a>) = FINALIZATION_REGISTRY_DISCRIMINANT,
@@ -1438,6 +1440,8 @@ impl HeapSweepWeakReference for Object<'static> {
             Self::Array(data) => data.sweep_weak_reference(compactions).map(Self::Array),
             #[cfg(feature = "date")]
             Self::Date(data) => data.sweep_weak_reference(compactions).map(Self::Date),
+            #[cfg(feature = "temporal")]
+            Self::Instant(data) => data.sweep_weak_reference(compactions).map(Self::Instant),
             Self::Error(data) => data.sweep_weak_reference(compactions).map(Self::Error),
             Self::BoundFunction(data) => data
                 .sweep_weak_reference(compactions)
