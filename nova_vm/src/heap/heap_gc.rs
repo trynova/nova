@@ -7,7 +7,7 @@ use std::thread;
 #[cfg(feature = "date")]
 use crate::ecmascript::Date;
 #[cfg(feature = "temporal")]
-use crate::ecmascript::builtins::Instant;
+use crate::ecmascript::TemporalInstant;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::{ArrayBuffer, DataView, VoidArray};
 #[cfg(feature = "regexp")]
@@ -521,7 +521,7 @@ pub(crate) fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static
         }
         #[cfg(feature = "temporal")]
         {
-            let mut instant_marks: Box<[Instant]> = queues.instants.drain(..).collect();
+            let mut instant_marks: Box<[TemporalInstant]> = queues.instants.drain(..).collect();
             instant_marks.sort();
             instant_marks.iter().for_each(|&idx| {
                 let index = idx.get_index();
