@@ -8,13 +8,11 @@ use super::{AnyArrayBuffer, ArrayBuffer, InternalBuffer};
 use crate::{
     ecmascript::{
         abstract_operations::{operations_on_objects::get, type_conversion::to_index},
-        builtins::{
-            ordinary::ordinary_create_from_constructor, structured_data::data_view_objects,
-        },
+        builtins::ordinary::ordinary_create_from_constructor,
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, Function, Number, Numeric, Object, SharedDataBlock, Value,
-            Viewable, create_byte_data_block,
+            BUILTIN_STRING_MEMORY, Function, Numeric, Object, SharedDataBlock, Value, Viewable,
+            create_byte_data_block,
         },
     },
     engine::context::{Bindable, GcScope, NoGcScope},
@@ -423,6 +421,10 @@ pub(crate) fn get_modify_set_value_in_buffer<'gc, Type: Viewable, const Op: u8>(
     value: Numeric,
     gc: NoGcScope<'gc, '_>,
 ) -> Numeric<'gc> {
+    // 5. Let elementSize be the Element Size value specified in Table
+    //    71 for Element Type type.
+    let element_size = size_of::<Type>();
+
     // 1. Assert: IsDetachedBuffer(arrayBuffer) is false.
     debug_assert!(!array_buffer.is_detached(agent));
     // 2. Assert: There are sufficient bytes in arrayBuffer starting at
@@ -437,14 +439,11 @@ pub(crate) fn get_modify_set_value_in_buffer<'gc, Type: Viewable, const Op: u8>(
     //    of the surrounding agent's Agent Record.
     // 7. Let rawBytes be NumericToRawBytes(type, value, isLittleEndian).
     let raw_bytes = Type::from_ne_value(agent, value);
-    match array_buffer {
+    let raw_bytes_read = match array_buffer {
         AnyArrayBuffer::ArrayBuffer(array_buffer) => {
             let op = get_array_buffer_op::<Type, Op>();
             // 4. Let block be arrayBuffer.[[ArrayBufferData]].
             let block = array_buffer.as_mut_slice(agent);
-            // 5. Let elementSize be the Element Size value specified in Table
-            //    71 for Element Type type.
-            let element_size = size_of::<Type>();
             // 8. If IsSharedArrayBuffer(arrayBuffer) is true, then
             // 9. Else,
             let slot = &mut block[byte_index..byte_index + element_size];
@@ -460,12 +459,22 @@ pub(crate) fn get_modify_set_value_in_buffer<'gc, Type: Viewable, const Op: u8>(
             // c. Store the individual bytes of rawBytesModified into block,
             //    starting at block[byteIndex].
             slot[0] = data_modified;
-            // 10. Return RawBytesToNumeric(type, rawBytesRead, isLittleEndian).
-            raw_bytes_read.into_ne_value(agent, gc)
+            raw_bytes_read
         }
         AnyArrayBuffer::SharedArrayBuffer(array_buffer) => {
-            let foo = array_buffer.as_slice(agent);
             // 8. If IsSharedArrayBuffer(arrayBuffer) is true, then
+            let raw_bytes = Type::into_storage(raw_bytes);
+            let foo = array_buffer.as_slice(agent);
+            let slot = foo.slice(byte_index, byte_index + element_size);
+            let (head, slot, tail) = slot.align_to::<Type::Storage>();
+            debug_assert!(head.is_empty() && tail.is_empty());
+            let slot = slot.get(0).unwrap();
+            let result = if const { Op == 0 } {
+                // Add
+                slot.fetch_add(raw_bytes)
+            } else {
+                panic!("Unsupported Op value");
+            };
             // a. Let execution be the [[CandidateExecution]] field of the
             //    surrounding agent's Agent Record.
             // b. Let eventsRecord be the Agent Events Record of
@@ -483,20 +492,20 @@ pub(crate) fn get_modify_set_value_in_buffer<'gc, Type: Viewable, const Op: u8>(
             // f. Append rmwEvent to eventsRecord.[[EventList]].
             // g. Append Chosen Value Record { [[Event]]: rmwEvent,
             //    [[ChosenValue]]: rawBytesRead } to execution.[[ChosenValues]].
+            Type::from_storage(result)
         }
-    }
+    };
+    // 10. Return RawBytesToNumeric(type, rawBytesRead, isLittleEndian).
+    raw_bytes_read.into_ne_value(agent, gc)
 }
 
 type ModifyOp<T: Viewable> = fn(T, T) -> T;
 
-const fn ab_add<T: Viewable>(left: T, right: T) -> T {
-    left + right
-}
-
 const fn get_array_buffer_op<T: Viewable, const Op: u8>() -> ModifyOp<T> {
     if Op == 0 {
         // Add
-        return fn()
+        <T as Viewable>::add
+    } else {
+        panic!("Unsupported Op value");
     }
-    todo!();
 }

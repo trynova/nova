@@ -1854,8 +1854,8 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         let value = T::into_storage(T::from_ne_value(agent, value));
         let slice = self.as_slice(agent);
         let slice = slice.slice_from(start_index).slice_to(count);
-        for i in 0..slice.len() {
-            slice.store(i, value, Ordering::Unordered).unwrap()
+        for item in slice.iter() {
+            item.store(value, Ordering::Unordered);
         }
     }
 
@@ -1892,14 +1892,15 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
             .clone();
         let slice = sdb_as_viewable_slice::<T>(&sdb, byte_offset, byte_length);
         debug_assert!(slice.len() >= len);
+        let slice = slice.slice_to(len);
 
         // 6. Let captured be 0.
         let mut captured = 0;
         // 7. Let k be 0.
         // 8. Repeat, while k < len,
-        for k in 0..len {
+        for (k, k_item) in slice.iter().enumerate() {
             // b. Let kValue be ! Get(O, Pk).
-            let value = T::from_storage(slice.load(k, Ordering::Unordered).unwrap());
+            let value = T::from_storage(k_item.load(Ordering::Unordered));
             let k_value = value.into_le_value(agent, gc.nogc()).into_value();
             let result = call_function(
                 agent,
@@ -1981,28 +1982,20 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
     ) -> Option<usize> {
         let search_element = T::into_storage(T::try_from_value(agent, search_element)?);
         let slice = self.as_slice(agent);
-        // Length of the TypedArray may have changed between when we measured it
-        // and here: We'll never try to access past the boundary of the slice if
-        // the backing ArrayBuffer shrank.
-        let end = end.min(slice.len());
-        if start >= end {
-            return None;
-        }
-
+        // Note: length of SAB cannot have shrunk.
         if ASCENDING {
-            for i in start..end {
-                if slice.load(i, Ordering::Unordered).unwrap() == search_element {
-                    return Some(i + start);
-                }
-            }
+            slice
+                .slice(start, end)
+                .iter()
+                .position(|r| r.load(Ordering::Unordered) == search_element)
+                .map(|pos| pos + start)
         } else {
-            for i in (0..=start).rev() {
-                if slice.load(i, Ordering::Unordered).unwrap() == search_element {
-                    return Some(i);
-                }
-            }
+            let end = start.saturating_add(1).min(slice.len());
+            slice
+                .slice_to(end)
+                .iter()
+                .rposition(|r| r.load(Ordering::Unordered) == search_element)
         }
-        None
     }
 
     fn map<'gc>(
@@ -2030,6 +2023,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
             .clone();
         let slice = sdb_as_viewable_slice::<T>(&sdb, byte_offset, byte_length);
         debug_assert!(slice.len() >= len);
+        let slice = slice.slice_to(len);
 
         // 5. Let A be ? TypedArraySpeciesCreate(O, « 𝔽(len) »).
         let a =
@@ -2040,12 +2034,12 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         // 6. Let k be 0.
         // 7. Repeat, while k < len,
         let a = a.scope(agent, gc.nogc());
-        for k in 0..len {
+        for (k, k_item) in slice.iter().enumerate() {
             // 𝔽(k)
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk = PropertyKey::try_from(k).unwrap();
             // b. Let kValue be ! Get(O, Pk).
-            let value = T::from_storage(slice.load(k, Ordering::Unordered).unwrap());
+            let value = T::from_storage(k_item.load(Ordering::Unordered));
             let k_value = value.into_le_value(agent, gc.nogc()).into_value();
             // c. Let mappedValue be ? Call(callback, thisArg, « kValue, 𝔽(k), O »).
             let mapped_value = call_function(
@@ -2089,15 +2083,17 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
             // a. Let upper be len - lower - 1.
             let upper = len - lower - 1;
             // b. Let upperP be ! ToString(𝔽(upper)).
+            let o_upper_p = slice.get(upper).unwrap();
             // c. Let lowerP be ! ToString(𝔽(lower)).
+            let o_lower_p = slice.get(lower).unwrap();
             // d. Let lowerValue be ! Get(O, lowerP).
-            let lower_value = slice.load(lower, Ordering::Unordered).unwrap();
+            let lower_value = o_lower_p.load(Ordering::Unordered);
             // e. Let upperValue be ! Get(O, upperP).
-            let upper_value = slice.load(upper, Ordering::Unordered).unwrap();
+            let upper_value = o_upper_p.load(Ordering::Unordered);
             // f. Perform ! Set(O, lowerP, upperValue, true).
-            slice.store(lower, upper_value, Ordering::Unordered);
+            o_lower_p.store(upper_value, Ordering::Unordered);
             // g. Perform ! Set(O, upperP, lowerValue, true).
-            slice.store(upper, lower_value, Ordering::Unordered);
+            o_upper_p.store(lower_value, Ordering::Unordered);
             // h. Set lower to lower + 1.
             lower += 1;
         }
@@ -2350,8 +2346,8 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         let ta = self.bind(gc.nogc());
         let slice = ta.as_slice(agent).slice_to(len);
         let mut items: Vec<T> = Vec::with_capacity(slice.len());
-        for i in 0..slice.len() {
-            items.push(T::from_storage(slice.load(i, Ordering::Unordered).unwrap()));
+        for item in slice.iter() {
+            items.push(T::from_storage(item.load(Ordering::Unordered)));
         }
         let mut error: Option<JsError> = None;
         let ta = ta.scope(agent, gc.nogc());
@@ -2454,17 +2450,17 @@ fn copy_between_shared_typed_arrays<Source: Viewable, Target: Viewable>(
         let (head, source, _) = source.align_to::<Source::Storage>();
         assert!(head.is_empty());
         assert_eq!(target.len(), source.len());
-        if Target::IS_FLOAT {
-            for i in 0..source.len() {
-                let src = Source::from_storage(source.load(i, Ordering::Unordered).unwrap());
+        if Target::IS_FLOAT || Source::IS_FLOAT {
+            for (src, target) in source.iter().zip(target.iter()) {
+                let src = Source::from_storage(src.load(Ordering::Unordered));
                 let value = Target::from_f64(src.into_f64());
-                target.store(i, Target::into_storage(value), Ordering::Unordered);
+                target.store(Target::into_storage(value), Ordering::Unordered);
             }
         } else {
-            for i in 0..source.len() {
-                let src = Source::from_storage(source.load(i, Ordering::Unordered).unwrap());
+            for (src, target) in source.iter().zip(target.iter()) {
+                let src = Source::from_storage(src.load(Ordering::Unordered));
                 let value = Target::from_bits(src.into_bits());
-                target.store(i, Target::into_storage(value), Ordering::Unordered);
+                target.store(Target::into_storage(value), Ordering::Unordered);
             }
         }
     };
@@ -2488,13 +2484,13 @@ pub(crate) fn copy_from_shared_typed_array<Source: Viewable, Target: Viewable>(
         assert!(head.is_empty());
         assert_eq!(target.len(), source.len());
         if Target::IS_FLOAT {
-            for (i, target) in target.iter_mut().enumerate() {
-                let src = Source::from_storage(source.load(i, Ordering::Unordered).unwrap());
+            for (source, target) in source.iter().zip(target.iter_mut()) {
+                let src = Source::from_storage(source.load(Ordering::Unordered));
                 *target = Target::from_f64(src.into_f64());
             }
         } else {
-            for (i, target) in target.iter_mut().enumerate() {
-                let src = Source::from_storage(source.load(i, Ordering::Unordered).unwrap());
+            for (source, target) in source.iter().zip(target.iter_mut()) {
+                let src = Source::from_storage(source.load(Ordering::Unordered));
                 *target = Target::from_bits(src.into_bits());
             }
         }
@@ -2517,14 +2513,14 @@ fn copy_into_shared_typed_array<Source: Viewable, Target: Viewable>(
         assert!(head.is_empty());
         assert_eq!(target.len(), source.len());
         if Target::IS_FLOAT {
-            for (i, source) in source.iter().enumerate() {
+            for (source, target) in source.iter().zip(target.iter()) {
                 let value = Target::into_storage(Target::from_f64(source.into_f64()));
-                target.store(i, value, Ordering::Unordered);
+                target.store(value, Ordering::Unordered);
             }
         } else {
-            for (i, source) in source.iter().enumerate() {
+            for (source, target) in source.iter().zip(target.iter()) {
                 let value = Target::into_storage(Target::from_bits(source.into_bits()));
-                target.store(i, value, Ordering::Unordered);
+                target.store(value, Ordering::Unordered);
             }
         }
     };
