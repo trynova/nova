@@ -32,7 +32,7 @@ use crate::ecmascript::builtins::date::data::DateHeapData;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::data::SharedArrayBufferRecord;
 #[cfg(feature = "temporal")]
-use crate::ecmascript::builtins::temporal::instant::data::InstantHeapData;
+use crate::ecmascript::builtins::temporal::instant::data::InstantRecord;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{
     ArrayBuffer, ArrayBufferHeapData,
@@ -144,7 +144,7 @@ pub(crate) struct Heap {
     #[cfg(feature = "date")]
     pub(crate) dates: Vec<Option<DateHeapData<'static>>>,
     #[cfg(feature = "temporal")]
-    pub(crate) instants: Vec<Option<InstantHeapData<'static>>>,
+    pub(crate) instants: Vec<InstantRecord<'static>>,
     pub(crate) ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData<'static>>>,
     /// ElementsArrays is where all keys and values arrays live;
     /// Element arrays are static arrays of Values plus
