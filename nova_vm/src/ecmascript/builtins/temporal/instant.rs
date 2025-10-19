@@ -1,23 +1,34 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 use core::ops::{Index, IndexMut};
 
 pub(crate) mod data;
 
 use crate::{
     ecmascript::{
+        abstract_operations::type_conversion::to_big_int,
         builders::{
             builtin_function_builder::BuiltinFunctionBuilder,
             ordinary_object_builder::OrdinaryObjectBuilder,
         },
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
-        execution::{JsResult, ProtoIntrinsics, Realm, agent::Agent},
+        builtins::{
+            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
+            ordinary::ordinary_create_from_constructor,
+        },
+        execution::{
+            JsResult, ProtoIntrinsics, Realm,
+            agent::{Agent, ExceptionType},
+        },
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
-            OrdinaryObject, String, Value,
+            BUILTIN_STRING_MEMORY, BigInt, Function, InternalMethods, InternalSlots, IntoFunction,
+            IntoObject, IntoValue, Object, OrdinaryObject, String, Value,
         },
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
+        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
@@ -36,17 +47,61 @@ impl BuiltinIntrinsicConstructor for InstantConstructor {
 }
 
 impl InstantConstructor {
+    /// ### [8.1.1 Temporal.Instant ( epochNanoseconds )](https://tc39.es/proposal-temporal/#sec-temporal.instant)
     fn construct<'gc>(
         agent: &mut Agent,
-        this_value: Value,
+        _: Value,
         args: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope<'gc, '_>,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Ok(agent.heap.create(InstantRecord::default()).into_value())
+        let epoch_nanoseconds = args.get(0).bind(gc.nogc());
+        let new_target = new_target.bind(gc.nogc());
+        // 1. If NewTarget is undefined, throw a TypeError exception.
+        let Some(new_target) = new_target else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "calling a builtin Temporal.Instant constructor without new is forbidden",
+                gc.into_nogc(),
+            ));
+        };
+        let Ok(mut new_target) = Function::try_from(new_target) else {
+            unreachable!()
+        };
+        // 2. Let epochNanoseconds be ? ToBigInt(epochNanoseconds).
+        let epoch_nanoseconds = if let Ok(epoch_nanoseconds) = BigInt::try_from(epoch_nanoseconds) {
+            epoch_nanoseconds
+        } else {
+            let scoped_new_target = new_target.scope(agent, gc.nogc());
+            let epoch_nanoseconds = to_big_int(agent, epoch_nanoseconds.unbind(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+            // SAFETY: not shared.
+            new_target = unsafe { scoped_new_target.take(agent) }.bind(gc.nogc());
+            epoch_nanoseconds
+        };
+
+        // 3. If IsValidEpochNanoseconds(epochNanoseconds) is false, throw a RangeError exception.
+        let Some(epoch_nanoseconds) = epoch_nanoseconds
+            .try_into_i128(agent)
+            .and_then(|nanoseconds| temporal_rs::Instant::try_new(nanoseconds).ok())
+        else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "value out of range",
+                gc.into_nogc(),
+            ));
+        };
+        // 4. Return ? CreateTemporalInstant(epochNanoseconds, NewTarget).
+        create_temporal_instant(agent, epoch_nanoseconds, Some(new_target.unbind()), gc).map(
+            |instant| {
+                eprintln!("Temporal.Instant {:?}", &agent[instant].instant);
+                instant.into_value()
+            },
+        )
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, gc: NoGcScope) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, _: NoGcScope) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let instant_prototype = intrinsics.temporal_instant_prototype();
 
@@ -56,11 +111,47 @@ impl InstantConstructor {
             .build();
     }
 }
+
+/// 8.5.2 CreateTemporalInstant ( epochNanoseconds [ , newTarget ] )
+///
+/// The abstract operation CreateTemporalInstant takes argument
+/// epochNanoseconds (a BigInt) and optional argument newTarget (a constructor)
+/// and returns either a normal completion containing a Temporal.Instant or a
+/// throw completion. It creates a Temporal.Instant instance and fills the
+/// internal slots with valid values.
+fn create_temporal_instant<'gc>(
+    agent: &mut Agent,
+    epoch_nanoseconds: temporal_rs::Instant,
+    new_target: Option<Function>,
+    gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, Instant<'gc>> {
+    // 1. Assert: IsValidEpochNanoseconds(epochNanoseconds) is true.
+    // 2. If newTarget is not present, set newTarget to %Temporal.Instant%.
+    let new_target = new_target.unwrap_or_else(|| {
+        agent
+            .current_realm_record()
+            .intrinsics()
+            .temporal_instant()
+            .into_function()
+    });
+    // 3. Let object be ? OrdinaryCreateFromConstructor(newTarget, "%Temporal.Instant.prototype%", « [[InitializedTemporalInstant]], [[EpochNanoseconds]] »).
+    let Object::Instant(object) =
+        ordinary_create_from_constructor(agent, new_target, ProtoIntrinsics::TemporalInstant, gc)?
+    else {
+        unreachable!()
+    };
+    // 4. Set object.[[EpochNanoseconds]] to epochNanoseconds.
+    // SAFETY: initialising Instant.
+    unsafe { object.set_epoch_nanoseconds(agent, epoch_nanoseconds) };
+    // 5. Return object.
+    Ok(object)
+}
+
 /// %Temporal.Instant.Prototype%
 pub(crate) struct InstantPrototype;
 
 impl InstantPrototype {
-    pub fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, gc: NoGcScope) {
+    pub fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, _: NoGcScope) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let this = intrinsics.temporal_instant_prototype();
         let object_prototype = intrinsics.object_prototype();
@@ -87,6 +178,17 @@ impl Instant<'_> {
 
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
+    }
+
+    /// # Safety
+    ///
+    /// Should be only called once; reinitialising the value is not allowed.
+    unsafe fn set_epoch_nanoseconds(
+        self,
+        agent: &mut Agent,
+        epoch_nanoseconds: temporal_rs::Instant,
+    ) {
+        agent[self].instant = epoch_nanoseconds;
     }
 }
 bindable_handle!(Instant);

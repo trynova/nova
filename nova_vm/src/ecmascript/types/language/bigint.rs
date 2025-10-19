@@ -214,6 +214,30 @@ impl<'a> BigInt<'a> {
         }
     }
 
+    pub fn try_into_i128(self, agent: &Agent) -> Option<i128> {
+        match self {
+            BigInt::BigInt(b) => {
+                let data = &agent[b].data;
+                let sign = data.sign();
+                let mut digits = data.iter_u64_digits();
+                if digits.len() > 2 {
+                    return None;
+                } else if digits.len() == 1 {
+                    let abs = digits.next().unwrap() as i128;
+                    if sign == Sign::Minus {
+                        return Some(abs.neg());
+                    } else {
+                        return Some(abs);
+                    }
+                }
+                // Hard part: check that u64 << 64 + u64 doesn't have an
+                // absolute value overflowing i128.
+                todo!();
+            }
+            BigInt::SmallBigInt(b) => Some(b.into_i64() as i128),
+        }
+    }
+
     /// ### [6.1.6.2.1 BigInt::unaryMinus ( x )](https://tc39.es/ecma262/#sec-numeric-types-bigint-unaryMinus)
     ///
     /// The abstract operation BigInt::unaryMinus takes argument x (a BigInt)
