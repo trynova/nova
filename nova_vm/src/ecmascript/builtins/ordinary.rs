@@ -6,9 +6,7 @@ pub(crate) mod caches;
 pub mod shape;
 
 use std::{
-    collections::{TryReserveError, hash_map::Entry},
-    ops::ControlFlow,
-    vec,
+    collections::{hash_map::Entry, TryReserveError}, ops::ControlFlow, time::Instant, vec
 };
 
 use caches::{CacheToPopulate, Caches, PropertyLookupCache, PropertyOffset};
@@ -30,9 +28,7 @@ use crate::{
         },
     },
     engine::{
-        Scoped,
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
+        context::{Bindable, GcScope, NoGcScope}, rootable::Scopable, Scoped
     },
     heap::element_array::{ElementStorageRef, PropertyStorageRef},
 };
@@ -1679,6 +1675,11 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
         ProtoIntrinsics::SyntaxError => agent
             .heap
             .create(ErrorHeapData::new(ExceptionType::SyntaxError, None, None))
+            .into_object(),
+        #[cfg(feature = "temporal")]
+        ProtoIntrinsics::TemporalInstant => agent
+            .heap
+            .create(InstantHeapData::default())
             .into_object(),
         ProtoIntrinsics::TypeError => agent
             .heap
