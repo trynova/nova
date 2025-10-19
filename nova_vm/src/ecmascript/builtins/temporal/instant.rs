@@ -36,17 +36,17 @@ use crate::{
     },
 };
 /// Constructor function object for %Temporal.Instant%.
-pub(crate) struct InstantConstructor;
-impl Builtin for InstantConstructor {
+pub(crate) struct TemporalInstantConstructor;
+impl Builtin for TemporalInstantConstructor {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.Instant;
     const LENGTH: u8 = 1;
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(InstantConstructor::construct);
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(TemporalInstantConstructor::construct);
 }
-impl BuiltinIntrinsicConstructor for InstantConstructor {
+impl BuiltinIntrinsicConstructor for TemporalInstantConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::TemporalInstant;
 }
 
-impl InstantConstructor {
+impl TemporalInstantConstructor {
     /// ### [8.1.1 Temporal.Instant ( epochNanoseconds )](https://tc39.es/proposal-temporal/#sec-temporal.instant)
     fn construct<'gc>(
         agent: &mut Agent,
@@ -93,12 +93,8 @@ impl InstantConstructor {
             ));
         };
         // 4. Return ? CreateTemporalInstant(epochNanoseconds, NewTarget).
-        create_temporal_instant(agent, epoch_nanoseconds, Some(new_target.unbind()), gc).map(
-            |instant| {
-                eprintln!("Temporal.Instant {:?}", &agent[instant].instant);
-                instant.into_value()
-            },
-        )
+        create_temporal_instant(agent, epoch_nanoseconds, Some(new_target.unbind()), gc)
+            .map(|instant| instant.into_value())
     }
 
     /// ### [8.2.2 Temporal.Instant.from ( item )](https://tc39.es/proposal-temporal/#sec-temporal.instant.from)
@@ -145,13 +141,20 @@ impl InstantConstructor {
         todo!()
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, _: NoGcScope) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, gc: NoGcScope) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let instant_prototype = intrinsics.temporal_instant_prototype();
 
-        BuiltinFunctionBuilder::new_intrinsic_constructor::<InstantConstructor>(agent, realm)
-            .with_property_capacity(1)
+        let result =
+            BuiltinFunctionBuilder::new_intrinsic_constructor::<TemporalInstantConstructor>(
+                agent, realm,
+            )
+            .with_property_capacity(5)
             .with_prototype_property(instant_prototype.into_object())
+            .with_builtin_function_property::<TemporalInstantFrom>()
+            .with_builtin_function_property::<TemporalInstantFromEpochMilliseconds>()
+            .with_builtin_function_property::<TemporalInstantFromEpochNanoseconds>()
+            .with_builtin_function_property::<TemporalInstantCompare>()
             .build();
     }
 }
@@ -248,7 +251,7 @@ impl Builtin for TemporalInstantFrom {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(InstantConstructor::from);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalInstantConstructor::from);
 }
 
 struct TemporalInstantFromEpochMilliseconds;
@@ -257,7 +260,8 @@ impl Builtin for TemporalInstantFromEpochMilliseconds {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(InstantConstructor::from_epoch_milliseconds);
+    const BEHAVIOUR: Behaviour =
+        Behaviour::Regular(TemporalInstantConstructor::from_epoch_milliseconds);
 }
 
 struct TemporalInstantFromEpochNanoseconds;
@@ -266,7 +270,8 @@ impl Builtin for TemporalInstantFromEpochNanoseconds {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(InstantConstructor::from_epoch_nanoseconds);
+    const BEHAVIOUR: Behaviour =
+        Behaviour::Regular(TemporalInstantConstructor::from_epoch_nanoseconds);
 }
 
 struct TemporalInstantCompare;
@@ -275,7 +280,7 @@ impl Builtin for TemporalInstantCompare {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(InstantConstructor::compare);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalInstantConstructor::compare);
 }
 
 impl TemporalInstantPrototype {
@@ -286,13 +291,9 @@ impl TemporalInstantPrototype {
         let instant_constructor = intrinsics.temporal_instant();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
-            .with_property_capacity(5)
+            .with_property_capacity(1)
             .with_prototype(object_prototype)
             .with_constructor_property(instant_constructor)
-            .with_builtin_function_property::<TemporalInstantFrom>()
-            .with_builtin_function_property::<TemporalInstantFromEpochMilliseconds>()
-            .with_builtin_function_property::<TemporalInstantFromEpochNanoseconds>()
-            .with_builtin_function_property::<TemporalInstantCompare>()
             .build();
     }
 }
