@@ -74,10 +74,10 @@ impl InstantPrototype {
     }
 }
 
-use self::data::InstantHeapData;
+use self::data::InstantRecord;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct Instant<'a>(BaseIndex<'a, InstantHeapData<'static>>);
+pub struct Instant<'a>(BaseIndex<'a, InstantRecord<'static>>);
 impl Instant<'_> {
     //TODO
     pub(crate) const fn _def() -> Self {
@@ -123,17 +123,18 @@ impl<'a> TryFrom<Object<'a>> for Instant<'a> {
 impl<'a> InternalSlots<'a> for Instant<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::TemporalInstant;
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index // not implemented for `agent::Agent`
+        agent[self].object_index
     }
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self].object_index.replace(backing_object).is_none()); // not implemented for `agent::Agent`
+        assert!(agent[self].object_index.replace(backing_object).is_none());
     }
 }
 
 impl<'a> InternalMethods<'a> for Instant<'a> {}
 
+// TODO: get rid of Index impls, replace with get/get_mut/get_direct/get_direct_mut functions
 impl Index<Instant<'_>> for Agent {
-    type Output = InstantHeapData<'static>;
+    type Output = InstantRecord<'static>;
 
     fn index(&self, index: Instant<'_>) -> &Self::Output {
         &self.heap.instants[index]
@@ -146,44 +147,38 @@ impl IndexMut<Instant<'_>> for Agent {
     }
 }
 
-impl Index<Instant<'_>> for Vec<Option<InstantHeapData<'static>>> {
-    type Output = InstantHeapData<'static>;
+impl Index<Instant<'_>> for Vec<InstantRecord<'static>> {
+    type Output = InstantRecord<'static>;
 
     fn index(&self, index: Instant<'_>) -> &Self::Output {
         self.get(index.get_index())
             .expect("heap access out of bounds")
-            .as_ref()
-            .expect("")
     }
 }
 
-impl IndexMut<Instant<'_>> for Vec<Option<InstantHeapData<'static>>> {
+impl IndexMut<Instant<'_>> for Vec<InstantRecord<'static>> {
     fn index_mut(&mut self, index: Instant<'_>) -> &mut Self::Output {
         self.get_mut(index.get_index())
-            .expect("dasdas")
-            .as_mut()
-            .expect("")
+            .expect("heap access out of bounds")
     }
 }
 
 impl Rootable for Instant<'_> {
     type RootRepr = HeapRootRef;
 
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, crate::engine::rootable::HeapRootData> {
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         Err(HeapRootData::Instant(value.unbind()))
     }
 
-    fn from_root_repr(
-        value: &Self::RootRepr,
-    ) -> Result<Self, crate::engine::rootable::HeapRootRef> {
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
         Err(*value)
     }
 
-    fn from_heap_ref(heap_ref: crate::engine::rootable::HeapRootRef) -> Self::RootRepr {
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
         heap_ref
     }
 
-    fn from_heap_data(heap_data: crate::engine::rootable::HeapRootData) -> Option<Self> {
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
         match heap_data {
             HeapRootData::Instant(object) => Some(object),
             _ => None,
@@ -202,14 +197,14 @@ impl HeapMarkAndSweep for Instant<'static> {
 
 impl HeapSweepWeakReference for Instant<'static> {
     fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
-        compactions.dates.shift_weak_index(self.0).map(Self)
+        compactions.instants.shift_weak_index(self.0).map(Self)
     }
 }
 
-impl<'a> CreateHeapData<InstantHeapData<'a>, Instant<'a>> for Heap {
-    fn create(&mut self, data: InstantHeapData<'a>) -> Instant<'a> {
-        self.instants.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<InstantHeapData<'static>>>();
-        Instant(BaseIndex::last(&self.instants))
+impl<'a> CreateHeapData<InstantRecord<'a>, Instant<'a>> for Heap {
+    fn create(&mut self, data: InstantRecord<'a>) -> Instant<'a> {
+        self.instants.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<InstantRecord<'static>>();
+        Instant(BaseIndex::last_t(&self.instants))
     }
 }

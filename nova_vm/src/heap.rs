@@ -22,7 +22,7 @@ use std::ops::Deref;
 #[cfg(feature = "date")]
 use crate::ecmascript::DateHeapData;
 #[cfg(feature = "temporal")]
-use crate::ecmascript::InstantHeapData;
+use crate::ecmascript::InstantRecord;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::{
     ArrayBuffer, ArrayBufferHeapData, DataView, DataViewRecord, DetachKey, TypedArrayRecord,
@@ -78,7 +78,7 @@ pub(crate) struct Heap {
     #[cfg(feature = "date")]
     pub(crate) dates: Vec<DateHeapData<'static>>,
     #[cfg(feature = "temporal")]
-    pub(crate) instants: Vec<InstantHeapData<'static>>,
+    pub(crate) instants: Vec<InstantRecord<'static>>,
     pub(crate) ecmascript_functions: Vec<ECMAScriptFunctionHeapData<'static>>,
     /// ElementsArrays is where all keys and values arrays live;
     /// Element arrays are static arrays of Values plus
