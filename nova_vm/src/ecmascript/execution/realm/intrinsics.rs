@@ -11,10 +11,6 @@ use crate::ecmascript::AtomicsObject;
 use crate::ecmascript::JSONObject;
 #[cfg(feature = "math")]
 use crate::ecmascript::MathObject;
-#[cfg(feature = "temporal")]
-use crate::ecmascript::builtins::{
-    TemporalObject, instant::InstantConstructor, instant::InstantPrototype,
-};
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::{
     ArrayBufferConstructor, ArrayBufferPrototype, DataViewConstructor, DataViewPrototype,
@@ -22,6 +18,8 @@ use crate::ecmascript::{
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::{DateConstructor, DatePrototype};
+#[cfg(feature = "temporal")]
+use crate::ecmascript::{InstantConstructor, TemporalInstantPrototype, TemporalObject};
 #[cfg(feature = "regexp")]
 use crate::ecmascript::{RegExpConstructor, RegExpPrototype, RegExpStringIteratorPrototype};
 #[cfg(feature = "set")]
@@ -222,7 +220,7 @@ impl Intrinsics {
             TemporalObject::create_intrinsic(agent, realm, gc);
             // Instant
             InstantConstructor::create_intrinsic(agent, realm, gc);
-            InstantPrototype::create_intrinsic(agent, realm, gc);
+            TemporalInstantPrototype::create_intrinsic(agent, realm, gc);
         }
 
         #[cfg(feature = "date")]

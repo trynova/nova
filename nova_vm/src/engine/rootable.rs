@@ -28,6 +28,8 @@ use crate::ecmascript::{
 use crate::ecmascript::{FLOAT_16_ARRAY_DISCRIMINANT, Float16Array};
 #[cfg(feature = "temporal")]
 use crate::ecmascript::{INSTANT_DISCRIMINANT, Instant};
+#[cfg(feature = "temporal")]
+use crate::ecmascript::{INSTANT_DISCRIMINANT, TemporalInstant};
 #[cfg(feature = "regexp")]
 use crate::ecmascript::{
     REGEXP_DISCRIMINANT, REGEXP_STRING_ITERATOR_DISCRIMINANT, RegExp, RegExpStringIterator,
@@ -84,7 +86,7 @@ pub(crate) mod private {
     #[cfg(feature = "date")]
     use crate::ecmascript::Date;
     #[cfg(feature = "temporal")]
-    use crate::ecmascript::Instant;
+    use crate::ecmascript::TemporalInstant;
     #[cfg(feature = "array-buffer")]
     use crate::ecmascript::{
         AnyArrayBuffer, AnyDataView, AnyTypedArray, ArrayBuffer, DataView, GenericTypedArray,
@@ -132,7 +134,7 @@ pub(crate) mod private {
     #[cfg(feature = "date")]
     impl RootableSealed for Date<'_> {}
     #[cfg(feature = "temporal")]
-    impl RootableSealed for Instant<'_> {}
+    impl RootableSealed for TemporalInstant<'_> {}
     impl RootableSealed for ECMAScriptFunction<'_> {}
     impl RootableSealed for EmbedderObject<'_> {}
     impl RootableSealed for Error<'_> {}
@@ -445,7 +447,7 @@ pub enum HeapRootData {
     #[cfg(feature = "date")]
     Date(Date<'static>) = DATE_DISCRIMINANT,
     #[cfg(feature = "temporal")]
-    Instant(Instant<'static>) = INSTANT_DISCRIMINANT,
+    Instant(TemporalInstant<'static>) = INSTANT_DISCRIMINANT,
     Error(Error<'static>) = ERROR_DISCRIMINANT,
     FinalizationRegistry(FinalizationRegistry<'static>) = FINALIZATION_REGISTRY_DISCRIMINANT,
     Map(Map<'static>) = MAP_DISCRIMINANT,

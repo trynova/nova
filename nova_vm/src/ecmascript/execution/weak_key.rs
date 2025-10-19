@@ -21,7 +21,7 @@ use crate::ecmascript::{
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::{FLOAT_16_ARRAY_DISCRIMINANT, Float16Array};
 #[cfg(feature = "temporal")]
-use crate::ecmascript::{INSTANT_DISCRIMINANT, Instant};
+use crate::ecmascript::{INSTANT_DISCRIMINANT, TemporalInstant};
 #[cfg(feature = "regexp")]
 use crate::ecmascript::{
     REGEXP_DISCRIMINANT, REGEXP_STRING_ITERATOR_DISCRIMINANT, RegExp, RegExpStringIterator,
@@ -97,7 +97,7 @@ pub(crate) enum WeakKey<'a> {
     #[cfg(feature = "date")]
     Date(Date<'a>) = DATE_DISCRIMINANT,
     #[cfg(feature = "temporal")]
-    Instant(Instant<'a>) = INSTANT_DISCRIMINANT,
+    Instant(TemporalInstant<'a>) = INSTANT_DISCRIMINANT,
     Error(Error<'a>) = ERROR_DISCRIMINANT,
     FinalizationRegistry(FinalizationRegistry<'a>) = FINALIZATION_REGISTRY_DISCRIMINANT,
     Map(Map<'a>) = MAP_DISCRIMINANT,

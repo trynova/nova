@@ -22,7 +22,7 @@ use soavec_derive::SoAble;
 #[cfg(feature = "date")]
 use crate::ecmascript::Date;
 #[cfg(feature = "temporal")]
-use crate::ecmascript::builtins::Instant;
+use crate::ecmascript::TemporalInstant;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::{ArrayBuffer, DataView, VoidArray};
 #[cfg(feature = "regexp")]
@@ -417,6 +417,8 @@ pub(crate) struct HeapBits {
     pub(super) data_views: BitRange,
     #[cfg(feature = "date")]
     pub(super) dates: BitRange,
+    #[cfg(feature = "temporal")]
+    pub(super) instants: BitRange,
     pub(super) declarative_environments: BitRange,
     pub(super) ecmascript_functions: BitRange,
     pub(super) embedder_objects: BitRange,
@@ -493,8 +495,8 @@ pub(crate) struct WorkQueues<'a> {
     pub(crate) data_views: Vec<DataView<'static>>,
     #[cfg(feature = "date")]
     pub(crate) dates: Vec<Date<'static>>,
-    #[cfg(feature = "date")]
-    pub(crate) instants: Vec<Instant<'static>>,
+    #[cfg(feature = "temporal")]
+    pub(crate) instants: Vec<TemporalInstant<'static>>,
     pub(crate) declarative_environments: Vec<DeclarativeEnvironment<'static>>,
     pub(crate) e_2_1: Vec<ElementIndex<'static>>,
     pub(crate) e_2_2: Vec<ElementIndex<'static>>,
@@ -644,6 +646,7 @@ impl HeapBits {
         let data_views = BitRange::from_bit_count_and_len(&mut bit_count, heap.data_views.len());
         #[cfg(feature = "date")]
         let dates = BitRange::from_bit_count_and_len(&mut bit_count, heap.dates.len());
+        let instants = BitRange::from_bit_count_and_len(&mut bit_count, heap.instants.len());
         let declarative_environments =
             BitRange::from_bit_count_and_len(&mut bit_count, heap.environments.declarative.len());
         let ecmascript_functions =
@@ -751,6 +754,8 @@ impl HeapBits {
             data_views,
             #[cfg(feature = "date")]
             dates,
+            #[cfg(feature = "temporal")]
+            instants,
             declarative_environments,
             e_2_1,
             e_2_2,
@@ -861,6 +866,7 @@ impl HeapBits {
             WeakKey::Array(d) => self.arrays.get_bit(d.get_index(), &self.bits),
             #[cfg(feature = "date")]
             WeakKey::Date(d) => self.dates.get_bit(d.get_index(), &self.bits),
+            WeakKey::Instant(d) => self.instants.get_bit(d.get_index(), &self.bits),
             WeakKey::Error(d) => self.errors.get_bit(d.get_index(), &self.bits),
             WeakKey::FinalizationRegistry(d) => self
                 .finalization_registrys

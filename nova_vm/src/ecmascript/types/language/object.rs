@@ -76,7 +76,7 @@ use crate::{
         BuiltinPromiseResolvingFunction, ECMAScriptFunction, EmbedderObject, Error,
         FinalizationRegistry, Generator, Instant, JsResult, Map, MapIterator, Module, ObjectShape,
         ObjectShapeRecord, PrimitiveObject, Promise, PropertyDescriptor, PropertyLookupCache,
-        PropertyOffset, ProtoIntrinsics, Proxy, StringIterator, TryResult,
+        PropertyOffset, ProtoIntrinsics, Proxy, StringIterator, TemporalInstant, TryResult,
         ordinary_object_create_with_intrinsics,
     },
     engine::{Bindable, GcScope, HeapRootData, NoGcScope, bindable_handle},
@@ -120,7 +120,7 @@ pub enum Object<'a> {
     #[cfg(feature = "date")]
     Date(Date<'a>) = DATE_DISCRIMINANT,
     #[cfg(feature = "temporal")]
-    Instant(Instant<'a>) = INSTANT_DISCRIMINANT,
+    Instant(TemporalInstant<'a>) = INSTANT_DISCRIMINANT,
     Error(Error<'a>) = ERROR_DISCRIMINANT,
     FinalizationRegistry(FinalizationRegistry<'a>) = FINALIZATION_REGISTRY_DISCRIMINANT,
     Map(Map<'a>) = MAP_DISCRIMINANT,
