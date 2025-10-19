@@ -11,7 +11,7 @@ use crate::{
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
         execution::{JsResult, ProtoIntrinsics, Realm, agent::Agent},
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, Object,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
             OrdinaryObject, String, Value,
         },
     },
@@ -43,8 +43,9 @@ impl InstantConstructor {
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        todo!();
+        Ok(agent.heap.create(InstantRecord::default()).into_value())
     }
+
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, gc: NoGcScope) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let instant_prototype = intrinsics.temporal_instant_prototype();
