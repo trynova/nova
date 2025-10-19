@@ -14,10 +14,10 @@ use std::{
     vec,
 };
 
+#[cfg(feature = "temporal")]
+use crate::ecmascript::InstantRecord;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::SharedDataViewRecord;
-#[cfg(feature = "temporal")]
-use crate::ecmascript::builtins::InstantHeapData;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::try_get_result_into_value;
 use crate::{
@@ -1654,7 +1654,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
             .create(ErrorHeapData::new(ExceptionType::SyntaxError, None, None))
             .into(),
         #[cfg(feature = "temporal")]
-        ProtoIntrinsics::TemporalInstant => agent.heap.create(InstantHeapData::default()).into(),
+        ProtoIntrinsics::TemporalInstant => agent.heap.create(InstantRecord::default()).into(),
         ProtoIntrinsics::TypeError => agent
             .heap
             .create(ErrorHeapData::new(ExceptionType::TypeError, None, None))
