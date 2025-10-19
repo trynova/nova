@@ -11,6 +11,7 @@ pub use shape::*;
 use std::{
     collections::{TryReserveError, hash_map::Entry},
     ops::ControlFlow,
+    time::Instant,
     vec,
 };
 
@@ -1651,6 +1652,8 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
             .heap
             .create(ErrorHeapData::new(ExceptionType::SyntaxError, None, None))
             .into(),
+        #[cfg(feature = "temporal")]
+        ProtoIntrinsics::TemporalInstant => agent.heap.create(InstantHeapData::default()).into(),
         ProtoIntrinsics::TypeError => agent
             .heap
             .create(ErrorHeapData::new(ExceptionType::TypeError, None, None))
