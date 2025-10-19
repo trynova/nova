@@ -8,7 +8,7 @@ pub(crate) mod data;
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_big_int,
+        abstract_operations::type_conversion::{PreferredType, to_big_int, to_primitive_object},
         builders::{
             builtin_function_builder::BuiltinFunctionBuilder,
             ordinary_object_builder::OrdinaryObjectBuilder,
@@ -23,7 +23,7 @@ use crate::{
         },
         types::{
             BUILTIN_STRING_MEMORY, BigInt, Function, InternalMethods, InternalSlots, IntoFunction,
-            IntoObject, IntoValue, Object, OrdinaryObject, String, Value,
+            IntoObject, IntoValue, Object, OrdinaryObject, Primitive, String, Value,
         },
     },
     engine::{
@@ -101,6 +101,50 @@ impl InstantConstructor {
         )
     }
 
+    /// ### [8.2.2 Temporal.Instant.from ( item )](https://tc39.es/proposal-temporal/#sec-temporal.instant.from)
+    fn from<'gc>(
+        agent: &mut Agent,
+        _this_value: Value,
+        arguments: ArgumentsList,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        let item = arguments.get(0).bind(gc.nogc());
+        // 1. Return ? ToTemporalInstant(item).
+        let instant = to_temporal_instant(agent, item.unbind(), gc)?;
+        let instant = agent.heap.create(InstantRecord {
+            object_index: None,
+            instant,
+        });
+        Ok(instant.into_value())
+    }
+
+    fn from_epoch_milliseconds<'gc>(
+        _agent: &mut Agent,
+        _this_value: Value,
+        _arguments: ArgumentsList,
+        mut _gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        todo!()
+    }
+
+    fn from_epoch_nanoseconds<'gc>(
+        _agent: &mut Agent,
+        _this_value: Value,
+        _arguments: ArgumentsList,
+        mut _gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        todo!()
+    }
+
+    fn compare<'gc>(
+        _agent: &mut Agent,
+        _this_value: Value,
+        _arguments: ArgumentsList,
+        mut _gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        todo!()
+    }
+
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, _: NoGcScope) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let instant_prototype = intrinsics.temporal_instant_prototype();
@@ -124,7 +168,7 @@ fn create_temporal_instant<'gc>(
     epoch_nanoseconds: temporal_rs::Instant,
     new_target: Option<Function>,
     gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, Instant<'gc>> {
+) -> JsResult<'gc, TemporalInstant<'gc>> {
     // 1. Assert: IsValidEpochNanoseconds(epochNanoseconds) is true.
     // 2. If newTarget is not present, set newTarget to %Temporal.Instant%.
     let new_target = new_target.unwrap_or_else(|| {
@@ -147,10 +191,94 @@ fn create_temporal_instant<'gc>(
     Ok(object)
 }
 
-/// %Temporal.Instant.Prototype%
-pub(crate) struct InstantPrototype;
+/// ### [8.5.3 ToTemporalInstant ( item )](https://tc39.es/proposal-temporal/#sec-temporal-totemporalinstant)
+///
+/// The abstract operation ToTemporalInstant takes argument item (an ECMAScript language value) and
+/// returns either a normal completion containing a Temporal.Instant or a throw completion.
+/// Converts item to a new Temporal.Instant instance if possible, and throws otherwise. It performs
+/// the following steps when called:
+fn to_temporal_instant<'gc>(
+    agent: &mut Agent,
+    item: Value,
+    gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, temporal_rs::Instant> {
+    let item = item.bind(gc.nogc());
+    // 1. If item is an Object, then
+    let item = if let Ok(item) = Object::try_from(item) {
+        // a. If item has an [[InitializedTemporalInstant]] or [[InitializedTemporalZonedDateTime]]
+        // internal slot, then TODO: TemporalZonedDateTime::try_from(item)
+        if let Ok(item) = TemporalInstant::try_from(item) {
+            // i. Return ! CreateTemporalInstant(item.[[EpochNanoseconds]]).
+            return Ok(agent[item].instant);
+        }
+        // b. NOTE: This use of ToPrimitive allows Instant-like objects to be converted.
+        // c. Set item to ? ToPrimitive(item, string).
+        to_primitive_object(agent, item.unbind(), Some(PreferredType::String), gc)?
+    } else {
+        Primitive::try_from(item).unwrap()
+    };
+    // 2. If item is not a String, throw a TypeError exception.
+    let Ok(item) = String::try_from(item) else {
+        todo!() // TypeErrror
+    };
+    // 3. Let parsed be ? ParseISODateTime(item, « TemporalInstantString »).
+    // 4. Assert: Either parsed.[[TimeZone]].[[OffsetString]] is not empty or
+    //    parsed.[[TimeZone]].[[Z]] is true, but not both.
+    // 5. If parsed.[[TimeZone]].[[Z]] is true, let offsetNanoseconds be 0; otherwise, let
+    //    offsetNanoseconds be ! ParseDateTimeUTCOffset(parsed.[[TimeZone]].[[OffsetString]]).
+    // 6. If parsed.[[Time]] is start-of-day, let time be MidnightTimeRecord(); else let time be
+    //    parsed.[[Time]].
+    // 7. Let balanced be BalanceISODateTime(parsed.[[Year]], parsed.[[Month]], parsed.[[Day]],
+    //    time.[[Hour]], time.[[Minute]], time.[[Second]], time.[[Millisecond]],
+    //    time.[[Microsecond]], time.[[Nanosecond]] - offsetNanoseconds).
+    // 8. Perform ? CheckISODaysRange(balanced.[[ISODate]]).
+    // 9. Let epochNanoseconds be GetUTCEpochNanoseconds(balanced).
+    // 10. If IsValidEpochNanoseconds(epochNanoseconds) is false, throw a RangeError exception.
+    // 11. Return ! CreateTemporalInstant(epochNanoseconds).
+    let parsed = temporal_rs::Instant::from_utf8(item.as_bytes(agent)).unwrap();
+    Ok(parsed)
+}
 
-impl InstantPrototype {
+/// %Temporal.Instant.Prototype%
+pub(crate) struct TemporalInstantPrototype;
+
+struct TemporalInstantFrom;
+impl Builtin for TemporalInstantFrom {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.from;
+
+    const LENGTH: u8 = 1;
+
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(InstantConstructor::from);
+}
+
+struct TemporalInstantFromEpochMilliseconds;
+impl Builtin for TemporalInstantFromEpochMilliseconds {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.fromEpochMilliseconds;
+
+    const LENGTH: u8 = 1;
+
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(InstantConstructor::from_epoch_milliseconds);
+}
+
+struct TemporalInstantFromEpochNanoseconds;
+impl Builtin for TemporalInstantFromEpochNanoseconds {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.fromEpochNanoseconds;
+
+    const LENGTH: u8 = 1;
+
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(InstantConstructor::from_epoch_nanoseconds);
+}
+
+struct TemporalInstantCompare;
+impl Builtin for TemporalInstantCompare {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.compare;
+
+    const LENGTH: u8 = 2;
+
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(InstantConstructor::compare);
+}
+
+impl TemporalInstantPrototype {
     pub fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, _: NoGcScope) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let this = intrinsics.temporal_instant_prototype();
@@ -158,10 +286,13 @@ impl InstantPrototype {
         let instant_constructor = intrinsics.temporal_instant();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
-            .with_property_capacity(1) // TODO add correct property capacity
+            .with_property_capacity(5)
             .with_prototype(object_prototype)
             .with_constructor_property(instant_constructor)
-            // TODO add all prototype methods
+            .with_builtin_function_property::<TemporalInstantFrom>()
+            .with_builtin_function_property::<TemporalInstantFromEpochMilliseconds>()
+            .with_builtin_function_property::<TemporalInstantFromEpochNanoseconds>()
+            .with_builtin_function_property::<TemporalInstantCompare>()
             .build();
     }
 }
@@ -169,11 +300,11 @@ impl InstantPrototype {
 use self::data::InstantRecord;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct Instant<'a>(BaseIndex<'a, InstantRecord<'static>>);
-impl Instant<'_> {
+pub struct TemporalInstant<'a>(BaseIndex<'a, InstantRecord<'static>>);
+impl TemporalInstant<'_> {
     //TODO
     pub(crate) const fn _def() -> Self {
-        Instant(BaseIndex::from_u32_index(0))
+        TemporalInstant(BaseIndex::from_u32_index(0))
     }
 
     pub(crate) const fn get_index(self) -> usize {
@@ -191,19 +322,19 @@ impl Instant<'_> {
         agent[self].instant = epoch_nanoseconds;
     }
 }
-bindable_handle!(Instant);
+bindable_handle!(TemporalInstant);
 
-impl<'a> From<Instant<'a>> for Value<'a> {
-    fn from(value: Instant<'a>) -> Self {
+impl<'a> From<TemporalInstant<'a>> for Value<'a> {
+    fn from(value: TemporalInstant<'a>) -> Self {
         Value::Instant(value)
     }
 }
-impl<'a> From<Instant<'a>> for Object<'a> {
-    fn from(value: Instant<'a>) -> Self {
+impl<'a> From<TemporalInstant<'a>> for Object<'a> {
+    fn from(value: TemporalInstant<'a>) -> Self {
         Object::Instant(value)
     }
 }
-impl<'a> TryFrom<Value<'a>> for Instant<'a> {
+impl<'a> TryFrom<Value<'a>> for TemporalInstant<'a> {
     type Error = ();
 
     fn try_from(value: Value<'a>) -> Result<Self, ()> {
@@ -213,7 +344,7 @@ impl<'a> TryFrom<Value<'a>> for Instant<'a> {
         }
     }
 }
-impl<'a> TryFrom<Object<'a>> for Instant<'a> {
+impl<'a> TryFrom<Object<'a>> for TemporalInstant<'a> {
     type Error = ();
     fn try_from(object: Object<'a>) -> Result<Self, ()> {
         match object {
@@ -223,7 +354,7 @@ impl<'a> TryFrom<Object<'a>> for Instant<'a> {
     }
 }
 
-impl<'a> InternalSlots<'a> for Instant<'a> {
+impl<'a> InternalSlots<'a> for TemporalInstant<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::TemporalInstant;
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
         agent[self].object_index
@@ -233,40 +364,40 @@ impl<'a> InternalSlots<'a> for Instant<'a> {
     }
 }
 
-impl<'a> InternalMethods<'a> for Instant<'a> {}
+impl<'a> InternalMethods<'a> for TemporalInstant<'a> {}
 
 // TODO: get rid of Index impls, replace with get/get_mut/get_direct/get_direct_mut functions
-impl Index<Instant<'_>> for Agent {
+impl Index<TemporalInstant<'_>> for Agent {
     type Output = InstantRecord<'static>;
 
-    fn index(&self, index: Instant<'_>) -> &Self::Output {
+    fn index(&self, index: TemporalInstant<'_>) -> &Self::Output {
         &self.heap.instants[index]
     }
 }
 
-impl IndexMut<Instant<'_>> for Agent {
-    fn index_mut(&mut self, index: Instant) -> &mut Self::Output {
+impl IndexMut<TemporalInstant<'_>> for Agent {
+    fn index_mut(&mut self, index: TemporalInstant) -> &mut Self::Output {
         &mut self.heap.instants[index]
     }
 }
 
-impl Index<Instant<'_>> for Vec<InstantRecord<'static>> {
+impl Index<TemporalInstant<'_>> for Vec<InstantRecord<'static>> {
     type Output = InstantRecord<'static>;
 
-    fn index(&self, index: Instant<'_>) -> &Self::Output {
+    fn index(&self, index: TemporalInstant<'_>) -> &Self::Output {
         self.get(index.get_index())
             .expect("heap access out of bounds")
     }
 }
 
-impl IndexMut<Instant<'_>> for Vec<InstantRecord<'static>> {
-    fn index_mut(&mut self, index: Instant<'_>) -> &mut Self::Output {
+impl IndexMut<TemporalInstant<'_>> for Vec<InstantRecord<'static>> {
+    fn index_mut(&mut self, index: TemporalInstant<'_>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("heap access out of bounds")
     }
 }
 
-impl Rootable for Instant<'_> {
+impl Rootable for TemporalInstant<'_> {
     type RootRepr = HeapRootRef;
 
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
@@ -289,7 +420,7 @@ impl Rootable for Instant<'_> {
     }
 }
 
-impl HeapMarkAndSweep for Instant<'static> {
+impl HeapMarkAndSweep for TemporalInstant<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.instants.push(*self);
     }
@@ -298,16 +429,16 @@ impl HeapMarkAndSweep for Instant<'static> {
     }
 }
 
-impl HeapSweepWeakReference for Instant<'static> {
+impl HeapSweepWeakReference for TemporalInstant<'static> {
     fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
         compactions.instants.shift_weak_index(self.0).map(Self)
     }
 }
 
-impl<'a> CreateHeapData<InstantRecord<'a>, Instant<'a>> for Heap {
-    fn create(&mut self, data: InstantRecord<'a>) -> Instant<'a> {
+impl<'a> CreateHeapData<InstantRecord<'a>, TemporalInstant<'a>> for Heap {
+    fn create(&mut self, data: InstantRecord<'a>) -> TemporalInstant<'a> {
         self.instants.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<InstantRecord<'static>>();
-        Instant(BaseIndex::last_t(&self.instants))
+        TemporalInstant(BaseIndex::last_t(&self.instants))
     }
 }

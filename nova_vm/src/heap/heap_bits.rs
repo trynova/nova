@@ -16,10 +16,10 @@ use super::{
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
-#[cfg(feature = "temporal")]
-use crate::ecmascript::builtins::temporal::instant::Instant;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
+#[cfg(feature = "temporal")]
+use crate::ecmascript::builtins::temporal::instant::TemporalInstant;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{ArrayBuffer, data_view::DataView};
 #[cfg(feature = "set")]
@@ -195,7 +195,7 @@ pub(crate) struct WorkQueues {
     #[cfg(feature = "date")]
     pub dates: Vec<Date<'static>>,
     #[cfg(feature = "temporal")]
-    pub instants: Vec<Instant<'static>>,
+    pub instants: Vec<TemporalInstant<'static>>,
     pub declarative_environments: Vec<DeclarativeEnvironment<'static>>,
     pub e_2_1: Vec<(ElementIndex<'static>, u32)>,
     pub e_2_2: Vec<(ElementIndex<'static>, u32)>,

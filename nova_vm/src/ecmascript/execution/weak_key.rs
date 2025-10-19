@@ -15,7 +15,9 @@ use crate::ecmascript::types::{
     WEAK_MAP_DISCRIMINANT, WEAK_REF_DISCRIMINANT, WEAK_SET_DISCRIMINANT,
 };
 #[cfg(feature = "temporal")]
-use crate::ecmascript::{builtins::temporal::instant::Instant, types::INSTANT_DISCRIMINANT};
+use crate::ecmascript::{
+    builtins::temporal::instant::TemporalInstant, types::INSTANT_DISCRIMINANT,
+};
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::{builtins::typed_array::Float16Array, types::FLOAT_16_ARRAY_DISCRIMINANT};
 #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
@@ -144,7 +146,7 @@ pub(crate) enum WeakKey<'a> {
     #[cfg(feature = "date")]
     Date(Date<'a>) = DATE_DISCRIMINANT,
     #[cfg(feature = "temporal")]
-    Instant(Instant<'a>) = INSTANT_DISCRIMINANT,
+    Instant(TemporalInstant<'a>) = INSTANT_DISCRIMINANT,
     Error(Error<'a>) = ERROR_DISCRIMINANT,
     FinalizationRegistry(FinalizationRegistry<'a>) = FINALIZATION_REGISTRY_DISCRIMINANT,
     Map(Map<'a>) = MAP_DISCRIMINANT,
