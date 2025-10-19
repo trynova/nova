@@ -20,6 +20,8 @@ use crate::ecmascript::{
 };
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::{FLOAT_16_ARRAY_DISCRIMINANT, Float16Array};
+#[cfg(feature = "temporal")]
+use crate::ecmascript::{INSTANT_DISCRIMINANT, Instant};
 #[cfg(feature = "regexp")]
 use crate::ecmascript::{
     REGEXP_DISCRIMINANT, REGEXP_STRING_ITERATOR_DISCRIMINANT, RegExp, RegExpStringIterator,

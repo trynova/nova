@@ -74,7 +74,7 @@ use crate::{
         Agent, ArgumentsList, Array, ArrayIterator, AsyncGenerator, BoundFunction,
         BuiltinConstructorFunction, BuiltinFunction, BuiltinPromiseFinallyFunction,
         BuiltinPromiseResolvingFunction, ECMAScriptFunction, EmbedderObject, Error,
-        FinalizationRegistry, Generator, JsResult, Map, MapIterator, Module, ObjectShape,
+        FinalizationRegistry, Generator, Instant, JsResult, Map, MapIterator, Module, ObjectShape,
         ObjectShapeRecord, PrimitiveObject, Promise, PropertyDescriptor, PropertyLookupCache,
         PropertyOffset, ProtoIntrinsics, Proxy, StringIterator, TryResult,
         ordinary_object_create_with_intrinsics,
@@ -119,6 +119,7 @@ pub enum Object<'a> {
     Array(Array<'a>) = ARRAY_DISCRIMINANT,
     #[cfg(feature = "date")]
     Date(Date<'a>) = DATE_DISCRIMINANT,
+    #[cfg(feature = "temporal")]
     Instant(Instant<'a>) = INSTANT_DISCRIMINANT,
     Error(Error<'a>) = ERROR_DISCRIMINANT,
     FinalizationRegistry(FinalizationRegistry<'a>) = FINALIZATION_REGISTRY_DISCRIMINANT,
@@ -1204,6 +1205,8 @@ impl HeapSweepWeakReference for Object<'static> {
             Self::Array(data) => data.sweep_weak_reference(compactions).map(Self::Array),
             #[cfg(feature = "date")]
             Self::Date(data) => data.sweep_weak_reference(compactions).map(Self::Date),
+            #[cfg(feature = "temporal")]
+            Self::Instant(data) => data.sweep_weak_reference(compactions).map(Self::Instant),
             Self::Error(data) => data.sweep_weak_reference(compactions).map(Self::Error),
             Self::BoundFunction(data) => data
                 .sweep_weak_reference(compactions)
