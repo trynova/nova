@@ -41,7 +41,7 @@ use crate::ecmascript::builtins::structured_data::shared_array_buffer_objects::{
 };
 #[cfg(feature = "temporal")]
 use crate::ecmascript::builtins::temporal::{
-    TemporalObject, instant::InstantConstructor, instant::TemporalInstantPrototype,
+    TemporalObject, instant::TemporalInstantConstructor, instant::TemporalInstantPrototype,
 };
 #[cfg(feature = "regexp")]
 use crate::ecmascript::builtins::text_processing::regexp_objects::{
@@ -318,7 +318,7 @@ impl Intrinsics {
         {
             TemporalObject::create_intrinsic(agent, realm, gc);
             // Instant
-            InstantConstructor::create_intrinsic(agent, realm, gc);
+            TemporalInstantConstructor::create_intrinsic(agent, realm, gc);
             TemporalInstantPrototype::create_intrinsic(agent, realm, gc);
         }
 

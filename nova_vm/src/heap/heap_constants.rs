@@ -37,8 +37,6 @@ pub(crate) enum IntrinsicObjectIndexes {
     #[cfg(feature = "temporal")]
     TemporalObject,
     #[cfg(feature = "temporal")]
-    TemporalInstant,
-    #[cfg(feature = "temporal")]
     TemporalInstantPrototype,
     // Text processing
     #[cfg(feature = "regexp")]
