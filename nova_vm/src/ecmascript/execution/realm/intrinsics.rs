@@ -18,14 +18,14 @@ use crate::ecmascript::{
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::{DateConstructor, DatePrototype};
-#[cfg(feature = "temporal")]
-use crate::ecmascript::{InstantConstructor, TemporalInstantPrototype, TemporalObject};
 #[cfg(feature = "regexp")]
 use crate::ecmascript::{RegExpConstructor, RegExpPrototype, RegExpStringIteratorPrototype};
 #[cfg(feature = "set")]
 use crate::ecmascript::{SetConstructor, SetIteratorPrototype, SetPrototype};
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::{SharedArrayBufferConstructor, SharedArrayBufferPrototype};
+#[cfg(feature = "temporal")]
+use crate::ecmascript::{TemporalInstantConstructor, TemporalInstantPrototype, TemporalObject};
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::{
     WeakMapConstructor, WeakMapPrototype, WeakSetConstructor, WeakSetPrototype,
@@ -219,7 +219,7 @@ impl Intrinsics {
         {
             TemporalObject::create_intrinsic(agent, realm, gc);
             // Instant
-            InstantConstructor::create_intrinsic(agent, realm, gc);
+            TemporalInstantConstructor::create_intrinsic(agent, realm, gc);
             TemporalInstantPrototype::create_intrinsic(agent, realm, gc);
         }
 
