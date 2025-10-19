@@ -19,7 +19,7 @@ use super::{
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
 #[cfg(feature = "temporal")]
-use crate::ecmascript::builtins::temporal::instant::Instant;
+use crate::ecmascript::builtins::temporal::instant::TemporalInstant;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{ArrayBuffer, data_view::DataView, typed_array::VoidArray};
 #[cfg(feature = "shared-array-buffer")]
@@ -554,7 +554,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         }
         #[cfg(feature = "temporal")]
         {
-            let mut instant_marks: Box<[Instant]> = queues.instants.drain(..).collect();
+            let mut instant_marks: Box<[TemporalInstant]> = queues.instants.drain(..).collect();
             instant_marks.sort();
             instant_marks.iter().for_each(|&idx| {
                 let index = idx.get_index();

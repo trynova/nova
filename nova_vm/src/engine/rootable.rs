@@ -18,7 +18,9 @@ use crate::ecmascript::types::{
     WEAK_MAP_DISCRIMINANT, WEAK_REF_DISCRIMINANT, WEAK_SET_DISCRIMINANT,
 };
 #[cfg(feature = "temporal")]
-use crate::ecmascript::{builtins::temporal::instant::Instant, types::INSTANT_DISCRIMINANT};
+use crate::ecmascript::{
+    builtins::temporal::instant::TemporalInstant, types::INSTANT_DISCRIMINANT,
+};
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::{builtins::typed_array::Float16Array, types::FLOAT_16_ARRAY_DISCRIMINANT};
 #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
@@ -138,7 +140,7 @@ pub mod private {
     #[cfg(feature = "date")]
     use crate::ecmascript::builtins::date::Date;
     #[cfg(feature = "temporal")]
-    use crate::ecmascript::builtins::temporal::instant::Instant;
+    use crate::ecmascript::builtins::temporal::instant::TemporalInstant;
     #[cfg(feature = "shared-array-buffer")]
     use crate::ecmascript::builtins::{
         data_view::SharedDataView,
@@ -235,7 +237,7 @@ pub mod private {
     #[cfg(feature = "date")]
     impl RootableSealed for Date<'_> {}
     #[cfg(feature = "temporal")]
-    impl RootableSealed for Instant<'_> {}
+    impl RootableSealed for TemporalInstant<'_> {}
     impl RootableSealed for ECMAScriptFunction<'_> {}
     impl RootableSealed for EmbedderObject<'_> {}
     impl RootableSealed for Error<'_> {}
@@ -551,7 +553,7 @@ pub enum HeapRootData {
     #[cfg(feature = "date")]
     Date(Date<'static>) = DATE_DISCRIMINANT,
     #[cfg(feature = "temporal")]
-    Instant(Instant<'static>) = INSTANT_DISCRIMINANT,
+    Instant(TemporalInstant<'static>) = INSTANT_DISCRIMINANT,
     Error(Error<'static>) = ERROR_DISCRIMINANT,
     FinalizationRegistry(FinalizationRegistry<'static>) = FINALIZATION_REGISTRY_DISCRIMINANT,
     Map(Map<'static>) = MAP_DISCRIMINANT,

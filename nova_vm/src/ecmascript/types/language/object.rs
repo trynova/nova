@@ -124,7 +124,7 @@ use crate::{
             promise::Promise,
             promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
             proxy::Proxy,
-            temporal::instant::Instant,
+            temporal::instant::TemporalInstant,
             text_processing::string_objects::string_iterator_objects::StringIterator,
         },
         execution::{Agent, JsResult, ProtoIntrinsics, agent::TryResult},
@@ -181,7 +181,7 @@ pub enum Object<'a> {
     #[cfg(feature = "date")]
     Date(Date<'a>) = DATE_DISCRIMINANT,
     #[cfg(feature = "temporal")]
-    Instant(Instant<'a>) = INSTANT_DISCRIMINANT,
+    Instant(TemporalInstant<'a>) = INSTANT_DISCRIMINANT,
     Error(Error<'a>) = ERROR_DISCRIMINANT,
     FinalizationRegistry(FinalizationRegistry<'a>) = FINALIZATION_REGISTRY_DISCRIMINANT,
     Map(Map<'a>) = MAP_DISCRIMINANT,

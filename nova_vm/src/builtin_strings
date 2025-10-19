@@ -87,6 +87,7 @@ codePointAt
 concat
 configurable
 construct
+compare
 constructor
 copyWithin
 #[cfg(feature = "math")]cos
@@ -147,6 +148,8 @@ for
 forEach
 freeze
 from
+fromEpochNanoseconds
+fromEpochMilliseconds
 fromCharCode
 fromCodePoint
 fromEntries

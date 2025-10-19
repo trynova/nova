@@ -12,7 +12,7 @@ use super::{
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
 #[cfg(feature = "temporal")]
-use crate::ecmascript::builtins::temporal::instant::Instant;
+use crate::ecmascript::builtins::temporal::instant::TemporalInstant;
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::builtins::typed_array::Float16Array;
 #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
@@ -184,7 +184,7 @@ pub enum Value<'a> {
     #[cfg(feature = "date")]
     Date(Date<'a>),
     #[cfg(feature = "temporal")]
-    Instant(Instant<'a>),
+    Instant(TemporalInstant<'a>),
     Error(Error<'a>),
     FinalizationRegistry(FinalizationRegistry<'a>),
     Map(Map<'a>),
@@ -322,7 +322,8 @@ pub(crate) const ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Array(Array:
 #[cfg(feature = "date")]
 pub(crate) const DATE_DISCRIMINANT: u8 = value_discriminant(Value::Date(Date::_def()));
 #[cfg(feature = "temporal")]
-pub(crate) const INSTANT_DISCRIMINANT: u8 = value_discriminant(Value::Instant(Instant::_def()));
+pub(crate) const INSTANT_DISCRIMINANT: u8 =
+    value_discriminant(Value::Instant(TemporalInstant::_def()));
 pub(crate) const ERROR_DISCRIMINANT: u8 = value_discriminant(Value::Error(Error::_def()));
 pub(crate) const BUILTIN_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::BuiltinFunction(BuiltinFunction::_def()));
