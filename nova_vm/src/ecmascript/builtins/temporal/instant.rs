@@ -141,21 +141,20 @@ impl TemporalInstantConstructor {
         todo!()
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, gc: NoGcScope) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, _gc: NoGcScope) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let instant_prototype = intrinsics.temporal_instant_prototype();
 
-        let result =
-            BuiltinFunctionBuilder::new_intrinsic_constructor::<TemporalInstantConstructor>(
-                agent, realm,
-            )
-            .with_property_capacity(5)
-            .with_prototype_property(instant_prototype.into_object())
-            .with_builtin_function_property::<TemporalInstantFrom>()
-            .with_builtin_function_property::<TemporalInstantFromEpochMilliseconds>()
-            .with_builtin_function_property::<TemporalInstantFromEpochNanoseconds>()
-            .with_builtin_function_property::<TemporalInstantCompare>()
-            .build();
+        BuiltinFunctionBuilder::new_intrinsic_constructor::<TemporalInstantConstructor>(
+            agent, realm,
+        )
+        .with_property_capacity(5)
+        .with_prototype_property(instant_prototype.into_object())
+        .with_builtin_function_property::<TemporalInstantFrom>()
+        .with_builtin_function_property::<TemporalInstantFromEpochMilliseconds>()
+        .with_builtin_function_property::<TemporalInstantFromEpochNanoseconds>()
+        .with_builtin_function_property::<TemporalInstantCompare>()
+        .build();
     }
 }
 
