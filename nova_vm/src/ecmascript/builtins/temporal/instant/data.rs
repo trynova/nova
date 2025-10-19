@@ -1,28 +1,41 @@
-
-use crate::{ecmascript::types::{OrdinaryObject,bigint::BigInt}, engine::context::bindable_handle, heap::HeapMarkAndSweep};
+use crate::{
+    ecmascript::types::OrdinaryObject,
+    engine::context::bindable_handle,
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+};
 
 #[derive(Debug, Clone, Copy)]
-pub struct InstantHeapData<'a> {
+pub struct InstantRecord<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
-    pub(crate) instant: BigInt<'a>,
+    pub(crate) instant: temporal_rs::Instant,
 }
 
-impl InstantHeapData<'_> {
+impl InstantRecord<'_> {
     pub fn default() -> Self {
         Self {
             object_index: None,
-            instant: BigInt::zero(),
+            instant: temporal_rs::Instant::try_new(0).unwrap(),
         }
     }
 }
 
-bindable_handle!(InstantHeapData);
+bindable_handle!(InstantRecord);
 
-impl HeapMarkAndSweep for InstantHeapData<'static> {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
-        todo!()
+impl HeapMarkAndSweep for InstantRecord<'static> {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let Self {
+            object_index,
+            instant: _,
+        } = self;
+
+        object_index.mark_values(queues);
     }
-    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
-        todo!()
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let Self {
+            object_index,
+            instant: _,
+        } = self;
+
+        object_index.sweep_values(compactions);
     }
 }
