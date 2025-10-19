@@ -6,34 +6,23 @@ pub mod instant;
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::{to_big_int, to_number, to_number_primitive, to_uint32},
-        builders::{self, ordinary_object_builder::OrdinaryObjectBuilder},
-        builtins::{ArgumentsList, Behaviour, Builtin},
-        execution::{agent, Agent, JsResult, Realm},
-        types::{IntoValue, Number, Primitive, String, Value, BUILTIN_STRING_MEMORY},
+        builders::ordinary_object_builder::OrdinaryObjectBuilder,
+        execution::{Agent, Realm},
+        types::BUILTIN_STRING_MEMORY,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
+    engine::context::NoGcScope,
     heap::WellKnownSymbolIndexes,
 };
 
-
 pub(crate) struct TemporalObject;
 
-
 impl TemporalObject {
-    pub fn create_intrinsic(
-        agent: &mut Agent,
-        realm: Realm<'static>,
-        gc: NoGcScope,
-    ) { 
+    pub fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, _: NoGcScope) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.temporal();
 
-        let builders = OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
+        OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(2)
             .with_prototype(object_prototype)
             .with_property(|builder| {
@@ -46,5 +35,5 @@ impl TemporalObject {
             })
             .with_builtin_function_property::<instant::InstantConstructor>()
             .build();
-    }  
+    }
 }
