@@ -11,12 +11,13 @@ pub use shape::*;
 use std::{
     collections::{TryReserveError, hash_map::Entry},
     ops::ControlFlow,
-    time::Instant,
     vec,
 };
 
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::SharedDataViewRecord;
+#[cfg(feature = "temporal")]
+use crate::ecmascript::builtins::InstantHeapData;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::try_get_result_into_value;
 use crate::{
@@ -2087,6 +2088,8 @@ fn get_intrinsic_constructor<'a>(
         ProtoIntrinsics::WeakRef => Some(intrinsics.weak_ref().into()),
         #[cfg(feature = "weak-refs")]
         ProtoIntrinsics::WeakSet => Some(intrinsics.weak_set().into()),
+        #[cfg(feature = "temporal")]
+        ProtoIntrinsics::TemporalInstant => Some(intrinsics.temporal_instant().into()),
     }
 }
 

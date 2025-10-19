@@ -4,17 +4,25 @@ pub(crate) mod data;
 
 use crate::{
     ecmascript::{
-        builders::{builtin_function_builder::BuiltinFunctionBuilder, ordinary_object_builder::OrdinaryObjectBuilder},
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor
+        builders::{
+            builtin_function_builder::BuiltinFunctionBuilder,
+            ordinary_object_builder::OrdinaryObjectBuilder,
         },
-        execution::{agent::Agent, JsResult, ProtoIntrinsics, Realm},
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
+        execution::{JsResult, ProtoIntrinsics, Realm, agent::Agent},
         types::{
-            InternalMethods, InternalSlots, IntoObject, Object, OrdinaryObject, String, Value, BUILTIN_STRING_MEMORY
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, Object,
+            OrdinaryObject, String, Value,
         },
     },
-    engine::{context::{bindable_handle, Bindable, GcScope, NoGcScope}, rootable::{HeapRootData, HeapRootRef, Rootable}},
-    heap::{indexes::BaseIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference, IntrinsicConstructorIndexes, WorkQueues},
+    engine::{
+        context::{Bindable, GcScope, NoGcScope, bindable_handle},
+        rootable::{HeapRootData, HeapRootRef, Rootable},
+    },
+    heap::{
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        IntrinsicConstructorIndexes, WorkQueues, indexes::BaseIndex,
+    },
 };
 /// Constructor function object for %Temporal.Instant%.
 pub(crate) struct InstantConstructor;
@@ -28,18 +36,23 @@ impl BuiltinIntrinsicConstructor for InstantConstructor {
 }
 
 impl InstantConstructor {
-    fn construct<'gc>(agent: &mut Agent, this_value: Value, args: ArgumentsList, new_target: Option<Object>, gc: GcScope<'gc, '_>) -> JsResult<'gc, Value<'gc>> {
+    fn construct<'gc>(
+        agent: &mut Agent,
+        this_value: Value,
+        args: ArgumentsList,
+        new_target: Option<Object>,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
         todo!();
     }
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, gc: NoGcScope) {
-        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();        
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let instant_prototype = intrinsics.temporal_instant_prototype();
-        
+
         BuiltinFunctionBuilder::new_intrinsic_constructor::<InstantConstructor>(agent, realm)
-        .with_property_capacity(1)
-        .with_prototype_property(instant_prototype.into_object())
-        .build();
-        
+            .with_property_capacity(1)
+            .with_prototype_property(instant_prototype.into_object())
+            .build();
     }
 }
 /// %Temporal.Instant.Prototype%
@@ -53,7 +66,7 @@ impl InstantPrototype {
         let instant_constructor = intrinsics.temporal_instant();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
-            .with_property_capacity(1)  // TODO add correct property capacity
+            .with_property_capacity(1) // TODO add correct property capacity
             .with_prototype(object_prototype)
             .with_constructor_property(instant_constructor)
             // TODO add all prototype methods
@@ -61,9 +74,8 @@ impl InstantPrototype {
     }
 }
 
-
 use self::data::InstantHeapData;
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Instant<'a>(BaseIndex<'a, InstantHeapData<'static>>);
 impl Instant<'_> {
@@ -79,9 +91,9 @@ impl Instant<'_> {
 bindable_handle!(Instant);
 
 impl<'a> From<Instant<'a>> for Value<'a> {
-    fn from(value: Instant<'a>) -> Self { 
+    fn from(value: Instant<'a>) -> Self {
         Value::Instant(value)
-     }
+    }
 }
 impl<'a> From<Instant<'a>> for Object<'a> {
     fn from(value: Instant<'a>) -> Self {
@@ -116,7 +128,6 @@ impl<'a> InternalSlots<'a> for Instant<'a> {
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(agent[self].object_index.replace(backing_object).is_none()); // not implemented for `agent::Agent`
     }
-    
 }
 
 impl<'a> InternalMethods<'a> for Instant<'a> {}
@@ -140,9 +151,9 @@ impl Index<Instant<'_>> for Vec<Option<InstantHeapData<'static>>> {
 
     fn index(&self, index: Instant<'_>) -> &Self::Output {
         self.get(index.get_index())
-        .expect("heap access out of bounds")
-        .as_ref()
-        .expect("")
+            .expect("heap access out of bounds")
+            .as_ref()
+            .expect("")
     }
 }
 
@@ -155,7 +166,6 @@ impl IndexMut<Instant<'_>> for Vec<Option<InstantHeapData<'static>>> {
     }
 }
 
-
 impl Rootable for Instant<'_> {
     type RootRepr = HeapRootRef;
 
@@ -163,7 +173,9 @@ impl Rootable for Instant<'_> {
         Err(HeapRootData::Instant(value.unbind()))
     }
 
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, crate::engine::rootable::HeapRootRef> {
+    fn from_root_repr(
+        value: &Self::RootRepr,
+    ) -> Result<Self, crate::engine::rootable::HeapRootRef> {
         Err(*value)
     }
 
@@ -178,7 +190,6 @@ impl Rootable for Instant<'_> {
         }
     }
 }
-
 
 impl HeapMarkAndSweep for Instant<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
