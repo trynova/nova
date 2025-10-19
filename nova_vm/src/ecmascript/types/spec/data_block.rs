@@ -1234,7 +1234,9 @@ mod private {
     impl Sealed for f64 {}
 }
 
-pub trait Viewable: 'static + private::Sealed + Copy + PartialEq + core::fmt::Debug {
+pub trait Viewable:
+    'static + private::Sealed + Copy + PartialEq + core::fmt::Debug + core::ops::Add<Self>
+{
     /// Type of the data in its storage format. This is used with
     /// SharedDataBlock.
     type Storage: RacyStorage;
