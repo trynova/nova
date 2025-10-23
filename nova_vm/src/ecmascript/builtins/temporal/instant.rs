@@ -8,27 +8,31 @@ pub(crate) mod data;
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::{to_big_int, to_primitive_object, PreferredType},
+        abstract_operations::type_conversion::{PreferredType, to_big_int, to_primitive_object},
         builders::{
             builtin_function_builder::BuiltinFunctionBuilder,
             ordinary_object_builder::OrdinaryObjectBuilder,
         },
         builtins::{
-            ordinary::ordinary_create_from_constructor, ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor
+            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
+            ordinary::ordinary_create_from_constructor,
         },
         execution::{
-            agent::{Agent, ExceptionType}, JsResult, ProtoIntrinsics, Realm
+            JsResult, ProtoIntrinsics, Realm,
+            agent::{Agent, ExceptionType},
         },
         types::{
-            BigInt, Function, InternalMethods, InternalSlots, IntoFunction, IntoObject, IntoValue, Object, OrdinaryObject, Primitive, String, Value, BUILTIN_STRING_MEMORY
+            BUILTIN_STRING_MEMORY, BigInt, Function, InternalMethods, InternalSlots, IntoFunction,
+            IntoObject, IntoValue, Object, OrdinaryObject, Primitive, String, Value,
         },
     },
     engine::{
-        context::{bindable_handle, Bindable, GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
     heap::{
-        indexes::BaseIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference, IntrinsicConstructorIndexes, WorkQueues
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        IntrinsicConstructorIndexes, WorkQueues, indexes::BaseIndex,
     },
 };
 /// Constructor function object for %Temporal.Instant%.
@@ -119,8 +123,10 @@ impl TemporalInstantConstructor {
     ) -> JsResult<'gc, Value<'gc>> {
         let epoch_ms = arguments.get(0).bind(gc.nogc());
         // 1. Set epochMilliseconds to ? ToNumber(epochMilliseconds).
-        let epoch_ms_number = epoch_ms.unbind()
-            .to_number(agent, gc.reborrow()).unbind()?
+        let epoch_ms_number = epoch_ms
+            .unbind()
+            .to_number(agent, gc.reborrow())
+            .unbind()?
             .bind(gc.nogc());
         // 2. Set epochMilliseconds to ? NumberToBigInt(epochMilliseconds).
         if !epoch_ms_number.is_integer(agent) {
@@ -132,41 +138,70 @@ impl TemporalInstantConstructor {
         }
         // 3. Let epochNanoseconds be epochMilliseconds × ℤ(10**6).
         // 4. If IsValidEpochNanoseconds(epochNanoseconds) is false, throw a RangeError exception.
-        let epoch_ns = match temporal_rs::Instant::from_epoch_milliseconds(
-        epoch_ms_number.into_i64(agent)
-        ) {
-            Ok(instant) => instant,
-            Err(_) => {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::RangeError,
-                    "epochMilliseconds value out of range",
-                    gc.into_nogc(),
-                ));
-            }
-        };
-        
+        let epoch_ns =
+            match temporal_rs::Instant::from_epoch_milliseconds(epoch_ms_number.into_i64(agent)) {
+                Ok(instant) => instant,
+                Err(_) => {
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::RangeError,
+                        "epochMilliseconds value out of range",
+                        gc.into_nogc(),
+                    ));
+                }
+            };
+
         // 5. Return ! CreateTemporalInstant(epochNanoseconds).
         let instant = create_temporal_instant(agent, epoch_ns, None, gc)?;
         let value = instant.into_value();
         Ok(value)
-        
-    }
-    
-    fn from_epoch_nanoseconds<'gc>(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-        mut _gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        todo!()
     }
 
-    fn compare<'gc>(
-        _agent: &mut Agent,
+    /// [8.2.4 Temporal.Instant.fromEpochNanoseconds ( epochNanoseconds )] (https://tc39.es/proposal-temporal/#sec-temporal.instant.fromepochnanoseconds)
+    fn from_epoch_nanoseconds<'gc>(
+        agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
-        mut _gc: GcScope<'gc, '_>,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        let epoch_nanoseconds = arguments.get(0).bind(gc.nogc());
+        // 1. Set epochNanoseconds to ? ToBigInt(epochNanoseconds).
+        let epoch_nanoseconds = if let Ok(epoch_nanoseconds) = BigInt::try_from(epoch_nanoseconds) {
+            epoch_nanoseconds
+        } else {
+            let epoch_nanoseconds = to_big_int(agent, epoch_nanoseconds.unbind(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+            epoch_nanoseconds
+        };
+        // 2. If IsValidEpochNanoseconds(epochNanoseconds) is false, throw a RangeError exception.
+        let Some(epoch_nanoseconds) = epoch_nanoseconds
+            .try_into_i128(agent)
+            .and_then(|nanoseconds| temporal_rs::Instant::try_new(nanoseconds).ok())
+        else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "epochNanoseconds",
+                gc.into_nogc(),
+            ));
+        };
+        // 3. Return ! CreateTemporalInstant(epochNanoseconds).
+        let instant = create_temporal_instant(agent, epoch_nanoseconds, None, gc)?;
+        let value = instant.into_value();
+        Ok(value)
+    }
+
+    /// [8.2.5 Temporal.Instant.compare ( one, two )](https://tc39.es/proposal-temporal/#sec-temporal.instant.compare)
+    fn compare<'gc>(
+        agent: &mut Agent,
+        _this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        // 1. Set one to ? ToTemporalInstant(one).
+        let one = arguments.get(0).bind(gc.nogc());
+        // 2. Set two to ? ToTemporalInstant(two).
+        let two = arguments.get(1).bind(gc.nogc());
+        // 3. Return 𝔽(CompareEpochNanoseconds(one.[[EpochNanoseconds]], two.[[EpochNanoseconds]])).
         todo!()
     }
 
