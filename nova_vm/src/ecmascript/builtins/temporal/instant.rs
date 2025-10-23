@@ -8,31 +8,27 @@ pub(crate) mod data;
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::{PreferredType, to_big_int, to_primitive_object},
+        abstract_operations::type_conversion::{to_big_int, to_primitive_object, PreferredType},
         builders::{
             builtin_function_builder::BuiltinFunctionBuilder,
             ordinary_object_builder::OrdinaryObjectBuilder,
         },
         builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            ordinary::ordinary_create_from_constructor,
+            ordinary::ordinary_create_from_constructor, ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor
         },
         execution::{
-            JsResult, ProtoIntrinsics, Realm,
-            agent::{Agent, ExceptionType},
+            agent::{Agent, ExceptionType}, JsResult, ProtoIntrinsics, Realm
         },
         types::{
-            BUILTIN_STRING_MEMORY, BigInt, Function, InternalMethods, InternalSlots, IntoFunction,
-            IntoObject, IntoValue, Object, OrdinaryObject, Primitive, String, Value,
+            BigInt, Function, InternalMethods, InternalSlots, IntoFunction, IntoObject, IntoValue, Object, OrdinaryObject, Primitive, String, Value, BUILTIN_STRING_MEMORY
         },
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
+        context::{bindable_handle, Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        IntrinsicConstructorIndexes, WorkQueues, indexes::BaseIndex,
+        indexes::BaseIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference, IntrinsicConstructorIndexes, WorkQueues
     },
 };
 /// Constructor function object for %Temporal.Instant%.
@@ -114,13 +110,36 @@ impl TemporalInstantConstructor {
         Ok(instant.into_value())
     }
 
+    /// ### [8.2.3 Temporal.Instant.fromEpochMilliseconds ( epochMilliseconds )](https://tc39.es/proposal-temporal/#sec-temporal.instant.fromepochmilliseconds)
     fn from_epoch_milliseconds<'gc>(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
-        mut _gc: GcScope<'gc, '_>,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        todo!()
+        let epoch_ms = arguments.get(0).bind(gc.nogc());
+        // 1. Set epochMilliseconds to ? ToNumber(epochMilliseconds).
+        let epoch_ms_number = epoch_ms.unbind().to_number(agent, gc.subscope())?;
+        // 3. Let epochNanoseconds be epochMilliseconds × ℤ(10**6).
+        // 4. If IsValidEpochNanoseconds(epochNanoseconds) is false, throw a RangeError exception.
+        let epoch_ns = match temporal_rs::Instant::from_epoch_milliseconds(
+        epoch_ms_number.into_i64(agent)
+        ) {
+            Ok(instant) => instant,
+            Err(_) => {
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::RangeError,
+                    "epochMilliseconds value out of range",
+                    gc.into_nogc(),
+                ));
+            }
+        };
+        
+        // 5. Return ! CreateTemporalInstant(epochNanoseconds).
+        let instant = create_temporal_instant(agent, epoch_ns, None, gc)?;
+        let value = instant.into_value();
+        Ok(value)
+        
     }
 
     fn from_epoch_nanoseconds<'gc>(
