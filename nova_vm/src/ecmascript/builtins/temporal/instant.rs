@@ -119,7 +119,17 @@ impl TemporalInstantConstructor {
     ) -> JsResult<'gc, Value<'gc>> {
         let epoch_ms = arguments.get(0).bind(gc.nogc());
         // 1. Set epochMilliseconds to ? ToNumber(epochMilliseconds).
-        let epoch_ms_number = epoch_ms.unbind().to_number(agent, gc.subscope())?;
+        let epoch_ms_number = epoch_ms.unbind()
+            .to_number(agent, gc.reborrow()).unbind()?
+            .bind(gc.nogc());
+        // 2. Set epochMilliseconds to ? NumberToBigInt(epochMilliseconds).
+        if !epoch_ms_number.is_integer(agent) {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "Can't convert number to BigInt because it isn't an integer",
+                gc.into_nogc(),
+            ));
+        }
         // 3. Let epochNanoseconds be epochMilliseconds × ℤ(10**6).
         // 4. If IsValidEpochNanoseconds(epochNanoseconds) is false, throw a RangeError exception.
         let epoch_ns = match temporal_rs::Instant::from_epoch_milliseconds(
@@ -141,7 +151,7 @@ impl TemporalInstantConstructor {
         Ok(value)
         
     }
-
+    
     fn from_epoch_nanoseconds<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
