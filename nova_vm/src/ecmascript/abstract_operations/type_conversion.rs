@@ -1458,7 +1458,7 @@ pub(crate) fn to_index<'a>(
 ) -> JsResult<'a, u64> {
     // Fast path: A safe integer is already an integer.
     if let Value::Integer(integer) = argument {
-        return validate_index(agent, integer.into_i64(), gc.into_nogc()).map(|i| i as u64);
+        return validate_index(agent, integer.into_i64(), gc.into_nogc());
     }
     // TODO: This can be heavily optimized by inlining `to_integer_or_infinity`.
 
@@ -1469,7 +1469,7 @@ pub(crate) fn to_index<'a>(
 
     // 2. If integer is not in the inclusive interval from 0 to 2**53 - 1, throw a RangeError exception.
     // 3. Return integer.
-    validate_index(agent, integer, gc.into_nogc()).map(|i| i as u64)
+    validate_index(agent, integer, gc.into_nogc())
 }
 
 /// ### [7.1.22 ToIndex ( value )](https://tc39.es/ecma262/#sec-toindex)

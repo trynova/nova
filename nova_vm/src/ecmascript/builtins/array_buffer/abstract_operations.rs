@@ -413,8 +413,7 @@ pub(crate) fn set_value_in_buffer<T: Viewable>(
 /// non-negative integer), type (a TypedArray element type), value (a Number or
 /// a BigInt), and op (a read-modify-write modification function) and returns a
 /// Number or a BigInt.
-#[expect(dead_code)]
-pub(crate) fn get_modify_set_value_in_buffer<'gc, Type: Viewable, const Op: u8>(
+pub(crate) fn get_modify_set_value_in_buffer<'gc, Type: Viewable, const OP: u8>(
     agent: &mut Agent,
     array_buffer: AnyArrayBuffer,
     byte_index: usize,
@@ -441,7 +440,7 @@ pub(crate) fn get_modify_set_value_in_buffer<'gc, Type: Viewable, const Op: u8>(
     let raw_bytes = Type::from_ne_value(agent, value);
     let raw_bytes_read = match array_buffer {
         AnyArrayBuffer::ArrayBuffer(array_buffer) => {
-            let op = get_array_buffer_op::<Type, Op>();
+            let op = get_array_buffer_op::<Type, OP>();
             // 4. Let block be arrayBuffer.[[ArrayBufferData]].
             let block = array_buffer.as_mut_slice(agent);
             // 8. If IsSharedArrayBuffer(arrayBuffer) is true, then
@@ -469,9 +468,19 @@ pub(crate) fn get_modify_set_value_in_buffer<'gc, Type: Viewable, const Op: u8>(
             let (head, slot, tail) = slot.align_to::<Type::Storage>();
             debug_assert!(head.is_empty() && tail.is_empty());
             let slot = slot.get(0).unwrap();
-            let result = if const { Op == 0 } {
+            let result = if const { OP == 0 } {
                 // Add
                 slot.fetch_add(raw_bytes)
+            } else if const { OP == 1 } {
+                slot.fetch_and(raw_bytes)
+            } else if const { OP == 2 } {
+                slot.swap(raw_bytes)
+            } else if const { OP == 3 } {
+                slot.fetch_or(raw_bytes)
+            } else if const { OP == 4 } {
+                slot.fetch_add(raw_bytes)
+            } else if const { OP == 5 } {
+                slot.fetch_xor(raw_bytes)
             } else {
                 panic!("Unsupported Op value");
             };
@@ -499,12 +508,27 @@ pub(crate) fn get_modify_set_value_in_buffer<'gc, Type: Viewable, const Op: u8>(
     raw_bytes_read.into_ne_value(agent, gc)
 }
 
-type ModifyOp<T: Viewable> = fn(T, T) -> T;
+type ModifyOp<T> = fn(T, T) -> T;
 
-const fn get_array_buffer_op<T: Viewable, const Op: u8>() -> ModifyOp<T> {
-    if Op == 0 {
+const fn get_array_buffer_op<T: Viewable, const OP: u8>() -> ModifyOp<T> {
+    if const { OP == 0 } {
         // Add
         <T as Viewable>::add
+    } else if const { OP == 1 } {
+        // And
+        <T as Viewable>::and
+    } else if const { OP == 2 } {
+        // Exchange
+        <T as Viewable>::swap
+    } else if const { OP == 3 } {
+        // Or
+        <T as Viewable>::or
+    } else if const { OP == 4 } {
+        // Sub
+        <T as Viewable>::sub
+    } else if const { OP == 5 } {
+        // Xor
+        <T as Viewable>::xor
     } else {
         panic!("Unsupported Op value");
     }

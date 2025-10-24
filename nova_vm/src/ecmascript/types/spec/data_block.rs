@@ -15,7 +15,10 @@ use core::{
     ops::{Deref, DerefMut},
     ptr::{NonNull, read_unaligned, write_unaligned},
 };
-use std::alloc::{Layout, alloc_zeroed, dealloc, handle_alloc_error, realloc};
+use std::{
+    alloc::{Layout, alloc_zeroed, dealloc, handle_alloc_error, realloc},
+    ops::{BitAnd, BitOr, BitXor},
+};
 
 use ecmascript_atomics::RacyStorage;
 #[cfg(feature = "shared-array-buffer")]
@@ -1249,6 +1252,11 @@ pub trait Viewable: 'static + private::Sealed + Copy + PartialEq + core::fmt::De
     fn flip_endian(self) -> Self;
 
     fn add(self, other: Self) -> Self;
+    fn and(self, other: Self) -> Self;
+    fn swap(self, other: Self) -> Self;
+    fn or(self, other: Self) -> Self;
+    fn sub(self, other: Self) -> Self;
+    fn xor(self, other: Self) -> Self;
 
     /// Compare A and B of a Viewable type and always return an Ordering.
     ///
@@ -1319,6 +1327,21 @@ impl Viewable for () {
     }
 
     fn add(self, _: Self) -> Self {
+        panic!("VoidArray is a marker type");
+    }
+    fn and(self, _: Self) -> Self {
+        panic!("VoidArray is a marker type");
+    }
+    fn swap(self, _: Self) -> Self {
+        panic!("VoidArray is a marker type");
+    }
+    fn or(self, _: Self) -> Self {
+        panic!("VoidArray is a marker type");
+    }
+    fn sub(self, _: Self) -> Self {
+        panic!("VoidArray is a marker type");
+    }
+    fn xor(self, _: Self) -> Self {
         panic!("VoidArray is a marker type");
     }
 
@@ -1409,6 +1432,26 @@ impl Viewable for u8 {
     fn add(self, other: Self) -> Self {
         self.wrapping_add(other)
     }
+    #[inline(always)]
+    fn and(self, other: Self) -> Self {
+        self.bitand(other)
+    }
+    #[inline(always)]
+    fn swap(self, other: Self) -> Self {
+        todo!()
+    }
+    #[inline(always)]
+    fn or(self, other: Self) -> Self {
+        self.bitor(other)
+    }
+    #[inline(always)]
+    fn sub(self, other: Self) -> Self {
+        self.wrapping_sub(other)
+    }
+    #[inline(always)]
+    fn xor(self, other: Self) -> Self {
+        self.bitxor(other)
+    }
 
     #[inline(always)]
     fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
@@ -1495,6 +1538,26 @@ impl Viewable for U8Clamped {
     #[inline(always)]
     fn add(self, other: Self) -> Self {
         Self(self.0.wrapping_add(other.0))
+    }
+    #[inline(always)]
+    fn and(self, other: Self) -> Self {
+        Self(self.0.bitand(other.0))
+    }
+    #[inline(always)]
+    fn swap(self, other: Self) -> Self {
+        todo!()
+    }
+    #[inline(always)]
+    fn or(self, other: Self) -> Self {
+        Self(self.0.bitor(other.0))
+    }
+    #[inline(always)]
+    fn sub(self, other: Self) -> Self {
+        Self(self.0.wrapping_sub(other.0))
+    }
+    #[inline(always)]
+    fn xor(self, other: Self) -> Self {
+        Self(self.0.bitxor(other.0))
     }
 
     #[inline(always)]
@@ -1583,6 +1646,26 @@ impl Viewable for i8 {
     fn add(self, other: Self) -> Self {
         self.wrapping_add(other)
     }
+    #[inline(always)]
+    fn and(self, other: Self) -> Self {
+        self.bitand(other)
+    }
+    #[inline(always)]
+    fn swap(self, other: Self) -> Self {
+        todo!()
+    }
+    #[inline(always)]
+    fn or(self, other: Self) -> Self {
+        self.bitor(other)
+    }
+    #[inline(always)]
+    fn sub(self, other: Self) -> Self {
+        self.wrapping_sub(other)
+    }
+    #[inline(always)]
+    fn xor(self, other: Self) -> Self {
+        self.bitxor(other)
+    }
 
     #[inline(always)]
     fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
@@ -1669,6 +1752,26 @@ impl Viewable for u16 {
     #[inline(always)]
     fn add(self, other: Self) -> Self {
         self.wrapping_add(other)
+    }
+    #[inline(always)]
+    fn and(self, other: Self) -> Self {
+        self.bitand(other)
+    }
+    #[inline(always)]
+    fn swap(self, other: Self) -> Self {
+        todo!()
+    }
+    #[inline(always)]
+    fn or(self, other: Self) -> Self {
+        self.bitor(other)
+    }
+    #[inline(always)]
+    fn sub(self, other: Self) -> Self {
+        self.wrapping_sub(other)
+    }
+    #[inline(always)]
+    fn xor(self, other: Self) -> Self {
+        self.bitxor(other)
     }
 
     #[inline(always)]
@@ -1757,6 +1860,26 @@ impl Viewable for i16 {
     fn add(self, other: Self) -> Self {
         self.wrapping_add(other)
     }
+    #[inline(always)]
+    fn and(self, other: Self) -> Self {
+        self.bitand(other)
+    }
+    #[inline(always)]
+    fn swap(self, other: Self) -> Self {
+        todo!()
+    }
+    #[inline(always)]
+    fn or(self, other: Self) -> Self {
+        self.bitor(other)
+    }
+    #[inline(always)]
+    fn sub(self, other: Self) -> Self {
+        self.wrapping_sub(other)
+    }
+    #[inline(always)]
+    fn xor(self, other: Self) -> Self {
+        self.bitxor(other)
+    }
 
     #[inline(always)]
     fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
@@ -1844,6 +1967,26 @@ impl Viewable for u32 {
     fn add(self, other: Self) -> Self {
         self.wrapping_add(other)
     }
+    #[inline(always)]
+    fn and(self, other: Self) -> Self {
+        self.bitand(other)
+    }
+    #[inline(always)]
+    fn swap(self, other: Self) -> Self {
+        todo!()
+    }
+    #[inline(always)]
+    fn or(self, other: Self) -> Self {
+        self.bitor(other)
+    }
+    #[inline(always)]
+    fn sub(self, other: Self) -> Self {
+        self.wrapping_sub(other)
+    }
+    #[inline(always)]
+    fn xor(self, other: Self) -> Self {
+        self.bitxor(other)
+    }
 
     #[inline(always)]
     fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
@@ -1930,6 +2073,26 @@ impl Viewable for i32 {
     #[inline(always)]
     fn add(self, other: Self) -> Self {
         self.wrapping_add(other)
+    }
+    #[inline(always)]
+    fn and(self, other: Self) -> Self {
+        self.bitand(other)
+    }
+    #[inline(always)]
+    fn swap(self, other: Self) -> Self {
+        todo!()
+    }
+    #[inline(always)]
+    fn or(self, other: Self) -> Self {
+        self.bitor(other)
+    }
+    #[inline(always)]
+    fn sub(self, other: Self) -> Self {
+        self.wrapping_sub(other)
+    }
+    #[inline(always)]
+    fn xor(self, other: Self) -> Self {
+        self.bitxor(other)
     }
 
     #[inline(always)]
@@ -2029,6 +2192,26 @@ impl Viewable for u64 {
     #[inline(always)]
     fn add(self, other: Self) -> Self {
         self.wrapping_add(other)
+    }
+    #[inline(always)]
+    fn and(self, other: Self) -> Self {
+        self.bitand(other)
+    }
+    #[inline(always)]
+    fn swap(self, other: Self) -> Self {
+        todo!()
+    }
+    #[inline(always)]
+    fn or(self, other: Self) -> Self {
+        self.bitor(other)
+    }
+    #[inline(always)]
+    fn sub(self, other: Self) -> Self {
+        self.wrapping_sub(other)
+    }
+    #[inline(always)]
+    fn xor(self, other: Self) -> Self {
+        self.bitxor(other)
     }
 
     #[inline(always)]
@@ -2135,6 +2318,26 @@ impl Viewable for i64 {
     fn add(self, other: Self) -> Self {
         self.wrapping_add(other)
     }
+    #[inline(always)]
+    fn and(self, other: Self) -> Self {
+        self.bitand(other)
+    }
+    #[inline(always)]
+    fn swap(self, other: Self) -> Self {
+        todo!()
+    }
+    #[inline(always)]
+    fn or(self, other: Self) -> Self {
+        self.bitor(other)
+    }
+    #[inline(always)]
+    fn sub(self, other: Self) -> Self {
+        self.wrapping_sub(other)
+    }
+    #[inline(always)]
+    fn xor(self, other: Self) -> Self {
+        self.bitxor(other)
+    }
 
     #[inline(always)]
     fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
@@ -2225,6 +2428,26 @@ impl Viewable for f16 {
     #[inline(always)]
     fn add(self, other: Self) -> Self {
         self + other
+    }
+    #[inline(always)]
+    fn and(self, other: Self) -> Self {
+        unreachable!()
+    }
+    #[inline(always)]
+    fn exchange(self, other: Self) -> Self {
+        unreachable!()
+    }
+    #[inline(always)]
+    fn or(self, other: Self) -> Self {
+        unreachable!()
+    }
+    #[inline(always)]
+    fn sub(self, other: Self) -> Self {
+        self - other
+    }
+    #[inline(always)]
+    fn xor(self, other: Self) -> Self {
+        unreachable!()
     }
 
     #[inline(always)]
@@ -2335,6 +2558,26 @@ impl Viewable for f32 {
     fn add(self, other: Self) -> Self {
         self + other
     }
+    #[inline(always)]
+    fn and(self, other: Self) -> Self {
+        unreachable!()
+    }
+    #[inline(always)]
+    fn swap(self, other: Self) -> Self {
+        unreachable!()
+    }
+    #[inline(always)]
+    fn or(self, other: Self) -> Self {
+        unreachable!()
+    }
+    #[inline(always)]
+    fn sub(self, other: Self) -> Self {
+        self - other
+    }
+    #[inline(always)]
+    fn xor(self, other: Self) -> Self {
+        unreachable!()
+    }
 
     #[inline(always)]
     fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
@@ -2435,6 +2678,26 @@ impl Viewable for f64 {
     #[inline(always)]
     fn add(self, other: Self) -> Self {
         self + other
+    }
+    #[inline(always)]
+    fn and(self, other: Self) -> Self {
+        unreachable!()
+    }
+    #[inline(always)]
+    fn swap(self, other: Self) -> Self {
+        unreachable!()
+    }
+    #[inline(always)]
+    fn or(self, other: Self) -> Self {
+        unreachable!()
+    }
+    #[inline(always)]
+    fn sub(self, other: Self) -> Self {
+        self - other
+    }
+    #[inline(always)]
+    fn xor(self, other: Self) -> Self {
+        unreachable!()
     }
 
     #[inline(always)]
