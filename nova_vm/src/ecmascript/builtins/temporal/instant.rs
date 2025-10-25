@@ -52,18 +52,14 @@ impl BuiltinIntrinsicConstructor for TemporalInstantConstructor {
 struct TemporalInstantFrom;
 impl Builtin for TemporalInstantFrom {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.from;
-
     const LENGTH: u8 = 1;
-
     const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalInstantConstructor::from);
 }
 
 struct TemporalInstantFromEpochMilliseconds;
 impl Builtin for TemporalInstantFromEpochMilliseconds {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.fromEpochMilliseconds;
-
     const LENGTH: u8 = 1;
-
     const BEHAVIOUR: Behaviour =
         Behaviour::Regular(TemporalInstantConstructor::from_epoch_milliseconds);
 }
@@ -71,9 +67,7 @@ impl Builtin for TemporalInstantFromEpochMilliseconds {
 struct TemporalInstantFromEpochNanoseconds;
 impl Builtin for TemporalInstantFromEpochNanoseconds {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.fromEpochNanoseconds;
-
     const LENGTH: u8 = 1;
-
     const BEHAVIOUR: Behaviour =
         Behaviour::Regular(TemporalInstantConstructor::from_epoch_nanoseconds);
 }
@@ -81,9 +75,7 @@ impl Builtin for TemporalInstantFromEpochNanoseconds {
 struct TemporalInstantCompare;
 impl Builtin for TemporalInstantCompare {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.compare;
-
     const LENGTH: u8 = 2;
-
     const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalInstantConstructor::compare);
 }
 
@@ -141,7 +133,7 @@ impl TemporalInstantConstructor {
     /// ### [8.2.2 Temporal.Instant.from ( item )](https://tc39.es/proposal-temporal/#sec-temporal.instant.from)
     fn from<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
+        _: Value,
         args: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
@@ -158,7 +150,7 @@ impl TemporalInstantConstructor {
     /// ### [8.2.3 Temporal.Instant.fromEpochMilliseconds ( epochMilliseconds )](https://tc39.es/proposal-temporal/#sec-temporal.instant.fromepochmilliseconds)
     fn from_epoch_milliseconds<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
+        _: Value,
         args: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
@@ -200,7 +192,7 @@ impl TemporalInstantConstructor {
     /// [8.2.4 Temporal.Instant.fromEpochNanoseconds ( epochNanoseconds )] (https://tc39.es/proposal-temporal/#sec-temporal.instant.fromepochnanoseconds)
     fn from_epoch_nanoseconds<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
+        _: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
@@ -234,7 +226,7 @@ impl TemporalInstantConstructor {
     /// ### [8.2.5 Temporal.Instant.compare ( one, two )](https://tc39.es/proposal-temporal/#sec-temporal.instant.compare)
     fn compare<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
+        _: Value,
         args: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
