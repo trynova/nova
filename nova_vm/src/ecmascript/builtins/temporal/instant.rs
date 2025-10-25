@@ -35,20 +35,61 @@ use crate::{
         IntrinsicConstructorIndexes, WorkQueues, indexes::BaseIndex,
     },
 };
+
 /// Constructor function object for %Temporal.Instant%.
 pub(crate) struct TemporalInstantConstructor;
+
 impl Builtin for TemporalInstantConstructor {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.Instant;
     const LENGTH: u8 = 1;
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(TemporalInstantConstructor::construct);
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(TemporalInstantConstructor::constructor);
 }
+
 impl BuiltinIntrinsicConstructor for TemporalInstantConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::TemporalInstant;
 }
 
+struct TemporalInstantFrom;
+impl Builtin for TemporalInstantFrom {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.from;
+
+    const LENGTH: u8 = 1;
+
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalInstantConstructor::from);
+}
+
+struct TemporalInstantFromEpochMilliseconds;
+impl Builtin for TemporalInstantFromEpochMilliseconds {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.fromEpochMilliseconds;
+
+    const LENGTH: u8 = 1;
+
+    const BEHAVIOUR: Behaviour =
+        Behaviour::Regular(TemporalInstantConstructor::from_epoch_milliseconds);
+}
+
+struct TemporalInstantFromEpochNanoseconds;
+impl Builtin for TemporalInstantFromEpochNanoseconds {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.fromEpochNanoseconds;
+
+    const LENGTH: u8 = 1;
+
+    const BEHAVIOUR: Behaviour =
+        Behaviour::Regular(TemporalInstantConstructor::from_epoch_nanoseconds);
+}
+
+struct TemporalInstantCompare;
+impl Builtin for TemporalInstantCompare {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.compare;
+
+    const LENGTH: u8 = 2;
+
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalInstantConstructor::compare);
+}
+
 impl TemporalInstantConstructor {
     /// ### [8.1.1 Temporal.Instant ( epochNanoseconds )](https://tc39.es/proposal-temporal/#sec-temporal.instant)
-    fn construct<'gc>(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _: Value,
         args: ArgumentsList,
@@ -101,10 +142,10 @@ impl TemporalInstantConstructor {
     fn from<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        args: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        let item = arguments.get(0).bind(gc.nogc());
+        let item = args.get(0).bind(gc.nogc());
         // 1. Return ? ToTemporalInstant(item).
         let instant = to_temporal_instant(agent, item.unbind(), gc)?;
         let instant = agent.heap.create(InstantRecord {
@@ -118,10 +159,10 @@ impl TemporalInstantConstructor {
     fn from_epoch_milliseconds<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        args: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        let epoch_ms = arguments.get(0).bind(gc.nogc());
+        let epoch_ms = args.get(0).bind(gc.nogc());
         // 1. Set epochMilliseconds to ? ToNumber(epochMilliseconds).
         let epoch_ms_number = epoch_ms
             .unbind()
@@ -190,19 +231,23 @@ impl TemporalInstantConstructor {
         Ok(value)
     }
 
-    /// [8.2.5 Temporal.Instant.compare ( one, two )](https://tc39.es/proposal-temporal/#sec-temporal.instant.compare)
+    /// ### [8.2.5 Temporal.Instant.compare ( one, two )](https://tc39.es/proposal-temporal/#sec-temporal.instant.compare)
     fn compare<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        args: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        let one = args.get(0).bind(gc.nogc());
+        let two = args.get(0).bind(gc.nogc());
+        let two = two.scope(agent, gc.nogc());
         // 1. Set one to ? ToTemporalInstant(one).
-        let one = arguments.get(0).bind(gc.nogc());
+        let one_instant = to_temporal_instant(agent, one.unbind(), gc.reborrow()).unbind()?;
         // 2. Set two to ? ToTemporalInstant(two).
-        let two = arguments.get(1).bind(gc.nogc());
+        let two_value = two.get(agent).bind(gc.nogc());
+        let two_instant = to_temporal_instant(agent, two_value.unbind(), gc.reborrow()).unbind()?;
         // 3. Return 𝔽(CompareEpochNanoseconds(one.[[EpochNanoseconds]], two.[[EpochNanoseconds]])).
-        todo!()
+        Ok((one_instant.cmp(&two_instant) as i8).into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, _gc: NoGcScope) {
@@ -307,44 +352,6 @@ fn to_temporal_instant<'gc>(
 
 /// %Temporal.Instant.Prototype%
 pub(crate) struct TemporalInstantPrototype;
-
-struct TemporalInstantFrom;
-impl Builtin for TemporalInstantFrom {
-    const NAME: String<'static> = BUILTIN_STRING_MEMORY.from;
-
-    const LENGTH: u8 = 1;
-
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalInstantConstructor::from);
-}
-
-struct TemporalInstantFromEpochMilliseconds;
-impl Builtin for TemporalInstantFromEpochMilliseconds {
-    const NAME: String<'static> = BUILTIN_STRING_MEMORY.fromEpochMilliseconds;
-
-    const LENGTH: u8 = 1;
-
-    const BEHAVIOUR: Behaviour =
-        Behaviour::Regular(TemporalInstantConstructor::from_epoch_milliseconds);
-}
-
-struct TemporalInstantFromEpochNanoseconds;
-impl Builtin for TemporalInstantFromEpochNanoseconds {
-    const NAME: String<'static> = BUILTIN_STRING_MEMORY.fromEpochNanoseconds;
-
-    const LENGTH: u8 = 1;
-
-    const BEHAVIOUR: Behaviour =
-        Behaviour::Regular(TemporalInstantConstructor::from_epoch_nanoseconds);
-}
-
-struct TemporalInstantCompare;
-impl Builtin for TemporalInstantCompare {
-    const NAME: String<'static> = BUILTIN_STRING_MEMORY.compare;
-
-    const LENGTH: u8 = 2;
-
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalInstantConstructor::compare);
-}
 
 impl TemporalInstantPrototype {
     pub fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, _: NoGcScope) {
