@@ -7,7 +7,7 @@ pub mod instant;
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::Builtin,
+        builtins::{Builtin, temporal::instant::TemporalInstantConstructor},
         execution::{Agent, Realm},
         types::{BUILTIN_STRING_MEMORY, IntoValue},
     },
@@ -40,8 +40,8 @@ impl TemporalObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.Instant.into())
                     .with_value(temporal_instant_constructor.into_value())
-                    .with_enumerable(instant::TemporalInstantConstructor::ENUMERABLE)
-                    .with_configurable(instant::TemporalInstantConstructor::CONFIGURABLE)
+                    .with_enumerable(TemporalInstantConstructor::ENUMERABLE)
+                    .with_configurable(TemporalInstantConstructor::CONFIGURABLE)
                     .build()
             })
             .build();
