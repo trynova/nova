@@ -53,7 +53,7 @@ default = [
     "regexp",
     "set",
     "annex-b",
-    "temporal", 
+    "temporal",
 ]
 array-buffer = ["ecmascript_atomics"]
 atomics = ["array-buffer", "shared-array-buffer", "ecmascript_atomics", "ecmascript_futex"]
@@ -65,7 +65,7 @@ shared-array-buffer = ["array-buffer", "ecmascript_atomics"]
 weak-refs = []
 set = []
 typescript = []
-temporal = ["temporal_rs"] 
+temporal = ["temporal_rs"]
 
 # Enables features defined by [Annex B](https://tc39.es/ecma262/#sec-additional-ecmascript-features-for-web-browsers)
 annex-b = ["annex-b-string", "annex-b-global", "annex-b-date", "annex-b-regexp"]

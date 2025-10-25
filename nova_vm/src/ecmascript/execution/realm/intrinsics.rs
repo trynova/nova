@@ -1033,14 +1033,15 @@ impl Intrinsics {
         IntrinsicObjectIndexes::TemporalObject.get_backing_object(self.object_index_base)
     }
 
+    /// %Temporal.Instant.Prototype%
+    pub(crate) const fn temporal_instant_prototype(&self) -> OrdinaryObject<'static> {
+        IntrinsicObjectIndexes::TemporalInstantPrototype.get_backing_object(self.object_index_base)
+    }
+
     /// %Temporal.Instant%
     pub(crate) const fn temporal_instant(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::TemporalInstant
             .get_builtin_function(self.builtin_function_index_base)
-    }
-    /// %Temporal.Instant.Prototype%
-    pub(crate) const fn temporal_instant_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::TemporalInstantPrototype.get_backing_object(self.object_index_base)
     }
 
     /// %Number.prototype%
