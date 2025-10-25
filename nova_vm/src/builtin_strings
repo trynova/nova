@@ -86,6 +86,7 @@ codePointAt
 concat
 configurable
 construct
+compare
 constructor
 copyWithin
 #[cfg(feature = "math")]cos
@@ -146,6 +147,8 @@ for
 forEach
 freeze
 from
+fromEpochNanoseconds
+fromEpochMilliseconds
 fromCharCode
 fromCodePoint
 fromEntries
@@ -248,6 +251,7 @@ isSealed
 #[cfg(feature = "array-buffer")]isView
 isWellFormed
 #[cfg(feature = "annex-b-string")]italics
+#[cfg(feature = "temporal")]Instant
 Iterator
 iterator
 join
@@ -317,6 +321,14 @@ prototype
 Proxy
 push
 race
+#[cfg(feature = "temporal")]PlainDateTime
+#[cfg(feature = "temporal")]PlainDate
+#[cfg(feature = "temporal")]PlainTime
+#[cfg(feature = "temporal")]PlainYearMonth
+#[cfg(feature = "temporal")]PlainMonthDay
+#[cfg(feature = "temporal")]Duration
+#[cfg(feature = "temporal")]ZonedDateTime
+#[cfg(feature = "temporal")]Now
 #[cfg(feature = "math")]random
 RangeError
 raw
@@ -419,6 +431,7 @@ Symbol.toPrimitive
 Symbol.toStringTag
 Symbol.unscopables
 SyntaxError
+#[cfg(feature = "temporal")]Temporal
 #[cfg(feature = "math")]tan
 #[cfg(feature = "math")]tanh
 #[cfg(feature = "regexp")]test

@@ -18,6 +18,8 @@ use super::{
 use crate::ecmascript::builtins::date::Date;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
+#[cfg(feature = "temporal")]
+use crate::ecmascript::builtins::temporal::instant::TemporalInstant;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{ArrayBuffer, data_view::DataView};
 #[cfg(feature = "set")]
@@ -94,6 +96,8 @@ pub struct HeapBits {
     pub data_views: Box<[bool]>,
     #[cfg(feature = "date")]
     pub dates: Box<[bool]>,
+    #[cfg(feature = "temporal")]
+    pub instants: Box<[bool]>,
     pub declarative_environments: Box<[bool]>,
     pub e_2_1: Box<[(bool, u8)]>,
     pub e_2_2: Box<[(bool, u8)]>,
@@ -190,6 +194,8 @@ pub(crate) struct WorkQueues {
     pub data_views: Vec<DataView<'static>>,
     #[cfg(feature = "date")]
     pub dates: Vec<Date<'static>>,
+    #[cfg(feature = "temporal")]
+    pub instants: Vec<TemporalInstant<'static>>,
     pub declarative_environments: Vec<DeclarativeEnvironment<'static>>,
     pub e_2_1: Vec<(ElementIndex<'static>, u32)>,
     pub e_2_2: Vec<(ElementIndex<'static>, u32)>,
@@ -286,6 +292,8 @@ impl HeapBits {
         let data_views = vec![false; heap.data_views.len()];
         #[cfg(feature = "date")]
         let dates = vec![false; heap.dates.len()];
+        #[cfg(feature = "temporal")]
+        let instants = vec![false; heap.instants.len()];
         let declarative_environments = vec![false; heap.environments.declarative.len()];
         let e_2_1 = vec![(false, 0u8); heap.elements.e2pow1.values.len()];
         let e_2_2 = vec![(false, 0u8); heap.elements.e2pow2.values.len()];
@@ -379,6 +387,8 @@ impl HeapBits {
             data_views: data_views.into_boxed_slice(),
             #[cfg(feature = "date")]
             dates: dates.into_boxed_slice(),
+            #[cfg(feature = "temporal")]
+            instants: instants.into_boxed_slice(),
             declarative_environments: declarative_environments.into_boxed_slice(),
             e_2_1: e_2_1.into_boxed_slice(),
             e_2_2: e_2_2.into_boxed_slice(),
@@ -478,6 +488,8 @@ impl WorkQueues {
             data_views: Vec::with_capacity(heap.data_views.len() / 4),
             #[cfg(feature = "date")]
             dates: Vec::with_capacity(heap.dates.len() / 4),
+            #[cfg(feature = "temporal")]
+            instants: Vec::with_capacity(heap.instants.len() / 4),
             declarative_environments: Vec::with_capacity(heap.environments.declarative.len() / 4),
             e_2_1: Vec::with_capacity(heap.elements.e2pow1.values.len() / 4),
             e_2_2: Vec::with_capacity(heap.elements.e2pow2.values.len() / 4),
@@ -579,6 +591,8 @@ impl WorkQueues {
             data_views,
             #[cfg(feature = "date")]
             dates,
+            #[cfg(feature = "temporal")]
+            instants,
             declarative_environments,
             e_2_1,
             e_2_2,
@@ -698,6 +712,7 @@ impl WorkQueues {
             && caches.is_empty()
             && data_views.is_empty()
             && dates.is_empty()
+            && instants.is_empty()
             && declarative_environments.is_empty()
             && e_2_1.is_empty()
             && e_2_2.is_empty()
@@ -1053,6 +1068,8 @@ pub(crate) struct CompactionLists {
     pub data_views: CompactionList,
     #[cfg(feature = "date")]
     pub dates: CompactionList,
+    #[cfg(feature = "temporal")]
+    pub instants: CompactionList,
     pub declarative_environments: CompactionList,
     pub e_2_1: CompactionList,
     pub e_2_2: CompactionList,
@@ -1192,6 +1209,8 @@ impl CompactionLists {
             source_codes: CompactionList::from_mark_bits(&bits.source_codes),
             #[cfg(feature = "date")]
             dates: CompactionList::from_mark_bits(&bits.dates),
+            #[cfg(feature = "temporal")]
+            instants: CompactionList::from_mark_bits(&bits.instants),
             errors: CompactionList::from_mark_bits(&bits.errors),
             executables: CompactionList::from_mark_bits(&bits.executables),
             maps: CompactionList::from_mark_bits(&bits.maps),
