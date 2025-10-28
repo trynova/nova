@@ -130,12 +130,10 @@ impl<'a> PromiseGroup<'a> {
         reaction_type: PromiseReactionType,
         index: u32,
         value: Value<'a>,
-        gc: GcScope<'a, '_>,
+        mut gc: GcScope<'a, '_>,
     ) {
-        let promise_all = self.bind(gc.nogc());
+        let promise_group = self.bind(gc.nogc());
         let value = value.bind(gc.nogc());
-
-        let result_array = promise_all.get_result_array(agent, gc.nogc());
 
         let obj = match reaction_type {
             PromiseReactionType::Fulfill => OrdinaryObject::create_object(
@@ -179,26 +177,19 @@ impl<'a> PromiseGroup<'a> {
             .bind(gc.nogc()),
         };
 
+        let promise_group_record = promise_group.get_mut(agent);
+        let (result_array, promise_to_resolve) = promise_group_record.take();
+
         let elements = result_array.as_mut_slice(agent);
         elements[index as usize] = Some(obj.unbind().into_value());
 
-        let data = promise_all.get_mut(agent);
-
-        // 13. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] - 1.
-        data.remaining_elements_count = data.remaining_elements_count.saturating_sub(1);
-
         // 14. If remainingElementsCount.[[Value]] = 0, then
-        if data.remaining_elements_count == 0 {
+        if let Some(promise_to_resolve) = promise_to_resolve {
             // a. Let valuesArray be CreateArrayFromList(values).
             // b. Return ? Call(promiseCapability.[[Resolve]], undefined, « valuesArray »).
-            let capability = PromiseCapability::from_promise(data.promise, true);
-            capability.resolve(agent, result_array.into_value().unbind(), gc);
+            let capability = PromiseCapability::from_promise(promise_to_resolve, true);
+            capability.resolve(agent, result_array.into_value().unbind(), gc.reborrow());
         }
-    }
-
-    pub(crate) fn get_result_array(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> Array<'a> {
-        let data = self.get(agent);
-        data.result_array.bind(gc).unbind()
     }
 
     pub(crate) const fn get_index(self) -> usize {
