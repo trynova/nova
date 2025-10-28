@@ -723,7 +723,7 @@ fn perform_promise_group<'gc>(
     let promise_group_reference = agent
         .heap
         .create(PromiseGroupRecord {
-            promise_group_type: promise_group_type,
+            promise_group_type,
             remaining_elements_count: 1,
             result_array: result_array.get(agent),
             promise: promise.get(agent),
