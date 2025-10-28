@@ -39,32 +39,16 @@ pub struct PromiseGroupRecord<'a> {
 #[repr(transparent)]
 pub struct PromiseGroup<'a>(BaseIndex<'a, PromiseGroupRecord<'static>>);
 
-impl<'a> PromiseGroupRecord<'a> {
-    fn take(
-        &mut self,
-        agent: &mut Agent,
-        value: Value<'a>,
-        index: u32,
-        gc: NoGcScope<'a, '_>,
-    ) -> Option<(Promise<'a>, Array<'a>)> {
-        let value = value.bind(gc);
-        let mut self_bound = self.bind(gc);
-
-        let elements: &mut [Option<Value<'static>>] = self_bound.result_array.as_mut_slice(agent);
-        elements[index as usize] = Some(value.unbind());
-
+impl<'a> PromiseGroupRecord<'static> {
+    fn take(&mut self) -> (Array<'a>, Option<Promise<'a>>) {
         // i. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] - 1.
-        self_bound.remaining_elements_count = self_bound.remaining_elements_count.saturating_sub(1);
+        self.remaining_elements_count = self.remaining_elements_count.saturating_sub(1);
 
-        if self_bound.remaining_elements_count > 0 {
-            return None;
+        if self.remaining_elements_count > 0 {
+            (self.result_array.unbind(), None)
+        } else {
+            (self.result_array.unbind(), Some(self.promise.unbind()))
         }
-
-        //ii. If remainingElementsCount.[[Value]] = 0, then
-        return Some((
-            self_bound.promise.unbind(),
-            self_bound.result_array.unbind(),
-        ));
     }
 }
 
@@ -108,41 +92,22 @@ impl<'a> PromiseGroup<'a> {
         value: Value<'a>,
         mut gc: GcScope<'a, '_>,
     ) {
-        let promise_all = self.bind(gc.nogc());
+        let promise_group = self.bind(gc.nogc());
         let value = value.bind(gc.nogc());
 
-        let promise_group_record = promise_all.get_mut(agent);
-        if let Some((promise_to_resolve, result_array)) =
-            promise_group_record.take(agent, value.unbind(), index, gc.nogc())
-        {
-            let promise_to_resolve = promise_to_resolve.bind(gc.nogc());
-            let result_array = result_array.bind(gc.nogc());
+        let promise_group_record = promise_group.get_mut(agent);
+        let (result_array, promise_to_resolve) = promise_group_record.take();
 
+        let elements = result_array.as_mut_slice(agent);
+        elements[index as usize] = Some(value.unbind());
+
+        //ii. If remainingElementsCount.[[Value]] = 0, then
+        if let Some(promise_to_resolve) = promise_to_resolve {
             // 1. Let valuesArray be CreateArrayFromList(values).
             // 2. Perform ? Call(resultCapability.[[Resolve]], undefined, « valuesArray »).
-            let capability = PromiseCapability::from_promise(promise_to_resolve.unbind(), true);
+            let capability = PromiseCapability::from_promise(promise_to_resolve, true);
             capability.resolve(agent, result_array.into_value().unbind(), gc.reborrow());
         }
-
-        // let result_array = promise_all.get_result_array(agent, gc.nogc());
-
-        // let elements = result_array.as_mut_slice(agent);
-        // elements[index as usize] = Some(value.unbind());
-
-        // let mut data = promise_all.get_mut(agent).bind(gc.nogc());
-        // data.take_and_resolve(agent, gc.reborrow());
-
-        // let data = promise_all.get_mut(agent);
-        // // i. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] - 1.
-        // data.remaining_elements_count = data.remaining_elements_count.saturating_sub(1);
-
-        // //ii. If remainingElementsCount.[[Value]] = 0, then
-        // if data.remaining_elements_count == 0 {
-        //     // 1. Let valuesArray be CreateArrayFromList(values).
-        //     // 2. Perform ? Call(resultCapability.[[Resolve]], undefined, « valuesArray »).
-        //     let capability = PromiseCapability::from_promise(data.promise, true);
-        //     capability.resolve(agent, result_array.into_value().unbind(), gc);
-        // }
     }
 
     pub(crate) fn on_promise_all_rejected(
