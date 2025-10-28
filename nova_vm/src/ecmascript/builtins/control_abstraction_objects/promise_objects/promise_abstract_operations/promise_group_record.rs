@@ -45,9 +45,9 @@ impl<'a> PromiseGroupRecord<'static> {
         self.remaining_elements_count = self.remaining_elements_count.saturating_sub(1);
 
         if self.remaining_elements_count > 0 {
-            (self.result_array.unbind(), None)
+            (self.result_array, None)
         } else {
-            (self.result_array.unbind(), Some(self.promise.unbind()))
+            (self.result_array, Some(self.promise))
         }
     }
 }
