@@ -209,8 +209,7 @@ impl TemporalInstantPrototype {
         // 2. Perform ? RequireInternalSlot(instant, [[InitializedTemporalInstant]]).
         let instant = require_internal_slot_temporal_instant(agent, this_value, gc.nogc())
             .unbind()?
-            .bind(gc.nogc());
-        let instant = instant.scope(agent, gc.nogc());
+            .scope(agent, gc.nogc());
         // 3. Set other to ? ToTemporalInstant(other).
         let other = args.get(0).bind(gc.nogc());
         let other_instant = to_temporal_instant(agent, other.unbind(), gc.reborrow()).unbind()?;
