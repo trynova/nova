@@ -15,10 +15,10 @@ use caches::{CacheToPopulate, Caches, PropertyLookupCache, PropertyOffset};
 
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::data_view::data::SharedDataViewRecord;
-#[cfg(feature = "array-buffer")]
-use crate::ecmascript::types::try_get_result_into_value;
 #[cfg(feature = "temporal")]
 use crate::ecmascript::builtins::temporal::instant::data::InstantRecord;
+#[cfg(feature = "array-buffer")]
+use crate::ecmascript::types::try_get_result_into_value;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::{
