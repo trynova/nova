@@ -96,6 +96,7 @@ impl TemporalInstantConstructor {
             new_target = unsafe { scoped_new_target.take(agent) }.bind(gc.nogc());
             epoch_nanoseconds
         };
+
         // 3. If IsValidEpochNanoseconds(epochNanoseconds) is false, throw a RangeError exception.
         let Some(epoch_nanoseconds) = epoch_nanoseconds
             .try_into_i128(agent)
@@ -171,7 +172,7 @@ impl TemporalInstantConstructor {
         Ok(value)
     }
 
-    ///### [8.2.4 Temporal.Instant.fromEpochNanoseconds ( epochNanoseconds )] (https://tc39.es/proposal-temporal/#sec-temporal.instant.fromepochnanoseconds)
+    /// ### [8.2.4 Temporal.Instant.fromEpochNanoseconds ( epochNanoseconds )] (https://tc39.es/proposal-temporal/#sec-temporal.instant.fromepochnanoseconds)
     fn from_epoch_nanoseconds<'gc>(
         agent: &mut Agent,
         _: Value,
