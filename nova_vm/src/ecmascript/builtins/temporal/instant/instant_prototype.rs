@@ -3,9 +3,9 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin,
-            temporal::instant::requrire_temporal_instant_internal_slot,
+            temporal::instant::{requrire_temporal_instant_internal_slot, to_temporal_instant},
         },
-        execution::{Agent, JsResult, Realm},
+        execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, BigInt, String, Value},
     },
     engine::context::{Bindable, GcScope, NoGcScope},
@@ -237,12 +237,26 @@ impl TemporalInstantPrototype {
 
     /// ###[8.3.14 Temporal.Instant.prototype.valueOf ( )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.valueof)
     fn value_of<'gc>(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
         _args: ArgumentsList,
-        mut _gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        unimplemented!()
+        // 1. Throw a TypeError exception.
+        //
+        // Note:
+        //     This method always throws, because in the absence of valueOf(), expressions with
+        //     arithmetic operators such as instant1 > instant2 would fall back to being equivalent
+        //     to instant1.toString() > instant2.toString(). Lexicographical comparison of
+        //     serialized strings might not seem obviously wrong, because the result would
+        //     sometimes be correct. Implementations are encouraged to phrase the error message to
+        //     point users to Temporal.Instant.compare(), Temporal.Instant.prototype.equals(),
+        //     and/or Temporal.Instant.prototype.toString().
+        Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "`valueOf` not supported by Temporal built-ins. See 'compare', 'equals', or `toString`",
+            gc.into_nogc(),
+        ))
     }
 
     // [8.3.15 Temporal.Instant.prototype.toZonedDateTimeISO ( timeZone )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.tozoneddatetimeiso)
