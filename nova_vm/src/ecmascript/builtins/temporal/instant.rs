@@ -267,7 +267,7 @@ fn to_temporal_instant<'gc>(
 }
 
 #[inline(always)]
-fn requrire_temporal_instant_internal_slot<'a>(
+fn require_internal_slot_temporal_instant<'a>(
     agent: &mut Agent,
     value: Value,
     gc: NoGcScope<'a, '_>,
