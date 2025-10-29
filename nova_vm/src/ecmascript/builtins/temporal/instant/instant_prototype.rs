@@ -9,9 +9,9 @@ use crate::{
         types::{BUILTIN_STRING_MEMORY, BigInt, String, Value},
     },
     engine::context::{Bindable, GcScope, NoGcScope},
+    heap::WellKnownSymbolIndexes,
 };
 
-/// %Temporal.Instant.Prototype%
 pub(crate) struct TemporalInstantPrototype;
 
 struct TemporalInstantPrototypeGetEpochMilliseconds;
@@ -58,26 +58,57 @@ impl Builtin for TemporalInstantPrototypeSince {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalInstantPrototype::since);
 }
 
+struct TemporalInstantPrototypeRound;
+impl Builtin for TemporalInstantPrototypeRound {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.round;
+    const LENGTH: u8 = 1;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalInstantPrototype::round);
+}
+
+struct TemporalInstantPrototypeEquals;
+impl Builtin for TemporalInstantPrototypeEquals {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.equals;
+    const LENGTH: u8 = 1;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalInstantPrototype::equals);
+}
+
+struct TemporalInstantPrototypeToString;
+impl Builtin for TemporalInstantPrototypeToString {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toString;
+    const LENGTH: u8 = 0;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalInstantPrototype::to_string);
+}
+
+struct TemporalInstantPrototypeToLocaleString;
+impl Builtin for TemporalInstantPrototypeToLocaleString {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toLocaleString;
+    const LENGTH: u8 = 0;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalInstantPrototype::to_locale_string);
+}
+
+struct TemporalInstantPrototypeToJSON;
+impl Builtin for TemporalInstantPrototypeToJSON {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toJSON;
+    const LENGTH: u8 = 0;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalInstantPrototype::to_json);
+}
+
+struct TemporalInstantPrototypeValueOf;
+impl Builtin for TemporalInstantPrototypeValueOf {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.valueOf;
+    const LENGTH: u8 = 0;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalInstantPrototype::value_of);
+}
+
+struct TemporalInstantPrototypeToZonedDateTimeISO;
+impl Builtin for TemporalInstantPrototypeToZonedDateTimeISO {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toZonedDateTimeISO;
+    const LENGTH: u8 = 1;
+    const BEHAVIOUR: Behaviour =
+        Behaviour::Regular(TemporalInstantPrototype::to_zoned_date_time_iso);
+}
+
 impl TemporalInstantPrototype {
-    pub fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, _: NoGcScope) {
-        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
-        let this = intrinsics.temporal_instant_prototype();
-        let object_prototype = intrinsics.object_prototype();
-        let instant_constructor = intrinsics.temporal_instant();
-
-        OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
-            .with_property_capacity(7)
-            .with_prototype(object_prototype)
-            .with_constructor_property(instant_constructor)
-            .with_builtin_function_property::<TemporalInstantPrototypeGetEpochMilliseconds>()
-            .with_builtin_function_property::<TemporalInstantPrototypeGetEpochNanoSeconds>()
-            .with_builtin_function_property::<TemporalInstantPrototypeAdd>()
-            .with_builtin_function_property::<TemporalInstantPrototypeSubtract>()
-            .with_builtin_function_property::<TemporalInstantPrototypeUntil>()
-            .with_builtin_function_property::<TemporalInstantPrototypeSince>()
-            .build();
-    }
-
     /// ### [8.3.3 get Temporal.Instant.prototype.epochMilliseconds](https://tc39.es/proposal-temporal/#sec-get-temporal.instant.prototype.epochmilliseconds)
     fn get_epoch_milliseconds<'gc>(
         agent: &mut Agent,
@@ -144,7 +175,7 @@ impl TemporalInstantPrototype {
         unimplemented!()
     }
 
-    /// ### [Temporal.Instant.prototype.since ( other [ , options ] )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.until)
+    /// ### [8.3.8 Temporal.Instant.prototype.since ( other [ , options ] )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.until)
     fn since<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
@@ -152,5 +183,109 @@ impl TemporalInstantPrototype {
         mut _gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         unimplemented!()
+    }
+
+    /// ### [8.3.9 Temporal.Instant.prototype.round ( roundTo )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.round)
+    fn round<'gc>(
+        _agent: &mut Agent,
+        _this_value: Value,
+        _args: ArgumentsList,
+        mut _gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        unimplemented!()
+    }
+
+    /// ### [8.3.10 Temporal.Instant.prototype.equals ( other )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.equals)
+    fn equals<'gc>(
+        _agent: &mut Agent,
+        _this_value: Value,
+        _args: ArgumentsList,
+        mut _gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        unimplemented!()
+    }
+
+    /// ### [8.3.11 Temporal.Instant.prototype.toString ( [ options ] )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.tostring)
+    fn to_string<'gc>(
+        _agent: &mut Agent,
+        _this_value: Value,
+        _args: ArgumentsList,
+        mut _gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        unimplemented!()
+    }
+
+    /// ### [8.3.12 Temporal.Instant.prototype.toLocaleString ( [ locales [ , options ] ] )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.tolocalestring)
+    fn to_locale_string<'gc>(
+        _agent: &mut Agent,
+        _this_value: Value,
+        _args: ArgumentsList,
+        mut _gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        unimplemented!()
+    }
+
+    /// ###[8.3.13 Temporal.Instant.prototype.toJSON ( )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.tojson)
+    fn to_json<'gc>(
+        _agent: &mut Agent,
+        _this_value: Value,
+        _args: ArgumentsList,
+        mut _gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        unimplemented!()
+    }
+
+    /// ###[8.3.14 Temporal.Instant.prototype.valueOf ( )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.valueof)
+    fn value_of<'gc>(
+        _agent: &mut Agent,
+        _this_value: Value,
+        _args: ArgumentsList,
+        mut _gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        unimplemented!()
+    }
+
+    // [8.3.15 Temporal.Instant.prototype.toZonedDateTimeISO ( timeZone )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.tozoneddatetimeiso)
+    fn to_zoned_date_time_iso<'gc>(
+        _agent: &mut Agent,
+        _this_value: Value,
+        _args: ArgumentsList,
+        mut _gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        unimplemented!()
+    }
+
+    pub fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, _: NoGcScope) {
+        let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
+        let this = intrinsics.temporal_instant_prototype();
+        let object_prototype = intrinsics.object_prototype();
+        let instant_constructor = intrinsics.temporal_instant();
+
+        OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
+            .with_property_capacity(15)
+            .with_prototype(object_prototype)
+            .with_constructor_property(instant_constructor)
+            .with_property(|builder| {
+                builder
+                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.Temporal_Instant.into())
+                    .with_enumerable(false)
+                    .with_configurable(true)
+                    .build()
+            })
+            .with_builtin_function_property::<TemporalInstantPrototypeGetEpochMilliseconds>()
+            .with_builtin_function_property::<TemporalInstantPrototypeGetEpochNanoSeconds>()
+            .with_builtin_function_property::<TemporalInstantPrototypeAdd>()
+            .with_builtin_function_property::<TemporalInstantPrototypeSubtract>()
+            .with_builtin_function_property::<TemporalInstantPrototypeUntil>()
+            .with_builtin_function_property::<TemporalInstantPrototypeSince>()
+            .with_builtin_function_property::<TemporalInstantPrototypeRound>()
+            .with_builtin_function_property::<TemporalInstantPrototypeEquals>()
+            .with_builtin_function_property::<TemporalInstantPrototypeToString>()
+            .with_builtin_function_property::<TemporalInstantPrototypeToLocaleString>()
+            .with_builtin_function_property::<TemporalInstantPrototypeToJSON>()
+            .with_builtin_function_property::<TemporalInstantPrototypeValueOf>()
+            .with_builtin_function_property::<TemporalInstantPrototypeToZonedDateTimeISO>()
+            .build();
     }
 }

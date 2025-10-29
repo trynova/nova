@@ -114,6 +114,7 @@ endsWith
 entries
 enumerable
 EPSILON
+#[cfg(feature = "temporal")]equals
 Error
 errors
 #[cfg(any(feature = "annex-b-string", feature = "regexp"))]escape
@@ -357,7 +358,7 @@ resolve
 return
 reverse
 revocable
-#[cfg(feature = "math")]round
+#[cfg(any(feature = "math", feature = "temporal"))]round
 seal
 #[cfg(feature = "regexp")]search
 set
@@ -443,6 +444,7 @@ Symbol.toStringTag
 Symbol.unscopables
 SyntaxError
 #[cfg(feature = "temporal")]Temporal
+#[cfg(feature = "temporal")]Temporal.Instant
 #[cfg(feature = "math")]tan
 #[cfg(feature = "math")]tanh
 #[cfg(feature = "regexp")]test
@@ -471,6 +473,7 @@ toStringTag
 #[cfg(feature = "date")]toTimeString
 toUpperCase
 #[cfg(feature = "date")]toUTCString
+#[cfg(feature = "temporal")]toZonedDateTimeISO
 toWellFormed
 #[cfg(feature = "array-buffer")]transfer
 #[cfg(feature = "array-buffer")]transferToFixedLength
