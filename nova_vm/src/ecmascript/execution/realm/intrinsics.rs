@@ -216,12 +216,11 @@ impl Intrinsics {
         MathObject::create_intrinsic(agent, realm, gc);
 
         #[cfg(feature = "temporal")]
-        {
-            TemporalObject::create_intrinsic(agent, realm, gc);
-            // Instant
-            TemporalInstantConstructor::create_intrinsic(agent, realm, gc);
-            TemporalInstantPrototype::create_intrinsic(agent, realm, gc);
-        }
+        TemporalObject::create_intrinsic(agent, realm, gc);
+        #[cfg(feature = "temporal")]
+        TemporalInstantConstructor::create_intrinsic(agent, realm, gc);
+        #[cfg(feature = "temporal")]
+        TemporalInstantPrototype::create_intrinsic(agent, realm, gc);
 
         #[cfg(feature = "date")]
         DatePrototype::create_intrinsic(agent, realm);
