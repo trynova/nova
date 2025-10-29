@@ -186,6 +186,8 @@ get size
 #[cfg(feature = "array-buffer")]getBigUint64
 #[cfg(feature = "date")]getDate
 #[cfg(feature = "date")]getDay
+#[cfg(feature = "temporal")]getEpochMilliseconds
+#[cfg(feature = "temporal")]getEpochNanoSeconds
 #[cfg(feature = "proposal-float16array")]getFloat16
 #[cfg(feature = "array-buffer")]getFloat32
 #[cfg(feature = "array-buffer")]getFloat64
