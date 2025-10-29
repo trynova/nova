@@ -3,12 +3,15 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin,
-            temporal::instant::requrire_temporal_instant_internal_slot,
+            temporal::instant::{require_internal_slot_temporal_instant, to_temporal_instant},
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, BigInt, String, Value},
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
+    engine::{
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
+    },
     heap::WellKnownSymbolIndexes,
 };
 
@@ -118,7 +121,7 @@ impl TemporalInstantPrototype {
     ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let instant be the this value.
         // 2. Perform ? RequireInternalSlot(instant, [[InitializedTemporalInstant]]).
-        let instant = requrire_temporal_instant_internal_slot(agent, this_value, gc.nogc())
+        let instant = require_internal_slot_temporal_instant(agent, this_value, gc.nogc())
             .unbind()?
             .bind(gc.nogc());
         // 3. Let ns be instant.[[EpochNanoseconds]].
@@ -137,7 +140,7 @@ impl TemporalInstantPrototype {
     ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let instant be the this value.
         // 2. Perform ? RequireInternalSlot(instant, [[InitializedTemporalInstant]]).
-        let instant = requrire_temporal_instant_internal_slot(agent, this_value, gc.nogc())
+        let instant = require_internal_slot_temporal_instant(agent, this_value, gc.nogc())
             .unbind()?
             .bind(gc.nogc());
         // 3. Return instant.[[EpochNanoseconds]].
@@ -197,12 +200,27 @@ impl TemporalInstantPrototype {
 
     /// ### [8.3.10 Temporal.Instant.prototype.equals ( other )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.equals)
     fn equals<'gc>(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _args: ArgumentsList,
-        mut _gc: GcScope<'gc, '_>,
+        agent: &mut Agent,
+        this_value: Value,
+        args: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        unimplemented!()
+        // 1. Let instant be the this value.
+        // 2. Perform ? RequireInternalSlot(instant, [[InitializedTemporalInstant]]).
+        let instant = require_internal_slot_temporal_instant(agent, this_value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
+        let instant = instant.scope(agent, gc.nogc());
+        // 3. Set other to ? ToTemporalInstant(other).
+        let other = args.get(0).bind(gc.nogc());
+        let other_instant = to_temporal_instant(agent, other.unbind(), gc.reborrow()).unbind()?;
+        // 4. If instant.[[EpochNanoseconds]] ≠ other.[[EpochNanoseconds]], return false.
+        let instant_val = instant.get(agent).bind(gc.nogc());
+        if instant_val.inner_instant(agent) != other_instant {
+            return Ok(Value::from(false));
+        }
+        // 5. Return true.
+        Ok(Value::from(true))
     }
 
     /// ### [8.3.11 Temporal.Instant.prototype.toString ( [ options ] )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.tostring)
