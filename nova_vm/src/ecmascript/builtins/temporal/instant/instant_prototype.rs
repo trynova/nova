@@ -238,8 +238,8 @@ impl TemporalInstantPrototype {
     /// ###[8.3.14 Temporal.Instant.prototype.valueOf ( )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.valueof)
     fn value_of<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _args: ArgumentsList,
+        _: Value,
+        _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         // 1. Throw a TypeError exception.
