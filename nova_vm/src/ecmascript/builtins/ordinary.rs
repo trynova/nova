@@ -16,7 +16,7 @@ use caches::{CacheToPopulate, Caches, PropertyLookupCache, PropertyOffset};
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::data_view::data::SharedDataViewRecord;
 #[cfg(feature = "temporal")]
-use crate::ecmascript::builtins::temporal::instant::data::InstantRecord;
+use crate::ecmascript::builtins::temporal::instant::data::InstantHeapData;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::{
@@ -1684,7 +1684,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
             .into_object(),
         #[cfg(feature = "temporal")]
         ProtoIntrinsics::TemporalInstant => {
-            agent.heap.create(InstantRecord::default()).into_object()
+            agent.heap.create(InstantHeapData::default()).into_object()
         }
         ProtoIntrinsics::TypeError => agent
             .heap

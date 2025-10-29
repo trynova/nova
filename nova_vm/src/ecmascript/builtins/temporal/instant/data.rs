@@ -10,12 +10,12 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub struct InstantRecord<'a> {
+pub struct InstantHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) instant: temporal_rs::Instant,
 }
 
-impl InstantRecord<'_> {
+impl InstantHeapData<'_> {
     pub fn default() -> Self {
         Self {
             object_index: None,
@@ -25,9 +25,9 @@ impl InstantRecord<'_> {
 }
 
 trivially_bindable!(temporal_rs::Instant);
-bindable_handle!(InstantRecord);
+bindable_handle!(InstantHeapData);
 
-impl HeapMarkAndSweep for InstantRecord<'static> {
+impl HeapMarkAndSweep for InstantHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_index,
