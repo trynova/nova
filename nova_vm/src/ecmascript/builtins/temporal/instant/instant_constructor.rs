@@ -173,7 +173,7 @@ impl TemporalInstantConstructor {
         Ok(value)
     }
 
-    /// [8.2.4 Temporal.Instant.fromEpochNanoseconds ( epochNanoseconds )] (https://tc39.es/proposal-temporal/#sec-temporal.instant.fromepochnanoseconds)
+    ///### [8.2.4 Temporal.Instant.fromEpochNanoseconds ( epochNanoseconds )] (https://tc39.es/proposal-temporal/#sec-temporal.instant.fromepochnanoseconds)
     fn from_epoch_nanoseconds<'gc>(
         agent: &mut Agent,
         _: Value,
