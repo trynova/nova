@@ -361,6 +361,34 @@ impl Builtin for TemporalInstantPrototypeGetEpochNanoSeconds {
         Behaviour::Regular(TemporalInstantPrototype::get_epoch_nanoseconds);
 }
 
+struct TemporalInstantPrototypeAdd;
+impl Builtin for TemporalInstantPrototypeAdd {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.add;
+    const LENGTH: u8 = 1;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalInstantPrototype::add);
+}
+
+struct TemporalInstantPrototypeSubtract;
+impl Builtin for TemporalInstantPrototypeSubtract {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.subtract;
+    const LENGTH: u8 = 1;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalInstantPrototype::subtract);
+}
+
+struct TemporalInstantPrototypeUntil;
+impl Builtin for TemporalInstantPrototypeUntil {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.until;
+    const LENGTH: u8 = 1;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalInstantPrototype::until);
+}
+
+struct TemporalInstantPrototypeSince;
+impl Builtin for TemporalInstantPrototypeSince {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.since;
+    const LENGTH: u8 = 1;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalInstantPrototype::since);
+}
+
 impl TemporalInstantPrototype {
     pub fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, _: NoGcScope) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
@@ -369,11 +397,15 @@ impl TemporalInstantPrototype {
         let instant_constructor = intrinsics.temporal_instant();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
-            .with_property_capacity(3)
+            .with_property_capacity(7)
             .with_prototype(object_prototype)
             .with_constructor_property(instant_constructor)
             .with_builtin_function_property::<TemporalInstantPrototypeGetEpochMilliseconds>()
             .with_builtin_function_property::<TemporalInstantPrototypeGetEpochNanoSeconds>()
+            .with_builtin_function_property::<TemporalInstantPrototypeAdd>()
+            .with_builtin_function_property::<TemporalInstantPrototypeSubtract>()
+            .with_builtin_function_property::<TemporalInstantPrototypeUntil>()
+            .with_builtin_function_property::<TemporalInstantPrototypeSince>()
             .build();
     }
 
@@ -410,7 +442,43 @@ impl TemporalInstantPrototype {
             .bind(gc.nogc());
         // 3. Return instant.[[EpochNanoseconds]].
         let value = instant.inner_instant(agent).epoch_nanoseconds().as_i128();
-        todo!()
+        Ok(BigInt::from_i128(agent, value).into())
+    }
+
+    fn add<'gc>(
+        _agent: &mut Agent,
+        _this_value: Value,
+        _args: ArgumentsList,
+        mut _gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        unimplemented!()
+    }
+
+    fn subtract<'gc>(
+        _agent: &mut Agent,
+        _this_value: Value,
+        _args: ArgumentsList,
+        mut _gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        unimplemented!()
+    }
+
+    fn until<'gc>(
+        _agent: &mut Agent,
+        _this_value: Value,
+        _args: ArgumentsList,
+        mut _gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        unimplemented!()
+    }
+
+    fn since<'gc>(
+        _agent: &mut Agent,
+        _this_value: Value,
+        _args: ArgumentsList,
+        mut _gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        unimplemented!()
     }
 }
 
