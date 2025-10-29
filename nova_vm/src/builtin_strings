@@ -28,7 +28,7 @@ __proto__
 #[cfg(feature = "math")]abs
 #[cfg(feature = "math")]acos
 #[cfg(feature = "math")]acosh
-#[cfg(any(feature = "atomics", feature = "set", feature = "weak-refs"))]add
+#[cfg(any(feature = "atomics", feature = "set", feature = "weak-refs", feature = "temporal"))]add
 AggregateError
 all
 allSettled
@@ -395,6 +395,7 @@ setPrototypeOf
 shift
 #[cfg(feature = "math")]sign
 #[cfg(feature = "math")]sin
+#[cfg(feature = "temporal")]since
 #[cfg(feature = "math")]sinh
 size
 slice
@@ -421,6 +422,7 @@ String Iterator
 #[cfg(feature = "array-buffer")]subarray
 #[cfg(feature = "annex-b-string")]substr
 substring
+#[cfg(feature = "temporal")]subtract
 #[cfg(feature = "proposal-math-sum")]sumPrecise
 #[cfg(feature = "annex-b-string")]sup
 symbol
@@ -493,6 +495,7 @@ undefined
 unregister
 unscopables
 unshift
+#[cfg(feature = "temporal")]until
 URIError
 #[cfg(feature = "date")]UTC
 value

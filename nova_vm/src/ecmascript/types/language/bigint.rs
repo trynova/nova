@@ -231,19 +231,19 @@ impl<'a> BigInt<'a> {
         }
     }
 
-    pub fn try_into_i64(self, agent: &Agent) -> Result<i64, TryFromBigIntError<()>> {
-        match self {
-            BigInt::BigInt(b) => i64::try_from(&agent[b].data),
-            BigInt::SmallBigInt(b) => Ok(b.into_i64()),
-        }
-    }
-
     #[inline]
     pub(crate) fn from_num_bigint(agent: &mut Agent, value: num_bigint::BigInt) -> Self {
         if let Ok(result) = SmallBigInt::try_from(&value) {
             Self::SmallBigInt(result)
         } else {
             agent.heap.create(BigIntHeapData { data: value })
+        }
+    }
+
+    pub fn try_into_i64(self, agent: &Agent) -> Result<i64, TryFromBigIntError<()>> {
+        match self {
+            BigInt::BigInt(b) => i64::try_from(&agent[b].data),
+            BigInt::SmallBigInt(b) => Ok(b.into_i64()),
         }
     }
 
