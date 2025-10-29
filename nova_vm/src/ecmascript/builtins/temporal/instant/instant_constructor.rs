@@ -185,10 +185,9 @@ impl TemporalInstantConstructor {
         let epoch_nanoseconds = if let Ok(epoch_nanoseconds) = BigInt::try_from(epoch_nanoseconds) {
             epoch_nanoseconds
         } else {
-            let epoch_nanoseconds = to_big_int(agent, epoch_nanoseconds.unbind(), gc.reborrow())
+            to_big_int(agent, epoch_nanoseconds.unbind(), gc.reborrow())
                 .unbind()?
-                .bind(gc.nogc());
-            epoch_nanoseconds
+                .bind(gc.nogc())
         };
         // 2. If IsValidEpochNanoseconds(epochNanoseconds) is false, throw a RangeError exception.
         let Some(epoch_nanoseconds) = epoch_nanoseconds

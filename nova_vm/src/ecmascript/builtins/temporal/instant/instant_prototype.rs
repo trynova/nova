@@ -3,7 +3,7 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin,
-            temporal::instant::{requrire_temporal_instant_internal_slot, to_temporal_instant},
+            temporal::instant::requrire_temporal_instant_internal_slot,
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, BigInt, String, Value},
