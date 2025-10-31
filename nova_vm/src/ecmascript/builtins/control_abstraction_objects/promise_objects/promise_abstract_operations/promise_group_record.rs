@@ -67,25 +67,22 @@ impl<'a> PromiseGroup<'a> {
         match record.promise_group_type {
             PromiseGroupType::PromiseAll => match reaction_type {
                 PromiseReactionType::Fulfill => {
-                    self.on_promise_all_fulfilled(agent, index, value.unbind(), gc.reborrow());
+                    self.fulfill(agent, index, value.unbind(), gc.reborrow());
                 }
                 PromiseReactionType::Reject => {
-                    self.on_promise_all_rejected(agent, value.unbind(), gc.nogc());
+                    self.reject(agent, value.unbind(), gc.nogc());
                 }
             },
             PromiseGroupType::PromiseAllSettled => {
-                self.on_promise_all_settled(
-                    agent,
-                    reaction_type,
-                    index,
-                    value.unbind(),
-                    gc.reborrow(),
-                );
+                let obj = self
+                    .to_all_settled_obj(agent, reaction_type, value.unbind(), gc.nogc())
+                    .bind(gc.nogc());
+                self.fulfill(agent, index, obj.unbind(), gc.reborrow());
             }
         }
     }
 
-    pub(crate) fn on_promise_all_fulfilled(
+    pub(crate) fn fulfill(
         self,
         agent: &mut Agent,
         index: u32,
@@ -101,39 +98,20 @@ impl<'a> PromiseGroup<'a> {
         let elements = result_array.as_mut_slice(agent);
         elements[index as usize] = Some(value.unbind());
 
-        //ii. If remainingElementsCount.[[Value]] = 0, then
         if let Some(promise_to_resolve) = promise_to_resolve {
-            // 1. Let valuesArray be CreateArrayFromList(values).
-            // 2. Perform ? Call(resultCapability.[[Resolve]], undefined, « valuesArray »).
             let capability = PromiseCapability::from_promise(promise_to_resolve, true);
             capability.resolve(agent, result_array.into_value().unbind(), gc.reborrow());
         }
     }
 
-    pub(crate) fn on_promise_all_rejected(
-        self,
-        agent: &mut Agent,
-        value: Value<'a>,
-        gc: NoGcScope<'a, '_>,
-    ) {
-        let value = value.bind(gc);
-        let promise_all = self.bind(gc);
-        let data = promise_all.get_mut(agent);
-
-        let capability = PromiseCapability::from_promise(data.promise, true);
-        capability.reject(agent, value.unbind(), gc);
-    }
-
-    pub(crate) fn on_promise_all_settled(
+    fn to_all_settled_obj(
         self,
         agent: &mut Agent,
         reaction_type: PromiseReactionType,
-        index: u32,
         value: Value<'a>,
-        mut gc: GcScope<'a, '_>,
-    ) {
-        let promise_group = self.bind(gc.nogc());
-        let value = value.bind(gc.nogc());
+        gc: NoGcScope<'a, '_>,
+    ) -> Value<'a> {
+        let value = value.bind(gc);
 
         let obj = match reaction_type {
             PromiseReactionType::Fulfill => OrdinaryObject::create_object(
@@ -153,7 +131,7 @@ impl<'a> PromiseGroup<'a> {
                     ObjectEntry::new_data_entry(BUILTIN_STRING_MEMORY.value.into(), value.unbind()),
                 ],
             )
-            .bind(gc.nogc()),
+            .bind(gc),
             PromiseReactionType::Reject => OrdinaryObject::create_object(
                 agent,
                 Some(
@@ -174,22 +152,19 @@ impl<'a> PromiseGroup<'a> {
                     ),
                 ],
             )
-            .bind(gc.nogc()),
+            .bind(gc),
         };
 
-        let promise_group_record = promise_group.get_mut(agent);
-        let (result_array, promise_to_resolve) = promise_group_record.take();
+        obj.into_value().unbind()
+    }
 
-        let elements = result_array.as_mut_slice(agent);
-        elements[index as usize] = Some(obj.unbind().into_value());
+    pub(crate) fn reject(self, agent: &mut Agent, value: Value<'a>, gc: NoGcScope<'a, '_>) {
+        let value = value.bind(gc);
+        let promise_all = self.bind(gc);
+        let data = promise_all.get_mut(agent);
 
-        // 14. If remainingElementsCount.[[Value]] = 0, then
-        if let Some(promise_to_resolve) = promise_to_resolve {
-            // a. Let valuesArray be CreateArrayFromList(values).
-            // b. Return ? Call(promiseCapability.[[Resolve]], undefined, « valuesArray »).
-            let capability = PromiseCapability::from_promise(promise_to_resolve, true);
-            capability.resolve(agent, result_array.into_value().unbind(), gc.reborrow());
-        }
+        let capability = PromiseCapability::from_promise(data.promise, true);
+        capability.reject(agent, value.unbind(), gc);
     }
 
     pub(crate) const fn get_index(self) -> usize {
