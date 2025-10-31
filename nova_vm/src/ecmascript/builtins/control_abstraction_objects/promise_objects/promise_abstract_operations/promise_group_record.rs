@@ -40,8 +40,6 @@ pub struct PromiseGroupRecord<'a> {
 pub struct PromiseGroup<'a>(BaseIndex<'a, PromiseGroupRecord<'static>>);
 
 impl<'a> PromiseGroupRecord<'static> {
-    /// Decrements the remaining elements count and returns the result array along with
-    /// the promise if all elements have completed.
     fn take_result_and_promise(&mut self) -> (Array<'a>, Option<Promise<'a>>) {
         self.remaining_elements_count = self.remaining_elements_count.saturating_sub(1);
 
