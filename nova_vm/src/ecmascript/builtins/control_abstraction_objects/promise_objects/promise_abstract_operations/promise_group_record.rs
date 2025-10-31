@@ -103,6 +103,15 @@ impl<'a> PromiseGroup<'a> {
         }
     }
 
+    pub(crate) fn reject(self, agent: &mut Agent, value: Value<'a>, gc: NoGcScope<'a, '_>) {
+        let value = value.bind(gc);
+        let promise_group = self.bind(gc);
+        let data = promise_group.get_mut(agent);
+
+        let capability = PromiseCapability::from_promise(data.promise, true);
+        capability.reject(agent, value.unbind(), gc);
+    }
+
     fn to_all_settled_obj(
         self,
         agent: &mut Agent,
@@ -155,15 +164,6 @@ impl<'a> PromiseGroup<'a> {
         };
 
         obj.into_value().unbind()
-    }
-
-    pub(crate) fn reject(self, agent: &mut Agent, value: Value<'a>, gc: NoGcScope<'a, '_>) {
-        let value = value.bind(gc);
-        let promise_group = self.bind(gc);
-        let data = promise_group.get_mut(agent);
-
-        let capability = PromiseCapability::from_promise(data.promise, true);
-        capability.reject(agent, value.unbind(), gc);
     }
 
     pub(crate) const fn get_index(self) -> usize {
