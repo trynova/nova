@@ -187,9 +187,7 @@ impl<'a> PromiseGroup<'a> {
             .expect("PromiseGroupRecord not found")
     }
 
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
+    pub(crate) const _DEF: Self = { Self(BaseIndex::from_u32_index(0)) };
 }
 
 impl AsRef<[PromiseGroupRecord<'static>]> for Agent {
