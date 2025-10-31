@@ -40,8 +40,9 @@ pub struct PromiseGroupRecord<'a> {
 pub struct PromiseGroup<'a>(BaseIndex<'a, PromiseGroupRecord<'static>>);
 
 impl<'a> PromiseGroupRecord<'static> {
-    fn take(&mut self) -> (Array<'a>, Option<Promise<'a>>) {
-        // i. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] - 1.
+    /// Decrements the remaining elements count and returns the result array along with
+    /// the promise if all elements have completed.
+    fn take_result_and_promise(&mut self) -> (Array<'a>, Option<Promise<'a>>) {
         self.remaining_elements_count = self.remaining_elements_count.saturating_sub(1);
 
         if self.remaining_elements_count > 0 {
@@ -93,7 +94,7 @@ impl<'a> PromiseGroup<'a> {
         let value = value.bind(gc.nogc());
 
         let promise_group_record = promise_group.get_mut(agent);
-        let (result_array, promise_to_resolve) = promise_group_record.take();
+        let (result_array, promise_to_resolve) = promise_group_record.take_result_and_promise();
 
         let elements = result_array.as_mut_slice(agent);
         elements[index as usize] = Some(value.unbind());
@@ -160,8 +161,8 @@ impl<'a> PromiseGroup<'a> {
 
     pub(crate) fn reject(self, agent: &mut Agent, value: Value<'a>, gc: NoGcScope<'a, '_>) {
         let value = value.bind(gc);
-        let promise_all = self.bind(gc);
-        let data = promise_all.get_mut(agent);
+        let promise_group = self.bind(gc);
+        let data = promise_group.get_mut(agent);
 
         let capability = PromiseCapability::from_promise(data.promise, true);
         capability.reject(agent, value.unbind(), gc);
