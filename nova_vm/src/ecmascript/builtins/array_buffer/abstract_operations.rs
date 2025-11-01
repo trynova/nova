@@ -462,7 +462,6 @@ pub(crate) fn get_modify_set_value_in_buffer<'gc, Type: Viewable, const OP: u8>(
         }
         AnyArrayBuffer::SharedArrayBuffer(array_buffer) => {
             // 8. If IsSharedArrayBuffer(arrayBuffer) is true, then
-            let raw_bytes = Type::into_storage(raw_bytes);
             let foo = array_buffer.as_slice(agent);
             let slot = foo.slice(byte_index, byte_index + element_size);
             let (head, slot, tail) = slot.align_to::<Type::Storage>();
@@ -470,16 +469,28 @@ pub(crate) fn get_modify_set_value_in_buffer<'gc, Type: Viewable, const OP: u8>(
             let slot = slot.get(0).unwrap();
             let result = if const { OP == 0 } {
                 // Add
+                let raw_bytes = Type::into_storage(raw_bytes);
                 slot.fetch_add(raw_bytes)
             } else if const { OP == 1 } {
+                // And
+                let raw_bytes = Type::into_storage(raw_bytes);
                 slot.fetch_and(raw_bytes)
             } else if const { OP == 2 } {
+                // Exchange
+                let raw_bytes = Type::into_storage(raw_bytes);
                 slot.swap(raw_bytes)
             } else if const { OP == 3 } {
+                // Or
+                let raw_bytes = Type::into_storage(raw_bytes);
                 slot.fetch_or(raw_bytes)
             } else if const { OP == 4 } {
+                // Sub
+                let raw_bytes = raw_bytes.neg();
+                let raw_bytes = Type::into_storage(raw_bytes);
                 slot.fetch_add(raw_bytes)
             } else if const { OP == 5 } {
+                // Xor
+                let raw_bytes = Type::into_storage(raw_bytes);
                 slot.fetch_xor(raw_bytes)
             } else {
                 panic!("Unsupported Op value");
