@@ -63,8 +63,8 @@ use crate::{
             primitive_objects::PrimitiveObject,
             promise::Promise,
             promise_objects::promise_abstract_operations::{
-                promise_all_record::PromiseAll,
                 promise_finally_functions::BuiltinPromiseFinallyFunction,
+                promise_group_record::PromiseGroup,
             },
             proxy::Proxy,
             text_processing::string_objects::string_iterator_objects::StringIterator,
@@ -151,7 +151,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             promise_resolving_functions,
             promise_finally_functions,
             promises,
-            promise_all_records,
+            promise_group_records,
             proxies,
             realms,
             #[cfg(feature = "regexp")]
@@ -677,18 +677,18 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 promise_reaction_records.get(index).mark_values(&mut queues);
             }
         });
-        let mut promise_all_record_marks: Box<[PromiseAll]> =
-            queues.promise_all_records.drain(..).collect();
-        promise_all_record_marks.sort();
-        promise_all_record_marks.iter().for_each(|&idx| {
+        let mut promise_group_record_marks: Box<[PromiseGroup]> =
+            queues.promise_group_records.drain(..).collect();
+        promise_group_record_marks.sort();
+        promise_group_record_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if let Some(marked) = bits.promise_all_records.get_mut(index) {
+            if let Some(marked) = bits.promise_group_records.get_mut(index) {
                 if *marked {
                     // Already marked, ignore
                     return;
                 }
                 *marked = true;
-                promise_all_records.get(index).mark_values(&mut queues);
+                promise_group_records.get(index).mark_values(&mut queues);
             }
         });
         let mut promise_resolving_function_marks: Box<[BuiltinPromiseResolvingFunction]> =
@@ -1501,7 +1501,7 @@ fn sweep(
         promise_resolving_functions,
         promise_finally_functions,
         promises,
-        promise_all_records,
+        promise_group_records,
         proxies,
         realms,
         #[cfg(feature = "regexp")]
@@ -2033,12 +2033,12 @@ fn sweep(
                 sweep_heap_vector_values(promises, &compactions, &bits.promises);
             });
         }
-        if !promise_all_records.is_empty() {
+        if !promise_group_records.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(
-                    promise_all_records,
+                    promise_group_records,
                     &compactions,
-                    &bits.promise_all_records,
+                    &bits.promise_group_records,
                 );
             });
         }
