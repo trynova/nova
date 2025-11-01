@@ -2478,6 +2478,10 @@ impl Viewable for f16 {
         unreachable!()
     }
     #[inline(always)]
+    fn swap(self, _other: Self) -> Self {
+        unreachable!()
+    }
+    #[inline(always)]
     fn exchange(self, _other: Self) -> Self {
         unreachable!()
     }
