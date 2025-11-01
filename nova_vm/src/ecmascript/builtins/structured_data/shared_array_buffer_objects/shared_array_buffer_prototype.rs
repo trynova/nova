@@ -129,12 +129,12 @@ impl SharedArrayBufferPrototype {
                 .unbind()?
                 .bind(gc.nogc())
         {
-            n as u64
+            n
         } else {
             let scoped_o = o.scope(agent, gc.nogc());
             let n = to_index(agent, new_length.unbind(), gc.reborrow()).unbind()?;
             o = unsafe { scoped_o.take(agent) }.bind(gc.nogc());
-            n as u64
+            n
         };
         let o = o.unbind();
         let gc = gc.into_nogc();

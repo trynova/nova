@@ -1443,11 +1443,11 @@ fn throw_index_out_of_range<'gc>(
     agent: &mut Agent,
     gc: NoGcScope<'gc, '_>,
 ) -> JsResult<'gc, Infallible> {
-    return Err(agent.throw_exception_with_static_message(
+    Err(agent.throw_exception_with_static_message(
         ExceptionType::RangeError,
         "Index is out of range",
         gc,
-    ));
+    ))
 }
 
 /// ### [7.1.22 ToIndex ( value )](https://tc39.es/ecma262/#sec-toindex)

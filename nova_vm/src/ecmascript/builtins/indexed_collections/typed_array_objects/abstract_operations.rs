@@ -658,7 +658,7 @@ pub(crate) fn initialize_typed_array_from_array_buffer<'gc, T: Viewable>(
             .unbind()?
             .bind(gc.nogc())
         {
-            offset as u64
+            offset
         } else {
             let nogc = gc.nogc();
             let o = o_proto.map(|p| p.scope(agent, nogc));
@@ -698,7 +698,7 @@ pub(crate) fn initialize_typed_array_from_array_buffer<'gc, T: Viewable>(
             .unbind()?
             .bind(gc.nogc())
         {
-            Some(length as u64)
+            Some(length)
         } else {
             let nogc = gc.nogc();
             let o = o_proto.map(|p| p.scope(agent, nogc));

@@ -462,8 +462,8 @@ pub(crate) fn get_modify_set_value_in_buffer<'gc, Type: Viewable, const OP: u8>(
         }
         AnyArrayBuffer::SharedArrayBuffer(array_buffer) => {
             // 8. If IsSharedArrayBuffer(arrayBuffer) is true, then
-            let foo = array_buffer.as_slice(agent);
-            let slot = foo.slice(byte_index, byte_index + element_size);
+            let buffer = array_buffer.as_slice(agent);
+            let slot = buffer.slice(byte_index, byte_index + element_size);
             let (head, slot, tail) = slot.align_to::<Type::Storage>();
             debug_assert!(head.is_empty() && tail.is_empty());
             let slot = slot.get(0).unwrap();
