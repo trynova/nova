@@ -15,7 +15,10 @@ use core::{
     ops::{Deref, DerefMut},
     ptr::{NonNull, read_unaligned, write_unaligned},
 };
-use std::alloc::{Layout, alloc_zeroed, dealloc, handle_alloc_error, realloc};
+use std::{
+    alloc::{Layout, alloc_zeroed, dealloc, handle_alloc_error, realloc},
+    ops::{BitAnd, BitOr, BitXor},
+};
 
 use ecmascript_atomics::RacyStorage;
 #[cfg(feature = "shared-array-buffer")]
@@ -738,55 +741,35 @@ impl SharedDataBlock {
         order: ECMAScriptOrdering,
     ) -> Option<T> {
         let slice = self.as_racy_slice().slice_from(byte_offset);
-        if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>()
-        {
+        if const { size_of::<T>() == size_of::<u8>() } {
             // SAFETY: Type checked to match.
             unsafe {
                 core::mem::transmute_copy::<Option<u8>, Option<T>>(
-                    &slice.as_u8().map(|t| t.load(order)),
+                    &slice.get(0).map(|s| s.load(order)),
                 )
             }
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u16>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i16>()
-        {
+        } else if const { size_of::<T>() == size_of::<u16>() } {
             // SAFETY: Type checked to match.
             unsafe {
                 core::mem::transmute_copy::<Option<u16>, Option<T>>(
-                    &slice.as_u16().map(|t| t.load(order)),
+                    &slice.as_aligned::<u16>().map(|t| t.load(order)),
                 )
             }
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>()
-        {
+        } else if const { size_of::<T>() == size_of::<u32>() } {
             // SAFETY: Type checked to match.
             unsafe {
                 core::mem::transmute_copy::<Option<u32>, Option<T>>(
-                    &slice.as_u32().map(|t| t.load(order)),
+                    &slice.as_aligned::<u32>().map(|t| t.load(order)),
                 )
             }
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>()
-        {
+        } else if const { size_of::<T>() == size_of::<u64>() } {
             // SAFETY: Type checked to match.
             unsafe {
                 core::mem::transmute_copy::<Option<u64>, Option<T>>(
-                    &slice.as_u64().map(|t| t.load(order)),
+                    &slice.as_aligned::<u64>().map(|t| t.load(order)),
                 )
             }
         } else {
-            #[cfg(feature = "proposal-float16array")]
-            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f16>() {
-                // SAFETY: Type checked to match.
-                return unsafe {
-                    core::mem::transmute_copy::<Option<u16>, Option<T>>(
-                        &slice.as_u16().map(|t| t.load(order)),
-                    )
-                };
-            }
             unreachable!("Unexpected load type")
         }
     }
@@ -804,37 +787,27 @@ impl SharedDataBlock {
     #[inline(always)]
     pub(crate) fn load_unaligned<T: Viewable>(&self, byte_offset: usize) -> Option<T> {
         let slice = self.as_racy_slice().slice_from(byte_offset);
-        if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>()
-        {
+        if const { size_of::<T>() == size_of::<u8>() } {
             // SAFETY: Type checked to match.
-            unsafe { core::mem::transmute_copy::<Option<u8>, Option<T>>(&slice.load_u8()) }
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u16>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i16>()
-        {
-            // SAFETY: Type checked to match.
-            unsafe { core::mem::transmute_copy::<Option<u16>, Option<T>>(&slice.load_u16()) }
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>()
-        {
-            // SAFETY: Type checked to match.
-            unsafe { core::mem::transmute_copy::<Option<u32>, Option<T>>(&slice.load_u32()) }
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>()
-        {
-            // SAFETY: Type checked to match.
-            unsafe { core::mem::transmute_copy::<Option<u64>, Option<T>>(&slice.load_u64()) }
-        } else {
-            #[cfg(feature = "proposal-float16array")]
-            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f16>() {
-                // SAFETY: Type checked to match.
-                return unsafe {
-                    core::mem::transmute_copy::<Option<u16>, Option<T>>(&slice.load_u16())
-                };
+            unsafe {
+                core::mem::transmute_copy::<Option<u8>, Option<T>>(&slice.load_unaligned::<u8>())
             }
+        } else if const { size_of::<T>() == size_of::<u16>() } {
+            // SAFETY: Type checked to match.
+            unsafe {
+                core::mem::transmute_copy::<Option<u16>, Option<T>>(&slice.load_unaligned::<u16>())
+            }
+        } else if const { size_of::<T>() == size_of::<u32>() } {
+            // SAFETY: Type checked to match.
+            unsafe {
+                core::mem::transmute_copy::<Option<u32>, Option<T>>(&slice.load_unaligned::<u32>())
+            }
+        } else if const { size_of::<T>() == size_of::<u64>() } {
+            // SAFETY: Type checked to match.
+            unsafe {
+                core::mem::transmute_copy::<Option<u64>, Option<T>>(&slice.load_unaligned::<u64>())
+            }
+        } else {
             unreachable!("Unexpected load_unaligned type")
         }
     }
@@ -854,40 +827,23 @@ impl SharedDataBlock {
         order: ECMAScriptOrdering,
     ) -> Option<()> {
         let slice = self.as_racy_slice().slice_from(byte_offset);
-        if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>()
-        {
+        if const { size_of::<T>() == size_of::<u8>() } {
             // SAFETY: Type checked to match.
             let val = unsafe { core::mem::transmute_copy::<T, u8>(&val) };
-            slice.as_u8().map(|t| t.store(val, order))
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u16>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i16>()
-        {
+            slice.as_aligned::<u8>().map(|t| t.store(val, order))
+        } else if const { size_of::<T>() == size_of::<u16>() } {
             // SAFETY: Type checked to match.
             let val = unsafe { core::mem::transmute_copy::<T, u16>(&val) };
-            slice.as_u16().map(|t| t.store(val, order))
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>()
-        {
+            slice.as_aligned::<u16>().map(|t| t.store(val, order))
+        } else if const { size_of::<T>() == size_of::<u32>() } {
             // SAFETY: Type checked to match.
             let val = unsafe { core::mem::transmute_copy::<T, u32>(&val) };
-            slice.as_u32().map(|t| t.store(val, order))
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>()
-        {
+            slice.as_aligned::<u32>().map(|t| t.store(val, order))
+        } else if const { size_of::<T>() == size_of::<u64>() } {
             // SAFETY: Type checked to match.
             let val = unsafe { core::mem::transmute_copy::<T, u64>(&val) };
-            slice.as_u64().map(|t| t.store(val, order))
+            slice.as_aligned::<u64>().map(|t| t.store(val, order))
         } else {
-            #[cfg(feature = "proposal-float16array")]
-            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f16>() {
-                // SAFETY: Type checked to match.
-                let val = unsafe { core::mem::transmute_copy::<T, u16>(&val) };
-                return slice.as_u16().map(|t| t.store(val, order));
-            }
             unreachable!("Unexpected read type {:?}", core::any::type_name::<T>())
         }
     }
@@ -902,40 +858,23 @@ impl SharedDataBlock {
     /// There is no write in the Rust world: this should be pretty okay.
     pub(crate) fn store_unaligned<T: Viewable>(&self, byte_offset: usize, val: T) -> Option<()> {
         let slice = self.as_racy_slice().slice_from(byte_offset);
-        if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>()
-        {
+        if const { size_of::<T>() == size_of::<u8>() } {
             // SAFETY: Type checked to match.
             let val = unsafe { core::mem::transmute_copy::<T, u8>(&val) };
-            slice.store_u8(val)
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u16>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i16>()
-        {
+            slice.store_unaligned::<u8>(val)
+        } else if const { size_of::<T>() == size_of::<u16>() } {
             // SAFETY: Type checked to match.
             let val = unsafe { core::mem::transmute_copy::<T, u16>(&val) };
-            slice.store_u16(val)
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>()
-        {
+            slice.store_unaligned::<u16>(val)
+        } else if const { size_of::<T>() == size_of::<u32>() } {
             // SAFETY: Type checked to match.
             let val = unsafe { core::mem::transmute_copy::<T, u32>(&val) };
-            slice.store_u32(val)
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>()
-            || core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>()
-        {
+            slice.store_unaligned::<u32>(val)
+        } else if const { size_of::<T>() == size_of::<u64>() } {
             // SAFETY: Type checked to match.
             let val = unsafe { core::mem::transmute_copy::<T, u64>(&val) };
-            slice.store_u64(val)
+            slice.store_unaligned::<u64>(val)
         } else {
-            #[cfg(feature = "proposal-float16array")]
-            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f16>() {
-                // SAFETY: Type checked to match.
-                let val = unsafe { core::mem::transmute_copy::<T, u16>(&val) };
-                return slice.store_u16(val);
-            }
             unreachable!("Unexpected read type")
         }
     }
@@ -1312,6 +1251,14 @@ pub trait Viewable: 'static + private::Sealed + Copy + PartialEq + core::fmt::De
     /// Reverses the byte order of the value.
     fn flip_endian(self) -> Self;
 
+    fn neg(self) -> Self;
+    fn add(self, other: Self) -> Self;
+    fn and(self, other: Self) -> Self;
+    fn swap(self, other: Self) -> Self;
+    fn or(self, other: Self) -> Self;
+    fn sub(self, other: Self) -> Self;
+    fn xor(self, other: Self) -> Self;
+
     /// Compare A and B of a Viewable type and always return an Ordering.
     ///
     /// This ordering is the usual total order for integers, and the special
@@ -1377,6 +1324,28 @@ impl Viewable for () {
     }
 
     fn flip_endian(self) -> Self {
+        panic!("VoidArray is a marker type");
+    }
+
+    fn neg(self) -> Self {
+        panic!("VoidArray is a marker type");
+    }
+    fn add(self, _: Self) -> Self {
+        panic!("VoidArray is a marker type");
+    }
+    fn and(self, _: Self) -> Self {
+        panic!("VoidArray is a marker type");
+    }
+    fn swap(self, _: Self) -> Self {
+        panic!("VoidArray is a marker type");
+    }
+    fn or(self, _: Self) -> Self {
+        panic!("VoidArray is a marker type");
+    }
+    fn sub(self, _: Self) -> Self {
+        panic!("VoidArray is a marker type");
+    }
+    fn xor(self, _: Self) -> Self {
         panic!("VoidArray is a marker type");
     }
 
@@ -1464,6 +1433,35 @@ impl Viewable for u8 {
     }
 
     #[inline(always)]
+    fn neg(self) -> Self {
+        self.wrapping_neg()
+    }
+    #[inline(always)]
+    fn add(self, other: Self) -> Self {
+        self.wrapping_add(other)
+    }
+    #[inline(always)]
+    fn and(self, other: Self) -> Self {
+        self.bitand(other)
+    }
+    #[inline(always)]
+    fn swap(self, other: Self) -> Self {
+        other
+    }
+    #[inline(always)]
+    fn or(self, other: Self) -> Self {
+        self.bitor(other)
+    }
+    #[inline(always)]
+    fn sub(self, other: Self) -> Self {
+        self.wrapping_sub(other)
+    }
+    #[inline(always)]
+    fn xor(self, other: Self) -> Self {
+        self.bitxor(other)
+    }
+
+    #[inline(always)]
     fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.cmp(other)
     }
@@ -1543,6 +1541,35 @@ impl Viewable for U8Clamped {
     #[inline(always)]
     fn flip_endian(self) -> Self {
         Self(self.0.swap_bytes())
+    }
+
+    #[inline(always)]
+    fn neg(self) -> Self {
+        Self(self.0.wrapping_neg())
+    }
+    #[inline(always)]
+    fn add(self, other: Self) -> Self {
+        Self(self.0.wrapping_add(other.0))
+    }
+    #[inline(always)]
+    fn and(self, other: Self) -> Self {
+        Self(self.0.bitand(other.0))
+    }
+    #[inline(always)]
+    fn swap(self, other: Self) -> Self {
+        other
+    }
+    #[inline(always)]
+    fn or(self, other: Self) -> Self {
+        Self(self.0.bitor(other.0))
+    }
+    #[inline(always)]
+    fn sub(self, other: Self) -> Self {
+        Self(self.0.wrapping_sub(other.0))
+    }
+    #[inline(always)]
+    fn xor(self, other: Self) -> Self {
+        Self(self.0.bitxor(other.0))
     }
 
     #[inline(always)]
@@ -1628,6 +1655,35 @@ impl Viewable for i8 {
     }
 
     #[inline(always)]
+    fn neg(self) -> Self {
+        self.wrapping_neg()
+    }
+    #[inline(always)]
+    fn add(self, other: Self) -> Self {
+        self.wrapping_add(other)
+    }
+    #[inline(always)]
+    fn and(self, other: Self) -> Self {
+        self.bitand(other)
+    }
+    #[inline(always)]
+    fn swap(self, other: Self) -> Self {
+        other
+    }
+    #[inline(always)]
+    fn or(self, other: Self) -> Self {
+        self.bitor(other)
+    }
+    #[inline(always)]
+    fn sub(self, other: Self) -> Self {
+        self.wrapping_sub(other)
+    }
+    #[inline(always)]
+    fn xor(self, other: Self) -> Self {
+        self.bitxor(other)
+    }
+
+    #[inline(always)]
     fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.cmp(other)
     }
@@ -1707,6 +1763,35 @@ impl Viewable for u16 {
     #[inline(always)]
     fn flip_endian(self) -> Self {
         self.swap_bytes()
+    }
+
+    #[inline(always)]
+    fn neg(self) -> Self {
+        self.wrapping_neg()
+    }
+    #[inline(always)]
+    fn add(self, other: Self) -> Self {
+        self.wrapping_add(other)
+    }
+    #[inline(always)]
+    fn and(self, other: Self) -> Self {
+        self.bitand(other)
+    }
+    #[inline(always)]
+    fn swap(self, other: Self) -> Self {
+        other
+    }
+    #[inline(always)]
+    fn or(self, other: Self) -> Self {
+        self.bitor(other)
+    }
+    #[inline(always)]
+    fn sub(self, other: Self) -> Self {
+        self.wrapping_sub(other)
+    }
+    #[inline(always)]
+    fn xor(self, other: Self) -> Self {
+        self.bitxor(other)
     }
 
     #[inline(always)]
@@ -1792,6 +1877,35 @@ impl Viewable for i16 {
     }
 
     #[inline(always)]
+    fn neg(self) -> Self {
+        self.wrapping_neg()
+    }
+    #[inline(always)]
+    fn add(self, other: Self) -> Self {
+        self.wrapping_add(other)
+    }
+    #[inline(always)]
+    fn and(self, other: Self) -> Self {
+        self.bitand(other)
+    }
+    #[inline(always)]
+    fn swap(self, other: Self) -> Self {
+        other
+    }
+    #[inline(always)]
+    fn or(self, other: Self) -> Self {
+        self.bitor(other)
+    }
+    #[inline(always)]
+    fn sub(self, other: Self) -> Self {
+        self.wrapping_sub(other)
+    }
+    #[inline(always)]
+    fn xor(self, other: Self) -> Self {
+        self.bitxor(other)
+    }
+
+    #[inline(always)]
     fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.cmp(other)
     }
@@ -1874,6 +1988,35 @@ impl Viewable for u32 {
     }
 
     #[inline(always)]
+    fn neg(self) -> Self {
+        self.wrapping_neg()
+    }
+    #[inline(always)]
+    fn add(self, other: Self) -> Self {
+        self.wrapping_add(other)
+    }
+    #[inline(always)]
+    fn and(self, other: Self) -> Self {
+        self.bitand(other)
+    }
+    #[inline(always)]
+    fn swap(self, other: Self) -> Self {
+        other
+    }
+    #[inline(always)]
+    fn or(self, other: Self) -> Self {
+        self.bitor(other)
+    }
+    #[inline(always)]
+    fn sub(self, other: Self) -> Self {
+        self.wrapping_sub(other)
+    }
+    #[inline(always)]
+    fn xor(self, other: Self) -> Self {
+        self.bitxor(other)
+    }
+
+    #[inline(always)]
     fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.cmp(other)
     }
@@ -1953,6 +2096,35 @@ impl Viewable for i32 {
     #[inline(always)]
     fn flip_endian(self) -> Self {
         self.swap_bytes()
+    }
+
+    #[inline(always)]
+    fn neg(self) -> Self {
+        self.wrapping_neg()
+    }
+    #[inline(always)]
+    fn add(self, other: Self) -> Self {
+        self.wrapping_add(other)
+    }
+    #[inline(always)]
+    fn and(self, other: Self) -> Self {
+        self.bitand(other)
+    }
+    #[inline(always)]
+    fn swap(self, other: Self) -> Self {
+        other
+    }
+    #[inline(always)]
+    fn or(self, other: Self) -> Self {
+        self.bitor(other)
+    }
+    #[inline(always)]
+    fn sub(self, other: Self) -> Self {
+        self.wrapping_sub(other)
+    }
+    #[inline(always)]
+    fn xor(self, other: Self) -> Self {
+        self.bitxor(other)
     }
 
     #[inline(always)]
@@ -2047,6 +2219,35 @@ impl Viewable for u64 {
     #[inline(always)]
     fn flip_endian(self) -> Self {
         self.swap_bytes()
+    }
+
+    #[inline(always)]
+    fn neg(self) -> Self {
+        self.wrapping_neg()
+    }
+    #[inline(always)]
+    fn add(self, other: Self) -> Self {
+        self.wrapping_add(other)
+    }
+    #[inline(always)]
+    fn and(self, other: Self) -> Self {
+        self.bitand(other)
+    }
+    #[inline(always)]
+    fn swap(self, other: Self) -> Self {
+        other
+    }
+    #[inline(always)]
+    fn or(self, other: Self) -> Self {
+        self.bitor(other)
+    }
+    #[inline(always)]
+    fn sub(self, other: Self) -> Self {
+        self.wrapping_sub(other)
+    }
+    #[inline(always)]
+    fn xor(self, other: Self) -> Self {
+        self.bitxor(other)
     }
 
     #[inline(always)]
@@ -2150,6 +2351,35 @@ impl Viewable for i64 {
     }
 
     #[inline(always)]
+    fn neg(self) -> Self {
+        self.wrapping_neg()
+    }
+    #[inline(always)]
+    fn add(self, other: Self) -> Self {
+        self.wrapping_add(other)
+    }
+    #[inline(always)]
+    fn and(self, other: Self) -> Self {
+        self.bitand(other)
+    }
+    #[inline(always)]
+    fn swap(self, other: Self) -> Self {
+        other
+    }
+    #[inline(always)]
+    fn or(self, other: Self) -> Self {
+        self.bitor(other)
+    }
+    #[inline(always)]
+    fn sub(self, other: Self) -> Self {
+        self.wrapping_sub(other)
+    }
+    #[inline(always)]
+    fn xor(self, other: Self) -> Self {
+        self.bitxor(other)
+    }
+
+    #[inline(always)]
     fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.cmp(other)
     }
@@ -2233,6 +2463,35 @@ impl Viewable for f16 {
     #[inline(always)]
     fn flip_endian(self) -> Self {
         Self::from_bits(self.to_bits().swap_bytes())
+    }
+
+    #[inline(always)]
+    fn neg(self) -> Self {
+        core::ops::Neg::neg(self)
+    }
+    #[inline(always)]
+    fn add(self, other: Self) -> Self {
+        self + other
+    }
+    #[inline(always)]
+    fn and(self, _other: Self) -> Self {
+        unreachable!()
+    }
+    #[inline(always)]
+    fn swap(self, _other: Self) -> Self {
+        unreachable!()
+    }
+    #[inline(always)]
+    fn or(self, _other: Self) -> Self {
+        unreachable!()
+    }
+    #[inline(always)]
+    fn sub(self, other: Self) -> Self {
+        self - other
+    }
+    #[inline(always)]
+    fn xor(self, _other: Self) -> Self {
+        unreachable!()
     }
 
     #[inline(always)]
@@ -2340,6 +2599,35 @@ impl Viewable for f32 {
     }
 
     #[inline(always)]
+    fn neg(self) -> Self {
+        core::ops::Neg::neg(self)
+    }
+    #[inline(always)]
+    fn add(self, other: Self) -> Self {
+        self + other
+    }
+    #[inline(always)]
+    fn and(self, _other: Self) -> Self {
+        unreachable!()
+    }
+    #[inline(always)]
+    fn swap(self, _other: Self) -> Self {
+        unreachable!()
+    }
+    #[inline(always)]
+    fn or(self, _other: Self) -> Self {
+        unreachable!()
+    }
+    #[inline(always)]
+    fn sub(self, other: Self) -> Self {
+        self - other
+    }
+    #[inline(always)]
+    fn xor(self, _other: Self) -> Self {
+        unreachable!()
+    }
+
+    #[inline(always)]
     fn ecmascript_cmp(&self, other: &Self) -> core::cmp::Ordering {
         if self.is_nan() {
             if other.is_nan() {
@@ -2433,6 +2721,35 @@ impl Viewable for f64 {
     #[inline(always)]
     fn flip_endian(self) -> Self {
         Self::from_bits(self.to_bits().swap_bytes())
+    }
+
+    #[inline(always)]
+    fn neg(self) -> Self {
+        core::ops::Neg::neg(self)
+    }
+    #[inline(always)]
+    fn add(self, other: Self) -> Self {
+        self + other
+    }
+    #[inline(always)]
+    fn and(self, _other: Self) -> Self {
+        unreachable!()
+    }
+    #[inline(always)]
+    fn swap(self, _other: Self) -> Self {
+        unreachable!()
+    }
+    #[inline(always)]
+    fn or(self, _other: Self) -> Self {
+        unreachable!()
+    }
+    #[inline(always)]
+    fn sub(self, other: Self) -> Self {
+        self - other
+    }
+    #[inline(always)]
+    fn xor(self, _other: Self) -> Self {
+        unreachable!()
     }
 
     #[inline(always)]

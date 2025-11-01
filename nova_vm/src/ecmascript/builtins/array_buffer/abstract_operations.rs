@@ -11,8 +11,8 @@ use crate::{
         builtins::ordinary::ordinary_create_from_constructor,
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, Function, Number, Numeric, Object, SharedDataBlock, Value,
-            Viewable, create_byte_data_block,
+            BUILTIN_STRING_MEMORY, Function, Numeric, Object, SharedDataBlock, Value, Viewable,
+            create_byte_data_block,
         },
     },
     engine::context::{Bindable, GcScope, NoGcScope},
@@ -413,32 +413,134 @@ pub(crate) fn set_value_in_buffer<T: Viewable>(
 /// non-negative integer), type (a TypedArray element type), value (a Number or
 /// a BigInt), and op (a read-modify-write modification function) and returns a
 /// Number or a BigInt.
-#[expect(dead_code)]
-pub(crate) fn get_modify_set_value_in_buffer(
-    _array_buffer: ArrayBuffer,
-    _byte_index: u32,
-    _type: (),
-    _value: Number,
-    _op: (),
-) {
+pub(crate) fn get_modify_set_value_in_buffer<'gc, Type: Viewable, const OP: u8>(
+    agent: &mut Agent,
+    array_buffer: AnyArrayBuffer,
+    byte_index: usize,
+    value: Numeric,
+    gc: NoGcScope<'gc, '_>,
+) -> Numeric<'gc> {
+    // 5. Let elementSize be the Element Size value specified in Table
+    //    71 for Element Type type.
+    let element_size = size_of::<Type>();
+
     // 1. Assert: IsDetachedBuffer(arrayBuffer) is false.
-    // 2. Assert: There are sufficient bytes in arrayBuffer starting at byteIndex to represent a value of type.
-    // 3. Assert: value is a BigInt if IsBigIntElementType(type) is true; otherwise, value is a Number.
-    // 4. Let block be arrayBuffer.[[ArrayBufferData]].
-    // 5. Let elementSize be the Element Size value specified in Table 71 for Element Type type.
-    // 6. Let isLittleEndian be the value of the [[LittleEndian]] field of the surrounding agent's Agent Record.
+    debug_assert!(!array_buffer.is_detached(agent));
+    // 2. Assert: There are sufficient bytes in arrayBuffer starting at
+    //    byteIndex to represent a value of type.
+    debug_assert!(
+        byte_index + size_of::<Type>() <= array_buffer.byte_length(agent, Ordering::Unordered)
+    );
+    // 3. Assert: value is a BigInt if IsBigIntElementType(type) is true;
+    //    otherwise, value is a Number.
+    debug_assert!(value.is_bigint() == Type::IS_BIGINT);
+    // 6. Let isLittleEndian be the value of the [[LittleEndian]] field
+    //    of the surrounding agent's Agent Record.
     // 7. Let rawBytes be NumericToRawBytes(type, value, isLittleEndian).
-    // 8. If IsSharedArrayBuffer(arrayBuffer) is true, then
-    // a. Let execution be the [[CandidateExecution]] field of the surrounding agent's Agent Record.
-    // b. Let eventsRecord be the Agent Events Record of execution.[[EventsRecords]] whose [[AgentSignifier]] is AgentSignifier().
-    // c. Let rawBytesRead be a List of length elementSize whose elements are nondeterministically chosen byte values.
-    // d. NOTE: In implementations, rawBytesRead is the result of a load-link, of a load-exclusive, or of an operand of a read-modify-write instruction on the underlying hardware. The nondeterminism is a semantic prescription of the memory model to describe observable behaviour of hardware with weak consistency.
-    // e. Let rmwEvent be ReadModifyWriteSharedMemory { [[Order]]: SEQ-CST, [[NoTear]]: true, [[Block]]: block, [[ByteIndex]]: byteIndex, [[ElementSize]]: elementSize, [[Payload]]: rawBytes, [[ModifyOp]]: op }.
-    // f. Append rmwEvent to eventsRecord.[[EventList]].
-    // g. Append Chosen Value Record { [[Event]]: rmwEvent, [[ChosenValue]]: rawBytesRead } to execution.[[ChosenValues]].
-    // 9. Else,
-    // a. Let rawBytesRead be a List of length elementSize whose elements are the sequence of elementSize bytes starting with block[byteIndex].
-    // b. Let rawBytesModified be op(rawBytesRead, rawBytes).
-    // c. Store the individual bytes of rawBytesModified into block, starting at block[byteIndex].
+    let raw_bytes = Type::from_ne_value(agent, value);
+    let raw_bytes_read = match array_buffer {
+        AnyArrayBuffer::ArrayBuffer(array_buffer) => {
+            let op = get_array_buffer_op::<Type, OP>();
+            // 4. Let block be arrayBuffer.[[ArrayBufferData]].
+            let block = array_buffer.as_mut_slice(agent);
+            // 8. If IsSharedArrayBuffer(arrayBuffer) is true, then
+            // 9. Else,
+            let slot = &mut block[byte_index..byte_index + element_size];
+            // SAFETY: Viewable types are safe to transmute.
+            let (head, slot, tail) = unsafe { slot.align_to_mut::<Type>() };
+            debug_assert!(head.is_empty() && tail.is_empty());
+            // a. Let rawBytesRead be a List of length elementSize whose
+            //    elements are the sequence of elementSize bytes starting with
+            //    block[byteIndex].
+            let raw_bytes_read = slot[0];
+            // b. Let rawBytesModified be op(rawBytesRead, rawBytes).
+            let data_modified = op(raw_bytes_read, raw_bytes);
+            // c. Store the individual bytes of rawBytesModified into block,
+            //    starting at block[byteIndex].
+            slot[0] = data_modified;
+            raw_bytes_read
+        }
+        AnyArrayBuffer::SharedArrayBuffer(array_buffer) => {
+            // 8. If IsSharedArrayBuffer(arrayBuffer) is true, then
+            let buffer = array_buffer.as_slice(agent);
+            let slot = buffer.slice(byte_index, byte_index + element_size);
+            let (head, slot, tail) = slot.align_to::<Type::Storage>();
+            debug_assert!(head.is_empty() && tail.is_empty());
+            let slot = slot.get(0).unwrap();
+            let result = if const { OP == 0 } {
+                // Add
+                let raw_bytes = Type::into_storage(raw_bytes);
+                slot.fetch_add(raw_bytes)
+            } else if const { OP == 1 } {
+                // And
+                let raw_bytes = Type::into_storage(raw_bytes);
+                slot.fetch_and(raw_bytes)
+            } else if const { OP == 2 } {
+                // Exchange
+                let raw_bytes = Type::into_storage(raw_bytes);
+                slot.swap(raw_bytes)
+            } else if const { OP == 3 } {
+                // Or
+                let raw_bytes = Type::into_storage(raw_bytes);
+                slot.fetch_or(raw_bytes)
+            } else if const { OP == 4 } {
+                // Sub
+                let raw_bytes = raw_bytes.neg();
+                let raw_bytes = Type::into_storage(raw_bytes);
+                slot.fetch_add(raw_bytes)
+            } else if const { OP == 5 } {
+                // Xor
+                let raw_bytes = Type::into_storage(raw_bytes);
+                slot.fetch_xor(raw_bytes)
+            } else {
+                panic!("Unsupported Op value");
+            };
+            // a. Let execution be the [[CandidateExecution]] field of the
+            //    surrounding agent's Agent Record.
+            // b. Let eventsRecord be the Agent Events Record of
+            //    execution.[[EventsRecords]] whose [[AgentSignifier]] is
+            //    AgentSignifier().
+            // c. Let rawBytesRead be a List of length elementSize whose
+            //    elements are nondeterministically chosen byte values.
+            // d. NOTE: In implementations, rawBytesRead is the result of a
+            //    load-link, of a load-exclusive, or of an operand of a
+            //    read-modify-write instruction on the underlying hardware. The
+            //    nondeterminism is a semantic prescription of the memory model
+            //    to describe observable behaviour of hardware with weak
+            //    consistency.
+            // e. Let rmwEvent be ReadModifyWriteSharedMemory { .. }.
+            // f. Append rmwEvent to eventsRecord.[[EventList]].
+            // g. Append Chosen Value Record { [[Event]]: rmwEvent,
+            //    [[ChosenValue]]: rawBytesRead } to execution.[[ChosenValues]].
+            Type::from_storage(result)
+        }
+    };
     // 10. Return RawBytesToNumeric(type, rawBytesRead, isLittleEndian).
+    raw_bytes_read.into_ne_value(agent, gc)
+}
+
+type ModifyOp<T> = fn(T, T) -> T;
+
+const fn get_array_buffer_op<T: Viewable, const OP: u8>() -> ModifyOp<T> {
+    if const { OP == 0 } {
+        // Add
+        <T as Viewable>::add
+    } else if const { OP == 1 } {
+        // And
+        <T as Viewable>::and
+    } else if const { OP == 2 } {
+        // Exchange
+        <T as Viewable>::swap
+    } else if const { OP == 3 } {
+        // Or
+        <T as Viewable>::or
+    } else if const { OP == 4 } {
+        // Sub
+        <T as Viewable>::sub
+    } else if const { OP == 5 } {
+        // Xor
+        <T as Viewable>::xor
+    } else {
+        panic!("Unsupported Op value");
+    }
 }

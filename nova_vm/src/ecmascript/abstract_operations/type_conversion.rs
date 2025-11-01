@@ -14,6 +14,8 @@
 //! The BigInt type has no implicit conversions in the ECMAScript language;
 //! programmers must call BigInt explicitly to convert values from other types.
 
+use std::convert::Infallible;
+
 use num_bigint::Sign;
 use wtf8::Wtf8;
 
@@ -1423,19 +1425,29 @@ pub(crate) fn canonical_numeric_index_string<'gc>(
 
 /// 2. If integer is not in the inclusive interval from 0 to 2**53 - 1, throw a
 ///    RangeError exception.
+#[inline]
 pub(crate) fn validate_index<'a>(
     agent: &mut Agent,
     value: i64,
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, u64> {
     if !(0..=(SmallInteger::MAX)).contains(&value) {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::RangeError,
-            "Index is out of range",
-            gc,
-        ));
+        return throw_index_out_of_range(agent, gc).map(|_| unreachable!());
     }
     Ok(value as u64)
+}
+
+#[inline(never)]
+#[cold]
+fn throw_index_out_of_range<'gc>(
+    agent: &mut Agent,
+    gc: NoGcScope<'gc, '_>,
+) -> JsResult<'gc, Infallible> {
+    Err(agent.throw_exception_with_static_message(
+        ExceptionType::RangeError,
+        "Index is out of range",
+        gc,
+    ))
 }
 
 /// ### [7.1.22 ToIndex ( value )](https://tc39.es/ecma262/#sec-toindex)
@@ -1443,10 +1455,10 @@ pub(crate) fn to_index<'a>(
     agent: &mut Agent,
     argument: Value,
     mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, i64> {
+) -> JsResult<'a, u64> {
     // Fast path: A safe integer is already an integer.
     if let Value::Integer(integer) = argument {
-        return validate_index(agent, integer.into_i64(), gc.into_nogc()).map(|i| i as i64);
+        return validate_index(agent, integer.into_i64(), gc.into_nogc());
     }
     // TODO: This can be heavily optimized by inlining `to_integer_or_infinity`.
 
@@ -1457,7 +1469,7 @@ pub(crate) fn to_index<'a>(
 
     // 2. If integer is not in the inclusive interval from 0 to 2**53 - 1, throw a RangeError exception.
     // 3. Return integer.
-    validate_index(agent, integer, gc.into_nogc()).map(|i| i as i64)
+    validate_index(agent, integer, gc.into_nogc())
 }
 
 /// ### [7.1.22 ToIndex ( value )](https://tc39.es/ecma262/#sec-toindex)
@@ -1466,10 +1478,10 @@ pub(crate) fn try_to_index<'a>(
     agent: &mut Agent,
     argument: Value,
     gc: NoGcScope<'a, '_>,
-) -> TryResult<'a, i64> {
+) -> TryResult<'a, u64> {
     // Fast path: A safe integer is already an integer.
     if let Value::Integer(integer) = argument {
-        return js_result_into_try(validate_index(agent, integer.into_i64(), gc).map(|i| i as i64));
+        return js_result_into_try(validate_index(agent, integer.into_i64(), gc));
     }
     // TODO: This can be heavily optimized by inlining `to_integer_or_infinity`.
 
@@ -1478,7 +1490,7 @@ pub(crate) fn try_to_index<'a>(
 
     // 2. If integer is not in the inclusive interval from 0 to 2**53 - 1, throw a RangeError exception.
     // 3. Return integer.
-    js_result_into_try(validate_index(agent, integer, gc).map(|i| i as i64))
+    js_result_into_try(validate_index(agent, integer, gc))
 }
 
 /// Helper function to check if a `char` is trimmable.
