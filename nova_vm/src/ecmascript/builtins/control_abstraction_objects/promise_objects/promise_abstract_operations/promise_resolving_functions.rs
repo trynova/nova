@@ -136,27 +136,21 @@ impl IndexMut<BuiltinPromiseResolvingFunction<'_>> for Agent {
     }
 }
 
-impl Index<BuiltinPromiseResolvingFunction<'_>>
-    for Vec<Option<PromiseResolvingFunctionHeapData<'static>>>
-{
+impl Index<BuiltinPromiseResolvingFunction<'_>> for Vec<PromiseResolvingFunctionHeapData<'static>> {
     type Output = PromiseResolvingFunctionHeapData<'static>;
 
     fn index(&self, index: BuiltinPromiseResolvingFunction) -> &Self::Output {
         self.get(index.get_index())
             .expect("BuiltinPromiseRejectFunction out of bounds")
-            .as_ref()
-            .expect("BuiltinPromiseRejectFunction slot empty")
     }
 }
 
 impl IndexMut<BuiltinPromiseResolvingFunction<'_>>
-    for Vec<Option<PromiseResolvingFunctionHeapData<'static>>>
+    for Vec<PromiseResolvingFunctionHeapData<'static>>
 {
     fn index_mut(&mut self, index: BuiltinPromiseResolvingFunction) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("BuiltinPromiseRejectFunction out of bounds")
-            .as_mut()
-            .expect("BuiltinPromiseRejectFunction slot empty")
     }
 }
 
@@ -192,7 +186,7 @@ impl<'a> CreateHeapData<PromiseResolvingFunctionHeapData<'a>, BuiltinPromiseReso
         &mut self,
         data: PromiseResolvingFunctionHeapData<'a>,
     ) -> BuiltinPromiseResolvingFunction<'a> {
-        self.promise_resolving_functions.push(Some(data.unbind()));
+        self.promise_resolving_functions.push(data.unbind());
         self.alloc_counter +=
             core::mem::size_of::<Option<PromiseResolvingFunctionHeapData<'static>>>();
 

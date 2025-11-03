@@ -74,23 +74,18 @@ impl IndexMut<Module<'_>> for Agent {
     }
 }
 
-impl Index<Module<'_>> for Vec<Option<ModuleHeapData<'static>>> {
+impl Index<Module<'_>> for Vec<ModuleHeapData<'static>> {
     type Output = ModuleHeapData<'static>;
 
     fn index(&self, index: Module) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("Module out of bounds")
-            .as_ref()
-            .expect("Module slot empty")
+        self.get(index.get_index()).expect("Module out of bounds")
     }
 }
 
-impl IndexMut<Module<'_>> for Vec<Option<ModuleHeapData<'static>>> {
+impl IndexMut<Module<'_>> for Vec<ModuleHeapData<'static>> {
     fn index_mut(&mut self, index: Module) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Module out of bounds")
-            .as_mut()
-            .expect("Module slot empty")
     }
 }
 

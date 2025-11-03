@@ -96,23 +96,19 @@ impl IndexMut<EmbedderObject<'_>> for Agent {
     }
 }
 
-impl Index<EmbedderObject<'_>> for Vec<Option<EmbedderObjectHeapData>> {
+impl Index<EmbedderObject<'_>> for Vec<EmbedderObjectHeapData> {
     type Output = EmbedderObjectHeapData;
 
     fn index(&self, index: EmbedderObject) -> &Self::Output {
         self.get(index.get_index())
             .expect("EmbedderObject out of bounds")
-            .as_ref()
-            .expect("EmbedderObject slot empty")
     }
 }
 
-impl IndexMut<EmbedderObject<'_>> for Vec<Option<EmbedderObjectHeapData>> {
+impl IndexMut<EmbedderObject<'_>> for Vec<EmbedderObjectHeapData> {
     fn index_mut(&mut self, index: EmbedderObject) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("EmbedderObject out of bounds")
-            .as_mut()
-            .expect("EmbedderObject slot empty")
     }
 }
 

@@ -144,16 +144,7 @@ impl<T: ?Sized> BaseIndex<'_, T> {
     }
 
     #[inline(always)]
-    pub(crate) fn last(vec: &[Option<T>]) -> Self
-    where
-        T: Sized,
-    {
-        assert!(!vec.is_empty());
-        Self::from_usize(vec.len())
-    }
-
-    #[inline(always)]
-    pub(crate) fn last_t(vec: &[T]) -> Self
+    pub(crate) fn last(vec: &[T]) -> Self
     where
         T: Sized,
     {
@@ -187,29 +178,25 @@ impl Default for ElementIndex<'static> {
 
 impl ElementIndex<'_> {
     #[inline(always)]
-    pub fn last_element_index<const N: usize>(vec: &[Option<[Option<Value>; N]>]) -> Self {
+    pub fn last_element_index<const N: usize>(vec: &[[Option<Value>; N]]) -> Self {
         assert!(!vec.is_empty());
         Self::from_usize(vec.len())
     }
 }
 
-impl<const N: usize> Index<ElementIndex<'_>> for Vec<Option<[Option<Value<'static>>; N]>> {
+impl<const N: usize> Index<ElementIndex<'_>> for Vec<[Option<Value<'static>>; N]> {
     type Output = [Option<Value<'static>>; N];
 
     fn index(&self, index: ElementIndex) -> &Self::Output {
         self.get(index.into_index())
             .expect("Invalid ElementsVector: No item at index")
-            .as_ref()
-            .expect("Invalid ElementsVector: Found None at index")
     }
 }
 
-impl<const N: usize> IndexMut<ElementIndex<'_>> for Vec<Option<[Option<Value<'static>>; N]>> {
+impl<const N: usize> IndexMut<ElementIndex<'_>> for Vec<[Option<Value<'static>>; N]> {
     fn index_mut(&mut self, index: ElementIndex<'_>) -> &mut Self::Output {
         self.get_mut(index.into_index())
             .expect("Invalid ElementsVector: No item at index")
-            .as_mut()
-            .expect("Invalid ElementsVector: Found None at index")
     }
 }
 

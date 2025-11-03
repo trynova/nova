@@ -205,16 +205,10 @@ impl ArrayBuffer<'_> {
         let array_buffers = &mut *agent.heap.array_buffers;
         let (source_data, target_data) = if self.get_index() > source.get_index() {
             let (before, after) = array_buffers.split_at_mut(self.get_index());
-            (
-                before[source.get_index()].as_ref().unwrap(),
-                after[0].as_mut().unwrap(),
-            )
+            (&before[source.get_index()], &mut after[0])
         } else {
             let (before, after) = array_buffers.split_at_mut(source.get_index());
-            (
-                after[0].as_ref().unwrap(),
-                before[self.get_index()].as_mut().unwrap(),
-            )
+            (&after[0], &mut before[self.get_index()])
         };
         let source_data = source_data.buffer.get_data_block();
         let target_data = target_data.buffer.get_data_block_mut();
@@ -269,23 +263,19 @@ impl IndexMut<ArrayBuffer<'_>> for Agent {
     }
 }
 
-impl Index<ArrayBuffer<'_>> for Vec<Option<ArrayBufferHeapData<'static>>> {
+impl Index<ArrayBuffer<'_>> for Vec<ArrayBufferHeapData<'static>> {
     type Output = ArrayBufferHeapData<'static>;
 
     fn index(&self, index: ArrayBuffer) -> &Self::Output {
         self.get(index.get_index())
             .expect("ArrayBuffer out of bounds")
-            .as_ref()
-            .expect("ArrayBuffer slot empty")
     }
 }
 
-impl IndexMut<ArrayBuffer<'_>> for Vec<Option<ArrayBufferHeapData<'static>>> {
+impl IndexMut<ArrayBuffer<'_>> for Vec<ArrayBufferHeapData<'static>> {
     fn index_mut(&mut self, index: ArrayBuffer) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("ArrayBuffer out of bounds")
-            .as_mut()
-            .expect("ArrayBuffer slot empty")
     }
 }
 
@@ -350,8 +340,8 @@ impl HeapSweepWeakReference for ArrayBuffer<'static> {
 
 impl<'a> CreateHeapData<ArrayBufferHeapData<'a>, ArrayBuffer<'a>> for Heap {
     fn create(&mut self, data: ArrayBufferHeapData<'a>) -> ArrayBuffer<'a> {
-        self.array_buffers.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<ArrayBufferHeapData<'static>>>();
+        self.array_buffers.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<ArrayBufferHeapData<'static>>();
         ArrayBuffer(BaseIndex::last(&self.array_buffers))
     }
 }

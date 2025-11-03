@@ -165,23 +165,18 @@ impl Index<Symbol<'_>> for PropertyKeyHeap<'_> {
     }
 }
 
-impl Index<Symbol<'_>> for Vec<Option<SymbolHeapData<'static>>> {
+impl Index<Symbol<'_>> for Vec<SymbolHeapData<'static>> {
     type Output = SymbolHeapData<'static>;
 
     fn index(&self, index: Symbol<'_>) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("Symbol out of bounds")
-            .as_ref()
-            .expect("Symbol slot empty")
+        self.get(index.get_index()).expect("Symbol out of bounds")
     }
 }
 
-impl IndexMut<Symbol<'_>> for Vec<Option<SymbolHeapData<'static>>> {
+impl IndexMut<Symbol<'_>> for Vec<SymbolHeapData<'static>> {
     fn index_mut(&mut self, index: Symbol<'_>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Symbol out of bounds")
-            .as_mut()
-            .expect("Symbol slot empty")
     }
 }
 
@@ -203,8 +198,8 @@ impl HeapSweepWeakReference for Symbol<'static> {
 
 impl<'a> CreateHeapData<SymbolHeapData<'a>, Symbol<'a>> for Heap {
     fn create(&mut self, data: SymbolHeapData<'a>) -> Symbol<'a> {
-        self.symbols.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<SymbolHeapData<'static>>>();
+        self.symbols.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<SymbolHeapData<'static>>();
         Symbol(BaseIndex::last(&self.symbols))
     }
 }

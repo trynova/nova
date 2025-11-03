@@ -268,30 +268,26 @@ impl<'a> IndexMut<BoundFunction<'a>> for Agent {
     }
 }
 
-impl<'a> Index<BoundFunction<'a>> for Vec<Option<BoundFunctionHeapData<'static>>> {
+impl<'a> Index<BoundFunction<'a>> for Vec<BoundFunctionHeapData<'static>> {
     type Output = BoundFunctionHeapData<'static>;
 
     fn index(&self, index: BoundFunction<'a>) -> &Self::Output {
         self.get(index.get_index())
             .expect("BoundFunction out of bounds")
-            .as_ref()
-            .expect("BoundFunction slot empty")
     }
 }
 
-impl<'a> IndexMut<BoundFunction<'a>> for Vec<Option<BoundFunctionHeapData<'static>>> {
+impl<'a> IndexMut<BoundFunction<'a>> for Vec<BoundFunctionHeapData<'static>> {
     fn index_mut(&mut self, index: BoundFunction<'a>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("BoundFunction out of bounds")
-            .as_mut()
-            .expect("BoundFunction slot empty")
     }
 }
 
 impl<'a> CreateHeapData<BoundFunctionHeapData<'a>, BoundFunction<'a>> for Heap {
     fn create(&mut self, data: BoundFunctionHeapData<'a>) -> BoundFunction<'a> {
-        self.bound_functions.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<BoundFunctionHeapData<'static>>>();
+        self.bound_functions.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<BoundFunctionHeapData<'static>>();
         BoundFunction(BaseIndex::last(&self.bound_functions))
     }
 }

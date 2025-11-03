@@ -118,23 +118,19 @@ impl IndexMut<SetIterator<'_>> for Agent {
     }
 }
 
-impl Index<SetIterator<'_>> for Vec<Option<SetIteratorHeapData<'static>>> {
+impl Index<SetIterator<'_>> for Vec<SetIteratorHeapData<'static>> {
     type Output = SetIteratorHeapData<'static>;
 
     fn index(&self, index: SetIterator) -> &Self::Output {
         self.get(index.get_index())
             .expect("SetIterator out of bounds")
-            .as_ref()
-            .expect("Array SetIterator empty")
     }
 }
 
-impl IndexMut<SetIterator<'_>> for Vec<Option<SetIteratorHeapData<'static>>> {
+impl IndexMut<SetIterator<'_>> for Vec<SetIteratorHeapData<'static>> {
     fn index_mut(&mut self, index: SetIterator) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("SetIterator out of bounds")
-            .as_mut()
-            .expect("SetIterator slot empty")
     }
 }
 
@@ -153,8 +149,8 @@ impl TryFrom<HeapRootData> for SetIterator<'_> {
 
 impl<'a> CreateHeapData<SetIteratorHeapData<'a>, SetIterator<'a>> for Heap {
     fn create(&mut self, data: SetIteratorHeapData<'a>) -> SetIterator<'a> {
-        self.set_iterators.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<SetIteratorHeapData<'static>>>();
+        self.set_iterators.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<SetIteratorHeapData<'static>>();
         SetIterator(BaseIndex::last(&self.set_iterators))
     }
 }

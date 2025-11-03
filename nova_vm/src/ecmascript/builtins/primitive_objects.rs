@@ -45,12 +45,12 @@ use super::ordinary::{
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct PrimitiveObject<'a>(BaseIndex<'a, PrimitiveObjectHeapData<'static>>);
+pub struct PrimitiveObject<'a>(BaseIndex<'a, PrimitiveObjectRecord<'static>>);
 
 impl IntrinsicPrimitiveObjectIndexes {
     pub(crate) const fn get_primitive_object<'a>(
         self,
-        base: BaseIndex<'a, PrimitiveObjectHeapData<'static>>,
+        base: BaseIndex<'a, PrimitiveObjectRecord<'static>>,
     ) -> PrimitiveObject<'a> {
         PrimitiveObject(BaseIndex::from_u32_index(
             self as u32 + base.into_u32_index() + Self::PRIMITIVE_OBJECT_INDEX_OFFSET,
@@ -93,7 +93,7 @@ impl<'a> TryFrom<Value<'a>> for PrimitiveObject<'a> {
 }
 
 impl Index<PrimitiveObject<'_>> for Agent {
-    type Output = PrimitiveObjectHeapData<'static>;
+    type Output = PrimitiveObjectRecord<'static>;
 
     fn index(&self, index: PrimitiveObject) -> &Self::Output {
         &self.heap.primitive_objects[index]
@@ -106,23 +106,19 @@ impl IndexMut<PrimitiveObject<'_>> for Agent {
     }
 }
 
-impl Index<PrimitiveObject<'_>> for Vec<Option<PrimitiveObjectHeapData<'static>>> {
-    type Output = PrimitiveObjectHeapData<'static>;
+impl Index<PrimitiveObject<'_>> for Vec<PrimitiveObjectRecord<'static>> {
+    type Output = PrimitiveObjectRecord<'static>;
 
     fn index(&self, index: PrimitiveObject) -> &Self::Output {
         self.get(index.get_index())
             .expect("PrimitiveObject out of bounds")
-            .as_ref()
-            .expect("PrimitiveObject slot empty")
     }
 }
 
-impl IndexMut<PrimitiveObject<'_>> for Vec<Option<PrimitiveObjectHeapData<'static>>> {
+impl IndexMut<PrimitiveObject<'_>> for Vec<PrimitiveObjectRecord<'static>> {
     fn index_mut(&mut self, index: PrimitiveObject) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("PrimitiveObject out of bounds")
-            .as_mut()
-            .expect("PrimitiveObject slot empty")
     }
 }
 
@@ -638,12 +634,17 @@ impl<'a> IntoPrimitive<'a> for PrimitiveObjectData<'a> {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PrimitiveObjectHeapData<'a> {
+pub struct PrimitiveObjectRecord<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) data: PrimitiveObjectData<'a>,
 }
 
-impl<'a> PrimitiveObjectHeapData<'a> {
+impl<'a> PrimitiveObjectRecord<'a> {
+    pub(crate) const BLANK: Self = Self {
+        object_index: None,
+        data: PrimitiveObjectData::Boolean(false),
+    };
+
     pub(crate) fn new_big_int_object(big_int: BigInt<'a>) -> Self {
         let data = match big_int {
             BigInt::BigInt(data) => PrimitiveObjectData::BigInt(data.unbind()),
@@ -716,9 +717,9 @@ impl Rootable for PrimitiveObject<'_> {
     }
 }
 
-bindable_handle!(PrimitiveObjectHeapData);
+bindable_handle!(PrimitiveObjectRecord);
 
-impl HeapMarkAndSweep for PrimitiveObjectHeapData<'static> {
+impl HeapMarkAndSweep for PrimitiveObjectRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self { object_index, data } = self;
         object_index.mark_values(queues);
@@ -763,10 +764,10 @@ impl HeapSweepWeakReference for PrimitiveObject<'static> {
     }
 }
 
-impl<'a> CreateHeapData<PrimitiveObjectHeapData<'a>, PrimitiveObject<'a>> for Heap {
-    fn create(&mut self, data: PrimitiveObjectHeapData<'a>) -> PrimitiveObject<'a> {
-        self.primitive_objects.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<PrimitiveObjectHeapData<'static>>>();
+impl<'a> CreateHeapData<PrimitiveObjectRecord<'a>, PrimitiveObject<'a>> for Heap {
+    fn create(&mut self, data: PrimitiveObjectRecord<'a>) -> PrimitiveObject<'a> {
+        self.primitive_objects.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<PrimitiveObjectRecord<'static>>();
         PrimitiveObject(BaseIndex::last(&self.primitive_objects))
     }
 }

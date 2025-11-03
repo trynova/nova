@@ -288,7 +288,7 @@ impl<'a> CreateHeapData<PromiseFinallyFunctionHeapData<'a>, BuiltinPromiseFinall
         self.promise_finally_functions.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<PromiseFinallyFunctionHeapData<'static>>();
 
-        BuiltinPromiseFinallyFunction(BaseIndex::last_t(&self.promise_finally_functions))
+        BuiltinPromiseFinallyFunction(BaseIndex::last(&self.promise_finally_functions))
     }
 }
 

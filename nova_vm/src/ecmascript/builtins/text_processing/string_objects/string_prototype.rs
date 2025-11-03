@@ -33,7 +33,7 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             ArgumentsList, Array, Behaviour, Builtin, BuiltinIntrinsic,
-            primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
+            primitive_objects::{PrimitiveObjectData, PrimitiveObjectRecord},
         },
         execution::{
             Agent, JsResult, Realm,
@@ -3158,11 +3158,10 @@ impl StringPrototype {
             .primitive_objects
             .get_mut(this.get_index())
             .unwrap();
-        assert!(slot.is_none());
-        *slot = Some(PrimitiveObjectHeapData {
+        *slot = PrimitiveObjectRecord {
             object_index: Some(this_base_object),
             data: PrimitiveObjectData::SmallString(SmallString::EMPTY),
-        });
+        };
     }
 }
 

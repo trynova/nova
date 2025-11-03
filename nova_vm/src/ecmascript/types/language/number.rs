@@ -287,7 +287,7 @@ impl<'a> Number<'a> {
         debug_assert!(
             SmallInteger::try_from(number).is_err() && SmallF64::try_from(number).is_err()
         );
-        heap.numbers.push(Some(number.into()));
+        heap.numbers.push(number.into());
         heap.alloc_counter += core::mem::size_of::<Option<NumberHeapData>>();
         HeapNumber(BaseIndex::last(&heap.numbers))
     }
@@ -1459,26 +1459,22 @@ impl IndexMut<HeapNumber<'_>> for Agent {
     }
 }
 
-impl Index<HeapNumber<'_>> for Vec<Option<NumberHeapData>> {
+impl Index<HeapNumber<'_>> for Vec<NumberHeapData> {
     type Output = f64;
 
     fn index(&self, index: HeapNumber<'_>) -> &Self::Output {
         &self
             .get(index.get_index())
             .expect("HeapNumber out of bounds")
-            .as_ref()
-            .expect("HeapNumber slot empty")
             .data
     }
 }
 
-impl IndexMut<HeapNumber<'_>> for Vec<Option<NumberHeapData>> {
+impl IndexMut<HeapNumber<'_>> for Vec<NumberHeapData> {
     fn index_mut(&mut self, index: HeapNumber<'_>) -> &mut Self::Output {
         &mut self
             .get_mut(index.get_index())
             .expect("HeapNumber out of bounds")
-            .as_mut()
-            .expect("HeapNumber slot empty")
             .data
     }
 }

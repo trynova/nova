@@ -10,12 +10,12 @@ use wtf8::{CodePoint, Wtf8, Wtf8Buf};
 use crate::heap::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 
 #[derive(Debug, Clone)]
-pub struct StringHeapData {
+pub struct StringRecord {
     pub(crate) data: StringBuffer,
     pub(crate) mapping: OnceCell<IndexMapping>,
 }
 
-impl PartialEq for StringHeapData {
+impl PartialEq for StringRecord {
     fn eq(&self, other: &Self) -> bool {
         // If both strings are static, we can compare their pointers directly.
         if let (&StringBuffer::Static(self_str), &StringBuffer::Static(other_str)) =
@@ -32,7 +32,7 @@ impl PartialEq for StringHeapData {
         }
     }
 }
-impl Eq for StringHeapData {}
+impl Eq for StringRecord {}
 
 #[derive(Debug, Clone)]
 pub(crate) enum IndexMapping {
@@ -61,7 +61,7 @@ impl Hash for StringBuffer {
     }
 }
 
-impl StringHeapData {
+impl StringRecord {
     /// The maximum UTf-16 length of a JS string, according to the spec (2^53 - 1).
     const MAX_UTF16_LENGTH: usize = (1 << 53) - 1;
 
@@ -355,7 +355,7 @@ impl StringHeapData {
     pub fn from_str(str: &str) -> Self {
         debug_assert!(str.len() > 7);
         assert!(str.len() <= Self::MAX_UTF8_LENGTH, "String is too long.");
-        StringHeapData {
+        StringRecord {
             data: StringBuffer::Owned(Wtf8Buf::from_str(str)),
             mapping: OnceCell::new(),
         }
@@ -364,7 +364,7 @@ impl StringHeapData {
     pub fn from_static_str(str: &'static str) -> Self {
         debug_assert!(str.len() > 7);
         assert!(str.len() <= Self::MAX_UTF8_LENGTH, "String is too long.");
-        StringHeapData {
+        StringRecord {
             data: StringBuffer::Static(Wtf8::from_str(str)),
             mapping: OnceCell::new(),
         }
@@ -373,7 +373,7 @@ impl StringHeapData {
     pub fn from_string(str: String) -> Self {
         debug_assert!(str.len() > 7);
         assert!(str.len() <= Self::MAX_UTF8_LENGTH, "String is too long.");
-        StringHeapData {
+        StringRecord {
             data: StringBuffer::Owned(Wtf8Buf::from_string(str)),
             mapping: OnceCell::new(),
         }
@@ -382,14 +382,14 @@ impl StringHeapData {
     pub fn from_wtf8_buf(str: Wtf8Buf) -> Self {
         debug_assert!(str.len() > 7);
         assert!(str.len() <= Self::MAX_UTF8_LENGTH, "String is too long.");
-        StringHeapData {
+        StringRecord {
             data: StringBuffer::Owned(str),
             mapping: OnceCell::new(),
         }
     }
 }
 
-impl HeapMarkAndSweep for StringHeapData {
+impl HeapMarkAndSweep for StringRecord {
     fn mark_values(&self, _queues: &mut WorkQueues) {
         let Self {
             data: _,

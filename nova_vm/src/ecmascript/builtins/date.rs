@@ -116,23 +116,17 @@ impl IndexMut<Date<'_>> for Agent {
     }
 }
 
-impl Index<Date<'_>> for Vec<Option<DateHeapData<'static>>> {
+impl Index<Date<'_>> for Vec<DateHeapData<'static>> {
     type Output = DateHeapData<'static>;
 
     fn index(&self, index: Date) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("Date out of bounds")
-            .as_ref()
-            .expect("Date slot empty")
+        self.get(index.get_index()).expect("Date out of bounds")
     }
 }
 
-impl IndexMut<Date<'_>> for Vec<Option<DateHeapData<'static>>> {
+impl IndexMut<Date<'_>> for Vec<DateHeapData<'static>> {
     fn index_mut(&mut self, index: Date) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("Date out of bounds")
-            .as_mut()
-            .expect("Date slot empty")
+        self.get_mut(index.get_index()).expect("Date out of bounds")
     }
 }
 
@@ -177,8 +171,8 @@ impl HeapSweepWeakReference for Date<'static> {
 
 impl<'a> CreateHeapData<DateHeapData<'a>, Date<'a>> for Heap {
     fn create(&mut self, data: DateHeapData<'a>) -> Date<'a> {
-        self.dates.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<DateHeapData<'static>>>();
+        self.dates.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<DateHeapData<'static>>();
         Date(BaseIndex::last(&self.dates))
     }
 }

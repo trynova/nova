@@ -9,7 +9,7 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin,
-            primitive_objects::{PrimitiveObject, PrimitiveObjectData, PrimitiveObjectHeapData},
+            primitive_objects::{PrimitiveObject, PrimitiveObjectData, PrimitiveObjectRecord},
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, IntoValue, Number, String, Value},
@@ -525,11 +525,10 @@ impl NumberPrototype {
             .primitive_objects
             .get_mut(this.get_index())
             .unwrap();
-        assert!(slot.is_none());
-        *slot = Some(PrimitiveObjectHeapData {
+        *slot = PrimitiveObjectRecord {
             object_index: Some(this_base_object),
             data: PrimitiveObjectData::Integer(SmallInteger::zero()),
-        });
+        };
     }
 }
 

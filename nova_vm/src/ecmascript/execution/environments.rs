@@ -168,23 +168,19 @@ macro_rules! create_environment_index {
             }
         }
 
-        impl core::ops::Index<$index<'_>> for Vec<Option<$record>> {
+        impl core::ops::Index<$index<'_>> for Vec<$record> {
             type Output = $record;
 
             fn index(&self, index: $index) -> &Self::Output {
                 self.get(index.into_index())
                     .expect("Environment out of bounds")
-                    .as_ref()
-                    .expect("Environment slot empty")
             }
         }
 
-        impl core::ops::IndexMut<$index<'_>> for Vec<Option<$record>> {
+        impl core::ops::IndexMut<$index<'_>> for Vec<$record> {
             fn index_mut(&mut self, index: $index) -> &mut Self::Output {
                 self.get_mut(index.into_index())
                     .expect("Environment out of bounds")
-                    .as_mut()
-                    .expect("Environment slot empty")
             }
         }
     };
@@ -791,12 +787,12 @@ impl HeapMarkAndSweep for Environment<'static> {
 
 #[derive(Debug)]
 pub struct Environments {
-    pub(crate) declarative: Vec<Option<DeclarativeEnvironmentRecord>>,
-    pub(crate) function: Vec<Option<FunctionEnvironmentRecord>>,
-    pub(crate) global: Vec<Option<GlobalEnvironmentRecord>>,
-    pub(crate) object: Vec<Option<ObjectEnvironmentRecord>>,
-    pub(crate) module: Vec<Option<ModuleEnvironmentRecord>>,
-    pub(crate) private: Vec<Option<PrivateEnvironmentRecord>>,
+    pub(crate) declarative: Vec<DeclarativeEnvironmentRecord>,
+    pub(crate) function: Vec<FunctionEnvironmentRecord>,
+    pub(crate) global: Vec<GlobalEnvironmentRecord>,
+    pub(crate) object: Vec<ObjectEnvironmentRecord>,
+    pub(crate) module: Vec<ModuleEnvironmentRecord>,
+    pub(crate) private: Vec<PrivateEnvironmentRecord>,
 }
 
 impl Default for Environments {
@@ -1031,7 +1027,7 @@ impl Environments {
         env: DeclarativeEnvironmentRecord,
         _: NoGcScope<'a, '_>,
     ) -> DeclarativeEnvironment<'a> {
-        self.declarative.push(Some(env));
+        self.declarative.push(env);
         DeclarativeEnvironment::from_u32(self.declarative.len() as u32)
     }
 
@@ -1040,7 +1036,7 @@ impl Environments {
         env: FunctionEnvironmentRecord,
         _: NoGcScope<'a, '_>,
     ) -> FunctionEnvironment<'a> {
-        self.function.push(Some(env));
+        self.function.push(env);
         FunctionEnvironment::from_u32(self.function.len() as u32)
     }
 
@@ -1049,7 +1045,7 @@ impl Environments {
         env: GlobalEnvironmentRecord,
         _: NoGcScope<'a, '_>,
     ) -> GlobalEnvironment<'a> {
-        self.global.push(Some(env));
+        self.global.push(env);
         GlobalEnvironment::from_u32(self.global.len() as u32)
     }
 
@@ -1058,7 +1054,7 @@ impl Environments {
         env: ModuleEnvironmentRecord,
         _: NoGcScope<'a, '_>,
     ) -> ModuleEnvironment<'a> {
-        self.module.push(Some(env));
+        self.module.push(env);
         ModuleEnvironment::from_u32(self.module.len() as u32)
     }
 
@@ -1068,8 +1064,8 @@ impl Environments {
         decl_env: DeclarativeEnvironmentRecord,
         _: NoGcScope<'a, '_>,
     ) -> (ObjectEnvironment<'a>, DeclarativeEnvironment<'a>) {
-        self.object.push(Some(env));
-        self.declarative.push(Some(decl_env));
+        self.object.push(env);
+        self.declarative.push(decl_env);
         (
             ObjectEnvironment::from_u32(self.object.len() as u32),
             DeclarativeEnvironment::from_u32(self.declarative.len() as u32),
@@ -1081,7 +1077,7 @@ impl Environments {
         env: PrivateEnvironmentRecord,
         _: NoGcScope<'a, '_>,
     ) -> PrivateEnvironment<'a> {
-        self.private.push(Some(env));
+        self.private.push(env);
         PrivateEnvironment::from_u32(self.private.len() as u32)
     }
 
@@ -1092,8 +1088,6 @@ impl Environments {
         self.declarative
             .get(index.into_index())
             .expect("DeclarativeEnvironment did not match to any vector index")
-            .as_ref()
-            .expect("DeclarativeEnvironment pointed to a None")
     }
 
     pub(crate) fn get_declarative_environment_mut(
@@ -1103,8 +1097,6 @@ impl Environments {
         self.declarative
             .get_mut(index.into_index())
             .expect("DeclarativeEnvironment did not match to any vector index")
-            .as_mut()
-            .expect("DeclarativeEnvironment pointed to a None")
     }
 
     #[expect(dead_code)]
@@ -1115,8 +1107,6 @@ impl Environments {
         self.function
             .get(index.into_index())
             .expect("FunctionEnvironment did not match to any vector index")
-            .as_ref()
-            .expect("FunctionEnvironment pointed to a None")
     }
 
     #[expect(dead_code)]
@@ -1127,8 +1117,6 @@ impl Environments {
         self.function
             .get_mut(index.into_index())
             .expect("FunctionEnvironment did not match to any vector index")
-            .as_mut()
-            .expect("FunctionEnvironment pointed to a None")
     }
 
     pub(crate) fn get_module_environment(
@@ -1138,8 +1126,6 @@ impl Environments {
         self.module
             .get(index.into_index())
             .expect("ModuleEnvironment did not match to any vector index")
-            .as_ref()
-            .expect("ModuleEnvironment pointed to a None")
     }
 
     pub(crate) fn get_module_environment_mut(
@@ -1149,8 +1135,6 @@ impl Environments {
         self.module
             .get_mut(index.into_index())
             .expect("ModuleEnvironment did not match to any vector index")
-            .as_mut()
-            .expect("ModuleEnvironment pointed to a None")
     }
 
     #[expect(dead_code)]
@@ -1161,8 +1145,6 @@ impl Environments {
         self.global
             .get(index.into_index())
             .expect("GlobalEnvironment did not match to any vector index")
-            .as_ref()
-            .expect("GlobalEnvironment pointed to a None")
     }
 
     #[expect(dead_code)]
@@ -1173,8 +1155,6 @@ impl Environments {
         self.global
             .get_mut(index.into_index())
             .expect("GlobalEnvironment did not match to any vector index")
-            .as_mut()
-            .expect("GlobalEnvironment pointed to a None")
     }
 
     #[expect(dead_code)]
@@ -1185,8 +1165,6 @@ impl Environments {
         self.object
             .get(index.into_index())
             .expect("ObjectEnvironment did not match to any vector index")
-            .as_ref()
-            .expect("ObjectEnvironment pointed to a None")
     }
 
     #[expect(dead_code)]
@@ -1197,8 +1175,6 @@ impl Environments {
         self.object
             .get_mut(index.into_index())
             .expect("ObjectEnvironment did not match to any vector index")
-            .as_mut()
-            .expect("ObjectEnvironment pointed to a None")
     }
 
     pub(crate) fn get_private_environment(
@@ -1208,8 +1184,6 @@ impl Environments {
         self.private
             .get(index.into_index())
             .expect("PrivateEnvironment did not match to any vector index")
-            .as_ref()
-            .expect("PrivateEnvironment pointed to a None")
     }
 
     pub(crate) fn get_private_environment_mut(
@@ -1219,8 +1193,6 @@ impl Environments {
         self.private
             .get_mut(index.into_index())
             .expect("PrivateEnvironment did not match to any vector index")
-            .as_mut()
-            .expect("PrivateEnvironment pointed to a None")
     }
 }
 

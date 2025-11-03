@@ -38,7 +38,7 @@ pub struct BoundFunctionHeapData<'a> {
     pub(crate) name: Option<String<'a>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BuiltinFunctionHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) length: u8,
@@ -51,6 +51,16 @@ pub struct BuiltinFunctionHeapData<'a> {
     /// 20.2.3.5 (`Function.prototype.toString()`).
     pub(crate) initial_name: Option<String<'a>>,
     pub(crate) behaviour: Behaviour,
+}
+
+impl BuiltinFunctionHeapData<'_> {
+    pub(crate) const BLANK: Self = Self {
+        object_index: None,
+        length: 0,
+        realm: Realm::from_u32(u32::MAX - 1),
+        initial_name: None,
+        behaviour: Behaviour::Regular(|_, _, _, _| Ok(Value::Undefined)),
+    };
 }
 
 #[derive(Debug, Clone)]

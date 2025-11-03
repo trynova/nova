@@ -169,23 +169,19 @@ impl IndexMut<PromiseReaction<'_>> for Agent {
     }
 }
 
-impl Index<PromiseReaction<'_>> for Vec<Option<PromiseReactionRecord<'static>>> {
+impl Index<PromiseReaction<'_>> for Vec<PromiseReactionRecord<'static>> {
     type Output = PromiseReactionRecord<'static>;
 
     fn index(&self, index: PromiseReaction) -> &Self::Output {
         self.get(index.get_index())
             .expect("PromiseReaction out of bounds")
-            .as_ref()
-            .expect("PromiseReaction slot empty")
     }
 }
 
-impl IndexMut<PromiseReaction<'_>> for Vec<Option<PromiseReactionRecord<'static>>> {
+impl IndexMut<PromiseReaction<'_>> for Vec<PromiseReactionRecord<'static>> {
     fn index_mut(&mut self, index: PromiseReaction) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("PromiseReaction out of bounds")
-            .as_mut()
-            .expect("PromiseReaction slot empty")
     }
 }
 
@@ -253,8 +249,8 @@ impl HeapMarkAndSweep for PromiseReactionRecord<'static> {
 
 impl<'a> CreateHeapData<PromiseReactionRecord<'a>, PromiseReaction<'a>> for Heap {
     fn create(&mut self, data: PromiseReactionRecord<'a>) -> PromiseReaction<'a> {
-        self.promise_reaction_records.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<PromiseReactionRecord<'static>>>();
+        self.promise_reaction_records.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<PromiseReactionRecord<'static>>();
         PromiseReaction(BaseIndex::last(&self.promise_reaction_records))
     }
 }

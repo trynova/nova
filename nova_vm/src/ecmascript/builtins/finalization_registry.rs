@@ -80,23 +80,19 @@ impl IndexMut<FinalizationRegistry<'_>> for Agent {
     }
 }
 
-impl Index<FinalizationRegistry<'_>> for Vec<Option<FinalizationRegistryHeapData<'static>>> {
+impl Index<FinalizationRegistry<'_>> for Vec<FinalizationRegistryHeapData<'static>> {
     type Output = FinalizationRegistryHeapData<'static>;
 
     fn index(&self, index: FinalizationRegistry) -> &Self::Output {
         self.get(index.get_index())
             .expect("FinalizationRegistry out of bounds")
-            .as_ref()
-            .expect("FinalizationRegistry slot empty")
     }
 }
 
-impl IndexMut<FinalizationRegistry<'_>> for Vec<Option<FinalizationRegistryHeapData<'static>>> {
+impl IndexMut<FinalizationRegistry<'_>> for Vec<FinalizationRegistryHeapData<'static>> {
     fn index_mut(&mut self, index: FinalizationRegistry) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("FinalizationRegistry out of bounds")
-            .as_mut()
-            .expect("FinalizationRegistry slot empty")
     }
 }
 
@@ -125,8 +121,8 @@ impl Rootable for FinalizationRegistry<'_> {
 
 impl<'a> CreateHeapData<FinalizationRegistryHeapData<'a>, FinalizationRegistry<'a>> for Heap {
     fn create(&mut self, data: FinalizationRegistryHeapData<'a>) -> FinalizationRegistry<'a> {
-        self.finalization_registrys.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<FinalizationRegistryHeapData<'static>>>();
+        self.finalization_registrys.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<FinalizationRegistryHeapData<'static>>();
 
         FinalizationRegistry(BaseIndex::last(&self.finalization_registrys))
     }

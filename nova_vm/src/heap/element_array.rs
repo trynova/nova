@@ -1176,7 +1176,7 @@ bindable_handle!(ElementDescriptor);
 
 #[derive(Debug, Default)]
 pub(crate) struct ElementArray<const N: usize> {
-    pub values: Vec<Option<[Option<Value<'static>>; N]>>,
+    pub values: Vec<[Option<Value<'static>>; N]>,
     pub descriptors: AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
 }
 
@@ -1219,8 +1219,6 @@ impl<const N: usize> ElementArray<N> {
             values: &mut self
                 .values
                 .get_mut(vector.elements_index.into_index())
-                .unwrap()
-                .as_mut()
                 .unwrap()
                 .as_mut_slice()[0..vector.len() as usize],
             descriptors: self.descriptors.entry(vector.elements_index.unbind()),
@@ -1270,7 +1268,7 @@ impl<const N: usize> ElementArray<N> {
         // Experimentally however, this works and we do not copy None but Some([_]).
         let last = unsafe {
             core::mem::transmute::<
-                &mut MaybeUninit<Option<[Option<Value>; N]>>,
+                &mut MaybeUninit<[Option<Value>; N]>,
                 &mut [MaybeUninit<Option<Value>>; N],
             >(last)
         };
@@ -1286,7 +1284,6 @@ impl<const N: usize> ElementArray<N> {
         }
         // Check that above our moving inside of the `Option<[_]>` to copy data into the inner
         // array is indeed Some(_) afterwards.
-        assert!(self.values.last().unwrap().is_some());
         let index = ElementIndex::last_element_index(&self.values);
         if let Some(descriptors) = descriptors {
             // SAFETY: We can transmute the lifetime out of ElementDescriptors;
@@ -1318,7 +1315,7 @@ impl<const N: usize> ElementArray<N> {
         // SAFETY: We can move MaybeUninit from outside of the array into individual items in it.
         let target_values = unsafe {
             core::mem::transmute::<
-                &mut MaybeUninit<Option<[Option<Value>; N]>>,
+                &mut MaybeUninit<[Option<Value>; N]>,
                 &mut [MaybeUninit<Option<Value>>; N],
             >(target_values)
         };

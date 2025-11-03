@@ -58,8 +58,6 @@ impl<'a> StringIterator<'a> {
             .string_iterators
             .get(self.get_index())
             .expect("StringIterator use-after-free")
-            .as_ref()
-            .expect("StringIterator deleted")
     }
 
     pub(crate) fn get_data_mut(self, agent: &mut Agent) -> &mut StringIteratorHeapData<'static> {
@@ -68,8 +66,6 @@ impl<'a> StringIterator<'a> {
             .string_iterators
             .get_mut(self.get_index())
             .expect("StringIterator use-after-free")
-            .as_mut()
-            .expect("StringIterator deleted")
     }
 }
 
@@ -246,8 +242,8 @@ bindable_handle!(StringIteratorHeapData);
 
 impl<'a> CreateHeapData<StringIteratorHeapData<'a>, StringIterator<'a>> for Heap {
     fn create(&mut self, data: StringIteratorHeapData<'a>) -> StringIterator<'a> {
-        self.string_iterators.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<StringIteratorHeapData<'static>>>();
+        self.string_iterators.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<StringIteratorHeapData<'static>>();
         StringIterator(BaseIndex::last(&self.string_iterators))
     }
 }

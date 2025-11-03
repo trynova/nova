@@ -230,23 +230,19 @@ impl IndexMut<ECMAScriptFunction<'_>> for Agent {
     }
 }
 
-impl Index<ECMAScriptFunction<'_>> for Vec<Option<ECMAScriptFunctionHeapData<'static>>> {
+impl Index<ECMAScriptFunction<'_>> for Vec<ECMAScriptFunctionHeapData<'static>> {
     type Output = ECMAScriptFunctionHeapData<'static>;
 
     fn index(&self, index: ECMAScriptFunction) -> &Self::Output {
         self.get(index.get_index())
             .expect("ECMAScriptFunction out of bounds")
-            .as_ref()
-            .expect("ECMAScriptFunction slot empty")
     }
 }
 
-impl IndexMut<ECMAScriptFunction<'_>> for Vec<Option<ECMAScriptFunctionHeapData<'static>>> {
+impl IndexMut<ECMAScriptFunction<'_>> for Vec<ECMAScriptFunctionHeapData<'static>> {
     fn index_mut(&mut self, index: ECMAScriptFunction) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("ECMAScriptFunction out of bounds")
-            .as_mut()
-            .expect("ECMAScriptFunction slot empty")
     }
 }
 
@@ -1176,8 +1172,8 @@ impl HeapSweepWeakReference for ECMAScriptFunction<'static> {
 
 impl<'a> CreateHeapData<ECMAScriptFunctionHeapData<'a>, ECMAScriptFunction<'a>> for Heap {
     fn create(&mut self, data: ECMAScriptFunctionHeapData<'a>) -> ECMAScriptFunction<'a> {
-        self.ecmascript_functions.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<ECMAScriptFunctionHeapData<'static>>>();
+        self.ecmascript_functions.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<ECMAScriptFunctionHeapData<'static>>();
 
         ECMAScriptFunction(BaseIndex::last(&self.ecmascript_functions))
     }

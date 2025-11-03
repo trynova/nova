@@ -104,7 +104,7 @@ use crate::{
                 finalization_registry_prototype::FinalizationRegistryPrototype,
             },
             ordinary::shape::ObjectShape,
-            primitive_objects::{PrimitiveObject, PrimitiveObjectHeapData},
+            primitive_objects::{PrimitiveObject, PrimitiveObjectRecord},
             reflection::{proxy_constructor::ProxyConstructor, reflect_object::ReflectObject},
             text_processing::string_objects::{
                 string_constructor::StringConstructor,
@@ -156,7 +156,7 @@ use crate::{
 pub(crate) struct Intrinsics {
     object_index_base: BaseIndex<'static, ObjectRecord<'static>>,
     object_shape_base: ObjectShape<'static>,
-    primitive_object_index_base: BaseIndex<'static, PrimitiveObjectHeapData<'static>>,
+    primitive_object_index_base: BaseIndex<'static, PrimitiveObjectRecord<'static>>,
     /// Array prototype object is an Array exotic object. It is the only one
     /// in the ECMAScript spec so we do not need to store the Array index base.
     array_prototype: Array<'static>,
@@ -264,11 +264,11 @@ impl Intrinsics {
         agent
             .heap
             .primitive_objects
-            .extend((0..intrinsic_primitive_object_count()).map(|_| None));
+            .extend((0..intrinsic_primitive_object_count()).map(|_| PrimitiveObjectRecord::BLANK));
         agent
             .heap
             .builtin_functions
-            .extend((0..intrinsic_function_count()).map(|_| None));
+            .extend((0..intrinsic_function_count()).map(|_| BuiltinFunctionHeapData::BLANK));
         agent
             .heap
             .arrays

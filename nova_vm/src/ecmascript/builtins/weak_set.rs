@@ -112,23 +112,18 @@ impl IndexMut<WeakSet<'_>> for Agent {
     }
 }
 
-impl Index<WeakSet<'_>> for Vec<Option<WeakSetHeapData<'static>>> {
+impl Index<WeakSet<'_>> for Vec<WeakSetHeapData<'static>> {
     type Output = WeakSetHeapData<'static>;
 
     fn index(&self, index: WeakSet) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("WeakSet out of bounds")
-            .as_ref()
-            .expect("WeakSet slot empty")
+        self.get(index.get_index()).expect("WeakSet out of bounds")
     }
 }
 
-impl IndexMut<WeakSet<'_>> for Vec<Option<WeakSetHeapData<'static>>> {
+impl IndexMut<WeakSet<'_>> for Vec<WeakSetHeapData<'static>> {
     fn index_mut(&mut self, index: WeakSet) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("WeakSet out of bounds")
-            .as_mut()
-            .expect("WeakSet slot empty")
     }
 }
 
@@ -147,8 +142,8 @@ impl TryFrom<HeapRootData> for WeakSet<'_> {
 
 impl<'a> CreateHeapData<WeakSetHeapData<'a>, WeakSet<'a>> for Heap {
     fn create(&mut self, data: WeakSetHeapData<'a>) -> WeakSet<'a> {
-        self.weak_sets.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<WeakSetHeapData<'static>>>();
+        self.weak_sets.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<WeakSetHeapData<'static>>();
         WeakSet(BaseIndex::last(&self.weak_sets))
     }
 }

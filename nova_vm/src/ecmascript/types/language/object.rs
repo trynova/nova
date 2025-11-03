@@ -302,7 +302,7 @@ impl<'a> OrdinaryObject<'a> {
     /// `{ __proto__: null }` object.
     pub(crate) fn new_uninitialised(agent: &mut Agent) -> Self {
         agent.heap.objects.push(ObjectRecord::BLANK);
-        OrdinaryObject(BaseIndex::last_t(&agent.heap.objects))
+        OrdinaryObject(BaseIndex::last(&agent.heap.objects))
     }
 
     pub(crate) const fn _def() -> Self {
@@ -1608,8 +1608,8 @@ impl HeapSweepWeakReference for OrdinaryObject<'static> {
 impl<'a> CreateHeapData<ObjectRecord<'a>, OrdinaryObject<'a>> for Heap {
     fn create(&mut self, data: ObjectRecord<'a>) -> OrdinaryObject<'a> {
         self.objects.push(data.unbind());
-        self.alloc_counter += core::mem::size_of::<Option<ObjectRecord<'static>>>();
-        OrdinaryObject(BaseIndex::last_t(&self.objects))
+        self.alloc_counter += core::mem::size_of::<ObjectRecord<'static>>();
+        OrdinaryObject(BaseIndex::last(&self.objects))
     }
 }
 

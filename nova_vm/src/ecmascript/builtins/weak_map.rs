@@ -86,23 +86,18 @@ impl IndexMut<WeakMap<'_>> for Agent {
     }
 }
 
-impl Index<WeakMap<'_>> for Vec<Option<WeakMapHeapData<'static>>> {
+impl Index<WeakMap<'_>> for Vec<WeakMapHeapData<'static>> {
     type Output = WeakMapHeapData<'static>;
 
     fn index(&self, index: WeakMap) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("WeakMap out of bounds")
-            .as_ref()
-            .expect("WeakMap slot empty")
+        self.get(index.get_index()).expect("WeakMap out of bounds")
     }
 }
 
-impl IndexMut<WeakMap<'_>> for Vec<Option<WeakMapHeapData<'static>>> {
+impl IndexMut<WeakMap<'_>> for Vec<WeakMapHeapData<'static>> {
     fn index_mut(&mut self, index: WeakMap) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("WeakMap out of bounds")
-            .as_mut()
-            .expect("WeakMap slot empty")
     }
 }
 
@@ -121,8 +116,8 @@ impl TryFrom<HeapRootData> for WeakMap<'_> {
 
 impl<'a> CreateHeapData<WeakMapHeapData<'a>, WeakMap<'a>> for Heap {
     fn create(&mut self, data: WeakMapHeapData<'a>) -> WeakMap<'a> {
-        self.weak_maps.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<WeakMapHeapData<'static>>>();
+        self.weak_maps.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<WeakMapHeapData<'static>>();
         WeakMap(BaseIndex::last(&self.weak_maps))
     }
 }

@@ -2565,7 +2565,7 @@ impl<'a, T: Viewable> CreateHeapData<TypedArrayRecord<'a>, GenericTypedArray<'a,
         self.typed_arrays.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<TypedArrayRecord<'static>>();
         // TODO: The type should be checked based on data or something equally stupid
-        GenericTypedArray(BaseIndex::last_t(&self.typed_arrays), PhantomData)
+        GenericTypedArray(BaseIndex::last(&self.typed_arrays), PhantomData)
     }
 }
 

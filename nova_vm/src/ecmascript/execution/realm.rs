@@ -70,7 +70,7 @@ impl<'r> Realm<'r> {
         )
     }
 
-    pub(crate) fn last(realms: &[Option<RealmRecord>]) -> Self {
+    pub(crate) fn last(realms: &[RealmRecord]) -> Self {
         let index = realms.len() - 1;
         Self::from_index(index)
     }
@@ -142,23 +142,19 @@ impl IndexMut<Realm<'_>> for Agent {
     }
 }
 
-impl Index<Realm<'_>> for Vec<Option<RealmRecord<'static>>> {
+impl Index<Realm<'_>> for Vec<RealmRecord<'static>> {
     type Output = RealmRecord<'static>;
 
     fn index(&self, index: Realm) -> &Self::Output {
         self.get(index.into_index())
             .expect("RealmIdentifier out of bounds")
-            .as_ref()
-            .expect("RealmIdentifier slot empty")
     }
 }
 
-impl IndexMut<Realm<'_>> for Vec<Option<RealmRecord<'static>>> {
+impl IndexMut<Realm<'_>> for Vec<RealmRecord<'static>> {
     fn index_mut(&mut self, index: Realm) -> &mut Self::Output {
         self.get_mut(index.into_index())
             .expect("RealmIdentifier out of bounds")
-            .as_mut()
-            .expect("RealmIdentifier slot empty")
     }
 }
 
@@ -777,6 +773,7 @@ pub(crate) fn initialize_default_realm(agent: &mut Agent, gc: GcScope) {
 
 #[cfg(test)]
 mod test {
+    use crate::ecmascript::types::BuiltinFunctionHeapData;
     #[allow(unused_imports)]
     use crate::{
         engine::context::{Bindable, GcScope},
@@ -860,7 +857,7 @@ mod test {
             .builtin_functions
             .iter()
             .enumerate()
-            .find(|(_, item)| item.is_none());
+            .find(|(_, item)| *item == &BuiltinFunctionHeapData::BLANK);
         if let Some((missing_builtin_index, _)) = missing_builtin {
             panic_builtin_function_missing(missing_builtin_index);
         }
@@ -874,15 +871,6 @@ mod test {
         assert!(agent.heap.errors.is_empty());
         assert!(agent.heap.globals.borrow().is_empty());
         assert!(agent.heap.modules.is_empty());
-        let missing_number = agent
-            .heap
-            .numbers
-            .iter()
-            .enumerate()
-            .find(|(_, item)| item.is_none());
-        if let Some((missing_number_index, _)) = missing_number {
-            panic!("Found a missing Number at index {missing_number_index}");
-        }
         let blank_object = agent
             .heap
             .objects
@@ -898,24 +886,6 @@ mod test {
             agent.heap.symbols.len() - 1,
             LAST_WELL_KNOWN_SYMBOL_INDEX as usize
         );
-        let missing_symbol = agent
-            .heap
-            .symbols
-            .iter()
-            .enumerate()
-            .find(|(_, item)| item.is_none());
-        if let Some((missing_symbol_index, _)) = missing_symbol {
-            panic!("Found a missing Symbol at index {missing_symbol_index}");
-        }
-        let missing_string = agent
-            .heap
-            .strings
-            .iter()
-            .enumerate()
-            .find(|(_, item)| item.is_none());
-        if let Some((missing_string_index, _)) = missing_string {
-            panic!("Found a missing String at index {missing_string_index}");
-        }
         #[cfg(feature = "regexp")]
         assert!(agent.heap.regexps.is_empty());
     }
