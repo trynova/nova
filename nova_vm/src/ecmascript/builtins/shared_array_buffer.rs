@@ -233,7 +233,7 @@ impl HeapSweepWeakReference for SharedArrayBuffer<'static> {
 impl<'a> CreateHeapData<SharedArrayBufferRecord<'a>, SharedArrayBuffer<'a>> for Heap {
     fn create(&mut self, data: SharedArrayBufferRecord<'a>) -> SharedArrayBuffer<'a> {
         self.shared_array_buffers.push(data.unbind());
-        self.alloc_counter += core::mem::size_of::<Option<SharedArrayBufferRecord<'static>>>();
-        SharedArrayBuffer(BaseIndex::last_t(&self.shared_array_buffers))
+        self.alloc_counter += core::mem::size_of::<SharedArrayBufferRecord<'static>>();
+        SharedArrayBuffer(BaseIndex::last(&self.shared_array_buffers))
     }
 }

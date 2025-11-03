@@ -210,7 +210,7 @@ impl<'a> CreateHeapData<RegExpStringIteratorRecord<'a>, RegExpStringIterator<'a>
     fn create(&mut self, data: RegExpStringIteratorRecord<'a>) -> RegExpStringIterator<'a> {
         self.regexp_string_iterators.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<RegExpStringIteratorRecord<'static>>();
-        RegExpStringIterator(BaseIndex::<RegExpStringIteratorRecord>::last_t(
+        RegExpStringIterator(BaseIndex::<RegExpStringIteratorRecord>::last(
             &self.regexp_string_iterators,
         ))
     }

@@ -379,8 +379,8 @@ impl<'a> InternalMethods<'a> for AsyncGenerator<'a> {}
 
 impl<'a> CreateHeapData<AsyncGeneratorHeapData<'a>, AsyncGenerator<'a>> for Heap {
     fn create(&mut self, data: AsyncGeneratorHeapData<'a>) -> AsyncGenerator<'a> {
-        self.async_generators.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<AsyncGeneratorHeapData<'static>>>();
+        self.async_generators.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<AsyncGeneratorHeapData<'static>>();
         AsyncGenerator(BaseIndex::last(&self.async_generators))
     }
 }
@@ -399,23 +399,19 @@ impl IndexMut<AsyncGenerator<'_>> for Agent {
     }
 }
 
-impl Index<AsyncGenerator<'_>> for Vec<Option<AsyncGeneratorHeapData<'static>>> {
+impl Index<AsyncGenerator<'_>> for Vec<AsyncGeneratorHeapData<'static>> {
     type Output = AsyncGeneratorHeapData<'static>;
 
     fn index(&self, index: AsyncGenerator) -> &Self::Output {
         self.get(index.get_index())
             .expect("AsyncGenerator out of bounds")
-            .as_ref()
-            .expect("AsyncGenerator slot empty")
     }
 }
 
-impl IndexMut<AsyncGenerator<'_>> for Vec<Option<AsyncGeneratorHeapData<'static>>> {
+impl IndexMut<AsyncGenerator<'_>> for Vec<AsyncGeneratorHeapData<'static>> {
     fn index_mut(&mut self, index: AsyncGenerator) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("AsyncGenerator out of bounds")
-            .as_mut()
-            .expect("AsyncGenerator slot empty")
     }
 }
 

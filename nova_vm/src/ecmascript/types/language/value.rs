@@ -4,7 +4,7 @@
 
 use super::{
     BigInt, BigIntHeapData, IntoValue, Number, Numeric, OrdinaryObject, Primitive, String,
-    StringHeapData, Symbol, bigint::HeapBigInt, number::HeapNumber, string::HeapString,
+    StringRecord, Symbol, bigint::HeapBigInt, number::HeapNumber, string::HeapString,
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
@@ -765,7 +765,7 @@ impl<'a> Value<'a> {
     pub(crate) fn hash<H, A>(self, arena: &A, hasher: &mut H)
     where
         H: Hasher,
-        A: Index<HeapString<'a>, Output = StringHeapData>
+        A: Index<HeapString<'a>, Output = StringRecord>
             + Index<HeapNumber<'a>, Output = f64>
             + Index<HeapBigInt<'a>, Output = BigIntHeapData>,
     {

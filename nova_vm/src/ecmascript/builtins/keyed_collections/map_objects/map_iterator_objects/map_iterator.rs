@@ -118,23 +118,19 @@ impl IndexMut<MapIterator<'_>> for Agent {
     }
 }
 
-impl Index<MapIterator<'_>> for Vec<Option<MapIteratorHeapData<'static>>> {
+impl Index<MapIterator<'_>> for Vec<MapIteratorHeapData<'static>> {
     type Output = MapIteratorHeapData<'static>;
 
     fn index(&self, index: MapIterator) -> &Self::Output {
         self.get(index.get_index())
             .expect("MapIterator out of bounds")
-            .as_ref()
-            .expect("Array MapIterator empty")
     }
 }
 
-impl IndexMut<MapIterator<'_>> for Vec<Option<MapIteratorHeapData<'static>>> {
+impl IndexMut<MapIterator<'_>> for Vec<MapIteratorHeapData<'static>> {
     fn index_mut(&mut self, index: MapIterator) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("MapIterator out of bounds")
-            .as_mut()
-            .expect("MapIterator slot empty")
     }
 }
 
@@ -153,8 +149,8 @@ impl TryFrom<HeapRootData> for MapIterator<'_> {
 
 impl<'a> CreateHeapData<MapIteratorHeapData<'a>, MapIterator<'a>> for Heap {
     fn create(&mut self, data: MapIteratorHeapData<'a>) -> MapIterator<'a> {
-        self.map_iterators.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<MapIteratorHeapData<'static>>>();
+        self.map_iterators.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<MapIteratorHeapData<'static>>();
         MapIterator(BaseIndex::last(&self.map_iterators))
     }
 }

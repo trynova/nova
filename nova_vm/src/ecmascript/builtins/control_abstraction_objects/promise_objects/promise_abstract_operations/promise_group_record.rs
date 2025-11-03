@@ -265,6 +265,6 @@ impl<'a> CreateHeapData<PromiseGroupRecord<'a>, PromiseGroup<'a>> for Heap {
     fn create(&mut self, data: PromiseGroupRecord<'a>) -> PromiseGroup<'a> {
         self.promise_group_records.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<PromiseGroupRecord<'static>>();
-        PromiseGroup(BaseIndex::last_t(&self.promise_group_records))
+        PromiseGroup(BaseIndex::last(&self.promise_group_records))
     }
 }

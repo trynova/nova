@@ -106,7 +106,7 @@ impl Script<'_> {
         Self(value, PhantomData, PhantomData)
     }
 
-    pub(crate) fn last(scripts: &[Option<ScriptRecord>]) -> Self {
+    pub(crate) fn last(scripts: &[ScriptRecord]) -> Self {
         let index = scripts.len() - 1;
         Self::from_index(index)
     }
@@ -156,23 +156,19 @@ impl IndexMut<Script<'_>> for Agent {
     }
 }
 
-impl Index<Script<'_>> for Vec<Option<ScriptRecord<'static>>> {
+impl Index<Script<'_>> for Vec<ScriptRecord<'static>> {
     type Output = ScriptRecord<'static>;
 
     fn index(&self, index: Script) -> &Self::Output {
         self.get(index.into_index())
             .expect("ScriptIdentifier out of bounds")
-            .as_ref()
-            .expect("ScriptIdentifier slot empty")
     }
 }
 
-impl IndexMut<Script<'_>> for Vec<Option<ScriptRecord<'static>>> {
+impl IndexMut<Script<'_>> for Vec<ScriptRecord<'static>> {
     fn index_mut(&mut self, index: Script) -> &mut Self::Output {
         self.get_mut(index.into_index())
             .expect("ScriptIdentifier out of bounds")
-            .as_mut()
-            .expect("ScriptIdentifier slot empty")
     }
 }
 

@@ -126,23 +126,17 @@ impl IndexMut<Set<'_>> for Agent {
     }
 }
 
-impl Index<Set<'_>> for Vec<Option<SetHeapData<'static>>> {
+impl Index<Set<'_>> for Vec<SetHeapData<'static>> {
     type Output = SetHeapData<'static>;
 
     fn index(&self, index: Set) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("Set out of bounds")
-            .as_ref()
-            .expect("Set slot empty")
+        self.get(index.get_index()).expect("Set out of bounds")
     }
 }
 
-impl IndexMut<Set<'_>> for Vec<Option<SetHeapData<'static>>> {
+impl IndexMut<Set<'_>> for Vec<SetHeapData<'static>> {
     fn index_mut(&mut self, index: Set) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("Set out of bounds")
-            .as_mut()
-            .expect("Set slot empty")
+        self.get_mut(index.get_index()).expect("Set out of bounds")
     }
 }
 
@@ -161,8 +155,8 @@ impl TryFrom<HeapRootData> for Set<'_> {
 
 impl<'a> CreateHeapData<SetHeapData<'a>, Set<'a>> for Heap {
     fn create(&mut self, data: SetHeapData<'a>) -> Set<'a> {
-        self.sets.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<SetHeapData<'static>>>();
+        self.sets.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<SetHeapData<'static>>();
         Set(BaseIndex::last(&self.sets))
     }
 }

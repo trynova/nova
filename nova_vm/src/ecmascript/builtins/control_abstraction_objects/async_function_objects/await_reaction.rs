@@ -53,7 +53,7 @@ impl AwaitReaction<'_> {
         Self(value, PhantomData, PhantomData)
     }
 
-    pub(crate) fn last(scripts: &[Option<AwaitReactionRecord>]) -> Self {
+    pub(crate) fn last(scripts: &[AwaitReactionRecord]) -> Self {
         let index = scripts.len() - 1;
         Self::from_index(index)
     }
@@ -161,23 +161,19 @@ impl IndexMut<AwaitReaction<'_>> for Agent {
     }
 }
 
-impl Index<AwaitReaction<'_>> for Vec<Option<AwaitReactionRecord<'static>>> {
+impl Index<AwaitReaction<'_>> for Vec<AwaitReactionRecord<'static>> {
     type Output = AwaitReactionRecord<'static>;
 
     fn index(&self, index: AwaitReaction) -> &Self::Output {
         self.get(index.into_index())
             .expect("AwaitReactionIdentifier out of bounds")
-            .as_ref()
-            .expect("AwaitReactionIdentifier slot empty")
     }
 }
 
-impl IndexMut<AwaitReaction<'_>> for Vec<Option<AwaitReactionRecord<'static>>> {
+impl IndexMut<AwaitReaction<'_>> for Vec<AwaitReactionRecord<'static>> {
     fn index_mut(&mut self, index: AwaitReaction) -> &mut Self::Output {
         self.get_mut(index.into_index())
             .expect("AwaitReactionIdentifier out of bounds")
-            .as_mut()
-            .expect("AwaitReactionIdentifier slot empty")
     }
 }
 
@@ -255,8 +251,8 @@ pub struct AwaitReactionRecord<'a> {
 
 impl<'a> CreateHeapData<AwaitReactionRecord<'a>, AwaitReaction<'a>> for Heap {
     fn create(&mut self, data: AwaitReactionRecord<'a>) -> AwaitReaction<'a> {
-        self.await_reactions.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<AwaitReactionRecord<'static>>>();
+        self.await_reactions.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<AwaitReactionRecord<'static>>();
         AwaitReaction::last(&self.await_reactions)
     }
 }

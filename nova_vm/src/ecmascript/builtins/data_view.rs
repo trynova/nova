@@ -477,7 +477,7 @@ impl<'a> CreateHeapData<DataViewRecord<'a>, DataView<'a>> for Heap {
     fn create(&mut self, data: DataViewRecord<'a>) -> DataView<'a> {
         self.data_views.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<DataViewRecord<'static>>();
-        DataView(BaseIndex::last_t(&self.data_views))
+        DataView(BaseIndex::last(&self.data_views))
     }
 }
 
@@ -501,7 +501,7 @@ impl<'a> CreateHeapData<SharedDataViewRecord<'a>, SharedDataView<'a>> for Heap {
     fn create(&mut self, data: SharedDataViewRecord<'a>) -> SharedDataView<'a> {
         self.shared_data_views.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<SharedDataViewRecord<'static>>();
-        SharedDataView(BaseIndex::last_t(&self.shared_data_views))
+        SharedDataView(BaseIndex::last(&self.shared_data_views))
     }
 }
 

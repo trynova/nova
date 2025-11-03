@@ -29,7 +29,7 @@ use crate::{
     },
 };
 
-pub use data::StringHeapData;
+pub use data::StringRecord;
 use hashbrown::HashTable;
 use wtf8::{CodePoint, Wtf8, Wtf8Buf};
 
@@ -44,7 +44,7 @@ use wtf8::{CodePoint, Wtf8, Wtf8Buf};
 /// heap-allocated strings into lexicographic order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct HeapString<'a>(BaseIndex<'a, StringHeapData>);
+pub struct HeapString<'a>(BaseIndex<'a, StringRecord>);
 bindable_handle!(HeapString);
 
 impl HeapString<'_> {
@@ -70,7 +70,7 @@ impl HeapString<'_> {
 }
 
 impl Index<HeapString<'_>> for PrimitiveHeap<'_> {
-    type Output = StringHeapData;
+    type Output = StringRecord;
 
     fn index(&self, index: HeapString<'_>) -> &Self::Output {
         &self.strings[index]
@@ -78,7 +78,7 @@ impl Index<HeapString<'_>> for PrimitiveHeap<'_> {
 }
 
 impl Index<HeapString<'_>> for PropertyKeyHeap<'_> {
-    type Output = StringHeapData;
+    type Output = StringRecord;
 
     fn index(&self, index: HeapString<'_>) -> &Self::Output {
         &self.strings[index]
@@ -86,7 +86,7 @@ impl Index<HeapString<'_>> for PropertyKeyHeap<'_> {
 }
 
 impl Index<HeapString<'_>> for Agent {
-    type Output = StringHeapData;
+    type Output = StringRecord;
 
     fn index(&self, index: HeapString<'_>) -> &Self::Output {
         &self.heap.strings[index]
@@ -99,23 +99,19 @@ impl IndexMut<HeapString<'_>> for Agent {
     }
 }
 
-impl Index<HeapString<'_>> for Vec<Option<StringHeapData>> {
-    type Output = StringHeapData;
+impl Index<HeapString<'_>> for Vec<StringRecord> {
+    type Output = StringRecord;
 
     fn index(&self, index: HeapString<'_>) -> &Self::Output {
         self.get(index.get_index())
             .expect("HeapString out of bounds")
-            .as_ref()
-            .expect("HeapString slot empty")
     }
 }
 
-impl IndexMut<HeapString<'_>> for Vec<Option<StringHeapData>> {
+impl IndexMut<HeapString<'_>> for Vec<StringRecord> {
     fn index_mut(&mut self, index: HeapString<'_>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("HeapString out of bounds")
-            .as_mut()
-            .expect("HeapString slot empty")
     }
 }
 
@@ -410,7 +406,7 @@ impl<'a> String<'a> {
     }
 
     /// Byte length of the string.
-    pub fn len(self, agent: &impl Index<HeapString<'static>, Output = StringHeapData>) -> usize {
+    pub fn len(self, agent: &impl Index<HeapString<'static>, Output = StringRecord>) -> usize {
         match self {
             String::String(s) => agent[s.unbind()].len(),
             String::SmallString(s) => s.len(),
@@ -420,7 +416,7 @@ impl<'a> String<'a> {
     /// UTF-16 length of the string.
     pub fn utf16_len(
         self,
-        agent: &impl Index<HeapString<'static>, Output = StringHeapData>,
+        agent: &impl Index<HeapString<'static>, Output = StringRecord>,
     ) -> usize {
         match self {
             String::String(s) => agent[s.unbind()].utf16_len(),
@@ -430,7 +426,7 @@ impl<'a> String<'a> {
 
     pub fn char_code_at(
         self,
-        agent: &impl Index<HeapString<'static>, Output = StringHeapData>,
+        agent: &impl Index<HeapString<'static>, Output = StringRecord>,
         idx: usize,
     ) -> CodePoint {
         match self {
@@ -441,7 +437,7 @@ impl<'a> String<'a> {
 
     pub fn code_point_at(
         self,
-        agent: &impl Index<HeapString<'static>, Output = StringHeapData>,
+        agent: &impl Index<HeapString<'static>, Output = StringRecord>,
         utf16_idx: usize,
     ) -> CodePoint {
         match self {
@@ -460,7 +456,7 @@ impl<'a> String<'a> {
     /// UTF-16 string length.
     pub fn utf8_index(
         self,
-        agent: &impl Index<HeapString<'static>, Output = StringHeapData>,
+        agent: &impl Index<HeapString<'static>, Output = StringRecord>,
         utf16_idx: usize,
     ) -> Option<usize> {
         match self {
@@ -478,7 +474,7 @@ impl<'a> String<'a> {
     /// or if it is past the end (but not *at* the end) of the UTF-8 string.
     pub fn utf16_index(
         self,
-        agent: &impl Index<HeapString<'static>, Output = StringHeapData>,
+        agent: &impl Index<HeapString<'static>, Output = StringRecord>,
         utf8_idx: usize,
     ) -> usize {
         match self {
@@ -503,7 +499,7 @@ impl<'a> String<'a> {
     /// causing the string slice to dangle.
     pub fn to_string_lossy(
         &self,
-        agent: &impl Index<HeapString<'a>, Output = StringHeapData>,
+        agent: &impl Index<HeapString<'a>, Output = StringRecord>,
     ) -> Cow<'_, str> {
         match self {
             // SAFETY: Assuming that user has properly bound the String, the
@@ -520,7 +516,7 @@ impl<'a> String<'a> {
 
     pub fn as_str(
         &self,
-        agent: &impl Index<HeapString<'a>, Output = StringHeapData>,
+        agent: &impl Index<HeapString<'a>, Output = StringRecord>,
     ) -> Option<&str> {
         match self {
             // SAFETY: Assuming that user has properly bound the String, the
@@ -535,7 +531,7 @@ impl<'a> String<'a> {
         }
     }
 
-    pub fn as_wtf8(&self, agent: &impl Index<HeapString<'a>, Output = StringHeapData>) -> &Wtf8 {
+    pub fn as_wtf8(&self, agent: &impl Index<HeapString<'a>, Output = StringRecord>) -> &Wtf8 {
         match self {
             // SAFETY: Assuming that user has properly bound the String, the
             // backing string data is guaranteed to never be accessed as
@@ -549,7 +545,7 @@ impl<'a> String<'a> {
         }
     }
 
-    pub fn as_bytes(&self, agent: &impl Index<HeapString<'a>, Output = StringHeapData>) -> &[u8] {
+    pub fn as_bytes(&self, agent: &impl Index<HeapString<'a>, Output = StringRecord>) -> &[u8] {
         match self {
             // SAFETY: Assuming that user has properly bound the String, the
             // backing string data is guaranteed to never be accessed as
@@ -566,7 +562,7 @@ impl<'a> String<'a> {
     /// If x and y have the same length and the same code units in the same
     /// positions, return true; otherwise, return false.
     pub fn eq(
-        agent: &impl Index<HeapString<'static>, Output = StringHeapData>,
+        agent: &impl Index<HeapString<'static>, Output = StringRecord>,
         x: Self,
         y: Self,
     ) -> bool {
@@ -687,7 +683,7 @@ impl<'gc> String<'gc> {
     }
 
     pub(crate) fn from_str_direct(
-        strings: &mut Vec<Option<StringHeapData>>,
+        strings: &mut Vec<StringRecord>,
         string_lookup_table: &mut HashTable<HeapString<'static>>,
         string_hasher: &ahash::RandomState,
         alloc_counter: &mut usize,
@@ -702,7 +698,7 @@ impl<'gc> String<'gc> {
             match found {
                 Ok(string) => string,
                 Err(hash) => {
-                    let data = StringHeapData::from_str(str);
+                    let data = StringRecord::from_str(str);
                     // SAFETY: checked that the value is not found.
                     String::String(unsafe {
                         *alloc_counter += core::mem::size_of::<HeapString>();
@@ -718,12 +714,12 @@ impl<'gc> String<'gc> {
     ///
     /// The string must not exist in the string lookup table or strings vector.
     pub(crate) unsafe fn insert_string_with_hash(
-        strings: &mut Vec<Option<StringHeapData>>,
+        strings: &mut Vec<StringRecord>,
         string_lookup_table: &mut HashTable<HeapString<'static>>,
-        data: StringHeapData,
+        data: StringRecord,
         hash: u64,
     ) -> HeapString<'static> {
-        strings.push(Some(data));
+        strings.push(data);
         let index = BaseIndex::last(strings);
         let heap_string = HeapString(index);
         string_lookup_table.insert_unique(hash, heap_string, |_| hash);
@@ -732,7 +728,7 @@ impl<'gc> String<'gc> {
 
     /// Find existing heap String or return the strings hash.
     fn find_equal_string_direct(
-        strings: &mut [Option<StringHeapData>],
+        strings: &mut [StringRecord],
         string_lookup_table: &mut HashTable<HeapString<'static>>,
         string_hasher: &ahash::RandomState,
         message: &str,
@@ -742,7 +738,7 @@ impl<'gc> String<'gc> {
         let hash = string_hasher.hash_one(message);
         string_lookup_table
             .find(hash, |heap_string| {
-                let heap_str = strings[heap_string.get_index()].as_ref().unwrap().as_wtf8();
+                let heap_str = strings[heap_string.get_index()].as_wtf8();
                 heap_str == message
             })
             .map(|&heap_string| heap_string.into())
@@ -795,17 +791,17 @@ impl Scoped<'_, String<'static>> {
     }
 }
 
-impl<'a> CreateHeapData<(StringHeapData, u64), String<'a>> for Heap {
-    fn create(&mut self, (data, hash): (StringHeapData, u64)) -> String<'a> {
-        self.strings.push(Some(data));
-        self.alloc_counter += core::mem::size_of::<Option<StringHeapData>>();
+impl<'a> CreateHeapData<(StringRecord, u64), String<'a>> for Heap {
+    fn create(&mut self, (data, hash): (StringRecord, u64)) -> String<'a> {
+        self.strings.push(data);
+        self.alloc_counter += core::mem::size_of::<StringRecord>();
         let index = BaseIndex::last(&self.strings);
         let heap_string = HeapString(index);
         self.alloc_counter += core::mem::size_of::<HeapString>();
         self.string_lookup_table
             .insert_unique(hash, heap_string, |s| {
-                let s = self.strings[s.get_index()].as_ref().unwrap();
-                self.string_hasher.hash_one(s.as_wtf8())
+                let s = self.strings[s.get_index()].as_wtf8();
+                self.string_hasher.hash_one(s)
             });
         String::String(heap_string)
     }

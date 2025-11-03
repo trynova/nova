@@ -1338,7 +1338,7 @@ impl HeapMarkAndSweep for Agent {
             .iter()
             .enumerate()
             .for_each(|(i, &value)| {
-                if let Some(value) = value {
+                if value != HeapRootData::Empty {
                     value.mark_values(queues);
                     last_filled_global_value = Some(i);
                 }

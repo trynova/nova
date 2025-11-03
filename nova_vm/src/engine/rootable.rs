@@ -512,7 +512,7 @@ impl<'a, T: RootableSealed + IntoObject<'a> + TryFrom<HeapRootData>> Rootable fo
 /// simply be `InnerHeapRef`. Types that have stack-value representations can
 /// define their own root representation enum that switches between stack
 /// values and the `InnerHeapRef` representation.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub enum HeapRootData {
     /// Empty heap root data slot. This can be used to reserve a slot, or to

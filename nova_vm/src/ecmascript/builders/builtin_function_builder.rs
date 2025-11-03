@@ -595,8 +595,7 @@ impl
             .builtin_functions
             .get_mut(self.this.get_index())
             .unwrap();
-        assert!(slot.is_none());
-        *slot = Some(data);
+        *slot = data;
         self.this
     }
 }
@@ -648,8 +647,7 @@ impl
             .builtin_functions
             .get_mut(self.this.get_index())
             .unwrap();
-        assert!(slot.is_none());
-        *slot = Some(data);
+        *slot = data;
         self.this
     }
 }
@@ -692,8 +690,7 @@ impl
             .builtin_functions
             .get_mut(self.this.get_index())
             .unwrap();
-        assert!(slot.is_none());
-        *slot = Some(data);
+        *slot = data;
         self.this
     }
 }

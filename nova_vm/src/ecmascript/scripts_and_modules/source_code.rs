@@ -344,8 +344,6 @@ impl Index<SourceCode<'_>> for Agent {
             .source_codes
             .get(index.get_index())
             .expect("SourceCode out of bounds")
-            .as_ref()
-            .expect("SourceCode slot empty")
     }
 }
 
@@ -376,8 +374,8 @@ impl Rootable for SourceCode<'_> {
 
 impl<'a> CreateHeapData<SourceCodeHeapData<'a>, SourceCode<'a>> for Heap {
     fn create(&mut self, data: SourceCodeHeapData<'a>) -> SourceCode<'a> {
-        self.source_codes.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<SourceCodeHeapData<'static>>>();
+        self.source_codes.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<SourceCodeHeapData<'static>>();
         SourceCode(BaseIndex::last(&self.source_codes))
     }
 }

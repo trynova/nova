@@ -33,6 +33,6 @@ pub use into_primitive::IntoPrimitive;
 pub use into_value::IntoValue;
 pub use numeric::Numeric;
 pub use primitive::Primitive;
-pub use string::{BUILTIN_STRING_MEMORY, BUILTIN_STRINGS_LIST, HeapString, String, StringHeapData};
+pub use string::{BUILTIN_STRING_MEMORY, BUILTIN_STRINGS_LIST, HeapString, String, StringRecord};
 pub use symbol::{Symbol, SymbolHeapData};
 pub use value::Value;

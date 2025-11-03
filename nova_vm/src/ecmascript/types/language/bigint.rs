@@ -831,30 +831,25 @@ impl IndexMut<HeapBigInt<'_>> for Agent {
     }
 }
 
-impl Index<HeapBigInt<'_>> for Vec<Option<BigIntHeapData>> {
+impl Index<HeapBigInt<'_>> for Vec<BigIntHeapData> {
     type Output = BigIntHeapData;
 
     fn index(&self, index: HeapBigInt<'_>) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("BigInt out of bounds")
-            .as_ref()
-            .expect("BigInt slot empty")
+        self.get(index.get_index()).expect("BigInt out of bounds")
     }
 }
 
-impl IndexMut<HeapBigInt<'_>> for Vec<Option<BigIntHeapData>> {
+impl IndexMut<HeapBigInt<'_>> for Vec<BigIntHeapData> {
     fn index_mut(&mut self, index: HeapBigInt<'_>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("BigInt out of bounds")
-            .as_mut()
-            .expect("BigInt slot empty")
     }
 }
 
 impl<'a> CreateHeapData<BigIntHeapData, BigInt<'a>> for Heap {
     fn create(&mut self, data: BigIntHeapData) -> BigInt<'a> {
-        self.bigints.push(Some(data));
-        self.alloc_counter += core::mem::size_of::<Option<BigIntHeapData>>();
+        self.bigints.push(data);
+        self.alloc_counter += core::mem::size_of::<BigIntHeapData>();
         BigInt::BigInt(HeapBigInt(BaseIndex::last(&self.bigints)))
     }
 }

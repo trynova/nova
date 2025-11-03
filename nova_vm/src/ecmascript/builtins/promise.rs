@@ -157,8 +157,8 @@ impl<'a> InternalMethods<'a> for Promise<'a> {}
 
 impl<'a> CreateHeapData<PromiseHeapData<'a>, Promise<'a>> for Heap {
     fn create(&mut self, data: PromiseHeapData<'a>) -> Promise<'a> {
-        self.promises.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<PromiseHeapData<'static>>>();
+        self.promises.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<PromiseHeapData<'static>>();
         Promise(BaseIndex::last(&self.promises))
     }
 }
@@ -179,23 +179,18 @@ impl IndexMut<Promise<'_>> for Agent {
     }
 }
 
-impl Index<Promise<'_>> for Vec<Option<PromiseHeapData<'static>>> {
+impl Index<Promise<'_>> for Vec<PromiseHeapData<'static>> {
     type Output = PromiseHeapData<'static>;
 
     fn index(&self, index: Promise) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("Promise out of bounds")
-            .as_ref()
-            .expect("Promise slot empty")
+        self.get(index.get_index()).expect("Promise out of bounds")
     }
 }
 
-impl IndexMut<Promise<'_>> for Vec<Option<PromiseHeapData<'static>>> {
+impl IndexMut<Promise<'_>> for Vec<PromiseHeapData<'static>> {
     fn index_mut(&mut self, index: Promise) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Promise out of bounds")
-            .as_mut()
-            .expect("Promise slot empty")
     }
 }
 

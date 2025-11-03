@@ -26,9 +26,7 @@ pub(super) fn clear_kept_objects(agent: &mut Agent) {
     if agent.kept_alive {
         agent.kept_alive = false;
         for weak_ref_data in agent.heap.weak_refs.iter_mut() {
-            if let Some(weak_ref_data) = weak_ref_data.as_mut() {
-                weak_ref_data.clear_kept_objects();
-            }
+            weak_ref_data.clear_kept_objects();
         }
     }
     // 3. Return unused.

@@ -7,7 +7,7 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin,
-            primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
+            primitive_objects::{PrimitiveObjectData, PrimitiveObjectRecord},
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, String, Value},
@@ -79,11 +79,10 @@ impl BooleanPrototype {
             .primitive_objects
             .get_mut(this.get_index())
             .unwrap();
-        assert!(slot.is_none());
-        *slot = Some(PrimitiveObjectHeapData {
+        *slot = PrimitiveObjectRecord {
             object_index: Some(this_base_object),
             data: PrimitiveObjectData::Boolean(false),
-        });
+        };
     }
 }
 

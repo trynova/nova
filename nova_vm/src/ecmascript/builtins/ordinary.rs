@@ -69,7 +69,7 @@ use super::{
     finalization_registry::data::FinalizationRegistryHeapData,
     indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
     keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
-    map::data::MapHeapData, module::Module, primitive_objects::PrimitiveObjectHeapData,
+    map::data::MapHeapData, module::Module, primitive_objects::PrimitiveObjectRecord,
     promise::data::PromiseHeapData,
     text_processing::string_objects::string_iterator_objects::StringIteratorHeapData,
 };
@@ -1615,11 +1615,11 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
             .into_object(),
         ProtoIntrinsics::BigInt => agent
             .heap
-            .create(PrimitiveObjectHeapData::new_big_int_object(0.into()))
+            .create(PrimitiveObjectRecord::new_big_int_object(0.into()))
             .into_object(),
         ProtoIntrinsics::Boolean => agent
             .heap
-            .create(PrimitiveObjectHeapData::new_boolean_object(false))
+            .create(PrimitiveObjectRecord::new_boolean_object(false))
             .into_object(),
         ProtoIntrinsics::Error => agent
             .heap
@@ -1634,7 +1634,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
         ProtoIntrinsics::Function => todo!(),
         ProtoIntrinsics::Number => agent
             .heap
-            .create(PrimitiveObjectHeapData::new_number_object(0.into()))
+            .create(PrimitiveObjectRecord::new_number_object(0.into()))
             .into_object(),
         ProtoIntrinsics::Object => OrdinaryObject::create_object(
             agent,
@@ -1662,7 +1662,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
             .into_object(),
         ProtoIntrinsics::String => agent
             .heap
-            .create(PrimitiveObjectHeapData::new_string_object(
+            .create(PrimitiveObjectRecord::new_string_object(
                 String::EMPTY_STRING,
             ))
             .into_object(),
@@ -1672,7 +1672,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
             .into_object(),
         ProtoIntrinsics::Symbol => agent
             .heap
-            .create(PrimitiveObjectHeapData::new_symbol_object(Symbol::from(
+            .create(PrimitiveObjectRecord::new_symbol_object(Symbol::from(
                 WellKnownSymbolIndexes::AsyncIterator,
             )))
             .into_object(),

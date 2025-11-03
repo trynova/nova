@@ -121,23 +121,19 @@ impl IndexMut<BuiltinConstructorFunction<'_>> for Agent {
     }
 }
 
-impl Index<BuiltinConstructorFunction<'_>> for Vec<Option<BuiltinConstructorRecord<'static>>> {
+impl Index<BuiltinConstructorFunction<'_>> for Vec<BuiltinConstructorRecord<'static>> {
     type Output = BuiltinConstructorRecord<'static>;
 
     fn index(&self, index: BuiltinConstructorFunction) -> &Self::Output {
         self.get(index.get_index())
             .expect("BuiltinConstructorFunction out of bounds")
-            .as_ref()
-            .expect("BuiltinConstructorFunction slot empty")
     }
 }
 
-impl IndexMut<BuiltinConstructorFunction<'_>> for Vec<Option<BuiltinConstructorRecord<'static>>> {
+impl IndexMut<BuiltinConstructorFunction<'_>> for Vec<BuiltinConstructorRecord<'static>> {
     fn index_mut(&mut self, index: BuiltinConstructorFunction) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("BuiltinConstructorFunction out of bounds")
-            .as_mut()
-            .expect("BuiltinConstructorFunction slot empty")
     }
 }
 
@@ -402,8 +398,8 @@ impl Rootable for BuiltinConstructorFunction<'_> {
 
 impl<'a> CreateHeapData<BuiltinConstructorRecord<'a>, BuiltinConstructorFunction<'a>> for Heap {
     fn create(&mut self, data: BuiltinConstructorRecord) -> BuiltinConstructorFunction<'a> {
-        self.builtin_constructors.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<BuiltinConstructorRecord<'static>>>();
+        self.builtin_constructors.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<BuiltinConstructorRecord<'static>>();
 
         BuiltinConstructorFunction(BaseIndex::last(&self.builtin_constructors))
     }

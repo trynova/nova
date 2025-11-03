@@ -940,7 +940,7 @@ impl<'a> CreateHeapData<ArrayHeapData<'a>, Array<'a>> for Heap {
         self.arrays
             .push(data.unbind())
             .expect("Failed to allocate Array");
-        self.alloc_counter += core::mem::size_of::<Option<ArrayHeapData<'static>>>();
+        self.alloc_counter += core::mem::size_of::<ArrayHeapData<'static>>();
         Array(BaseIndex::from_u32_index(i))
     }
 }

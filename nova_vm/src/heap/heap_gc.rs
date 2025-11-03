@@ -11,8 +11,7 @@ use super::{
     element_array::ElementArrays,
     heap_bits::{
         CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues, mark_array_with_u32_length,
-        mark_descriptors, mark_optional_array_with_u32_length,
-        sweep_heap_elements_vector_descriptors, sweep_heap_soa_vector_values,
+        mark_descriptors, sweep_heap_elements_vector_descriptors, sweep_heap_soa_vector_values,
         sweep_heap_u8_elements_vector_values, sweep_heap_u8_property_key_vector,
         sweep_heap_u16_elements_vector_values, sweep_heap_u16_property_key_vector,
         sweep_heap_u32_elements_vector_values, sweep_heap_u32_property_key_vector,
@@ -1050,7 +1049,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow1.values.get(index) {
-                    mark_optional_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_u32_length(array, &mut queues, len);
                 }
             }
         });
@@ -1071,7 +1070,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow2.values.get(index) {
-                    mark_optional_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_u32_length(array, &mut queues, len);
                 }
             }
         });
@@ -1092,7 +1091,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow3.values.get(index) {
-                    mark_optional_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_u32_length(array, &mut queues, len);
                 }
             }
         });
@@ -1113,7 +1112,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow4.values.get(index) {
-                    mark_optional_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_u32_length(array, &mut queues, len);
                 }
             }
         });
@@ -1134,7 +1133,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow6.values.get(index) {
-                    mark_optional_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_u32_length(array, &mut queues, len);
                 }
             }
         });
@@ -1155,7 +1154,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow8.values.get(index) {
-                    mark_optional_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_u32_length(array, &mut queues, len);
                 }
             }
         });
@@ -1176,7 +1175,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow10.values.get(index) {
-                    mark_optional_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_u32_length(array, &mut queues, len);
                 }
             }
         });
@@ -1197,7 +1196,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow12.values.get(index) {
-                    mark_optional_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_u32_length(array, &mut queues, len);
                 }
             }
         });
@@ -1218,7 +1217,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow16.values.get(index) {
-                    mark_optional_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_u32_length(array, &mut queues, len);
                 }
             }
         });
@@ -1239,7 +1238,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow24.values.get(index) {
-                    mark_optional_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_u32_length(array, &mut queues, len);
                 }
             }
         });
@@ -1260,7 +1259,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow32.values.get(index) {
-                    mark_optional_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_u32_length(array, &mut queues, len);
                 }
             }
         });
@@ -2182,7 +2181,7 @@ fn test_heap_gc() {
     let mut gc = GcScope::new(&mut gc, &mut scope);
     assert!(agent.heap.objects.is_empty());
     let obj = HeapRootData::Object(OrdinaryObject::create_object(&mut agent, None, &[]));
-    agent.heap.globals.borrow_mut().push(Some(obj));
+    agent.heap.globals.borrow_mut().push(obj);
     heap_gc(&mut agent, &mut [], gc.reborrow());
 
     assert_eq!(agent.heap.objects.len(), 1);

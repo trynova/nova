@@ -1661,18 +1661,6 @@ pub(crate) fn mark_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
     });
 }
 
-pub(crate) fn mark_optional_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
-    array: &Option<[T; N]>,
-    queues: &mut WorkQueues,
-    length: u32,
-) {
-    array.as_ref().unwrap()[..length as usize]
-        .iter()
-        .for_each(|value| {
-            value.mark_values(queues);
-        });
-}
-
 pub(crate) fn mark_descriptors(
     descriptors: &AHashMap<u32, ElementDescriptor<'static>>,
     queues: &mut WorkQueues,
@@ -1680,21 +1668,6 @@ pub(crate) fn mark_descriptors(
     for descriptor in descriptors.values() {
         descriptor.mark_values(queues);
     }
-}
-
-fn sweep_optional_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
-    array: &mut Option<[T; N]>,
-    compactions: &CompactionLists,
-    length: u32,
-) {
-    if length == 0 {
-        return;
-    }
-    array.as_mut().unwrap()[..length as usize]
-        .iter_mut()
-        .for_each(|value| {
-            value.sweep_values(compactions);
-        });
 }
 
 fn sweep_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
@@ -1805,7 +1778,7 @@ pub(crate) fn sweep_heap_u32_property_key_vector<const N: usize>(
 }
 
 pub(crate) fn sweep_heap_u8_elements_vector_values<const N: usize>(
-    vec: &mut Vec<Option<[Option<Value<'static>>; N]>>,
+    vec: &mut Vec<[Option<Value<'static>>; N]>,
     compactions: &CompactionLists,
     u8s: &[(bool, u8)],
 ) {
@@ -1814,7 +1787,7 @@ pub(crate) fn sweep_heap_u8_elements_vector_values<const N: usize>(
     vec.retain_mut(|item| {
         let (mark, length) = iter.next().unwrap();
         if *mark {
-            sweep_optional_array_with_u32_length(item, compactions, *length as u32);
+            sweep_array_with_u32_length(item, compactions, *length as u32);
             true
         } else {
             false
@@ -1823,7 +1796,7 @@ pub(crate) fn sweep_heap_u8_elements_vector_values<const N: usize>(
 }
 
 pub(crate) fn sweep_heap_u16_elements_vector_values<const N: usize>(
-    vec: &mut Vec<Option<[Option<Value<'static>>; N]>>,
+    vec: &mut Vec<[Option<Value<'static>>; N]>,
     compactions: &CompactionLists,
     u16s: &[(bool, u16)],
 ) {
@@ -1832,7 +1805,7 @@ pub(crate) fn sweep_heap_u16_elements_vector_values<const N: usize>(
     vec.retain_mut(|item| {
         let (mark, length) = iter.next().unwrap();
         if *mark {
-            sweep_optional_array_with_u32_length(item, compactions, *length as u32);
+            sweep_array_with_u32_length(item, compactions, *length as u32);
             true
         } else {
             false
@@ -1841,7 +1814,7 @@ pub(crate) fn sweep_heap_u16_elements_vector_values<const N: usize>(
 }
 
 pub(crate) fn sweep_heap_u32_elements_vector_values<const N: usize>(
-    vec: &mut Vec<Option<[Option<Value<'static>>; N]>>,
+    vec: &mut Vec<[Option<Value<'static>>; N]>,
     compactions: &CompactionLists,
     u32s: &[(bool, u32)],
 ) {
@@ -1850,7 +1823,7 @@ pub(crate) fn sweep_heap_u32_elements_vector_values<const N: usize>(
     vec.retain_mut(|item| {
         let (mark, length) = iter.next().unwrap();
         if *mark {
-            sweep_optional_array_with_u32_length(item, compactions, *length);
+            sweep_array_with_u32_length(item, compactions, *length);
             true
         } else {
             false

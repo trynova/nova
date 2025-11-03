@@ -4,7 +4,7 @@ use crate::{
     ecmascript::execution::Agent,
     engine::{
         context::NoGcScope,
-        rootable::{HeapRootRef, Rootable},
+        rootable::{HeapRootData, HeapRootRef, Rootable},
     },
 };
 
@@ -33,8 +33,8 @@ impl<T: Rootable> Global<T> {
         let value = heap_root_data;
         let mut globals = agent.heap.globals.borrow_mut();
         let reused_index = globals.iter_mut().enumerate().find_map(|(index, entry)| {
-            if entry.is_none() {
-                *entry = Some(value);
+            if entry == &HeapRootData::Empty {
+                *entry = value;
                 Some(index)
             } else {
                 None
@@ -44,7 +44,7 @@ impl<T: Rootable> Global<T> {
             HeapRootRef::from_index(reused_index)
         } else {
             let next_index = globals.len();
-            globals.push(Some(value));
+            globals.push(value);
             HeapRootRef::from_index(next_index)
         };
         Self(T::from_heap_ref(heap_ref), Default::default())
@@ -60,15 +60,16 @@ impl<T: Rootable> Global<T> {
             }
             Err(heap_ref) => heap_ref,
         };
-        // Leave a `None` in the index and return the value
-        let heap_data = agent
-            .heap
-            .globals
-            .borrow_mut()
-            .get_mut(heap_ref.to_index())
-            .unwrap()
-            .take()
-            .unwrap();
+        // Leave an `Empty` in the index and return the value
+        let heap_data = core::mem::replace(
+            agent
+                .heap
+                .globals
+                .borrow_mut()
+                .get_mut(heap_ref.to_index())
+                .unwrap(),
+            HeapRootData::Empty,
+        );
         let Some(value) = T::from_heap_data(heap_data) else {
             panic!("Invalid Global returned different type than expected");
         };
@@ -90,8 +91,6 @@ impl<T: Rootable> Global<T> {
             .globals
             .borrow()
             .get(heap_ref.to_index())
-            .unwrap()
-            .as_ref()
             .unwrap();
         let Some(value) = T::from_heap_data(heap_data) else {
             panic!("Invalid Global returned different type than expected");

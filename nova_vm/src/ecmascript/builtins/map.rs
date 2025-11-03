@@ -113,23 +113,17 @@ impl IndexMut<Map<'_>> for Agent {
     }
 }
 
-impl Index<Map<'_>> for Vec<Option<MapHeapData<'static>>> {
+impl Index<Map<'_>> for Vec<MapHeapData<'static>> {
     type Output = MapHeapData<'static>;
 
     fn index(&self, index: Map) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("Map out of bounds")
-            .as_ref()
-            .expect("Map slot empty")
+        self.get(index.get_index()).expect("Map out of bounds")
     }
 }
 
-impl IndexMut<Map<'_>> for Vec<Option<MapHeapData<'static>>> {
+impl IndexMut<Map<'_>> for Vec<MapHeapData<'static>> {
     fn index_mut(&mut self, index: Map) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("Map out of bounds")
-            .as_mut()
-            .expect("Map slot empty")
+        self.get_mut(index.get_index()).expect("Map out of bounds")
     }
 }
 
@@ -158,8 +152,8 @@ impl Rootable for Map<'_> {
 
 impl<'a> CreateHeapData<MapHeapData<'a>, Map<'a>> for Heap {
     fn create(&mut self, data: MapHeapData<'a>) -> Map<'a> {
-        self.maps.push(Some(data.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<MapHeapData<'static>>>();
+        self.maps.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<MapHeapData<'static>>();
         Map(BaseIndex::last(&self.maps))
     }
 }

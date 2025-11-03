@@ -24,7 +24,7 @@ use crate::{
     ecmascript::{
         builtins::{
             ArgumentsList,
-            primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
+            primitive_objects::{PrimitiveObjectData, PrimitiveObjectRecord},
         },
         execution::{
             Agent, JsResult,
@@ -1144,7 +1144,7 @@ pub(crate) fn to_object<'a>(
         // Return a new Boolean object whose [[BooleanData]] internal slot is set to argument.
         Value::Boolean(bool) => Ok(agent
             .heap
-            .create(PrimitiveObjectHeapData {
+            .create(PrimitiveObjectRecord {
                 object_index: None,
                 data: PrimitiveObjectData::Boolean(bool),
             })
@@ -1152,14 +1152,14 @@ pub(crate) fn to_object<'a>(
         // Return a new String object whose [[StringData]] internal slot is set to argument.
         Value::String(str) => Ok(agent
             .heap
-            .create(PrimitiveObjectHeapData {
+            .create(PrimitiveObjectRecord {
                 object_index: None,
                 data: PrimitiveObjectData::String(str.unbind()),
             })
             .into_object()),
         Value::SmallString(str) => Ok(agent
             .heap
-            .create(PrimitiveObjectHeapData {
+            .create(PrimitiveObjectRecord {
                 object_index: None,
                 data: PrimitiveObjectData::SmallString(str),
             })
@@ -1167,7 +1167,7 @@ pub(crate) fn to_object<'a>(
         // Return a new Symbol object whose [[SymbolnData]] internal slot is set to argument.
         Value::Symbol(symbol) => Ok(agent
             .heap
-            .create(PrimitiveObjectHeapData {
+            .create(PrimitiveObjectRecord {
                 object_index: None,
                 data: PrimitiveObjectData::Symbol(symbol.unbind()),
             })
@@ -1175,21 +1175,21 @@ pub(crate) fn to_object<'a>(
         // Return a new Number object whose [[NumberData]] internal slot is set to argument.
         Value::Number(number) => Ok(agent
             .heap
-            .create(PrimitiveObjectHeapData {
+            .create(PrimitiveObjectRecord {
                 object_index: None,
                 data: PrimitiveObjectData::Number(number.unbind()),
             })
             .into_object()),
         Value::Integer(integer) => Ok(agent
             .heap
-            .create(PrimitiveObjectHeapData {
+            .create(PrimitiveObjectRecord {
                 object_index: None,
                 data: PrimitiveObjectData::Integer(integer),
             })
             .into_object()),
         Value::SmallF64(float) => Ok(agent
             .heap
-            .create(PrimitiveObjectHeapData {
+            .create(PrimitiveObjectRecord {
                 object_index: None,
                 data: PrimitiveObjectData::SmallF64(float),
             })
@@ -1197,14 +1197,14 @@ pub(crate) fn to_object<'a>(
         // Return a new BigInt object whose [[BigIntData]] internal slot is set to argument.
         Value::BigInt(bigint) => Ok(agent
             .heap
-            .create(PrimitiveObjectHeapData {
+            .create(PrimitiveObjectRecord {
                 object_index: None,
                 data: PrimitiveObjectData::BigInt(bigint.unbind()),
             })
             .into_object()),
         Value::SmallBigInt(bigint) => Ok(agent
             .heap
-            .create(PrimitiveObjectHeapData {
+            .create(PrimitiveObjectRecord {
                 object_index: None,
                 data: PrimitiveObjectData::SmallBigInt(bigint),
             })

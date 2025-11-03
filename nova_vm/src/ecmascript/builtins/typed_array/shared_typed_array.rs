@@ -2630,7 +2630,7 @@ impl<'a, T: Viewable> CreateHeapData<SharedTypedArrayRecord<'a>, GenericSharedTy
         self.shared_typed_arrays.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<SharedTypedArrayRecord<'static>>();
         // TODO: The type should be checked based on data or something equally stupid
-        GenericSharedTypedArray(BaseIndex::last_t(&self.shared_typed_arrays), PhantomData)
+        GenericSharedTypedArray(BaseIndex::last(&self.shared_typed_arrays), PhantomData)
     }
 }
 

@@ -78,7 +78,7 @@ use crate::{
                 caches::Caches,
                 shape::{ObjectShapeRecord, ObjectShapeTransitionMap, PrototypeShapeTable},
             },
-            primitive_objects::PrimitiveObjectHeapData,
+            primitive_objects::PrimitiveObjectRecord,
             promise::data::PromiseHeapData,
             promise_objects::promise_abstract_operations::{
                 promise_finally_functions::PromiseFinallyFunctionHeapData,
@@ -99,7 +99,7 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, BUILTIN_STRINGS_LIST, BigIntHeapData, BoundFunctionHeapData,
             BuiltinConstructorRecord, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
-            HeapNumber, HeapString, NumberHeapData, ObjectRecord, String, StringHeapData, Symbol,
+            HeapNumber, HeapString, NumberHeapData, ObjectRecord, String, StringRecord, Symbol,
             SymbolHeapData, bigint::HeapBigInt,
         },
     },
@@ -129,59 +129,59 @@ use wtf8::{Wtf8, Wtf8Buf};
 
 pub(crate) struct Heap {
     #[cfg(feature = "array-buffer")]
-    pub(crate) array_buffers: Vec<Option<ArrayBufferHeapData<'static>>>,
+    pub(crate) array_buffers: Vec<ArrayBufferHeapData<'static>>,
     #[cfg(feature = "array-buffer")]
     pub(crate) array_buffer_detach_keys: AHashMap<ArrayBuffer<'static>, DetachKey>,
     pub(crate) arrays: SoAVec<ArrayHeapData<'static>>,
-    pub(crate) array_iterators: Vec<Option<ArrayIteratorHeapData<'static>>>,
-    pub(crate) async_generators: Vec<Option<AsyncGeneratorHeapData<'static>>>,
-    pub(crate) await_reactions: Vec<Option<AwaitReactionRecord<'static>>>,
-    pub(crate) bigints: Vec<Option<BigIntHeapData>>,
-    pub(crate) bound_functions: Vec<Option<BoundFunctionHeapData<'static>>>,
-    pub(crate) builtin_constructors: Vec<Option<BuiltinConstructorRecord<'static>>>,
-    pub(crate) builtin_functions: Vec<Option<BuiltinFunctionHeapData<'static>>>,
+    pub(crate) array_iterators: Vec<ArrayIteratorHeapData<'static>>,
+    pub(crate) async_generators: Vec<AsyncGeneratorHeapData<'static>>,
+    pub(crate) await_reactions: Vec<AwaitReactionRecord<'static>>,
+    pub(crate) bigints: Vec<BigIntHeapData>,
+    pub(crate) bound_functions: Vec<BoundFunctionHeapData<'static>>,
+    pub(crate) builtin_constructors: Vec<BuiltinConstructorRecord<'static>>,
+    pub(crate) builtin_functions: Vec<BuiltinFunctionHeapData<'static>>,
     pub(crate) caches: Caches<'static>,
     #[cfg(feature = "date")]
-    pub(crate) dates: Vec<Option<DateHeapData<'static>>>,
-    pub(crate) ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData<'static>>>,
+    pub(crate) dates: Vec<DateHeapData<'static>>,
+    pub(crate) ecmascript_functions: Vec<ECMAScriptFunctionHeapData<'static>>,
     /// ElementsArrays is where all keys and values arrays live;
     /// Element arrays are static arrays of Values plus
     /// a HashMap of possible property descriptors.
     pub(crate) elements: ElementArrays,
-    pub(crate) embedder_objects: Vec<Option<EmbedderObjectHeapData>>,
+    pub(crate) embedder_objects: Vec<EmbedderObjectHeapData>,
     pub(crate) environments: Environments,
-    pub(crate) errors: Vec<Option<ErrorHeapData<'static>>>,
+    pub(crate) errors: Vec<ErrorHeapData<'static>>,
     /// Stores compiled bytecodes
     pub(crate) executables: Vec<ExecutableHeapData<'static>>,
-    pub(crate) finalization_registrys: Vec<Option<FinalizationRegistryHeapData<'static>>>,
-    pub(crate) generators: Vec<Option<GeneratorHeapData<'static>>>,
-    pub(crate) globals: RefCell<Vec<Option<HeapRootData>>>,
-    pub(crate) maps: Vec<Option<MapHeapData<'static>>>,
-    pub(crate) map_iterators: Vec<Option<MapIteratorHeapData<'static>>>,
-    pub(crate) numbers: Vec<Option<NumberHeapData>>,
+    pub(crate) finalization_registrys: Vec<FinalizationRegistryHeapData<'static>>,
+    pub(crate) generators: Vec<GeneratorHeapData<'static>>,
+    pub(crate) globals: RefCell<Vec<HeapRootData>>,
+    pub(crate) maps: Vec<MapHeapData<'static>>,
+    pub(crate) map_iterators: Vec<MapIteratorHeapData<'static>>,
+    pub(crate) numbers: Vec<NumberHeapData>,
     pub(crate) object_shapes: Vec<ObjectShapeRecord<'static>>,
     pub(crate) object_shape_transitions: Vec<ObjectShapeTransitionMap<'static>>,
     pub(crate) prototype_shapes: PrototypeShapeTable,
     pub(crate) objects: Vec<ObjectRecord<'static>>,
-    pub(crate) primitive_objects: Vec<Option<PrimitiveObjectHeapData<'static>>>,
-    pub(crate) promise_reaction_records: Vec<Option<PromiseReactionRecord<'static>>>,
-    pub(crate) promise_resolving_functions: Vec<Option<PromiseResolvingFunctionHeapData<'static>>>,
+    pub(crate) primitive_objects: Vec<PrimitiveObjectRecord<'static>>,
+    pub(crate) promise_reaction_records: Vec<PromiseReactionRecord<'static>>,
+    pub(crate) promise_resolving_functions: Vec<PromiseResolvingFunctionHeapData<'static>>,
     pub(crate) promise_finally_functions: Vec<PromiseFinallyFunctionHeapData<'static>>,
-    pub(crate) promises: Vec<Option<PromiseHeapData<'static>>>,
-    pub(crate) proxies: Vec<Option<ProxyHeapData<'static>>>,
-    pub(crate) realms: Vec<Option<RealmRecord<'static>>>,
+    pub(crate) promises: Vec<PromiseHeapData<'static>>,
+    pub(crate) proxies: Vec<ProxyHeapData<'static>>,
+    pub(crate) realms: Vec<RealmRecord<'static>>,
     pub(crate) promise_group_records: Vec<PromiseGroupRecord<'static>>,
     #[cfg(feature = "regexp")]
-    pub(crate) regexps: Vec<Option<RegExpHeapData<'static>>>,
+    pub(crate) regexps: Vec<RegExpHeapData<'static>>,
     #[cfg(feature = "regexp")]
     pub(crate) regexp_string_iterators: Vec<RegExpStringIteratorRecord<'static>>,
     #[cfg(feature = "set")]
-    pub(crate) sets: Vec<Option<SetHeapData<'static>>>,
+    pub(crate) sets: Vec<SetHeapData<'static>>,
     #[cfg(feature = "set")]
-    pub(crate) set_iterators: Vec<Option<SetIteratorHeapData<'static>>>,
+    pub(crate) set_iterators: Vec<SetIteratorHeapData<'static>>,
     #[cfg(feature = "shared-array-buffer")]
     pub(crate) shared_array_buffers: Vec<SharedArrayBufferRecord<'static>>,
-    pub(crate) symbols: Vec<Option<SymbolHeapData<'static>>>,
+    pub(crate) symbols: Vec<SymbolHeapData<'static>>,
     #[cfg(feature = "array-buffer")]
     pub(crate) typed_arrays: Vec<TypedArrayRecord<'static>>,
     #[cfg(feature = "array-buffer")]
@@ -211,22 +211,22 @@ pub(crate) struct Heap {
     #[cfg(feature = "shared-array-buffer")]
     pub(crate) shared_data_view_byte_offsets: AHashMap<SharedDataView<'static>, usize>,
     #[cfg(feature = "weak-refs")]
-    pub(crate) weak_maps: Vec<Option<WeakMapHeapData<'static>>>,
+    pub(crate) weak_maps: Vec<WeakMapHeapData<'static>>,
     #[cfg(feature = "weak-refs")]
-    pub(crate) weak_refs: Vec<Option<WeakRefHeapData<'static>>>,
+    pub(crate) weak_refs: Vec<WeakRefHeapData<'static>>,
     #[cfg(feature = "weak-refs")]
-    pub(crate) weak_sets: Vec<Option<WeakSetHeapData<'static>>>,
-    pub(crate) modules: Vec<Option<ModuleHeapData<'static>>>,
+    pub(crate) weak_sets: Vec<WeakSetHeapData<'static>>,
+    pub(crate) modules: Vec<ModuleHeapData<'static>>,
     pub(crate) module_request_records: Vec<ModuleRequestRecord<'static>>,
     pub(crate) source_text_module_records: SourceTextModuleHeap,
-    pub(crate) scripts: Vec<Option<ScriptRecord<'static>>>,
-    pub(crate) string_iterators: Vec<Option<StringIteratorHeapData<'static>>>,
+    pub(crate) scripts: Vec<ScriptRecord<'static>>,
+    pub(crate) string_iterators: Vec<StringIteratorHeapData<'static>>,
     // Parsed ASTs referred by functions must be dropped after functions.
     // These are held in the SourceCodeHeapData structs.
-    pub(crate) source_codes: Vec<Option<SourceCodeHeapData<'static>>>,
+    pub(crate) source_codes: Vec<SourceCodeHeapData<'static>>,
     // But: Source code string data is in the string heap. We need to thus drop
     // the strings only after the source ASTs drop.
-    pub(crate) strings: Vec<Option<StringHeapData>>,
+    pub(crate) strings: Vec<StringRecord>,
     pub(crate) string_lookup_table: HashTable<HeapString<'static>>,
     pub(crate) string_hasher: ahash::RandomState,
     /// Counts allocations for garbage collection triggering.
@@ -402,55 +402,52 @@ impl Heap {
         let string_lookup_table = &mut heap.string_lookup_table;
         for builtin_string in BUILTIN_STRINGS_LIST.iter() {
             let hash = string_hasher.hash_one(Wtf8::from_str(builtin_string));
-            let data = StringHeapData::from_static_str(builtin_string);
+            let data = StringRecord::from_static_str(builtin_string);
             // SAFETY: heap is entry.
             unsafe { String::insert_string_with_hash(strings, string_lookup_table, data, hash) };
         }
 
-        heap.symbols.extend_from_slice(
-            &[
-                SymbolHeapData {
-                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_asyncIterator),
-                },
-                SymbolHeapData {
-                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_hasInstance),
-                },
-                SymbolHeapData {
-                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_isConcatSpreadable),
-                },
-                SymbolHeapData {
-                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_iterator),
-                },
-                SymbolHeapData {
-                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_match),
-                },
-                SymbolHeapData {
-                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_matchAll),
-                },
-                SymbolHeapData {
-                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_replace),
-                },
-                SymbolHeapData {
-                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_search),
-                },
-                SymbolHeapData {
-                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_species),
-                },
-                SymbolHeapData {
-                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_split),
-                },
-                SymbolHeapData {
-                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_toPrimitive),
-                },
-                SymbolHeapData {
-                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_toStringTag),
-                },
-                SymbolHeapData {
-                    descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_unscopables),
-                },
-            ]
-            .map(Some),
-        );
+        heap.symbols.extend_from_slice(&[
+            SymbolHeapData {
+                descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_asyncIterator),
+            },
+            SymbolHeapData {
+                descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_hasInstance),
+            },
+            SymbolHeapData {
+                descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_isConcatSpreadable),
+            },
+            SymbolHeapData {
+                descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_iterator),
+            },
+            SymbolHeapData {
+                descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_match),
+            },
+            SymbolHeapData {
+                descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_matchAll),
+            },
+            SymbolHeapData {
+                descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_replace),
+            },
+            SymbolHeapData {
+                descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_search),
+            },
+            SymbolHeapData {
+                descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_species),
+            },
+            SymbolHeapData {
+                descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_split),
+            },
+            SymbolHeapData {
+                descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_toPrimitive),
+            },
+            SymbolHeapData {
+                descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_toStringTag),
+            },
+            SymbolHeapData {
+                descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_unscopables),
+            },
+        ]);
 
         // Set up the `{ __proto__: null }` shape; all null-proto objects are
         // children of this shape, regardless of their realm, so this is always
@@ -463,8 +460,8 @@ impl Heap {
     }
 
     pub(crate) fn add_realm<'a>(&mut self, realm: RealmRecord, _: NoGcScope<'a, '_>) -> Realm<'a> {
-        self.realms.push(Some(realm.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<RealmRecord<'static>>>();
+        self.realms.push(realm.unbind());
+        self.alloc_counter += core::mem::size_of::<RealmRecord<'static>>();
         Realm::last(&self.realms)
     }
 
@@ -473,8 +470,8 @@ impl Heap {
         script: ScriptRecord,
         _: NoGcScope<'a, '_>,
     ) -> Script<'a> {
-        self.scripts.push(Some(script.unbind()));
-        self.alloc_counter += core::mem::size_of::<Option<ScriptRecord<'static>>>();
+        self.scripts.push(script.unbind());
+        self.alloc_counter += core::mem::size_of::<ScriptRecord<'static>>();
         Script::last(&self.scripts)
     }
 
@@ -495,7 +492,7 @@ impl Heap {
         match found {
             Ok(string) => string,
             Err(hash) => {
-                let data = StringHeapData::from_str(message);
+                let data = StringRecord::from_str(message);
                 self.create((data, hash))
             }
         }
@@ -518,7 +515,7 @@ impl Heap {
         match found {
             Ok(string) => string,
             Err(hash) => {
-                let data = StringHeapData::from_string(message);
+                let data = StringRecord::from_string(message);
                 self.create((data, hash))
             }
         }
@@ -541,7 +538,7 @@ impl Heap {
         match found {
             Ok(string) => string,
             Err(hash) => {
-                let data = StringHeapData::from_wtf8_buf(message);
+                let data = StringRecord::from_wtf8_buf(message);
                 self.create((data, hash))
             }
         }
@@ -564,7 +561,7 @@ impl Heap {
         match found {
             Ok(string) => string,
             Err(hash) => {
-                let data = StringHeapData::from_static_str(message);
+                let data = StringRecord::from_static_str(message);
                 self.create((data, hash))
             }
         }
@@ -582,10 +579,7 @@ impl Heap {
         let hash = self.string_hasher.hash_one(message);
         self.string_lookup_table
             .find(hash, |heap_string| {
-                let heap_str = self.strings[heap_string.get_index()]
-                    .as_ref()
-                    .unwrap()
-                    .as_wtf8();
+                let heap_str = self.strings[heap_string.get_index()].as_wtf8();
                 heap_str == message
             })
             .map(|&heap_string| heap_string.into())
@@ -602,16 +596,16 @@ impl Default for Heap {
 /// A partial view to the Agent's heap that allows accessing primitive value
 /// heap data.
 pub(crate) struct PrimitiveHeap<'a> {
-    pub(crate) bigints: &'a Vec<Option<BigIntHeapData>>,
-    pub(crate) numbers: &'a Vec<Option<NumberHeapData>>,
-    pub(crate) strings: &'a Vec<Option<StringHeapData>>,
+    pub(crate) bigints: &'a Vec<BigIntHeapData>,
+    pub(crate) numbers: &'a Vec<NumberHeapData>,
+    pub(crate) strings: &'a Vec<StringRecord>,
 }
 
 impl PrimitiveHeap<'_> {
     pub(crate) fn new<'a>(
-        bigints: &'a Vec<Option<BigIntHeapData>>,
-        numbers: &'a Vec<Option<NumberHeapData>>,
-        strings: &'a Vec<Option<StringHeapData>>,
+        bigints: &'a Vec<BigIntHeapData>,
+        numbers: &'a Vec<NumberHeapData>,
+        strings: &'a Vec<StringRecord>,
     ) -> PrimitiveHeap<'a> {
         PrimitiveHeap {
             bigints,
@@ -624,7 +618,7 @@ impl PrimitiveHeap<'_> {
 /// Helper trait for primitive heap data indexing.
 pub(crate) trait PrimitiveHeapIndexable:
     Index<HeapNumber<'static>, Output = f64>
-    + Index<HeapString<'static>, Output = StringHeapData>
+    + Index<HeapString<'static>, Output = StringRecord>
     + Index<HeapBigInt<'static>, Output = BigIntHeapData>
 {
 }
@@ -634,14 +628,14 @@ impl PrimitiveHeapIndexable for PrimitiveHeap<'_> {}
 /// A partial view to the Agent's heap that allows accessing PropertyKey heap
 /// data.
 pub(crate) struct PropertyKeyHeap<'a> {
-    pub(crate) strings: &'a Vec<Option<StringHeapData>>,
-    pub(crate) symbols: &'a Vec<Option<SymbolHeapData<'static>>>,
+    pub(crate) strings: &'a Vec<StringRecord>,
+    pub(crate) symbols: &'a Vec<SymbolHeapData<'static>>,
 }
 
 impl PropertyKeyHeap<'_> {
     pub(crate) fn new<'a>(
-        strings: &'a Vec<Option<StringHeapData>>,
-        symbols: &'a Vec<Option<SymbolHeapData<'static>>>,
+        strings: &'a Vec<StringRecord>,
+        symbols: &'a Vec<SymbolHeapData<'static>>,
     ) -> PropertyKeyHeap<'a> {
         PropertyKeyHeap { strings, symbols }
     }
@@ -649,7 +643,7 @@ impl PropertyKeyHeap<'_> {
 
 /// Helper trait for primitive heap data indexing.
 pub(crate) trait PropertyKeyHeapIndexable:
-    Index<HeapString<'static>, Output = StringHeapData>
+    Index<HeapString<'static>, Output = StringRecord>
     + Index<Symbol<'static>, Output = SymbolHeapData<'static>>
 {
 }
