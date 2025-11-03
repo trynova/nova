@@ -28,7 +28,7 @@ __proto__
 #[cfg(feature = "math")]abs
 #[cfg(feature = "math")]acos
 #[cfg(feature = "math")]acosh
-#[cfg(any(feature = "atomics", feature = "set", feature = "weak-refs"))]add
+#[cfg(any(feature = "atomics", feature = "set", feature = "weak-refs", feature = "temporal"))]add
 AggregateError
 all
 allSettled
@@ -86,6 +86,7 @@ codePointAt
 concat
 configurable
 construct
+compare
 constructor
 copyWithin
 #[cfg(feature = "math")]cos
@@ -112,6 +113,7 @@ endsWith
 entries
 enumerable
 EPSILON
+#[cfg(feature = "temporal")]equals
 Error
 errors
 #[cfg(any(feature = "annex-b-string", feature = "regexp"))]escape
@@ -146,6 +148,8 @@ for
 forEach
 freeze
 from
+fromEpochNanoseconds
+fromEpochMilliseconds
 fromCharCode
 fromCodePoint
 fromEntries
@@ -182,6 +186,8 @@ get size
 #[cfg(feature = "array-buffer")]getBigUint64
 #[cfg(feature = "date")]getDate
 #[cfg(feature = "date")]getDay
+#[cfg(feature = "temporal")]getEpochMilliseconds
+#[cfg(feature = "temporal")]getEpochNanoSeconds
 #[cfg(feature = "proposal-float16array")]getFloat16
 #[cfg(feature = "array-buffer")]getFloat32
 #[cfg(feature = "array-buffer")]getFloat64
@@ -249,6 +255,7 @@ isSealed
 #[cfg(feature = "array-buffer")]isView
 isWellFormed
 #[cfg(feature = "annex-b-string")]italics
+#[cfg(feature = "temporal")]Instant
 Iterator
 iterator
 join
@@ -318,6 +325,14 @@ prototype
 Proxy
 push
 race
+#[cfg(feature = "temporal")]PlainDateTime
+#[cfg(feature = "temporal")]PlainDate
+#[cfg(feature = "temporal")]PlainTime
+#[cfg(feature = "temporal")]PlainYearMonth
+#[cfg(feature = "temporal")]PlainMonthDay
+#[cfg(feature = "temporal")]Duration
+#[cfg(feature = "temporal")]ZonedDateTime
+#[cfg(feature = "temporal")]Now
 #[cfg(feature = "math")]random
 RangeError
 raw
@@ -340,7 +355,7 @@ resolve
 return
 reverse
 revocable
-#[cfg(feature = "math")]round
+#[cfg(any(feature = "math", feature = "temporal"))]round
 seal
 #[cfg(feature = "regexp")]search
 set
@@ -378,6 +393,7 @@ setPrototypeOf
 shift
 #[cfg(feature = "math")]sign
 #[cfg(feature = "math")]sin
+#[cfg(feature = "temporal")]since
 #[cfg(feature = "math")]sinh
 size
 slice
@@ -404,6 +420,7 @@ String Iterator
 #[cfg(feature = "array-buffer")]subarray
 #[cfg(feature = "annex-b-string")]substr
 substring
+#[cfg(feature = "temporal")]subtract
 #[cfg(feature = "proposal-math-sum")]sumPrecise
 #[cfg(feature = "annex-b-string")]sup
 symbol
@@ -423,6 +440,8 @@ Symbol.toPrimitive
 Symbol.toStringTag
 Symbol.unscopables
 SyntaxError
+#[cfg(feature = "temporal")]Temporal
+#[cfg(feature = "temporal")]Temporal.Instant
 #[cfg(feature = "math")]tan
 #[cfg(feature = "math")]tanh
 #[cfg(feature = "regexp")]test
@@ -450,6 +469,7 @@ toStringTag
 #[cfg(feature = "date")]toTimeString
 toUpperCase
 #[cfg(feature = "date")]toUTCString
+#[cfg(feature = "temporal")]toZonedDateTimeISO
 toWellFormed
 #[cfg(feature = "array-buffer")]transfer
 #[cfg(feature = "array-buffer")]transferToFixedLength
@@ -474,6 +494,7 @@ undefined
 unregister
 unscopables
 unshift
+#[cfg(feature = "temporal")]until
 URIError
 #[cfg(feature = "date")]UTC
 value

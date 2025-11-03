@@ -66,6 +66,8 @@ pub(crate) mod set;
 #[cfg(feature = "shared-array-buffer")]
 pub(crate) mod shared_array_buffer;
 pub(crate) mod structured_data;
+#[cfg(feature = "temporal")]
+pub mod temporal;
 pub(crate) mod text_processing;
 #[cfg(feature = "array-buffer")]
 pub(crate) mod typed_array;

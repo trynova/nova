@@ -31,6 +31,8 @@ pub(crate) use self::object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor};
 use crate::ecmascript::builtins::date::data::DateHeapData;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::data::SharedArrayBufferRecord;
+#[cfg(feature = "temporal")]
+use crate::ecmascript::builtins::temporal::instant::data::InstantHeapData;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{
     ArrayBuffer, ArrayBufferHeapData,
@@ -143,6 +145,8 @@ pub(crate) struct Heap {
     pub(crate) caches: Caches<'static>,
     #[cfg(feature = "date")]
     pub(crate) dates: Vec<Option<DateHeapData<'static>>>,
+    #[cfg(feature = "temporal")]
+    pub(crate) instants: Vec<InstantHeapData<'static>>,
     pub(crate) ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData<'static>>>,
     /// ElementsArrays is where all keys and values arrays live;
     /// Element arrays are static arrays of Values plus
@@ -290,6 +294,8 @@ impl Heap {
             caches: Caches::with_capacity(1024),
             #[cfg(feature = "date")]
             dates: Vec::with_capacity(1024),
+            #[cfg(feature = "temporal")]
+            instants: Vec::with_capacity(1024), // todo: assign appropriate value for instants
             ecmascript_functions: Vec::with_capacity(1024),
             elements: ElementArrays {
                 e2pow1: ElementArray2Pow1::with_capacity(1024),

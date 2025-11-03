@@ -39,6 +39,14 @@ use crate::ecmascript::builtins::structured_data::shared_array_buffer_objects::{
     shared_array_buffer_constructor::SharedArrayBufferConstructor,
     shared_array_buffer_prototype::SharedArrayBufferPrototype,
 };
+#[cfg(feature = "temporal")]
+use crate::ecmascript::builtins::temporal::{
+    TemporalObject,
+    instant::{
+        instant_constructor::TemporalInstantConstructor,
+        instant_prototype::TemporalInstantPrototype,
+    },
+};
 #[cfg(feature = "regexp")]
 use crate::ecmascript::builtins::text_processing::regexp_objects::{
     regexp_constructor::RegExpConstructor, regexp_prototype::RegExpPrototype,
@@ -227,6 +235,8 @@ pub enum ProtoIntrinsics {
     RegExpStringIterator,
     Symbol,
     SyntaxError,
+    #[cfg(feature = "temporal")]
+    TemporalInstant,
     TypeError,
     #[cfg(feature = "array-buffer")]
     Uint16Array,
@@ -307,6 +317,14 @@ impl Intrinsics {
         BigIntConstructor::create_intrinsic(agent, realm);
         #[cfg(feature = "math")]
         MathObject::create_intrinsic(agent, realm, gc);
+
+        #[cfg(feature = "temporal")]
+        TemporalObject::create_intrinsic(agent, realm, gc);
+        #[cfg(feature = "temporal")]
+        TemporalInstantConstructor::create_intrinsic(agent, realm, gc);
+        #[cfg(feature = "temporal")]
+        TemporalInstantPrototype::create_intrinsic(agent, realm, gc);
+
         #[cfg(feature = "date")]
         DatePrototype::create_intrinsic(agent, realm);
         #[cfg(feature = "date")]
@@ -416,6 +434,7 @@ impl Intrinsics {
             ProtoIntrinsics::String => self.string().into(),
             ProtoIntrinsics::Symbol => self.symbol().into(),
             ProtoIntrinsics::SyntaxError => self.syntax_error().into(),
+            ProtoIntrinsics::TemporalInstant => self.temporal_instant().into(),
             ProtoIntrinsics::TypeError => self.type_error().into(),
             ProtoIntrinsics::URIError => self.uri_error().into(),
             ProtoIntrinsics::AggregateError => self.aggregate_error().into(),
@@ -505,6 +524,7 @@ impl Intrinsics {
             ProtoIntrinsics::String => self.string_prototype().into(),
             ProtoIntrinsics::Symbol => self.symbol_prototype().into(),
             ProtoIntrinsics::SyntaxError => self.syntax_error_prototype().into(),
+            ProtoIntrinsics::TemporalInstant => self.temporal().into(),
             ProtoIntrinsics::TypeError => self.type_error_prototype().into(),
             ProtoIntrinsics::URIError => self.uri_error_prototype().into(),
             ProtoIntrinsics::AggregateError => self.aggregate_error_prototype().into(),
@@ -1009,6 +1029,22 @@ impl Intrinsics {
     #[cfg(feature = "math")]
     pub(crate) const fn math(&self) -> OrdinaryObject<'static> {
         IntrinsicObjectIndexes::MathObject.get_backing_object(self.object_index_base)
+    }
+
+    /// %Temporal%
+    pub(crate) const fn temporal(&self) -> OrdinaryObject<'static> {
+        IntrinsicObjectIndexes::TemporalObject.get_backing_object(self.object_index_base)
+    }
+
+    /// %Temporal.Instant.Prototype%
+    pub(crate) const fn temporal_instant_prototype(&self) -> OrdinaryObject<'static> {
+        IntrinsicObjectIndexes::TemporalInstantPrototype.get_backing_object(self.object_index_base)
+    }
+
+    /// %Temporal.Instant%
+    pub(crate) const fn temporal_instant(&self) -> BuiltinFunction<'static> {
+        IntrinsicConstructorIndexes::TemporalInstant
+            .get_builtin_function(self.builtin_function_index_base)
     }
 
     /// %Number.prototype%
