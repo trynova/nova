@@ -81,6 +81,26 @@ pub(crate) struct FunctionExpression<'a> {
 
 bindable_handle!(FunctionExpression);
 
+impl HeapMarkAndSweep for FunctionExpression<'static> {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let Self {
+            expression: _,
+            identifier: _,
+            compiled_bytecode,
+        } = self;
+        compiled_bytecode.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let Self {
+            expression: _,
+            identifier: _,
+            compiled_bytecode,
+        } = self;
+        compiled_bytecode.sweep_values(compactions);
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct ArrowFunctionExpression {
     pub(crate) expression: SendableRef<ast::ArrowFunctionExpression<'static>>,
@@ -504,16 +524,15 @@ impl HeapMarkAndSweep for ExecutableHeapData<'static> {
             caches,
             constants,
             shapes,
-            function_expressions: _,
+            function_expressions,
             arrow_function_expressions: _,
             class_initializer_bytecodes,
         } = self;
         constants.mark_values(queues);
         caches.mark_values(queues);
         shapes.mark_values(queues);
-        for ele in class_initializer_bytecodes {
-            ele.0.mark_values(queues);
-        }
+        function_expressions.mark_values(queues);
+        class_initializer_bytecodes.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
@@ -522,16 +541,15 @@ impl HeapMarkAndSweep for ExecutableHeapData<'static> {
             caches,
             constants,
             shapes,
-            function_expressions: _,
+            function_expressions,
             arrow_function_expressions: _,
             class_initializer_bytecodes,
         } = self;
         constants.sweep_values(compactions);
         caches.sweep_values(compactions);
         shapes.sweep_values(compactions);
-        for ele in class_initializer_bytecodes {
-            ele.0.sweep_values(compactions);
-        }
+        function_expressions.sweep_values(compactions);
+        class_initializer_bytecodes.sweep_values(compactions);
     }
 }
 

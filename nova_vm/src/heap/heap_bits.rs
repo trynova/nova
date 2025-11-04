@@ -1320,6 +1320,36 @@ where
     }
 }
 
+macro_rules! trivially_sweepable {
+    ($self:ty) => {
+        impl crate::heap::heap_bits::HeapMarkAndSweep for $self {
+            #[inline]
+            fn mark_values(&self, _: &mut crate::heap::heap_bits::WorkQueues) {}
+
+            #[inline]
+            fn sweep_values(&mut self, _: &crate::heap::heap_bits::CompactionLists) {}
+        }
+    };
+}
+pub(crate) use trivially_sweepable;
+
+trivially_sweepable!(());
+trivially_sweepable!(bool);
+trivially_sweepable!(i8);
+trivially_sweepable!(u8);
+trivially_sweepable!(i16);
+trivially_sweepable!(u16);
+trivially_sweepable!(i32);
+trivially_sweepable!(u32);
+trivially_sweepable!(i64);
+trivially_sweepable!(u64);
+trivially_sweepable!(isize);
+trivially_sweepable!(usize);
+#[cfg(feature = "proposal-float16array")]
+trivially_sweepable!(f16);
+trivially_sweepable!(f32);
+trivially_sweepable!(f64);
+
 impl<T> HeapMarkAndSweep for (T,)
 where
     T: HeapMarkAndSweep,
