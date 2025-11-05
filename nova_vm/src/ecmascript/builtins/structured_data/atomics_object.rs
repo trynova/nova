@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use ecmascript_atomics::Ordering;
+
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{
@@ -10,7 +12,7 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin,
-            array_buffer::get_modify_set_value_in_buffer,
+            array_buffer::{get_modify_set_value_in_buffer, get_value_from_buffer},
             indexed_collections::typed_array_objects::abstract_operations::{
                 TypedArrayAbstractOperations, TypedArrayWithBufferWitnessRecords,
                 make_typed_array_with_buffer_witness_record, validate_typed_array,
@@ -219,13 +221,92 @@ impl AtomicsObject {
         Err(agent.todo("Atomics.isLockFree", gc.into_nogc()))
     }
 
+    /// ### [25.4.9 Atomics.load ( typedArray, index )](https://tc39.es/ecma262/#sec-atomics.load)
     fn load<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("Atomics.load", gc.into_nogc()))
+        let arguments = arguments.bind(gc.nogc());
+        let typed_array = arguments.get(0);
+        let index = arguments.get(1);
+        // 1. Let byteIndexInBuffer be ? ValidateAtomicAccessOnIntegerTypedArray(typedArray, index).
+        let ta_record = validate_typed_array(
+            agent,
+            typed_array,
+            ecmascript_atomics::Ordering::Unordered,
+            gc.nogc(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        // a. Let type be TypedArrayElementType(typedArray).
+        // b. If IsUnclampedIntegerElementType(type) is false and
+        //    IsBigIntElementType(type) is false, throw a TypeError exception.
+        if !ta_record.object.is_integer() {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "cannot use TypedArray in Atomics",
+                gc.into_nogc(),
+            ));
+        }
+        // 1. Let length be TypedArrayLength(taRecord).
+        let length = ta_record.typed_array_length(agent);
+        let (byte_index_in_buffer, typed_array) = if let Value::Integer(index) = index {
+            // 7. Let offset be typedArray.[[ByteOffset]].
+            let typed_array = ta_record.object.bind(gc.nogc());
+            // 2. Let accessIndex be ? ToIndex(requestIndex).
+            let access_index = validate_index(agent, index.into_i64(), gc.nogc()).unbind()?;
+            // 3. If accessIndex ≥ length, throw a RangeError exception.
+            if access_index >= length as u64 {
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::RangeError,
+                    "accessIndex out of bounds",
+                    gc.into_nogc(),
+                ));
+            }
+            let access_index = access_index as usize;
+            // 5. Let typedArray be taRecord.[[Object]].
+            let offset = typed_array.byte_offset(agent);
+            let byte_index_in_buffer =
+                offset + access_index * typed_array.typed_array_element_size();
+            (byte_index_in_buffer, typed_array)
+        } else {
+            // 2. Perform ? RevalidateAtomicAccess(typedArray, byteIndexInBuffer).
+            atomic_load_slow(
+                agent,
+                ta_record.unbind(),
+                index.unbind(),
+                length,
+                gc.reborrow(),
+            )
+            .unbind()?
+            .bind(gc.nogc())
+        };
+        let typed_array = typed_array.unbind();
+        let gc = gc.into_nogc();
+        let typed_array = typed_array.bind(gc);
+        // 3. Let buffer be typedArray.[[ViewedArrayBuffer]].
+        let buffer = typed_array.viewed_array_buffer(agent);
+        // 4. Let elementType be TypedArrayElementType(typedArray).
+        // 5. Return GetValueFromBuffer(buffer, byteIndexInBuffer, elementType, true, seq-cst).
+        Ok(for_any_typed_array!(
+            typed_array,
+            _t,
+            {
+                get_value_from_buffer::<ElementType>(
+                    agent,
+                    buffer,
+                    byte_index_in_buffer,
+                    true,
+                    Ordering::SeqCst,
+                    None,
+                    gc,
+                )
+            },
+            ElementType
+        )
+        .into_value())
     }
 
     fn or<'gc>(
@@ -670,4 +751,61 @@ fn atomic_read_modify_write_slow<'gc>(
         revalidate_atomic_access(agent, typed_array, byte_index_in_buffer, gc)?;
     }
     Ok((byte_index_in_buffer, typed_array, v))
+}
+
+#[inline(never)]
+#[cold]
+fn atomic_load_slow<'gc>(
+    agent: &mut Agent,
+    ta_record: TypedArrayWithBufferWitnessRecords,
+    index: Value,
+    length: usize,
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, (usize, AnyTypedArray<'gc>)> {
+    let mut ta_record = ta_record.bind(gc.nogc());
+    let index = index.bind(gc.nogc());
+    let mut revalidate = false;
+
+    // 2. Let accessIndex be ? ToIndex(requestIndex).
+    let access_index =
+        if let Some(index) = try_result_into_js(try_to_index(agent, index, gc.nogc())).unbind()? {
+            index
+        } else {
+            let ta = ta_record.object.scope(agent, gc.nogc());
+            let cached_buffer_byte_length = ta_record.cached_buffer_byte_length;
+            let access_index = to_index(agent, index.unbind(), gc.reborrow()).unbind()?;
+            revalidate = true;
+            // SAFETY: not shared.
+            ta_record = unsafe {
+                TypedArrayWithBufferWitnessRecords {
+                    object: ta.take(agent),
+                    cached_buffer_byte_length,
+                }
+            };
+            access_index
+        };
+    // 3. Assert: accessIndex ≥ 0.
+    // 4. If accessIndex ≥ length, throw a RangeError exception.
+    if access_index >= length as u64 {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::RangeError,
+            "accessIndex out of bounds",
+            gc.into_nogc(),
+        ));
+    }
+    let access_index = access_index as usize;
+    // 5. Let typedArray be taRecord.[[Object]].
+    // 6. Let elementSize be TypedArrayElementSize(typedArray).
+    // 7. Let offset be typedArray.[[ByteOffset]].
+    let offset = ta_record.object.byte_offset(agent);
+    // 8. Return (accessIndex × elementSize) + offset.
+    let byte_index_in_buffer = offset + access_index * ta_record.object.typed_array_element_size();
+    let typed_array = ta_record.object.unbind();
+    let gc = gc.into_nogc();
+    let typed_array = typed_array.bind(gc);
+    if revalidate {
+        // 2. Perform ? RevalidateAtomicAccess(typedArray, byteIndexInBuffer).
+        revalidate_atomic_access(agent, typed_array, byte_index_in_buffer, gc)?;
+    }
+    Ok((byte_index_in_buffer, typed_array))
 }
