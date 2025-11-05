@@ -8,17 +8,18 @@ pub(crate) mod data;
 pub mod instant_constructor;
 pub mod instant_prototype;
 
+use temporal_rs::Instant;
+
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{PreferredType, to_primitive_object},
-        builtins::ordinary::ordinary_create_from_constructor,
+        builtins::{ordinary::ordinary_create_from_constructor, temporal::duration::{create_negated_temporal_duration, to_temporal_duration}},
         execution::{
             JsResult, ProtoIntrinsics,
             agent::{Agent, ExceptionType},
         },
         types::{
-            Function, InternalMethods, InternalSlots, IntoFunction, Object, OrdinaryObject,
-            Primitive, String, Value,
+            Function, InternalMethods, InternalSlots, IntoFunction, IntoValue, Object, OrdinaryObject, Primitive, String, Value
         },
     },
     engine::{
@@ -264,6 +265,41 @@ fn to_temporal_instant<'gc>(
     // 11. Return ! CreateTemporalInstant(epochNanoseconds).
     let parsed = temporal_rs::Instant::from_utf8(item.as_bytes(agent)).unwrap();
     Ok(parsed)
+}
+
+
+/// [8.5.10 AddDurationToInstant ( operation, instant, temporalDurationLike )](https://tc39.es/proposal-temporal/#sec-temporal-adddurationtoinstant)
+/// The abstract operation AddDurationToInstant takes arguments operation 
+/// (add or subtract), instant (a Temporal.Instant), 
+/// and temporalDurationLike (an ECMAScript language value) 
+/// and returns either a normal completion containing a Temporal.Instant 
+/// or a throw completion. 
+/// It adds/subtracts temporalDurationLike to/from instant. 
+/// It performs the following steps when called:
+fn add_duration_to_instant<'gc, const IS_ADD: bool> (
+    agent: &mut Agent,
+    instant: TemporalInstant,
+    duration: Value,
+    mut gc: GcScope<'gc, '_>
+) -> JsResult<'gc, Value<'gc>> {
+    let duration = duration.bind(gc.nogc());
+    let instant = instant.bind(gc.nogc());
+    // 1. Let duration be ? ToTemporalDuration(temporalDurationLike).
+    let instant = instant.unbind();
+    let duration = to_temporal_duration(agent, duration.unbind(), gc.reborrow());
+    // 2. If operation is subtract, set duration to CreateNegatedTemporalDuration(duration).
+    // 3. Let largestUnit be DefaultTemporalLargestUnit(duration).
+    // 4. If TemporalUnitCategory(largestUnit) is date, throw a RangeError exception.
+    // 5. Let internalDuration be ToInternalDurationRecordWith24HourDays(duration).
+    // 6. Let ns be ? AddInstant(instant.[[EpochNanoseconds]], internalDuration.[[Time]]).        
+    let ns_result = if IS_ADD {
+        temporal_rs::Instant::add(&agent[instant].instant, &duration.unwrap()).unwrap()
+    } else {
+        temporal_rs::Instant::subtract(&agent[instant].instant, &duration.unwrap()).unwrap()
+    };
+    // 7. Return ! CreateTemporalInstant(ns).
+    let instant = create_temporal_instant(agent, ns_result, None, gc)?;
+    Ok(instant.into_value())
 }
 
 #[inline(always)]
