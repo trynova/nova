@@ -9,6 +9,7 @@ use crate::{
             },
         },
         execution::Agent,
+        fundamental_objects::error_objects::aggregate_error_constructors::AggregateErrorConstructor,
         types::{BUILTIN_STRING_MEMORY, IntoValue, OrdinaryObject, Value},
     },
     engine::{
@@ -25,6 +26,7 @@ use crate::{
 pub enum PromiseGroupType {
     PromiseAll,
     PromiseAllSettled,
+    PromiseAny,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -69,7 +71,7 @@ impl<'a> PromiseGroup<'a> {
                     self.fulfill(agent, index, value.unbind(), gc.reborrow());
                 }
                 PromiseReactionType::Reject => {
-                    self.reject(agent, value.unbind(), gc.nogc());
+                    self.immediately_reject(agent, value.unbind(), gc.nogc());
                 }
             },
             PromiseGroupType::PromiseAllSettled => {
@@ -78,6 +80,14 @@ impl<'a> PromiseGroup<'a> {
                     .bind(gc.nogc());
                 self.fulfill(agent, index, obj.unbind(), gc.reborrow());
             }
+            PromiseGroupType::PromiseAny => match reaction_type {
+                PromiseReactionType::Fulfill => {
+                    self.immediately_resolve(agent, value.unbind(), gc.reborrow());
+                }
+                PromiseReactionType::Reject => {
+                    self.reject(agent, index, value.unbind(), gc.reborrow());
+                }
+            },
         }
     }
 
@@ -103,7 +113,64 @@ impl<'a> PromiseGroup<'a> {
         }
     }
 
-    pub(crate) fn reject(self, agent: &mut Agent, value: Value<'a>, gc: NoGcScope<'a, '_>) {
+    pub(crate) fn reject(
+        self,
+        agent: &mut Agent,
+        index: u32,
+        error: Value<'a>,
+        gc: GcScope<'a, '_>,
+    ) {
+        let promise_group = self.bind(gc.nogc());
+        let error = error.bind(gc.nogc());
+
+        let promise_group_record = promise_group.get_mut(agent);
+        let (result_array, promise_to_resolve) = promise_group_record.take_result_and_promise();
+
+        let elements = result_array.as_mut_slice(agent);
+        elements[index as usize] = Some(error.unbind());
+
+        if let Some(promise_to_resolve) = promise_to_resolve {
+            let aggregate_error = OrdinaryObject::create_object(
+                agent,
+                Some(
+                    agent
+                        .current_realm_record()
+                        .intrinsics()
+                        .aggregate_error_prototype()
+                        .into(),
+                ),
+                &[ObjectEntry::new_data_entry(
+                    BUILTIN_STRING_MEMORY.errors.into(),
+                    result_array.into_value().unbind(),
+                )],
+            )
+            .bind(gc.nogc());
+
+            let capability = PromiseCapability::from_promise(promise_to_resolve, true);
+            capability.reject(agent, aggregate_error.into_value().unbind(), gc.nogc());
+        }
+    }
+
+    pub(crate) fn immediately_resolve(
+        self,
+        agent: &mut Agent,
+        value: Value<'a>,
+        gc: GcScope<'a, '_>,
+    ) {
+        let value = value.bind(gc.nogc());
+        let promise_group = self.bind(gc.nogc());
+        let data = promise_group.get_mut(agent);
+
+        let capability = PromiseCapability::from_promise(data.promise, true);
+        capability.resolve(agent, value.unbind(), gc);
+    }
+
+    pub(crate) fn immediately_reject(
+        self,
+        agent: &mut Agent,
+        value: Value<'a>,
+        gc: NoGcScope<'a, '_>,
+    ) {
         let value = value.bind(gc);
         let promise_group = self.bind(gc);
         let data = promise_group.get_mut(agent);

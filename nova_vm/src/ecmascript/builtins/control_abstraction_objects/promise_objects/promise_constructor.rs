@@ -272,11 +272,17 @@ impl PromiseConstructor {
     /// > constructor.
     fn any<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
+        this_value: Value,
+        arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("Promise.any", gc.into_nogc()))
+        promise_group(
+            agent,
+            this_value,
+            arguments,
+            PromiseGroupType::PromiseAny,
+            gc,
+        )
     }
 
     /// ### [27.2.4.5 Promise.race ( iterable )](https://tc39.es/ecma262/#sec-promise.race)
