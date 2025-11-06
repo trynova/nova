@@ -23,9 +23,9 @@ use crate::{
 
 #[derive(Debug, Clone, Copy)]
 pub enum PromiseGroupType {
-    PromiseAll,
-    PromiseAllSettled,
-    PromiseAny,
+    All,
+    AllSettled,
+    Any,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -65,7 +65,7 @@ impl<'a> PromiseGroup<'a> {
         let record = self.get(agent);
 
         match record.promise_group_type {
-            PromiseGroupType::PromiseAll => match reaction_type {
+            PromiseGroupType::All => match reaction_type {
                 PromiseReactionType::Fulfill => {
                     self.fulfill(agent, index, value.unbind(), gc.reborrow());
                 }
@@ -73,13 +73,13 @@ impl<'a> PromiseGroup<'a> {
                     self.immediately_reject(agent, value.unbind(), gc.nogc());
                 }
             },
-            PromiseGroupType::PromiseAllSettled => {
+            PromiseGroupType::AllSettled => {
                 let obj = self
                     .to_all_settled_obj(agent, reaction_type, value.unbind(), gc.nogc())
                     .bind(gc.nogc());
                 self.fulfill(agent, index, obj.unbind(), gc.reborrow());
             }
-            PromiseGroupType::PromiseAny => match reaction_type {
+            PromiseGroupType::Any => match reaction_type {
                 PromiseReactionType::Fulfill => {
                     self.immediately_resolve(agent, value.unbind(), gc.reborrow());
                 }

@@ -236,13 +236,7 @@ impl PromiseConstructor {
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        promise_group(
-            agent,
-            this_value,
-            arguments,
-            PromiseGroupType::PromiseAll,
-            gc,
-        )
+        promise_group(agent, this_value, arguments, PromiseGroupType::All, gc)
     }
 
     /// ### [27.2.4.2 Promise.allSettled ( iterable )](https://tc39.es/ecma262/#sec-promise.allsettled)
@@ -260,7 +254,7 @@ impl PromiseConstructor {
             agent,
             this_value,
             arguments,
-            PromiseGroupType::PromiseAllSettled,
+            PromiseGroupType::AllSettled,
             gc,
         )
     }
@@ -276,13 +270,7 @@ impl PromiseConstructor {
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        promise_group(
-            agent,
-            this_value,
-            arguments,
-            PromiseGroupType::PromiseAny,
-            gc,
-        )
+        promise_group(agent, this_value, arguments, PromiseGroupType::Any, gc)
     }
 
     /// ### [27.2.4.5 Promise.race ( iterable )](https://tc39.es/ecma262/#sec-promise.race)
