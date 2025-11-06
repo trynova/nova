@@ -9,7 +9,6 @@ use crate::{
             },
         },
         execution::Agent,
-        fundamental_objects::error_objects::aggregate_error_constructors::AggregateErrorConstructor,
         types::{BUILTIN_STRING_MEMORY, IntoValue, OrdinaryObject, Value},
     },
     engine::{
@@ -188,47 +187,35 @@ impl<'a> PromiseGroup<'a> {
     ) -> Value<'a> {
         let value = value.bind(gc);
 
-        let obj = match reaction_type {
-            PromiseReactionType::Fulfill => OrdinaryObject::create_object(
-                agent,
-                Some(
-                    agent
-                        .current_realm_record()
-                        .intrinsics()
-                        .object_prototype()
-                        .into(),
+        let entries = match reaction_type {
+            PromiseReactionType::Fulfill => vec![
+                ObjectEntry::new_data_entry(
+                    BUILTIN_STRING_MEMORY.status.into(),
+                    BUILTIN_STRING_MEMORY.fulfilled.into(),
                 ),
-                &[
-                    ObjectEntry::new_data_entry(
-                        BUILTIN_STRING_MEMORY.status.into(),
-                        BUILTIN_STRING_MEMORY.fulfilled.into(),
-                    ),
-                    ObjectEntry::new_data_entry(BUILTIN_STRING_MEMORY.value.into(), value.unbind()),
-                ],
-            )
-            .bind(gc),
-            PromiseReactionType::Reject => OrdinaryObject::create_object(
-                agent,
-                Some(
-                    agent
-                        .current_realm_record()
-                        .intrinsics()
-                        .object_prototype()
-                        .into(),
+                ObjectEntry::new_data_entry(BUILTIN_STRING_MEMORY.value.into(), value.unbind()),
+            ],
+            PromiseReactionType::Reject => vec![
+                ObjectEntry::new_data_entry(
+                    BUILTIN_STRING_MEMORY.status.into(),
+                    BUILTIN_STRING_MEMORY.rejected.into(),
                 ),
-                &[
-                    ObjectEntry::new_data_entry(
-                        BUILTIN_STRING_MEMORY.status.into(),
-                        BUILTIN_STRING_MEMORY.rejected.into(),
-                    ),
-                    ObjectEntry::new_data_entry(
-                        BUILTIN_STRING_MEMORY.reason.into(),
-                        value.unbind(),
-                    ),
-                ],
-            )
-            .bind(gc),
+                ObjectEntry::new_data_entry(BUILTIN_STRING_MEMORY.reason.into(), value.unbind()),
+            ],
         };
+
+        let obj = OrdinaryObject::create_object(
+            agent,
+            Some(
+                agent
+                    .current_realm_record()
+                    .intrinsics()
+                    .object_prototype()
+                    .into(),
+            ),
+            &entries,
+        )
+        .bind(gc);
 
         obj.into_value().unbind()
     }
