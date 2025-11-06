@@ -12,7 +12,9 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin,
-            array_buffer::{get_modify_set_value_in_buffer, get_value_from_buffer},
+            array_buffer::{
+                get_modify_set_value_in_buffer, get_value_from_buffer, set_value_in_buffer,
+            },
             indexed_collections::typed_array_objects::abstract_operations::{
                 TypedArrayAbstractOperations, TypedArrayWithBufferWitnessRecords,
                 make_typed_array_with_buffer_witness_record, validate_typed_array,
@@ -325,13 +327,101 @@ impl AtomicsObject {
         .map(|v| v.into_value())
     }
 
+    /// ### [25.4.11 Atomics.store ( typedArray, index, value )](https://tc39.es/ecma262/#sec-atomics.store)
     fn store<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("Atomics.store", gc.into_nogc()))
+        let arguments = arguments.bind(gc.nogc());
+        let typed_array = arguments.get(0);
+        let index = arguments.get(1);
+        let value = arguments.get(2);
+
+        // 1. Let byteIndexInBuffer be ? ValidateAtomicAccessOnIntegerTypedArray(typedArray, index).
+        let ta_record = validate_typed_array(
+            agent,
+            typed_array,
+            ecmascript_atomics::Ordering::Unordered,
+            gc.nogc(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+
+        // 1. Let length be TypedArrayLength(taRecord).
+        let length = ta_record.typed_array_length(agent);
+        let (byte_index_in_buffer, typed_array, value) =
+            if let (Value::Integer(index), Ok(value)) = (index, Numeric::try_from(value)) {
+                // 7. Let offset be typedArray.[[ByteOffset]].
+                let typed_array = ta_record.object.bind(gc.nogc());
+                // 2. Let accessIndex be ? ToIndex(requestIndex).
+                let access_index = validate_index(agent, index.into_i64(), gc.nogc()).unbind()?;
+                // 3. If accessIndex ≥ length, throw a RangeError exception.
+                if access_index >= length as u64 {
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::RangeError,
+                        "accessIndex out of bounds",
+                        gc.into_nogc(),
+                    ));
+                }
+                let access_index = access_index as usize;
+                // 5. Let typedArray be taRecord.[[Object]].
+                let offset = typed_array.byte_offset(agent);
+                // 2. If typedArray.[[ContentType]] is bigint, let v be ? ToBigInt(value).
+                // 3. Otherwise, let v be 𝔽(? ToIntegerOrInfinity(value)).
+                if typed_array.is_bigint() != value.is_bigint() {
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::RangeError,
+                        "cannot convert between bigint and number",
+                        gc.into_nogc(),
+                    ));
+                }
+                let byte_index_in_buffer =
+                    offset + access_index * typed_array.typed_array_element_size();
+                (byte_index_in_buffer, typed_array, value)
+            } else {
+                // 4. Perform ? RevalidateAtomicAccess(typedArray, byteIndexInBuffer).
+                atomic_read_modify_write_slow(
+                    agent,
+                    ta_record.unbind(),
+                    index.unbind(),
+                    value.unbind(),
+                    length,
+                    gc.reborrow(),
+                )
+                .unbind()?
+                .bind(gc.nogc())
+            };
+        let typed_array = typed_array.unbind();
+        let value = value.unbind();
+        let gc = gc.into_nogc();
+        let typed_array = typed_array.bind(gc);
+        let value = value.bind(gc);
+
+        // 5. Let buffer be typedArray.[[ViewedArrayBuffer]].
+        // 6. Let elementType be TypedArrayElementType(typedArray).
+        let buffer = typed_array.viewed_array_buffer(agent);
+
+        // 7. Perform SetValueInBuffer(buffer, byteIndexInBuffer, elementType, v, true, seq-cst).
+        for_any_typed_array!(
+            typed_array,
+            _t,
+            {
+                set_value_in_buffer::<ElementType>(
+                    agent,
+                    buffer,
+                    byte_index_in_buffer,
+                    value,
+                    true,
+                    Ordering::SeqCst,
+                    None,
+                );
+            },
+            ElementType
+        );
+        // 8. Return v.
+        Ok(value.into_value())
     }
 
     fn sub<'gc>(
