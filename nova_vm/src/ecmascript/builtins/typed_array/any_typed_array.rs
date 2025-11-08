@@ -129,7 +129,7 @@ impl AnyTypedArray<'_> {
 
     /// Returns true if the TypedArray is an Int32Array or BigInt64Array
     /// (shared or not), false otherwise.
-    pub(crate) fn _is_waitable(self) -> bool {
+    pub(crate) fn is_waitable(self) -> bool {
         #[cfg(not(feature = "shared-array-buffer"))]
         {
             matches!(self, Self::Int32Array(_) | Self::BigInt64Array(_))

@@ -596,6 +596,75 @@ pub(crate) fn try_to_integer_or_infinity<'a>(
     TryResult::Continue(to_integer_or_infinity_number(agent, number))
 }
 
+/// ### [7.1.5 ToIntegerOrInfinity ( argument )](https://tc39.es/ecma262/#sec-tointegerorinfinity)
+pub(crate) fn to_integer_number_or_infinity<'a>(
+    agent: &mut Agent,
+    argument: Value,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<'a, Number<'a>> {
+    // Fast path: A safe integer is already an integer.
+    if let Value::Integer(int) = argument {
+        return Ok(Number::Integer(int));
+    }
+    // 1. Let number be ? ToNumber(argument).
+    let number = to_number(agent, argument, gc.reborrow()).unbind()?;
+    let gc = gc.into_nogc();
+    let number = number.bind(gc);
+
+    // Fast path: The value might've been eg. parsed into an integer.
+    if let Number::Integer(int) = number {
+        return Ok(Number::Integer(int));
+    }
+
+    // 2. If number is one of NaN, +0𝔽, or -0𝔽, return 0.
+    if number.is_nan(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
+        return Ok(Number::from(0));
+    }
+
+    // 3. If number is +∞𝔽, return +∞.
+    if number.is_pos_infinity(agent) {
+        return Ok(Number::pos_inf());
+    }
+
+    // 4. If number is -∞𝔽, return -∞.
+    if number.is_neg_infinity(agent) {
+        return Ok(Number::neg_inf());
+    }
+
+    // 5. Return truncate(ℝ(number)).
+    Ok(number.unbind().truncate(agent, gc))
+}
+
+/// ### [7.1.5 ToIntegerOrInfinity ( argument )](https://tc39.es/ecma262/#sec-tointegerorinfinity)
+pub(crate) fn number_convert_to_integer_or_infinity<'a>(
+    agent: &mut Agent,
+    number: Number<'a>,
+    gc: NoGcScope<'a, '_>,
+) -> Number<'a> {
+    // Fast path: A safe integer is already an integer.
+    if let Number::Integer(int) = number {
+        return Number::Integer(int);
+    }
+
+    // 2. If number is one of NaN, +0𝔽, or -0𝔽, return 0.
+    if number.is_nan(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
+        return Number::from(0);
+    }
+
+    // 3. If number is +∞𝔽, return +∞.
+    if number.is_pos_infinity(agent) {
+        return Number::pos_inf();
+    }
+
+    // 4. If number is -∞𝔽, return -∞.
+    if number.is_neg_infinity(agent) {
+        return Number::neg_inf();
+    }
+
+    // 5. Return truncate(ℝ(number)).
+    number.unbind().truncate(agent, gc)
+}
+
 /// ### [7.1.6 ToInt32 ( argument )](https://tc39.es/ecma262/#sec-toint32)
 pub(crate) fn to_int32<'a>(
     agent: &mut Agent,
