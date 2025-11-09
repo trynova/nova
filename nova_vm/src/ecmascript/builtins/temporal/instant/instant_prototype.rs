@@ -3,7 +3,10 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin,
-            temporal::instant::{self, add_duration_to_instant, require_internal_slot_temporal_instant, to_temporal_instant},
+            temporal::instant::{
+                add_duration_to_instant, difference_temporal_instant,
+                require_internal_slot_temporal_instant, to_temporal_instant,
+            },
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, BigInt, IntoValue, String, Value},
@@ -185,29 +188,66 @@ impl TemporalInstantPrototype {
             .bind(gc.nogc());
         // 3. Return ? AddDurationToInstant(subtract, instant, temporalDurationLike).
         const SUBTRACT: bool = false;
-        let result = add_duration_to_instant::<SUBTRACT>(agent, instant.unbind(), duration.unbind(), gc)
-            .unbind()?;
+        let result =
+            add_duration_to_instant::<SUBTRACT>(agent, instant.unbind(), duration.unbind(), gc)
+                .unbind()?;
         Ok(result.into_value())
     }
 
     /// ### [8.3.7 Temporal.Instant.prototype.until ( other [ , options ] )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.until)
     fn until<'gc>(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _args: ArgumentsList,
-        mut _gc: GcScope<'gc, '_>,
+        agent: &mut Agent,
+        this_value: Value,
+        args: ArgumentsList,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        unimplemented!()
+        let other = args.get(0).bind(gc.nogc());
+        let options = args.get(1).bind(gc.nogc());
+        // 1. Let instant be the this value.
+        let instant = this_value.bind(gc.nogc());
+        // 2. Perform ? RequireInternalSlot(instant, [[InitializedTemporalInstant]]).
+        let instant = require_internal_slot_temporal_instant(agent, instant.unbind(), gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
+        // 3. Return ? DifferenceTemporalInstant(until, instant, other, options).
+        const UNTIL: bool = true;
+        let result = difference_temporal_instant::<UNTIL>(
+            agent,
+            instant.into_value().unbind(),
+            other.unbind(),
+            options.unbind(),
+            gc,
+        )
+        .unbind()?;
+        Ok(result.into_value())
     }
 
     /// ### [8.3.8 Temporal.Instant.prototype.since ( other [ , options ] )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.until)
     fn since<'gc>(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _args: ArgumentsList,
-        mut _gc: GcScope<'gc, '_>,
+        agent: &mut Agent,
+        this_value: Value,
+        args: ArgumentsList,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        unimplemented!()
+        let other = args.get(0).bind(gc.nogc());
+        let options = args.get(1).bind(gc.nogc());
+        // 1. Let instant be the this value.
+        let instant = this_value;
+        // 2. Perform ? RequireInternalSlot(instant, [[InitializedTemporalInstant]]).
+        let instant = require_internal_slot_temporal_instant(agent, instant.unbind(), gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
+        // 3. Return ? DifferenceTemporalInstant(since, instant, other, options).
+        const SINCE: bool = false;
+        let result = difference_temporal_instant::<SINCE>(
+            agent,
+            instant.into_value().unbind(),
+            other.unbind(),
+            options.unbind(),
+            gc,
+        )
+        .unbind()?;
+        Ok(result.into_value())
     }
 
     /// ### [8.3.9 Temporal.Instant.prototype.round ( roundTo )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.round)

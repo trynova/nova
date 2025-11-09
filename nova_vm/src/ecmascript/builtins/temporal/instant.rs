@@ -8,12 +8,10 @@ pub(crate) mod data;
 pub mod instant_constructor;
 pub mod instant_prototype;
 
-use temporal_rs::Instant;
-
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{PreferredType, to_primitive_object},
-        builtins::{ordinary::ordinary_create_from_constructor, temporal::duration::{create_negated_temporal_duration, to_temporal_duration}},
+        builtins::{ordinary::ordinary_create_from_constructor, temporal::duration::to_temporal_duration},
         execution::{
             JsResult, ProtoIntrinsics,
             agent::{Agent, ExceptionType},
@@ -24,7 +22,7 @@ use crate::{
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
+        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
@@ -223,8 +221,7 @@ fn create_temporal_instant<'gc>(
 ///
 /// The abstract operation ToTemporalInstant takes argument item (an ECMAScript language value) and
 /// returns either a normal completion containing a Temporal.Instant or a throw completion.
-/// Converts item to a new Temporal.Instant instance if possible, and throws otherwise. It performs
-/// the following steps when called:
+/// Converts item to a new Temporal.Instant instance if possible, and throws otherwise.
 fn to_temporal_instant<'gc>(
     agent: &mut Agent,
     item: Value,
@@ -267,39 +264,68 @@ fn to_temporal_instant<'gc>(
     Ok(parsed)
 }
 
-
 /// [8.5.10 AddDurationToInstant ( operation, instant, temporalDurationLike )](https://tc39.es/proposal-temporal/#sec-temporal-adddurationtoinstant)
-/// The abstract operation AddDurationToInstant takes arguments operation 
-/// (add or subtract), instant (a Temporal.Instant), 
-/// and temporalDurationLike (an ECMAScript language value) 
-/// and returns either a normal completion containing a Temporal.Instant 
-/// or a throw completion. 
-/// It adds/subtracts temporalDurationLike to/from instant. 
-/// It performs the following steps when called:
-fn add_duration_to_instant<'gc, const IS_ADD: bool> (
+/// The abstract operation AddDurationToInstant takes arguments operation
+/// (add or subtract), instant (a Temporal.Instant),
+/// and temporalDurationLike (an ECMAScript language value)
+/// and returns either a normal completion containing a Temporal.Instant
+/// or a throw completion.
+/// It adds/subtracts temporalDurationLike to/from instant.
+fn add_duration_to_instant<'gc, const IS_ADD: bool>(
     agent: &mut Agent,
     instant: TemporalInstant,
     duration: Value,
-    mut gc: GcScope<'gc, '_>
+    mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Value<'gc>> {
     let duration = duration.bind(gc.nogc());
     let instant = instant.bind(gc.nogc());
     // 1. Let duration be ? ToTemporalDuration(temporalDurationLike).
-    let instant = instant.unbind();
+    let instant = instant.scope(agent, gc.nogc());
     let duration = to_temporal_duration(agent, duration.unbind(), gc.reborrow());
     // 2. If operation is subtract, set duration to CreateNegatedTemporalDuration(duration).
     // 3. Let largestUnit be DefaultTemporalLargestUnit(duration).
     // 4. If TemporalUnitCategory(largestUnit) is date, throw a RangeError exception.
     // 5. Let internalDuration be ToInternalDurationRecordWith24HourDays(duration).
-    // 6. Let ns be ? AddInstant(instant.[[EpochNanoseconds]], internalDuration.[[Time]]).        
+    // 6. Let ns be ? AddInstant(instant.[[EpochNanoseconds]], internalDuration.[[Time]]).
     let ns_result = if IS_ADD {
-        temporal_rs::Instant::add(&agent[instant].instant, &duration.unwrap()).unwrap()
+        temporal_rs::Instant::add(&agent[instant.get(agent)].instant, &duration.unwrap()).unwrap()
     } else {
-        temporal_rs::Instant::subtract(&agent[instant].instant, &duration.unwrap()).unwrap()
+        temporal_rs::Instant::subtract(&agent[instant.get(agent)].instant, &duration.unwrap())
+            .unwrap()
     };
     // 7. Return ! CreateTemporalInstant(ns).
     let instant = create_temporal_instant(agent, ns_result, None, gc)?;
     Ok(instant.into_value())
+}
+
+/// [8.5.9 DifferenceTemporalInstant ( operation, instant, other, options )]()
+/// The abstract operation DifferenceTemporalInstant takes arguments
+/// operation (since or until), instant (a Temporal.Instant),
+/// other (an ECMAScript language value), and options
+/// (an ECMAScript language value) and returns either
+/// a normal completion containing a Temporal.Duration or a
+/// throw completion. It computes the difference between the
+/// two times represented by instant and other, optionally
+/// rounds it, and returns it as a Temporal.Duration object.
+fn difference_temporal_instant<'gc, const IS_UNTIL: bool>(
+    agent: &mut Agent,
+    instant: Value,
+    other: Value,
+    options: Value,
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, Value<'gc>> {
+    let instant = instant.bind(gc.nogc());
+    let other = other.bind(gc.nogc());
+    let options = options.bind(gc.nogc());
+    // 1. Set other to ? ToTemporalInstant(other).
+    let other = to_temporal_instant(agent, other.unbind(), gc.reborrow());
+    // 2. Let resolvedOptions be ? GetOptionsObject(options).
+    // 3. Let settings be ? GetDifferenceSettings(operation, resolvedOptions, time, « », nanosecond, second).
+    // 4. Let internalDuration be DifferenceInstant(instant.[[EpochNanoseconds]], other.[[EpochNanoseconds]], settings.[[RoundingIncrement]], settings.[[SmallestUnit]], settings.[[RoundingMode]]).
+    // 5. Let result be ! TemporalDurationFromInternal(internalDuration, settings.[[LargestUnit]]).
+    // 6. If operation is since, set result to CreateNegatedTemporalDuration(result).
+    // 7. Return result.
+    unimplemented!()
 }
 
 #[inline(always)]
