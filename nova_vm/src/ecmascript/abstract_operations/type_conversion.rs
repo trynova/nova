@@ -1553,6 +1553,36 @@ pub(crate) fn try_to_index<'a>(
     js_result_into_try(validate_index(agent, integer, gc))
 }
 
+/// [14.5.1.1 ToIntegerIfIntegral ( argument )](https://tc39.es/proposal-temporal/#sec-tointegerifintegral)
+/// The abstract operation ToIntegerIfIntegral takes argument argument
+/// (an ECMAScript language value) and returns either a normal completion containing
+/// an integer or a throw completion.
+/// It converts argument to an integer representing its Number value,
+/// or throws a RangeError when that value is not integral.
+pub(crate) fn to_integer_if_integral<'gc>(
+    agent: &mut Agent,
+    argument: Value,
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, Number<'gc>> {
+    let argument = argument.bind(gc.nogc());
+    // 1. Let number be ? ToNumber(argument).
+    let number = to_number(agent, argument.unbind(), gc.reborrow())
+        .unbind()?
+        .bind(gc.nogc());
+    // 2. If number is not an integral Number, throw a RangeError exception.
+    if !number.is_integer(agent) {
+        Err(agent.throw_exception_with_static_message(
+            ExceptionType::RangeError,
+            "Number must be integral",
+            gc.into_nogc(),
+        ))
+    } else {
+        // 3. Return ℝ(number).
+        // Ok(number.into_i64(agent)) // TODO: more performant
+        Ok(number.unbind())
+    }
+}
+
 /// Helper function to check if a `char` is trimmable.
 ///
 /// Copied from Boa JS engine. Source https://github.com/boa-dev/boa/blob/183e763c32710e4e3ea83ba762cf815b7a89cd1f/core/string/src/lib.rs#L51

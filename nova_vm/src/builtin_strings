@@ -95,6 +95,7 @@ copyWithin
 create
 #[cfg(feature = "array-buffer")]DataView
 #[cfg(feature = "date")]Date
+#[cfg(feature = "temporal")]days
 decodeURI
 decodeURIComponent
 default
@@ -231,6 +232,7 @@ hasInstance
 hasOwn
 hasOwnProperty
 #[cfg(feature = "math")]hypot
+#[cfg(feature = "temporal")]hours
 #[cfg(feature = "regexp")]ignoreCase
 #[cfg(feature = "math")]imul
 includes
@@ -288,6 +290,10 @@ MAX_SAFE_INTEGER
 MAX_VALUE
 #[cfg(feature = "array-buffer")]maxByteLength
 message
+#[cfg(feature = "temporal")]microseconds
+#[cfg(feature = "temporal")]milliseconds
+#[cfg(feature = "temporal")]minutes
+#[cfg(feature = "temporal")]months
 #[cfg(feature = "math")]min
 MIN_SAFE_INTEGER
 MIN_VALUE
@@ -295,6 +301,7 @@ Module
 #[cfg(feature = "regexp")]multiline
 name
 NaN
+#[cfg(feature = "temporal")]nanoseconds
 NEGATIVE_INFINITY
 next
 normalize
@@ -361,6 +368,7 @@ revocable
 #[cfg(any(feature = "math", feature = "temporal"))]round
 seal
 #[cfg(feature = "regexp")]search
+#[cfg(feature = "temporal")]seconds
 set
 #[cfg(feature = "set")]Set
 set [Symbol.toStringTag]
@@ -509,7 +517,9 @@ values
 #[cfg(feature = "weak-refs")]WeakMap
 #[cfg(feature = "weak-refs")]WeakRef
 #[cfg(feature = "weak-refs")]WeakSet
+#[cfg(feature = "temporal")]weeks
 with
 withResolvers
 writable
 #[cfg(feature = "atomics")]xor
+#[cfg(feature = "temporal")]years
