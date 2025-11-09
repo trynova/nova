@@ -16,6 +16,7 @@ use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{to_int32_number, to_uint32_number},
         execution::Agent,
+        types::BigInt,
     },
     engine::{
         context::{Bindable, NoGcScope, bindable_handle},
@@ -318,6 +319,16 @@ impl<'a> Number<'a> {
                 let id = unsafe { Self::alloc_number(&mut agent.heap, value) };
                 Number::Number(id.unbind().bind(gc))
             }
+        }
+    }
+
+    /// Convert a Number to BigInt
+    pub fn to_big_int(self, agent: &mut Agent) -> BigInt<'a> {
+        let f = self.into_f64(agent);
+        if f.is_nan() || !f.is_finite() || f.fract() != 0.0 {
+            BigInt::from_i64(agent, 0)
+        } else {
+            BigInt::from_i64(agent, f as i64)
         }
     }
 
