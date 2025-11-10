@@ -92,13 +92,7 @@ impl<'a> PromiseGroup<'a> {
         }
     }
 
-    pub(crate) fn fulfill(
-        self,
-        agent: &mut Agent,
-        index: u32,
-        value: Value<'a>,
-        mut gc: GcScope<'a, '_>,
-    ) {
+    fn fulfill(self, agent: &mut Agent, index: u32, value: Value<'a>, mut gc: GcScope<'a, '_>) {
         let promise_group = self.bind(gc.nogc());
         let value = value.bind(gc.nogc());
 
@@ -114,13 +108,7 @@ impl<'a> PromiseGroup<'a> {
         }
     }
 
-    pub(crate) fn reject(
-        self,
-        agent: &mut Agent,
-        index: u32,
-        error: Value<'a>,
-        mut gc: GcScope<'a, '_>,
-    ) {
+    fn reject(self, agent: &mut Agent, index: u32, error: Value<'a>, mut gc: GcScope<'a, '_>) {
         let promise_group = self.bind(gc.nogc());
         let error = error.bind(gc.nogc());
 
@@ -159,12 +147,7 @@ impl<'a> PromiseGroup<'a> {
         }
     }
 
-    pub(crate) fn immediately_resolve(
-        self,
-        agent: &mut Agent,
-        value: Value<'a>,
-        gc: GcScope<'a, '_>,
-    ) {
+    fn immediately_resolve(self, agent: &mut Agent, value: Value<'a>, gc: GcScope<'a, '_>) {
         let value = value.bind(gc.nogc());
         let promise_group = self.bind(gc.nogc());
         let data = promise_group.get_mut(agent);
@@ -173,12 +156,7 @@ impl<'a> PromiseGroup<'a> {
         capability.resolve(agent, value.unbind(), gc);
     }
 
-    pub(crate) fn immediately_reject(
-        self,
-        agent: &mut Agent,
-        value: Value<'a>,
-        gc: NoGcScope<'a, '_>,
-    ) {
+    fn immediately_reject(self, agent: &mut Agent, value: Value<'a>, gc: NoGcScope<'a, '_>) {
         let value = value.bind(gc);
         let promise_group = self.bind(gc);
         let data = promise_group.get_mut(agent);
