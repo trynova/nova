@@ -1,15 +1,17 @@
 use crate::{
     ecmascript::{
+        abstract_operations::operations_on_objects::define_property_or_throw,
         builtins::{
             Array,
+            error::ErrorHeapData,
             promise::Promise,
             promise_objects::promise_abstract_operations::{
                 promise_capability_records::PromiseCapability,
                 promise_reaction_records::PromiseReactionType,
             },
         },
-        execution::Agent,
-        types::{BUILTIN_STRING_MEMORY, IntoValue, OrdinaryObject, Value},
+        execution::{Agent, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, OrdinaryObject, PropertyDescriptor, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
@@ -117,7 +119,7 @@ impl<'a> PromiseGroup<'a> {
         agent: &mut Agent,
         index: u32,
         error: Value<'a>,
-        gc: GcScope<'a, '_>,
+        mut gc: GcScope<'a, '_>,
     ) {
         let promise_group = self.bind(gc.nogc());
         let error = error.bind(gc.nogc());
@@ -129,24 +131,29 @@ impl<'a> PromiseGroup<'a> {
         elements[index as usize] = Some(error.unbind());
 
         if let Some(promise_to_resolve) = promise_to_resolve {
-            let aggregate_error = OrdinaryObject::create_object(
+            let aggregate_error = agent.heap.create(ErrorHeapData::new(
+                ExceptionType::AggregateError,
+                None,
+                None,
+            ));
+
+            let _ = define_property_or_throw(
                 agent,
-                Some(
-                    agent
-                        .current_realm_record()
-                        .intrinsics()
-                        .aggregate_error_prototype()
-                        .into(),
-                ),
-                &[ObjectEntry::new_data_entry(
-                    BUILTIN_STRING_MEMORY.errors.into(),
-                    result_array.into_value().unbind(),
-                )],
-            )
-            .bind(gc.nogc());
+                aggregate_error,
+                BUILTIN_STRING_MEMORY.errors.into(),
+                PropertyDescriptor {
+                    value: Some(result_array.into_value().unbind()),
+                    writable: Some(true),
+                    get: None,
+                    set: None,
+                    enumerable: Some(true),
+                    configurable: Some(true),
+                },
+                gc.reborrow(),
+            );
 
             let capability = PromiseCapability::from_promise(promise_to_resolve, true);
-            capability.reject(agent, aggregate_error.into_value().unbind(), gc.nogc());
+            capability.reject(agent, aggregate_error.into_value(), gc.nogc());
         }
     }
 
