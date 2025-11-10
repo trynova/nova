@@ -103,6 +103,8 @@ impl<'a> PromiseGroup<'a> {
         elements[index as usize] = Some(value.unbind());
 
         if let Some(promise_to_resolve) = promise_to_resolve {
+            promise_group.pop_record(agent);
+
             let capability = PromiseCapability::from_promise(promise_to_resolve, true);
             capability.resolve(agent, result_array.into_value().unbind(), gc.reborrow());
         }
@@ -119,6 +121,8 @@ impl<'a> PromiseGroup<'a> {
         elements[index as usize] = Some(error.unbind());
 
         if let Some(promise_to_resolve) = promise_to_resolve {
+            promise_group.pop_record(agent);
+
             let aggregate_error = agent.heap.create(ErrorHeapData::new(
                 ExceptionType::AggregateError,
                 None,
@@ -153,6 +157,8 @@ impl<'a> PromiseGroup<'a> {
         let data = promise_group.get_mut(agent);
 
         let capability = PromiseCapability::from_promise(data.promise, true);
+
+        promise_group.pop_record(agent);
         capability.resolve(agent, value.unbind(), gc);
     }
 
@@ -162,6 +168,8 @@ impl<'a> PromiseGroup<'a> {
         let data = promise_group.get_mut(agent);
 
         let capability = PromiseCapability::from_promise(data.promise, true);
+
+        promise_group.pop_record(agent);
         capability.reject(agent, value.unbind(), gc);
     }
 
@@ -225,6 +233,14 @@ impl<'a> PromiseGroup<'a> {
             .promise_group_records
             .get_mut(self.get_index())
             .expect("PromiseGroupRecord not found")
+    }
+
+    fn pop_record(self, agent: &mut Agent) {
+        let index = self.get_index();
+        let vec_size = agent.heap.promise_group_records.len();
+        if index == vec_size - 1 {
+            agent.heap.promise_group_records.pop();
+        }
     }
 
     pub(crate) const _DEF: Self = { Self(BaseIndex::from_u32_index(0)) };
