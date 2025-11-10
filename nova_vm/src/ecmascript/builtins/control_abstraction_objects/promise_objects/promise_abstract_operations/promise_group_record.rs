@@ -196,22 +196,22 @@ impl<'a> PromiseGroup<'a> {
     ) -> Value<'a> {
         let value = value.bind(gc);
 
-        let entries = match reaction_type {
-            PromiseReactionType::Fulfill => vec![
-                ObjectEntry::new_data_entry(
-                    BUILTIN_STRING_MEMORY.status.into(),
-                    BUILTIN_STRING_MEMORY.fulfilled.into(),
-                ),
-                ObjectEntry::new_data_entry(BUILTIN_STRING_MEMORY.value.into(), value.unbind()),
-            ],
-            PromiseReactionType::Reject => vec![
-                ObjectEntry::new_data_entry(
-                    BUILTIN_STRING_MEMORY.status.into(),
-                    BUILTIN_STRING_MEMORY.rejected.into(),
-                ),
-                ObjectEntry::new_data_entry(BUILTIN_STRING_MEMORY.reason.into(), value.unbind()),
-            ],
-        };
+        let entries = vec![
+            ObjectEntry::new_data_entry(
+                BUILTIN_STRING_MEMORY.status.into(),
+                match reaction_type {
+                    PromiseReactionType::Fulfill => BUILTIN_STRING_MEMORY.fulfilled.into(),
+                    PromiseReactionType::Reject => BUILTIN_STRING_MEMORY.rejected.into(),
+                },
+            ),
+            ObjectEntry::new_data_entry(
+                match reaction_type {
+                    PromiseReactionType::Fulfill => BUILTIN_STRING_MEMORY.value.into(),
+                    PromiseReactionType::Reject => BUILTIN_STRING_MEMORY.reason.into(),
+                },
+                value.unbind(),
+            ),
+        ];
 
         let obj = OrdinaryObject::create_object(
             agent,
