@@ -103,7 +103,7 @@ impl<'a> PromiseGroup<'a> {
         elements[index as usize] = Some(value.unbind());
 
         if let Some(promise_to_resolve) = promise_to_resolve {
-            promise_group.pop_record(agent);
+            promise_group.pop_empty_records(agent);
 
             let capability = PromiseCapability::from_promise(promise_to_resolve, true);
             capability.resolve(agent, result_array.into_value().unbind(), gc.reborrow());
@@ -121,7 +121,7 @@ impl<'a> PromiseGroup<'a> {
         elements[index as usize] = Some(error.unbind());
 
         if let Some(promise_to_resolve) = promise_to_resolve {
-            promise_group.pop_record(agent);
+            promise_group.pop_empty_records(agent);
 
             let aggregate_error = agent.heap.create(ErrorHeapData::new(
                 ExceptionType::AggregateError,
@@ -157,7 +157,7 @@ impl<'a> PromiseGroup<'a> {
 
         let capability = PromiseCapability::from_promise(data.promise, true);
 
-        promise_group.pop_record(agent);
+        promise_group.pop_empty_records(agent);
         capability.resolve(agent, value.unbind(), gc);
     }
 
@@ -168,7 +168,7 @@ impl<'a> PromiseGroup<'a> {
 
         let capability = PromiseCapability::from_promise(data.promise, true);
 
-        promise_group.pop_record(agent);
+        promise_group.pop_empty_records(agent);
         capability.reject(agent, value.unbind(), gc);
     }
 
@@ -234,11 +234,13 @@ impl<'a> PromiseGroup<'a> {
             .expect("PromiseGroupRecord not found")
     }
 
-    fn pop_record(self, agent: &mut Agent) {
-        let index = self.get_index();
-        let vec_size = agent.heap.promise_group_records.len();
-        if index == vec_size - 1 {
-            agent.heap.promise_group_records.pop();
+    fn pop_empty_records(self, agent: &mut Agent) {
+        while let Some(last) = agent.heap.promise_group_records.last() {
+            if last.remaining_elements_count == 0 {
+                agent.heap.promise_group_records.pop();
+            } else {
+                break;
+            }
         }
     }
 
