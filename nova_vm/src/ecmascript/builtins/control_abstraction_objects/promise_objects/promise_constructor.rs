@@ -679,6 +679,7 @@ fn promise_group<'gc>(
 
 /// ### [27.2.4.1.2 PerformPromiseAll ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiseall)
 /// ### [27.2.4.2.1 PerformPromiseAllSettled ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiseallsettled)
+/// ### [27.2.4.3.1 PerformPromiseAny ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiseany)
 #[allow(clippy::too_many_arguments)]
 fn perform_promise_group<'gc>(
     agent: &mut Agent,
