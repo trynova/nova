@@ -188,6 +188,18 @@ impl TryFrom<u64> for SmallBigInt {
     }
 }
 
+impl TryFrom<u128> for SmallBigInt {
+    type Error = ();
+    fn try_from(value: u128) -> Result<Self, Self::Error> {
+        if (Self::MIN as u128..=Self::MAX as u128).contains(&value) {
+            // SAFETY: Checked to be in range.
+            Ok(unsafe { Self::from_i64_unchecked(value as i64) })
+        } else {
+            Err(())
+        }
+    }
+}
+
 impl TryFrom<usize> for SmallBigInt {
     type Error = ();
     fn try_from(value: usize) -> Result<Self, Self::Error> {
