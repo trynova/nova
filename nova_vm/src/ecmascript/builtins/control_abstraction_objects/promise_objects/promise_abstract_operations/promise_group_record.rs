@@ -130,7 +130,7 @@ impl<'a> PromiseGroup<'a> {
             ));
 
             let capability = PromiseCapability::from_promise(promise_to_resolve, true);
-            if let Err(err) = define_property_or_throw(
+            define_property_or_throw(
                 agent,
                 aggregate_error,
                 BUILTIN_STRING_MEMORY.errors.into(),
@@ -143,11 +143,10 @@ impl<'a> PromiseGroup<'a> {
                     configurable: Some(true),
                 },
                 gc.reborrow(),
-            ) {
-                capability.reject(agent, err.value().unbind(), gc.nogc());
-            } else {
-                capability.reject(agent, aggregate_error.into_value(), gc.nogc());
-            }
+            )
+            .unwrap();
+
+            capability.reject(agent, aggregate_error.into_value(), gc.nogc());
         }
     }
 
