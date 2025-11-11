@@ -9,8 +9,8 @@ use nova_vm::{
         builtins::{ArgumentsList, Behaviour, BuiltinFunctionArgs, create_builtin_function},
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{
-            InternalMethods, IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
-            String, Value,
+            BigInt, InternalMethods, IntoValue, Object, OrdinaryObject, PropertyDescriptor,
+            PropertyKey, String, Value,
         },
     },
     engine::{
@@ -82,6 +82,21 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcSco
         Ok(String::from_string(agent, file, gc.into_nogc()).into_value())
     }
 
+    // 'now' function
+    fn now<'gc>(
+        agent: &mut Agent,
+        _this: Value,
+        _args: ArgumentsList,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let bigint = BigInt::from_u128(agent, now, gc.into_nogc());
+        Ok(bigint.into_value())
+    }
+
     let function = create_builtin_function(
         agent,
         Behaviour::Regular(print),
@@ -112,6 +127,29 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcSco
         gc.nogc(),
     );
     let property_key = PropertyKey::from_static_str(agent, "readTextFile", gc.nogc());
+    global
+        .get(agent)
+        .internal_define_own_property(
+            agent,
+            property_key.unbind(),
+            PropertyDescriptor {
+                value: Some(function.into_value().unbind()),
+                writable: Some(true),
+                enumerable: Some(false),
+                configurable: Some(true),
+                ..Default::default()
+            },
+            gc.reborrow(),
+        )
+        .unwrap();
+
+    let function = create_builtin_function(
+        agent,
+        Behaviour::Regular(now),
+        BuiltinFunctionArgs::new(0, "now"),
+        gc.nogc(),
+    );
+    let property_key = PropertyKey::from_static_str(agent, "now", gc.nogc());
     global
         .get(agent)
         .internal_define_own_property(

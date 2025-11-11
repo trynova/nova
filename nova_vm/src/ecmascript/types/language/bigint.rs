@@ -208,6 +208,30 @@ impl<'a> BigInt<'a> {
     }
 
     #[inline]
+    pub fn from_i128(agent: &mut Agent, value: i128, gc: NoGcScope<'a, '_>) -> Self {
+        if let Ok(result) = SmallBigInt::try_from(value) {
+            Self::SmallBigInt(result)
+        } else {
+            agent
+                .heap
+                .create(BigIntHeapData { data: value.into() })
+                .bind(gc)
+        }
+    }
+
+    #[inline]
+    pub fn from_u128(agent: &mut Agent, value: u128, gc: NoGcScope<'a, '_>) -> Self {
+        if let Ok(result) = SmallBigInt::try_from(value) {
+            Self::SmallBigInt(result)
+        } else {
+            agent
+                .heap
+                .create(BigIntHeapData { data: value.into() })
+                .bind(gc)
+        }
+    }
+
+    #[inline]
     pub(crate) fn from_num_bigint(agent: &mut Agent, value: num_bigint::BigInt) -> Self {
         if let Ok(result) = SmallBigInt::try_from(&value) {
             Self::SmallBigInt(result)
