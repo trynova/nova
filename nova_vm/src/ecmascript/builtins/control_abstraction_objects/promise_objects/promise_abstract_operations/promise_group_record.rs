@@ -23,11 +23,12 @@ use crate::{
     },
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum PromiseGroupType {
     All,
     AllSettled,
     Any,
+    Race,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -87,6 +88,14 @@ impl<'a> PromiseGroup<'a> {
                 }
                 PromiseReactionType::Reject => {
                     self.reject(agent, index, value.unbind(), gc.reborrow());
+                }
+            },
+            PromiseGroupType::Race => match reaction_type {
+                PromiseReactionType::Fulfill => {
+                    self.immediately_resolve(agent, value.unbind(), gc.reborrow());
+                }
+                PromiseReactionType::Reject => {
+                    self.immediately_reject(agent, value.unbind(), gc.nogc());
                 }
             },
         }

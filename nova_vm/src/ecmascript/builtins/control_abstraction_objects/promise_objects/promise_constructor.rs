@@ -285,11 +285,11 @@ impl PromiseConstructor {
     /// > method.
     fn race<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
+        this_value: Value,
+        arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("Promise.race", gc.into_nogc()))
+        promise_group(agent, this_value, arguments, PromiseGroupType::Race, gc)
     }
 
     /// ### [27.2.4.6 Promise.reject ( r )](https://tc39.es/ecma262/#sec-promise.reject)
@@ -680,6 +680,7 @@ fn promise_group<'gc>(
 /// ### [27.2.4.1.2 PerformPromiseAll ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiseall)
 /// ### [27.2.4.2.1 PerformPromiseAllSettled ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiseallsettled)
 /// ### [27.2.4.3.1 PerformPromiseAny ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiseany)
+/// ### [27.2.4.5.1 PerformPromiseRace ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiserace)
 #[allow(clippy::too_many_arguments)]
 fn perform_promise_group<'gc>(
     agent: &mut Agent,
@@ -743,6 +744,10 @@ fn perform_promise_group<'gc>(
 
         // b. If next is done, then
         let Some(next) = next else {
+            if promise_group_type == PromiseGroupType::Race {
+                return Ok(promise.get(agent));
+            }
+
             *iterator_done = true;
             let promise_group = promise_group_reference.get(agent).bind(gc.nogc());
             let data = promise_group.get_mut(agent);
