@@ -4,7 +4,7 @@ use crate::{
             operations_on_objects::get, type_conversion::to_integer_if_integral,
         },
         execution::{Agent, JsResult, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, BigInt, InternalMethods, Object, String, Value},
+        types::{BUILTIN_STRING_MEMORY, Object, String, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
@@ -35,13 +35,13 @@ impl TemporalDuration<'_> {
 bindable_handle!(TemporalDuration);
 
 impl<'a> From<TemporalDuration<'a>> for Value<'a> {
-    fn from(value: TemporalDuration<'a>) -> Self {
+    fn from(_value: TemporalDuration<'a>) -> Self {
         todo!()
         //Value::Duration(value)
     }
 }
 impl<'a> From<TemporalDuration<'a>> for Object<'a> {
-    fn from(value: TemporalDuration<'a>) -> Self {
+    fn from(_value: TemporalDuration<'a>) -> Self {
         todo!()
         //Object::Duration(value)
     }
@@ -49,7 +49,7 @@ impl<'a> From<TemporalDuration<'a>> for Object<'a> {
 impl<'a> TryFrom<Value<'a>> for TemporalDuration<'a> {
     type Error = ();
 
-    fn try_from(value: Value<'a>) -> Result<Self, ()> {
+    fn try_from(_value: Value<'a>) -> Result<Self, ()> {
         todo!()
         // match value {
         //     Value::Duration(idx) => Ok(idx),
@@ -148,7 +148,7 @@ pub(crate) fn to_temporal_duration<'gc>(
 ) -> JsResult<'gc, temporal_rs::Duration> {
     let item = item.bind(gc.nogc());
     // 1. If item is an Object and item has an [[InitializedTemporalDuration]] internal slot, then
-    if let Ok(obj) = require_internal_slot_temporal_duration(agent, item, gc.nogc()) {
+    if let Ok(_obj) = require_internal_slot_temporal_duration(agent, item, gc.nogc()) {
         unimplemented!();
         // a. Return ! CreateTemporalDuration(item.[[Years]], item.[[Months]], item.[[Weeks]], item.[[Days]], item.[[Hours]], item.[[Minutes]], item.[[Seconds]], item.[[Milliseconds]], item.[[Microseconds]], item.[[Nanoseconds]]).
     }
@@ -246,9 +246,7 @@ pub(crate) fn to_temporal_partial_duration_record<'gc>(
         let microseconds = to_integer_if_integral(agent, microseconds.unbind(), gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
-        let microseconds_big = microseconds.to_big_int(agent); // TODO:IMPL FUNCTION PROPERLY
-        let microseconds_i128 = microseconds_big.try_into_i128(agent).unwrap(); // TODO: handle ?
-        result.microseconds = Some(microseconds_i128)
+        result.microseconds = Some(microseconds.into_i64(agent) as i128);
     }
     // 10. Let milliseconds be ? Get(temporalDurationLike, "milliseconds").
     let milliseconds = get(
@@ -312,9 +310,7 @@ pub(crate) fn to_temporal_partial_duration_record<'gc>(
         let nanoseconds = to_integer_if_integral(agent, nanoseconds.unbind(), gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
-        let nanoseconds_big = nanoseconds.to_big_int(agent); // TODO:IMPL FUNCTION PROPERLY
-        let nanoseconds_i128 = nanoseconds_big.try_into_i128(agent).unwrap(); // TODO: handle ?
-        result.nanoseconds = Some(nanoseconds_i128)
+        result.nanoseconds = Some(nanoseconds.into_i64(agent) as i128);
     }
     // 18. Let seconds be ? Get(temporalDurationLike, "seconds").
     let seconds = get(

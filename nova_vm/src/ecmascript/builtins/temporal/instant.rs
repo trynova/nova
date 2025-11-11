@@ -298,7 +298,7 @@ fn add_duration_to_instant<'gc, const IS_ADD: bool>(
     Ok(instant.into_value())
 }
 
-/// [8.5.9 DifferenceTemporalInstant ( operation, instant, other, options )]()
+/// [8.5.9 DifferenceTemporalInstant ( operation, instant, other, options )](https://tc39.es/proposal-temporal/#sec-temporal-differencetemporalinstant)
 /// The abstract operation DifferenceTemporalInstant takes arguments
 /// operation (since or until), instant (a Temporal.Instant),
 /// other (an ECMAScript language value), and options
