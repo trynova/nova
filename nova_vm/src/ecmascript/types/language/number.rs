@@ -322,16 +322,6 @@ impl<'a> Number<'a> {
         }
     }
 
-    /// Convert a Number to BigInt
-    pub fn to_big_int(self, agent: &mut Agent) -> BigInt<'a> {
-        let f = self.into_f64(agent);
-        if f.is_nan() || !f.is_finite() || f.fract() != 0.0 {
-            BigInt::from_i64(agent, 0)
-        } else {
-            BigInt::from_i64(agent, f as i64)
-        }
-    }
-
     /// Create a Number from a usize.
     pub fn from_usize(agent: &mut Agent, value: usize, gc: NoGcScope<'a, '_>) -> Self {
         if let Ok(value) = Number::try_from(value) {
