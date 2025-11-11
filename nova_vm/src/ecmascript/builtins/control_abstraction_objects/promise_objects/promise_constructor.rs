@@ -236,13 +236,7 @@ impl PromiseConstructor {
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        promise_group(
-            agent,
-            this_value,
-            arguments,
-            PromiseGroupType::PromiseAll,
-            gc,
-        )
+        promise_group(agent, this_value, arguments, PromiseGroupType::All, gc)
     }
 
     /// ### [27.2.4.2 Promise.allSettled ( iterable )](https://tc39.es/ecma262/#sec-promise.allsettled)
@@ -260,7 +254,7 @@ impl PromiseConstructor {
             agent,
             this_value,
             arguments,
-            PromiseGroupType::PromiseAllSettled,
+            PromiseGroupType::AllSettled,
             gc,
         )
     }
@@ -272,11 +266,11 @@ impl PromiseConstructor {
     /// > constructor.
     fn any<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
+        this_value: Value,
+        arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("Promise.any", gc.into_nogc()))
+        promise_group(agent, this_value, arguments, PromiseGroupType::Any, gc)
     }
 
     /// ### [27.2.4.5 Promise.race ( iterable )](https://tc39.es/ecma262/#sec-promise.race)
@@ -685,6 +679,7 @@ fn promise_group<'gc>(
 
 /// ### [27.2.4.1.2 PerformPromiseAll ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiseall)
 /// ### [27.2.4.2.1 PerformPromiseAllSettled ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiseallsettled)
+/// ### [27.2.4.3.1 PerformPromiseAny ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiseany)
 #[allow(clippy::too_many_arguments)]
 fn perform_promise_group<'gc>(
     agent: &mut Agent,
