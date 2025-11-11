@@ -11,13 +11,16 @@ pub mod instant_prototype;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{PreferredType, to_primitive_object},
-        builtins::{ordinary::ordinary_create_from_constructor, temporal::duration::to_temporal_duration},
+        builtins::{
+            ordinary::ordinary_create_from_constructor, temporal::duration::to_temporal_duration,
+        },
         execution::{
             JsResult, ProtoIntrinsics,
             agent::{Agent, ExceptionType},
         },
         types::{
-            Function, InternalMethods, InternalSlots, IntoFunction, IntoValue, Object, OrdinaryObject, Primitive, String, Value
+            Function, InternalMethods, InternalSlots, IntoFunction, IntoValue, Object,
+            OrdinaryObject, Primitive, String, Value,
         },
     },
     engine::{
