@@ -3,6 +3,11 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use std::ops::Deref;
+use std::sync::LazyLock;
+
+// Record the start time of the program.
+// To be used for the `now` function for time measurement.
+static START_TIME: LazyLock<std::time::Instant> = LazyLock::new(std::time::Instant::now);
 
 use nova_vm::{
     ecmascript::{
@@ -89,11 +94,8 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcSco
         _args: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let bigint = BigInt::from_u128(agent, now, gc.into_nogc());
+        let nanos = START_TIME.elapsed().as_nanos();
+        let bigint = BigInt::from_u128(agent, nanos, gc.into_nogc());
         Ok(bigint.into_value())
     }
 
