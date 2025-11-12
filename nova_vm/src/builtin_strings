@@ -335,14 +335,6 @@ prototype
 Proxy
 push
 race
-#[cfg(feature = "temporal")]PlainDateTime
-#[cfg(feature = "temporal")]PlainDate
-#[cfg(feature = "temporal")]PlainTime
-#[cfg(feature = "temporal")]PlainYearMonth
-#[cfg(feature = "temporal")]PlainMonthDay
-#[cfg(feature = "temporal")]Duration
-#[cfg(feature = "temporal")]ZonedDateTime
-#[cfg(feature = "temporal")]Now
 #[cfg(feature = "math")]random
 RangeError
 raw
@@ -366,6 +358,7 @@ return
 reverse
 revocable
 #[cfg(any(feature = "math", feature = "temporal"))]round
+#[cfg(feature = "temporal")]roundingIncrement
 seal
 #[cfg(feature = "regexp")]search
 #[cfg(feature = "temporal")]seconds
@@ -409,6 +402,7 @@ shift
 size
 slice
 #[cfg(feature = "annex-b-string")]small
+#[cfg(feature = "temporal")]smallestUnit
 some
 sort
 #[cfg(feature = "regexp")]source

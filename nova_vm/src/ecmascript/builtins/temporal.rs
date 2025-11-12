@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 pub mod duration;
+pub mod error;
 pub mod instant;
 
 use crate::{
@@ -30,18 +31,18 @@ impl TemporalObject {
             .with_prototype(object_prototype)
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.Temporal.into())
-                    .with_enumerable(false)
-                    .with_configurable(true)
-                    .build()
-            })
-            .with_property(|builder| {
-                builder
                     .with_key(BUILTIN_STRING_MEMORY.Instant.into())
                     .with_value(temporal_instant_constructor.into_value())
                     .with_enumerable(false)
                     .with_configurable(false)
+                    .build()
+            })
+            .with_property(|builder| {
+                builder
+                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.Temporal.into())
+                    .with_enumerable(false)
+                    .with_configurable(true)
                     .build()
             })
             .build();
