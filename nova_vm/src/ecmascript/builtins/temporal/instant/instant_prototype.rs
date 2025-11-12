@@ -24,7 +24,7 @@ use crate::{
             Agent, JsResult, Realm,
             agent::{ExceptionType, unwrap_try},
         },
-        types::{BUILTIN_STRING_MEMORY, BigInt, IntoValue, Object, String, Value},
+        types::{BUILTIN_STRING_MEMORY, BigInt, IntoValue, Object, PropertyKey, String, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope, trivially_bindable},
@@ -335,7 +335,7 @@ impl TemporalInstantPrototype {
         let smallest_unit = get_temporal_unit_valued_option(
             agent,
             round_to.get(agent),
-            BUILTIN_STRING_MEMORY.smallestUnit,
+            BUILTIN_STRING_MEMORY.smallestUnit.into(),
             DefaultOption::Required,
             gc.reborrow(),
         )
@@ -640,12 +640,11 @@ trivially_bindable!(Unit);
 fn get_temporal_unit_valued_option<'gc>(
     _agent: &mut Agent,
     options: Object,
-    key: String<'static>,
+    key: PropertyKey,
     default: DefaultOption,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Unit> {
     let _options = options.bind(gc.nogc());
-    let _key = key.bind(gc.nogc());
     let _default = default.bind(gc.nogc());
     todo!()
 }
