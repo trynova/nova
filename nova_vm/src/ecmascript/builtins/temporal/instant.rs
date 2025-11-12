@@ -40,8 +40,8 @@ use self::data::InstantHeapData;
 pub struct TemporalInstant<'a>(BaseIndex<'a, InstantHeapData<'static>>);
 
 impl TemporalInstant<'_> {
-    pub(crate) fn inner_instant(self, agent: &Agent) -> temporal_rs::Instant {
-        agent[self].instant
+    pub(crate) fn inner_instant(self, agent: &Agent) -> &temporal_rs::Instant {
+        &agent[self].instant
     }
 
     //TODO
@@ -64,6 +64,7 @@ impl TemporalInstant<'_> {
         agent[self].instant = epoch_nanoseconds;
     }
 }
+
 bindable_handle!(TemporalInstant);
 
 impl<'a> From<TemporalInstant<'a>> for Value<'a> {
