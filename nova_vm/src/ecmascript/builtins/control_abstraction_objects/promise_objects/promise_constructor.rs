@@ -14,8 +14,8 @@ use crate::{
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
-            array_create,
+            ArgumentsList, Behaviour, Builtin, BuiltinFunctionArgs, BuiltinGetter,
+            BuiltinIntrinsicConstructor, array_create, create_builtin_function,
             ordinary::ordinary_create_from_constructor,
             promise::{
                 Promise,
@@ -285,11 +285,11 @@ impl PromiseConstructor {
     /// > method.
     fn race<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
+        this_value: Value,
+        arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("Promise.race", gc.into_nogc()))
+        promise_group(agent, this_value, arguments, PromiseGroupType::Race, gc)
     }
 
     /// ### [27.2.4.6 Promise.reject ( r )](https://tc39.es/ecma262/#sec-promise.reject)
@@ -632,19 +632,48 @@ fn promise_group<'gc>(
 
     // 7. Let result be Completion(PerformPromiseAll(iteratorRecord, C, promiseCapability, promiseResolve)).
     let mut iterator_done = false;
-    let result = perform_promise_group(
-        agent,
-        iterator.clone(),
-        next_method.unbind(),
-        constructor,
-        promise_capability.unbind(),
-        promise_resolve,
-        &mut iterator_done,
-        promise_group_type,
-        gc.reborrow(),
-    )
-    .unbind()
-    .bind(gc.nogc());
+    let result = match promise_group_type {
+        PromiseGroupType::All | PromiseGroupType::AllSettled | PromiseGroupType::Any => {
+            perform_promise_group(
+                agent,
+                iterator.clone(),
+                next_method.unbind(),
+                constructor,
+                promise_capability.unbind(),
+                promise_resolve,
+                &mut iterator_done,
+                promise_group_type,
+                gc.reborrow(),
+            )
+            .unbind()
+            .bind(gc.nogc())
+        }
+        PromiseGroupType::Race => perform_promise_race(
+            agent,
+            iterator.clone(),
+            next_method.unbind(),
+            constructor,
+            promise_capability.unbind(),
+            promise_resolve,
+            &mut iterator_done,
+            gc.reborrow(),
+        )
+        .unbind()
+        .bind(gc.nogc()),
+    };
+    // let result = perform_promise_group(
+    //     agent,
+    //     iterator.clone(),
+    //     next_method.unbind(),
+    //     constructor,
+    //     promise_capability.unbind(),
+    //     promise_resolve,
+    //     &mut iterator_done,
+    //     promise_group_type,
+    //     gc.reborrow(),
+    // )
+    // .unbind()
+    // .bind(gc.nogc());
 
     // 8. If result is an abrupt completion, then
     let result = match result {
@@ -826,6 +855,92 @@ fn perform_promise_group<'gc>(
         // o. Set index to index + 1.
         index += 1;
     }
+}
+
+/// ### [27.2.4.5.1 PerformPromiseRace ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiserace)
+#[allow(clippy::too_many_arguments)]
+fn perform_promise_race<'gc>(
+    agent: &mut Agent,
+    iterator: Scoped<Object>,
+    next_method: Option<Function>,
+    constructor: Scoped<Function>,
+    result_capability: PromiseCapability,
+    promise_resolve: Scoped<Function>,
+    iterator_done: &mut bool,
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, Promise<'gc>> {
+    let result_capability = result_capability.bind(gc.nogc());
+
+    let Some(next_method) = next_method else {
+        return Err(throw_not_callable(agent, gc.into_nogc()));
+    };
+
+    let next_method = next_method.scope(agent, gc.nogc());
+    let promise = result_capability.promise.scope(agent, gc.nogc());
+
+    loop {
+        let iterator_record = IteratorRecord {
+            iterator: iterator.get(agent),
+            next_method: next_method.get(agent),
+        }
+        .bind(gc.nogc());
+
+        let next = iterator_step_value(agent, iterator_record.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+
+        let Some(next) = next else {
+            *iterator_done = true;
+            return Ok(promise.get(agent));
+        };
+
+        let call_result = call_function(
+            agent,
+            promise_resolve.get(agent),
+            constructor.get(agent).into_value(),
+            Some(ArgumentsList::from_mut_value(&mut next.unbind())),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+
+        let next_promise = match call_result {
+            Value::Promise(next_promise) => next_promise,
+            _ => Promise::new_resolved(agent, call_result),
+        };
+
+        let callback = create_builtin_function(
+            agent,
+            Behaviour::Regular(on_promise_race_settled),
+            BuiltinFunctionArgs::new(0, "on_promise_race_settled"),
+            gc.nogc(),
+        );
+
+        let promise_capability = PromiseCapability {
+            promise: promise.get(agent).bind(gc.nogc()),
+            must_be_unresolved: true,
+        };
+
+        inner_promise_then(
+            agent,
+            next_promise.unbind(),
+            PromiseReactionHandler::JobCallback(callback.into()),
+            PromiseReactionHandler::JobCallback(callback.into()),
+            Some(promise_capability),
+            gc.nogc(),
+        );
+    }
+}
+
+fn on_promise_race_settled<'a>(
+    _agent: &mut Agent,
+    _value: Value,
+    arguments: ArgumentsList,
+    gc: GcScope<'a, '_>,
+) -> JsResult<'a, Value<'a>> {
+    let arguments = arguments.bind(gc.nogc());
+    let result_value = arguments.get(0);
+    Ok(result_value.unbind())
 }
 
 fn throw_promise_subclassing_not_supported<'a>(
