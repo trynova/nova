@@ -544,3 +544,77 @@ const fn get_array_buffer_op<T: Viewable, const OP: u8>() -> ModifyOp<T> {
         panic!("Unsupported Op value");
     }
 }
+
+pub(crate) fn compare_exchange_in_buffer<'gc, Type: Viewable>(
+    agent: &mut Agent,
+    array_buffer: AnyArrayBuffer,
+    byte_index: usize,
+    expected: Numeric,
+    replacement: Numeric,
+    gc: NoGcScope<'gc, '_>,
+) -> Numeric<'gc> {
+    // 5. Let elementSize be the Element Size value specified in Table
+    //    71 for Element Type type.
+    let element_size = size_of::<Type>();
+
+    // 1. Assert: IsDetachedBuffer(arrayBuffer) is false.
+    debug_assert!(!array_buffer.is_detached(agent));
+    // 2. Assert: There are sufficient bytes in arrayBuffer starting at
+    //    byteIndex to represent a value of type.
+    debug_assert!(
+        byte_index + size_of::<Type>() <= array_buffer.byte_length(agent, Ordering::Unordered)
+    );
+    // 3. Assert: value is a BigInt if IsBigIntElementType(type) is true;
+    //    otherwise, value is a Number.
+    debug_assert!(
+        expected.is_bigint() == Type::IS_BIGINT && replacement.is_bigint() == Type::IS_BIGINT
+    );
+    // 10. Let isLittleEndian be AR.[[LittleEndian]].
+    // 11. Let expectedBytes be
+    //     NumericToRawBytes(elementType, expected, isLittleEndian).
+    let expected_bytes = Type::from_ne_value(agent, expected);
+    // 12. Let replacementBytes be
+    //     NumericToRawBytes(elementType, replacement, isLittleEndian).
+    let replacement_bytes = Type::from_ne_value(agent, replacement);
+    let raw_bytes_read = match array_buffer {
+        // 13. If IsSharedArrayBuffer(buffer) is true, then
+        AnyArrayBuffer::SharedArrayBuffer(array_buffer) => {
+            let buffer = array_buffer.as_slice(agent);
+            let slot = buffer.slice(byte_index, byte_index + element_size);
+            let (head, slot, tail) = slot.align_to::<Type::Storage>();
+            debug_assert!(head.is_empty() && tail.is_empty());
+            let slot = slot.get(0).unwrap();
+            // a. Let rawBytesRead be
+            //    AtomicCompareExchangeInSharedBlock(block, byteIndexInBuffer,
+            //    elementSize, expectedBytes, replacementBytes).
+            let expected_bytes = Type::into_storage(expected_bytes);
+            let replacement_bytes = Type::into_storage(replacement_bytes);
+            match slot.compare_exchange(expected_bytes, replacement_bytes) {
+                Ok(r) => Type::from_storage(r),
+                Err(r) => Type::from_storage(r),
+            }
+        }
+        // 14. Else,
+        AnyArrayBuffer::ArrayBuffer(array_buffer) => {
+            // 3. Let block be buffer.[[ArrayBufferData]].
+            let block = array_buffer.as_mut_slice(agent);
+            let slot = &mut block[byte_index..byte_index + element_size];
+            // SAFETY: Viewable types are safe to transmute.
+            let (head, slot, tail) = unsafe { slot.align_to_mut::<Type>() };
+            debug_assert!(head.is_empty() && tail.is_empty());
+            // a. Let rawBytesRead be a List of length elementSize whose
+            //    elements are the sequence of elementSize bytes starting with
+            //    block[byteIndexInBuffer].
+            let raw_bytes_read = slot[0];
+            // b. If ByteListEqual(rawBytesRead, expectedBytes) is true, then
+            if raw_bytes_read == expected_bytes {
+                // i. Store the individual bytes of replacementBytes into
+                //    block, starting at block[byteIndexInBuffer].
+                slot[0] = replacement_bytes;
+            }
+            raw_bytes_read
+        }
+    };
+    // 15. Return RawBytesToNumeric(elementType, rawBytesRead, isLittleEndian).
+    raw_bytes_read.into_ne_value(agent, gc)
+}
