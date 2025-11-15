@@ -16,7 +16,8 @@ use crate::{
         builtins::{
             ArgumentsList, Behaviour, Builtin,
             array_buffer::{
-                get_modify_set_value_in_buffer, get_value_from_buffer, set_value_in_buffer,
+                compare_exchange_in_buffer, get_modify_set_value_in_buffer, get_value_from_buffer,
+                set_value_in_buffer,
             },
             indexed_collections::typed_array_objects::abstract_operations::{
                 TypedArrayAbstractOperations, TypedArrayWithBufferWitnessRecords,
@@ -192,13 +193,103 @@ impl AtomicsObject {
         .map(|v| v.into_value())
     }
 
+    /// ### [25.4.6 Atomics.compareExchange ( typedArray, index, expectedValue, replacementValue )](https://tc39.es/ecma262/#sec-atomics.compareexchange)
     fn compare_exchange<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("Atomics.compareExchange", gc.into_nogc()))
+        let typed_array = arguments.get(0).bind(gc.nogc());
+        let index = arguments.get(1).bind(gc.nogc());
+        let expected_value = arguments.get(2).bind(gc.nogc());
+        let replacement_value = arguments.get(3).bind(gc.nogc());
+
+        // 1. Let byteIndexInBuffer be ? ValidateAtomicAccessOnIntegerTypedArray(typedArray, index).
+        let (ta_record, byte_index_in_buffer) =
+            try_validate_atomic_access_on_integer_typed_array(agent, typed_array, index, gc.nogc())
+                .unbind()?
+                .bind(gc.nogc());
+        let typed_array = ta_record.object;
+        let (byte_index_in_buffer, typed_array, expected, replacement) =
+            if let (Some(byte_index_in_buffer), (Ok(expected), Ok(replacement))) = (
+                byte_index_in_buffer,
+                // 4. If typedArray.[[ContentType]] is bigint, then
+                if typed_array.is_bigint() {
+                    // a. Let expected be ? ToBigInt(expectedValue).
+                    // b. Let replacement be ? ToBigInt(replacementValue).
+                    (
+                        BigInt::try_from(expected_value).map(|value| value.into_numeric()),
+                        BigInt::try_from(replacement_value).map(|value| value.into_numeric()),
+                    )
+                } else {
+                    // a. Let expected be 𝔽(? ToIntegerOrInfinity(expectedValue)).
+                    // b. Let replacement be 𝔽(? ToIntegerOrInfinity(replacementValue)).
+                    (
+                        Number::try_from(expected_value).map(|value| {
+                            number_convert_to_integer_or_infinity(agent, value, gc.nogc())
+                                .into_numeric()
+                        }),
+                        Number::try_from(replacement_value).map(|value| {
+                            number_convert_to_integer_or_infinity(agent, value, gc.nogc())
+                                .into_numeric()
+                        }),
+                    )
+                },
+            ) {
+                (byte_index_in_buffer, typed_array, expected, replacement)
+            } else {
+                handle_typed_array_index_two_values_slow(
+                    agent,
+                    ta_record.unbind(),
+                    index.unbind(),
+                    expected_value.unbind(),
+                    replacement_value.unbind(),
+                    gc.reborrow(),
+                )
+                .unbind()?
+                .bind(gc.nogc())
+            };
+        let typed_array = typed_array.unbind();
+        let expected = expected.unbind();
+        let replacement = replacement.unbind();
+        let gc = gc.into_nogc();
+        let typed_array = typed_array.bind(gc);
+        let expected = expected.bind(gc);
+        let replacement = replacement.bind(gc);
+
+        // 2. Let buffer be typedArray.[[ViewedArrayBuffer]].
+        let buffer = typed_array.viewed_array_buffer(agent);
+        // 3. Let block be buffer.[[ArrayBufferData]].
+        // 7. Let elementType be TypedArrayElementType(typedArray).
+        // 8. Let elementSize be TypedArrayElementSize(typedArray).
+        // 9. Let AR be the Agent Record of the surrounding agent.
+        // 10. Let isLittleEndian be AR.[[LittleEndian]].
+        // 11. Let expectedBytes be NumericToRawBytes(elementType, expected, isLittleEndian).
+        // 12. Let replacementBytes be NumericToRawBytes(elementType, replacement, isLittleEndian).
+        // 13. If IsSharedArrayBuffer(buffer) is true, then
+        //         a. Let rawBytesRead be AtomicCompareExchangeInSharedBlock(block, byteIndexInBuffer, elementSize, expectedBytes, replacementBytes).
+        // 14. Else,
+        //         a. Let rawBytesRead be a List of length elementSize whose elements are the sequence of elementSize bytes starting with block[byteIndexInBuffer].
+        //         b. If ByteListEqual(rawBytesRead, expectedBytes) is true, then
+        //                 i. Store the individual bytes of replacementBytes into block, starting at block[byteIndexInBuffer].
+        // 15. Return RawBytesToNumeric(elementType, rawBytesRead, isLittleEndian).
+        Ok(for_any_typed_array!(
+            typed_array,
+            _t,
+            {
+                compare_exchange_in_buffer::<ElementType>(
+                    agent,
+                    buffer,
+                    byte_index_in_buffer,
+                    expected,
+                    replacement,
+                    gc,
+                )
+                .into_value()
+            },
+            ElementType
+        ))
     }
 
     fn exchange<'gc>(
@@ -829,7 +920,7 @@ fn handle_typed_array_index_value<'gc>(
             let typed_array = ta_record.object;
             (byte_index_in_buffer, typed_array, value)
         } else {
-            atomic_read_modify_write_slow(
+            handle_typed_array_index_value_slow(
                 agent,
                 ta_record.unbind(),
                 index.unbind(),
@@ -849,7 +940,7 @@ fn handle_typed_array_index_value<'gc>(
 
 #[inline(never)]
 #[cold]
-fn atomic_read_modify_write_slow<'gc>(
+fn handle_typed_array_index_value_slow<'gc>(
     agent: &mut Agent,
     ta_record: TypedArrayWithBufferWitnessRecords,
     index: Value,
@@ -889,6 +980,87 @@ fn atomic_read_modify_write_slow<'gc>(
     let typed_array = unsafe { typed_array.take(agent) }.bind(gc);
     revalidate_atomic_access(agent, typed_array, byte_index_in_buffer, gc)?;
     Ok((byte_index_in_buffer, typed_array, v))
+}
+
+#[inline(never)]
+#[cold]
+fn handle_typed_array_index_two_values_slow<'gc>(
+    agent: &mut Agent,
+    ta_record: TypedArrayWithBufferWitnessRecords,
+    index: Value,
+    expected_value: Value,
+    replacement_value: Value,
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, (usize, AnyTypedArray<'gc>, Numeric<'gc>, Numeric<'gc>)> {
+    let ta_record = ta_record.bind(gc.nogc());
+    let is_bigint = ta_record.object.is_bigint();
+    let typed_array = ta_record.object.scope(agent, gc.nogc());
+    let index = index.bind(gc.nogc());
+    let expected_value = expected_value.scope(agent, gc.nogc());
+    let replacement_value = replacement_value.scope(agent, gc.nogc());
+
+    let byte_index_in_buffer =
+        validate_atomic_access(agent, ta_record.unbind(), index.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+
+    // 4. If typedArray.[[ContentType]] is bigint, then
+    let (expected, replacement) = if is_bigint {
+        // a. Let expected be ? ToBigInt(expectedValue).
+        let expected = to_big_int(agent, expected_value.get(agent), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+        // SAFETY: not shared.
+        let expected = unsafe { expected_value.replace_self(agent, expected.unbind()) };
+        // b. Let replacement be ? ToBigInt(replacementValue).
+        // SAFETY: not shared.
+        let replacement = to_big_int(
+            agent,
+            unsafe { replacement_value.take(agent) },
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        (
+            unsafe { expected.take(agent) }
+                .bind(gc.nogc())
+                .into_numeric(),
+            replacement.into_numeric(),
+        )
+    } else {
+        // 5. Else,
+        // a. Let expected be 𝔽(? ToIntegerOrInfinity(expectedValue)).
+        let expected =
+            to_integer_number_or_infinity(agent, expected_value.get(agent), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+        // SAFETY: not shared.
+        let expected = unsafe { expected_value.replace_self(agent, expected.unbind()) };
+        // b. Let replacement be 𝔽(? ToIntegerOrInfinity(replacementValue)).
+        // SAFETY: not shared.
+        let replacement = to_integer_number_or_infinity(
+            agent,
+            unsafe { replacement_value.take(agent) },
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        (
+            unsafe { expected.take(agent) }
+                .bind(gc.nogc())
+                .into_numeric(),
+            replacement.into_numeric(),
+        )
+    };
+    let expected = expected.unbind();
+    let replacement = replacement.unbind();
+    let gc = gc.into_nogc();
+    let expected = expected.bind(gc);
+    let replacement = replacement.bind(gc);
+    let typed_array = unsafe { typed_array.take(agent) }.bind(gc);
+    // 6. Perform ? RevalidateAtomicAccess(typedArray, byteIndexInBuffer).
+    revalidate_atomic_access(agent, typed_array, byte_index_in_buffer, gc)?;
+    Ok((byte_index_in_buffer, typed_array, expected, replacement))
 }
 
 #[inline(never)]
