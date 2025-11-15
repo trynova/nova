@@ -285,11 +285,115 @@ impl PromiseConstructor {
     /// > method.
     fn race<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("Promise.race", gc.into_nogc()))
+        let this_value = this_value.bind(gc.nogc());
+        let arguments = arguments.bind(gc.nogc());
+        let iterable = arguments.get(0).scope(agent, gc.nogc());
+
+        // 1. Let C be the this value.
+        if this_value
+            != agent
+                .current_realm_record()
+                .intrinsics()
+                .promise()
+                .into_value()
+        {
+            return Err(throw_promise_subclassing_not_supported(
+                agent,
+                gc.into_nogc(),
+            ));
+        }
+
+        // 2. Let promiseCapability be ? NewPromiseCapability(C).
+        let Some(constructor) = is_constructor(agent, this_value) else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Expected the this value to be a constructor.",
+                gc.into_nogc(),
+            ));
+        };
+        let constructor = constructor.scope(agent, gc.nogc());
+        let promise_capability = PromiseCapability::new(agent, gc.nogc());
+        let promise = promise_capability.promise().scope(agent, gc.nogc());
+
+        // 3. Let promiseResolve be Completion(GetPromiseResolve(C)).
+        let promise_resolve = get_promise_resolve(agent, constructor.get(agent), gc.reborrow())
+            .unbind()
+            .bind(gc.nogc());
+
+        // 4. IfAbruptRejectPromise(promiseResolve, promiseCapability).
+        let promise_capability = PromiseCapability {
+            promise: promise.get(agent).bind(gc.nogc()),
+            must_be_unresolved: true,
+        };
+        let promise_resolve =
+            if_abrupt_reject_promise_m!(agent, promise_resolve, promise_capability, gc);
+        let promise_resolve = promise_resolve.scope(agent, gc.nogc());
+
+        // 5. Let iteratorRecord be Completion(GetIterator(iterable, sync)).
+        let iterator_record = get_iterator(agent, iterable.get(agent), false, gc.reborrow())
+            .unbind()
+            .bind(gc.nogc());
+
+        // 6. IfAbruptRejectPromise(iteratorRecord, promiseCapability).
+        let promise_capability = PromiseCapability {
+            promise: promise.get(agent).bind(gc.nogc()),
+            must_be_unresolved: true,
+        };
+        let MaybeInvalidIteratorRecord {
+            iterator,
+            next_method,
+        } = if_abrupt_reject_promise_m!(agent, iterator_record, promise_capability, gc);
+
+        let iterator = iterator.scope(agent, gc.nogc());
+
+        // 7. Let result be Completion(PerformPromiseAll(iteratorRecord, C, promiseCapability, promiseResolve)).
+        let mut iterator_done = false;
+        let result = perform_promise_race(
+            agent,
+            iterator.clone(),
+            next_method.unbind(),
+            constructor,
+            promise_capability.unbind(),
+            promise_resolve,
+            &mut iterator_done,
+            gc.reborrow(),
+        )
+        .unbind()
+        .bind(gc.nogc());
+
+        // 8. If result is an abrupt completion, then
+        let result = match result {
+            Err(mut result) => {
+                // a. If iteratorRecord.[[Done]] is false, set result to Completion(IteratorClose(iteratorRecord, result)).
+                if !iterator_done {
+                    result = iterator_close_with_error(
+                        agent,
+                        iterator.get(agent),
+                        result.unbind(),
+                        gc.reborrow(),
+                    )
+                    .unbind()
+                    .bind(gc.nogc());
+                }
+
+                // b. IfAbruptRejectPromise(result, promiseCapability).
+                let promise_capability = PromiseCapability {
+                    promise: promise.get(agent).bind(gc.nogc()),
+                    must_be_unresolved: true,
+                };
+                // a. Perform ? Call(capability.[[Reject]], undefined, « value.[[Value]] »).
+                promise_capability.reject(agent, result.value().unbind(), gc.nogc());
+                // b. Return capability.[[Promise]].
+                promise_capability.promise()
+            }
+            Ok(result) => result,
+        };
+        // 9. Return ! result.
+        Ok(result.into_value().unbind())
     }
 
     /// ### [27.2.4.6 Promise.reject ( r )](https://tc39.es/ecma262/#sec-promise.reject)
@@ -825,6 +929,74 @@ fn perform_promise_group<'gc>(
 
         // o. Set index to index + 1.
         index += 1;
+    }
+}
+
+/// ### [27.2.4.5.1 PerformPromiseRace ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiserace)
+#[allow(clippy::too_many_arguments)]
+fn perform_promise_race<'gc>(
+    agent: &mut Agent,
+    iterator: Scoped<Object>,
+    next_method: Option<Function>,
+    constructor: Scoped<Function>,
+    result_capability: PromiseCapability,
+    promise_resolve: Scoped<Function>,
+    iterator_done: &mut bool,
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, Promise<'gc>> {
+    let result_capability = result_capability.bind(gc.nogc());
+
+    let Some(next_method) = next_method else {
+        return Err(throw_not_callable(agent, gc.into_nogc()));
+    };
+
+    let next_method = next_method.scope(agent, gc.nogc());
+    let promise = result_capability.promise.scope(agent, gc.nogc());
+
+    loop {
+        let iterator_record = IteratorRecord {
+            iterator: iterator.get(agent),
+            next_method: next_method.get(agent),
+        }
+        .bind(gc.nogc());
+
+        let next = iterator_step_value(agent, iterator_record.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+
+        let Some(next) = next else {
+            *iterator_done = true;
+            return Ok(promise.get(agent));
+        };
+
+        let call_result = call_function(
+            agent,
+            promise_resolve.get(agent),
+            constructor.get(agent).into_value(),
+            Some(ArgumentsList::from_mut_value(&mut next.unbind())),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+
+        let next_promise = match call_result {
+            Value::Promise(next_promise) => next_promise,
+            _ => Promise::new_resolved(agent, call_result),
+        };
+
+        let promise_capability = PromiseCapability {
+            promise: promise.get(agent).bind(gc.nogc()),
+            must_be_unresolved: true,
+        };
+
+        inner_promise_then(
+            agent,
+            next_promise.unbind(),
+            PromiseReactionHandler::Empty,
+            PromiseReactionHandler::Empty,
+            Some(promise_capability),
+            gc.nogc(),
+        );
     }
 }
 
