@@ -14,8 +14,8 @@ use crate::{
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinFunctionArgs, BuiltinGetter,
-            BuiltinIntrinsicConstructor, array_create, create_builtin_function,
+            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
+            array_create,
             ordinary::ordinary_create_from_constructor,
             promise::{
                 Promise,
@@ -909,13 +909,6 @@ fn perform_promise_race<'gc>(
             _ => Promise::new_resolved(agent, call_result),
         };
 
-        let callback = create_builtin_function(
-            agent,
-            Behaviour::Regular(on_promise_race_settled),
-            BuiltinFunctionArgs::new(0, "on_promise_race_settled"),
-            gc.nogc(),
-        );
-
         let promise_capability = PromiseCapability {
             promise: promise.get(agent).bind(gc.nogc()),
             must_be_unresolved: true,
@@ -924,23 +917,12 @@ fn perform_promise_race<'gc>(
         inner_promise_then(
             agent,
             next_promise.unbind(),
-            PromiseReactionHandler::JobCallback(callback.into()),
-            PromiseReactionHandler::JobCallback(callback.into()),
+            PromiseReactionHandler::Empty,
+            PromiseReactionHandler::Empty,
             Some(promise_capability),
             gc.nogc(),
         );
     }
-}
-
-fn on_promise_race_settled<'a>(
-    _agent: &mut Agent,
-    _value: Value,
-    arguments: ArgumentsList,
-    gc: GcScope<'a, '_>,
-) -> JsResult<'a, Value<'a>> {
-    let arguments = arguments.bind(gc.nogc());
-    let result_value = arguments.get(0);
-    Ok(result_value.unbind())
 }
 
 fn throw_promise_subclassing_not_supported<'a>(
