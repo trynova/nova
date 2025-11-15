@@ -28,7 +28,6 @@ pub enum PromiseGroupType {
     All,
     AllSettled,
     Any,
-    Race,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -90,9 +89,6 @@ impl<'a> PromiseGroup<'a> {
                     self.reject(agent, index, value.unbind(), gc.reborrow());
                 }
             },
-            PromiseGroupType::Race => {
-                unreachable!()
-            }
         }
     }
 
