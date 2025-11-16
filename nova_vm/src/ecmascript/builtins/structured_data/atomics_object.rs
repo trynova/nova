@@ -10,7 +10,7 @@ use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{
             number_convert_to_integer_or_infinity, to_big_int, to_index,
-            to_integer_number_or_infinity, try_to_index, validate_index,
+            to_integer_number_or_infinity, to_integer_or_infinity, try_to_index, validate_index,
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
@@ -308,13 +308,63 @@ impl AtomicsObject {
         .map(|v| v.into_value())
     }
 
+    /// ### [25.4.8 Atomics.isLockFree ( size )](https://tc39.es/ecma262/#sec-atomics.islockfree)
+    ///
+    /// > NOTE: This function is an optimization primitive. The intuition is
+    /// > that if the atomic step of an atomic primitive (**compareExchange**,
+    /// > **load**, **store**, **add**, **sub**, **and**, **or**, **xor**, or
+    /// > **exchange**) on a datum of size `n` bytes will be performed without
+    /// > the surrounding agent acquiring a lock outside the n bytes comprising
+    /// > the datum, then **Atomics.isLockFree**(`n`) will return **true**.
+    /// > High-performance algorithms will use this function to determine
+    /// > whether to use locks or atomic operations in critical sections. If an
+    /// > atomic primitive is not lock-free then it is often more efficient for
+    /// > an algorithm to provide its own locking.
+    /// >
+    /// > **Atomics.isLockFree**(4) always returns **true** as that can be
+    /// > supported on all known relevant hardware. Being able to assume this
+    /// > will generally simplify programs.
+    /// >
+    /// > Regardless of the value returned by this function, all atomic
+    /// > operations are guaranteed to be atomic. For example, they will never
+    /// > have a visible operation take place in the middle of the operation
+    /// > (e.g., "tearing").
     fn is_lock_free<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
+        arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("Atomics.isLockFree", gc.into_nogc()))
+        let size = arguments.get(0).bind(gc.nogc());
+        // 1. Let n be ? ToIntegerOrInfinity(size).
+        let n = to_integer_or_infinity(agent, size.unbind(), gc)?.into_i64();
+        // 2. Let AR be the Agent Record of the surrounding agent.
+        // 3. If n = 1, return AR.[[IsLockFree1]].
+        #[cfg(target_has_atomic = "8")]
+        if n == 1 {
+            return Ok(true.into());
+        }
+        // 4. If n = 2, return AR.[[IsLockFree2]].
+        #[cfg(target_has_atomic = "16")]
+        if n == 2 {
+            return Ok(true.into());
+        }
+        // 5. If n = 4, return true.
+        #[cfg(target_has_atomic = "32")]
+        if n == 4 {
+            return Ok(true.into());
+        }
+        #[cfg(not(target_has_atomic = "32"))]
+        const {
+            panic!("Atomics requires 32-bit lock-free atomics")
+        };
+        // 6. If n = 8, return AR.[[IsLockFree8]].
+        #[cfg(target_has_atomic = "64")]
+        if n == 8 {
+            return Ok(true.into());
+        }
+        // 7. Return false.
+        Ok(false.into())
     }
 
     /// ### [25.4.9 Atomics.load ( typedArray, index )](https://tc39.es/ecma262/#sec-atomics.load)
