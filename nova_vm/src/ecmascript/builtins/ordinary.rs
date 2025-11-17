@@ -1691,6 +1691,8 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
         ProtoIntrinsics::TemporalInstant => {
             agent.heap.create(InstantRecord::default()).into_object()
         }
+        #[cfg(feature = "temporal")]
+        ProtoIntrinsics::TemporalPlainTime => todo!(),
         ProtoIntrinsics::TypeError => agent
             .heap
             .create(ErrorHeapData::new(ExceptionType::TypeError, None, None))
@@ -2081,6 +2083,10 @@ fn get_intrinsic_constructor<'a>(
         ProtoIntrinsics::WeakSet => Some(intrinsics.weak_set().into_function()),
         #[cfg(feature = "temporal")]
         ProtoIntrinsics::TemporalInstant => Some(intrinsics.temporal_instant().into_function()),
+        #[cfg(feature = "temporal")]
+        ProtoIntrinsics::TemporalPlainTime => {
+            Some(intrinsics.temporal_plain_time().into_function())
+        }
     }
 }
 

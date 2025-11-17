@@ -114,6 +114,8 @@ encodeURIComponent
 endsWith
 entries
 enumerable
+#[cfg(feature = "temporal")]epochMilliseconds
+#[cfg(feature = "temporal")]epochNanoseconds
 EPSILON
 #[cfg(feature = "temporal")]equals
 Error
@@ -150,8 +152,8 @@ for
 forEach
 freeze
 from
-fromEpochNanoseconds
-fromEpochMilliseconds
+#[cfg(feature = "temporal")]fromEpochNanoseconds
+#[cfg(feature = "temporal")]fromEpochMilliseconds
 fromCharCode
 fromCodePoint
 fromEntries
@@ -188,8 +190,8 @@ get size
 #[cfg(feature = "array-buffer")]getBigUint64
 #[cfg(feature = "date")]getDate
 #[cfg(feature = "date")]getDay
-#[cfg(feature = "temporal")]getEpochMilliseconds
-#[cfg(feature = "temporal")]getEpochNanoSeconds
+#[cfg(feature = "temporal")]get epochMilliseconds
+#[cfg(feature = "temporal")]get epochNanoseconds
 #[cfg(feature = "proposal-float16array")]getFloat16
 #[cfg(feature = "array-buffer")]getFloat32
 #[cfg(feature = "array-buffer")]getFloat64
@@ -324,6 +326,7 @@ parseFloat
 parseInt
 #[cfg(feature = "proposal-atomics-microwait")]pause
 #[cfg(feature = "math")]PI
+#[cfg(feature = "temporal")]PlainTime
 pop
 POSITIVE_INFINITY
 #[cfg(feature = "math")]pow

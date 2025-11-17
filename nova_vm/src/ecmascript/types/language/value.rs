@@ -12,7 +12,9 @@ use super::{
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
 #[cfg(feature = "temporal")]
-use crate::ecmascript::builtins::temporal::instant::TemporalInstant;
+use crate::ecmascript::builtins::temporal::{
+    instant::TemporalInstant, plain_time::TemporalPlainTime,
+};
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::builtins::typed_array::Float16Array;
 #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
@@ -185,6 +187,8 @@ pub enum Value<'a> {
     Date(Date<'a>),
     #[cfg(feature = "temporal")]
     Instant(TemporalInstant<'a>),
+    #[cfg(feature = "temporal")]
+    PlainTime(TemporalPlainTime<'a>),
     Error(Error<'a>),
     FinalizationRegistry(FinalizationRegistry<'a>),
     Map(Map<'a>),
@@ -324,6 +328,9 @@ pub(crate) const DATE_DISCRIMINANT: u8 = value_discriminant(Value::Date(Date::_d
 #[cfg(feature = "temporal")]
 pub(crate) const INSTANT_DISCRIMINANT: u8 =
     value_discriminant(Value::Instant(TemporalInstant::_def()));
+#[cfg(feature = "temporal")]
+pub(crate) const PLAIN_TIME_DISCRIMINANT: u8 =
+    value_discriminant(Value::PlainTime(TemporalPlainTime::_def()));
 pub(crate) const ERROR_DISCRIMINANT: u8 = value_discriminant(Value::Error(Error::_def()));
 pub(crate) const BUILTIN_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::BuiltinFunction(BuiltinFunction::_def()));
@@ -1000,6 +1007,8 @@ impl Rootable for Value<'_> {
             Self::Date(date) => Err(HeapRootData::Date(date.unbind())),
             #[cfg(feature = "temporal")]
             Self::Instant(instant) => Err(HeapRootData::Instant(instant.unbind())),
+            #[cfg(feature = "temporal")]
+            Self::PlainTime(plain_time) => Err(HeapRootData::PlainTime(plain_time.unbind())),
             Self::Error(error) => Err(HeapRootData::Error(error.unbind())),
             Self::FinalizationRegistry(finalization_registry) => Err(
                 HeapRootData::FinalizationRegistry(finalization_registry.unbind()),
@@ -1163,6 +1172,8 @@ impl Rootable for Value<'_> {
             HeapRootData::Date(date) => Some(Self::Date(date)),
             #[cfg(feature = "temporal")]
             HeapRootData::Instant(instant) => Some(Self::Instant(instant)),
+            #[cfg(feature = "temporal")]
+            HeapRootData::PlainTime(plain_time) => Some(Self::PlainTime(plain_time)),
             HeapRootData::Error(error) => Some(Self::Error(error)),
             HeapRootData::FinalizationRegistry(finalization_registry) => {
                 Some(Self::FinalizationRegistry(finalization_registry))
@@ -1312,7 +1323,9 @@ impl HeapMarkAndSweep for Value<'static> {
             #[cfg(feature = "date")]
             Self::Date(dv) => dv.mark_values(queues),
             #[cfg(feature = "temporal")]
-            Self::Instant(dv) => dv.mark_values(queues),
+            Self::Instant(data) => data.mark_values(queues),
+            #[cfg(feature = "temporal")]
+            Self::PlainTime(data) => data.mark_values(queues),
             Self::Error(data) => data.mark_values(queues),
             Self::BoundFunction(data) => data.mark_values(queues),
             Self::BuiltinFunction(data) => data.mark_values(queues),
@@ -1428,7 +1441,9 @@ impl HeapMarkAndSweep for Value<'static> {
             #[cfg(feature = "date")]
             Self::Date(data) => data.sweep_values(compactions),
             #[cfg(feature = "temporal")]
-            Self::Instant(dv) => dv.sweep_values(compactions),
+            Self::Instant(data) => data.sweep_values(compactions),
+            #[cfg(feature = "temporal")]
+            Self::PlainTime(data) => data.sweep_values(compactions),
             Self::Error(data) => data.sweep_values(compactions),
             Self::BoundFunction(data) => data.sweep_values(compactions),
             Self::BuiltinFunction(data) => data.sweep_values(compactions),
@@ -1582,6 +1597,8 @@ fn map_object_to_static_string_repr(value: Value) -> String<'static> {
         Object::Date(_) => BUILTIN_STRING_MEMORY._object_Object_,
         #[cfg(feature = "temporal")]
         Object::Instant(_) => BUILTIN_STRING_MEMORY._object_Object_,
+        #[cfg(feature = "temporal")]
+        Object::PlainTime(_) => BUILTIN_STRING_MEMORY._object_Object_,
         #[cfg(feature = "set")]
         Object::Set(_) | Object::SetIterator(_) => BUILTIN_STRING_MEMORY._object_Object_,
         #[cfg(feature = "weak-refs")]

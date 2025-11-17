@@ -19,7 +19,8 @@ use crate::ecmascript::types::{
 };
 #[cfg(feature = "temporal")]
 use crate::ecmascript::{
-    builtins::temporal::instant::TemporalInstant, types::INSTANT_DISCRIMINANT,
+    builtins::temporal::{instant::TemporalInstant, plain_time::TemporalPlainTime},
+    types::{INSTANT_DISCRIMINANT, PLAIN_TIME_DISCRIMINANT},
 };
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::{builtins::typed_array::Float16Array, types::FLOAT_16_ARRAY_DISCRIMINANT};
@@ -554,6 +555,8 @@ pub enum HeapRootData {
     Date(Date<'static>) = DATE_DISCRIMINANT,
     #[cfg(feature = "temporal")]
     Instant(TemporalInstant<'static>) = INSTANT_DISCRIMINANT,
+    #[cfg(feature = "temporal")]
+    PlainTime(TemporalPlainTime<'static>) = PLAIN_TIME_DISCRIMINANT,
     Error(Error<'static>) = ERROR_DISCRIMINANT,
     FinalizationRegistry(FinalizationRegistry<'static>) = FINALIZATION_REGISTRY_DISCRIMINANT,
     Map(Map<'static>) = MAP_DISCRIMINANT,
@@ -690,6 +693,8 @@ impl From<Object<'static>> for HeapRootData {
             Object::Date(date) => Self::Date(date),
             #[cfg(feature = "temporal")]
             Object::Instant(instant) => Self::Instant(instant),
+            #[cfg(feature = "temporal")]
+            Object::PlainTime(plain_time) => Self::PlainTime(plain_time),
             Object::Error(error) => Self::Error(error),
             Object::FinalizationRegistry(finalization_registry) => {
                 Self::FinalizationRegistry(finalization_registry)
@@ -851,6 +856,8 @@ impl HeapMarkAndSweep for HeapRootData {
             Self::Date(date) => date.mark_values(queues),
             #[cfg(feature = "temporal")]
             Self::Instant(instant) => instant.mark_values(queues),
+            #[cfg(feature = "temporal")]
+            Self::PlainTime(plain_time) => plain_time.mark_values(queues),
             Self::Error(error) => error.mark_values(queues),
             Self::FinalizationRegistry(finalization_registry) => {
                 finalization_registry.mark_values(queues)
@@ -1001,7 +1008,9 @@ impl HeapMarkAndSweep for HeapRootData {
             #[cfg(feature = "date")]
             Self::Date(date) => date.sweep_values(compactions),
             #[cfg(feature = "temporal")]
-            Self::Instant(date) => date.sweep_values(compactions),
+            Self::Instant(instant) => instant.sweep_values(compactions),
+            #[cfg(feature = "temporal")]
+            Self::PlainTime(plain_time) => plain_time.sweep_values(compactions),
             Self::Error(error) => error.sweep_values(compactions),
             Self::FinalizationRegistry(finalization_registry) => {
                 finalization_registry.sweep_values(compactions)

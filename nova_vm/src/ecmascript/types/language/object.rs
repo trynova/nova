@@ -38,6 +38,10 @@ use super::{
 use crate::ecmascript::builtins::date::Date;
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
+#[cfg(feature = "temporal")]
+use crate::ecmascript::{
+    builtins::temporal::plain_time::TemporalPlainTime, types::PLAIN_TIME_DISCRIMINANT,
+};
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::{builtins::typed_array::Float16Array, types::FLOAT_16_ARRAY_DISCRIMINANT};
 #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
@@ -182,6 +186,8 @@ pub enum Object<'a> {
     Date(Date<'a>) = DATE_DISCRIMINANT,
     #[cfg(feature = "temporal")]
     Instant(TemporalInstant<'a>) = INSTANT_DISCRIMINANT,
+    #[cfg(feature = "temporal")]
+    PlainTime(TemporalPlainTime<'a>) = PLAIN_TIME_DISCRIMINANT,
     Error(Error<'a>) = ERROR_DISCRIMINANT,
     FinalizationRegistry(FinalizationRegistry<'a>) = FINALIZATION_REGISTRY_DISCRIMINANT,
     Map(Map<'a>) = MAP_DISCRIMINANT,
@@ -782,6 +788,8 @@ impl<'a> From<Object<'a>> for Value<'a> {
             Object::Date(data) => Self::Date(data),
             #[cfg(feature = "temporal")]
             Object::Instant(data) => Value::Instant(data),
+            #[cfg(feature = "temporal")]
+            Object::PlainTime(data) => Value::PlainTime(data),
             Object::Error(data) => Self::Error(data),
             Object::FinalizationRegistry(data) => Self::FinalizationRegistry(data),
             Object::Map(data) => Self::Map(data),
@@ -892,6 +900,8 @@ impl<'a> TryFrom<Value<'a>> for Object<'a> {
             Value::Date(x) => Ok(Self::Date(x)),
             #[cfg(feature = "temporal")]
             Value::Instant(x) => Ok(Self::Instant(x)),
+            #[cfg(feature = "temporal")]
+            Value::PlainTime(x) => Ok(Self::PlainTime(x)),
             Value::Error(x) => Ok(Self::from(x)),
             Value::BoundFunction(x) => Ok(Self::from(x)),
             Value::BuiltinFunction(x) => Ok(Self::from(x)),
@@ -1010,6 +1020,8 @@ macro_rules! object_delegate {
             Self::Date(data) => data.$method($($arg),+),
             #[cfg(feature = "temporal")]
             Object::Instant(data) => data.$method($($arg),+),
+            #[cfg(feature = "temporal")]
+            Object::PlainTime(data) => data.$method($($arg),+),
             Self::Error(data) => data.$method($($arg),+),
             Self::BoundFunction(data) => data.$method($($arg),+),
             Self::BuiltinFunction(data) => data.$method($($arg),+),
@@ -1442,6 +1454,8 @@ impl HeapSweepWeakReference for Object<'static> {
             Self::Date(data) => data.sweep_weak_reference(compactions).map(Self::Date),
             #[cfg(feature = "temporal")]
             Self::Instant(data) => data.sweep_weak_reference(compactions).map(Self::Instant),
+            #[cfg(feature = "temporal")]
+            Self::PlainTime(data) => data.sweep_weak_reference(compactions).map(Self::PlainTime),
             Self::Error(data) => data.sweep_weak_reference(compactions).map(Self::Error),
             Self::BoundFunction(data) => data
                 .sweep_weak_reference(compactions)
@@ -1680,6 +1694,8 @@ impl TryFrom<HeapRootData> for Object<'_> {
             HeapRootData::Date(date) => Ok(Self::Date(date)),
             #[cfg(feature = "temporal")]
             HeapRootData::Instant(instant) => Ok(Self::Instant(instant)),
+            #[cfg(feature = "temporal")]
+            HeapRootData::PlainTime(plain_time) => Ok(Self::PlainTime(plain_time)),
             HeapRootData::Error(error) => Ok(Self::Error(error)),
             HeapRootData::FinalizationRegistry(finalization_registry) => {
                 Ok(Self::FinalizationRegistry(finalization_registry))

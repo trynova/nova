@@ -1,22 +1,22 @@
-use std::num::NonZeroU32;
-
-use temporal_rs::options::{RoundingIncrement, RoundingMode, RoundingOptions, Unit};
+use temporal_rs::options::{RoundingMode, RoundingOptions, Unit};
 
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{get, try_create_data_property_or_throw},
-            type_conversion::to_number,
+            operations_on_objects::try_create_data_property_or_throw, type_conversion::to_number,
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
-            ArgumentsList, Behaviour, Builtin,
+            ArgumentsList, Behaviour, Builtin, BuiltinGetter,
             ordinary::ordinary_object_create_with_intrinsics,
             temporal::{
                 error::temporal_err_to_js_err,
                 instant::{
                     add_duration_to_instant, create_temporal_instant, difference_temporal_instant,
                     require_internal_slot_temporal_instant, to_temporal_instant,
+                },
+                options::{
+                    get_options_object, get_rounding_increment_option, get_rounding_mode_option,
                 },
             },
         },
@@ -37,19 +37,25 @@ pub(crate) struct TemporalInstantPrototype;
 
 struct TemporalInstantPrototypeGetEpochMilliseconds;
 impl Builtin for TemporalInstantPrototypeGetEpochMilliseconds {
-    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getEpochMilliseconds;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_epochMilliseconds;
+    const KEY: Option<PropertyKey<'static>> =
+        Some(BUILTIN_STRING_MEMORY.epochMilliseconds.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour =
         Behaviour::Regular(TemporalInstantPrototype::get_epoch_milliseconds);
 }
+impl BuiltinGetter for TemporalInstantPrototypeGetEpochMilliseconds {}
 
 struct TemporalInstantPrototypeGetEpochNanoSeconds;
 impl Builtin for TemporalInstantPrototypeGetEpochNanoSeconds {
-    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getEpochNanoSeconds;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_epochNanoseconds;
+    const KEY: Option<PropertyKey<'static>> =
+        Some(BUILTIN_STRING_MEMORY.epochNanoseconds.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour =
         Behaviour::Regular(TemporalInstantPrototype::get_epoch_nanoseconds);
 }
+impl BuiltinGetter for TemporalInstantPrototypeGetEpochNanoSeconds {}
 
 struct TemporalInstantPrototypeAdd;
 impl Builtin for TemporalInstantPrototypeAdd {
@@ -161,7 +167,7 @@ impl TemporalInstantPrototype {
         let instant = require_internal_slot_temporal_instant(agent, this_value, gc)?;
         // 3. Return instant.[[EpochNanoseconds]].
         let value = instant.inner_instant(agent).epoch_nanoseconds().as_i128();
-        Ok(BigInt::from_i128(agent, value).into())
+        Ok(BigInt::from_i128(agent, value, gc).into())
     }
 
     /// ### [8.3.5 Temporal.Instant.prototype.add ( temporalDurationLike )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.add)
@@ -467,8 +473,8 @@ impl TemporalInstantPrototype {
             .with_property_capacity(15)
             .with_prototype(object_prototype)
             .with_constructor_property(instant_constructor)
-            .with_builtin_function_property::<TemporalInstantPrototypeGetEpochMilliseconds>()
-            .with_builtin_function_property::<TemporalInstantPrototypeGetEpochNanoSeconds>()
+            .with_builtin_function_getter_property::<TemporalInstantPrototypeGetEpochMilliseconds>()
+            .with_builtin_function_getter_property::<TemporalInstantPrototypeGetEpochNanoSeconds>()
             .with_builtin_function_property::<TemporalInstantPrototypeAdd>()
             .with_builtin_function_property::<TemporalInstantPrototypeSubtract>()
             .with_builtin_function_property::<TemporalInstantPrototypeUntil>()
@@ -492,120 +498,13 @@ impl TemporalInstantPrototype {
     }
 }
 
-/// ### [14.5.2.1 GetOptionsObject ( options )](https://tc39.es/proposal-temporal/#sec-getoptionsobject)
-///
-/// The abstract operation GetOptionsObject takes argument options (an ECMAScript language value)
-/// and returns either a normal completion containing an Object or a throw completion. It returns
-/// an Object suitable for use with GetOption, either options itself or a default empty Object. It
-/// throws a TypeError if options is not undefined and not an Object. It performs the following
-/// steps when called:
-fn get_options_object<'gc>(
-    agent: &mut Agent,
-    options: Value,
-    gc: NoGcScope<'gc, '_>,
-) -> JsResult<'gc, Object<'gc>> {
-    match options.unbind() {
-        // 1. If options is undefined, then
-        Value::Undefined => {
-            // a. Return OrdinaryObjectCreate(null).
-            Ok(ordinary_object_create_with_intrinsics(
-                agent, None, None, gc,
-            ))
-        }
-        // 2. If options is an Object, then
-        Value::Object(obj) => {
-            // a. Return options.
-            Ok(obj.into())
-        }
-        // 3. Throw a TypeError exception.
-        _ => Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "options provided to GetOptionsObject is not an object",
-            gc,
-        )),
-    }
-}
-
-trivially_bindable!(RoundingMode);
-
-/// ### [14.5.2.3 GetRoundingModeOption ( options, fallback)](https://tc39.es/proposal-temporal/#sec-temporal-getroundingmodeoption)
-///
-// The abstract operation GetRoundingModeOption takes arguments options (an Object) and fallback (a
-// rounding mode) and returns either a normal completion containing a rounding mode, or a throw
-// completion. It fetches and validates the "roundingMode" property from options, returning
-// fallback as a default if absent. It performs the following steps when called:
-fn get_rounding_mode_option<'gc>(
-    _agent: &mut Agent,
-    options: Object,
-    fallback: RoundingMode,
-    gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, RoundingMode> {
-    let _options = options.bind(gc.nogc());
-    let _fallback = fallback.bind(gc.nogc());
-    // 1. Let allowedStrings be the List of Strings from the "String Identifier" column of Table 28.
-    // 2. Let stringFallback be the value from the "String Identifier" column of the row with fallback in its "Rounding Mode" column.
-    // 3. Let stringValue be ? GetOption(options, "roundingMode", string, allowedStrings, stringFallback).
-    // 4. Return the value from the "Rounding Mode" column of the row with stringValue in its "String Identifier" column.
-    todo!()
-}
-
-trivially_bindable!(RoundingIncrement);
-
-/// ### [14.5.2.4 GetRoundingIncrementOption ( options )](https://tc39.es/proposal-temporal/#sec-temporal-getroundingincrementoption)
-///
-/// The abstract operation GetRoundingIncrementOption takes argument options (an Object) and returns
-/// either a normal completion containing a positive integer in the inclusive interval from 1 to
-/// 10**9, or a throw completion. It fetches and validates the "roundingIncrement" property from
-/// options, returning a default if absent. It performs the following steps when called:
-fn get_rounding_increment_option<'gc>(
-    agent: &mut Agent,
-    options: Object,
-    mut gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, RoundingIncrement> {
-    let options = options.bind(gc.nogc());
-    // 1. Let value be ? Get(options, "roundingIncrement").
-    let value = get(
-        agent,
-        options.unbind(),
-        BUILTIN_STRING_MEMORY.roundingIncrement.into(),
-        gc.reborrow(),
-    )
-    .unbind()?;
-    // 2. If value is undefined, return 1𝔽.
-    if value.is_undefined() {
-        return Ok(RoundingIncrement::default());
-    }
-    // 3. Let integerIncrement be ? ToIntegerWithTruncation(value).
-    let integer_increment = to_integer_with_truncation(agent, value, gc.reborrow())
-        .unbind()?
-        .bind(gc.nogc());
-
-    // 4. If integerIncrement < 1 or integerIncrement > 10**9, throw a RangeError exception.
-    if integer_increment < 1.0 || integer_increment > 1_000_000_000.0 {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::RangeError,
-            "roundingIncrement must be between 1 and 10**9",
-            gc.into_nogc(),
-        ));
-    }
-
-    // Convert safely and return integerIncrement
-    // NOTE: `as u32` is safe here since we validated it’s in range.
-    let integer_increment_u32 = integer_increment as u32;
-    let increment =
-        NonZeroU32::new(integer_increment_u32).expect("integer_increment >= 1 ensures nonzero");
-
-    // 5. Return integerIncrement.
-    Ok(RoundingIncrement::new_unchecked(increment))
-}
-
 /// ### [13.40 ToIntegerWithTruncation ( argument )] (https://tc39.es/proposal-temporal/#sec-tointegerwithtruncation)
 ///
 /// The abstract operation ToIntegerWithTruncation takes argument argument (an ECMAScript language
 /// value) and returns either a normal completion containing an integer or a throw completion. It
 /// converts argument to an integer representing its Number value with fractional part truncated, or
 /// throws a RangeError when that value is not finite. It performs the following steps when called:
-fn to_integer_with_truncation<'gc>(
+pub(crate) fn to_integer_with_truncation<'gc>(
     agent: &mut Agent,
     argument: Value,
     mut gc: GcScope<'gc, '_>,
@@ -637,7 +536,7 @@ trivially_bindable!(Unit);
 /// property key), and default (required or unset) and returns either a normal completion
 /// containing either a Temporal unit, unset, or auto, or a throw completion. It attempts to read a
 /// Temporal unit from the specified property of options.
-fn get_temporal_unit_valued_option<'gc>(
+pub(crate) fn get_temporal_unit_valued_option<'gc>(
     _agent: &mut Agent,
     options: Object,
     key: PropertyKey,
@@ -646,11 +545,12 @@ fn get_temporal_unit_valued_option<'gc>(
 ) -> JsResult<'gc, Unit> {
     let _options = options.bind(gc.nogc());
     let _default = default.bind(gc.nogc());
+    let _key = key.bind(gc.nogc());
     todo!()
 }
 
 #[allow(dead_code)]
-enum DefaultOption {
+pub(crate) enum DefaultOption {
     Required,
     Unset,
 }
