@@ -42,10 +42,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::Scopable,
     },
-    heap::{
-        CompactionLists, CreateHeapData, HeapMarkAndSweep, IntrinsicConstructorIndexes,
-        ObjectEntry, WellKnownSymbolIndexes, WorkQueues,
-    },
+    heap::{CreateHeapData, IntrinsicConstructorIndexes, ObjectEntry, WellKnownSymbolIndexes},
 };
 
 use super::promise_abstract_operations::{
@@ -129,22 +126,6 @@ struct PromiseGroupSetup<'a> {
     promise_resolve: Function<'a>,
 }
 bindable_handle!(PromiseGroupSetup);
-
-impl HeapMarkAndSweep for PromiseGroupSetup<'static> {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        self.iterator_record.mark_values(queues);
-        self.constructor.mark_values(queues);
-        self.promise_capability.mark_values(queues);
-        self.promise_resolve.mark_values(queues);
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.iterator_record.sweep_values(compactions);
-        self.constructor.sweep_values(compactions);
-        self.promise_capability.sweep_values(compactions);
-        self.promise_resolve.sweep_values(compactions);
-    }
-}
 
 impl PromiseConstructor {
     /// ### [27.2.3.1 Promise ( executor )](https://tc39.es/ecma262/#sec-promise-executor)
