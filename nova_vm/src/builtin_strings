@@ -261,6 +261,7 @@ isSealed
 isWellFormed
 #[cfg(feature = "annex-b-string")]italics
 #[cfg(feature = "temporal")]Instant
+#[cfg(feature = "temporal")]largestUnit
 Iterator
 iterator
 join
