@@ -8,12 +8,19 @@ pub(crate) mod data;
 pub mod instant_constructor;
 pub mod instant_prototype;
 
+use temporal_rs::options::{Unit, UnitGroup};
+
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{PreferredType, to_primitive_object},
         builtins::{
             ordinary::ordinary_create_from_constructor,
-            temporal::{duration::to_temporal_duration, error::temporal_err_to_js_err},
+            temporal::{
+                duration::{TemporalDuration, create_temporal_duration, to_temporal_duration},
+                error::temporal_err_to_js_err,
+                get_difference_settings,
+                options::get_options_object,
+            },
         },
         execution::{
             JsResult, ProtoIntrinsics,
@@ -327,23 +334,60 @@ fn add_duration_to_instant<'gc, const IS_ADD: bool>(
 /// rounds it, and returns it as a Temporal.Duration object.
 fn difference_temporal_instant<'gc, const IS_UNTIL: bool>(
     agent: &mut Agent,
-    instant: Value,
+    instant: TemporalInstant,
     other: Value,
     options: Value,
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, Value<'gc>> {
-    let instant = instant.bind(gc.nogc());
+) -> JsResult<'gc, TemporalDuration<'gc>> {
+    let instant = instant.scope(agent, gc.nogc());
     let other = other.bind(gc.nogc());
-    let options = options.bind(gc.nogc());
+    let options = options.scope(agent, gc.nogc());
     // 1. Set other to ? ToTemporalInstant(other).
-    let other = to_temporal_instant(agent, other.unbind(), gc.reborrow());
+    let other = to_temporal_instant(agent, other.unbind(), gc.reborrow())
+        .unbind()?
+        .bind(gc.nogc());
     // 2. Let resolvedOptions be ? GetOptionsObject(options).
+    let resolved_options = get_options_object(agent, options.get(agent), gc.nogc())
+        .unbind()?
+        .bind(gc.nogc());
     // 3. Let settings be ? GetDifferenceSettings(operation, resolvedOptions, time, « », nanosecond, second).
+    let _result;
+    if IS_UNTIL {
+        const UNTIL: bool = true;
+        let settings = get_difference_settings::<UNTIL>(
+            agent,
+            resolved_options.unbind(),
+            UnitGroup::Time,
+            vec![],
+            Unit::Nanosecond,
+            Unit::Second,
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        _result =
+            temporal_rs::Instant::until(&instant.get(agent).inner_instant(agent), &other, settings);
+    } else {
+        const SINCE: bool = false;
+        let settings = get_difference_settings::<SINCE>(
+            agent,
+            resolved_options.unbind(),
+            UnitGroup::Time,
+            vec![],
+            Unit::Nanosecond,
+            Unit::Second,
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        _result =
+            temporal_rs::Instant::since(&instant.get(agent).inner_instant(agent), &other, settings);
+    }
     // 4. Let internalDuration be DifferenceInstant(instant.[[EpochNanoseconds]], other.[[EpochNanoseconds]], settings.[[RoundingIncrement]], settings.[[SmallestUnit]], settings.[[RoundingMode]]).
     // 5. Let result be ! TemporalDurationFromInternal(internalDuration, settings.[[LargestUnit]]).
-    // 6. If operation is since, set result to CreateNegatedTemporalDuration(result).
+    // 6. If operation is since, set result to CreateNegatedTemporsalDuration(result).
     // 7. Return result.
-    unimplemented!()
+    create_temporal_duration() // skip CreateNegatedTemporsalDuration and just CreateTemporsalDuration() with result
 }
 
 #[inline(always)]
