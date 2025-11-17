@@ -20,7 +20,7 @@ use crate::{
                 map_objects::map_prototype::canonicalize_keyed_collection_key,
                 set_objects::set_iterator_objects::set_iterator::SetIterator,
             },
-            set::{Set, data::SetData},
+            set::Set,
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, IntoValue, Number, PropertyKey, String, Value},
@@ -115,10 +115,9 @@ impl SetPrototype {
         // 3. Set value to CanonicalizeKeyedCollectionKey(value).
         let value = canonicalize_keyed_collection_key(numbers, value);
 
-        let SetData {
-            values, set_data, ..
-        } = &mut sets[s].borrow_mut(&primitive_heap);
-        let set_data = set_data.get_mut();
+        let set_heap_data = &mut sets[s].borrow_mut(&primitive_heap);
+        let values = &mut set_heap_data.values;
+        let set_data = set_heap_data.set_data.get_mut();
         let hasher = |value: Value| {
             let mut hasher = AHasher::default();
             value.hash(&primitive_heap, &mut hasher);
@@ -207,10 +206,9 @@ impl SetPrototype {
             value.hash(&primitive_heap, &mut hasher);
             hasher.finish()
         };
-        let SetData {
-            values, set_data, ..
-        } = &mut sets[s].borrow_mut(&primitive_heap);
-        let set_data = set_data.get_mut();
+        let set_heap_data = &mut sets[s].borrow_mut(&primitive_heap);
+        let values = &mut set_heap_data.values;
+        let set_data = set_heap_data.set_data.get_mut();
         // 4. For each element e of S.[[SetData]], do
         if let Ok(entry) = set_data.find_entry(value_hash, |hash_equal_index| {
             let found_value = values[*hash_equal_index as usize].unwrap();
@@ -372,10 +370,9 @@ impl SetPrototype {
             ..
         } = &agent.heap;
         let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
-        let SetData {
-            values, set_data, ..
-        } = &sets[s].borrow(&primitive_heap);
-        let set_data = set_data.borrow();
+        let set_heap_data = &sets[s].borrow(&primitive_heap);
+        let values = &set_heap_data.values;
+        let set_data = set_heap_data.set_data.borrow();
 
         // 3. Set value to CanonicalizeKeyedCollectionKey(value).
         let value = canonicalize_keyed_collection_key(&primitive_heap, value);

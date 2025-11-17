@@ -21,7 +21,17 @@ use hashbrown::{HashTable, hash_table::Entry};
 #[derive(Debug, Default)]
 pub struct SetHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
-    set_data: SetData<'a>,
+    pub(crate) values: Vec<Option<Value<'a>>>,
+    /// Low-level hash table pointing to value indexes.
+    pub(crate) set_data: RefCell<HashTable<u32>>,
+    /// Flag that lets the Set know if it needs to rehash its primitive keys.
+    ///
+    /// This happens when an object key needs to be moved in the set_data
+    /// during garbage collection, and the move results in a primitive key
+    /// moving as well. The primitive key's hash cannot be calculated during
+    /// garbage collection due to the heap data being concurrently sweeped on
+    /// another thread.
+    pub(crate) needs_primitive_rehashing: AtomicBool,
     // TODO: When an non-terminal (start or end) iterator exists for the Set,
     // the items in the set cannot be compacted.
     // pub(crate) observed: bool;
@@ -38,58 +48,40 @@ impl<'a> SetHeapData<'a> {
         // 2. For each element e of setData, do
         // a. If e is not EMPTY, set count to count + 1.
         // 3. Return count.
-        self.set_data.set_data.borrow().len() as u32
+        self.set_data.borrow().len() as u32
     }
 
     pub fn values(&self, _gc: NoGcScope<'a, '_>) -> &[Option<Value<'a>>] {
-        &self.set_data.values
+        &self.values
     }
 
     pub fn clear(&mut self) {
         // 3. For each element e of S.[[SetData]], do
         // a. Replace the element of S.[[SetData]] whose value is e with an
         // element whose value is EMPTY.
-        self.set_data.set_data.get_mut().clear();
-        self.set_data.values.fill(None);
+        self.set_data.get_mut().clear();
+        self.values.fill(None);
     }
 
-    pub(crate) fn borrow(&self, arena: &impl PrimitiveHeapIndexable) -> &SetData<'a> {
-        self.set_data.rehash_if_needed(arena);
-        &self.set_data
+    pub(crate) fn borrow(&self, arena: &impl PrimitiveHeapIndexable) -> &Self {
+        self.rehash_if_needed(arena);
+        self
     }
 
-    pub(crate) fn borrow_mut(&mut self, arena: &impl PrimitiveHeapIndexable) -> &mut SetData<'a> {
-        self.set_data.rehash_if_needed(arena);
-        &mut self.set_data
+    pub(crate) fn borrow_mut(&mut self, arena: &impl PrimitiveHeapIndexable) -> &mut Self {
+        self.rehash_if_needed(arena);
+        self
     }
 }
 
-#[derive(Debug, Default)]
-pub(crate) struct SetData<'a> {
-    pub(crate) values: Vec<Option<Value<'a>>>,
-    /// Low-level hash table pointing to value indexes.
-    pub(crate) set_data: RefCell<HashTable<u32>>,
-    /// Flag that lets the Set know if it needs to rehash its primitive keys.
-    ///
-    /// This happens when an object key needs to be moved in the set_data
-    /// during garbage collection, and the move results in a primitive key
-    /// moving as well. The primitive key's hash cannot be calculated during
-    /// garbage collection due to the heap data being concurrently sweeped on
-    /// another thread.
-    pub(crate) needs_primitive_rehashing: AtomicBool,
-}
-
-impl SetData<'_> {
+impl SetHeapData<'_> {
     fn rehash_if_needed(&self, arena: &impl PrimitiveHeapIndexable) {
         if !self.needs_primitive_rehashing.load(Ordering::Relaxed) {
             return;
         }
-        let SetData {
-            values, set_data, ..
-        } = self;
-        let mut set_data = set_data.borrow_mut();
+        let mut set_data = self.set_data.borrow_mut();
 
-        rehash_set_data(values, &mut set_data, arena);
+        rehash_set_data(&self.values, &mut set_data, arena);
         self.needs_primitive_rehashing
             .store(false, Ordering::Relaxed);
     }
@@ -160,25 +152,21 @@ impl HeapMarkAndSweep for SetHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_index,
-            set_data,
+            values,
+            ..
         } = self;
         object_index.mark_values(queues);
-        set_data
-            .values
-            .iter()
-            .for_each(|value| value.mark_values(queues));
+        values.iter().for_each(|value| value.mark_values(queues));
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let Self {
             object_index,
-            set_data,
-        } = self;
-        let SetData {
             values,
             set_data,
             needs_primitive_rehashing,
-        } = set_data;
+            ..
+        } = self;
         let set_data = set_data.get_mut();
         object_index.sweep_values(compactions);
 
