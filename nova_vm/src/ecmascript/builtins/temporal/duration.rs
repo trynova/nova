@@ -104,7 +104,7 @@ impl IndexMut<TemporalDuration<'_>> for Vec<DurationHeapData<'static>> {
 /// It creates a Temporal.Duration instance and fills
 /// the internal slots with valid values.
 /// It performs the following steps when called:
-fn create_temporal_duration<'gc>(// years,
+pub(crate) fn create_temporal_duration<'gc>(// years,
     // months,
     // weeks,
     // days,
