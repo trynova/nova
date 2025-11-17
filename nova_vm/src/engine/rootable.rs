@@ -85,8 +85,6 @@ pub(crate) mod private {
 
     #[cfg(feature = "date")]
     use crate::ecmascript::Date;
-    #[cfg(feature = "temporal")]
-    use crate::ecmascript::TemporalInstant;
     #[cfg(feature = "array-buffer")]
     use crate::ecmascript::{
         AnyArrayBuffer, AnyDataView, AnyTypedArray, ArrayBuffer, DataView, GenericTypedArray,
@@ -100,6 +98,8 @@ pub(crate) mod private {
     use crate::ecmascript::{RegExp, RegExpStringIterator};
     #[cfg(feature = "set")]
     use crate::ecmascript::{Set, SetIterator};
+    #[cfg(feature = "temporal")]
+    use crate::ecmascript::{TemporalInstant, TemporalPlainTime};
     #[cfg(feature = "weak-refs")]
     use crate::ecmascript::{WeakKey, WeakMap, WeakRef, WeakSet};
     use crate::{
@@ -135,6 +135,8 @@ pub(crate) mod private {
     impl RootableSealed for Date<'_> {}
     #[cfg(feature = "temporal")]
     impl RootableSealed for TemporalInstant<'_> {}
+    #[cfg(feature = "temporal")]
+    impl RootableSealed for TemporalPlainTime<'_> {}
     impl RootableSealed for ECMAScriptFunction<'_> {}
     impl RootableSealed for EmbedderObject<'_> {}
     impl RootableSealed for Error<'_> {}
