@@ -32,8 +32,9 @@ use crate::{
             error::ErrorHeapData,
             ordinary::caches::PropertyLookupCache,
             promise::Promise,
-            promise_objects::promise_abstract_operations::promise_jobs::{
-                PromiseReactionJob, PromiseResolveThenableJob,
+            promise_objects::promise_abstract_operations::{
+                promise_capability_records::PromiseCapability,
+                promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob},
             },
         },
         scripts_and_modules::{
@@ -47,12 +48,12 @@ use crate::{
             source_code::SourceCode,
         },
         types::{
-            Function, IntoValue, Object, OrdinaryObject, PrivateName, PropertyKey, Reference,
-            String, Symbol, Value, ValueRootRepr,
+            BUILTIN_STRING_MEMORY, Function, IntoValue, Object, OrdinaryObject, PrivateName,
+            PropertyKey, Reference, String, Symbol, Value, ValueRootRepr,
         },
     },
     engine::{
-        Vm,
+        Global, Vm,
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::{HeapRootCollectionData, HeapRootData, HeapRootRef, Rootable},
     },
@@ -240,6 +241,7 @@ pub fn unwrap_try<'a, T: 'a>(try_result: TryResult<'a, T>) -> T {
 pub(crate) enum InnerJob {
     PromiseResolveThenable(PromiseResolveThenableJob),
     PromiseReaction(PromiseReactionJob),
+    AsyncWaitTimeout(Global<Promise<'static>>),
 }
 
 pub struct Job {
@@ -270,6 +272,25 @@ impl Job {
         let result = match self.inner {
             InnerJob::PromiseResolveThenable(job) => job.run(agent, gc),
             InnerJob::PromiseReaction(job) => job.run(agent, gc),
+            InnerJob::AsyncWaitTimeout(promise) => {
+                // a. Perform EnterCriticalSection(WL).
+                // b. If WL.[[Waiters]] contains waiterRecord, then
+                //         i. Let timeOfJobExecution be the time value (UTC) identifying the current time.
+                //         ii. Assert: ℝ(timeOfJobExecution) ≥ waiterRecord.[[TimeoutTime]] (ignoring potential non-monotonicity of time values).
+                //         iii. Set waiterRecord.[[Result]] to "timed-out".
+                //         iv. Perform RemoveWaiter(WL, waiterRecord).
+                //         v. Perform NotifyWaiter(WL, waiterRecord).
+                // c. Perform LeaveCriticalSection(WL).
+                let promise = promise.take(agent).bind(gc.nogc());
+                let promise_capability = PromiseCapability::from_promise(promise, true);
+                unwrap_try(promise_capability.try_resolve(
+                    agent,
+                    BUILTIN_STRING_MEMORY.timed_out.into_value(),
+                    gc.nogc(),
+                ));
+                // d. Return unused.
+                Ok(())
+            }
         };
 
         if pushed_context {
@@ -297,17 +318,19 @@ pub enum GrowSharedArrayBufferResult {
 
 pub trait HostHooks: core::fmt::Debug {
     /// ### [19.2.1.2 HostEnsureCanCompileStrings ( calleeRealm )](https://tc39.es/ecma262/#sec-hostensurecancompilestrings)
+    #[allow(unused_variables)]
     fn ensure_can_compile_strings<'a>(
         &self,
-        _callee_realm: &mut RealmRecord,
-        _gc: NoGcScope<'a, '_>,
+        callee_realm: &mut RealmRecord,
+        gc: NoGcScope<'a, '_>,
     ) -> JsResult<'a, ()> {
         // The default implementation of HostEnsureCanCompileStrings is to return NormalCompletion(unused).
         Ok(())
     }
 
     /// ### [20.2.5 HostHasSourceTextAvailable ( func )](https://tc39.es/ecma262/#sec-hosthassourcetextavailable)
-    fn has_source_text_available(&self, _func: Function) -> bool {
+    #[allow(unused_variables)]
+    fn has_source_text_available(&self, func: Function) -> bool {
         // The default implementation of HostHasSourceTextAvailable is to return true.
         true
     }
@@ -315,11 +338,25 @@ pub trait HostHooks: core::fmt::Debug {
     /// ### [9.5.5 HostEnqueuePromiseJob ( job, realm )](https://tc39.es/ecma262/#sec-hostenqueuepromisejob)
     fn enqueue_promise_job(&self, job: Job);
 
+    /// ### [9.5.6 HostEnqueueTimeoutJob ( timeoutJob, realm, milliseconds )](https://tc39.es/ecma262/#sec-hostenqueuetimeoutjob)
+    ///
+    /// The host-defined abstract operation HostEnqueueTimeoutJob takes
+    /// arguments _timeoutJob_ (a Job Abstract Closure), _realm_ (a Realm
+    /// Record), and _milliseconds_ (a non-negative finite Number) and returns
+    /// unused. It schedules _timeoutJob_ in the realm _realm_ in the agent
+    /// signified by _realm_.\[\[AgentSignifier]] to be performed after at
+    /// least _milliseconds_ milliseconds.
+    ///
+    /// An implementation of HostEnqueueTimeoutJob must conform to the
+    /// requirements in 9.5.
+    fn enqueue_timeout_job(&self, timeout_job: Job, milliseconds: u64);
+
     /// ### [27.2.1.9 HostPromiseRejectionTracker ( promise, operation )](https://tc39.es/ecma262/#sec-host-promise-rejection-tracker)
+    #[allow(unused_variables)]
     fn promise_rejection_tracker(
         &self,
-        _promise: Promise,
-        _operation: PromiseRejectionTrackerOperation,
+        promise: Promise,
+        operation: PromiseRejectionTrackerOperation,
     ) {
         // The default implementation of HostPromiseRejectionTracker is to return unused.
     }
@@ -627,6 +664,24 @@ impl GcAgent {
         result
     }
 
+    pub fn run_job<F, R>(&mut self, job: Job, then: F) -> R
+    where
+        F: for<'agent, 'gc, 'scope> FnOnce(
+            &'agent mut Agent,
+            JsResult<'_, ()>,
+            GcScope<'gc, 'scope>,
+        ) -> R,
+    {
+        assert!(self.agent.execution_context_stack.is_empty());
+        let result = self.agent.run_job(job, then);
+        #[cfg(feature = "weak-refs")]
+        clear_kept_objects(&mut self.agent);
+        assert!(self.agent.execution_context_stack.is_empty());
+        assert!(self.agent.vm_stack.is_empty());
+        self.agent.stack_refs.borrow_mut().clear();
+        result
+    }
+
     fn get_realm_by_root(&self, realm_root: &RealmRoot) -> Realm<'static> {
         let index = realm_root.index;
         let error_message = "Couldn't find Realm by RealmRoot";
@@ -796,7 +851,7 @@ impl Agent {
         self.get_created_realm_root()
     }
 
-    pub fn run_in_realm<F, R>(&mut self, realm: Realm, func: F) -> R
+    fn run_in_realm<F, R>(&mut self, realm: Realm, func: F) -> R
     where
         F: for<'agent, 'gc, 'scope> FnOnce(&'agent mut Agent, GcScope<'gc, 'scope>) -> R,
     {
@@ -811,6 +866,35 @@ impl Agent {
         let gc = GcScope::new(&mut gc, &mut scope);
 
         let result = func(self, gc);
+        assert_eq!(
+            self.execution_context_stack.len(),
+            execution_stack_depth_before_call + 1
+        );
+        self.pop_execution_context();
+        result
+    }
+
+    fn run_job<F, R>(&mut self, job: Job, then: F) -> R
+    where
+        F: for<'agent, 'gc, 'scope> FnOnce(
+            &'agent mut Agent,
+            JsResult<'_, ()>,
+            GcScope<'gc, 'scope>,
+        ) -> R,
+    {
+        let realm = job.realm.unwrap();
+        let execution_stack_depth_before_call = self.execution_context_stack.len();
+        self.push_execution_context(ExecutionContext {
+            ecmascript_code: None,
+            function: None,
+            realm: realm,
+            script_or_module: None,
+        });
+        let (mut gc, mut scope) = unsafe { GcScope::create_root() };
+        let mut gc = GcScope::new(&mut gc, &mut scope);
+
+        let result = job.run(self, gc.reborrow()).unbind().bind(gc.nogc());
+        let result = then(self, result.unbind(), gc);
         assert_eq!(
             self.execution_context_stack.len(),
             execution_stack_depth_before_call + 1

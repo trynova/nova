@@ -24,12 +24,13 @@ use crate::{
                 TypedArrayAbstractOperations, TypedArrayWithBufferWitnessRecords,
                 make_typed_array_with_buffer_witness_record, validate_typed_array,
             },
+            promise::Promise,
             promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
             typed_array::{AnyTypedArray, SharedTypedArray, for_any_typed_array},
         },
         execution::{
             Agent, JsResult, Realm,
-            agent::{ExceptionType, TryError, TryResult, try_result_into_js},
+            agent::{ExceptionType, InnerJob, Job, TryError, TryResult, try_result_into_js},
         },
         types::{
             BUILTIN_STRING_MEMORY, BigInt, IntoNumeric, IntoObject, IntoValue, Number, Numeric,
@@ -37,6 +38,7 @@ use crate::{
         },
     },
     engine::{
+        Global,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
@@ -1459,11 +1461,12 @@ fn do_wait<'gc>(
         // 32. If mode is sync, return waiterRecord.[[Result]].
         Ok(BUILTIN_STRING_MEMORY.timed_out.into_value())
     } else {
+        let promise_capability = PromiseCapability::new(agent, gc);
         // 30. Else if timeoutTime is finite, then
         if t != u64::MAX {
             // a. Perform EnqueueAtomicsWaitAsyncTimeoutJob(WL, waiterRecord).
+            enqueue_atomics_wait_async_timeout_job(agent, t, promise_capability.promise, gc);
         }
-        let promise_capability = PromiseCapability::new(agent, gc);
         // 31. Perform LeaveCriticalSection(WL).
         let result_object = OrdinaryObject::create_object(
             agent,
@@ -1490,4 +1493,31 @@ fn do_wait<'gc>(
         // 35. Return resultObject.
         Ok(result_object.into_value())
     }
+}
+
+/// ### [25.4.3.15 EnqueueAtomicsWaitAsyncTimeoutJob ( WL, waiterRecord )](https://tc39.es/ecma262/#sec-enqueueatomicswaitasynctimeoutjob)
+///
+/// The abstract operation EnqueueAtomicsWaitAsyncTimeoutJob takes arguments WL
+/// (a WaiterList Record) and waiterRecord (a Waiter Record) and returns
+/// unused.
+fn enqueue_atomics_wait_async_timeout_job(
+    agent: &mut Agent,
+    milliseconds: u64,
+    promise: Promise,
+    gc: NoGcScope,
+) {
+    // 1. Let timeoutJob be a new Job Abstract Closure with no parameters that
+    //    captures WL and waiterRecord and performs the following steps when
+    //    called:
+    let timeout_job = Job {
+        realm: Some(agent.current_realm(gc).unbind()),
+        inner: InnerJob::AsyncWaitTimeout(Global::new(agent, promise.unbind())),
+    };
+    // 2. Let now be the time value (UTC) identifying the current time.
+    // 3. Let currentRealm be the current Realm Record.
+    // 4. Perform HostEnqueueTimeoutJob(timeoutJob, currentRealm, 𝔽(waiterRecord.[[TimeoutTime]]) - now).
+    agent
+        .host_hooks
+        .enqueue_timeout_job(timeout_job, milliseconds);
+    // 5. Return unused.
 }

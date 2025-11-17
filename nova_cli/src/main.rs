@@ -12,6 +12,9 @@ use std::{
     path::PathBuf,
     ptr::NonNull,
     rc::Rc,
+    sync::{Arc, atomic::AtomicBool},
+    thread::{self, JoinHandle},
+    time::Duration,
 };
 
 use clap::{Parser as ClapParser, Subcommand};
@@ -102,6 +105,7 @@ enum Command {
 #[derive(Default)]
 struct CliHostHooks {
     promise_job_queue: RefCell<VecDeque<Job>>,
+    timeout_job_queue: RefCell<Vec<(Job, Arc<AtomicBool>, JoinHandle<()>)>>,
 }
 
 // RefCell doesn't implement Debug
@@ -121,11 +125,55 @@ impl CliHostHooks {
     fn pop_promise_job(&self) -> Option<Job> {
         self.promise_job_queue.borrow_mut().pop_front()
     }
+
+    fn has_timeout_jobs(&self) -> bool {
+        !self.timeout_job_queue.borrow().is_empty()
+    }
+
+    fn pop_timeout_job(&self) -> Option<Job> {
+        let mut timeout_job_queue = self.timeout_job_queue.borrow_mut();
+        if timeout_job_queue.len() == 1 {
+            let (job, _, handle) = timeout_job_queue.pop().unwrap();
+            let _ = handle.join();
+            return Some(job);
+        }
+        let mut counter = 0u8;
+        while !timeout_job_queue.is_empty() {
+            counter = counter.wrapping_add(1);
+            for (i, (_, signal, _)) in timeout_job_queue.iter().enumerate() {
+                if signal.load(std::sync::atomic::Ordering::Acquire) {
+                    let (job, _, handle) = timeout_job_queue.swap_remove(i);
+                    // Wait for the thread to join just because.
+                    let _ = handle.join();
+                    return Some(job);
+                }
+            }
+            if counter == 0 {
+                thread::sleep(Duration::from_millis(5));
+            } else {
+                core::hint::spin_loop();
+            }
+        }
+        None
+    }
 }
 
 impl HostHooks for CliHostHooks {
     fn enqueue_promise_job(&self, job: Job) {
         self.promise_job_queue.borrow_mut().push_back(job);
+    }
+
+    fn enqueue_timeout_job(&self, timeout_job: Job, milliseconds: u64) {
+        let signal = Arc::new(AtomicBool::new(false));
+        let s = signal.clone();
+        let handle = thread::spawn(move || {
+            let dur = Duration::from_millis(milliseconds);
+            thread::sleep(dur);
+            s.store(true, std::sync::atomic::Ordering::Release);
+        });
+        self.timeout_job_queue
+            .borrow_mut()
+            .push((timeout_job, signal, handle));
     }
 
     fn load_imported_module<'gc>(
@@ -277,6 +325,44 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             expose_internals,
             paths,
         } => {
+            fn run_microtask_queue<'gc>(
+                agent: &mut Agent,
+                host_hooks: &CliHostHooks,
+                mut gc: GcScope<'gc, '_>,
+            ) -> JsResult<'gc, ()> {
+                while let Some(job) = host_hooks.pop_promise_job() {
+                    job.run(agent, gc.reborrow()).unbind()?.bind(gc.nogc());
+                }
+                Ok(())
+            }
+
+            fn print_result(
+                agent: &mut Agent,
+                result: JsResult<Value>,
+                verbose: bool,
+                gc: GcScope,
+            ) {
+                match result {
+                    Ok(result) => {
+                        if verbose {
+                            println!("{result:?}");
+                        }
+                    }
+                    Err(error) => {
+                        eprintln!(
+                            "Uncaught exception: {}",
+                            error
+                                .value()
+                                .unbind()
+                                .string_repr(agent, gc)
+                                .as_wtf8(agent)
+                                .to_string_lossy()
+                        );
+                        std::process::exit(1);
+                    }
+                }
+            }
+
             let host_hooks: NonNull<CliHostHooks> = NonNull::from(Box::leak(Box::default()));
             let mut agent = GcAgent::new(
                 Options {
@@ -307,6 +393,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             realm.initialize_host_defined(&mut agent, module_map.clone());
             let last_index = paths.len() - 1;
             for (index, path) in paths.into_iter().enumerate() {
+                // SAFETY: Still valid.
+                let host_hooks = unsafe { host_hooks.as_ref() };
                 agent.run_in_realm(
                     &realm,
                     |agent, mut gc| -> Result<(), Box<dyn std::error::Error>> {
@@ -331,11 +419,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             };
                             module_map
                                 .add(absolute_path, Global::new(agent, module.unbind().into()));
-                            agent.run_parsed_module(
-                                module.unbind(),
-                                Some(module_map.clone()),
-                                gc.reborrow(),
-                            )
+                            agent
+                                .run_parsed_module(
+                                    module.unbind(),
+                                    Some(module_map.clone()),
+                                    gc.reborrow(),
+                                )
+                                .unbind()
+                                .bind(gc.nogc())
                         } else {
                             let script = match parse_script(
                                 agent,
@@ -353,58 +444,51 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 }
                             };
                             script_evaluation(agent, script.unbind(), gc.reborrow())
-                        };
-
-                        fn run_microtask_queue<'gc>(
-                            agent: &mut Agent,
-                            host_hooks: &CliHostHooks,
-                            result: JsResult<Value>,
-                            mut gc: GcScope<'gc, '_>,
-                        ) -> JsResult<'gc, Value<'gc>> {
-                            match result.bind(gc.nogc()) {
-                                Ok(result) => {
-                                    let ok_result = result.unbind().scope(agent, gc.nogc());
-                                    while let Some(job) = host_hooks.pop_promise_job() {
-                                        job.run(agent, gc.reborrow()).unbind()?.bind(gc.nogc());
-                                    }
-                                    Ok(ok_result.get(agent).bind(gc.into_nogc()))
-                                }
-                                Err(_) => result.unbind(),
-                            }
-                        }
-
-                        // SAFETY: Still valid.
-                        let host_hooks = unsafe { host_hooks.as_ref() };
-                        let result = if host_hooks.has_promise_jobs() {
-                            run_microtask_queue(agent, host_hooks, result.unbind(), gc.reborrow())
                                 .unbind()
                                 .bind(gc.nogc())
+                        };
+
+                        let result = if let Ok(result) = result
+                            && host_hooks.has_promise_jobs()
+                        {
+                            let result = result.scope(agent, gc.nogc());
+                            let microtask_result =
+                                run_microtask_queue(agent, host_hooks, gc.reborrow())
+                                    .unbind()
+                                    .bind(gc.nogc());
+                            // SAFETY: not shared.
+                            microtask_result.map(|_| unsafe { result.take(agent) }.bind(gc.nogc()))
                         } else {
                             result
                         };
 
-                        match result {
-                            Ok(result) => {
-                                if verbose {
-                                    println!("{result:?}");
-                                }
-                            }
-                            Err(error) => {
-                                eprintln!(
-                                    "Uncaught exception: {}",
-                                    error
-                                        .value()
-                                        .unbind()
-                                        .string_repr(agent, gc.reborrow())
-                                        .as_wtf8(agent)
-                                        .to_string_lossy()
-                                );
-                                std::process::exit(1);
-                            }
-                        }
+                        print_result(agent, result.unbind(), verbose, gc);
                         Ok(())
                     },
                 )?;
+            }
+            {
+                // SAFETY: Still valid.
+                let host_hooks = unsafe { host_hooks.as_ref() };
+                if host_hooks.has_timeout_jobs() {
+                    while let Some(job) = host_hooks.pop_timeout_job() {
+                        agent.run_job(job, |agent, result, mut gc| {
+                            let result = if result.is_ok() && host_hooks.has_promise_jobs() {
+                                run_microtask_queue(agent, host_hooks, gc.reborrow())
+                                    .unbind()
+                                    .bind(gc.nogc())
+                            } else {
+                                result
+                            };
+                            print_result(
+                                agent,
+                                result.map(|_| Value::Undefined).unbind(),
+                                false,
+                                gc,
+                            );
+                        });
+                    }
+                }
             }
             agent.remove_realm(realm);
             // SAFETY: Host hooks are no longer used as agent is dropped.

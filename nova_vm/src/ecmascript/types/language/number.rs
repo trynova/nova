@@ -1572,6 +1572,10 @@ mod tests {
         fn enqueue_promise_job(&self, _job: Job) {
             // no-op
         }
+
+        fn enqueue_timeout_job(&self, _timeout_job: Job, _milliseconds: u64) {
+            // no-op
+        }
     }
 
     #[test]
