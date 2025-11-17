@@ -18,9 +18,7 @@ use crate::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
-            array::ArrayHeap,
-            ordinary::ordinary_create_from_constructor,
-            set::{Set, data::SetData},
+            array::ArrayHeap, ordinary::ordinary_create_from_constructor, set::Set,
         },
         execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
         types::{
@@ -144,10 +142,9 @@ impl SetConstructor {
                 let array_heap = ArrayHeap::new(elements, arrays);
                 let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
-                let SetData {
-                    values, set_data, ..
-                } = &mut sets[set].borrow_mut(&primitive_heap);
-                let set_data = set_data.get_mut();
+                let set_heap_data = &mut sets[set].borrow_mut(&primitive_heap);
+                let values = &mut set_heap_data.values;
+                let set_data = set_heap_data.set_data.get_mut();
 
                 let hasher = |value: Value| {
                     let mut hasher = AHasher::default();
