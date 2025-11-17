@@ -28,7 +28,6 @@ impl Builtin for TemporalInstantConstructor {
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(TemporalInstantConstructor::constructor);
 }
-
 impl BuiltinIntrinsicConstructor for TemporalInstantConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::TemporalInstant;
 }
@@ -97,14 +96,13 @@ impl TemporalInstantConstructor {
             new_target = unsafe { scoped_new_target.take(agent) }.bind(gc.nogc());
             epoch_nanoseconds
         };
-
         // 3. If IsValidEpochNanoseconds(epochNanoseconds) is false, throw a RangeError exception.
         let Some(epoch_nanoseconds) = epoch_nanoseconds
             .try_into_i128(agent)
             .and_then(|nanoseconds| temporal_rs::Instant::try_new(nanoseconds).ok())
         else {
             return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
+                ExceptionType::RangeError,
                 "value out of range",
                 gc.into_nogc(),
             ));
@@ -214,7 +212,7 @@ impl TemporalInstantConstructor {
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         let one = args.get(0).bind(gc.nogc());
-        let two = args.get(0).bind(gc.nogc());
+        let two = args.get(1).bind(gc.nogc());
         let two = two.scope(agent, gc.nogc());
         // 1. Set one to ? ToTemporalInstant(one).
         let one_instant = to_temporal_instant(agent, one.unbind(), gc.reborrow()).unbind()?;

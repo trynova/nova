@@ -57,9 +57,12 @@ use crate::ecmascript::{
         ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
         primitive_objects::PrimitiveObject,
         promise::Promise,
-        promise_objects::promise_abstract_operations::promise_all_record::PromiseAll,
-        promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
+        promise_objects::promise_abstract_operations::{
+            promise_all_record::PromiseAll,
+            promise_finally_functions::BuiltinPromiseFinallyFunction,
+        },
         proxy::Proxy,
+        temporal::plain_time::TemporalPlainTime,
         text_processing::string_objects::string_iterator_objects::StringIterator,
         typed_array::{SharedVoidArray, VoidArray},
     },
@@ -98,6 +101,8 @@ pub struct HeapBits {
     pub dates: Box<[bool]>,
     #[cfg(feature = "temporal")]
     pub instants: Box<[bool]>,
+    #[cfg(feature = "temporal")]
+    pub plain_times: Box<[bool]>,
     pub declarative_environments: Box<[bool]>,
     pub e_2_1: Box<[(bool, u8)]>,
     pub e_2_2: Box<[(bool, u8)]>,
@@ -196,6 +201,8 @@ pub(crate) struct WorkQueues {
     pub dates: Vec<Date<'static>>,
     #[cfg(feature = "temporal")]
     pub instants: Vec<TemporalInstant<'static>>,
+    #[cfg(feature = "temporal")]
+    pub plain_times: Vec<TemporalPlainTime<'static>>,
     pub declarative_environments: Vec<DeclarativeEnvironment<'static>>,
     pub e_2_1: Vec<(ElementIndex<'static>, u32)>,
     pub e_2_2: Vec<(ElementIndex<'static>, u32)>,
@@ -294,6 +301,8 @@ impl HeapBits {
         let dates = vec![false; heap.dates.len()];
         #[cfg(feature = "temporal")]
         let instants = vec![false; heap.instants.len()];
+        #[cfg(feature = "temporal")]
+        let plain_times = vec![false; heap.plain_times.len()];
         let declarative_environments = vec![false; heap.environments.declarative.len()];
         let e_2_1 = vec![(false, 0u8); heap.elements.e2pow1.values.len()];
         let e_2_2 = vec![(false, 0u8); heap.elements.e2pow2.values.len()];
@@ -389,6 +398,8 @@ impl HeapBits {
             dates: dates.into_boxed_slice(),
             #[cfg(feature = "temporal")]
             instants: instants.into_boxed_slice(),
+            #[cfg(feature = "temporal")]
+            plain_times: plain_times.into_boxed_slice(),
             declarative_environments: declarative_environments.into_boxed_slice(),
             e_2_1: e_2_1.into_boxed_slice(),
             e_2_2: e_2_2.into_boxed_slice(),
@@ -490,6 +501,8 @@ impl WorkQueues {
             dates: Vec::with_capacity(heap.dates.len() / 4),
             #[cfg(feature = "temporal")]
             instants: Vec::with_capacity(heap.instants.len() / 4),
+            #[cfg(feature = "temporal")]
+            plain_times: Vec::with_capacity(heap.plain_times.len() / 4),
             declarative_environments: Vec::with_capacity(heap.environments.declarative.len() / 4),
             e_2_1: Vec::with_capacity(heap.elements.e2pow1.values.len() / 4),
             e_2_2: Vec::with_capacity(heap.elements.e2pow2.values.len() / 4),
@@ -593,6 +606,8 @@ impl WorkQueues {
             dates,
             #[cfg(feature = "temporal")]
             instants,
+            #[cfg(feature = "temporal")]
+            plain_times,
             declarative_environments,
             e_2_1,
             e_2_2,
@@ -672,6 +687,7 @@ impl WorkQueues {
             weak_sets,
         } = self;
 
+        #[cfg(not(feature = "temporal"))]
         #[cfg(not(feature = "date"))]
         let dates: &[bool; 0] = &[];
         #[cfg(not(feature = "array-buffer"))]
@@ -713,6 +729,7 @@ impl WorkQueues {
             && data_views.is_empty()
             && dates.is_empty()
             && instants.is_empty()
+            && plain_times.is_empty()
             && declarative_environments.is_empty()
             && e_2_1.is_empty()
             && e_2_2.is_empty()
@@ -1070,6 +1087,8 @@ pub(crate) struct CompactionLists {
     pub dates: CompactionList,
     #[cfg(feature = "temporal")]
     pub instants: CompactionList,
+    #[cfg(feature = "temporal")]
+    pub plain_times: CompactionList,
     pub declarative_environments: CompactionList,
     pub e_2_1: CompactionList,
     pub e_2_2: CompactionList,
@@ -1211,6 +1230,8 @@ impl CompactionLists {
             dates: CompactionList::from_mark_bits(&bits.dates),
             #[cfg(feature = "temporal")]
             instants: CompactionList::from_mark_bits(&bits.instants),
+            #[cfg(feature = "temporal")]
+            plain_times: CompactionList::from_mark_bits(&bits.plain_times),
             errors: CompactionList::from_mark_bits(&bits.errors),
             executables: CompactionList::from_mark_bits(&bits.executables),
             maps: CompactionList::from_mark_bits(&bits.maps),

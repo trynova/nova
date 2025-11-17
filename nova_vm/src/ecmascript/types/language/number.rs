@@ -16,7 +16,6 @@ use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{to_int32_number, to_uint32_number},
         execution::Agent,
-        types::BigInt,
     },
     engine::{
         context::{Bindable, NoGcScope, bindable_handle},

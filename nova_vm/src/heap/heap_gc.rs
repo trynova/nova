@@ -26,6 +26,8 @@ use crate::ecmascript::builtins::date::Date;
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "temporal")]
 use crate::ecmascript::builtins::temporal::instant::TemporalInstant;
+#[cfg(feature = "temporal")]
+use crate::ecmascript::builtins::temporal::plain_time::TemporalPlainTime;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{ArrayBuffer, data_view::DataView};
 #[cfg(feature = "set")]
@@ -131,6 +133,8 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             dates,
             #[cfg(feature = "temporal")]
             instants,
+            #[cfg(feature = "temporal")]
+            plain_times,
             ecmascript_functions,
             elements,
             embedder_objects,
@@ -584,7 +588,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 }
             });
         }
-        #[cfg(feature = "date")]
+        #[cfg(feature = "temporal")]
         {
             let mut instant_marks: Box<[TemporalInstant]> = queues.instants.drain(..).collect();
             instant_marks.sort();
@@ -597,6 +601,24 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                     }
                     *marked = true;
                     instants.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+
+        #[cfg(feature = "temporal")]
+        {
+            let mut plain_time_marks: Box<[TemporalPlainTime]> =
+                queues.plain_times.drain(..).collect();
+            plain_time_marks.sort();
+            plain_time_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if let Some(marked) = bits.plain_times.get_mut(index) {
+                    if *marked {
+                        // Already marked, ignore
+                        return;
+                    }
+                    *marked = true;
+                    plain_times.get(index).mark_values(&mut queues);
                 }
             });
         }
@@ -1499,6 +1521,8 @@ fn sweep(
         dates,
         #[cfg(feature = "temporal")]
         instants,
+        #[cfg(feature = "temporal")]
+        plain_times,
         ecmascript_functions,
         elements,
         embedder_objects,
@@ -1905,6 +1929,12 @@ fn sweep(
         if !instants.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(instants, &compactions, &bits.instants);
+            });
+        }
+        #[cfg(feature = "temporal")]
+        if !plain_times.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(plain_times, &compactions, &bits.plain_times);
             });
         }
         if !declarative.is_empty() {
