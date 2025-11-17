@@ -21,13 +21,13 @@ use std::ops::Deref;
 
 #[cfg(feature = "date")]
 use crate::ecmascript::DateHeapData;
-#[cfg(feature = "temporal")]
-use crate::ecmascript::InstantRecord;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::{
     ArrayBuffer, ArrayBufferHeapData, DataView, DataViewRecord, DetachKey, TypedArrayRecord,
     VoidArray,
 };
+#[cfg(feature = "temporal")]
+use crate::ecmascript::{InstantRecord, PlainTimeHeapData};
 #[cfg(feature = "regexp")]
 use crate::ecmascript::{RegExpHeapData, RegExpStringIteratorRecord};
 #[cfg(feature = "set")]
@@ -79,6 +79,8 @@ pub(crate) struct Heap {
     pub(crate) dates: Vec<DateHeapData<'static>>,
     #[cfg(feature = "temporal")]
     pub(crate) instants: Vec<InstantRecord<'static>>,
+    #[cfg(feature = "temporal")]
+    pub(crate) plain_times: Vec<PlainTimeHeapData<'static>>,
     pub(crate) ecmascript_functions: Vec<ECMAScriptFunctionHeapData<'static>>,
     /// ElementsArrays is where all keys and values arrays live;
     /// Element arrays are static arrays of Values plus
@@ -226,8 +228,11 @@ impl Heap {
             caches: Caches::with_capacity(1024),
             #[cfg(feature = "date")]
             dates: Vec::with_capacity(1024),
+            // TODO: assign appropriate value for Temporal objects.
             #[cfg(feature = "temporal")]
-            instants: Vec::with_capacity(1024), // todo: assign appropriate value for instants
+            instants: Vec::with_capacity(1024),
+            #[cfg(feature = "temporal")]
+            plain_times: Vec::with_capacity(1024),
             ecmascript_functions: Vec::with_capacity(1024),
             elements: ElementArrays {
                 e2pow1: ElementArray2Pow1::with_capacity(1024),

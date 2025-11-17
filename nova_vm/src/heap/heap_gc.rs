@@ -6,8 +6,6 @@ use std::thread;
 
 #[cfg(feature = "date")]
 use crate::ecmascript::Date;
-#[cfg(feature = "temporal")]
-use crate::ecmascript::TemporalInstant;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::{ArrayBuffer, DataView, VoidArray};
 #[cfg(feature = "regexp")]
@@ -16,6 +14,8 @@ use crate::ecmascript::{RegExp, RegExpStringIterator};
 use crate::ecmascript::{Set, SetIterator};
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::{SharedArrayBuffer, SharedDataView, SharedVoidArray};
+#[cfg(feature = "temporal")]
+use crate::ecmascript::{TemporalInstant, TemporalPlainTime};
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::{WeakMap, WeakRef, WeakSet};
 #[cfg(feature = "array-buffer")]
@@ -86,6 +86,8 @@ pub(crate) fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static
             dates,
             #[cfg(feature = "temporal")]
             instants,
+            #[cfg(feature = "temporal")]
+            plain_times,
             ecmascript_functions,
             elements,
             embedder_objects,
@@ -525,13 +527,19 @@ pub(crate) fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static
             instant_marks.sort();
             instant_marks.iter().for_each(|&idx| {
                 let index = idx.get_index();
-                if let Some(marked) = bits.instants.get_mut(index) {
-                    if *marked {
-                        // Already marked, ignore
-                        return;
-                    }
-                    *marked = true;
+                if bits.instants.set_bit(index, &bits.bits) {
+                    // Did mark.
                     instants.get(index).mark_values(&mut queues);
+                }
+            });
+            let mut plain_time_marks: Box<[TemporalPlainTime]> =
+                queues.plain_times.drain(..).collect();
+            plain_time_marks.sort();
+            plain_time_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.plain_times.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    plain_times.get(index).mark_values(&mut queues);
                 }
             });
         }
@@ -1243,6 +1251,8 @@ fn sweep(
         dates,
         #[cfg(feature = "temporal")]
         instants,
+        #[cfg(feature = "temporal")]
+        plain_times,
         ecmascript_functions,
         elements,
         embedder_objects,
@@ -1700,6 +1710,12 @@ fn sweep(
         if !instants.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(instants, &compactions, &bits.instants, &bits.bits);
+            });
+        }
+        #[cfg(feature = "temporal")]
+        if !plain_times.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(plain_times, &compactions, &bits.plain_times, &bits.bits);
             });
         }
         if !declarative.is_empty() {
