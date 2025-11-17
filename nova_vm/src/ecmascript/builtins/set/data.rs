@@ -17,8 +17,9 @@ use core::{
     sync::atomic::{AtomicBool, Ordering},
 };
 use hashbrown::{HashTable, hash_table::Entry};
+use soavec_derive::SoAble;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, SoAble)]
 pub struct SetHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) values: Vec<Option<Value<'a>>>,
