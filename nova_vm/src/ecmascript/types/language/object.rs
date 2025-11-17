@@ -40,8 +40,7 @@ use crate::ecmascript::builtins::date::Date;
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
 #[cfg(feature = "temporal")]
 use crate::ecmascript::{
-    builtins::temporal::plain_time::{self, TemporalPlainTime},
-    types::PLAIN_TIME_DISCRIMINANT,
+    builtins::temporal::plain_time::TemporalPlainTime, types::PLAIN_TIME_DISCRIMINANT,
 };
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::{builtins::typed_array::Float16Array, types::FLOAT_16_ARRAY_DISCRIMINANT};

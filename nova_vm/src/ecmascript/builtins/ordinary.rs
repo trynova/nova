@@ -1688,7 +1688,10 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
             agent.heap.create(InstantHeapData::default()).into_object()
         }
         #[cfg(feature = "temporal")]
-        ProtoIntrinsics::TemporalPlainTime => todo!(),
+        ProtoIntrinsics::TemporalPlainTime => agent
+            .heap
+            .create(PlainTimeHeapData::default())
+            .into_object(),
         ProtoIntrinsics::TypeError => agent
             .heap
             .create(ErrorHeapData::new(ExceptionType::TypeError, None, None))

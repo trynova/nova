@@ -108,7 +108,6 @@ use crate::{
                 promise_resolving_functions::BuiltinPromiseResolvingFunction,
             },
             proxy::Proxy,
-            temporal::plain_time,
             text_processing::string_objects::string_iterator_objects::StringIterator,
         },
         execution::{
@@ -143,7 +142,9 @@ pub mod private {
     #[cfg(feature = "date")]
     use crate::ecmascript::builtins::date::Date;
     #[cfg(feature = "temporal")]
-    use crate::ecmascript::builtins::temporal::instant::TemporalInstant;
+    use crate::ecmascript::builtins::temporal::{
+        instant::TemporalInstant, plain_time::TemporalPlainTime,
+    };
     #[cfg(feature = "array-buffer")]
     use crate::ecmascript::builtins::{
         ArrayBuffer,
@@ -239,6 +240,8 @@ pub mod private {
     impl RootableSealed for Date<'_> {}
     #[cfg(feature = "temporal")]
     impl RootableSealed for TemporalInstant<'_> {}
+    #[cfg(feature = "temporal")]
+    impl RootableSealed for TemporalPlainTime<'_> {}
     impl RootableSealed for ECMAScriptFunction<'_> {}
     impl RootableSealed for EmbedderObject<'_> {}
     impl RootableSealed for Error<'_> {}
