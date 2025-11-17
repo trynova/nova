@@ -855,6 +855,32 @@ pub enum SharedTypedArray<'a> {
 }
 bindable_handle!(SharedTypedArray);
 
+impl<'a> SharedTypedArray<'a> {
+    #[inline(always)]
+    const fn into_void_array(self) -> SharedVoidArray<'a> {
+        match self {
+            SharedTypedArray::SharedInt8Array(ta) => ta.into_void_array(),
+            SharedTypedArray::SharedUint8Array(ta) => ta.into_void_array(),
+            SharedTypedArray::SharedUint8ClampedArray(ta) => ta.into_void_array(),
+            SharedTypedArray::SharedInt16Array(ta) => ta.into_void_array(),
+            SharedTypedArray::SharedUint16Array(ta) => ta.into_void_array(),
+            SharedTypedArray::SharedInt32Array(ta) => ta.into_void_array(),
+            SharedTypedArray::SharedUint32Array(ta) => ta.into_void_array(),
+            SharedTypedArray::SharedBigInt64Array(ta) => ta.into_void_array(),
+            SharedTypedArray::SharedBigUint64Array(ta) => ta.into_void_array(),
+            #[cfg(feature = "proposal-float16array")]
+            SharedTypedArray::SharedFloat16Array(ta) => ta.into_void_array(),
+            SharedTypedArray::SharedFloat32Array(ta) => ta.into_void_array(),
+            SharedTypedArray::SharedFloat64Array(ta) => ta.into_void_array(),
+        }
+    }
+
+    /// \[\[ViewedArrayBuffer]]
+    pub(crate) fn viewed_array_buffer(self, agent: &Agent) -> SharedArrayBuffer<'a> {
+        self.into_void_array().get(agent).viewed_array_buffer
+    }
+}
+
 macro_rules! for_shared_typed_array {
     ($value: ident, $ta: ident, $expr: expr) => {
         for_shared_typed_array($value, $ta, $expr, TA)
@@ -1749,6 +1775,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         true
     }
 
+    /// \[\[ByteOffset]]
     #[inline(always)]
     fn byte_offset(self, agent: &Agent) -> usize {
         let byte_offset = self.into_void_array().get(agent).byte_offset;
@@ -1801,6 +1828,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         size_of::<T>()
     }
 
+    /// \[\[ViewedArrayBuffer]]
     fn viewed_array_buffer(self, agent: &Agent) -> AnyArrayBuffer<'a> {
         self.into_void_array().get(agent).viewed_array_buffer.into()
     }

@@ -705,6 +705,12 @@ impl Agent {
         }
     }
 
+    /// Returns the value of the Agent's `[[CanBlock]]` field.
+    pub fn can_suspend(&self) -> bool {
+        // TODO: decide how to handle this for browsers.
+        true
+    }
+
     pub fn gc(&mut self, gc: GcScope) {
         let mut root_realms = self
             .heap

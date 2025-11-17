@@ -665,6 +665,7 @@ impl<'a> TypedArray<'a> {
         }
     }
 
+    /// \[\[ByteOffset]]
     #[inline]
     pub fn byte_offset(self, agent: &Agent) -> usize {
         let byte_offset = self.into_void_array().get(agent).byte_offset;
@@ -1743,6 +1744,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
         false
     }
 
+    /// \[\[ByteOffset]]
     #[inline(always)]
     fn byte_offset(self, agent: &Agent) -> usize {
         let ta = self.into_void_array();

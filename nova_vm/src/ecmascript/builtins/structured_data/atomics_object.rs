@@ -2,42 +2,45 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::ControlFlow;
+use std::{hint::assert_unchecked, ops::ControlFlow, thread::sleep, time::Duration};
 
 use ecmascript_atomics::Ordering;
 
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{
-            number_convert_to_integer_or_infinity, to_big_int, to_index,
-            to_integer_number_or_infinity, to_integer_or_infinity, try_to_index, validate_index,
+            number_convert_to_integer_or_infinity, to_big_int, to_big_int64, to_big_int64_big_int,
+            to_index, to_int32, to_int32_number, to_integer_number_or_infinity,
+            to_integer_or_infinity, to_number, try_to_index, validate_index,
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin,
             array_buffer::{
-                compare_exchange_in_buffer, get_modify_set_value_in_buffer, get_value_from_buffer,
-                set_value_in_buffer,
+                compare_exchange_in_buffer, get_modify_set_value_in_buffer,
+                get_raw_bytes_from_shared_block, get_value_from_buffer, set_value_in_buffer,
             },
             indexed_collections::typed_array_objects::abstract_operations::{
                 TypedArrayAbstractOperations, TypedArrayWithBufferWitnessRecords,
                 make_typed_array_with_buffer_witness_record, validate_typed_array,
             },
-            typed_array::{AnyTypedArray, for_any_typed_array},
+            promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
+            typed_array::{AnyTypedArray, SharedTypedArray, for_any_typed_array},
         },
         execution::{
             Agent, JsResult, Realm,
             agent::{ExceptionType, TryError, TryResult, try_result_into_js},
         },
         types::{
-            BUILTIN_STRING_MEMORY, BigInt, IntoNumeric, IntoValue, Number, Numeric, String, Value,
+            BUILTIN_STRING_MEMORY, BigInt, IntoNumeric, IntoObject, IntoValue, Number, Numeric,
+            OrdinaryObject, String, Value,
         },
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::WellKnownSymbolIndexes,
+    heap::{ObjectEntry, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct AtomicsObject;
@@ -531,22 +534,49 @@ impl AtomicsObject {
         .map(|v| v.into_value())
     }
 
+    /// ### [25.4.13 Atomics.wait ( typedArray, index, value, timeout )](https://tc39.es/ecma262/#sec-atomics.wait)
+    ///
+    /// This function puts the surrounding agent in a wait queue and suspends
+    /// it until notified or until the wait times out, returning a String
+    /// differentiating those cases.
     fn wait<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
+        arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("Atomics.wait", gc.into_nogc()))
+        // 1. Return ? DoWait(sync, typedArray, index, value, timeout).
+        do_wait(
+            agent,
+            WaitMode::Sync,
+            arguments.get(0),
+            arguments.get(1),
+            arguments.get(2),
+            arguments.get(3),
+            gc,
+        )
     }
 
+    /// ### [25.4.14 Atomics.waitAsync ( typedArray, index, value, timeout )](https://tc39.es/ecma262/#sec-atomics.waitasync)
+    ///
+    /// This function returns a Promise that is resolved when the calling agent
+    /// is notified or the timeout is reached.
     fn wait_async<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
+        arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("Atomics.waitAsync", gc.into_nogc()))
+        // 1. Return ? DoWait(async, typedArray, index, value, timeout).
+        do_wait(
+            agent,
+            WaitMode::Async,
+            arguments.get(0),
+            arguments.get(1),
+            arguments.get(2),
+            arguments.get(3),
+            gc,
+        )
     }
 
     fn notify<'gc>(
@@ -1168,4 +1198,296 @@ fn atomic_load_slow<'gc>(
         revalidate_atomic_access(agent, typed_array, byte_index_in_buffer, gc)?;
     }
     Ok((byte_index_in_buffer, typed_array))
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum WaitMode {
+    Sync,
+    Async,
+}
+
+/// ### [25.4.3.14 DoWait ( mode, typedArray, index, value, timeout )](https://tc39.es/ecma262/#sec-dowait)
+///
+/// The abstract operation DoWait takes arguments mode (sync or async),
+/// typedArray (an ECMAScript language value), index (an ECMAScript language
+/// value), value (an ECMAScript language value), and timeout (an ECMAScript
+/// language value) and returns either a normal completion containing either an
+/// Object, "not-equal", "timed-out", or "ok", or a throw completion. It
+/// performs the following steps when called:
+///
+/// > NOTE: `additionalTimeout` allows implementations to pad timeouts as
+/// > necessary, such as for reducing power consumption or coarsening timer
+/// > resolution to mitigate timing attacks. This value may differ from call to
+/// > call of DoWait.
+fn do_wait<'gc>(
+    agent: &mut Agent,
+    mode: WaitMode,
+    typed_array: Value,
+    index: Value,
+    value: Value,
+    timeout: Value,
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, Value<'gc>> {
+    let nogc = gc.nogc();
+    let typed_array = typed_array.bind(nogc);
+    let index = index.bind(nogc);
+    let value = value.bind(nogc);
+    let timeout = timeout.bind(nogc);
+
+    // 1. Let taRecord be ? ValidateIntegerTypedArray(typedArray, true).
+    let ta_record = validate_integer_typed_array::<true>(agent, typed_array, nogc)
+        .unbind()?
+        .bind(nogc);
+    // 2. Let buffer be taRecord.[[Object]].[[ViewedArrayBuffer]].
+    // 3. If IsSharedArrayBuffer(buffer) is false, throw a TypeError exception.
+    let Ok(typed_array) = SharedTypedArray::try_from(ta_record.object) else {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "cannot wait on ArrayBuffer",
+            gc.into_nogc(),
+        ));
+    };
+    // These are the only waitable integer TypedArrays.
+    unsafe {
+        assert_unchecked(matches!(
+            typed_array,
+            SharedTypedArray::SharedInt32Array(_) | SharedTypedArray::SharedBigInt64Array(_)
+        ));
+    };
+    // 4. Let i be ? ValidateAtomicAccess(taRecord, index).
+    let (ta_record, byte_index_in_buffer) =
+        match try_validate_atomic_access(agent, &ta_record, index, nogc) {
+            ControlFlow::Continue(byte_index_in_buffer) => (ta_record, Some(byte_index_in_buffer)),
+            ControlFlow::Break(b) => match b {
+                TryError::Err(err) => return Err(err.unbind()),
+                // If atomic access couldn't be validated it means that the
+                // requestIndex value couldn't be converted into an index.
+                TryError::GcError => (ta_record, None),
+            },
+        };
+    // 5. Let arrayTypeName be typedArray.[[TypedArrayName]].
+    // 6. If arrayTypeName is "BigInt64Array",
+    let is_big_int_64_array = matches!(typed_array, SharedTypedArray::SharedBigInt64Array(_));
+    let (typed_array, byte_index_in_buffer, v, q) =
+        if let (Some(byte_index_in_buffer), Ok(v), Ok(q)) = (
+            byte_index_in_buffer,
+            if is_big_int_64_array {
+                // 6. If arrayTypeName is "BigInt64Array", let v be ? ToBigInt64(value).
+                BigInt::try_from(value).map(|v| to_big_int64_big_int(agent, v))
+            } else {
+                // 7. Else, let v be ? ToInt32(value).
+                Number::try_from(value).map(|v| to_int32_number(agent, v) as i64)
+            },
+            // 8. Let q be ? ToNumber(timeout).
+            Number::try_from(timeout),
+        ) {
+            (typed_array, byte_index_in_buffer, v, q)
+        } else {
+            let scoped_typed_array = typed_array.scope(agent, nogc);
+            let scoped_timeout = timeout.scope(agent, nogc);
+            let scoped_value = value.scope(agent, nogc);
+            let i =
+                validate_atomic_access(agent, ta_record.unbind(), index.unbind(), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc());
+            // SAFETY: not shared.
+            let value = unsafe { scoped_value.take(agent) }.bind(gc.nogc());
+            let v = if is_big_int_64_array {
+                // 6. If arrayTypeName is "BigInt64Array", let v be ? ToBigInt64(value).
+                to_big_int64(agent, value.unbind(), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc())
+            } else {
+                // 7. Else, let v be ? ToInt32(value).
+                to_int32(agent, value.unbind(), gc.reborrow())
+                    .unbind()?
+                    .bind(gc.nogc()) as i64
+            };
+            // 8. Let q be ? ToNumber(timeout).
+            // SAFETY: not shared.
+            let q = to_number(agent, unsafe { scoped_timeout.take(agent) }, gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+            (
+                unsafe { scoped_typed_array.take(agent) }.bind(gc.nogc()),
+                i,
+                v,
+                q,
+            )
+        };
+    let typed_array = typed_array.unbind();
+    let q = q.unbind();
+    let gc = gc.into_nogc();
+    let typed_array = typed_array.bind(gc);
+    let q = q.bind(gc);
+    // 9. If q is either NaN or +∞𝔽,
+    let t = if q.is_nan(agent) || q.is_pos_infinity(agent) {
+        // let t be +∞;
+        u64::MAX
+    } else if q.is_neg_infinity(agent) {
+        // else if q is -∞𝔽, let t be 0;
+        0
+    } else {
+        // else let t be max(ℝ(q), 0).
+        q.into_i64(agent).max(0) as u64
+    };
+    // 10. If mode is sync and AgentCanSuspend() is false,
+    if mode == WaitMode::Sync && !agent.can_suspend() {
+        // throw a TypeError exception.
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "agent is not allowed to suspend",
+            gc,
+        ));
+    }
+    // 11. Let block be buffer.[[ArrayBufferData]].
+    let buffer = typed_array.viewed_array_buffer(agent);
+    // 14. Let WL be GetWaiterList(block, byteIndexInBuffer).
+    // 15. If mode is sync, then
+    let _result_object = if mode == WaitMode::Sync {
+        // a. Let promiseCapability be blocking.
+        // b. Let resultObject be undefined.
+        ()
+    } else {
+        // 16. Else,
+        // a. Let promiseCapability be ! NewPromiseCapability(%Promise%).
+        // b. Let resultObject be OrdinaryObjectCreate(%Object.prototype%).
+        ()
+    };
+    // 17. Perform EnterCriticalSection(WL).
+    // 18. Let elementType be TypedArrayElementType(typedArray).
+    // 19. Let w be GetValueFromBuffer(buffer, byteIndexInBuffer, elementType, true, seq-cst).
+    let v_equals_w = if matches!(typed_array, SharedTypedArray::SharedBigInt64Array(_)) {
+        let w = get_raw_bytes_from_shared_block::<i64>(
+            buffer.get_data_block(agent),
+            byte_index_in_buffer,
+            true,
+            Ordering::SeqCst,
+        );
+        v == w
+    } else {
+        let w = get_raw_bytes_from_shared_block::<i32>(
+            buffer.get_data_block(agent),
+            byte_index_in_buffer,
+            true,
+            Ordering::SeqCst,
+        );
+        v as i32 == w
+    };
+    // 20. If v ≠ w, then
+    if !v_equals_w {
+        // a. Perform LeaveCriticalSection(WL).
+        // b. If mode is sync, return "not-equal".
+        if mode == WaitMode::Sync {
+            return Ok(BUILTIN_STRING_MEMORY.not_equal.into());
+        }
+        let result_object = OrdinaryObject::create_object(
+            agent,
+            Some(
+                agent
+                    .current_realm_record()
+                    .intrinsics()
+                    .object_prototype()
+                    .into_object(),
+            ),
+            &[
+                // c. Perform ! CreateDataPropertyOrThrow(resultObject, "async", false).
+                ObjectEntry::new_data_entry(
+                    BUILTIN_STRING_MEMORY.r#async.into(),
+                    false.into_value(),
+                ),
+                // d. Perform ! CreateDataPropertyOrThrow(resultObject, "value", "not-equal").
+                ObjectEntry::new_data_entry(
+                    BUILTIN_STRING_MEMORY.value.into(),
+                    BUILTIN_STRING_MEMORY.not_equal.into_value(),
+                ),
+            ],
+        );
+        // e. Return resultObject.
+        return Ok(result_object.into_value());
+    }
+    // 21. If t = 0 and mode is async, then
+    if t == 0 {
+        // a. NOTE: There is no special handling of synchronous immediate
+        //    timeouts. Asynchronous immediate timeouts have special handling
+        //    in order to fail fast and avoid unnecessary Promise jobs.
+        // b. Perform LeaveCriticalSection(WL).
+        let result_object = OrdinaryObject::create_object(
+            agent,
+            Some(
+                agent
+                    .current_realm_record()
+                    .intrinsics()
+                    .object_prototype()
+                    .into_object(),
+            ),
+            &[
+                // c. Perform ! CreateDataPropertyOrThrow(resultObject, "async", false).
+                ObjectEntry::new_data_entry(
+                    BUILTIN_STRING_MEMORY.r#async.into(),
+                    false.into_value(),
+                ),
+                // d. Perform ! CreateDataPropertyOrThrow(resultObject, "value", "timed-out").
+                ObjectEntry::new_data_entry(
+                    BUILTIN_STRING_MEMORY.value.into(),
+                    BUILTIN_STRING_MEMORY.timed_out.into_value(),
+                ),
+            ],
+        );
+        // e. Return resultObject.
+        return Ok(result_object.into_value());
+    }
+    // 22. Let thisAgent be AgentSignifier().
+    // 23. Let now be the time value (UTC) identifying the current time.
+    // 24. Let additionalTimeout be an implementation-defined non-negative
+    //     mathematical value.
+    // 25. Let timeoutTime be ℝ(now) + t + additionalTimeout.
+    // 26. NOTE: When t is +∞, timeoutTime is also +∞.
+    // 27. Let waiterRecord be a new Waiter Record {
+    //         [[AgentSignifier]]: thisAgent,
+    //         [[PromiseCapability]]: promiseCapability,
+    //         [[TimeoutTime]]: timeoutTime,
+    //         [[Result]]: "ok"
+    // }.
+    // 28. Perform AddWaiter(WL, waiterRecord).
+    // 29. If mode is sync, then
+    if mode == WaitMode::Sync {
+        // a. Perform SuspendThisAgent(WL, waiterRecord).
+        let dur = Duration::from_millis(t);
+        sleep(dur);
+        // 31. Perform LeaveCriticalSection(WL).
+        // 32. If mode is sync, return waiterRecord.[[Result]].
+        Ok(BUILTIN_STRING_MEMORY.timed_out.into_value())
+    } else {
+        // 30. Else if timeoutTime is finite, then
+        if t != u64::MAX {
+            // a. Perform EnqueueAtomicsWaitAsyncTimeoutJob(WL, waiterRecord).
+        }
+        let promise_capability = PromiseCapability::new(agent, gc);
+        // 31. Perform LeaveCriticalSection(WL).
+        let result_object = OrdinaryObject::create_object(
+            agent,
+            Some(
+                agent
+                    .current_realm_record()
+                    .intrinsics()
+                    .object_prototype()
+                    .into_object(),
+            ),
+            &[
+                // 33. Perform ! CreateDataPropertyOrThrow(resultObject, "async", true).
+                ObjectEntry::new_data_entry(
+                    BUILTIN_STRING_MEMORY.r#async.into(),
+                    true.into_value(),
+                ),
+                // 34. Perform ! CreateDataPropertyOrThrow(resultObject, "value", promiseCapability.[[Promise]]).
+                ObjectEntry::new_data_entry(
+                    BUILTIN_STRING_MEMORY.value.into(),
+                    promise_capability.promise().into_value(),
+                ),
+            ],
+        );
+        // 35. Return resultObject.
+        Ok(result_object.into_value())
+    }
 }

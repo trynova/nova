@@ -129,6 +129,7 @@ impl AnyTypedArray<'_> {
 
     /// Returns true if the TypedArray is an Int32Array or BigInt64Array
     /// (shared or not), false otherwise.
+    #[inline(always)]
     pub(crate) fn is_waitable(self) -> bool {
         #[cfg(not(feature = "shared-array-buffer"))]
         {
@@ -695,6 +696,7 @@ impl<'a> TypedArrayAbstractOperations<'a> for AnyTypedArray<'a> {
         TypedArray::try_from(self).is_err()
     }
 
+    /// \[\[ByteOffset]]
     fn byte_offset(self, agent: &Agent) -> usize {
         any_typed_array_delegate!(self, byte_offset, agent)
     }
