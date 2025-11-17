@@ -14,12 +14,12 @@ use std::{
     vec,
 };
 
-#[cfg(feature = "temporal")]
-use crate::ecmascript::InstantRecord;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::SharedDataViewRecord;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::try_get_result_into_value;
+#[cfg(feature = "temporal")]
+use crate::ecmascript::{InstantRecord, PlainTimeHeapData};
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, ExceptionType, Function, InternalMethods,
@@ -1656,7 +1656,10 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
         #[cfg(feature = "temporal")]
         ProtoIntrinsics::TemporalInstant => agent.heap.create(InstantRecord::default()).into(),
         #[cfg(feature = "temporal")]
-        ProtoIntrinsics::TemporalPlainTime => todo!(),
+        ProtoIntrinsics::TemporalPlainTime => agent
+            .heap
+            .create(PlainTimeHeapData::default())
+            .into_object(),
         ProtoIntrinsics::TypeError => agent
             .heap
             .create(ErrorHeapData::new(ExceptionType::TypeError, None, None))

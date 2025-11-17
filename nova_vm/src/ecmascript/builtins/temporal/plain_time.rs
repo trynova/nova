@@ -6,9 +6,13 @@ use crate::{
         execution::{Agent, ProtoIntrinsics},
         types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
     },
-    engine::context::bindable_handle,
+    engine::{
+        context::{Bindable, bindable_handle},
+        rootable::{HeapRootData, HeapRootRef, Rootable},
+    },
     heap::{
-        CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, indexes::BaseIndex,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        WorkQueues, indexes::BaseIndex,
     },
 };
 
@@ -19,10 +23,6 @@ pub(crate) mod data;
 pub struct TemporalPlainTime<'a>(BaseIndex<'a, PlainTimeHeapData<'static>>);
 
 impl TemporalPlainTime<'_> {
-    pub(crate) fn inner_plain_date_time(self, agent: &Agent) -> &temporal_rs::PlainTime {
-        &agent[self].plain_time
-    }
-
     //TODO
     pub(crate) const fn _def() -> Self {
         TemporalPlainTime(BaseIndex::from_u32_index(0))
@@ -109,6 +109,29 @@ impl IndexMut<TemporalPlainTime<'_>> for Vec<PlainTimeHeapData<'static>> {
     }
 }
 
+impl Rootable for TemporalPlainTime<'_> {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Err(HeapRootData::PlainTime(value.unbind()))
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::PlainTime(object) => Some(object),
+            _ => None,
+        }
+    }
+}
+
 impl HeapMarkAndSweep for TemporalPlainTime<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.plain_times.push(*self);
@@ -122,5 +145,13 @@ impl HeapMarkAndSweep for TemporalPlainTime<'static> {
 impl HeapSweepWeakReference for TemporalPlainTime<'static> {
     fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
         compactions.plain_times.shift_weak_index(self.0).map(Self)
+    }
+}
+
+impl<'a> CreateHeapData<PlainTimeHeapData<'a>, TemporalPlainTime<'a>> for Heap {
+    fn create(&mut self, data: PlainTimeHeapData<'a>) -> TemporalPlainTime<'a> {
+        self.plain_times.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<PlainTimeHeapData<'static>>();
+        TemporalPlainTime(BaseIndex::last(&self.plain_times))
     }
 }
