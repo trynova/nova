@@ -12,7 +12,8 @@ use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{PreferredType, to_primitive_object},
         builtins::{
-            ordinary::ordinary_create_from_constructor, temporal::duration::to_temporal_duration,
+            ordinary::ordinary_create_from_constructor,
+            temporal::{duration::to_temporal_duration, error::temporal_err_to_js_err},
         },
         execution::{
             JsResult, ProtoIntrinsics,
@@ -33,11 +34,11 @@ use crate::{
     },
 };
 
-use self::data::InstantHeapData;
+use self::data::InstantRecord;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct TemporalInstant<'a>(BaseIndex<'a, InstantHeapData<'static>>);
+pub struct TemporalInstant<'a>(BaseIndex<'a, InstantRecord<'static>>);
 
 impl TemporalInstant<'_> {
     pub(crate) fn inner_instant(self, agent: &Agent) -> &temporal_rs::Instant {
@@ -111,7 +112,7 @@ impl<'a> InternalMethods<'a> for TemporalInstant<'a> {}
 
 // TODO: get rid of Index impls, replace with get/get_mut/get_direct/get_direct_mut functions
 impl Index<TemporalInstant<'_>> for Agent {
-    type Output = InstantHeapData<'static>;
+    type Output = InstantRecord<'static>;
 
     fn index(&self, index: TemporalInstant<'_>) -> &Self::Output {
         &self.heap.instants[index]
@@ -124,8 +125,8 @@ impl IndexMut<TemporalInstant<'_>> for Agent {
     }
 }
 
-impl Index<TemporalInstant<'_>> for Vec<InstantHeapData<'static>> {
-    type Output = InstantHeapData<'static>;
+impl Index<TemporalInstant<'_>> for Vec<InstantRecord<'static>> {
+    type Output = InstantRecord<'static>;
 
     fn index(&self, index: TemporalInstant<'_>) -> &Self::Output {
         self.get(index.get_index())
@@ -133,7 +134,7 @@ impl Index<TemporalInstant<'_>> for Vec<InstantHeapData<'static>> {
     }
 }
 
-impl IndexMut<TemporalInstant<'_>> for Vec<InstantHeapData<'static>> {
+impl IndexMut<TemporalInstant<'_>> for Vec<InstantRecord<'static>> {
     fn index_mut(&mut self, index: TemporalInstant<'_>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("heap access out of bounds")
@@ -178,11 +179,11 @@ impl HeapSweepWeakReference for TemporalInstant<'static> {
     }
 }
 
-impl<'a> CreateHeapData<InstantHeapData<'a>, TemporalInstant<'a>> for Heap {
-    fn create(&mut self, data: InstantHeapData<'a>) -> TemporalInstant<'a> {
+impl<'a> CreateHeapData<InstantRecord<'a>, TemporalInstant<'a>> for Heap {
+    fn create(&mut self, data: InstantRecord<'a>) -> TemporalInstant<'a> {
         self.instants.push(data.unbind());
-        self.alloc_counter += core::mem::size_of::<InstantHeapData<'static>>();
-        TemporalInstant(BaseIndex::last_t(&self.instants))
+        self.alloc_counter += core::mem::size_of::<InstantRecord<'static>>();
+        TemporalInstant(BaseIndex::last(&self.instants))
     }
 }
 
@@ -229,26 +230,38 @@ fn create_temporal_instant<'gc>(
 fn to_temporal_instant<'gc>(
     agent: &mut Agent,
     item: Value,
-    gc: GcScope<'gc, '_>,
+    mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, temporal_rs::Instant> {
     let item = item.bind(gc.nogc());
     // 1. If item is an Object, then
     let item = if let Ok(item) = Object::try_from(item) {
         // a. If item has an [[InitializedTemporalInstant]] or [[InitializedTemporalZonedDateTime]]
-        // internal slot, then TODO: TemporalZonedDateTime::try_from(item)
+        // internal slot, then
+        // TODO: TemporalZonedDateTime::try_from(item)
         if let Ok(item) = TemporalInstant::try_from(item) {
             // i. Return ! CreateTemporalInstant(item.[[EpochNanoseconds]]).
             return Ok(agent[item].instant);
         }
         // b. NOTE: This use of ToPrimitive allows Instant-like objects to be converted.
         // c. Set item to ? ToPrimitive(item, string).
-        to_primitive_object(agent, item.unbind(), Some(PreferredType::String), gc)?
+        to_primitive_object(
+            agent,
+            item.unbind(),
+            Some(PreferredType::String),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc())
     } else {
         Primitive::try_from(item).unwrap()
     };
     // 2. If item is not a String, throw a TypeError exception.
     let Ok(item) = String::try_from(item) else {
-        todo!() // TypeErrror
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Item is not a String",
+            gc.into_nogc(),
+        ));
     };
     // 3. Let parsed be ? ParseISODateTime(item, « TemporalInstantString »).
     // 4. Assert: Either parsed.[[TimeZone]].[[OffsetString]] is not empty or
@@ -264,7 +277,8 @@ fn to_temporal_instant<'gc>(
     // 9. Let epochNanoseconds be GetUTCEpochNanoseconds(balanced).
     // 10. If IsValidEpochNanoseconds(epochNanoseconds) is false, throw a RangeError exception.
     // 11. Return ! CreateTemporalInstant(epochNanoseconds).
-    let parsed = temporal_rs::Instant::from_utf8(item.as_bytes(agent)).unwrap();
+    let parsed = temporal_rs::Instant::from_utf8(item.as_bytes(agent))
+        .map_err(|e| temporal_err_to_js_err(agent, e, gc.into_nogc()))?;
     Ok(parsed)
 }
 

@@ -10,8 +10,6 @@ use crate::ecmascript::Float16Array;
 use crate::ecmascript::Instant;
 #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
 use crate::ecmascript::SharedFloat16Array;
-#[cfg(feature = "temporal")]
-use crate::ecmascript::TemporalInstant;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::{
     ArrayBuffer, BigInt64Array, BigUint64Array, DataView, Float32Array, Float64Array, Int8Array,
@@ -27,6 +25,8 @@ use crate::ecmascript::{
     SharedFloat32Array, SharedFloat64Array, SharedInt8Array, SharedInt16Array, SharedInt32Array,
     SharedUint8Array, SharedUint8ClampedArray, SharedUint16Array, SharedUint32Array,
 };
+#[cfg(feature = "temporal")]
+use crate::ecmascript::{TemporalInstant, TemporalPlainTime};
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::{WeakMap, WeakRef, WeakSet};
 use crate::{
@@ -143,6 +143,8 @@ pub enum Value<'a> {
     Date(Date<'a>),
     #[cfg(feature = "temporal")]
     Instant(TemporalInstant<'a>),
+    #[cfg(feature = "temporal")]
+    PlainTime(TemporalPlainTime<'a>),
     Error(Error<'a>),
     FinalizationRegistry(FinalizationRegistry<'a>),
     Map(Map<'a>),
@@ -278,10 +280,13 @@ pub(crate) const OBJECT_DISCRIMINANT: u8 = value_discriminant(Value::Object(Ordi
 pub(crate) const ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Array(Array::_DEF));
 #[cfg(feature = "date")]
 pub(crate) const DATE_DISCRIMINANT: u8 = value_discriminant(Value::Date(Date::_DEF));
-pub(crate) const ERROR_DISCRIMINANT: u8 = value_discriminant(Value::Error(Error::_DEF));
 #[cfg(feature = "temporal")]
 pub(crate) const INSTANT_DISCRIMINANT: u8 =
     value_discriminant(Value::Instant(TemporalInstant::_DEF));
+#[cfg(feature = "temporal")]
+pub(crate) const PLAIN_TIME_DISCRIMINANT: u8 =
+    value_discriminant(Value::PlainTime(TemporalPlainTime::_DEF));
+pub(crate) const ERROR_DISCRIMINANT: u8 = value_discriminant(Value::Error(Error::_DEF));
 pub(crate) const BUILTIN_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::BuiltinFunction(BuiltinFunction::_DEF));
 pub(crate) const ECMASCRIPT_FUNCTION_DISCRIMINANT: u8 =
@@ -927,6 +932,8 @@ impl Rootable for Value<'_> {
             Self::Date(date) => Err(HeapRootData::Date(date.unbind())),
             #[cfg(feature = "temporal")]
             Self::Instant(instant) => Err(HeapRootData::Instant(instant.unbind())),
+            #[cfg(feature = "temporal")]
+            Self::PlainTime(plain_time) => Err(HeapRootData::PlainTime(plain_time.unbind())),
             Self::Error(error) => Err(HeapRootData::Error(error.unbind())),
             Self::FinalizationRegistry(finalization_registry) => Err(
                 HeapRootData::FinalizationRegistry(finalization_registry.unbind()),
@@ -1090,6 +1097,8 @@ impl Rootable for Value<'_> {
             HeapRootData::Date(date) => Some(Self::Date(date)),
             #[cfg(feature = "temporal")]
             HeapRootData::Instant(instant) => Some(Self::Instant(instant)),
+            #[cfg(feature = "temporal")]
+            HeapRootData::PlainTime(plain_time) => Some(Self::PlainTime(plain_time)),
             HeapRootData::Error(error) => Some(Self::Error(error)),
             HeapRootData::FinalizationRegistry(finalization_registry) => {
                 Some(Self::FinalizationRegistry(finalization_registry))
@@ -1239,7 +1248,9 @@ impl HeapMarkAndSweep for Value<'static> {
             #[cfg(feature = "date")]
             Self::Date(dv) => dv.mark_values(queues),
             #[cfg(feature = "temporal")]
-            Self::Instant(dv) => dv.mark_values(queues),
+            Self::Instant(data) => data.mark_values(queues),
+            #[cfg(feature = "temporal")]
+            Self::PlainTime(data) => data.mark_values(queues),
             Self::Error(data) => data.mark_values(queues),
             Self::BoundFunction(data) => data.mark_values(queues),
             Self::BuiltinFunction(data) => data.mark_values(queues),
@@ -1355,7 +1366,9 @@ impl HeapMarkAndSweep for Value<'static> {
             #[cfg(feature = "date")]
             Self::Date(data) => data.sweep_values(compactions),
             #[cfg(feature = "temporal")]
-            Self::Instant(dv) => dv.sweep_values(compactions),
+            Self::Instant(data) => data.sweep_values(compactions),
+            #[cfg(feature = "temporal")]
+            Self::PlainTime(data) => data.sweep_values(compactions),
             Self::Error(data) => data.sweep_values(compactions),
             Self::BoundFunction(data) => data.sweep_values(compactions),
             Self::BuiltinFunction(data) => data.sweep_values(compactions),
@@ -1509,6 +1522,8 @@ fn map_object_to_static_string_repr(value: Value) -> String<'static> {
         Object::Date(_) => BUILTIN_STRING_MEMORY._object_Object_,
         #[cfg(feature = "temporal")]
         Object::Instant(_) => BUILTIN_STRING_MEMORY._object_Object_,
+        #[cfg(feature = "temporal")]
+        Object::PlainTime(_) => BUILTIN_STRING_MEMORY._object_Object_,
         #[cfg(feature = "set")]
         Object::Set(_) | Object::SetIterator(_) => BUILTIN_STRING_MEMORY._object_Object_,
         #[cfg(feature = "weak-refs")]

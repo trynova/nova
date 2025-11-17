@@ -27,9 +27,9 @@ use crate::ecmascript::{
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::{FLOAT_16_ARRAY_DISCRIMINANT, Float16Array};
 #[cfg(feature = "temporal")]
-use crate::ecmascript::{INSTANT_DISCRIMINANT, Instant};
-#[cfg(feature = "temporal")]
-use crate::ecmascript::{INSTANT_DISCRIMINANT, TemporalInstant};
+use crate::ecmascript::{
+    INSTANT_DISCRIMINANT, PLAIN_TIME_DISCRIMINANT, TemporalInstant, TemporalPlainTime,
+};
 #[cfg(feature = "regexp")]
 use crate::ecmascript::{
     REGEXP_DISCRIMINANT, REGEXP_STRING_ITERATOR_DISCRIMINANT, RegExp, RegExpStringIterator,
@@ -448,6 +448,8 @@ pub enum HeapRootData {
     Date(Date<'static>) = DATE_DISCRIMINANT,
     #[cfg(feature = "temporal")]
     Instant(TemporalInstant<'static>) = INSTANT_DISCRIMINANT,
+    #[cfg(feature = "temporal")]
+    PlainTime(TemporalPlainTime<'static>) = PLAIN_TIME_DISCRIMINANT,
     Error(Error<'static>) = ERROR_DISCRIMINANT,
     FinalizationRegistry(FinalizationRegistry<'static>) = FINALIZATION_REGISTRY_DISCRIMINANT,
     Map(Map<'static>) = MAP_DISCRIMINANT,
@@ -628,6 +630,8 @@ impl HeapMarkAndSweep for HeapRootData {
             Self::Date(date) => date.mark_values(queues),
             #[cfg(feature = "temporal")]
             Self::Instant(instant) => instant.mark_values(queues),
+            #[cfg(feature = "temporal")]
+            Self::PlainTime(plain_time) => plain_time.mark_values(queues),
             Self::Error(error) => error.mark_values(queues),
             Self::FinalizationRegistry(finalization_registry) => {
                 finalization_registry.mark_values(queues)
@@ -778,7 +782,9 @@ impl HeapMarkAndSweep for HeapRootData {
             #[cfg(feature = "date")]
             Self::Date(date) => date.sweep_values(compactions),
             #[cfg(feature = "temporal")]
-            Self::Instant(date) => date.sweep_values(compactions),
+            Self::Instant(instant) => instant.sweep_values(compactions),
+            #[cfg(feature = "temporal")]
+            Self::PlainTime(plain_time) => plain_time.sweep_values(compactions),
             Self::Error(error) => error.sweep_values(compactions),
             Self::FinalizationRegistry(finalization_registry) => {
                 finalization_registry.sweep_values(compactions)
