@@ -161,6 +161,32 @@ fn is_valid_use_of_unbound_value(cx: &LateContext<'_>, expr: &Expr, hir_id: HirI
         return true;
     }
 
+    // If this is the self value of a method call, it's valid
+    if path_to_local_id(expr, hir_id) && is_in_self_position(cx, expr) {
+        return true;
+    }
+
+    false
+}
+
+fn is_in_self_position(cx: &LateContext<'_>, expr: &Expr) -> bool {
+    let mut current_expr = expr;
+
+    // Walk up the parent chain to see if we're in a method call
+    while let Some(parent) = get_parent_expr(cx, current_expr) {
+        match parent.kind {
+            // If we find a method call where our expression is in the receiver position
+            ExprKind::MethodCall(_, receiver, args, _) => {
+                if receiver.hir_id == current_expr.hir_id {
+                    return true;
+                }
+            }
+            // Continue walking up for other expression types
+            _ => {}
+        }
+        current_expr = parent;
+    }
+
     false
 }
 
