@@ -3,8 +3,8 @@
 use nova_vm::{
     ecmascript::{execution::Agent, types::Value},
     engine::{
+        context::{Bindable, GcScope, NoGcScope},
         Scoped,
-        context::{Bindable, NoGcScope},
     },
 };
 
@@ -35,6 +35,19 @@ fn test_scoped_get_can_be_immediately_passed_on(
     test_consumes_unbound_value(a);
 }
 
+fn test_scoped_get_can_be_used_as_self(agent: &Agent, scoped: Scoped<Value>) {
+    scoped.get(agent).is_undefined();
+}
+
+fn test_scoped_get_can_be_used_as_self_immediately_after(
+    agent: &Agent,
+    scoped: Scoped<Value>,
+    gc: NoGcScope,
+) {
+    let a = scoped.get(agent);
+    a.is_undefined();
+}
+
 fn test_consumes_unbound_value(value: Value) {
     unimplemented!()
 }
@@ -54,6 +67,30 @@ fn test_improbable_but_technically_bad_situation(
 ) {
     let _a = Scoped::new(agent, Value::Undefined, gc).get(agent);
 }
+
+// fn take_and_return_value_with_gc<'gc>(
+//     agent: &mut Agent,
+//     value: Value,
+//     mut gc: GcScope<'gc, '_>,
+// ) -> Value<'gc> {
+//     Value::Undefined
+// }
+
+// fn test_scoped_used_twice_right_after<'gc>(
+//     agent: &mut Agent,
+//     value: Scoped<Value>,
+//     mut gc: GcScope<'gc, '_>,
+// ) {
+//     let value = value.get(agent);
+//     let something = if value.is_undefined() {
+//         true
+//     } else {
+//         take_and_return_value_with_gc(agent, value, gc.reborrow())
+//             .unbind()
+//             .bind(gc.nogc())
+//             .is_undefined()
+//     };
+// }
 
 fn main() {
     unimplemented!()
