@@ -21,10 +21,10 @@ use soavec_derive::SoAble;
 
 #[derive(Debug, Default, SoAble)]
 pub struct SetHeapData<'a> {
-    pub(crate) object_index: Option<OrdinaryObject<'a>>,
-    pub(crate) values: Vec<Option<Value<'a>>>,
-    /// Low-level hash table pointing to value indexes.
     pub(crate) set_data: RefCell<HashTable<u32>>,
+    pub(crate) values: Vec<Option<Value<'a>>>,
+    pub(crate) object_index: Option<OrdinaryObject<'a>>,
+    /// Low-level hash table pointing to value indexes.
     /// Flag that lets the Set know if it needs to rehash its primitive keys.
     ///
     /// This happens when an object key needs to be moved in the set_data
