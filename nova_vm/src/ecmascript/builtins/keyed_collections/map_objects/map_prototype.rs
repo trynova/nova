@@ -17,7 +17,7 @@ use crate::{
             ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
             indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
             keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
-            map::{Map, data::MapData},
+            map::{Map, data::MapHeapData},
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, HeapNumber, IntoValue, PropertyKey, String, Value},
@@ -157,12 +157,12 @@ impl MapPrototype {
             hasher.finish()
         };
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
-        let MapData {
-            keys,
+        let MapHeapData {
             values,
+            keys,
             map_data,
             ..
-        } = maps[m].borrow_mut(&primitive_heap);
+        } = &mut maps[m].borrow_mut(&primitive_heap);
         let map_data = map_data.get_mut();
 
         // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, then
@@ -326,9 +326,9 @@ impl MapPrototype {
             hasher.finish()
         };
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
-        let MapData {
-            keys,
+        let MapHeapData {
             values,
+            keys,
             map_data,
             ..
         } = &maps[m].borrow(&primitive_heap);
@@ -378,7 +378,7 @@ impl MapPrototype {
             hasher.finish()
         };
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
-        let MapData { keys, map_data, .. } = &mut maps[m].borrow_mut(&primitive_heap);
+        let MapHeapData { keys, map_data, .. } = &mut maps[m].borrow_mut(&primitive_heap);
         let map_data = map_data.get_mut();
 
         // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, return true.
@@ -433,7 +433,7 @@ impl MapPrototype {
         } = &mut agent.heap;
         let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
-        let MapData {
+        let MapHeapData {
             keys,
             values,
             map_data,

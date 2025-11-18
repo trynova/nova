@@ -20,21 +20,13 @@ use hashbrown::{HashTable, hash_table::Entry};
 
 #[derive(Debug, Default)]
 pub struct MapHeapData<'a> {
-    pub(crate) object_index: Option<OrdinaryObject<'a>>,
-    map_data: MapData<'a>,
-    // TODO: When an non-terminal (start or end) iterator exists for the Map,
-    // the items in the map cannot be compacted.
-    // pub(crate) observed: bool;
-}
-
-#[derive(Debug, Default)]
-pub(crate) struct MapData<'a> {
     // TODO: Use a ParallelVec to remove one unnecessary allocation.
     // pub(crate) key_values: ParallelVec<Option<Value>, Option<Value>>
     pub(crate) keys: Vec<Option<Value<'a>>>,
     pub(crate) values: Vec<Option<Value<'a>>>,
     /// Low-level hash table pointing to keys-values indexes.
     pub(crate) map_data: RefCell<HashTable<u32>>,
+    pub(crate) object_index: Option<OrdinaryObject<'a>>,
     /// Flag that lets the Map know if it needs to rehash its primitive keys.
     ///
     /// This happens when an object key needs to be moved in the map_data
@@ -43,6 +35,9 @@ pub(crate) struct MapData<'a> {
     /// garbage collection due to the heap data being concurrently sweeped on
     /// another thread.
     pub(crate) needs_primitive_rehashing: AtomicBool,
+    // TODO: When an non-terminal (start or end) iterator exists for the Map,
+    // the items in the map cannot be compacted.
+    // pub(crate) observed: bool;
 }
 
 impl<'a> MapHeapData<'a> {
@@ -56,50 +51,48 @@ impl<'a> MapHeapData<'a> {
         // 2. For each element e of setData, do
         // a. If e is not EMPTY, set count to count + 1.
         // 3. Return count.
-        self.map_data.map_data.borrow().len() as u32
+        self.map_data.borrow().len() as u32
     }
 
     pub fn keys(&self, _gc: NoGcScope<'a, '_>) -> &[Option<Value<'a>>] {
-        &self.map_data.keys
+        &self.keys
     }
 
     pub fn values(&self, _gc: NoGcScope<'a, '_>) -> &[Option<Value<'a>>] {
-        &self.map_data.values
+        &self.values
     }
 
     pub fn clear(&mut self) {
         // 3. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
         // a. Set p.[[Key]] to EMPTY.
         // b. Set p.[[Value]] to EMPTY.
-        self.map_data.map_data.get_mut().clear();
-        self.map_data.values.fill(None);
-        self.map_data.keys.fill(None);
+        self.map_data.get_mut().clear();
+        self.values.fill(None);
+        self.keys.fill(None);
     }
 
-    pub(crate) fn borrow(&self, arena: &impl PrimitiveHeapIndexable) -> &MapData<'a> {
-        self.map_data.rehash_if_needed(arena);
-        &self.map_data
+    pub(crate) fn borrow(&self, arena: &impl PrimitiveHeapIndexable) -> &Self {
+        self.rehash_if_needed(arena);
+        self
     }
 
-    pub(crate) fn borrow_mut(&mut self, arena: &impl PrimitiveHeapIndexable) -> &mut MapData<'a> {
-        self.map_data.rehash_if_needed_mut(arena);
-        &mut self.map_data
+    pub(crate) fn borrow_mut(&mut self, arena: &impl PrimitiveHeapIndexable) -> &mut Self {
+        self.rehash_if_needed_mut(arena);
+        self
     }
 
     pub fn with_capacity(new_len: usize) -> Self {
         Self {
-            map_data: MapData {
-                keys: Vec::with_capacity(new_len),
-                values: Vec::with_capacity(new_len),
-                map_data: RefCell::new(HashTable::with_capacity(new_len)),
-                needs_primitive_rehashing: AtomicBool::new(false),
-            },
+            keys: Vec::with_capacity(new_len),
+            values: Vec::with_capacity(new_len),
+            map_data: RefCell::new(HashTable::with_capacity(new_len)),
+            needs_primitive_rehashing: AtomicBool::new(false),
             object_index: None,
         }
     }
 }
 
-impl MapData<'_> {
+impl MapHeapData<'_> {
     fn rehash_if_needed_mut(&mut self, arena: &impl PrimitiveHeapIndexable) {
         if !*self.needs_primitive_rehashing.get_mut() {
             return;
@@ -185,31 +178,24 @@ bindable_handle!(MapHeapData);
 impl HeapMarkAndSweep for MapHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
+            keys,
+            values,
             object_index,
-            map_data,
+            ..
         } = self;
         object_index.mark_values(queues);
-        map_data
-            .keys
-            .iter()
-            .for_each(|value| value.mark_values(queues));
-        map_data
-            .values
-            .iter()
-            .for_each(|value| value.mark_values(queues));
+        keys.iter().for_each(|value| value.mark_values(queues));
+        values.iter().for_each(|value| value.mark_values(queues));
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let Self {
             object_index,
-            map_data,
-        } = self;
-        let MapData {
             keys,
             values,
             needs_primitive_rehashing,
             map_data,
-        } = map_data;
+        } = self;
         let map_data = map_data.get_mut();
         object_index.sweep_values(compactions);
 
