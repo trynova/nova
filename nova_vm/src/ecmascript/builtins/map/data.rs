@@ -17,8 +17,9 @@ use core::{
     sync::atomic::{AtomicBool, Ordering},
 };
 use hashbrown::{HashTable, hash_table::Entry};
+use soavec_derive::SoAble;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, SoAble)]
 pub struct MapHeapData<'a> {
     // TODO: Use a ParallelVec to remove one unnecessary allocation.
     // pub(crate) key_values: ParallelVec<Option<Value>, Option<Value>>
