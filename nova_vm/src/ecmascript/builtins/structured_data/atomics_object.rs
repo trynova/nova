@@ -5,6 +5,7 @@
 use std::{hint::assert_unchecked, ops::ControlFlow, thread::sleep, time::Duration};
 
 use ecmascript_atomics::Ordering;
+use ecmascript_futex::ECMAScriptAtomicWait;
 
 use crate::{
     ecmascript::{
@@ -1270,8 +1271,8 @@ fn do_wait<'gc>(
     // 5. Let arrayTypeName be typedArray.[[TypedArrayName]].
     // 6. If arrayTypeName is "BigInt64Array",
     let is_big_int_64_array = matches!(typed_array, SharedTypedArray::SharedBigInt64Array(_));
-    let (typed_array, byte_index_in_buffer, v, q) =
-        if let (Some(byte_index_in_buffer), Ok(v), Ok(q)) = (
+    let (typed_array, byte_index_in_buffer, v, t) =
+        if let (Some(byte_index_in_buffer), Ok(v), Some(q)) = (
             byte_index_in_buffer,
             if is_big_int_64_array {
                 // 6. If arrayTypeName is "BigInt64Array", let v be ? ToBigInt64(value).
@@ -1281,58 +1282,35 @@ fn do_wait<'gc>(
                 Number::try_from(value).map(|v| to_int32_number(agent, v) as i64)
             },
             // 8. Let q be ? ToNumber(timeout).
-            Number::try_from(timeout),
+            if timeout.is_undefined() {
+                // 9. If q is either NaN or +∞𝔽,
+                // let t be +∞;
+                Some(u64::MAX)
+            } else if let Value::Integer(q) = timeout {
+                // else let t be max(ℝ(q), 0).
+                Some(q.into_i64().max(0).unsigned_abs())
+            } else {
+                None
+            },
         ) {
             (typed_array, byte_index_in_buffer, v, q)
         } else {
-            let scoped_typed_array = typed_array.scope(agent, nogc);
-            let scoped_timeout = timeout.scope(agent, nogc);
-            let scoped_value = value.scope(agent, nogc);
-            let i =
-                validate_atomic_access(agent, ta_record.unbind(), index.unbind(), gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc());
-            // SAFETY: not shared.
-            let value = unsafe { scoped_value.take(agent) }.bind(gc.nogc());
-            let v = if is_big_int_64_array {
-                // 6. If arrayTypeName is "BigInt64Array", let v be ? ToBigInt64(value).
-                to_big_int64(agent, value.unbind(), gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc())
-            } else {
-                // 7. Else, let v be ? ToInt32(value).
-                to_int32(agent, value.unbind(), gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc()) as i64
-            };
-            // 8. Let q be ? ToNumber(timeout).
-            // SAFETY: not shared.
-            let q = to_number(agent, unsafe { scoped_timeout.take(agent) }, gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
-            (
-                unsafe { scoped_typed_array.take(agent) }.bind(gc.nogc()),
-                i,
-                v,
-                q,
+            do_wait_slow(
+                agent,
+                ta_record.unbind(),
+                is_big_int_64_array,
+                index.unbind(),
+                value.unbind(),
+                timeout.unbind(),
+                gc.reborrow(),
             )
+            .unbind()?
+            .bind(gc.nogc())
         };
     let typed_array = typed_array.unbind();
-    let q = q.unbind();
     let gc = gc.into_nogc();
     let typed_array = typed_array.bind(gc);
-    let q = q.bind(gc);
-    // 9. If q is either NaN or +∞𝔽,
-    let t = if q.is_nan(agent) || q.is_pos_infinity(agent) {
-        // let t be +∞;
-        u64::MAX
-    } else if q.is_neg_infinity(agent) {
-        // else if q is -∞𝔽, let t be 0;
-        0
-    } else {
-        // else let t be max(ℝ(q), 0).
-        q.into_i64(agent).max(0) as u64
-    };
+
     // 10. If mode is sync and AgentCanSuspend() is false,
     if mode == WaitMode::Sync && !agent.can_suspend() {
         // throw a TypeError exception.
@@ -1356,25 +1334,27 @@ fn do_wait<'gc>(
         // b. Let resultObject be OrdinaryObjectCreate(%Object.prototype%).
         ()
     };
+    let slot = buffer
+        .get_data_block(agent)
+        .as_racy_slice()
+        .slice_from(byte_index_in_buffer);
     // 17. Perform EnterCriticalSection(WL).
     // 18. Let elementType be TypedArrayElementType(typedArray).
     // 19. Let w be GetValueFromBuffer(buffer, byteIndexInBuffer, elementType, true, seq-cst).
     let v_equals_w = if matches!(typed_array, SharedTypedArray::SharedBigInt64Array(_)) {
-        let w = get_raw_bytes_from_shared_block::<i64>(
-            buffer.get_data_block(agent),
-            byte_index_in_buffer,
-            true,
-            Ordering::SeqCst,
-        );
+        let v = v as u64;
+        // SAFETY: byte index and length are checked beforehand.
+        let slot = unsafe { slot.as_aligned::<u64>().unwrap_unchecked() };
+        slot.wait_timeout(v, Duration::from_millis(0));
+        let w = slot.load(Ordering::SeqCst);
         v == w
     } else {
-        let w = get_raw_bytes_from_shared_block::<i32>(
-            buffer.get_data_block(agent),
-            byte_index_in_buffer,
-            true,
-            Ordering::SeqCst,
-        );
-        v as i32 == w
+        let v = v as i32 as u32;
+        // SAFETY: byte index and length are checked beforehand.
+        let slot = unsafe { slot.as_aligned::<u32>().unwrap_unchecked() };
+        slot.wait_timeout(v, Duration::from_millis(0));
+        let w = slot.load(Ordering::SeqCst);
+        v == w
     };
     // 20. If v ≠ w, then
     if !v_equals_w {
@@ -1383,59 +1363,23 @@ fn do_wait<'gc>(
         if mode == WaitMode::Sync {
             return Ok(BUILTIN_STRING_MEMORY.not_equal.into());
         }
-        let result_object = OrdinaryObject::create_object(
-            agent,
-            Some(
-                agent
-                    .current_realm_record()
-                    .intrinsics()
-                    .object_prototype()
-                    .into_object(),
-            ),
-            &[
-                // c. Perform ! CreateDataPropertyOrThrow(resultObject, "async", false).
-                ObjectEntry::new_data_entry(
-                    BUILTIN_STRING_MEMORY.r#async.into(),
-                    false.into_value(),
-                ),
-                // d. Perform ! CreateDataPropertyOrThrow(resultObject, "value", "not-equal").
-                ObjectEntry::new_data_entry(
-                    BUILTIN_STRING_MEMORY.value.into(),
-                    BUILTIN_STRING_MEMORY.not_equal.into_value(),
-                ),
-            ],
-        );
+        // c. Perform ! CreateDataPropertyOrThrow(resultObject, "async", false).
+        // d. Perform ! CreateDataPropertyOrThrow(resultObject, "value", "not-equal").
+        let result_object =
+            create_async_value_object(agent, false, BUILTIN_STRING_MEMORY.not_equal.into_value());
         // e. Return resultObject.
         return Ok(result_object.into_value());
     }
     // 21. If t = 0 and mode is async, then
-    if t == 0 {
+    if t == 0 && mode == WaitMode::Async {
         // a. NOTE: There is no special handling of synchronous immediate
         //    timeouts. Asynchronous immediate timeouts have special handling
         //    in order to fail fast and avoid unnecessary Promise jobs.
         // b. Perform LeaveCriticalSection(WL).
-        let result_object = OrdinaryObject::create_object(
-            agent,
-            Some(
-                agent
-                    .current_realm_record()
-                    .intrinsics()
-                    .object_prototype()
-                    .into_object(),
-            ),
-            &[
-                // c. Perform ! CreateDataPropertyOrThrow(resultObject, "async", false).
-                ObjectEntry::new_data_entry(
-                    BUILTIN_STRING_MEMORY.r#async.into(),
-                    false.into_value(),
-                ),
-                // d. Perform ! CreateDataPropertyOrThrow(resultObject, "value", "timed-out").
-                ObjectEntry::new_data_entry(
-                    BUILTIN_STRING_MEMORY.value.into(),
-                    BUILTIN_STRING_MEMORY.timed_out.into_value(),
-                ),
-            ],
-        );
+        // c. Perform ! CreateDataPropertyOrThrow(resultObject, "async", false).
+        // d. Perform ! CreateDataPropertyOrThrow(resultObject, "value", "timed-out").
+        let result_object =
+            create_async_value_object(agent, false, BUILTIN_STRING_MEMORY.timed_out.into_value());
         // e. Return resultObject.
         return Ok(result_object.into_value());
     }
@@ -1468,31 +1412,93 @@ fn do_wait<'gc>(
             enqueue_atomics_wait_async_timeout_job(agent, t, promise_capability.promise, gc);
         }
         // 31. Perform LeaveCriticalSection(WL).
-        let result_object = OrdinaryObject::create_object(
-            agent,
-            Some(
-                agent
-                    .current_realm_record()
-                    .intrinsics()
-                    .object_prototype()
-                    .into_object(),
-            ),
-            &[
-                // 33. Perform ! CreateDataPropertyOrThrow(resultObject, "async", true).
-                ObjectEntry::new_data_entry(
-                    BUILTIN_STRING_MEMORY.r#async.into(),
-                    true.into_value(),
-                ),
-                // 34. Perform ! CreateDataPropertyOrThrow(resultObject, "value", promiseCapability.[[Promise]]).
-                ObjectEntry::new_data_entry(
-                    BUILTIN_STRING_MEMORY.value.into(),
-                    promise_capability.promise().into_value(),
-                ),
-            ],
-        );
+        // 33. Perform ! CreateDataPropertyOrThrow(resultObject, "async", true).
+        // 34. Perform ! CreateDataPropertyOrThrow(resultObject, "value", promiseCapability.[[Promise]]).
+        let result_object =
+            create_async_value_object(agent, true, promise_capability.promise().into_value());
         // 35. Return resultObject.
         Ok(result_object.into_value())
     }
+}
+
+#[cold]
+#[inline(never)]
+fn do_wait_slow<'gc>(
+    agent: &mut Agent,
+    ta_record: TypedArrayWithBufferWitnessRecords,
+    is_big_int_64_array: bool,
+    index: Value,
+    value: Value,
+    timeout: Value,
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, (SharedTypedArray<'gc>, usize, i64, u64)> {
+    let nogc = gc.nogc();
+    let ta_record = ta_record.bind(nogc);
+    // SAFETY: TypedArray is guaranteed to be a shared TypedArray at this point.
+    let typed_array = unsafe { SharedTypedArray::try_from(ta_record.object).unwrap_unchecked() };
+    let scoped_typed_array = typed_array.scope(agent, nogc);
+    let index = index.bind(nogc);
+    let scoped_timeout = timeout.scope(agent, nogc);
+    let scoped_value = value.scope(agent, nogc);
+    let i = validate_atomic_access(agent, ta_record.unbind(), index.unbind(), gc.reborrow())
+        .unbind()?
+        .bind(gc.nogc());
+    // SAFETY: not shared.
+    let value = unsafe { scoped_value.take(agent) }.bind(gc.nogc());
+    let v = if is_big_int_64_array {
+        // 6. If arrayTypeName is "BigInt64Array", let v be ? ToBigInt64(value).
+        to_big_int64(agent, value.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc())
+    } else {
+        // 7. Else, let v be ? ToInt32(value).
+        to_int32(agent, value.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc()) as i64
+    };
+    // 8. Let q be ? ToNumber(timeout).
+    // SAFETY: not shared.
+    let q = to_number(agent, unsafe { scoped_timeout.take(agent) }, gc.reborrow()).unbind()?;
+    let gc = gc.into_nogc();
+    let q = q.bind(gc);
+    // 9. If q is either NaN or +∞𝔽,
+    let t = if q.is_nan(agent) || q.is_pos_infinity(agent) {
+        // let t be +∞;
+        u64::MAX
+    } else if q.is_neg_infinity(agent) {
+        // else if q is -∞𝔽, let t be 0;
+        0
+    } else {
+        // else let t be max(ℝ(q), 0).
+        q.into_i64(agent).max(0) as u64
+    };
+    Ok((unsafe { scoped_typed_array.take(agent) }.bind(gc), i, v, t))
+}
+
+fn create_async_value_object<'gc>(
+    agent: &mut Agent,
+    is_async: bool,
+    value: Value<'gc>,
+) -> OrdinaryObject<'gc> {
+    OrdinaryObject::create_object(
+        agent,
+        Some(
+            agent
+                .current_realm_record()
+                .intrinsics()
+                .object_prototype()
+                .into_object(),
+        ),
+        &[
+            // 1. Perform ! CreateDataPropertyOrThrow(resultObject, "async", isAsync).
+            ObjectEntry::new_data_entry(
+                BUILTIN_STRING_MEMORY.r#async.into(),
+                is_async.into_value(),
+            ),
+            // 34. Perform ! CreateDataPropertyOrThrow(resultObject, "value", value).
+            ObjectEntry::new_data_entry(BUILTIN_STRING_MEMORY.value.into(), value),
+        ],
+    )
 }
 
 /// ### [25.4.3.15 EnqueueAtomicsWaitAsyncTimeoutJob ( WL, waiterRecord )](https://tc39.es/ecma262/#sec-enqueueatomicswaitasynctimeoutjob)

@@ -13,7 +13,8 @@ categories.workspace = true
 
 [dependencies]
 ahash = { workspace = true }
-ecmascript_atomics = { workspace = true }
+ecmascript_atomics = { workspace = true, optional = true }
+ecmascript_futex = { workspace = true, optional = true }
 fast-float = { workspace = true }
 hashbrown = { workspace = true }
 lexical = { workspace = true }
@@ -53,7 +54,7 @@ default = [
     "annex-b",
 ]
 array-buffer = []
-atomics = ["array-buffer", "shared-array-buffer"]
+atomics = ["array-buffer", "shared-array-buffer", "ecmascript_atomics", "ecmascript_futex"]
 date = []
 json = ["dep:sonic-rs"]
 math = []
