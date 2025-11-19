@@ -23,8 +23,8 @@ use crate::{
         builtins::{
             ArgumentsList, Behaviour, Builtin,
             array_buffer::{
-                compare_exchange_in_buffer, get_modify_set_value_in_buffer, get_value_from_buffer,
-                set_value_in_buffer,
+                AnyArrayBuffer, compare_exchange_in_buffer, get_modify_set_value_in_buffer,
+                get_value_from_buffer, set_value_in_buffer,
             },
             indexed_collections::typed_array_objects::abstract_operations::{
                 TypedArrayAbstractOperations, TypedArrayWithBufferWitnessRecords,
@@ -638,13 +638,83 @@ impl AtomicsObject {
         }
     }
 
+    /// ### [25.4.15 Atomics.notify ( typedArray, index, count )](https://tc39.es/ecma262/#sec-atomics.notify)
+    ///
+    /// This function notifies some agents that are sleeping in the wait queue.
     fn notify<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Err(agent.todo("Atomics.notify", gc.into_nogc()))
+        let nogc = gc.nogc();
+        let typed_array = arguments.get(0).bind(nogc);
+        let index = arguments.get(1).bind(nogc);
+        let count = arguments.get(2).scope(agent, nogc);
+        // 1. Let taRecord be ? ValidateIntegerTypedArray(typedArray, true).
+        let ta_record = validate_integer_typed_array::<true>(agent, typed_array, nogc)
+            .unbind()?
+            .bind(nogc);
+        let typed_array = ta_record.object.scope(agent, nogc);
+        // 2. Let byteIndexInBuffer be ? ValidateAtomicAccess(taRecord, index).
+        let byte_index_in_buffer =
+            validate_atomic_access(agent, ta_record.unbind(), index.unbind(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+        // SAFETY: not shared.
+        let count = unsafe { count.take(agent) }.bind(gc.nogc());
+        // 3. If count is undefined, then
+        let c = if count.is_undefined() {
+            // a. Let c be +∞.
+            usize::MAX
+        } else {
+            // 4. Else,
+            // a. Let intCount be ? ToIntegerOrInfinity(count).
+            let int_count = to_integer_or_infinity(agent, count.unbind(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+            // b. Let c be max(intCount, 0).
+            usize::try_from(int_count.into_i64().max(0).cast_unsigned()).unwrap_or(usize::MAX)
+        };
+        let gc = gc.into_nogc();
+        // SAFETY: not shared.
+        let typed_array = unsafe { typed_array.take(agent) }.bind(gc);
+        // 5. Let buffer be typedArray.[[ViewedArrayBuffer]].
+        let buffer = typed_array.viewed_array_buffer(agent);
+        // 7. If IsSharedArrayBuffer(buffer) is false,
+        let AnyArrayBuffer::SharedArrayBuffer(buffer) = buffer else {
+            // return +0𝔽.
+            return Ok(0.into());
+        };
+        // 6. Let block be buffer.[[ArrayBufferData]].
+        // 8. Let WL be GetWaiterList(block, byteIndexInBuffer).
+        let is_big_int_64_array = matches!(typed_array, AnyTypedArray::SharedBigInt64Array(_));
+        let slot = buffer.as_slice(agent).slice_from(byte_index_in_buffer);
+        let n = if is_big_int_64_array {
+            // SAFETY: offset was checked.
+            let slot = unsafe { slot.as_aligned::<u64>().unwrap_unchecked() };
+            if c == usize::MAX {
+                slot.notify_all()
+            } else {
+                slot.notify_many(c)
+            }
+        } else {
+            // SAFETY: offset was checked.
+            let slot = unsafe { slot.as_aligned::<u32>().unwrap_unchecked() };
+            if c == usize::MAX {
+                slot.notify_all()
+            } else {
+                slot.notify_many(c)
+            }
+        };
+        // 9. Perform EnterCriticalSection(WL).
+        // 10. Let S be RemoveWaiters(WL, c).
+        // 11. For each element W of S, do
+        //         a. Perform NotifyWaiter(WL, W).
+        // 12. Perform LeaveCriticalSection(WL).
+        // 13. Let n be the number of elements in S.
+        // 14. Return 𝔽(n).
+        Ok(Number::from_usize(agent, n, gc).into_value())
     }
 
     fn xor<'gc>(
