@@ -127,6 +127,12 @@ struct PromiseGroupSetup<'a> {
 }
 bindable_handle!(PromiseGroupSetup);
 
+enum PromiseGroupSetupResult<'a> {
+    Success(PromiseGroupSetup<'a>),
+    AbruptReject(Promise<'a>),
+}
+bindable_handle!(PromiseGroupSetupResult);
+
 impl PromiseConstructor {
     /// ### [27.2.3.1 Promise ( executor )](https://tc39.es/ecma262/#sec-promise-executor)
     fn constructor<'gc>(
@@ -245,12 +251,7 @@ impl PromiseConstructor {
         let this_value = this_value.bind(gc.nogc());
         let arguments = arguments.bind(gc.nogc());
 
-        let PromiseGroupSetup {
-            iterator_record,
-            constructor,
-            promise_capability,
-            promise_resolve,
-        } = promise_group_setup(
+        let setup_result = promise_group_setup(
             agent,
             this_value.unbind(),
             arguments.unbind(),
@@ -258,6 +259,20 @@ impl PromiseConstructor {
         )
         .unbind()?
         .bind(gc.nogc());
+
+        if let PromiseGroupSetupResult::AbruptReject(promise) = setup_result {
+            return Ok(promise.unbind().into_value());
+        }
+
+        let PromiseGroupSetupResult::Success(PromiseGroupSetup {
+            iterator_record,
+            constructor,
+            promise_capability,
+            promise_resolve,
+        }) = setup_result
+        else {
+            unreachable!()
+        };
 
         let iterator = iterator_record.iterator.scope(agent, gc.nogc());
         let promise = promise_capability.promise.scope(agent, gc.nogc());
@@ -306,12 +321,7 @@ impl PromiseConstructor {
         let this_value = this_value.bind(gc.nogc());
         let arguments = arguments.bind(gc.nogc());
 
-        let PromiseGroupSetup {
-            iterator_record,
-            constructor,
-            promise_capability,
-            promise_resolve,
-        } = promise_group_setup(
+        let setup_result = promise_group_setup(
             agent,
             this_value.unbind(),
             arguments.unbind(),
@@ -319,6 +329,20 @@ impl PromiseConstructor {
         )
         .unbind()?
         .bind(gc.nogc());
+
+        if let PromiseGroupSetupResult::AbruptReject(promise) = setup_result {
+            return Ok(promise.unbind().into_value());
+        }
+
+        let PromiseGroupSetupResult::Success(PromiseGroupSetup {
+            iterator_record,
+            constructor,
+            promise_capability,
+            promise_resolve,
+        }) = setup_result
+        else {
+            unreachable!()
+        };
 
         let iterator = iterator_record.iterator.scope(agent, gc.nogc());
         let promise = promise_capability.promise.scope(agent, gc.nogc());
@@ -367,12 +391,7 @@ impl PromiseConstructor {
         let this_value = this_value.bind(gc.nogc());
         let arguments = arguments.bind(gc.nogc());
 
-        let PromiseGroupSetup {
-            iterator_record,
-            constructor,
-            promise_capability,
-            promise_resolve,
-        } = promise_group_setup(
+        let setup_result = promise_group_setup(
             agent,
             this_value.unbind(),
             arguments.unbind(),
@@ -380,6 +399,20 @@ impl PromiseConstructor {
         )
         .unbind()?
         .bind(gc.nogc());
+
+        if let PromiseGroupSetupResult::AbruptReject(promise) = setup_result {
+            return Ok(promise.unbind().into_value());
+        }
+
+        let PromiseGroupSetupResult::Success(PromiseGroupSetup {
+            iterator_record,
+            constructor,
+            promise_capability,
+            promise_resolve,
+        }) = setup_result
+        else {
+            unreachable!()
+        };
 
         let iterator = iterator_record.iterator.scope(agent, gc.nogc());
         let promise = promise_capability.promise.scope(agent, gc.nogc());
@@ -433,12 +466,7 @@ impl PromiseConstructor {
         let this_value = this_value.bind(gc.nogc());
         let arguments = arguments.bind(gc.nogc());
 
-        let PromiseGroupSetup {
-            iterator_record,
-            constructor,
-            promise_capability,
-            promise_resolve,
-        } = promise_group_setup(
+        let setup_result = promise_group_setup(
             agent,
             this_value.unbind(),
             arguments.unbind(),
@@ -446,6 +474,20 @@ impl PromiseConstructor {
         )
         .unbind()?
         .bind(gc.nogc());
+
+        if let PromiseGroupSetupResult::AbruptReject(promise) = setup_result {
+            return Ok(promise.unbind().into_value());
+        }
+
+        let PromiseGroupSetupResult::Success(PromiseGroupSetup {
+            iterator_record,
+            constructor,
+            promise_capability,
+            promise_resolve,
+        }) = setup_result
+        else {
+            unreachable!()
+        };
 
         let iterator = iterator_record.iterator.scope(agent, gc.nogc());
         let promise = promise_capability.promise.scope(agent, gc.nogc());
@@ -754,7 +796,7 @@ fn promise_group_setup<'gc>(
     this_value: Value,
     arguments: ArgumentsList,
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, PromiseGroupSetup<'gc>> {
+) -> JsResult<'gc, PromiseGroupSetupResult<'gc>> {
     let this_value = this_value.bind(gc.nogc());
     let arguments = arguments.bind(gc.nogc());
     let iterable = arguments.get(0).scope(agent, gc.nogc());
@@ -796,17 +838,11 @@ fn promise_group_setup<'gc>(
         must_be_unresolved: true,
     };
 
-    // let promise_resolve =
-    //     if_abrupt_reject_promise_m!(agent, promise_resolve, promise_capability, gc);
     let promise_resolve = match promise_resolve.unbind().bind(gc.nogc()) {
         Err(err) => {
             promise_capability.reject(agent, err.value().unbind(), gc.nogc());
-            let promise = promise_capability
-                .promise
-                .unbind()
-                .bind(gc.into_nogc())
-                .into_value();
-            return Err(JsError::new(promise));
+            let promise = promise_capability.promise.unbind().bind(gc.into_nogc());
+            return Ok(PromiseGroupSetupResult::AbruptReject(promise));
         }
         Ok(value) => value.unbind().bind(gc.nogc()),
     };
@@ -826,12 +862,8 @@ fn promise_group_setup<'gc>(
     let iterator_record = match iterator_record.unbind().bind(gc.nogc()) {
         Err(err) => {
             promise_capability.reject(agent, err.value().unbind(), gc.nogc());
-            let promise = promise_capability
-                .promise
-                .unbind()
-                .bind(gc.into_nogc())
-                .into_value();
-            return Err(JsError::new(promise));
+            let promise = promise_capability.promise.unbind().bind(gc.into_nogc());
+            return Ok(PromiseGroupSetupResult::AbruptReject(promise));
         }
         Ok(value) => value.unbind().bind(gc.nogc()),
     };
@@ -845,12 +877,12 @@ fn promise_group_setup<'gc>(
         ));
     };
 
-    Ok(PromiseGroupSetup {
+    Ok(PromiseGroupSetupResult::Success(PromiseGroupSetup {
         iterator_record: iterator_record.unbind(),
         constructor: constructor.get(agent),
         promise_capability: promise_capability.unbind(),
         promise_resolve: promise_resolve.get(agent),
-    })
+    }))
 }
 
 fn handle_promise_group_result<'gc>(
