@@ -6,6 +6,7 @@ use ecmascript_atomics::{Ordering, RacySlice};
 
 use crate::{
     ecmascript::{
+        builtins::array_buffer::AnyArrayBuffer,
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
             InternalMethods, InternalSlots, Object, OrdinaryObject, SharedDataBlock, Value,
@@ -85,7 +86,6 @@ impl<'sab> SharedArrayBuffer<'sab> {
 
     /// Create a new SharedArrayBuffer from a SharedDataBlock.
     pub fn new_from_data_block(
-        self,
         agent: &mut Agent,
         data_block: SharedDataBlock,
         gc: NoGcScope<'sab, '_>,
@@ -178,6 +178,58 @@ impl<'a> From<SharedArrayBuffer<'a>> for Object<'a> {
     }
 }
 
+impl<'a> TryFrom<Value<'a>> for SharedArrayBuffer<'a> {
+    type Error = ();
+
+    #[inline]
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
+        if let Value::SharedArrayBuffer(value) = value {
+            Ok(value)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl<'a> TryFrom<Object<'a>> for SharedArrayBuffer<'a> {
+    type Error = ();
+
+    #[inline]
+    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
+        if let Object::SharedArrayBuffer(value) = value {
+            Ok(value)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl<'a> TryFrom<AnyArrayBuffer<'a>> for SharedArrayBuffer<'a> {
+    type Error = ();
+
+    #[inline]
+    fn try_from(value: AnyArrayBuffer<'a>) -> Result<Self, Self::Error> {
+        if let AnyArrayBuffer::SharedArrayBuffer(value) = value {
+            Ok(value)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl TryFrom<HeapRootData> for SharedArrayBuffer<'_> {
+    type Error = ();
+
+    #[inline]
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        if let HeapRootData::SharedArrayBuffer(value) = value {
+            Ok(value)
+        } else {
+            Err(())
+        }
+    }
+}
+
 impl<'a> InternalSlots<'a> for SharedArrayBuffer<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::SharedArrayBuffer;
 
@@ -197,19 +249,6 @@ impl<'a> InternalSlots<'a> for SharedArrayBuffer<'a> {
 }
 
 impl<'a> InternalMethods<'a> for SharedArrayBuffer<'a> {}
-
-impl TryFrom<HeapRootData> for SharedArrayBuffer<'_> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        if let HeapRootData::SharedArrayBuffer(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
-}
 
 impl HeapMarkAndSweep for SharedArrayBuffer<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

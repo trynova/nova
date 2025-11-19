@@ -9,7 +9,7 @@ use crate::{
 };
 
 #[derive(Clone, Default)]
-pub struct SharedArrayBufferRecord<'a> {
+pub(crate) struct SharedArrayBufferRecord<'a> {
     pub(super) backing_object: Option<OrdinaryObject<'a>>,
     pub(super) data_block: SharedDataBlock,
 }

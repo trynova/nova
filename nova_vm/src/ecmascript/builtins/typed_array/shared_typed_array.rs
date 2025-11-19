@@ -78,6 +78,16 @@ pub struct GenericSharedTypedArray<'a, T: Viewable>(
 );
 
 impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
+    pub fn new_from_array_buffer(agent: &mut Agent, sab: SharedArrayBuffer<'ta>) -> Self {
+        agent.heap.create(SharedTypedArrayRecord {
+            object_index: None,
+            viewed_array_buffer: sab,
+            byte_length: ViewedArrayBufferByteLength::auto(),
+            byte_offset: ViewedArrayBufferByteOffset::value(0),
+            array_length: TypedArrayArrayLength::auto(),
+        })
+    }
+
     /// Constant to be used only for creating a build-time Self.
     pub(crate) const _DEF: Self = Self(BaseIndex::ZERO, PhantomData);
 
@@ -91,6 +101,11 @@ impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
         if core::any::TypeId::of::<T>() == core::any::TypeId::of::<()>() {
             panic!("Invalid GenericSharedTypedArray invocation using void type");
         }
+    }
+
+    /// \[\[ViewedArrayBuffer]]
+    pub fn get_viewed_array_buffer(self, agent: &Agent) -> SharedArrayBuffer<'ta> {
+        self.into_void_array().get(agent).viewed_array_buffer
     }
 
     /// ### [10.4.5.18 TypedArraySetElement ( O, index, value )](https://tc39.es/ecma262/#sec-typedarraysetelement)
@@ -876,7 +891,7 @@ impl<'a> SharedTypedArray<'a> {
     }
 
     /// \[\[ViewedArrayBuffer]]
-    pub(crate) fn viewed_array_buffer(self, agent: &Agent) -> SharedArrayBuffer<'a> {
+    pub fn viewed_array_buffer(self, agent: &Agent) -> SharedArrayBuffer<'a> {
         self.into_void_array().get(agent).viewed_array_buffer
     }
 }

@@ -26,7 +26,7 @@ use crate::{
 };
 use core::ops::{Index, IndexMut, Neg};
 pub(crate) use data::BigIntHeapData;
-use num_bigint::{Sign, ToBigInt};
+use num_bigint::{Sign, ToBigInt, TryFromBigIntError};
 use operators::{
     bigint_bitwise_op, left_shift_bigint, left_shift_i64, right_shift_bigint, right_shift_i64,
 };
@@ -228,6 +228,13 @@ impl<'a> BigInt<'a> {
                 .heap
                 .create(BigIntHeapData { data: value.into() })
                 .bind(gc)
+        }
+    }
+
+    pub fn try_into_i64(self, agent: &Agent) -> Result<i64, TryFromBigIntError<()>> {
+        match self {
+            BigInt::BigInt(b) => i64::try_from(&agent[b].data),
+            BigInt::SmallBigInt(b) => Ok(b.into_i64()),
         }
     }
 

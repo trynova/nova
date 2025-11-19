@@ -12,6 +12,7 @@ use std::{
     path::PathBuf,
     ptr::NonNull,
     rc::Rc,
+    sync::mpsc,
     thread,
     time::Duration,
 };
@@ -35,7 +36,7 @@ use nova_vm::{
             },
             script::{HostDefined, parse_script, script_evaluation},
         },
-        types::{Object, String as JsString, Value},
+        types::{Object, SharedDataBlock, String as JsString, Value},
     },
     engine::{
         Global,
@@ -101,10 +102,21 @@ enum Command {
     },
 }
 
-#[derive(Default)]
+enum HostToChildMessage {
+    Broadcast(SharedDataBlock),
+}
+
+enum ChildToHostMessage {
+    Joined,
+    Report(String),
+}
+
 struct CliHostHooks {
     promise_job_queue: RefCell<VecDeque<Job>>,
     macrotask_queue: RefCell<Vec<Job>>,
+    receiver: mpsc::Receiver<ChildToHostMessage>,
+    own_sender: mpsc::SyncSender<ChildToHostMessage>,
+    child_senders: RefCell<Vec<mpsc::SyncSender<HostToChildMessage>>>,
 }
 
 // RefCell doesn't implement Debug
@@ -117,6 +129,21 @@ impl Debug for CliHostHooks {
 }
 
 impl CliHostHooks {
+    fn new() -> Self {
+        let (sender, receiver) = mpsc::sync_channel(10);
+        Self {
+            promise_job_queue: Default::default(),
+            macrotask_queue: Default::default(),
+            receiver,
+            own_sender: sender,
+            child_senders: Default::default(),
+        }
+    }
+
+    fn add_child(&self, child_sender: mpsc::SyncSender<HostToChildMessage>) {
+        self.child_senders.borrow_mut().push(child_sender);
+    }
+
     fn has_promise_jobs(&self) -> bool {
         !self.promise_job_queue.borrow().is_empty()
     }
@@ -248,6 +275,10 @@ impl HostHooks for CliHostHooks {
         });
         finish_loading_imported_module(agent, referrer, module_request, payload, result, gc);
     }
+
+    fn get_host_data(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 struct ModuleMap {
@@ -348,7 +379,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
 
-            let host_hooks: NonNull<CliHostHooks> = NonNull::from(Box::leak(Box::default()));
+            let host_hooks: NonNull<CliHostHooks> =
+                NonNull::from(Box::leak(Box::new(CliHostHooks::new())));
             let mut agent = GcAgent::new(
                 Options {
                     disable_gc: nogc,
@@ -485,7 +517,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             print_internals,
             disable_gc,
         } => {
-            let host_hooks: &CliHostHooks = &*Box::leak(Box::default());
+            let host_hooks: &CliHostHooks = &*Box::leak(Box::new(CliHostHooks::new()));
             let mut agent = GcAgent::new(
                 Options {
                     disable_gc,

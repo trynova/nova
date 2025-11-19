@@ -1440,10 +1440,7 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
     t: u64,
     gc: NoGcScope<'gc, '_>,
 ) -> Value<'gc> {
-    let (ptr, _) = buffer
-        .as_slice(agent)
-        .slice_from(byte_index_in_buffer)
-        .into_raw_parts();
+    let slot = buffer.as_slice(agent).slice_from(byte_index_in_buffer);
     // 14. Let WL be GetWaiterList(block, byteIndexInBuffer).
     // 15. If mode is sync, then
     // a. Let promiseCapability be blocking.
@@ -1454,21 +1451,21 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
     // 17. Perform EnterCriticalSection(WL).
     // 18. Let elementType be TypedArrayElementType(typedArray).
     // 19. Let w be GetValueFromBuffer(buffer, byteIndexInBuffer, elementType, true, seq-cst).
-    let v_equals_w = if IS_I64 {
+    let v_not_equal_to_w = if IS_I64 {
         let v = v as u64;
         // SAFETY: buffer is still live and index was checked.
-        let slot = unsafe { ptr.cast::<u64>().as_racy() };
+        let slot = unsafe { slot.as_aligned::<u64>().unwrap_unchecked() };
         let w = slot.load(Ordering::SeqCst);
-        v == w
+        v != w
     } else {
         let v = v as i32 as u32;
         // SAFETY: buffer is still live and index was checked.
-        let slot = unsafe { ptr.cast::<u32>().as_racy() };
+        let slot = unsafe { slot.as_aligned::<u32>().unwrap_unchecked() };
         let w = slot.load(Ordering::SeqCst);
-        v == w
+        v != w
     };
     // 20. If v ≠ w, then
-    if !v_equals_w {
+    if v_not_equal_to_w {
         // a. Perform LeaveCriticalSection(WL).
         // b. If mode is sync, return "not-equal".
         if !IS_ASYNC {
@@ -1510,59 +1507,35 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
     // 29. If mode is sync, then
     if !IS_ASYNC {
         // a. Perform SuspendThisAgent(WL, waiterRecord).
-        loop {
-            let result = if IS_I64 {
-                let v = v as u64;
-                // SAFETY: buffer is still live and index was checked.
-                let slot = unsafe { ptr.cast::<u64>().as_racy() };
-                if t == u64::MAX {
-                    slot.wait(v)
-                } else {
-                    slot.wait_timeout(v, Duration::from_millis(t))
-                }
+        let result = if IS_I64 {
+            let v = v as u64;
+            // SAFETY: buffer is still live and index was checked.
+            let slot = unsafe { slot.as_aligned::<u64>().unwrap_unchecked() };
+            if t == u64::MAX {
+                slot.wait(v)
             } else {
-                let v = v as u32;
-                // SAFETY: buffer is still live and index was checked.
-                let slot = unsafe { ptr.cast::<u32>().as_racy() };
-                if t == u64::MAX {
-                    slot.wait(v)
-                } else {
-                    slot.wait_timeout(v, Duration::from_millis(t))
-                }
-            };
-            // 31. Perform LeaveCriticalSection(WL).
-            // 32. If mode is sync, return waiterRecord.[[Result]].
-
-            match result {
-                Ok(_) => {
-                    break create_wait_result_object(
-                        agent,
-                        false,
-                        BUILTIN_STRING_MEMORY.ok.into_value(),
-                    )
-                    .into_value();
-                }
-                Err(err) => match err {
-                    FutexError::Timeout => {
-                        break create_wait_result_object(
-                            agent,
-                            false,
-                            BUILTIN_STRING_MEMORY.timed_out.into_value(),
-                        )
-                        .into_value();
-                    }
-                    FutexError::Spurious => continue,
-                    FutexError::NotEqual => {
-                        break create_wait_result_object(
-                            agent,
-                            false,
-                            BUILTIN_STRING_MEMORY.not_equal.into_value(),
-                        )
-                        .into_value();
-                    }
-                    FutexError::Unknown => panic!(),
-                },
+                slot.wait_timeout(v, Duration::from_millis(t))
             }
+        } else {
+            let v = v as u32;
+            // SAFETY: buffer is still live and index was checked.
+            let slot = unsafe { slot.as_aligned::<u32>().unwrap_unchecked() };
+            if t == u64::MAX {
+                slot.wait(v)
+            } else {
+                slot.wait_timeout(v, Duration::from_millis(t))
+            }
+        };
+        // 31. Perform LeaveCriticalSection(WL).
+        // 32. If mode is sync, return waiterRecord.[[Result]].
+
+        match result {
+            Ok(_) => BUILTIN_STRING_MEMORY.ok.into_value(),
+            Err(err) => match err {
+                FutexError::Timeout => BUILTIN_STRING_MEMORY.timed_out.into_value(),
+                FutexError::NotEqual => BUILTIN_STRING_MEMORY.not_equal.into_value(),
+                FutexError::Unknown => panic!(),
+            },
         }
     } else {
         let promise_capability = PromiseCapability::new(agent, gc);
@@ -1729,32 +1702,25 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
     //    called:
     let handle = thread::spawn(move || {
         let slot = buffer.as_racy_slice().slice_from(byte_index_in_buffer);
-        let result = loop {
-            let result = if IS_I64 {
-                let v = v as u64;
-                // SAFETY: buffer is still live and index was checked.
-                let slot = unsafe { slot.as_aligned::<u64>().unwrap_unchecked() };
-                if t == u64::MAX {
-                    slot.wait(v)
-                } else {
-                    slot.wait_timeout(v, Duration::from_millis(t))
-                }
+        if IS_I64 {
+            let v = v as u64;
+            // SAFETY: buffer is still live and index was checked.
+            let slot = unsafe { slot.as_aligned::<u64>().unwrap_unchecked() };
+            if t == u64::MAX {
+                slot.wait(v)
             } else {
-                let v = v as i32 as u32;
-                // SAFETY: buffer is still live and index was checked.
-                let slot = unsafe { slot.as_aligned::<u32>().unwrap_unchecked() };
-                if t == u64::MAX {
-                    slot.wait(v)
-                } else {
-                    slot.wait_timeout(v, Duration::from_millis(t))
-                }
-            };
-            if result == Err(FutexError::Spurious) {
-                continue;
+                slot.wait_timeout(v, Duration::from_millis(t))
             }
-            break result;
-        };
-        result
+        } else {
+            let v = v as i32 as u32;
+            // SAFETY: buffer is still live and index was checked.
+            let slot = unsafe { slot.as_aligned::<u32>().unwrap_unchecked() };
+            if t == u64::MAX {
+                slot.wait(v)
+            } else {
+                slot.wait_timeout(v, Duration::from_millis(t))
+            }
+        }
     });
     let wait_async_job = Job {
         realm: Some(agent.current_realm(gc).unbind()),

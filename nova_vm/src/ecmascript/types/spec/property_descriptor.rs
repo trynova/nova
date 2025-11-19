@@ -17,8 +17,8 @@ use crate::{
             agent::{ExceptionType, TryError, TryResult},
         },
         types::{
-            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, OrdinaryObject,
-            TryHasResult, Value, try_get_result_into_value,
+            BUILTIN_STRING_MEMORY, Function, IntoFunction, IntoObject, IntoValue, Object,
+            OrdinaryObject, TryHasResult, Value, try_get_result_into_value,
         },
     },
     engine::{
@@ -140,14 +140,24 @@ impl<'a> PropertyDescriptor<'a> {
         }
     }
 
-    pub fn new_data_descriptor(value: Value<'a>) -> Self {
+    pub fn new_data_descriptor(value: impl IntoValue<'a>) -> Self {
         Self {
-            value: Some(value),
+            value: Some(value.into_value()),
             writable: Some(true),
             get: None,
             set: None,
             enumerable: Some(true),
             configurable: Some(true),
+        }
+    }
+
+    pub fn new_prototype_method_descriptor(function: impl IntoFunction<'a>) -> Self {
+        Self {
+            value: Some(function.into_function().into_value().unbind()),
+            writable: Some(true),
+            enumerable: Some(false),
+            configurable: Some(true),
+            ..Default::default()
         }
     }
 
