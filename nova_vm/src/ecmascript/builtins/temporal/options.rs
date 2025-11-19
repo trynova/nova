@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::num::NonZeroU32;
+use std::{num::NonZeroU32, str::FromStr};
 
 use temporal_rs::options::{RoundingIncrement, RoundingMode};
 
@@ -14,17 +14,21 @@ use crate::{
         },
         builtins::{
             ordinary::ordinary_object_create_with_intrinsics,
-            temporal::instant::instant_prototype::to_integer_with_truncation,
+            temporal::{
+                error::temporal_err_to_js_err,
+                instant::instant_prototype::to_integer_with_truncation,
+            },
         },
         execution::{Agent, JsResult, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Object, PropertyKey, String, Value},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, Object, PropertyKey, Value},
     },
     engine::context::{Bindable, GcScope, NoGcScope, trivially_bindable},
 };
 
+#[derive(Debug)]
 pub(crate) enum OptionType {
-    Boolean(bool),
-    String(String<'static>),
+    Boolean,
+    String,
 }
 
 trivially_bindable!(OptionType);
@@ -78,40 +82,60 @@ pub(crate) fn get_option<'gc>(
     agent: &mut Agent,
     options: Object,
     property: PropertyKey,
-    typee: OptionType,
+    type_: OptionType,
+    values: &[&str],
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, OptionType> {
+) -> JsResult<'gc, Value<'gc>> {
     let options = options.bind(gc.nogc());
     let property = property.bind(gc.nogc());
+
     // 1. Let value be ? Get(options, property).
     let value = get(agent, options.unbind(), property.unbind(), gc.reborrow())
         .unbind()?
         .bind(gc.nogc());
+
     // 2. If value is undefined, then
     if value.is_undefined() {
         // a. If default is required, throw a RangeError exception.
         // b. Return default.
         todo!()
     }
-    match typee {
+
+    let value = match type_ {
         // 3. If type is boolean, then
-        OptionType::Boolean(_) => {
+        OptionType::Boolean => {
             // a. Set value to ToBoolean(value).
-            let value = to_boolean(agent, value);
+            Value::from(to_boolean(agent, value))
         }
         // 4. Else,
-        OptionType::String(_) => {
+        OptionType::String => {
             // a. Assert: type is string.
             // b. Set value to ? ToString(value).
-            let value = to_string(agent, value.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let str = to_string(agent, value.unbind(), gc.reborrow()).unbind()?;
+            str.into_value()
+        }
+    };
+
+    let gc = gc.into_nogc();
+    // 5. If values is not empty and values does not contain value, throw a RangeError exception.
+    if !values.is_empty() {
+        dbg!(value);
+        let str = match value.unbind() {
+            Value::SmallString(s) => s,
+            _ => unreachable!(),
+        };
+        let rust_str = unsafe { str.as_str_unchecked() };
+        if !values.contains(&rust_str) {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "Invalid option value",
+                gc,
+            ));
         }
     }
 
-    // 5. If values is not empty and values does not contain value, throw a RangeError exception.
     // 6. Return value.
-    todo!()
+    Ok(value.bind(gc))
 }
 
 /// ### [14.5.2.3 GetRoundingModeOption ( options, fallback)](https://tc39.es/proposal-temporal/#sec-temporal-getroundingmodeoption)
@@ -121,18 +145,47 @@ pub(crate) fn get_option<'gc>(
 // completion. It fetches and validates the "roundingMode" property from options, returning
 // fallback as a default if absent. It performs the following steps when called:
 pub(crate) fn get_rounding_mode_option<'gc>(
-    _agent: &mut Agent,
+    agent: &mut Agent,
     options: Object,
     fallback: RoundingMode,
-    gc: GcScope<'gc, '_>,
+    mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, RoundingMode> {
-    let _options = options.bind(gc.nogc());
-    let _fallback = fallback.bind(gc.nogc());
+    let options = options.bind(gc.nogc());
+    let fallback = fallback.bind(gc.nogc());
     // 1. Let allowedStrings be the List of Strings from the "String Identifier" column of Table 28.
+    const ALLOWED: &[&str] = &[
+        "ceil",
+        "floor",
+        "trunc",
+        "halfCeil",
+        "halfFloor",
+        "halfTrunc",
+        "halfExpand",
+    ];
     // 2. Let stringFallback be the value from the "String Identifier" column of the row with fallback in its "Rounding Mode" column.
+    let string_fallback = fallback.unbind().to_string();
     // 3. Let stringValue be ? GetOption(options, "roundingMode", string, allowedStrings, stringFallback).
+    let string_value = get_option(
+        agent,
+        options.unbind(),
+        BUILTIN_STRING_MEMORY.roundingMode.into(),
+        OptionType::String,
+        ALLOWED,
+        gc.reborrow(),
+    )
+    .unbind()?
+    .bind(gc.nogc());
+
+    let js_str = string_value
+        .unbind()
+        .to_string(agent, gc.reborrow())
+        .unbind()?
+        .bind(gc.nogc());
+
+    let rust_str = js_str.as_str(agent).expect("aaa");
+
     // 4. Return the value from the "Rounding Mode" column of the row with stringValue in its "String Identifier" column.
-    todo!()
+    RoundingMode::from_str(rust_str).map_err(|e| temporal_err_to_js_err(agent, e, gc.into_nogc()))
 }
 
 /// ### [14.5.2.4 GetRoundingIncrementOption ( options )](https://tc39.es/proposal-temporal/#sec-temporal-getroundingincrementoption)
@@ -173,7 +226,6 @@ pub(crate) fn get_rounding_increment_option<'gc>(
         ));
     }
 
-    // Convert safely and return integerIncrement
     // NOTE: `as u32` is safe here since we validated it’s in range.
     let integer_increment_u32 = integer_increment as u32;
     let increment =
