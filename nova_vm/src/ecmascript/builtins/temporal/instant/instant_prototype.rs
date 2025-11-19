@@ -16,7 +16,8 @@ use crate::{
                     require_internal_slot_temporal_instant, to_temporal_instant,
                 },
                 options::{
-                    get_options_object, get_rounding_increment_option, get_rounding_mode_option,
+                    get_option, get_options_object, get_rounding_increment_option,
+                    get_rounding_mode_option,
                 },
             },
         },
@@ -27,7 +28,7 @@ use crate::{
         types::{BUILTIN_STRING_MEMORY, BigInt, IntoValue, Object, PropertyKey, String, Value},
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope, trivially_bindable},
+        context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
     heap::WellKnownSymbolIndexes,
@@ -295,7 +296,7 @@ impl TemporalInstantPrototype {
         }
 
         // 4. If roundTo is a String, then
-        let round_to = if let Value::String(round_to) = round_to.unbind() {
+        let round_to = if round_to.unbind().is_string() {
             // a. Let paramString be roundTo.
             let param_string = round_to;
             // b. Set roundTo to OrdinaryObjectCreate(null).
@@ -316,17 +317,21 @@ impl TemporalInstantPrototype {
                 .unbind()?
                 .bind(gc.nogc())
         };
+
         let round_to = round_to.scope(agent, gc.nogc());
+
         // 6. NOTE: The following steps read options and perform independent validation in
         //    alphabetical order (GetRoundingIncrementOption reads "roundingIncrement" and
         //    GetRoundingModeOption reads "roundingMode").
         let mut options = RoundingOptions::default();
+
         // 7. Let roundingIncrement be ? GetRoundingIncrementOption(roundTo).
         let rounding_increment =
             get_rounding_increment_option(agent, round_to.get(agent), gc.reborrow())
                 .unbind()?
                 .bind(gc.nogc());
         options.increment = Some(rounding_increment);
+
         // 8. Let roundingMode be ? GetRoundingModeOption(roundTo, half-expand).
         let rounding_mode = get_rounding_mode_option(
             agent,
@@ -337,17 +342,18 @@ impl TemporalInstantPrototype {
         .unbind()?
         .bind(gc.nogc());
         options.rounding_mode = Some(rounding_mode);
+
         // 9. Let smallestUnit be ? GetTemporalUnitValuedOption(roundTo, "smallestUnit", required).
         let smallest_unit = get_temporal_unit_valued_option(
             agent,
             round_to.get(agent),
             BUILTIN_STRING_MEMORY.smallestUnit.into(),
-            DefaultOption::Required,
             gc.reborrow(),
         )
         .unbind()?
         .bind(gc.nogc());
-        options.smallest_unit = Some(smallest_unit);
+        options.smallest_unit = smallest_unit;
+
         // 10. Perform ? ValidateTemporalUnitValue(smallestUnit, time).
         // 11. If smallestUnit is hour, then
         //     a. Let maximum be HoursPerDay.
@@ -518,7 +524,7 @@ pub(crate) fn to_integer_with_truncation<'gc>(
     // 2. If number is NaN, +∞𝔽 or -∞𝔽, throw a RangeError exception.
     if number.is_nan(agent) || number.is_pos_infinity(agent) || number.is_neg_infinity(agent) {
         return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
+            ExceptionType::RangeError,
             "Number cannot be NaN, positive infinity, or negative infinity",
             gc.into_nogc(),
         ));
@@ -528,8 +534,6 @@ pub(crate) fn to_integer_with_truncation<'gc>(
     Ok(number.into_f64(agent).trunc())
 }
 
-trivially_bindable!(Unit);
-
 /// ### [13.17 GetTemporalUnitValuedOption ( options, key, default )] (https://tc39.es/proposal-temporal/#sec-temporal-gettemporalunitvaluedoption)
 ///
 /// The abstract operation GetTemporalUnitValuedOption takes arguments options (an Object), key (a
@@ -537,22 +541,15 @@ trivially_bindable!(Unit);
 /// containing either a Temporal unit, unset, or auto, or a throw completion. It attempts to read a
 /// Temporal unit from the specified property of options.
 pub(crate) fn get_temporal_unit_valued_option<'gc>(
-    _agent: &mut Agent,
+    agent: &mut Agent,
     options: Object,
     key: PropertyKey,
-    default: DefaultOption,
     gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, Unit> {
-    let _options = options.bind(gc.nogc());
-    let _default = default.bind(gc.nogc());
-    let _key = key.bind(gc.nogc());
-    todo!()
-}
+) -> JsResult<'gc, Option<Unit>> {
+    let options = options.bind(gc.nogc());
+    let key = key.bind(gc.nogc());
 
-#[allow(dead_code)]
-pub(crate) enum DefaultOption {
-    Required,
-    Unset,
-}
+    let opt = get_option::<Unit>(agent, options.unbind(), key.unbind(), gc)?;
 
-trivially_bindable!(DefaultOption);
+    Ok(opt)
+}
