@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use temporal_rs::options::{RoundingMode, RoundingOptions, Unit};
 
 use crate::{
@@ -16,7 +18,8 @@ use crate::{
                     require_internal_slot_temporal_instant, to_temporal_instant,
                 },
                 options::{
-                    get_options_object, get_rounding_increment_option, get_rounding_mode_option,
+                    OptionType, get_option, get_options_object, get_rounding_increment_option,
+                    get_rounding_mode_option,
                 },
             },
         },
@@ -528,8 +531,6 @@ pub(crate) fn to_integer_with_truncation<'gc>(
     Ok(number.into_f64(agent).trunc())
 }
 
-trivially_bindable!(Unit);
-
 /// ### [13.17 GetTemporalUnitValuedOption ( options, key, default )] (https://tc39.es/proposal-temporal/#sec-temporal-gettemporalunitvaluedoption)
 ///
 /// The abstract operation GetTemporalUnitValuedOption takes arguments options (an Object), key (a
@@ -537,16 +538,71 @@ trivially_bindable!(Unit);
 /// containing either a Temporal unit, unset, or auto, or a throw completion. It attempts to read a
 /// Temporal unit from the specified property of options.
 pub(crate) fn get_temporal_unit_valued_option<'gc>(
-    _agent: &mut Agent,
+    agent: &mut Agent,
     options: Object,
     key: PropertyKey,
     default: DefaultOption,
-    gc: GcScope<'gc, '_>,
+    mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Unit> {
-    let _options = options.bind(gc.nogc());
-    let _default = default.bind(gc.nogc());
-    let _key = key.bind(gc.nogc());
-    todo!()
+    let options = options.bind(gc.nogc());
+    let default = default.bind(gc.nogc());
+    let key = key.bind(gc.nogc());
+    // 1. Let allowedStrings be a List containing all values in the "Singular property name" and
+    //    "Plural property name" columns of Table 21, except the header row.
+    const ALLOWED: &[&str] = &[
+        "year",
+        "years",
+        "month",
+        "months",
+        "week",
+        "weeks",
+        "day",
+        "days,",
+        "hour",
+        "hours",
+        "minute",
+        "minutes",
+        "second",
+        "seconds",
+        "millisecond",
+        "milliseconds",
+        "microsecond",
+        "microseconds",
+        "nanosecond",
+        "nanoseconds",
+        "auto",
+    ];
+    // 2. Append "auto" to allowedStrings.
+    // 3. NOTE: For each singular Temporal unit name that is contained within allowedStrings, the
+    //    corresponding plural name is also contained within it.
+    // 4. If default is unset, then
+    //    a. Let defaultValue be undefined.
+    // 5. Else,
+    //    a. Let defaultValue be default.
+    // 6. Let value be ? GetOption(options, key, string, allowedStrings, defaultValue).
+    let string_value = get_option(
+        agent,
+        options.unbind(),
+        key.unbind(),
+        OptionType::String,
+        ALLOWED,
+        gc.reborrow(),
+    )
+    .unbind()?
+    .bind(gc.nogc());
+
+    let js_str = string_value
+        .unbind()
+        .to_string(agent, gc.reborrow())
+        .unbind()?
+        .bind(gc.nogc());
+
+    let rust_str = js_str.as_str(agent).expect("aaa");
+    // 7. If value is undefined, return unset.
+    // 8. If value is "auto", return auto.
+    // 9. Return the value in the "Value" column of Table 21 corresponding to the row with value in
+    //    its "Singular property name" or "Plural property name" column.
+    Ok(Unit::from_str(rust_str).unwrap())
 }
 
 #[allow(dead_code)]
