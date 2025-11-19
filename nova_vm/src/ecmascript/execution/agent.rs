@@ -32,10 +32,10 @@ use crate::{
             error::ErrorHeapData,
             ordinary::caches::PropertyLookupCache,
             promise::Promise,
-            promise_objects::promise_abstract_operations::{
-                promise_capability_records::PromiseCapability,
-                promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob},
+            promise_objects::promise_abstract_operations::promise_jobs::{
+                PromiseReactionJob, PromiseResolveThenableJob,
             },
+            structured_data::atomics_object::WaitAsyncJob,
         },
         scripts_and_modules::{
             ScriptOrModule,
@@ -48,12 +48,12 @@ use crate::{
             source_code::SourceCode,
         },
         types::{
-            BUILTIN_STRING_MEMORY, Function, IntoValue, Object, OrdinaryObject, PrivateName,
-            PropertyKey, Reference, String, Symbol, Value, ValueRootRepr,
+            Function, IntoValue, Object, OrdinaryObject, PrivateName, PropertyKey, Reference,
+            String, Symbol, Value, ValueRootRepr,
         },
     },
     engine::{
-        Global, Vm,
+        Vm,
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::{HeapRootCollectionData, HeapRootData, HeapRootRef, Rootable},
     },
@@ -70,7 +70,7 @@ use super::{
     initialize_default_realm, initialize_host_defined_realm,
 };
 use core::{any::Any, cell::RefCell, ops::ControlFlow, ptr::NonNull};
-use std::collections::TryReserveError;
+use std::{collections::TryReserveError, sync::Arc};
 
 #[derive(Debug, Default)]
 pub struct Options {
@@ -241,7 +241,7 @@ pub fn unwrap_try<'a, T: 'a>(try_result: TryResult<'a, T>) -> T {
 pub(crate) enum InnerJob {
     PromiseResolveThenable(PromiseResolveThenableJob),
     PromiseReaction(PromiseReactionJob),
-    AsyncWaitTimeout(Global<Promise<'static>>),
+    WaitAsync(WaitAsyncJob),
 }
 
 pub struct Job {
@@ -250,6 +250,13 @@ pub struct Job {
 }
 
 impl Job {
+    pub fn is_finished(&self) -> bool {
+        match &self.inner {
+            InnerJob::WaitAsync(job) => job.is_finished(),
+            _ => true,
+        }
+    }
+
     pub fn run<'a>(self, agent: &mut Agent, gc: GcScope<'a, '_>) -> JsResult<'a, ()> {
         let mut id = 0;
         ndt::job_evaluation_start!(|| {
@@ -272,25 +279,7 @@ impl Job {
         let result = match self.inner {
             InnerJob::PromiseResolveThenable(job) => job.run(agent, gc),
             InnerJob::PromiseReaction(job) => job.run(agent, gc),
-            InnerJob::AsyncWaitTimeout(promise) => {
-                // a. Perform EnterCriticalSection(WL).
-                // b. If WL.[[Waiters]] contains waiterRecord, then
-                //         i. Let timeOfJobExecution be the time value (UTC) identifying the current time.
-                //         ii. Assert: ℝ(timeOfJobExecution) ≥ waiterRecord.[[TimeoutTime]] (ignoring potential non-monotonicity of time values).
-                //         iii. Set waiterRecord.[[Result]] to "timed-out".
-                //         iv. Perform RemoveWaiter(WL, waiterRecord).
-                //         v. Perform NotifyWaiter(WL, waiterRecord).
-                // c. Perform LeaveCriticalSection(WL).
-                let promise = promise.take(agent).bind(gc.nogc());
-                let promise_capability = PromiseCapability::from_promise(promise, true);
-                unwrap_try(promise_capability.try_resolve(
-                    agent,
-                    BUILTIN_STRING_MEMORY.timed_out.into_value(),
-                    gc.nogc(),
-                ));
-                // d. Return unused.
-                Ok(())
-            }
+            InnerJob::WaitAsync(job) => job.run(agent, gc),
         };
 
         if pushed_context {
@@ -316,6 +305,22 @@ pub enum GrowSharedArrayBufferResult {
     Handled = 1,
 }
 
+pub trait HostEnqueueGenericJobHandle {
+    /// ### [9.5.4 HostEnqueueGenericJob ( job, realm )](https://tc39.es/ecma262/#sec-hostenqueuegenericjob)
+    ///
+    /// The host-defined abstract operation HostEnqueueGenericJob takes
+    /// arguments _job_ (a Job Abstract Closure) and _realm_ (a Realm Record)
+    /// and returns unused. It schedules _job_ in the realm realm in the agent
+    /// signified by _realm_.\[\[AgentSignifier]] to be performed at some
+    /// future time. The Abstract Closures used with this algorithm are
+    /// intended to be scheduled without additional constraints, such as
+    /// priority and ordering.
+    ///
+    /// An implementation of HostEnqueueGenericJob must conform to the
+    /// requirements in 9.5.
+    fn enqueue_generic_job(&self, job: Job);
+}
+
 pub trait HostHooks: core::fmt::Debug {
     /// ### [19.2.1.2 HostEnsureCanCompileStrings ( calleeRealm )](https://tc39.es/ecma262/#sec-hostensurecancompilestrings)
     #[allow(unused_variables)]
@@ -334,6 +339,29 @@ pub trait HostHooks: core::fmt::Debug {
         // The default implementation of HostHasSourceTextAvailable is to return true.
         true
     }
+
+    /// Get a shareable handle to the HostEnqueueGenericJob function.
+    ///
+    /// This is used by off-thread tasks that may or may not ever resolve. By
+    /// default the function returns None to indicate that off-thread tasks are
+    /// not supported.
+    fn get_enqueue_generic_job_handle(&self) -> Option<Arc<dyn HostEnqueueGenericJobHandle>> {
+        None
+    }
+
+    /// ### [9.5.4 HostEnqueueGenericJob ( job, realm )](https://tc39.es/ecma262/#sec-hostenqueuegenericjob)
+    ///
+    /// The host-defined abstract operation HostEnqueueGenericJob takes
+    /// arguments _job_ (a Job Abstract Closure) and _realm_ (a Realm Record)
+    /// and returns unused. It schedules _job_ in the realm realm in the agent
+    /// signified by _realm_.\[\[AgentSignifier]] to be performed at some
+    /// future time. The Abstract Closures used with this algorithm are
+    /// intended to be scheduled without additional constraints, such as
+    /// priority and ordering.
+    ///
+    /// An implementation of HostEnqueueGenericJob must conform to the
+    /// requirements in 9.5.
+    fn enqueue_generic_job(&self, job: Job);
 
     /// ### [9.5.5 HostEnqueuePromiseJob ( job, realm )](https://tc39.es/ecma262/#sec-hostenqueuepromisejob)
     fn enqueue_promise_job(&self, job: Job);

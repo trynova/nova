@@ -2,10 +2,15 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{hint::assert_unchecked, ops::ControlFlow, thread::sleep, time::Duration};
+use std::{
+    hint::assert_unchecked,
+    ops::ControlFlow,
+    thread::{self, JoinHandle},
+    time::Duration,
+};
 
-use ecmascript_atomics::{Ordering, RacyPtr};
-use ecmascript_futex::ECMAScriptAtomicWait;
+use ecmascript_atomics::Ordering;
+use ecmascript_futex::{ECMAScriptAtomicWait, FutexError};
 
 use crate::{
     ecmascript::{
@@ -18,8 +23,8 @@ use crate::{
         builtins::{
             ArgumentsList, Behaviour, Builtin,
             array_buffer::{
-                compare_exchange_in_buffer, get_modify_set_value_in_buffer,
-                get_raw_bytes_from_shared_block, get_value_from_buffer, set_value_in_buffer,
+                compare_exchange_in_buffer, get_modify_set_value_in_buffer, get_value_from_buffer,
+                set_value_in_buffer,
             },
             indexed_collections::typed_array_objects::abstract_operations::{
                 TypedArrayAbstractOperations, TypedArrayWithBufferWitnessRecords,
@@ -27,15 +32,18 @@ use crate::{
             },
             promise::Promise,
             promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
+            shared_array_buffer::SharedArrayBuffer,
             typed_array::{AnyTypedArray, SharedTypedArray, for_any_typed_array},
         },
         execution::{
             Agent, JsResult, Realm,
-            agent::{ExceptionType, InnerJob, Job, TryError, TryResult, try_result_into_js},
+            agent::{
+                ExceptionType, InnerJob, Job, TryError, TryResult, try_result_into_js, unwrap_try,
+            },
         },
         types::{
             BUILTIN_STRING_MEMORY, BigInt, IntoNumeric, IntoObject, IntoValue, Number, Numeric,
-            OrdinaryObject, String, Value,
+            OrdinaryObject, SharedDataBlock, String, Value,
         },
     },
     engine::{
@@ -549,7 +557,7 @@ impl AtomicsObject {
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         // 1. Return ? DoWait(sync, typedArray, index, value, timeout).
-        let (ptr, value, is_i64) = do_wait_preparation(
+        let (buffer, byte_index_in_buffer, value, is_i64, t) = do_wait_preparation(
             agent,
             arguments.get(0),
             arguments.get(1),
@@ -567,7 +575,25 @@ impl AtomicsObject {
                 gc.into_nogc(),
             ));
         }
-        do_wait_critical::<false>(ptr, value, is_i64);
+        if is_i64 {
+            Ok(do_wait_critical::<false, true>(
+                agent,
+                buffer,
+                byte_index_in_buffer,
+                value,
+                t,
+                gc.into_nogc(),
+            ))
+        } else {
+            Ok(do_wait_critical::<false, false>(
+                agent,
+                buffer,
+                byte_index_in_buffer,
+                value,
+                t,
+                gc.into_nogc(),
+            ))
+        }
     }
 
     /// ### [25.4.14 Atomics.waitAsync ( typedArray, index, value, timeout )](https://tc39.es/ecma262/#sec-atomics.waitasync)
@@ -578,18 +604,38 @@ impl AtomicsObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         // 1. Return ? DoWait(async, typedArray, index, value, timeout).
-        let (ptr, value, is_i64) = do_wait_preparation(
+        let (buffer, byte_index_in_buffer, value, is_i64, t) = do_wait_preparation(
             agent,
             arguments.get(0),
             arguments.get(1),
             arguments.get(2),
             arguments.get(3),
-            gc,
-        );
-        do_wait_critical::<true>(ptr, value, is_i64);
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        if is_i64 {
+            Ok(do_wait_critical::<true, true>(
+                agent,
+                buffer.unbind(),
+                byte_index_in_buffer,
+                value,
+                t,
+                gc.into_nogc(),
+            ))
+        } else {
+            Ok(do_wait_critical::<true, false>(
+                agent,
+                buffer.unbind(),
+                byte_index_in_buffer,
+                value,
+                t,
+                gc.into_nogc(),
+            ))
+        }
     }
 
     fn notify<'gc>(
@@ -1213,12 +1259,6 @@ fn atomic_load_slow<'gc>(
     Ok((byte_index_in_buffer, typed_array))
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum WaitMode {
-    Sync,
-    Async,
-}
-
 /// ### [25.4.3.14 DoWait ( mode, typedArray, index, value, timeout )](https://tc39.es/ecma262/#sec-dowait)
 ///
 /// The abstract operation DoWait takes arguments mode (sync or async),
@@ -1239,7 +1279,7 @@ fn do_wait_preparation<'gc>(
     value: Value,
     timeout: Value,
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, Value<'gc>> {
+) -> JsResult<'gc, (SharedArrayBuffer<'gc>, usize, i64, bool, u64)> {
     let nogc = gc.nogc();
     let typed_array = typed_array.bind(nogc);
     let index = index.bind(nogc);
@@ -1317,20 +1357,23 @@ fn do_wait_preparation<'gc>(
             .bind(gc.nogc())
         };
     // 11. Let block be buffer.[[ArrayBufferData]].
+    let typed_array = typed_array.unbind().bind(gc.into_nogc());
     let buffer = typed_array.viewed_array_buffer(agent);
-    let (ptr, _) = buffer
-        .get_data_block(agent)
-        .as_racy_slice()
-        .slice_from(byte_index_in_buffer)
-        .into_raw_parts();
-    Ok((
-        ptr,
-        v,
-        matches!(typed_array, SharedTypedArray::SharedBigInt64Array(_)),
-    ))
+    Ok((buffer, byte_index_in_buffer, v, is_big_int_64_array, t))
 }
 
-fn do_wait_critical<const IS_ASYNC: bool>(ptr: RacyPtr<u8>, v: i64, is_i64: bool) {
+fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
+    agent: &mut Agent,
+    buffer: SharedArrayBuffer,
+    byte_index_in_buffer: usize,
+    v: i64,
+    t: u64,
+    gc: NoGcScope<'gc, '_>,
+) -> Value<'gc> {
+    let (ptr, _) = buffer
+        .as_slice(agent)
+        .slice_from(byte_index_in_buffer)
+        .into_raw_parts();
     // 14. Let WL be GetWaiterList(block, byteIndexInBuffer).
     // 15. If mode is sync, then
     // a. Let promiseCapability be blocking.
@@ -1341,18 +1384,16 @@ fn do_wait_critical<const IS_ASYNC: bool>(ptr: RacyPtr<u8>, v: i64, is_i64: bool
     // 17. Perform EnterCriticalSection(WL).
     // 18. Let elementType be TypedArrayElementType(typedArray).
     // 19. Let w be GetValueFromBuffer(buffer, byteIndexInBuffer, elementType, true, seq-cst).
-    let v_equals_w = if is_i64 {
+    let v_equals_w = if IS_I64 {
         let v = v as u64;
-        // SAFETY: byte index and length are checked beforehand.
-        let slot = unsafe { slot.as_aligned::<u64>().unwrap_unchecked() };
-        slot.wait_timeout(v, Duration::from_millis(0));
+        // SAFETY: buffer is still live and index was checked.
+        let slot = unsafe { ptr.cast::<u64>().as_racy() };
         let w = slot.load(Ordering::SeqCst);
         v == w
     } else {
         let v = v as i32 as u32;
-        // SAFETY: byte index and length are checked beforehand.
-        let slot = unsafe { slot.as_aligned::<u32>().unwrap_unchecked() };
-        slot.wait_timeout(v, Duration::from_millis(0));
+        // SAFETY: buffer is still live and index was checked.
+        let slot = unsafe { ptr.cast::<u32>().as_racy() };
         let w = slot.load(Ordering::SeqCst);
         v == w
     };
@@ -1360,18 +1401,18 @@ fn do_wait_critical<const IS_ASYNC: bool>(ptr: RacyPtr<u8>, v: i64, is_i64: bool
     if !v_equals_w {
         // a. Perform LeaveCriticalSection(WL).
         // b. If mode is sync, return "not-equal".
-        if mode == WaitMode::Sync {
-            return Ok(BUILTIN_STRING_MEMORY.not_equal.into());
+        if !IS_ASYNC {
+            return BUILTIN_STRING_MEMORY.not_equal.into();
         }
         // c. Perform ! CreateDataPropertyOrThrow(resultObject, "async", false).
         // d. Perform ! CreateDataPropertyOrThrow(resultObject, "value", "not-equal").
         let result_object =
-            create_async_value_object(agent, false, BUILTIN_STRING_MEMORY.not_equal.into_value());
+            create_wait_result_object(agent, false, BUILTIN_STRING_MEMORY.not_equal.into_value());
         // e. Return resultObject.
-        return Ok(result_object.into_value());
+        return result_object.into_value();
     }
     // 21. If t = 0 and mode is async, then
-    if t == 0 && mode == WaitMode::Async {
+    if t == 0 && IS_ASYNC {
         // a. NOTE: There is no special handling of synchronous immediate
         //    timeouts. Asynchronous immediate timeouts have special handling
         //    in order to fail fast and avoid unnecessary Promise jobs.
@@ -1379,9 +1420,9 @@ fn do_wait_critical<const IS_ASYNC: bool>(ptr: RacyPtr<u8>, v: i64, is_i64: bool
         // c. Perform ! CreateDataPropertyOrThrow(resultObject, "async", false).
         // d. Perform ! CreateDataPropertyOrThrow(resultObject, "value", "timed-out").
         let result_object =
-            create_async_value_object(agent, false, BUILTIN_STRING_MEMORY.timed_out.into_value());
+            create_wait_result_object(agent, false, BUILTIN_STRING_MEMORY.timed_out.into_value());
         // e. Return resultObject.
-        return Ok(result_object.into_value());
+        return result_object.into_value();
     }
     // 22. Let thisAgent be AgentSignifier().
     // 23. Let now be the time value (UTC) identifying the current time.
@@ -1397,27 +1438,84 @@ fn do_wait_critical<const IS_ASYNC: bool>(ptr: RacyPtr<u8>, v: i64, is_i64: bool
     // }.
     // 28. Perform AddWaiter(WL, waiterRecord).
     // 29. If mode is sync, then
-    if mode == WaitMode::Sync {
+    if !IS_ASYNC {
         // a. Perform SuspendThisAgent(WL, waiterRecord).
-        let dur = Duration::from_millis(t);
-        sleep(dur);
-        // 31. Perform LeaveCriticalSection(WL).
-        // 32. If mode is sync, return waiterRecord.[[Result]].
-        Ok(BUILTIN_STRING_MEMORY.timed_out.into_value())
+        loop {
+            let result = if IS_I64 {
+                let v = v as u64;
+                // SAFETY: buffer is still live and index was checked.
+                let slot = unsafe { ptr.cast::<u64>().as_racy() };
+                if t == u64::MAX {
+                    slot.wait(v)
+                } else {
+                    slot.wait_timeout(v, Duration::from_millis(t))
+                }
+            } else {
+                let v = v as u32;
+                // SAFETY: buffer is still live and index was checked.
+                let slot = unsafe { ptr.cast::<u32>().as_racy() };
+                if t == u64::MAX {
+                    slot.wait(v)
+                } else {
+                    slot.wait_timeout(v, Duration::from_millis(t))
+                }
+            };
+            // 31. Perform LeaveCriticalSection(WL).
+            // 32. If mode is sync, return waiterRecord.[[Result]].
+
+            match result {
+                Ok(_) => {
+                    break create_wait_result_object(
+                        agent,
+                        false,
+                        BUILTIN_STRING_MEMORY.ok.into_value(),
+                    )
+                    .into_value();
+                }
+                Err(err) => match err {
+                    FutexError::Timeout => {
+                        break create_wait_result_object(
+                            agent,
+                            false,
+                            BUILTIN_STRING_MEMORY.timed_out.into_value(),
+                        )
+                        .into_value();
+                    }
+                    FutexError::Spurious => continue,
+                    FutexError::NotEqual => {
+                        break create_wait_result_object(
+                            agent,
+                            false,
+                            BUILTIN_STRING_MEMORY.not_equal.into_value(),
+                        )
+                        .into_value();
+                    }
+                    FutexError::Unknown => panic!(),
+                },
+            }
+        }
     } else {
         let promise_capability = PromiseCapability::new(agent, gc);
+        let promise = Global::new(agent, promise_capability.promise.unbind());
         // 30. Else if timeoutTime is finite, then
-        if t != u64::MAX {
-            // a. Perform EnqueueAtomicsWaitAsyncTimeoutJob(WL, waiterRecord).
-            enqueue_atomics_wait_async_timeout_job(agent, t, promise_capability.promise, gc);
-        }
+        // a. Perform EnqueueAtomicsWaitAsyncTimeoutJob(WL, waiterRecord).
+        let buffer = buffer.get_data_block(agent).clone();
+        enqueue_atomics_wait_async_job::<IS_I64>(
+            agent,
+            buffer,
+            byte_index_in_buffer,
+            v,
+            t,
+            promise,
+            gc,
+        );
         // 31. Perform LeaveCriticalSection(WL).
         // 33. Perform ! CreateDataPropertyOrThrow(resultObject, "async", true).
         // 34. Perform ! CreateDataPropertyOrThrow(resultObject, "value", promiseCapability.[[Promise]]).
         let result_object =
-            create_async_value_object(agent, true, promise_capability.promise().into_value());
+            create_wait_result_object(agent, true, promise_capability.promise().into_value());
         // 35. Return resultObject.
-        Ok(result_object.into_value())
+        result_object.into_value()
     }
 }
 
@@ -1475,7 +1573,7 @@ fn do_wait_slow<'gc>(
     Ok((unsafe { scoped_typed_array.take(agent) }.bind(gc), i, v, t))
 }
 
-fn create_async_value_object<'gc>(
+fn create_wait_result_object<'gc>(
     agent: &mut Agent,
     is_async: bool,
     value: Value<'gc>,
@@ -1501,29 +1599,104 @@ fn create_async_value_object<'gc>(
     )
 }
 
+#[derive(Debug)]
+struct WaitAsyncJobInner {
+    promise_to_resolve: Global<Promise<'static>>,
+    join_handle: JoinHandle<Result<(), FutexError>>,
+    _as_timeout: bool,
+}
+
+#[derive(Debug)]
+#[repr(transparent)]
+pub(crate) struct WaitAsyncJob(Box<WaitAsyncJobInner>);
+
+impl WaitAsyncJob {
+    pub(crate) fn is_finished(&self) -> bool {
+        self.0.join_handle.is_finished()
+    }
+
+    pub(crate) fn _will_halt(&self) -> bool {
+        self.0._as_timeout
+    }
+
+    pub(crate) fn run<'gc>(self, agent: &mut Agent, gc: GcScope) -> JsResult<'gc, ()> {
+        // a. Perform EnterCriticalSection(WL).
+        // b. If WL.[[Waiters]] contains waiterRecord, then
+        //         i. Let timeOfJobExecution be the time value (UTC) identifying the current time.
+        //         ii. Assert: ℝ(timeOfJobExecution) ≥ waiterRecord.[[TimeoutTime]] (ignoring potential non-monotonicity of time values).
+        //         iii. Set waiterRecord.[[Result]] to "timed-out".
+        //         iv. Perform RemoveWaiter(WL, waiterRecord).
+        //         v. Perform NotifyWaiter(WL, waiterRecord).
+        // c. Perform LeaveCriticalSection(WL).
+        let promise = self.0.promise_to_resolve.take(agent).bind(gc.nogc());
+        let promise_capability = PromiseCapability::from_promise(promise, true);
+        unwrap_try(promise_capability.try_resolve(
+            agent,
+            BUILTIN_STRING_MEMORY.timed_out.into_value(),
+            gc.nogc(),
+        ));
+        // d. Return unused.
+        Ok(())
+    }
+}
+
 /// ### [25.4.3.15 EnqueueAtomicsWaitAsyncTimeoutJob ( WL, waiterRecord )](https://tc39.es/ecma262/#sec-enqueueatomicswaitasynctimeoutjob)
 ///
 /// The abstract operation EnqueueAtomicsWaitAsyncTimeoutJob takes arguments WL
 /// (a WaiterList Record) and waiterRecord (a Waiter Record) and returns
 /// unused.
-fn enqueue_atomics_wait_async_timeout_job(
+fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
     agent: &mut Agent,
-    milliseconds: u64,
-    promise: Promise,
+    buffer: SharedDataBlock,
+    byte_index_in_buffer: usize,
+    v: i64,
+    t: u64,
+    promise: Global<Promise>,
     gc: NoGcScope,
 ) {
     // 1. Let timeoutJob be a new Job Abstract Closure with no parameters that
     //    captures WL and waiterRecord and performs the following steps when
     //    called:
-    let timeout_job = Job {
+    let handle = thread::spawn(move || {
+        let slot = buffer.as_racy_slice().slice_from(byte_index_in_buffer);
+        let result = loop {
+            let result = if IS_I64 {
+                let v = v as u64;
+                // SAFETY: buffer is still live and index was checked.
+                let slot = unsafe { slot.as_aligned::<u64>().unwrap_unchecked() };
+                if t == u64::MAX {
+                    slot.wait(v)
+                } else {
+                    slot.wait_timeout(v, Duration::from_millis(t))
+                }
+            } else {
+                let v = v as i32 as u32;
+                // SAFETY: buffer is still live and index was checked.
+                let slot = unsafe { slot.as_aligned::<u32>().unwrap_unchecked() };
+                if t == u64::MAX {
+                    slot.wait(v)
+                } else {
+                    slot.wait_timeout(v, Duration::from_millis(t))
+                }
+            };
+            if result == Err(FutexError::Spurious) {
+                continue;
+            }
+            break result;
+        };
+        result
+    });
+    let wait_async_job = Job {
         realm: Some(agent.current_realm(gc).unbind()),
-        inner: InnerJob::AsyncWaitTimeout(Global::new(agent, promise.unbind())),
+        inner: InnerJob::WaitAsync(WaitAsyncJob(Box::new(WaitAsyncJobInner {
+            promise_to_resolve: promise,
+            join_handle: handle,
+            _as_timeout: t != u64::MAX,
+        }))),
     };
     // 2. Let now be the time value (UTC) identifying the current time.
     // 3. Let currentRealm be the current Realm Record.
     // 4. Perform HostEnqueueTimeoutJob(timeoutJob, currentRealm, 𝔽(waiterRecord.[[TimeoutTime]]) - now).
-    agent
-        .host_hooks
-        .enqueue_timeout_job(timeout_job, milliseconds);
+    agent.host_hooks.enqueue_generic_job(wait_async_job);
     // 5. Return unused.
 }

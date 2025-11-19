@@ -300,6 +300,7 @@ Number
 object
 Object
 of
+ok
 #[cfg(feature = "atomics")]or
 ownKeys
 padEnd

@@ -12,8 +12,7 @@ use std::{
     path::PathBuf,
     ptr::NonNull,
     rc::Rc,
-    sync::{Arc, atomic::AtomicBool},
-    thread::{self, JoinHandle},
+    thread,
     time::Duration,
 };
 
@@ -105,7 +104,7 @@ enum Command {
 #[derive(Default)]
 struct CliHostHooks {
     promise_job_queue: RefCell<VecDeque<Job>>,
-    timeout_job_queue: RefCell<Vec<(Job, Arc<AtomicBool>, JoinHandle<()>)>>,
+    macrotask_queue: RefCell<Vec<Job>>,
 }
 
 // RefCell doesn't implement Debug
@@ -126,25 +125,18 @@ impl CliHostHooks {
         self.promise_job_queue.borrow_mut().pop_front()
     }
 
-    fn has_timeout_jobs(&self) -> bool {
-        !self.timeout_job_queue.borrow().is_empty()
+    fn has_macrotasks(&self) -> bool {
+        !self.macrotask_queue.borrow().is_empty()
     }
 
-    fn pop_timeout_job(&self) -> Option<Job> {
-        let mut timeout_job_queue = self.timeout_job_queue.borrow_mut();
-        if timeout_job_queue.len() == 1 {
-            let (job, _, handle) = timeout_job_queue.pop().unwrap();
-            let _ = handle.join();
-            return Some(job);
-        }
+    fn pop_macrotask(&self) -> Option<Job> {
+        let mut off_thread_job_queue = self.macrotask_queue.borrow_mut();
         let mut counter = 0u8;
-        while !timeout_job_queue.is_empty() {
+        while !off_thread_job_queue.is_empty() {
             counter = counter.wrapping_add(1);
-            for (i, (_, signal, _)) in timeout_job_queue.iter().enumerate() {
-                if signal.load(std::sync::atomic::Ordering::Acquire) {
-                    let (job, _, handle) = timeout_job_queue.swap_remove(i);
-                    // Wait for the thread to join just because.
-                    let _ = handle.join();
+            for (i, job) in off_thread_job_queue.iter().enumerate() {
+                if job.is_finished() {
+                    let job = off_thread_job_queue.swap_remove(i);
                     return Some(job);
                 }
             }
@@ -159,22 +151,15 @@ impl CliHostHooks {
 }
 
 impl HostHooks for CliHostHooks {
+    fn enqueue_generic_job(&self, job: Job) {
+        self.macrotask_queue.borrow_mut().push(job);
+    }
+
     fn enqueue_promise_job(&self, job: Job) {
         self.promise_job_queue.borrow_mut().push_back(job);
     }
 
-    fn enqueue_timeout_job(&self, timeout_job: Job, milliseconds: u64) {
-        let signal = Arc::new(AtomicBool::new(false));
-        let s = signal.clone();
-        let handle = thread::spawn(move || {
-            let dur = Duration::from_millis(milliseconds);
-            thread::sleep(dur);
-            s.store(true, std::sync::atomic::Ordering::Release);
-        });
-        self.timeout_job_queue
-            .borrow_mut()
-            .push((timeout_job, signal, handle));
-    }
+    fn enqueue_timeout_job(&self, _timeout_job: Job, _milliseconds: u64) {}
 
     fn load_imported_module<'gc>(
         &self,
@@ -470,8 +455,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             {
                 // SAFETY: Still valid.
                 let host_hooks = unsafe { host_hooks.as_ref() };
-                if host_hooks.has_timeout_jobs() {
-                    while let Some(job) = host_hooks.pop_timeout_job() {
+                if host_hooks.has_macrotasks() {
+                    while let Some(job) = host_hooks.pop_macrotask() {
                         agent.run_job(job, |agent, result, mut gc| {
                             let result = if result.is_ok() && host_hooks.has_promise_jobs() {
                                 run_microtask_queue(agent, host_hooks, gc.reborrow())
@@ -491,8 +476,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             agent.remove_realm(realm);
+            drop(agent);
             // SAFETY: Host hooks are no longer used as agent is dropped.
-            let _ = unsafe { Box::from_raw(host_hooks.as_ptr()) };
+            drop(unsafe { Box::from_raw(host_hooks.as_ptr()) });
         }
         Command::Repl {
             expose_internals,
