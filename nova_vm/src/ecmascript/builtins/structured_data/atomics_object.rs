@@ -4,7 +4,7 @@
 
 use std::{hint::assert_unchecked, ops::ControlFlow, thread::sleep, time::Duration};
 
-use ecmascript_atomics::Ordering;
+use ecmascript_atomics::{Ordering, RacyPtr};
 use ecmascript_futex::ECMAScriptAtomicWait;
 
 use crate::{
@@ -546,18 +546,28 @@ impl AtomicsObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         // 1. Return ? DoWait(sync, typedArray, index, value, timeout).
-        do_wait(
+        let (ptr, value, is_i64) = do_wait_preparation(
             agent,
-            WaitMode::Sync,
             arguments.get(0),
             arguments.get(1),
             arguments.get(2),
             arguments.get(3),
-            gc,
+            gc.reborrow(),
         )
+        .unbind()?;
+        // 10. If mode is sync and AgentCanSuspend() is false,
+        if !agent.can_suspend() {
+            // throw a TypeError exception.
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "agent is not allowed to suspend",
+                gc.into_nogc(),
+            ));
+        }
+        do_wait_critical::<false>(ptr, value, is_i64);
     }
 
     /// ### [25.4.14 Atomics.waitAsync ( typedArray, index, value, timeout )](https://tc39.es/ecma262/#sec-atomics.waitasync)
@@ -571,15 +581,15 @@ impl AtomicsObject {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         // 1. Return ? DoWait(async, typedArray, index, value, timeout).
-        do_wait(
+        let (ptr, value, is_i64) = do_wait_preparation(
             agent,
-            WaitMode::Async,
             arguments.get(0),
             arguments.get(1),
             arguments.get(2),
             arguments.get(3),
             gc,
-        )
+        );
+        do_wait_critical::<true>(ptr, value, is_i64);
     }
 
     fn notify<'gc>(
@@ -1222,9 +1232,8 @@ enum WaitMode {
 /// > necessary, such as for reducing power consumption or coarsening timer
 /// > resolution to mitigate timing attacks. This value may differ from call to
 /// > call of DoWait.
-fn do_wait<'gc>(
+fn do_wait_preparation<'gc>(
     agent: &mut Agent,
-    mode: WaitMode,
     typed_array: Value,
     index: Value,
     value: Value,
@@ -1307,41 +1316,32 @@ fn do_wait<'gc>(
             .unbind()?
             .bind(gc.nogc())
         };
-    let typed_array = typed_array.unbind();
-    let gc = gc.into_nogc();
-    let typed_array = typed_array.bind(gc);
-
-    // 10. If mode is sync and AgentCanSuspend() is false,
-    if mode == WaitMode::Sync && !agent.can_suspend() {
-        // throw a TypeError exception.
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "agent is not allowed to suspend",
-            gc,
-        ));
-    }
     // 11. Let block be buffer.[[ArrayBufferData]].
     let buffer = typed_array.viewed_array_buffer(agent);
-    // 14. Let WL be GetWaiterList(block, byteIndexInBuffer).
-    // 15. If mode is sync, then
-    let _result_object = if mode == WaitMode::Sync {
-        // a. Let promiseCapability be blocking.
-        // b. Let resultObject be undefined.
-        ()
-    } else {
-        // 16. Else,
-        // a. Let promiseCapability be ! NewPromiseCapability(%Promise%).
-        // b. Let resultObject be OrdinaryObjectCreate(%Object.prototype%).
-        ()
-    };
-    let slot = buffer
+    let (ptr, _) = buffer
         .get_data_block(agent)
         .as_racy_slice()
-        .slice_from(byte_index_in_buffer);
+        .slice_from(byte_index_in_buffer)
+        .into_raw_parts();
+    Ok((
+        ptr,
+        v,
+        matches!(typed_array, SharedTypedArray::SharedBigInt64Array(_)),
+    ))
+}
+
+fn do_wait_critical<const IS_ASYNC: bool>(ptr: RacyPtr<u8>, v: i64, is_i64: bool) {
+    // 14. Let WL be GetWaiterList(block, byteIndexInBuffer).
+    // 15. If mode is sync, then
+    // a. Let promiseCapability be blocking.
+    // b. Let resultObject be undefined.
+    // 16. Else,
+    // a. Let promiseCapability be ! NewPromiseCapability(%Promise%).
+    // b. Let resultObject be OrdinaryObjectCreate(%Object.prototype%).
     // 17. Perform EnterCriticalSection(WL).
     // 18. Let elementType be TypedArrayElementType(typedArray).
     // 19. Let w be GetValueFromBuffer(buffer, byteIndexInBuffer, elementType, true, seq-cst).
-    let v_equals_w = if matches!(typed_array, SharedTypedArray::SharedBigInt64Array(_)) {
+    let v_equals_w = if is_i64 {
         let v = v as u64;
         // SAFETY: byte index and length are checked beforehand.
         let slot = unsafe { slot.as_aligned::<u64>().unwrap_unchecked() };
