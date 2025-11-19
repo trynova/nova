@@ -8,13 +8,13 @@ pub mod instant;
 pub mod options;
 pub mod plain_time;
 
-use temporal_rs::options::{DifferenceSettings, RoundingMode, Unit, UnitGroup};
+use temporal_rs::options::{DifferenceSettings, RoundingIncrement, RoundingMode, Unit, UnitGroup};
 
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::temporal::{
-            instant::instant_prototype::{DefaultOption, get_temporal_unit_valued_option},
+            instant::instant_prototype::get_temporal_unit_valued_option,
             options::{get_rounding_increment_option, get_rounding_mode_option},
         },
         execution::{Agent, JsResult, Realm},
@@ -81,6 +81,8 @@ impl Temporal {
 trivially_bindable!(DifferenceSettings);
 trivially_bindable!(UnitGroup);
 trivially_bindable!(Unit);
+trivially_bindable!(RoundingMode);
+trivially_bindable!(RoundingIncrement);
 
 /// [13.42 GetDifferenceSettings ( operation, options, unitGroup, disallowedUnits, fallbackSmallestUnit, smallestLargestDefaultUnit )](https://tc39.es/proposal-temporal/#sec-temporal-getdifferencesettings)
 /// The abstract operation GetDifferenceSettings takes arguments operation (since or until),
@@ -111,7 +113,6 @@ pub(crate) fn get_difference_settings<'gc, const IS_UNTIL: bool>(
         agent,
         options.get(agent),
         BUILTIN_STRING_MEMORY.largestUnit.to_property_key(),
-        DefaultOption::Unset,
         gc.reborrow(),
     )
     .unbind()?
@@ -135,7 +136,6 @@ pub(crate) fn get_difference_settings<'gc, const IS_UNTIL: bool>(
         agent,
         options.get(agent),
         BUILTIN_STRING_MEMORY.smallestUnit.to_property_key(),
-        DefaultOption::Unset,
         gc.reborrow(),
     )
     .unbind()?
@@ -157,8 +157,8 @@ pub(crate) fn get_difference_settings<'gc, const IS_UNTIL: bool>(
     // 17. If maximum is not unset, perform ? ValidateTemporalRoundingIncrement(roundingIncrement, maximum, false).
     // 18. Return the Record { [[SmallestUnit]]: smallestUnit, [[LargestUnit]]: largestUnit, [[RoundingMode]]: roundingMode, [[RoundingIncrement]]: roundingIncrement,  }.
     let mut diff_settings = temporal_rs::options::DifferenceSettings::default();
-    diff_settings.largest_unit = Some(largest_unit);
-    diff_settings.smallest_unit = Some(smallest_unit);
+    diff_settings.largest_unit = largest_unit;
+    diff_settings.smallest_unit = smallest_unit;
     diff_settings.rounding_mode = Some(rounding_mode);
     diff_settings.increment = Some(rounding_increment);
     Ok(diff_settings)

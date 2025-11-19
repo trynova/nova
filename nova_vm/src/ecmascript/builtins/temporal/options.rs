@@ -4,36 +4,36 @@
 
 use std::{num::NonZeroU32, str::FromStr};
 
-use temporal_rs::options::{RoundingIncrement, RoundingMode};
+use temporal_rs::options::{RoundingIncrement, RoundingMode, Unit};
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::get,
-            type_conversion::{to_boolean, to_string},
-        },
+        abstract_operations::{operations_on_objects::get, type_conversion::to_string},
         builtins::{
             ordinary::ordinary_object_create_with_intrinsics,
-            temporal::{
-                error::temporal_err_to_js_err,
-                instant::instant_prototype::to_integer_with_truncation,
-            },
+            temporal::instant::instant_prototype::to_integer_with_truncation,
         },
         execution::{Agent, JsResult, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, Object, PropertyKey, Value},
+        types::{BUILTIN_STRING_MEMORY, Object, PropertyKey, Value},
     },
-    engine::context::{Bindable, GcScope, NoGcScope, trivially_bindable},
+    engine::context::{Bindable, GcScope, NoGcScope},
 };
 
-#[derive(Debug)]
-pub(crate) enum OptionType {
-    Boolean,
-    String,
+pub trait OptionType: Sized {
+    fn from_string(s: &str) -> Result<Self, std::string::String>;
 }
 
-trivially_bindable!(OptionType);
-trivially_bindable!(RoundingMode);
-trivially_bindable!(RoundingIncrement);
+impl OptionType for RoundingMode {
+    fn from_string(s: &str) -> Result<Self, std::string::String> {
+        RoundingMode::from_str(s).map_err(|e| e.to_string())
+    }
+}
+
+impl OptionType for Unit {
+    fn from_string(s: &str) -> Result<Self, std::string::String> {
+        Unit::from_str(s).map_err(|e| e.to_string())
+    }
+}
 
 /// ### [14.5.2.1 GetOptionsObject ( options )](https://tc39.es/proposal-temporal/#sec-getoptionsobject)
 ///
@@ -56,9 +56,11 @@ pub(crate) fn get_options_object<'gc>(
             ))
         }
         // 2. If options is an Object, then
-        Value::Object(obj) => {
+        value if value.is_object() => {
             // a. Return options.
-            Ok(obj.into())
+            // TODO: remove unwrap; Although safe because value is an object
+            let obj = Object::try_from(value).unwrap();
+            Ok(obj)
         }
         // 3. Throw a TypeError exception.
         _ => Err(agent.throw_exception_with_static_message(
@@ -78,64 +80,58 @@ pub(crate) fn get_options_object<'gc>(
 /// specified property of options, converts it to the required type, checks whether it is allowed
 /// by values if values is not empty, and substitutes default if the value is undefined. It
 /// performs the following steps when called:
-pub(crate) fn get_option<'gc>(
+pub(crate) fn get_option<'gc, T>(
     agent: &mut Agent,
     options: Object,
     property: PropertyKey,
-    type_: OptionType,
-    values: &[&str],
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, Value<'gc>> {
+) -> JsResult<'gc, Option<T>>
+where
+    T: OptionType,
+{
     let options = options.bind(gc.nogc());
     let property = property.bind(gc.nogc());
-
     // 1. Let value be ? Get(options, property).
     let value = get(agent, options.unbind(), property.unbind(), gc.reborrow())
         .unbind()?
         .bind(gc.nogc());
-
     // 2. If value is undefined, then
     if value.is_undefined() {
         // a. If default is required, throw a RangeError exception.
         // b. Return default.
-        todo!()
+        return Ok(None);
     }
 
-    let value = match type_ {
-        // 3. If type is boolean, then
-        OptionType::Boolean => {
-            // a. Set value to ToBoolean(value).
-            Value::from(to_boolean(agent, value))
-        }
-        // 4. Else,
-        OptionType::String => {
-            // a. Assert: type is string.
-            // b. Set value to ? ToString(value).
-            let str = to_string(agent, value.unbind(), gc.reborrow()).unbind()?;
-            str.into_value()
-        }
-    };
-
-    let gc = gc.into_nogc();
+    // 3. If type is boolean, then
+    // a. Set value to ToBoolean(value).
+    // 4. Else,
+    // a. Assert: type is string.
+    // b. Set value to ? ToString(value).
     // 5. If values is not empty and values does not contain value, throw a RangeError exception.
-    if !values.is_empty() {
-        dbg!(value);
-        let str = match value.unbind() {
-            Value::SmallString(s) => s,
-            _ => unreachable!(),
-        };
-        let rust_str = unsafe { str.as_str_unchecked() };
-        if !values.contains(&rust_str) {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::RangeError,
-                "Invalid option value",
-                gc,
-            ));
-        }
-    }
+
+    // TODO: Currently only works for temporal_rs::Unit, and temporal_rs::RoundingMode.
+    //
+    // Should be extended to work with
+    // 1. ecmascript::types::String
+    // 2. bool
+    // 3. Potentially other temporal_rs types.
+
+    let js_str = to_string(agent, value.unbind(), gc.reborrow())
+        .unbind()?
+        .bind(gc.nogc());
+
+    let rust_str = js_str.as_str(agent).unwrap();
+
+    let parsed = T::from_string(rust_str).map_err(|msg| {
+        agent.throw_exception_with_static_message(
+            ExceptionType::RangeError,
+            Box::leak(msg.into_boxed_str()),
+            gc.into_nogc(),
+        )
+    })?;
 
     // 6. Return value.
-    Ok(value.bind(gc))
+    Ok(Some(parsed))
 }
 
 /// ### [14.5.2.3 GetRoundingModeOption ( options, fallback)](https://tc39.es/proposal-temporal/#sec-temporal-getroundingmodeoption)
@@ -148,44 +144,24 @@ pub(crate) fn get_rounding_mode_option<'gc>(
     agent: &mut Agent,
     options: Object,
     fallback: RoundingMode,
-    mut gc: GcScope<'gc, '_>,
+    gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, RoundingMode> {
     let options = options.bind(gc.nogc());
     let fallback = fallback.bind(gc.nogc());
+
     // 1. Let allowedStrings be the List of Strings from the "String Identifier" column of Table 28.
-    const ALLOWED: &[&str] = &[
-        "ceil",
-        "floor",
-        "trunc",
-        "halfCeil",
-        "halfFloor",
-        "halfTrunc",
-        "halfExpand",
-    ];
     // 2. Let stringFallback be the value from the "String Identifier" column of the row with fallback in its "Rounding Mode" column.
-    let string_fallback = fallback.unbind().to_string();
     // 3. Let stringValue be ? GetOption(options, "roundingMode", string, allowedStrings, stringFallback).
-    let string_value = get_option(
+    // 4. Return the value from the "Rounding Mode" column of the row with stringValue in its "String Identifier" column.
+    match get_option::<RoundingMode>(
         agent,
         options.unbind(),
         BUILTIN_STRING_MEMORY.roundingMode.into(),
-        OptionType::String,
-        ALLOWED,
-        gc.reborrow(),
-    )
-    .unbind()?
-    .bind(gc.nogc());
-
-    let js_str = string_value
-        .unbind()
-        .to_string(agent, gc.reborrow())
-        .unbind()?
-        .bind(gc.nogc());
-
-    let rust_str = js_str.as_str(agent).expect("aaa");
-
-    // 4. Return the value from the "Rounding Mode" column of the row with stringValue in its "String Identifier" column.
-    RoundingMode::from_str(rust_str).map_err(|e| temporal_err_to_js_err(agent, e, gc.into_nogc()))
+        gc,
+    )? {
+        Some(mode) => Ok(mode),
+        None => Ok(fallback),
+    }
 }
 
 /// ### [14.5.2.4 GetRoundingIncrementOption ( options )](https://tc39.es/proposal-temporal/#sec-temporal-getroundingincrementoption)
@@ -218,7 +194,7 @@ pub(crate) fn get_rounding_increment_option<'gc>(
         .bind(gc.nogc());
 
     // 4. If integerIncrement < 1 or integerIncrement > 10**9, throw a RangeError exception.
-    if integer_increment < 1.0 || integer_increment > 1_000_000_000.0 {
+    if !(1.0..=1_000_000_000.0).contains(&integer_increment) {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::RangeError,
             "roundingIncrement must be between 1 and 10**9",
