@@ -120,6 +120,7 @@ where
         .unbind()?
         .bind(gc.nogc());
 
+    // TODO: Fix this code.. None case is unreachable but code sucks rn..
     let rust_str = js_str.as_str(agent).unwrap();
 
     let parsed = T::from_string(rust_str).map_err(|msg| {
