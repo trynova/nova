@@ -362,6 +362,7 @@ return
 reverse
 revocable
 #[cfg(any(feature = "math", feature = "temporal"))]round
+#[cfg(feature = "temporal")]roundingMode
 #[cfg(feature = "temporal")]roundingIncrement
 seal
 #[cfg(feature = "regexp")]search
