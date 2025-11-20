@@ -19,6 +19,8 @@ use super::{
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
 #[cfg(feature = "temporal")]
+use crate::ecmascript::builtins::temporal::duration::TemporalDuration;
+#[cfg(feature = "temporal")]
 use crate::ecmascript::builtins::temporal::instant::TemporalInstant;
 #[cfg(feature = "temporal")]
 use crate::ecmascript::builtins::temporal::plain_time::TemporalPlainTime;
@@ -134,6 +136,8 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             dates,
             #[cfg(feature = "temporal")]
             instants,
+            #[cfg(feature = "temporal")]
+            durations,
             #[cfg(feature = "temporal")]
             plain_times,
             ecmascript_functions,
@@ -565,6 +569,15 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 if bits.instants.set_bit(index, &bits.bits) {
                     // Did mark.
                     instants.get(index).mark_values(&mut queues);
+                }
+            });
+            let mut duration_marks: Box<[TemporalDuration]> = queues.durations.drain(..).collect();
+            duration_marks.sort();
+            duration_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.durations.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    durations.get(index).mark_values(&mut queues);
                 }
             });
             let mut plain_time_marks: Box<[TemporalPlainTime]> =
@@ -1284,6 +1297,8 @@ fn sweep(
         #[cfg(feature = "temporal")]
         instants,
         #[cfg(feature = "temporal")]
+        durations,
+        #[cfg(feature = "temporal")]
         plain_times,
         ecmascript_functions,
         elements,
@@ -1742,6 +1757,12 @@ fn sweep(
         if !instants.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(instants, &compactions, &bits.instants, &bits.bits);
+            });
+        }
+        #[cfg(feature = "temporal")]
+        if !durations.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(durations, &compactions, &bits.durations, &bits.bits);
             });
         }
         #[cfg(feature = "temporal")]

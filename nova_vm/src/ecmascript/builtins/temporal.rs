@@ -36,6 +36,7 @@ impl Temporal {
         let this = intrinsics.temporal();
 
         let instant_constructor = intrinsics.temporal_instant();
+        let duration_constructor = intrinsics.temporal_duration();
         let plain_time_constructor = intrinsics.temporal_plain_time();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
@@ -64,6 +65,14 @@ impl Temporal {
             // 1.2.5 Temporal.PlainYearMonth ( . . . )
             // 1.2.6 Temporal.PlainMonthDay ( . . . )
             // 1.2.7 Temporal.Duration ( . . . )
+            .with_property(|builder| {
+                builder
+                    .with_key(BUILTIN_STRING_MEMORY.Duration.into())
+                    .with_value(duration_constructor.into_value())
+                    .with_enumerable(false)
+                    .with_configurable(true)
+                    .build()
+            })
             // 1.2.8 Temporal.ZonedDateTime ( . . . )
             // 1.3.1 Temporal.Now
             .with_property(|builder| {
