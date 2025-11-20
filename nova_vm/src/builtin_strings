@@ -39,6 +39,7 @@ any
 apply
 arguments
 Array
+#[cfg(feature="temporal")]auto
 Array Iterator
 #[cfg(feature = "array-buffer")]ArrayBuffer
 #[cfg(feature = "math")]asin
@@ -139,6 +140,7 @@ find
 findIndex
 findLast
 findLastIndex
+#[cfg(feature = "temporal")]fractionalSecondDigits
 #[cfg(feature = "annex-b-string")]fixed
 #[cfg(feature = "regexp")]flags
 flat
@@ -460,6 +462,7 @@ SyntaxError
 then
 throw
 #[cfg(feature = "atomics")]timed-out
+#[cfg(feature = "temporal")]timeZone
 toArray
 #[cfg(feature = "date")]toDateString
 toExponential

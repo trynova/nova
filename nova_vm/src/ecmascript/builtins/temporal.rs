@@ -12,13 +12,14 @@ use temporal_rs::options::{DifferenceSettings, RoundingIncrement, RoundingMode, 
 
 use crate::{
     ecmascript::{
+        abstract_operations::operations_on_objects::get,
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::temporal::{
-            instant::instant_prototype::get_temporal_unit_valued_option,
+            instant::instant_prototype::{DefaultOption, get_temporal_unit_valued_option},
             options::{get_rounding_increment_option, get_rounding_mode_option},
         },
-        execution::{Agent, JsResult, Realm},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, Object},
+        execution::{Agent, JsResult, Realm, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, Number, Object, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope, trivially_bindable},
@@ -92,6 +93,75 @@ trivially_bindable!(UnitGroup);
 trivially_bindable!(Unit);
 trivially_bindable!(RoundingMode);
 trivially_bindable!(RoundingIncrement);
+
+/// [13.15 GetTemporalFractionalSecondDigitsOption ( options )](https://tc39.es/proposal-temporal/#sec-temporal-gettemporalfractionalseconddigitsoption)
+/// The abstract operation GetTemporalFractionalSecondDigitsOption takes argument
+/// options (an Object) and returns either a normal completion containing
+/// either auto or an integer in the inclusive interval from 0 to 9,
+/// or a throw completion. It fetches and validates the "fractionalSecondDigits"
+/// property from options, returning a default if absent.
+pub(crate) fn get_temporal_fractional_second_digits_option<'gc>(
+    agent: &mut Agent,
+    options: Object<'gc>,
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, Value<'gc>> {
+    let options = options.bind(gc.nogc());
+    // 1. Let digitsValue be ? Get(options, "fractionalSecondDigits").
+    let digits_value = get(
+        agent,
+        options.unbind(),
+        BUILTIN_STRING_MEMORY
+            .fractionalSecondDigits
+            .to_property_key(),
+        gc.reborrow(),
+    )
+    .unbind()?
+    .bind(gc.nogc());
+    // 2. If digitsValue is undefined, return auto.
+    if digits_value.is_undefined() {
+        return Ok(BUILTIN_STRING_MEMORY.auto.bind(gc.nogc()).into_value());
+    }
+    // 3. If digitsValue is not a Number, then
+    if !digits_value.is_number() {
+        // a. If ? ToString(digitsValue) is not "auto", throw a RangeError exception.
+        if digits_value
+            .to_string(agent, gc.reborrow())
+            .unbind()?
+            .as_bytes(agent)
+            != b"auto"
+        {
+            // b. Return auto.
+            return Ok(BUILTIN_STRING_MEMORY.auto.bind(gc.nogc()).into_value());
+        }
+    }
+    // 4. If digitsValue is NaN, +∞𝔽, or -∞𝔽, throw a RangeError exception.
+    if digits_value.is_nan(agent)
+        || digits_value.is_pos_infinity(agent)
+        || digits_value.is_neg_infinity(agent)
+    {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::RangeError,
+            "fractionalSecondDigits must be a finite number or \"auto\"",
+            gc.into_nogc(),
+        ));
+    }
+    // 5. Let digitCount be floor(ℝ(digitsValue)).
+    let digit_count = digits_value
+        .to_number(agent, gc.reborrow())
+        .unbind()?
+        .bind(gc.nogc());
+    let digit_count = digit_count.into_f64(agent).floor() as i32;
+    // 6. If digitCount < 0 or digitCount > 9, throw a RangeError exception.
+    if digit_count < 0 || digit_count > 9 {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::RangeError,
+            "fractionalSecondDigits must be between 0 and 9",
+            gc.into_nogc(),
+        ));
+    }
+    // 7. Return digitCount.
+    Ok(Number::from_i64(agent, digit_count.into(), gc.nogc()).into_value())
+}
 
 /// [13.42 GetDifferenceSettings ( operation, options, unitGroup, disallowedUnits, fallbackSmallestUnit, smallestLargestDefaultUnit )](https://tc39.es/proposal-temporal/#sec-temporal-getdifferencesettings)
 /// The abstract operation GetDifferenceSettings takes arguments operation (since or until),
