@@ -16,7 +16,7 @@ use crate::{
         builtins::{
             ordinary::ordinary_create_from_constructor,
             temporal::{
-                duration::{TemporalDuration, create_temporal_duration, to_temporal_duration},
+                duration::{TemporalDuration, data::DurationHeapData, to_temporal_duration},
                 error::temporal_err_to_js_err,
                 get_difference_settings,
                 options::get_options_object,
@@ -387,7 +387,12 @@ fn difference_temporal_instant<'gc, const IS_UNTIL: bool>(
     // 5. Let result be ! TemporalDurationFromInternal(internalDuration, settings.[[LargestUnit]]).
     // 6. If operation is since, set result to CreateNegatedTemporsalDuration(result).
     // 7. Return result.
-    create_temporal_duration() // skip CreateNegatedTemporsalDuration and just CreateTemporsalDuration() with result
+    let result: temporal_rs::Duration = Default::default(); // TODO
+    // 7. Return result.
+    Ok(agent.heap.create(DurationHeapData {
+        object_index: None,
+        duration: result,
+    }))
 }
 
 #[inline(always)]

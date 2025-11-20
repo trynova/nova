@@ -38,6 +38,8 @@ pub(crate) enum IntrinsicObjectIndexes {
     #[cfg(feature = "temporal")]
     TemporalInstantPrototype,
     #[cfg(feature = "temporal")]
+    TemporalDurationPrototype,
+    #[cfg(feature = "temporal")]
     TemporalPlainTimePrototype,
 
     // Text processing
@@ -178,6 +180,8 @@ pub(crate) enum IntrinsicConstructorIndexes {
     Date,
     #[cfg(feature = "temporal")]
     TemporalInstant,
+    #[cfg(feature = "temporal")]
+    TemporalDuration,
     #[cfg(feature = "temporal")]
     TemporalPlainTime,
 

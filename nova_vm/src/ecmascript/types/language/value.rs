@@ -6,8 +6,6 @@
 use crate::ecmascript::Date;
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::Float16Array;
-#[cfg(feature = "temporal")]
-use crate::ecmascript::Instant;
 #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
 use crate::ecmascript::SharedFloat16Array;
 #[cfg(feature = "array-buffer")]
@@ -26,7 +24,7 @@ use crate::ecmascript::{
     SharedUint8Array, SharedUint8ClampedArray, SharedUint16Array, SharedUint32Array,
 };
 #[cfg(feature = "temporal")]
-use crate::ecmascript::{TemporalInstant, TemporalPlainTime};
+use crate::ecmascript::{TemporalDuration, TemporalInstant, TemporalPlainTime};
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::{WeakMap, WeakRef, WeakSet};
 use crate::{
@@ -143,6 +141,8 @@ pub enum Value<'a> {
     Date(Date<'a>),
     #[cfg(feature = "temporal")]
     Instant(TemporalInstant<'a>),
+    #[cfg(feature = "temporal")]
+    Duration(TemporalDuration<'a>),
     #[cfg(feature = "temporal")]
     PlainTime(TemporalPlainTime<'a>),
     Error(Error<'a>),
@@ -283,6 +283,9 @@ pub(crate) const DATE_DISCRIMINANT: u8 = value_discriminant(Value::Date(Date::_D
 #[cfg(feature = "temporal")]
 pub(crate) const INSTANT_DISCRIMINANT: u8 =
     value_discriminant(Value::Instant(TemporalInstant::_DEF));
+#[cfg(feature = "temporal")]
+pub(crate) const DURATION_DISCRIMINANT: u8 =
+    value_discriminant(Value::Duration(TemporalDuration::_def()));
 #[cfg(feature = "temporal")]
 pub(crate) const PLAIN_TIME_DISCRIMINANT: u8 =
     value_discriminant(Value::PlainTime(TemporalPlainTime::_DEF));
@@ -933,6 +936,8 @@ impl Rootable for Value<'_> {
             #[cfg(feature = "temporal")]
             Self::Instant(instant) => Err(HeapRootData::Instant(instant.unbind())),
             #[cfg(feature = "temporal")]
+            Self::Duration(duration) => Err(HeapRootData::Duration(duration.unbind())),
+            #[cfg(feature = "temporal")]
             Self::PlainTime(plain_time) => Err(HeapRootData::PlainTime(plain_time.unbind())),
             Self::Error(error) => Err(HeapRootData::Error(error.unbind())),
             Self::FinalizationRegistry(finalization_registry) => Err(
@@ -1098,6 +1103,8 @@ impl Rootable for Value<'_> {
             #[cfg(feature = "temporal")]
             HeapRootData::Instant(instant) => Some(Self::Instant(instant)),
             #[cfg(feature = "temporal")]
+            HeapRootData::Duration(duration) => Some(Self::Duration(duration)),
+            #[cfg(feature = "temporal")]
             HeapRootData::PlainTime(plain_time) => Some(Self::PlainTime(plain_time)),
             HeapRootData::Error(error) => Some(Self::Error(error)),
             HeapRootData::FinalizationRegistry(finalization_registry) => {
@@ -1250,6 +1257,8 @@ impl HeapMarkAndSweep for Value<'static> {
             #[cfg(feature = "temporal")]
             Self::Instant(data) => data.mark_values(queues),
             #[cfg(feature = "temporal")]
+            Self::Duration(data) => data.mark_values(queues),
+            #[cfg(feature = "temporal")]
             Self::PlainTime(data) => data.mark_values(queues),
             Self::Error(data) => data.mark_values(queues),
             Self::BoundFunction(data) => data.mark_values(queues),
@@ -1367,6 +1376,8 @@ impl HeapMarkAndSweep for Value<'static> {
             Self::Date(data) => data.sweep_values(compactions),
             #[cfg(feature = "temporal")]
             Self::Instant(data) => data.sweep_values(compactions),
+            #[cfg(feature = "temporal")]
+            Self::Duration(data) => data.sweep_values(compactions),
             #[cfg(feature = "temporal")]
             Self::PlainTime(data) => data.sweep_values(compactions),
             Self::Error(data) => data.sweep_values(compactions),
@@ -1522,6 +1533,8 @@ fn map_object_to_static_string_repr(value: Value) -> String<'static> {
         Object::Date(_) => BUILTIN_STRING_MEMORY._object_Object_,
         #[cfg(feature = "temporal")]
         Object::Instant(_) => BUILTIN_STRING_MEMORY._object_Object_,
+        #[cfg(feature = "temporal")]
+        Object::Duration(_) => BUILTIN_STRING_MEMORY._object_Object_,
         #[cfg(feature = "temporal")]
         Object::PlainTime(_) => BUILTIN_STRING_MEMORY._object_Object_,
         #[cfg(feature = "set")]

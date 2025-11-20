@@ -27,7 +27,7 @@ use crate::ecmascript::{
     VoidArray,
 };
 #[cfg(feature = "temporal")]
-use crate::ecmascript::{InstantRecord, PlainTimeHeapData};
+use crate::ecmascript::{DurationHeapData, InstantRecord, PlainTimeHeapData};
 #[cfg(feature = "regexp")]
 use crate::ecmascript::{RegExpHeapData, RegExpStringIteratorRecord};
 #[cfg(feature = "set")]
@@ -79,6 +79,8 @@ pub(crate) struct Heap {
     pub(crate) dates: Vec<DateHeapData<'static>>,
     #[cfg(feature = "temporal")]
     pub(crate) instants: Vec<InstantRecord<'static>>,
+    #[cfg(feature = "temporal")]
+    pub(crate) durations: Vec<DurationHeapData<'static>>,
     #[cfg(feature = "temporal")]
     pub(crate) plain_times: Vec<PlainTimeHeapData<'static>>,
     pub(crate) ecmascript_functions: Vec<ECMAScriptFunctionHeapData<'static>>,
@@ -231,6 +233,8 @@ impl Heap {
             // TODO: assign appropriate value for Temporal objects.
             #[cfg(feature = "temporal")]
             instants: Vec::with_capacity(1024),
+            #[cfg(feature = "temporal")]
+            durations: Vec::with_capacity(1024),
             #[cfg(feature = "temporal")]
             plain_times: Vec::with_capacity(1024),
             ecmascript_functions: Vec::with_capacity(1024),
