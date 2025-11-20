@@ -27,7 +27,7 @@ use nova_vm::{
         },
         scripts_and_modules::script::{parse_script, script_evaluation},
         types::{
-            BigInt, Function, InternalMethods, IntoValue, Object, OrdinaryObject,
+            BigInt, Function, InternalMethods, IntoValue, Number, Object, OrdinaryObject,
             PropertyDescriptor, PropertyKey, String, Value,
         },
     },
@@ -269,6 +269,31 @@ fn sleep<'gc>(
     Ok(Value::Undefined)
 }
 
+/// # monotonicNow
+///
+/// A function that returns a value that conforms to [`DOMHighResTimeStamp`]
+/// and is produced in such a way that its semantics conform to **[Monotonic
+/// Clock]**.
+///
+/// [`DOMHighResTimeStamp`]: https://www.w3.org/TR/hr-time-2/#sec-domhighrestimestamp "**DOMHighResTimeStamp**"
+/// [Monotonic Clock]:  https://www.w3.org/TR/hr-time-2/#sec-monotonic-clock  "**Monotonic Clock**"
+fn monotonic_now<'gc>(
+    agent: &mut Agent,
+    _this: Value,
+    _args: ArgumentsList,
+    gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, Value<'gc>> {
+    let gc = gc.into_nogc();
+    let elapsed = START_TIME.elapsed();
+    // milliseconds
+    let millis = elapsed.as_millis() as f64;
+    // microseconds remnant with 5 microsecond precision.
+    let micros = ((START_TIME.elapsed().as_micros() as u16 % 1000) / 5 * 5) as f64 / 1000.0;
+    let total = millis + micros;
+    let number = Number::from_f64(agent, total, gc);
+    Ok(number.into_value())
+}
+
 fn create_obj_func(
     agent: &mut Agent,
     obj: OrdinaryObject,
@@ -401,6 +426,8 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
                 Options {
                     disable_gc: false,
                     print_internals: false,
+                    // Always allow children to block.
+                    no_block: false,
                 },
                 child_hooks,
             );
@@ -579,22 +606,7 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
     create_obj_func(agent, agent_obj, "broadcast", broadcast, 2, gc);
     create_obj_func(agent, agent_obj, "getReport", get_report, 0, gc);
     create_obj_func(agent, agent_obj, "sleep", sleep, 1, gc);
-    let property_key = PropertyKey::from_static_str(agent, "now", gc);
-    let function = Function::try_from(
-        unwrap_try(global.try_get_own_property(agent, property_key, None, gc))
-            .unwrap()
-            .value
-            .unwrap(),
-    )
-    .unwrap();
-    let property_key = PropertyKey::from_static_str(agent, "monotonicNow", gc);
-    unwrap_try(agent_obj.try_define_own_property(
-        agent,
-        property_key,
-        PropertyDescriptor::new_data_descriptor(function),
-        None,
-        gc,
-    ));
+    create_obj_func(agent, agent_obj, "monotonicNow", monotonic_now, 0, gc);
 }
 
 fn initialize_child_global_object(agent: &mut Agent, global: Object, mut gc: GcScope) {
@@ -743,78 +755,18 @@ fn initialize_child_global_object(agent: &mut Agent, global: Object, mut gc: GcS
         gc,
     ));
 
-    let property_key = PropertyKey::from_static_str(agent, "receiveBroadcast", gc);
-    let function = create_builtin_function(
+    create_obj_func(
         agent,
-        Behaviour::Regular(receive_broadcast),
-        BuiltinFunctionArgs::new(1, "receiveBroadcast"),
+        agent_obj,
+        "receiveBroadcast",
+        receive_broadcast,
+        1,
         gc,
     );
-    unwrap_try(agent_obj.try_define_own_property(
-        agent,
-        property_key,
-        PropertyDescriptor::new_prototype_method_descriptor(function),
-        None,
-        gc,
-    ));
-    let property_key = PropertyKey::from_static_str(agent, "report", gc);
-    let function = create_builtin_function(
-        agent,
-        Behaviour::Regular(report),
-        BuiltinFunctionArgs::new(1, "report"),
-        gc,
-    );
-    unwrap_try(agent_obj.try_define_own_property(
-        agent,
-        property_key,
-        PropertyDescriptor::new_prototype_method_descriptor(function),
-        None,
-        gc,
-    ));
-    let property_key = PropertyKey::from_static_str(agent, "leaving", gc);
-    let function = create_builtin_function(
-        agent,
-        Behaviour::Regular(leaving),
-        BuiltinFunctionArgs::new(0, "leaving"),
-        gc,
-    );
-    unwrap_try(agent_obj.try_define_own_property(
-        agent,
-        property_key,
-        PropertyDescriptor::new_prototype_method_descriptor(function),
-        None,
-        gc,
-    ));
-    let property_key = PropertyKey::from_static_str(agent, "sleep", gc);
-    let function = create_builtin_function(
-        agent,
-        Behaviour::Regular(sleep),
-        BuiltinFunctionArgs::new(1, "sleep"),
-        gc,
-    );
-    unwrap_try(agent_obj.try_define_own_property(
-        agent,
-        property_key,
-        PropertyDescriptor::new_prototype_method_descriptor(function),
-        None,
-        gc,
-    ));
-    let property_key = PropertyKey::from_static_str(agent, "now", gc);
-    let function = Function::try_from(
-        unwrap_try(global.try_get_own_property(agent, property_key, None, gc))
-            .unwrap()
-            .value
-            .unwrap(),
-    )
-    .unwrap();
-    let property_key = PropertyKey::from_static_str(agent, "monotonicNow", gc);
-    unwrap_try(agent_obj.try_define_own_property(
-        agent,
-        property_key,
-        PropertyDescriptor::new_prototype_method_descriptor(function),
-        None,
-        gc,
-    ));
+    create_obj_func(agent, agent_obj, "report", report, 1, gc);
+    create_obj_func(agent, agent_obj, "leaving", leaving, 0, gc);
+    create_obj_func(agent, agent_obj, "sleep", sleep, 1, gc);
+    create_obj_func(agent, agent_obj, "monotonicNow", monotonic_now, 0, gc);
 }
 
 /// Exit the program with parse errors.

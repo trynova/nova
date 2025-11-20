@@ -5,6 +5,7 @@
 use std::{
     hint::assert_unchecked,
     ops::ControlFlow,
+    sync::{Arc, atomic::AtomicBool},
     thread::{self, JoinHandle},
     time::Duration,
 };
@@ -1646,7 +1647,7 @@ fn create_wait_result_object<'gc>(
 struct WaitAsyncJobInner {
     promise_to_resolve: Global<Promise<'static>>,
     join_handle: JoinHandle<Result<(), FutexError>>,
-    _as_timeout: bool,
+    _has_timeout: bool,
 }
 
 #[derive(Debug)]
@@ -1659,10 +1660,16 @@ impl WaitAsyncJob {
     }
 
     pub(crate) fn _will_halt(&self) -> bool {
-        self.0._as_timeout
+        self.0._has_timeout
     }
 
     pub(crate) fn run<'gc>(self, agent: &mut Agent, gc: GcScope) -> JsResult<'gc, ()> {
+        let gc = gc.into_nogc();
+        let promise = self.0.promise_to_resolve.take(agent).bind(gc);
+        let Ok(result) = self.0.join_handle.join() else {
+            // Foreign thread died; we can never resolve.
+            return Ok(());
+        };
         // a. Perform EnterCriticalSection(WL).
         // b. If WL.[[Waiters]] contains waiterRecord, then
         //         i. Let timeOfJobExecution be the time value (UTC) identifying the current time.
@@ -1671,13 +1678,22 @@ impl WaitAsyncJob {
         //         iv. Perform RemoveWaiter(WL, waiterRecord).
         //         v. Perform NotifyWaiter(WL, waiterRecord).
         // c. Perform LeaveCriticalSection(WL).
-        let promise = self.0.promise_to_resolve.take(agent).bind(gc.nogc());
         let promise_capability = PromiseCapability::from_promise(promise, true);
-        unwrap_try(promise_capability.try_resolve(
-            agent,
-            BUILTIN_STRING_MEMORY.timed_out.into_value(),
-            gc.nogc(),
-        ));
+        let result = match result {
+            Ok(_) => BUILTIN_STRING_MEMORY.ok.into_value(),
+            Err(FutexError::NotEqual) => BUILTIN_STRING_MEMORY.ok.into_value(),
+            Err(FutexError::Timeout) => BUILTIN_STRING_MEMORY.timed_out.into_value(),
+            Err(FutexError::Unknown) => {
+                let error = agent.throw_exception_with_static_message(
+                    ExceptionType::Error,
+                    "unknown error occurred",
+                    gc,
+                );
+                promise_capability.reject(agent, error.value(), gc);
+                return Ok(());
+            }
+        };
+        unwrap_try(promise_capability.try_resolve(agent, result, gc));
         // d. Return unused.
         Ok(())
     }
@@ -1700,12 +1716,15 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
     // 1. Let timeoutJob be a new Job Abstract Closure with no parameters that
     //    captures WL and waiterRecord and performs the following steps when
     //    called:
+    let signal = Arc::new(AtomicBool::new(false));
+    let s = signal.clone();
     let handle = thread::spawn(move || {
         let slot = buffer.as_racy_slice().slice_from(byte_index_in_buffer);
         if IS_I64 {
             let v = v as u64;
             // SAFETY: buffer is still live and index was checked.
             let slot = unsafe { slot.as_aligned::<u64>().unwrap_unchecked() };
+            s.store(true, std::sync::atomic::Ordering::Release);
             if t == u64::MAX {
                 slot.wait(v)
             } else {
@@ -1715,6 +1734,7 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
             let v = v as i32 as u32;
             // SAFETY: buffer is still live and index was checked.
             let slot = unsafe { slot.as_aligned::<u32>().unwrap_unchecked() };
+            s.store(true, std::sync::atomic::Ordering::Release);
             if t == u64::MAX {
                 slot.wait(v)
             } else {
@@ -1727,9 +1747,12 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
         inner: InnerJob::WaitAsync(WaitAsyncJob(Box::new(WaitAsyncJobInner {
             promise_to_resolve: promise,
             join_handle: handle,
-            _as_timeout: t != u64::MAX,
+            _has_timeout: t != u64::MAX,
         }))),
     };
+    while !signal.load(std::sync::atomic::Ordering::Acquire) {
+        // Wait until the thread has started up and is about to go to sleep.
+    }
     // 2. Let now be the time value (UTC) identifying the current time.
     // 3. Let currentRealm be the current Realm Record.
     // 4. Perform HostEnqueueTimeoutJob(timeoutJob, currentRealm, 𝔽(waiterRecord.[[TimeoutTime]]) - now).

@@ -76,6 +76,10 @@ use std::{collections::TryReserveError, sync::Arc};
 pub struct Options {
     pub disable_gc: bool,
     pub print_internals: bool,
+    /// Controls the \[\[CanBlock]] option of the Agent Record. If set to true,
+    /// calling `Atomics.wait()` will throw an error to signal that blocking
+    /// the main thread is not allowed.
+    pub no_block: bool,
 }
 
 pub type JsResult<'a, T> = core::result::Result<T, JsError<'a>>;
@@ -790,8 +794,7 @@ impl Agent {
 
     /// Returns the value of the Agent's `[[CanBlock]]` field.
     pub fn can_suspend(&self) -> bool {
-        // TODO: decide how to handle this for browsers.
-        true
+        !self.options.no_block
     }
 
     pub fn gc(&mut self, gc: GcScope) {

@@ -69,22 +69,31 @@ enum Command {
 
     /// Evaluates a file
     Eval {
+        /// Exposes internal functions needed by Test262.
         #[arg(long)]
         expose_internals: bool,
 
+        /// Evaluates the last file as an ECMAScript module.
         #[arg(short, long)]
         module: bool,
 
+        /// Sets the [[CanBlock]] value of the Agent Record to false.
+        #[arg(long)]
+        no_block: bool,
+
+        /// Disabled garbage collection.
         #[arg(long)]
         nogc: bool,
 
+        /// Evaluates all scripts in sloppy mode.
         #[arg(short, long)]
         no_strict: bool,
 
-        /// The files to evaluate
+        /// The files to evaluate.
         #[arg(required = true)]
         paths: Vec<String>,
 
+        /// Prints all internal data during evaluation.
         #[arg(short, long)]
         verbose: bool,
     },
@@ -336,6 +345,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Command::Eval {
             verbose,
             module,
+            no_block,
             no_strict,
             nogc,
             expose_internals,
@@ -349,6 +359,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 while let Some(job) = host_hooks.pop_promise_job() {
                     job.run(agent, gc.reborrow()).unbind()?.bind(gc.nogc());
                 }
+                eprintln!("Exited microtask queue");
                 Ok(())
             }
 
@@ -385,6 +396,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Options {
                     disable_gc: nogc,
                     print_internals: verbose,
+                    no_block,
                 },
                 // SAFETY: Host hooks is a valid pointer.
                 unsafe { host_hooks.as_ref() },
@@ -522,6 +534,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Options {
                     disable_gc,
                     print_internals,
+                    // Never allow blocking in the REPL.
+                    no_block: true,
                 },
                 host_hooks,
             );
