@@ -1,20 +1,29 @@
+pub(crate) mod data;
+pub mod duration_constructor;
+pub mod duration_prototype;
+
 use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::get, type_conversion::to_integer_if_integral,
         },
-        execution::{Agent, JsResult, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Object, String, Value},
+        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
+        types::{
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, Object, OrdinaryObject, String,
+            Value,
+        },
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::Scopable,
+        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
-    heap::indexes::BaseIndex,
+    heap::{
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        WorkQueues, indexes::BaseIndex,
+    },
 };
 use core::ops::{Index, IndexMut};
 
-pub(crate) mod data;
 use self::data::DurationHeapData;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
@@ -35,42 +44,49 @@ impl TemporalDuration<'_> {
 bindable_handle!(TemporalDuration);
 
 impl<'a> From<TemporalDuration<'a>> for Value<'a> {
-    fn from(_value: TemporalDuration<'a>) -> Self {
-        todo!()
-        //Value::Duration(value)
+    fn from(value: TemporalDuration<'a>) -> Self {
+        Value::Duration(value)
     }
 }
 impl<'a> From<TemporalDuration<'a>> for Object<'a> {
-    fn from(_value: TemporalDuration<'a>) -> Self {
-        todo!()
-        //Object::Duration(value)
+    fn from(value: TemporalDuration<'a>) -> Self {
+        Object::Duration(value)
     }
 }
 impl<'a> TryFrom<Value<'a>> for TemporalDuration<'a> {
     type Error = ();
 
-    fn try_from(_value: Value<'a>) -> Result<Self, ()> {
-        todo!()
-        // match value {
-        //     Value::Duration(idx) => Ok(idx),
-        //     _ => Err(()),
-        // }
+    fn try_from(value: Value<'a>) -> Result<Self, ()> {
+        match value {
+            Value::Duration(idx) => Ok(idx),
+            _ => Err(()),
+        }
     }
 }
+
+impl<'a> InternalSlots<'a> for TemporalDuration<'a> {
+    const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::TemporalDuration;
+    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
+        agent[self].object_index
+    }
+    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
+        assert!(agent[self].object_index.replace(backing_object).is_none());
+    }
+}
+
+impl<'a> InternalMethods<'a> for TemporalDuration<'a> {}
 
 impl Index<TemporalDuration<'_>> for Agent {
     type Output = DurationHeapData<'static>;
 
-    fn index(&self, _index: TemporalDuration<'_>) -> &Self::Output {
-        unimplemented!()
-        //&self.heap.durations[index]
+    fn index(&self, index: TemporalDuration<'_>) -> &Self::Output {
+        &self.heap.durations[index]
     }
 }
 
 impl IndexMut<TemporalDuration<'_>> for Agent {
-    fn index_mut(&mut self, _index: TemporalDuration) -> &mut Self::Output {
-        unimplemented!()
-        //&mut self.heap.durations[index]
+    fn index_mut(&mut self, index: TemporalDuration) -> &mut Self::Output {
+        &mut self.heap.durations[index]
     }
 }
 
@@ -87,6 +103,52 @@ impl IndexMut<TemporalDuration<'_>> for Vec<DurationHeapData<'static>> {
     fn index_mut(&mut self, index: TemporalDuration<'_>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("heap access out of bounds")
+    }
+}
+
+impl Rootable for TemporalDuration<'_> {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Err(HeapRootData::Duration(value.unbind()))
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::Duration(object) => Some(object),
+            _ => None,
+        }
+    }
+}
+
+impl HeapMarkAndSweep for TemporalDuration<'static> {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.durations.push(*self);
+    }
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        compactions.durations.shift_index(&mut self.0);
+    }
+}
+
+impl HeapSweepWeakReference for TemporalDuration<'static> {
+    fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
+        compactions.durations.shift_weak_index(self.0).map(Self)
+    }
+}
+
+impl<'a> CreateHeapData<DurationHeapData<'a>, TemporalDuration<'a>> for Heap {
+    fn create(&mut self, data: DurationHeapData<'a>) -> TemporalDuration<'a> {
+        self.durations.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<DurationHeapData<'static>>();
+        TemporalDuration(BaseIndex::last_t(&self.durations))
     }
 }
 /// 7.5.19 CreateTemporalDuration ( years, months, weeks,

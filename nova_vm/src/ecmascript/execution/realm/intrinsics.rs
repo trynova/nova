@@ -42,11 +42,16 @@ use crate::ecmascript::builtins::structured_data::shared_array_buffer_objects::{
 #[cfg(feature = "temporal")]
 use crate::ecmascript::builtins::temporal::{
     Temporal,
+    duration::{
+        duration_constructor::TemporalDurationConstructor,
+        duration_prototype::TemporalDurationPrototype,
+    },
     instant::{
         instant_constructor::TemporalInstantConstructor,
         instant_prototype::TemporalInstantPrototype,
     },
 };
+
 #[cfg(feature = "regexp")]
 use crate::ecmascript::builtins::text_processing::regexp_objects::{
     regexp_constructor::RegExpConstructor, regexp_prototype::RegExpPrototype,
@@ -238,6 +243,8 @@ pub enum ProtoIntrinsics {
     #[cfg(feature = "temporal")]
     TemporalInstant,
     #[cfg(feature = "temporal")]
+    TemporalDuration,
+    #[cfg(feature = "temporal")]
     TemporalPlainTime,
     TypeError,
     #[cfg(feature = "array-buffer")]
@@ -326,7 +333,10 @@ impl Intrinsics {
         TemporalInstantPrototype::create_intrinsic(agent, realm, gc);
         #[cfg(feature = "temporal")]
         TemporalInstantConstructor::create_intrinsic(agent, realm, gc);
-
+        #[cfg(feature = "temporal")]
+        TemporalDurationPrototype::create_intrinsic(agent, realm, gc);
+        #[cfg(feature = "temporal")]
+        TemporalDurationConstructor::create_intrinsic(agent, realm, gc);
         #[cfg(feature = "date")]
         DatePrototype::create_intrinsic(agent, realm);
         #[cfg(feature = "date")]
@@ -439,6 +449,8 @@ impl Intrinsics {
             #[cfg(feature = "temporal")]
             ProtoIntrinsics::TemporalInstant => self.temporal_instant().into(),
             #[cfg(feature = "temporal")]
+            ProtoIntrinsics::TemporalDuration => self.temporal_duration().into(),
+            #[cfg(feature = "temporal")]
             ProtoIntrinsics::TemporalPlainTime => self.temporal_plain_time().into(),
             ProtoIntrinsics::TypeError => self.type_error().into(),
             ProtoIntrinsics::URIError => self.uri_error().into(),
@@ -531,6 +543,8 @@ impl Intrinsics {
             ProtoIntrinsics::SyntaxError => self.syntax_error_prototype().into(),
             #[cfg(feature = "temporal")]
             ProtoIntrinsics::TemporalInstant => self.temporal_instant_prototype().into(),
+            #[cfg(feature = "temporal")]
+            ProtoIntrinsics::TemporalDuration => self.temporal_duration_prototype().into(),
             #[cfg(feature = "temporal")]
             ProtoIntrinsics::TemporalPlainTime => self.temporal_plain_time_prototype().into(),
             ProtoIntrinsics::TypeError => self.type_error_prototype().into(),
@@ -1042,6 +1056,17 @@ impl Intrinsics {
     /// %Temporal%
     pub(crate) const fn temporal(&self) -> OrdinaryObject<'static> {
         IntrinsicObjectIndexes::Temporal.get_backing_object(self.object_index_base)
+    }
+
+    /// %Temporal.Instant.Prototype%
+    pub(crate) const fn temporal_duration_prototype(&self) -> OrdinaryObject<'static> {
+        IntrinsicObjectIndexes::TemporalDurationPrototype.get_backing_object(self.object_index_base)
+    }
+
+    /// %Temporal.Instant%
+    pub(crate) const fn temporal_duration(&self) -> BuiltinFunction<'static> {
+        IntrinsicConstructorIndexes::TemporalDuration
+            .get_builtin_function(self.builtin_function_index_base)
     }
 
     /// %Temporal.Instant.Prototype%
