@@ -359,7 +359,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 while let Some(job) = host_hooks.pop_promise_job() {
                     job.run(agent, gc.reborrow()).unbind()?.bind(gc.nogc());
                 }
-                eprintln!("Exited microtask queue");
                 Ok(())
             }
 
