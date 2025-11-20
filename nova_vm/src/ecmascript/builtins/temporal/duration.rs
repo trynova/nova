@@ -450,11 +450,13 @@ pub(crate) fn to_temporal_partial_duration_record<'gc>(
 /// It returns a new Temporal.Duration instance that is the
 /// negation of duration.
 pub(crate) fn create_negated_temporal_duration<'gc>(
-    _agent: &mut Agent,
-    _item: temporal_rs::Duration,
+    agent: &mut Agent,
+    item: temporal_rs::Duration,
     mut _gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, temporal_rs::Duration> {
     // 1. Return ! CreateTemporalDuration(-duration.[[Years]], -duration.[[Months]], -duration.[[Weeks]], -duration.[[Days]], -duration.[[Hours]], -duration.[[Minutes]], -duration.[[Seconds]], -duration.[[Milliseconds]], -duration.[[Microseconds]], -duration.[[Nanoseconds]]).
+    let _duration = temporal_rs::Duration::negated(&item);
+    //TODO: IMPL create_temporal_duration()
     unimplemented!()
 }
 
