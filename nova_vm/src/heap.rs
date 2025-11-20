@@ -33,7 +33,8 @@ use crate::ecmascript::builtins::date::data::DateHeapData;
 use crate::ecmascript::builtins::shared_array_buffer::data::SharedArrayBufferRecord;
 #[cfg(feature = "temporal")]
 use crate::ecmascript::builtins::temporal::{
-    instant::data::InstantHeapData, plain_time::data::PlainTimeHeapData,
+    duration::data::DurationHeapData, instant::data::InstantHeapData,
+    plain_time::data::PlainTimeHeapData,
 };
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{
@@ -147,6 +148,8 @@ pub(crate) struct Heap {
     pub(crate) dates: Vec<Option<DateHeapData<'static>>>,
     #[cfg(feature = "temporal")]
     pub(crate) instants: Vec<InstantHeapData<'static>>,
+    #[cfg(feature = "temporal")]
+    pub(crate) durations: Vec<DurationHeapData<'static>>,
     #[cfg(feature = "temporal")]
     pub(crate) plain_times: Vec<PlainTimeHeapData<'static>>,
     pub(crate) ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData<'static>>>,
@@ -299,6 +302,8 @@ impl Heap {
             // TODO: assign appropriate value for Temporal objects.
             #[cfg(feature = "temporal")]
             instants: Vec::with_capacity(1024),
+            #[cfg(feature = "temporal")]
+            durations: Vec::with_capacity(1024),
             #[cfg(feature = "temporal")]
             plain_times: Vec::with_capacity(1024),
             ecmascript_functions: Vec::with_capacity(1024),

@@ -19,7 +19,9 @@ use crate::ecmascript::builtins::date::Date;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "temporal")]
-use crate::ecmascript::builtins::temporal::instant::TemporalInstant;
+use crate::ecmascript::builtins::temporal::{
+    duration::TemporalDuration, instant::TemporalInstant, plain_time::TemporalPlainTime,
+};
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{ArrayBuffer, data_view::DataView};
 #[cfg(feature = "set")]
@@ -62,7 +64,6 @@ use crate::ecmascript::{
             promise_finally_functions::BuiltinPromiseFinallyFunction,
         },
         proxy::Proxy,
-        temporal::plain_time::TemporalPlainTime,
         text_processing::string_objects::string_iterator_objects::StringIterator,
         typed_array::{SharedVoidArray, VoidArray},
     },
@@ -101,6 +102,8 @@ pub struct HeapBits {
     pub dates: Box<[bool]>,
     #[cfg(feature = "temporal")]
     pub instants: Box<[bool]>,
+    #[cfg(feature = "temporal")]
+    pub durations: Box<[bool]>,
     #[cfg(feature = "temporal")]
     pub plain_times: Box<[bool]>,
     pub declarative_environments: Box<[bool]>,
@@ -202,6 +205,8 @@ pub(crate) struct WorkQueues {
     #[cfg(feature = "temporal")]
     pub instants: Vec<TemporalInstant<'static>>,
     #[cfg(feature = "temporal")]
+    pub durations: Vec<TemporalDuration<'static>>,
+    #[cfg(feature = "temporal")]
     pub plain_times: Vec<TemporalPlainTime<'static>>,
     pub declarative_environments: Vec<DeclarativeEnvironment<'static>>,
     pub e_2_1: Vec<(ElementIndex<'static>, u32)>,
@@ -302,6 +307,8 @@ impl HeapBits {
         #[cfg(feature = "temporal")]
         let instants = vec![false; heap.instants.len()];
         #[cfg(feature = "temporal")]
+        let durations = vec![false; heap.durations.len()];
+        #[cfg(feature = "temporal")]
         let plain_times = vec![false; heap.plain_times.len()];
         let declarative_environments = vec![false; heap.environments.declarative.len()];
         let e_2_1 = vec![(false, 0u8); heap.elements.e2pow1.values.len()];
@@ -398,6 +405,8 @@ impl HeapBits {
             dates: dates.into_boxed_slice(),
             #[cfg(feature = "temporal")]
             instants: instants.into_boxed_slice(),
+            #[cfg(feature = "temporal")]
+            durations: durations.into_boxed_slice(),
             #[cfg(feature = "temporal")]
             plain_times: plain_times.into_boxed_slice(),
             declarative_environments: declarative_environments.into_boxed_slice(),
@@ -501,6 +510,8 @@ impl WorkQueues {
             dates: Vec::with_capacity(heap.dates.len() / 4),
             #[cfg(feature = "temporal")]
             instants: Vec::with_capacity(heap.instants.len() / 4),
+            #[cfg(feature = "temporal")]
+            durations: Vec::with_capacity(heap.durations.len() / 4),
             #[cfg(feature = "temporal")]
             plain_times: Vec::with_capacity(heap.plain_times.len() / 4),
             declarative_environments: Vec::with_capacity(heap.environments.declarative.len() / 4),
@@ -606,6 +617,8 @@ impl WorkQueues {
             dates,
             #[cfg(feature = "temporal")]
             instants,
+            #[cfg(feature = "temporal")]
+            durations,
             #[cfg(feature = "temporal")]
             plain_times,
             declarative_environments,
@@ -729,6 +742,7 @@ impl WorkQueues {
             && data_views.is_empty()
             && dates.is_empty()
             && instants.is_empty()
+            && durations.is_empty()
             && plain_times.is_empty()
             && declarative_environments.is_empty()
             && e_2_1.is_empty()
@@ -1088,6 +1102,8 @@ pub(crate) struct CompactionLists {
     #[cfg(feature = "temporal")]
     pub instants: CompactionList,
     #[cfg(feature = "temporal")]
+    pub durations: CompactionList,
+    #[cfg(feature = "temporal")]
     pub plain_times: CompactionList,
     pub declarative_environments: CompactionList,
     pub e_2_1: CompactionList,
@@ -1230,6 +1246,8 @@ impl CompactionLists {
             dates: CompactionList::from_mark_bits(&bits.dates),
             #[cfg(feature = "temporal")]
             instants: CompactionList::from_mark_bits(&bits.instants),
+            #[cfg(feature = "temporal")]
+            durations: CompactionList::from_mark_bits(&bits.durations),
             #[cfg(feature = "temporal")]
             plain_times: CompactionList::from_mark_bits(&bits.plain_times),
             errors: CompactionList::from_mark_bits(&bits.errors),
