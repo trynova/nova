@@ -136,6 +136,8 @@ pub(crate) mod private {
     #[cfg(feature = "temporal")]
     impl RootableSealed for TemporalInstant<'_> {}
     #[cfg(feature = "temporal")]
+    impl RootableSealed for TemporalDuration<'_> {}
+    #[cfg(feature = "temporal")]
     impl RootableSealed for TemporalPlainTime<'_> {}
     impl RootableSealed for ECMAScriptFunction<'_> {}
     impl RootableSealed for EmbedderObject<'_> {}
@@ -451,6 +453,8 @@ pub enum HeapRootData {
     #[cfg(feature = "temporal")]
     Instant(TemporalInstant<'static>) = INSTANT_DISCRIMINANT,
     #[cfg(feature = "temporal")]
+    Duration(TemporalDuration<'static>) = DURATION_DISCRIMINANT,
+    #[cfg(feature = "temporal")]
     PlainTime(TemporalPlainTime<'static>) = PLAIN_TIME_DISCRIMINANT,
     Error(Error<'static>) = ERROR_DISCRIMINANT,
     FinalizationRegistry(FinalizationRegistry<'static>) = FINALIZATION_REGISTRY_DISCRIMINANT,
@@ -633,6 +637,8 @@ impl HeapMarkAndSweep for HeapRootData {
             #[cfg(feature = "temporal")]
             Self::Instant(instant) => instant.mark_values(queues),
             #[cfg(feature = "temporal")]
+            Self::Duration(duration) => duration.mark_values(queues),
+            #[cfg(feature = "temporal")]
             Self::PlainTime(plain_time) => plain_time.mark_values(queues),
             Self::Error(error) => error.mark_values(queues),
             Self::FinalizationRegistry(finalization_registry) => {
@@ -785,6 +791,8 @@ impl HeapMarkAndSweep for HeapRootData {
             Self::Date(date) => date.sweep_values(compactions),
             #[cfg(feature = "temporal")]
             Self::Instant(instant) => instant.sweep_values(compactions),
+            #[cfg(feature = "temporal")]
+            Self::Duration(duration) => duration.sweep_values(compactions),
             #[cfg(feature = "temporal")]
             Self::PlainTime(plain_time) => plain_time.sweep_values(compactions),
             Self::Error(error) => error.sweep_values(compactions),

@@ -108,6 +108,7 @@ description
 #[cfg(feature = "array-buffer")]detached
 done
 #[cfg(feature = "regexp")]dotAll
+#[cfg(feature="temporal")]Duration
 #[cfg(feature = "math")]E
 encodeURI
 encodeURIComponent
@@ -451,6 +452,7 @@ Symbol.toStringTag
 Symbol.unscopables
 SyntaxError
 #[cfg(feature = "temporal")]Temporal
+#[cfg(feature = "temporal")]Temporal.Duration
 #[cfg(feature = "temporal")]Temporal.Instant
 #[cfg(feature = "math")]tan
 #[cfg(feature = "math")]tanh
