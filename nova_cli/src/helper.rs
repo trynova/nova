@@ -488,10 +488,7 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
             if !is_ok || child_hooks.is_ready_to_leave() {
                 return;
             }
-            fn run_microtask_queue<'gc>(
-                agent: &mut GcAgent,
-                host_hooks: &CliChildHooks,
-            ) -> Option<()> {
+            fn run_microtask_queue(agent: &mut GcAgent, host_hooks: &CliChildHooks) -> Option<()> {
                 while let Some(job) = host_hooks.pop_promise_job() {
                     if host_hooks.is_ready_to_leave() {
                         return None;
