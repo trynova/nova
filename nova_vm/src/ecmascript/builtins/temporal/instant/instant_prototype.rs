@@ -1,4 +1,4 @@
-use temporal_rs::options::{RoundingMode, RoundingOptions, ToStringRoundingOptions, Unit};
+use temporal_rs::options::{RoundingMode, RoundingOptions, Unit};
 
 use crate::{
     ecmascript::{
@@ -18,7 +18,8 @@ use crate::{
                     require_internal_slot_temporal_instant, to_temporal_instant,
                 },
                 options::{
-                    get_options_object, get_rounding_increment_option, get_rounding_mode_option,
+                    get_option, get_options_object, get_rounding_increment_option,
+                    get_rounding_mode_option,
                 },
             },
         },
@@ -29,7 +30,7 @@ use crate::{
         types::{BUILTIN_STRING_MEMORY, BigInt, IntoValue, Object, PropertyKey, String, Value},
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope, trivially_bindable},
+        context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
     heap::WellKnownSymbolIndexes,
@@ -297,7 +298,7 @@ impl TemporalInstantPrototype {
         }
 
         // 4. If roundTo is a String, then
-        let round_to = if let Value::String(round_to) = round_to.unbind() {
+        let round_to = if round_to.unbind().is_string() {
             // a. Let paramString be roundTo.
             let param_string = round_to;
             // b. Set roundTo to OrdinaryObjectCreate(null).
@@ -318,17 +319,21 @@ impl TemporalInstantPrototype {
                 .unbind()?
                 .bind(gc.nogc())
         };
+
         let round_to = round_to.scope(agent, gc.nogc());
+
         // 6. NOTE: The following steps read options and perform independent validation in
         //    alphabetical order (GetRoundingIncrementOption reads "roundingIncrement" and
         //    GetRoundingModeOption reads "roundingMode").
         let mut options = RoundingOptions::default();
+
         // 7. Let roundingIncrement be ? GetRoundingIncrementOption(roundTo).
         let rounding_increment =
             get_rounding_increment_option(agent, round_to.get(agent), gc.reborrow())
                 .unbind()?
                 .bind(gc.nogc());
         options.increment = Some(rounding_increment);
+
         // 8. Let roundingMode be ? GetRoundingModeOption(roundTo, half-expand).
         let rounding_mode = get_rounding_mode_option(
             agent,
@@ -339,17 +344,18 @@ impl TemporalInstantPrototype {
         .unbind()?
         .bind(gc.nogc());
         options.rounding_mode = Some(rounding_mode);
+
         // 9. Let smallestUnit be ? GetTemporalUnitValuedOption(roundTo, "smallestUnit", required).
         let smallest_unit = get_temporal_unit_valued_option(
             agent,
             round_to.get(agent),
             BUILTIN_STRING_MEMORY.smallestUnit.into(),
-            DefaultOption::Required,
             gc.reborrow(),
         )
         .unbind()?
         .bind(gc.nogc());
-        options.smallest_unit = Some(smallest_unit);
+        options.smallest_unit = smallest_unit;
+
         // 10. Perform ? ValidateTemporalUnitValue(smallestUnit, time).
         // 11. If smallestUnit is hour, then
         //     a. Let maximum be HoursPerDay.
@@ -402,7 +408,6 @@ impl TemporalInstantPrototype {
         Ok(Value::from(true))
     }
 
-    trivially_bindable!(RoundingMode);
     /// ### [8.3.11 Temporal.Instant.prototype.toString ( [ options ] )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.tostring)
     fn to_string<'gc>(
         agent: &mut Agent,
@@ -414,33 +419,36 @@ impl TemporalInstantPrototype {
         let options = args.get(0).bind(gc.nogc());
         let instant = this_value.bind(gc.nogc());
         // 2. Perform ? RequireInternalSlot(instant, [[InitializedTemporalInstant]]).
-        let instant = require_internal_slot_temporal_instant(agent, instant, gc.nogc())
+        let instant = require_internal_slot_temporal_instant(agent, instant.unbind(), gc.nogc())
             .unbind()?
             .bind(gc.nogc());
         // 3. Let resolvedOptions be ? GetOptionsObject(options).
-        let resolved_options = get_options_object(agent, options, gc.nogc())
+        let resolved_options = get_options_object(agent, options.unbind(), gc.nogc())
             .unbind()?
-            .bind(gc.nogc());
+            .scope(agent, gc.nogc());
         // 4. NOTE: The following steps read options and perform independent validation in alphabetical order (GetTemporalFractionalSecondDigitsOption reads "fractionalSecondDigits" and GetRoundingModeOption reads "roundingMode").
         // 5. Let digits be ? GetTemporalFractionalSecondDigitsOption(resolvedOptions).
         let digits = get_temporal_fractional_second_digits_option(
             agent,
-            resolved_options.unbind(),
+            resolved_options.get(agent),
             gc.reborrow(),
         )
         .unbind()?
         .bind(gc.nogc());
         // 6. Let roundingMode be ? GetRoundingModeOption(resolvedOptions, trunc).
-        let rounding_mode =
-            get_rounding_mode_option(agent, resolved_options, RoundingMode::Trunc, gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+        let rounding_mode = get_rounding_mode_option(
+            agent,
+            resolved_options.get(agent),
+            RoundingMode::Trunc,
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
         // 7. Let smallestUnit be ? GetTemporalUnitValuedOption(resolvedOptions, "smallestUnit", unset).
         let smallest_unit = get_temporal_unit_valued_option(
             agent,
-            resolved_options,
+            resolved_options.get(agent),
             BUILTIN_STRING_MEMORY.smallestUnit.to_property_key(),
-            DefaultOption::Unset,
             gc.reborrow(),
         )
         .unbind()?
@@ -448,7 +456,7 @@ impl TemporalInstantPrototype {
         // 8. Let timeZone be ? Get(resolvedOptions, "timeZone").
         let tz = get(
             agent,
-            resolved_options,
+            resolved_options.get(agent),
             BUILTIN_STRING_MEMORY.timeZone.to_property_key(),
             gc.reborrow(),
         )
@@ -456,7 +464,7 @@ impl TemporalInstantPrototype {
         .bind(gc.nogc());
         // 9. Perform ? ValidateTemporalUnitValue(smallestUnit, time).
         // 10. If smallestUnit is hour, throw a RangeError exception.
-        if smallest_unit == Unit::Hour {
+        if smallest_unit.unwrap() == Unit::Hour {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::RangeError,
                 "smallestUnit is hour",
@@ -464,7 +472,7 @@ impl TemporalInstantPrototype {
             ));
         }
         // 11. If timeZone is not undefined, then
-        let tz = if !tz.is_undefined() {
+        let _tz = if !tz.is_undefined() {
             // a. Set timeZone to ? ToTemporalTimeZoneIdentifier(timeZone).
             todo!()
         };
@@ -583,7 +591,7 @@ pub(crate) fn to_integer_with_truncation<'gc>(
     // 2. If number is NaN, +∞𝔽 or -∞𝔽, throw a RangeError exception.
     if number.is_nan(agent) || number.is_pos_infinity(agent) || number.is_neg_infinity(agent) {
         return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
+            ExceptionType::RangeError,
             "Number cannot be NaN, positive infinity, or negative infinity",
             gc.into_nogc(),
         ));
@@ -593,8 +601,6 @@ pub(crate) fn to_integer_with_truncation<'gc>(
     Ok(number.into_f64(agent).trunc())
 }
 
-trivially_bindable!(Unit);
-
 /// ### [13.17 GetTemporalUnitValuedOption ( options, key, default )] (https://tc39.es/proposal-temporal/#sec-temporal-gettemporalunitvaluedoption)
 ///
 /// The abstract operation GetTemporalUnitValuedOption takes arguments options (an Object), key (a
@@ -602,22 +608,15 @@ trivially_bindable!(Unit);
 /// containing either a Temporal unit, unset, or auto, or a throw completion. It attempts to read a
 /// Temporal unit from the specified property of options.
 pub(crate) fn get_temporal_unit_valued_option<'gc>(
-    _agent: &mut Agent,
+    agent: &mut Agent,
     options: Object,
     key: PropertyKey,
-    default: DefaultOption,
     gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, Unit> {
-    let _options = options.bind(gc.nogc());
-    let _default = default.bind(gc.nogc());
-    let _key = key.bind(gc.nogc());
-    todo!()
-}
+) -> JsResult<'gc, Option<Unit>> {
+    let options = options.bind(gc.nogc());
+    let key = key.bind(gc.nogc());
 
-#[allow(dead_code)]
-pub(crate) enum DefaultOption {
-    Required,
-    Unset,
-}
+    let opt = get_option::<Unit>(agent, options.unbind(), key.unbind(), gc)?;
 
-trivially_bindable!(DefaultOption);
+    Ok(opt)
+}

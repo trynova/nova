@@ -144,7 +144,7 @@ pub(crate) fn create_temporal_duration<'gc>(// years,
 pub(crate) fn to_temporal_duration<'gc>(
     agent: &mut Agent,
     item: Value,
-    mut gc: GcScope<'gc, '_>,
+    gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, temporal_rs::Duration> {
     let item = item.bind(gc.nogc());
     // 1. If item is an Object and item has an [[InitializedTemporalDuration]] internal slot, then
@@ -390,19 +390,19 @@ pub(crate) fn to_temporal_partial_duration_record<'gc>(
 pub(crate) fn create_negated_temporal_duration<'gc>(
     agent: &mut Agent,
     item: temporal_rs::Duration,
-    mut gc: GcScope<'gc, '_>,
+    mut _gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, temporal_rs::Duration> {
     // 1. Return ! CreateTemporalDuration(-duration.[[Years]], -duration.[[Months]], -duration.[[Weeks]], -duration.[[Days]], -duration.[[Hours]], -duration.[[Minutes]], -duration.[[Seconds]], -duration.[[Milliseconds]], -duration.[[Microseconds]], -duration.[[Nanoseconds]]).
-    let duration = temporal_rs::Duration::negated(&item);
+    let _duration = temporal_rs::Duration::negated(&item);
     //TODO: IMPL create_temporal_duration()
     unimplemented!()
 }
 
 #[inline(always)]
 fn require_internal_slot_temporal_duration<'a>(
-    agent: &mut Agent,
-    value: Value,
-    gc: NoGcScope<'a, '_>,
+    _agent: &mut Agent,
+    _value: Value,
+    _gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, TemporalDuration<'a>> {
     unimplemented!()
     // TODO:

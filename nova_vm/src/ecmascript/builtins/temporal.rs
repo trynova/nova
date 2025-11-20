@@ -8,18 +8,14 @@ pub mod instant;
 pub mod options;
 pub mod plain_time;
 
-use temporal_rs::{
-    error::ErrorKind,
-    options::{DifferenceSettings, RoundingMode, Unit, UnitGroup},
-};
+use temporal_rs::options::{DifferenceSettings, RoundingIncrement, RoundingMode, Unit, UnitGroup};
 
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::get,
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::temporal::{
-            error::temporal_err_to_js_err,
-            instant::instant_prototype::{DefaultOption, get_temporal_unit_valued_option},
+            instant::instant_prototype::get_temporal_unit_valued_option,
             options::{get_rounding_increment_option, get_rounding_mode_option},
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
@@ -86,6 +82,8 @@ impl Temporal {
 trivially_bindable!(DifferenceSettings);
 trivially_bindable!(UnitGroup);
 trivially_bindable!(Unit);
+trivially_bindable!(RoundingMode);
+trivially_bindable!(RoundingIncrement);
 
 /// [13.15 GetTemporalFractionalSecondDigitsOption ( options )](https://tc39.es/proposal-temporal/#sec-temporal-gettemporalfractionalseconddigitsoption)
 /// The abstract operation GetTemporalFractionalSecondDigitsOption takes argument
@@ -111,9 +109,10 @@ pub(crate) fn get_temporal_fractional_second_digits_option<'gc>(
     .unbind()?
     .bind(gc.nogc());
     // 2. If digitsValue is undefined, return auto.
-    if digits_value.is_undefined() {
-        return Ok(BUILTIN_STRING_MEMORY.auto.bind(gc.nogc()).into_value());
+    if digits_value.unbind().is_undefined().bind(gc.nogc()) {
+        return Ok(BUILTIN_STRING_MEMORY.auto.into_value());
     }
+    let digits_value = digits_value.unbind();
     // 3. If digitsValue is not a Number, then
     if !digits_value.is_number() {
         // a. If ? ToString(digitsValue) is not "auto", throw a RangeError exception.
@@ -124,11 +123,12 @@ pub(crate) fn get_temporal_fractional_second_digits_option<'gc>(
             != b"auto"
         {
             // b. Return auto.
-            return Ok(BUILTIN_STRING_MEMORY.auto.bind(gc.nogc()).into_value());
+            return Ok(BUILTIN_STRING_MEMORY.auto.into_value());
         }
     }
+    let digits_value = digits_value.bind(gc.nogc());
     // 4. If digitsValue is NaN, +∞𝔽, or -∞𝔽, throw a RangeError exception.
-    if digits_value.is_nan(agent)
+    if digits_value.unbind().is_nan(agent)
         || digits_value.is_pos_infinity(agent)
         || digits_value.is_neg_infinity(agent)
     {
@@ -140,6 +140,7 @@ pub(crate) fn get_temporal_fractional_second_digits_option<'gc>(
     }
     // 5. Let digitCount be floor(ℝ(digitsValue)).
     let digit_count = digits_value
+        .unbind()
         .to_number(agent, gc.reborrow())
         .unbind()?
         .bind(gc.nogc());
@@ -153,7 +154,7 @@ pub(crate) fn get_temporal_fractional_second_digits_option<'gc>(
         ));
     }
     // 7. Return digitCount.
-    Ok(Number::from_i64(agent, digit_count.into(), gc.nogc()).into_value())
+    Ok(Number::from_i64(agent, digit_count.into(), gc.into_nogc()).into_value())
 }
 
 /// [13.42 GetDifferenceSettings ( operation, options, unitGroup, disallowedUnits, fallbackSmallestUnit, smallestLargestDefaultUnit )](https://tc39.es/proposal-temporal/#sec-temporal-getdifferencesettings)
@@ -185,7 +186,6 @@ pub(crate) fn get_difference_settings<'gc, const IS_UNTIL: bool>(
         agent,
         options.get(agent),
         BUILTIN_STRING_MEMORY.largestUnit.to_property_key(),
-        DefaultOption::Unset,
         gc.reborrow(),
     )
     .unbind()?
@@ -209,7 +209,6 @@ pub(crate) fn get_difference_settings<'gc, const IS_UNTIL: bool>(
         agent,
         options.get(agent),
         BUILTIN_STRING_MEMORY.smallestUnit.to_property_key(),
-        DefaultOption::Unset,
         gc.reborrow(),
     )
     .unbind()?
@@ -231,8 +230,8 @@ pub(crate) fn get_difference_settings<'gc, const IS_UNTIL: bool>(
     // 17. If maximum is not unset, perform ? ValidateTemporalRoundingIncrement(roundingIncrement, maximum, false).
     // 18. Return the Record { [[SmallestUnit]]: smallestUnit, [[LargestUnit]]: largestUnit, [[RoundingMode]]: roundingMode, [[RoundingIncrement]]: roundingIncrement,  }.
     let mut diff_settings = temporal_rs::options::DifferenceSettings::default();
-    diff_settings.largest_unit = Some(largest_unit);
-    diff_settings.smallest_unit = Some(smallest_unit);
+    diff_settings.largest_unit = largest_unit;
+    diff_settings.smallest_unit = smallest_unit;
     diff_settings.rounding_mode = Some(rounding_mode);
     diff_settings.increment = Some(rounding_increment);
     Ok(diff_settings)
