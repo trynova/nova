@@ -53,13 +53,13 @@ default = [
     "set",
     "annex-b",
 ]
-array-buffer = []
+array-buffer = ["ecmascript_atomics"]
 atomics = ["array-buffer", "shared-array-buffer", "ecmascript_atomics", "ecmascript_futex"]
 date = []
 json = ["dep:sonic-rs"]
 math = []
 regexp = []
-shared-array-buffer = ["array-buffer"]
+shared-array-buffer = ["array-buffer", "ecmascript_atomics"]
 weak-refs = []
 set = []
 typescript = []

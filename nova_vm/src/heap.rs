@@ -29,14 +29,19 @@ pub(crate) use self::heap_constants::{
 pub(crate) use self::object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor};
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::data::DateHeapData;
-#[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::builtins::shared_array_buffer::data::SharedArrayBufferRecord;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{
     ArrayBuffer, ArrayBufferHeapData,
     array_buffer::DetachKey,
     data_view::{DataView, data::DataViewRecord},
+    typed_array::VoidArray,
     typed_array::data::TypedArrayRecord,
+};
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::builtins::{
+    data_view::{SharedDataView, data::SharedDataViewRecord},
+    shared_array_buffer::data::SharedArrayBufferRecord,
+    typed_array::{SharedVoidArray, data::SharedTypedArrayRecord},
 };
 #[cfg(feature = "set")]
 use crate::ecmascript::builtins::{
@@ -66,7 +71,6 @@ use crate::{
                     promise_resolving_functions::PromiseResolvingFunctionHeapData,
                 },
             },
-            data_view::{SharedDataView, data::SharedDataViewRecord},
             embedder_object::data::EmbedderObjectHeapData,
             error::ErrorHeapData,
             finalization_registry::data::FinalizationRegistryHeapData,
@@ -86,7 +90,6 @@ use crate::{
             },
             proxy::data::ProxyHeapData,
             text_processing::string_objects::string_iterator_objects::StringIteratorHeapData,
-            typed_array::{SharedVoidArray, VoidArray, data::SharedTypedArrayRecord},
         },
         execution::{Agent, Environments, Realm, RealmRecord},
         scripts_and_modules::{

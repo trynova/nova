@@ -23,6 +23,8 @@ use ahash::AHashMap;
 
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
+#[cfg(feature = "atomics")]
+use crate::ecmascript::builtins::structured_data::atomics_object::WaitAsyncJob;
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::execution::clear_kept_objects;
 use crate::{
@@ -35,7 +37,6 @@ use crate::{
             promise_objects::promise_abstract_operations::promise_jobs::{
                 PromiseReactionJob, PromiseResolveThenableJob,
             },
-            structured_data::atomics_object::WaitAsyncJob,
         },
         scripts_and_modules::{
             ScriptOrModule,
@@ -245,6 +246,7 @@ pub fn unwrap_try<'a, T: 'a>(try_result: TryResult<'a, T>) -> T {
 pub(crate) enum InnerJob {
     PromiseResolveThenable(PromiseResolveThenableJob),
     PromiseReaction(PromiseReactionJob),
+    #[cfg(feature = "atomics")]
     WaitAsync(WaitAsyncJob),
 }
 
@@ -256,6 +258,7 @@ pub struct Job {
 impl Job {
     pub fn is_finished(&self) -> bool {
         match &self.inner {
+            #[cfg(feature = "atomics")]
             InnerJob::WaitAsync(job) => job.is_finished(),
             _ => true,
         }
@@ -283,6 +286,7 @@ impl Job {
         let result = match self.inner {
             InnerJob::PromiseResolveThenable(job) => job.run(agent, gc),
             InnerJob::PromiseReaction(job) => job.run(agent, gc),
+            #[cfg(feature = "atomics")]
             InnerJob::WaitAsync(job) => job.run(agent, gc),
         };
 
@@ -918,7 +922,7 @@ impl Agent {
         self.push_execution_context(ExecutionContext {
             ecmascript_code: None,
             function: None,
-            realm: realm,
+            realm,
             script_or_module: None,
         });
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };

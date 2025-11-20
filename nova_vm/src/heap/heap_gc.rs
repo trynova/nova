@@ -21,10 +21,12 @@ use super::{
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
-#[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::{ArrayBuffer, data_view::DataView};
+use crate::ecmascript::builtins::{ArrayBuffer, data_view::DataView, typed_array::VoidArray};
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::builtins::{
+    data_view::SharedDataView, shared_array_buffer::SharedArrayBuffer, typed_array::SharedVoidArray,
+};
 #[cfg(feature = "set")]
 use crate::ecmascript::builtins::{
     keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
@@ -50,7 +52,6 @@ use crate::{
                     promise_resolving_functions::BuiltinPromiseResolvingFunction,
                 },
             },
-            data_view::SharedDataView,
             embedder_object::EmbedderObject,
             error::Error,
             finalization_registry::FinalizationRegistry,
@@ -67,7 +68,6 @@ use crate::{
             },
             proxy::Proxy,
             text_processing::string_objects::string_iterator_objects::StringIterator,
-            typed_array::{SharedVoidArray, VoidArray},
         },
         execution::{
             Agent, DeclarativeEnvironment, Environments, FunctionEnvironment, GlobalEnvironment,
@@ -192,7 +192,6 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 shared_typed_array_byte_offsets: _,
             #[cfg(feature = "shared-array-buffer")]
                 shared_typed_array_array_lengths: _,
-            #[cfg(feature = "weak-refs")]
             #[cfg(feature = "shared-array-buffer")]
             shared_data_views,
             #[cfg(feature = "shared-array-buffer")]
@@ -1528,7 +1527,6 @@ fn sweep(
         typed_array_byte_offsets,
         #[cfg(feature = "array-buffer")]
         typed_array_array_lengths,
-        #[cfg(feature = "weak-refs")]
         #[cfg(feature = "array-buffer")]
         data_views,
         #[cfg(feature = "array-buffer")]
@@ -1543,13 +1541,13 @@ fn sweep(
         shared_typed_array_byte_offsets,
         #[cfg(feature = "shared-array-buffer")]
         shared_typed_array_array_lengths,
-        #[cfg(feature = "weak-refs")]
         #[cfg(feature = "shared-array-buffer")]
         shared_data_views,
         #[cfg(feature = "shared-array-buffer")]
         shared_data_view_byte_lengths,
         #[cfg(feature = "shared-array-buffer")]
         shared_data_view_byte_offsets,
+        #[cfg(feature = "weak-refs")]
         weak_maps,
         #[cfg(feature = "weak-refs")]
         weak_refs,

@@ -16,10 +16,12 @@ use super::{
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
-#[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::{ArrayBuffer, data_view::DataView};
+use crate::ecmascript::builtins::{ArrayBuffer, data_view::DataView, typed_array::VoidArray};
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::builtins::{
+    data_view::SharedDataView, shared_array_buffer::SharedArrayBuffer, typed_array::SharedVoidArray,
+};
 #[cfg(feature = "set")]
 use crate::ecmascript::builtins::{
     keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
@@ -44,7 +46,6 @@ use crate::ecmascript::{
                 promise_resolving_functions::BuiltinPromiseResolvingFunction,
             },
         },
-        data_view::SharedDataView,
         embedder_object::EmbedderObject,
         error::Error,
         finalization_registry::FinalizationRegistry,
@@ -61,7 +62,6 @@ use crate::ecmascript::{
         },
         proxy::Proxy,
         text_processing::string_objects::string_iterator_objects::StringIterator,
-        typed_array::{SharedVoidArray, VoidArray},
     },
     execution::{
         DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ModuleEnvironment,

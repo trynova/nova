@@ -944,7 +944,9 @@ fn perform_promise_group<'gc>(
     // 1. Let values be a new empty List.
     let capacity = match iterator.get(agent) {
         Object::Array(array) => array.len(agent),
+        #[cfg(feature = "set")]
         Object::Map(map) => agent[map].size(),
+        #[cfg(feature = "set")]
         Object::Set(set) => agent[set].size(),
         _ => 0,
     };

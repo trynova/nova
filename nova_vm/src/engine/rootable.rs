@@ -135,16 +135,11 @@ pub mod private {
 
     #[cfg(feature = "date")]
     use crate::ecmascript::builtins::date::Date;
-    #[cfg(feature = "array-buffer")]
-    use crate::ecmascript::builtins::{
-        ArrayBuffer,
-        data_view::DataView,
-        typed_array::{AnyTypedArray, TypedArray},
-    };
     #[cfg(feature = "shared-array-buffer")]
     use crate::ecmascript::builtins::{
-        data_view::SharedDataView, shared_array_buffer::SharedArrayBuffer,
-        typed_array::SharedTypedArray,
+        data_view::SharedDataView,
+        shared_array_buffer::SharedArrayBuffer,
+        typed_array::{GenericSharedTypedArray, SharedTypedArray},
     };
     #[cfg(feature = "set")]
     use crate::ecmascript::builtins::{
@@ -154,6 +149,17 @@ pub mod private {
     use crate::ecmascript::builtins::{
         regexp::RegExp,
         text_processing::regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
+    };
+    #[cfg(feature = "array-buffer")]
+    use crate::ecmascript::{
+        builtins::{
+            ArrayBuffer,
+            array_buffer::AnyArrayBuffer,
+            data_view::{AnyDataView, DataView},
+            typed_array::GenericTypedArray,
+            typed_array::{AnyTypedArray, TypedArray},
+        },
+        types::Viewable,
     };
     #[cfg(feature = "weak-refs")]
     use crate::ecmascript::{
@@ -166,11 +172,9 @@ pub mod private {
             builtins::{
                 ArgumentsList, Array, BuiltinConstructorFunction, BuiltinFunction,
                 ECMAScriptFunction,
-                array_buffer::AnyArrayBuffer,
                 async_function_objects::await_reaction::AwaitReaction,
                 async_generator_objects::AsyncGenerator,
                 bound_function::BoundFunction,
-                data_view::AnyDataView,
                 embedder_object::EmbedderObject,
                 error::Error,
                 finalization_registry::FinalizationRegistry,
@@ -188,7 +192,6 @@ pub mod private {
                     promise_resolving_functions::BuiltinPromiseResolvingFunction,
                 },
                 proxy::Proxy,
-                typed_array::{GenericSharedTypedArray, GenericTypedArray},
             },
             execution::{
                 DeclarativeEnvironment, Environment, FunctionEnvironment, GlobalEnvironment,
@@ -206,7 +209,7 @@ pub mod private {
             },
             types::{
                 BigInt, Function, Number, Numeric, Object, OrdinaryObject, Primitive, PropertyKey,
-                PropertyKeySet, String, Symbol, Value, Viewable,
+                PropertyKeySet, String, Symbol, Value,
             },
         },
         engine::{Executable, context::Bindable},

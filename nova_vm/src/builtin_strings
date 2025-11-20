@@ -49,7 +49,7 @@ asUintN
 AsyncFunction
 AsyncGenerator
 AsyncGeneratorFunction
-async
+#[cfg(feature = "atomics")]async
 asyncIterator
 at
 #[cfg(feature = "math")]atan
@@ -300,7 +300,7 @@ Number
 object
 Object
 of
-ok
+#[cfg(feature = "atomics")]ok
 #[cfg(feature = "atomics")]or
 ownKeys
 padEnd

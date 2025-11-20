@@ -21,6 +21,16 @@ use crate::ecmascript::builtins::{
         Int32Array, Uint8Array, Uint8ClampedArray, Uint16Array, Uint32Array,
     },
 };
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::builtins::{
+    data_view::SharedDataView,
+    shared_array_buffer::SharedArrayBuffer,
+    typed_array::{
+        SharedBigInt64Array, SharedBigUint64Array, SharedFloat32Array, SharedFloat64Array,
+        SharedInt8Array, SharedInt16Array, SharedInt32Array, SharedUint8Array,
+        SharedUint8ClampedArray, SharedUint16Array, SharedUint32Array,
+    },
+};
 #[cfg(feature = "set")]
 use crate::ecmascript::builtins::{
     keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
@@ -29,15 +39,6 @@ use crate::ecmascript::builtins::{
 use crate::ecmascript::builtins::{
     regexp::RegExp,
     text_processing::regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
-};
-#[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::builtins::{
-    shared_array_buffer::SharedArrayBuffer,
-    typed_array::{
-        SharedBigInt64Array, SharedBigUint64Array, SharedFloat32Array, SharedFloat64Array,
-        SharedInt8Array, SharedInt16Array, SharedInt32Array, SharedUint8Array,
-        SharedUint8ClampedArray, SharedUint16Array, SharedUint32Array,
-    },
 };
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
@@ -56,7 +57,6 @@ use crate::{
                 generator_objects::Generator,
                 promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction,
             },
-            data_view::SharedDataView,
             embedder_object::EmbedderObject,
             error::Error,
             finalization_registry::FinalizationRegistry,

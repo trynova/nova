@@ -2,10 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+#[cfg(feature = "array-buffer")]
 use ecmascript_atomics::Ordering;
 
 #[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::indexed_collections::typed_array_objects::abstract_operations::make_typed_array_with_buffer_witness_record;
+use crate::ecmascript::builtins::{
+    indexed_collections::typed_array_objects::abstract_operations::make_typed_array_with_buffer_witness_record,
+    typed_array::AnyTypedArray,
+};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -16,7 +20,6 @@ use crate::{
         builtins::{
             ArgumentsList, Behaviour, Builtin, array::ARRAY_INDEX_RANGE,
             indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
-            typed_array::AnyTypedArray,
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, InternalSlots, IntoValue, Object, String, Value},
@@ -87,6 +90,16 @@ impl ArrayIteratorPrototype {
                     // c. Let len be TypedArrayLength(taRecord).
                     i64::try_from(ta_record.typed_array_length(agent)).unwrap()
                 } else {
+                    let scoped_iterator = iterator.scope(agent, gc.nogc());
+                    let scoped_array = array.scope(agent, gc.nogc());
+                    let res =
+                        length_of_array_like(agent, array.unbind(), gc.reborrow()).unbind()?;
+                    array = unsafe { scoped_array.take(agent) }.bind(gc.nogc());
+                    iterator = unsafe { scoped_iterator.take(agent) }.bind(gc.nogc());
+                    res
+                }
+                #[cfg(not(feature = "array-buffer"))]
+                {
                     let scoped_iterator = iterator.scope(agent, gc.nogc());
                     let scoped_array = array.scope(agent, gc.nogc());
                     let res =

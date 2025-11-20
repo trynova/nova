@@ -6,6 +6,8 @@ use std::hint::assert_unchecked;
 
 use ecmascript_atomics::Ordering;
 
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::builtins::{GenericSharedTypedArray, data::SharedTypedArrayRecord};
 use crate::{
     SmallInteger,
     ecmascript::{
@@ -25,8 +27,7 @@ use crate::{
             indexed_collections::typed_array_objects::typed_array_intrinsic_object::require_internal_slot_typed_array,
             ordinary::get_prototype_from_constructor,
             typed_array::{
-                AnyTypedArray, GenericSharedTypedArray, GenericTypedArray, TypedArray, VoidArray,
-                data::{SharedTypedArrayRecord, TypedArrayRecord},
+                AnyTypedArray, GenericTypedArray, TypedArray, VoidArray, data::TypedArrayRecord,
             },
         },
         execution::{
@@ -164,6 +165,7 @@ pub(crate) fn typed_array_create<'a, T: Viewable>(
     a
 }
 
+#[cfg(feature = "shared-array-buffer")]
 pub(crate) fn shared_typed_array_create<'a, T: Viewable>(
     agent: &mut Agent,
     prototype: Option<Object<'a>>,
@@ -755,6 +757,7 @@ pub(crate) fn initialize_typed_array_from_array_buffer<'gc, T: Viewable>(
                 unsafe { o.initialise_data(agent, buffer, offset as usize, None) };
                 Ok(o.into())
             }
+            #[cfg(feature = "shared-array-buffer")]
             AnyArrayBuffer::SharedArrayBuffer(buffer) => {
                 let o = shared_typed_array_create::<T>(agent, o_proto);
                 // SAFETY: We are initialising O.
@@ -820,6 +823,7 @@ pub(crate) fn initialize_typed_array_from_array_buffer<'gc, T: Viewable>(
                 };
                 Ok(o.into())
             }
+            #[cfg(feature = "shared-array-buffer")]
             AnyArrayBuffer::SharedArrayBuffer(buffer) => {
                 let o = shared_typed_array_create::<T>(agent, o_proto);
                 // SAFETY: We are initialising O.

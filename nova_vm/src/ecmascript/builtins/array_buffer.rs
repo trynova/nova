@@ -394,6 +394,8 @@ impl<'ab> AnyArrayBuffer<'ab> {
     /// \[\[ByteLength]]
     #[inline(always)]
     pub fn byte_length(self, agent: &Agent, order: Ordering) -> usize {
+        #[cfg(not(feature = "shared-array-buffer"))]
+        let _ = order;
         match self {
             Self::ArrayBuffer(ta) => ta.byte_length(agent),
             #[cfg(feature = "shared-array-buffer")]
@@ -445,6 +447,7 @@ impl<'a> TryFrom<Value<'a>> for AnyArrayBuffer<'a> {
     fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::ArrayBuffer(ab) => Ok(Self::ArrayBuffer(ab)),
+            #[cfg(feature = "shared-array-buffer")]
             Value::SharedArrayBuffer(sab) => Ok(Self::SharedArrayBuffer(sab)),
             _ => Err(()),
         }

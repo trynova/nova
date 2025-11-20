@@ -12,6 +12,8 @@ use ecmascript_atomics::Ordering;
 
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::types::FLOAT_16_ARRAY_DISCRIMINANT;
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::types::SharedDataBlock;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -52,10 +54,9 @@ use crate::{
             INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
             InternalMethods, InternalSlots, IntoNumeric, IntoObject, IntoValue, Number, Numeric,
             Object, OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey, SetCachedProps,
-            SetResult, SharedDataBlock, TryGetResult, TryHasResult, U8Clamped,
-            UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
-            UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT, Value, Viewable,
-            create_byte_data_block,
+            SetResult, TryGetResult, TryHasResult, U8Clamped, UINT_8_ARRAY_DISCRIMINANT,
+            UINT_8_CLAMPED_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT,
+            UINT_32_ARRAY_DISCRIMINANT, Value, Viewable, create_byte_data_block,
         },
     },
     engine::{
@@ -786,6 +787,7 @@ impl<'a> TryFrom<AnyTypedArray<'a>> for TypedArray<'a> {
             AnyTypedArray::Float16Array(base_index) => Ok(Self::Float16Array(base_index)),
             AnyTypedArray::Float32Array(base_index) => Ok(Self::Float32Array(base_index)),
             AnyTypedArray::Float64Array(base_index) => Ok(Self::Float64Array(base_index)),
+            #[cfg(feature = "shared-array-buffer")]
             _ => Err(()),
         }
     }
@@ -1941,6 +1943,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
                     dst[..captured].copy_from_slice(&kept_slice[..captured]);
                 }
             }
+            #[cfg(feature = "shared-array-buffer")]
             AnyArrayBuffer::SharedArrayBuffer(sab) => {
                 let slice = sab
                     .as_slice(agent)
