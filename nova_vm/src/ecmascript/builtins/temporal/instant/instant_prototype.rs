@@ -3,7 +3,8 @@ use temporal_rs::options::{RoundingMode, RoundingOptions, Unit};
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::try_create_data_property_or_throw, type_conversion::to_number,
+            operations_on_objects::{get, try_create_data_property_or_throw},
+            type_conversion::to_number,
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
@@ -11,6 +12,7 @@ use crate::{
             ordinary::ordinary_object_create_with_intrinsics,
             temporal::{
                 error::temporal_err_to_js_err,
+                get_temporal_fractional_second_digits_option,
                 instant::{
                     add_duration_to_instant, create_temporal_instant, difference_temporal_instant,
                     require_internal_slot_temporal_instant, to_temporal_instant,
@@ -28,7 +30,7 @@ use crate::{
         types::{BUILTIN_STRING_MEMORY, BigInt, IntoValue, Object, PropertyKey, String, Value},
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope, trivially_bindable},
         rootable::Scopable,
     },
     heap::WellKnownSymbolIndexes,
@@ -406,13 +408,76 @@ impl TemporalInstantPrototype {
         Ok(Value::from(true))
     }
 
+    trivially_bindable!(RoundingMode);
     /// ### [8.3.11 Temporal.Instant.prototype.toString ( [ options ] )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.tostring)
     fn to_string<'gc>(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _args: ArgumentsList,
-        mut _gc: GcScope<'gc, '_>,
+        agent: &mut Agent,
+        this_value: Value,
+        args: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        // 1. Let instant be the this value.
+        let options = args.get(0).bind(gc.nogc());
+        let instant = this_value.bind(gc.nogc());
+        // 2. Perform ? RequireInternalSlot(instant, [[InitializedTemporalInstant]]).
+        let instant = require_internal_slot_temporal_instant(agent, instant, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
+        // 3. Let resolvedOptions be ? GetOptionsObject(options).
+        let resolved_options = get_options_object(agent, options, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
+        // 4. NOTE: The following steps read options and perform independent validation in alphabetical order (GetTemporalFractionalSecondDigitsOption reads "fractionalSecondDigits" and GetRoundingModeOption reads "roundingMode").
+        // 5. Let digits be ? GetTemporalFractionalSecondDigitsOption(resolvedOptions).
+        let digits = get_temporal_fractional_second_digits_option(
+            agent,
+            resolved_options.unbind(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        // 6. Let roundingMode be ? GetRoundingModeOption(resolvedOptions, trunc).
+        let rounding_mode =
+            get_rounding_mode_option(agent, resolved_options, RoundingMode::Trunc, gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
+        // 7. Let smallestUnit be ? GetTemporalUnitValuedOption(resolvedOptions, "smallestUnit", unset).
+        let smallest_unit = get_temporal_unit_valued_option(
+            agent,
+            resolved_options,
+            BUILTIN_STRING_MEMORY.smallestUnit.to_property_key(),
+            DefaultOption::Unset,
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        // 8. Let timeZone be ? Get(resolvedOptions, "timeZone").
+        let tz = get(
+            agent,
+            resolved_options,
+            BUILTIN_STRING_MEMORY.timeZone.to_property_key(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        // 9. Perform ? ValidateTemporalUnitValue(smallestUnit, time).
+        // 10. If smallestUnit is hour, throw a RangeError exception.
+        if smallest_unit == Unit::Hour {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "smallestUnit is hour",
+                gc.into_nogc(),
+            ));
+        }
+        // 11. If timeZone is not undefined, then
+        let tz = if !tz.is_undefined() {
+            // a. Set timeZone to ? ToTemporalTimeZoneIdentifier(timeZone).
+            todo!()
+        };
+        // 12. Let precision be ToSecondsStringPrecisionRecord(smallestUnit, digits).
+        // 13. Let roundedNs be RoundTemporalInstant(instant.[[EpochNanoseconds]], precision.[[Increment]], precision.[[Unit]], roundingMode).
+        // 14. Let roundedInstant be ! CreateTemporalInstant(roundedNs).
+        // 15. Return TemporalInstantToString(roundedInstant, timeZone, precision.[[Precision]]).
         unimplemented!()
     }
 
