@@ -36,9 +36,9 @@ impl TemporalDuration<'_> {
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
     }
-    pub(crate) fn inner_duration(self, agent: &Agent) -> temporal_rs::Duration {
-        agent[self].duration
-    }
+    // pub(crate) fn inner_duration(self, agent: &Agent) -> temporal_rs::Duration {
+    //     agent[self].duration
+    // }
 }
 
 bindable_handle!(TemporalDuration);
