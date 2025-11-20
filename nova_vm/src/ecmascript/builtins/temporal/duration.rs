@@ -36,9 +36,9 @@ impl TemporalDuration<'_> {
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
     }
-    pub(crate) fn inner_duration(self, agent: &Agent) -> temporal_rs::Duration {
-        agent[self].duration
-    }
+    // pub(crate) fn inner_duration(self, agent: &Agent) -> temporal_rs::Duration {
+    //     agent[self].duration
+    // }
 }
 
 bindable_handle!(TemporalDuration);
@@ -450,7 +450,7 @@ pub(crate) fn to_temporal_partial_duration_record<'gc>(
 /// It returns a new Temporal.Duration instance that is the
 /// negation of duration.
 pub(crate) fn create_negated_temporal_duration<'gc>(
-    agent: &mut Agent,
+    _agent: &mut Agent,
     item: temporal_rs::Duration,
     mut _gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, temporal_rs::Duration> {

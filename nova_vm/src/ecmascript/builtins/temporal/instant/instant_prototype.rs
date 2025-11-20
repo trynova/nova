@@ -419,7 +419,7 @@ impl TemporalInstantPrototype {
         let options = args.get(0).bind(gc.nogc());
         let instant = this_value.bind(gc.nogc());
         // 2. Perform ? RequireInternalSlot(instant, [[InitializedTemporalInstant]]).
-        let instant = require_internal_slot_temporal_instant(agent, instant.unbind(), gc.nogc())
+        let _instant = require_internal_slot_temporal_instant(agent, instant.unbind(), gc.nogc())
             .unbind()?
             .bind(gc.nogc());
         // 3. Let resolvedOptions be ? GetOptionsObject(options).
@@ -428,7 +428,7 @@ impl TemporalInstantPrototype {
             .scope(agent, gc.nogc());
         // 4. NOTE: The following steps read options and perform independent validation in alphabetical order (GetTemporalFractionalSecondDigitsOption reads "fractionalSecondDigits" and GetRoundingModeOption reads "roundingMode").
         // 5. Let digits be ? GetTemporalFractionalSecondDigitsOption(resolvedOptions).
-        let digits = get_temporal_fractional_second_digits_option(
+        let _digits = get_temporal_fractional_second_digits_option(
             agent,
             resolved_options.get(agent),
             gc.reborrow(),
@@ -436,7 +436,7 @@ impl TemporalInstantPrototype {
         .unbind()?
         .bind(gc.nogc());
         // 6. Let roundingMode be ? GetRoundingModeOption(resolvedOptions, trunc).
-        let rounding_mode = get_rounding_mode_option(
+        let _rounding_mode = get_rounding_mode_option(
             agent,
             resolved_options.get(agent),
             RoundingMode::Trunc,
