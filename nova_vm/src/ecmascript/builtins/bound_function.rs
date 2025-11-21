@@ -169,6 +169,7 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
         arguments_list: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        agent.check_call_depth(gc.nogc()).unbind()?;
         let f = self.bind(gc.nogc());
         let arguments_list = arguments_list.bind(gc.nogc());
         // 1. Let target be F.[[BoundTargetFunction]].
@@ -219,6 +220,7 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
         new_target: Function,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Object<'gc>> {
+        agent.check_call_depth(gc.nogc()).unbind()?;
         let arguments_list = arguments_list.bind(gc.nogc());
         let new_target = new_target.bind(gc.nogc());
         // 1. Let target be F.[[BoundTargetFunction]].

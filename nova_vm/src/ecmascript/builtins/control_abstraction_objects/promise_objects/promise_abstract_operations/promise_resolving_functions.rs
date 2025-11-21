@@ -108,6 +108,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseResolvingFunction<'a> 
         arguments_list: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        agent.check_call_depth(gc.nogc()).unbind()?;
         let arguments_list = arguments_list.get(0).bind(gc.nogc());
         let promise_capability = agent[self].promise_capability.clone();
         match agent[self].resolve_type {

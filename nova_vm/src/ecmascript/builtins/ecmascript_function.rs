@@ -330,6 +330,7 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
         arguments_list: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        agent.check_call_depth(gc.nogc()).unbind()?;
         let f = self.bind(gc.nogc());
         let mut id = 0;
         ndt::javascript_call_start!(|| {

@@ -665,6 +665,8 @@ fn builtin_call_or_construct<'gc>(
     new_target: Option<Function>,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Value<'gc>> {
+    agent.check_call_depth(gc.nogc()).unbind()?;
+
     let f = f.bind(gc.nogc());
     let this_argument = this_argument.bind(gc.nogc());
     let arguments_list = arguments_list.bind(gc.nogc());

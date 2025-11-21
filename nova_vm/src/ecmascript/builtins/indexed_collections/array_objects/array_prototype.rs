@@ -1755,7 +1755,8 @@ impl ArrayPrototype {
                 .unbind()?
                 .bind(gc.nogc());
             // c. If element is neither undefined nor null, then
-            if !element.is_undefined() && !element.is_null() {
+            if !element.is_undefined() && !element.is_null() && element != o.get(agent).into_value()
+            {
                 // i. Let S be ? ToString(element).
                 let s = to_string(agent, element.unbind(), gc.reborrow())
                     .unbind()?
@@ -1777,7 +1778,8 @@ impl ArrayPrototype {
             .unbind()?
             .bind(gc.nogc());
             // c. If element is neither undefined nor null, then
-            if !element.is_undefined() && !element.is_null() {
+            if !element.is_undefined() && !element.is_null() && element != o.get(agent).into_value()
+            {
                 // i. Let S be ? ToString(element).
                 let s = to_string(agent, element.unbind(), gc.reborrow())
                     .unbind()?
