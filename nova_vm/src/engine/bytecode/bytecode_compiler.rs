@@ -3692,7 +3692,8 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::TSEnum
         let (cap, index) = agent
             .heap
             .elements
-            .allocate_keys_with_capacity(properties_count);
+            .allocate_keys_with_capacity(properties_count)
+            .expect("Should perform GC here");
         let cap = cap.make_intrinsic();
 
         let keys_memory = agent.heap.elements.get_keys_uninit_raw(cap, index);
