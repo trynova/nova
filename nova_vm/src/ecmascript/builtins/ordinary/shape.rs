@@ -327,7 +327,6 @@ impl<'a> ObjectShape<'a> {
     ///
     /// > NOTE: This function will create a new Object Shape if an existing one
     /// > cannot be found.
-    #[must_use]
     pub(crate) fn get_child_shape(
         self,
         agent: &mut Agent,

@@ -364,7 +364,6 @@ impl<'a> OrdinaryObject<'a> {
     /// Turn an OrdinaryObject's Object Shape into an intrinsic.
     ///
     /// For objects with an intrinsic shape, this is a no-op.
-    #[must_use]
     pub(crate) fn make_intrinsic(self, agent: &mut Agent) -> Result<(), TryReserveError> {
         let shape = self.object_shape(agent);
         if shape.is_intrinsic(agent) {

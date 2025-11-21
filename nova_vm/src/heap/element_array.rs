@@ -314,7 +314,6 @@ impl<'gc> ElementsVector<'gc> {
         elements.reserve_elements(self, new_len)
     }
 
-    #[must_use]
     pub(crate) fn push(
         &mut self,
         elements: &mut ElementArrays,
@@ -1249,7 +1248,6 @@ impl<const N: usize> ElementArray<N> {
         }
     }
 
-    #[must_use]
     fn push(
         &mut self,
         source: &[Option<Value>],
@@ -1305,7 +1303,6 @@ impl<const N: usize> ElementArray<N> {
         Ok(index)
     }
 
-    #[must_use]
     fn push_with_removal(
         &mut self,
         source: ElementStorageRef,
@@ -1411,7 +1408,6 @@ impl<const N: usize> PropertyKeyArray<N> {
         self.keys[index.into_index()].as_mut_slice()
     }
 
-    #[must_use]
     fn push(
         &mut self,
         source: &[PropertyKey],
@@ -1443,7 +1439,6 @@ impl<const N: usize> PropertyKeyArray<N> {
         Ok(PropertyKeyIndex::last_property_key_index(&self.keys))
     }
 
-    #[must_use]
     fn push_with_removal(
         &mut self,
         source: &[PropertyKey],
@@ -1504,7 +1499,6 @@ impl<const N: usize> PropertyKeyArray<N> {
 
     /// Push a copy of a PropertyKey storage into the PropertyKeyArray, copying
     /// the first len keys.
-    #[must_use]
     fn push_within<'a>(
         &mut self,
         key_index: PropertyKeyIndex<'a>,
@@ -1523,7 +1517,6 @@ impl<const N: usize> PropertyKeyArray<N> {
 
     /// Push a copy of a PropertyKey storage into the PropertyKeyArray, copying
     /// the first len keys.
-    #[must_use]
     fn push_within_with_removal<'a>(
         &mut self,
         key_index: PropertyKeyIndex<'a>,
@@ -1636,7 +1629,6 @@ impl IndexMut<&ElementsVector<'_>> for Agent {
 }
 
 impl ElementArrays {
-    #[must_use]
     fn push_values(
         &mut self,
         key: ElementArrayKey,
@@ -1680,7 +1672,6 @@ impl ElementArrays {
         }
     }
 
-    #[must_use]
     fn reserve_elements(
         &mut self,
         elements_vector: &mut ElementsVector,
@@ -1698,7 +1689,6 @@ impl ElementArrays {
         )
     }
 
-    #[must_use]
     pub(crate) fn reserve_elements_raw(
         &mut self,
         index: &mut ElementIndex,
@@ -1981,7 +1971,6 @@ impl ElementArrays {
         Ok(())
     }
 
-    #[must_use]
     pub(crate) fn reserve_keys_raw(
         &mut self,
         index: &mut PropertyKeyIndex,
@@ -2002,7 +1991,6 @@ impl ElementArrays {
         Ok(())
     }
 
-    #[must_use]
     pub(crate) fn allocate_elements_with_length(
         &mut self,
         length: usize,
@@ -2011,7 +1999,6 @@ impl ElementArrays {
         Self::allocate_elements_with_capacity(self, cap)
     }
 
-    #[must_use]
     pub(crate) fn allocate_elements_with_capacity(
         &mut self,
         cap: ElementArrayKey,
@@ -2024,7 +2011,6 @@ impl ElementArrays {
         })
     }
 
-    #[must_use]
     fn allocate_object_property_storage(
         &mut self,
         length: usize,
@@ -2043,7 +2029,6 @@ impl ElementArrays {
     }
 
     /// Allocate an empty PropertyKey backing store with the given capacity.
-    #[must_use]
     pub(crate) fn allocate_keys_with_capacity(
         &mut self,
         capacity: usize,
@@ -2083,7 +2068,6 @@ impl ElementArrays {
     }
 
     /// Allocate a new PropertyKey backing store with an added key.
-    #[must_use]
     pub(crate) fn copy_keys_with_addition<'a>(
         &mut self,
         cap: ElementArrayKey,
@@ -2209,7 +2193,6 @@ impl ElementArrays {
     ///
     /// Effectively, those objects would find that their object key-value pairs
     /// no longer match the expected values.
-    #[must_use]
     pub(crate) unsafe fn push_key(
         &mut self,
         cap: &mut ElementArrayKey,
@@ -2258,7 +2241,6 @@ impl ElementArrays {
         Ok(())
     }
 
-    #[must_use]
     pub(crate) fn copy_keys_with_removal<'a>(
         &mut self,
         cap: ElementArrayKey,
@@ -2430,7 +2412,6 @@ impl ElementArrays {
     /// Allocate a new PropertyKey backing store with the given capacity,
     /// copying the first len values into the new allocation from the source
     /// backing store.
-    #[must_use]
     pub(crate) fn copy_keys_with_capacity<'a>(
         &mut self,
         capacity: usize,
@@ -2479,7 +2460,6 @@ impl ElementArrays {
         Ok((new_cap, new_index?))
     }
 
-    #[must_use]
     pub(crate) fn realloc_values_with_removal<'a>(
         &mut self,
         src_cap: ElementArrayKey,
@@ -2913,7 +2893,6 @@ impl ElementArrays {
     }
 
     /// Grow a keys storage to new capacity.
-    #[must_use]
     fn grow_keys_internal<'a>(
         &mut self,
         cap: ElementArrayKey,
@@ -3072,7 +3051,6 @@ impl ElementArrays {
         }
     }
 
-    #[must_use]
     pub(crate) fn allocate_object_property_storage_from_entries_vec<'a>(
         &mut self,
         mut entries: Vec<(
@@ -3100,7 +3078,6 @@ impl ElementArrays {
         self.allocate_object_property_storage(length, &values, descriptors)
     }
 
-    #[must_use]
     pub(crate) fn allocate_property_storage<'a>(
         &mut self,
         values: &[Option<Value<'a>>],
@@ -3110,7 +3087,6 @@ impl ElementArrays {
         self.allocate_object_property_storage(length, values, descriptors)
     }
 
-    #[must_use]
     pub(crate) fn allocate_object_property_storage_from_entries_slice<'a>(
         &mut self,
         entries: &[ObjectEntry<'a>],
