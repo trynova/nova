@@ -132,7 +132,14 @@ impl DataViewConstructor {
             agent,
             new_target.get(agent),
             if buffer_is_shared {
-                ProtoIntrinsics::SharedDataView
+                #[cfg(feature = "shared-array-buffer")]
+                {
+                    ProtoIntrinsics::SharedDataView
+                }
+                #[cfg(not(feature = "shared-array-buffer"))]
+                {
+                    unreachable!()
+                }
             } else {
                 ProtoIntrinsics::DataView
             },

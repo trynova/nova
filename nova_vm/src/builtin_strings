@@ -49,6 +49,7 @@ asUintN
 AsyncFunction
 AsyncGenerator
 AsyncGeneratorFunction
+#[cfg(feature = "atomics")]async
 asyncIterator
 at
 #[cfg(feature = "math")]atan
@@ -290,6 +291,7 @@ NaN
 NEGATIVE_INFINITY
 next
 normalize
+#[cfg(feature = "atomics")]not-equal
 #[cfg(feature = "atomics")]notify
 #[cfg(feature = "date")]now
 null
@@ -298,6 +300,7 @@ Number
 object
 Object
 of
+#[cfg(feature = "atomics")]ok
 #[cfg(feature = "atomics")]or
 ownKeys
 padEnd
@@ -428,6 +431,7 @@ SyntaxError
 #[cfg(feature = "regexp")]test
 then
 throw
+#[cfg(feature = "atomics")]timed-out
 toArray
 #[cfg(feature = "date")]toDateString
 toExponential

@@ -597,6 +597,7 @@ pub(crate) fn try_to_integer_or_infinity<'a>(
 }
 
 /// ### [7.1.5 ToIntegerOrInfinity ( argument )](https://tc39.es/ecma262/#sec-tointegerorinfinity)
+#[cfg(feature = "atomics")]
 pub(crate) fn to_integer_number_or_infinity<'a>(
     agent: &mut Agent,
     argument: Value,
@@ -636,6 +637,7 @@ pub(crate) fn to_integer_number_or_infinity<'a>(
 }
 
 /// ### [7.1.5 ToIntegerOrInfinity ( argument )](https://tc39.es/ecma262/#sec-tointegerorinfinity)
+#[cfg(feature = "atomics")]
 pub(crate) fn number_convert_to_integer_or_infinity<'a>(
     agent: &mut Agent,
     number: Number<'a>,

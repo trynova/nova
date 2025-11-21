@@ -1433,6 +1433,7 @@ fn throw_species_constructor_is_not_a_constructor<'gc>(
 }
 
 /// ### [7.3.22 SpeciesConstructor ( O, defaultConstructor )](https://tc39.es/ecma262/multipage/abstract-operations.html#sec-speciesconstructor)
+#[cfg(feature = "array-buffer")]
 pub(crate) fn try_species_constructor<'gc>(
     agent: &mut Agent,
     o: Object<'gc>,

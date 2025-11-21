@@ -2,12 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::types::SHARED_DATA_VIEW_DISCRIMINANT;
 use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
         types::{
-            DATA_VIEW_DISCRIMINANT, InternalMethods, InternalSlots, Object, OrdinaryObject,
-            SHARED_DATA_VIEW_DISCRIMINANT, Value, Viewable,
+            DATA_VIEW_DISCRIMINANT, InternalMethods, InternalSlots, Object, OrdinaryObject, Value,
+            Viewable,
         },
     },
     engine::{
@@ -20,12 +22,15 @@ use crate::{
     },
 };
 
-use self::data::{DataViewRecord, SharedDataViewRecord};
+use self::data::DataViewRecord;
+#[cfg(feature = "shared-array-buffer")]
+use self::data::SharedDataViewRecord;
 
+#[cfg(feature = "shared-array-buffer")]
+use super::SharedArrayBuffer;
 use super::{
     ArrayBuffer,
     array_buffer::{AnyArrayBuffer, ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset},
-    shared_array_buffer::SharedArrayBuffer,
 };
 
 pub(crate) mod abstract_operations;
@@ -179,6 +184,7 @@ impl<'gc> DataView<'gc> {
 #[repr(transparent)]
 #[cfg(feature = "shared-array-buffer")]
 pub struct SharedDataView<'a>(BaseIndex<'a, SharedDataViewRecord<'static>>);
+#[cfg(feature = "shared-array-buffer")]
 bindable_handle!(SharedDataView);
 
 #[cfg(feature = "shared-array-buffer")]
@@ -497,6 +503,7 @@ impl HeapSweepWeakReference for DataView<'static> {
     }
 }
 
+#[cfg(feature = "shared-array-buffer")]
 impl<'a> CreateHeapData<SharedDataViewRecord<'a>, SharedDataView<'a>> for Heap {
     fn create(&mut self, data: SharedDataViewRecord<'a>) -> SharedDataView<'a> {
         self.shared_data_views.push(data.unbind());
@@ -609,10 +616,12 @@ impl<'gc> AnyDataView<'gc> {
                 // SAFETY: pass-through
                 unsafe { dv.initialise_data(agent, ab, byte_length, byte_offset) }
             }
+            #[cfg(feature = "shared-array-buffer")]
             (AnyDataView::SharedDataView(sdv), AnyArrayBuffer::SharedArrayBuffer(sab)) => {
                 // SAFETY: pass-through
                 unsafe { sdv.initialise_data(agent, sab, byte_length, byte_offset) }
             }
+            #[cfg(feature = "shared-array-buffer")]
             _ => unreachable!(),
         }
     }

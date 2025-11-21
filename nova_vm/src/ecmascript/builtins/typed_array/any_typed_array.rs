@@ -2,20 +2,27 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::types::{
-    SHARED_BIGINT_64_ARRAY_DISCRIMINANT, SHARED_BIGUINT_64_ARRAY_DISCRIMINANT,
-    SHARED_FLOAT_32_ARRAY_DISCRIMINANT, SHARED_FLOAT_64_ARRAY_DISCRIMINANT,
-    SHARED_INT_8_ARRAY_DISCRIMINANT, SHARED_INT_16_ARRAY_DISCRIMINANT,
-    SHARED_INT_32_ARRAY_DISCRIMINANT, SHARED_UINT_8_ARRAY_DISCRIMINANT,
-    SHARED_UINT_8_CLAMPED_ARRAY_DISCRIMINANT, SHARED_UINT_16_ARRAY_DISCRIMINANT,
-    SHARED_UINT_32_ARRAY_DISCRIMINANT,
-};
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::{builtins::typed_array::Float16Array, types::FLOAT_16_ARRAY_DISCRIMINANT};
 #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
 use crate::ecmascript::{
     builtins::typed_array::SharedFloat16Array, types::SHARED_FLOAT_16_ARRAY_DISCRIMINANT,
+};
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::{
+    builtins::{
+        SharedBigInt64Array, SharedBigUint64Array, SharedFloat32Array, SharedFloat64Array,
+        SharedInt8Array, SharedInt16Array, SharedInt32Array, SharedUint8Array,
+        SharedUint8ClampedArray, SharedUint16Array, SharedUint32Array,
+    },
+    types::{
+        SHARED_BIGINT_64_ARRAY_DISCRIMINANT, SHARED_BIGUINT_64_ARRAY_DISCRIMINANT,
+        SHARED_FLOAT_32_ARRAY_DISCRIMINANT, SHARED_FLOAT_64_ARRAY_DISCRIMINANT,
+        SHARED_INT_8_ARRAY_DISCRIMINANT, SHARED_INT_16_ARRAY_DISCRIMINANT,
+        SHARED_INT_32_ARRAY_DISCRIMINANT, SHARED_UINT_8_ARRAY_DISCRIMINANT,
+        SHARED_UINT_8_CLAMPED_ARRAY_DISCRIMINANT, SHARED_UINT_16_ARRAY_DISCRIMINANT,
+        SHARED_UINT_32_ARRAY_DISCRIMINANT,
+    },
 };
 use crate::{
     ecmascript::{
@@ -30,10 +37,7 @@ use crate::{
             },
             typed_array::{
                 BigInt64Array, BigUint64Array, Float32Array, Float64Array, Int8Array, Int16Array,
-                Int32Array, SharedBigInt64Array, SharedBigUint64Array, SharedFloat32Array,
-                SharedFloat64Array, SharedInt8Array, SharedInt16Array, SharedInt32Array,
-                SharedUint8Array, SharedUint8ClampedArray, SharedUint16Array, SharedUint32Array,
-                TypedArray, Uint8Array, Uint8ClampedArray, Uint16Array, Uint32Array,
+                Int32Array, TypedArray, Uint8Array, Uint8ClampedArray, Uint16Array, Uint32Array,
             },
         },
         execution::{Agent, JsResult, ProtoIntrinsics, agent::TryResult},
@@ -129,6 +133,8 @@ impl AnyTypedArray<'_> {
 
     /// Returns true if the TypedArray is an Int32Array or BigInt64Array
     /// (shared or not), false otherwise.
+    #[inline(always)]
+    #[cfg(feature = "atomics")]
     pub(crate) fn is_waitable(self) -> bool {
         #[cfg(not(feature = "shared-array-buffer"))]
         {
@@ -148,6 +154,7 @@ impl AnyTypedArray<'_> {
 
     /// Returns true if the TypedArray contains integers with wrapping overflow
     /// semantics.
+    #[cfg(feature = "atomics")]
     pub(crate) fn is_integer(self) -> bool {
         #[cfg(not(feature = "shared-array-buffer"))]
         {
@@ -695,6 +702,7 @@ impl<'a> TypedArrayAbstractOperations<'a> for AnyTypedArray<'a> {
         TypedArray::try_from(self).is_err()
     }
 
+    /// \[\[ByteOffset]]
     fn byte_offset(self, agent: &Agent) -> usize {
         any_typed_array_delegate!(self, byte_offset, agent)
     }

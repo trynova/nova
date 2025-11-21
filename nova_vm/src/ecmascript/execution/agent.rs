@@ -23,6 +23,8 @@ use ahash::AHashMap;
 
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
+#[cfg(feature = "atomics")]
+use crate::ecmascript::builtins::structured_data::atomics_object::WaitAsyncJob;
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::execution::clear_kept_objects;
 use crate::{
@@ -69,12 +71,16 @@ use super::{
     initialize_default_realm, initialize_host_defined_realm,
 };
 use core::{any::Any, cell::RefCell, ops::ControlFlow, ptr::NonNull};
-use std::collections::TryReserveError;
+use std::{collections::TryReserveError, sync::Arc};
 
 #[derive(Debug, Default)]
 pub struct Options {
     pub disable_gc: bool,
     pub print_internals: bool,
+    /// Controls the \[\[CanBlock]] option of the Agent Record. If set to true,
+    /// calling `Atomics.wait()` will throw an error to signal that blocking
+    /// the main thread is not allowed.
+    pub no_block: bool,
 }
 
 pub type JsResult<'a, T> = core::result::Result<T, JsError<'a>>;
@@ -240,6 +246,8 @@ pub fn unwrap_try<'a, T: 'a>(try_result: TryResult<'a, T>) -> T {
 pub(crate) enum InnerJob {
     PromiseResolveThenable(PromiseResolveThenableJob),
     PromiseReaction(PromiseReactionJob),
+    #[cfg(feature = "atomics")]
+    WaitAsync(WaitAsyncJob),
 }
 
 pub struct Job {
@@ -248,6 +256,14 @@ pub struct Job {
 }
 
 impl Job {
+    pub fn is_finished(&self) -> bool {
+        match &self.inner {
+            #[cfg(feature = "atomics")]
+            InnerJob::WaitAsync(job) => job.is_finished(),
+            _ => true,
+        }
+    }
+
     pub fn run<'a>(self, agent: &mut Agent, gc: GcScope<'a, '_>) -> JsResult<'a, ()> {
         let mut id = 0;
         ndt::job_evaluation_start!(|| {
@@ -270,6 +286,8 @@ impl Job {
         let result = match self.inner {
             InnerJob::PromiseResolveThenable(job) => job.run(agent, gc),
             InnerJob::PromiseReaction(job) => job.run(agent, gc),
+            #[cfg(feature = "atomics")]
+            InnerJob::WaitAsync(job) => job.run(agent, gc),
         };
 
         if pushed_context {
@@ -295,31 +313,86 @@ pub enum GrowSharedArrayBufferResult {
     Handled = 1,
 }
 
+pub trait HostEnqueueGenericJobHandle {
+    /// ### [9.5.4 HostEnqueueGenericJob ( job, realm )](https://tc39.es/ecma262/#sec-hostenqueuegenericjob)
+    ///
+    /// The host-defined abstract operation HostEnqueueGenericJob takes
+    /// arguments _job_ (a Job Abstract Closure) and _realm_ (a Realm Record)
+    /// and returns unused. It schedules _job_ in the realm realm in the agent
+    /// signified by _realm_.\[\[AgentSignifier]] to be performed at some
+    /// future time. The Abstract Closures used with this algorithm are
+    /// intended to be scheduled without additional constraints, such as
+    /// priority and ordering.
+    ///
+    /// An implementation of HostEnqueueGenericJob must conform to the
+    /// requirements in 9.5.
+    fn enqueue_generic_job(&self, job: Job);
+}
+
 pub trait HostHooks: core::fmt::Debug {
     /// ### [19.2.1.2 HostEnsureCanCompileStrings ( calleeRealm )](https://tc39.es/ecma262/#sec-hostensurecancompilestrings)
+    #[allow(unused_variables)]
     fn ensure_can_compile_strings<'a>(
         &self,
-        _callee_realm: &mut RealmRecord,
-        _gc: NoGcScope<'a, '_>,
+        callee_realm: &mut RealmRecord,
+        gc: NoGcScope<'a, '_>,
     ) -> JsResult<'a, ()> {
         // The default implementation of HostEnsureCanCompileStrings is to return NormalCompletion(unused).
         Ok(())
     }
 
     /// ### [20.2.5 HostHasSourceTextAvailable ( func )](https://tc39.es/ecma262/#sec-hosthassourcetextavailable)
-    fn has_source_text_available(&self, _func: Function) -> bool {
+    #[allow(unused_variables)]
+    fn has_source_text_available(&self, func: Function) -> bool {
         // The default implementation of HostHasSourceTextAvailable is to return true.
         true
     }
 
+    /// Get a shareable handle to the HostEnqueueGenericJob function.
+    ///
+    /// This is used by off-thread tasks that may or may not ever resolve. By
+    /// default the function returns None to indicate that off-thread tasks are
+    /// not supported.
+    fn get_enqueue_generic_job_handle(&self) -> Option<Arc<dyn HostEnqueueGenericJobHandle>> {
+        None
+    }
+
+    /// ### [9.5.4 HostEnqueueGenericJob ( job, realm )](https://tc39.es/ecma262/#sec-hostenqueuegenericjob)
+    ///
+    /// The host-defined abstract operation HostEnqueueGenericJob takes
+    /// arguments _job_ (a Job Abstract Closure) and _realm_ (a Realm Record)
+    /// and returns unused. It schedules _job_ in the realm realm in the agent
+    /// signified by _realm_.\[\[AgentSignifier]] to be performed at some
+    /// future time. The Abstract Closures used with this algorithm are
+    /// intended to be scheduled without additional constraints, such as
+    /// priority and ordering.
+    ///
+    /// An implementation of HostEnqueueGenericJob must conform to the
+    /// requirements in 9.5.
+    fn enqueue_generic_job(&self, job: Job);
+
     /// ### [9.5.5 HostEnqueuePromiseJob ( job, realm )](https://tc39.es/ecma262/#sec-hostenqueuepromisejob)
     fn enqueue_promise_job(&self, job: Job);
 
+    /// ### [9.5.6 HostEnqueueTimeoutJob ( timeoutJob, realm, milliseconds )](https://tc39.es/ecma262/#sec-hostenqueuetimeoutjob)
+    ///
+    /// The host-defined abstract operation HostEnqueueTimeoutJob takes
+    /// arguments _timeoutJob_ (a Job Abstract Closure), _realm_ (a Realm
+    /// Record), and _milliseconds_ (a non-negative finite Number) and returns
+    /// unused. It schedules _timeoutJob_ in the realm _realm_ in the agent
+    /// signified by _realm_.\[\[AgentSignifier]] to be performed after at
+    /// least _milliseconds_ milliseconds.
+    ///
+    /// An implementation of HostEnqueueTimeoutJob must conform to the
+    /// requirements in 9.5.
+    fn enqueue_timeout_job(&self, timeout_job: Job, milliseconds: u64);
+
     /// ### [27.2.1.9 HostPromiseRejectionTracker ( promise, operation )](https://tc39.es/ecma262/#sec-host-promise-rejection-tracker)
+    #[allow(unused_variables)]
     fn promise_rejection_tracker(
         &self,
-        _promise: Promise,
-        _operation: PromiseRejectionTrackerOperation,
+        promise: Promise,
+        operation: PromiseRejectionTrackerOperation,
     ) {
         // The default implementation of HostPromiseRejectionTracker is to return unused.
     }
@@ -627,6 +700,24 @@ impl GcAgent {
         result
     }
 
+    pub fn run_job<F, R>(&mut self, job: Job, then: F) -> R
+    where
+        F: for<'agent, 'gc, 'scope> FnOnce(
+            &'agent mut Agent,
+            JsResult<'_, ()>,
+            GcScope<'gc, 'scope>,
+        ) -> R,
+    {
+        assert!(self.agent.execution_context_stack.is_empty());
+        let result = self.agent.run_job(job, then);
+        #[cfg(feature = "weak-refs")]
+        clear_kept_objects(&mut self.agent);
+        assert!(self.agent.execution_context_stack.is_empty());
+        assert!(self.agent.vm_stack.is_empty());
+        self.agent.stack_refs.borrow_mut().clear();
+        result
+    }
+
     fn get_realm_by_root(&self, realm_root: &RealmRoot) -> Realm<'static> {
         let index = realm_root.index;
         let error_message = "Couldn't find Realm by RealmRoot";
@@ -703,6 +794,11 @@ impl Agent {
             private_names_counter: 0,
             module_async_evaluation_count: 0,
         }
+    }
+
+    /// Returns the value of the Agent's `[[CanBlock]]` field.
+    pub fn can_suspend(&self) -> bool {
+        !self.options.no_block
     }
 
     pub fn gc(&mut self, gc: GcScope) {
@@ -790,7 +886,7 @@ impl Agent {
         self.get_created_realm_root()
     }
 
-    pub fn run_in_realm<F, R>(&mut self, realm: Realm, func: F) -> R
+    fn run_in_realm<F, R>(&mut self, realm: Realm, func: F) -> R
     where
         F: for<'agent, 'gc, 'scope> FnOnce(&'agent mut Agent, GcScope<'gc, 'scope>) -> R,
     {
@@ -805,6 +901,35 @@ impl Agent {
         let gc = GcScope::new(&mut gc, &mut scope);
 
         let result = func(self, gc);
+        assert_eq!(
+            self.execution_context_stack.len(),
+            execution_stack_depth_before_call + 1
+        );
+        self.pop_execution_context();
+        result
+    }
+
+    fn run_job<F, R>(&mut self, job: Job, then: F) -> R
+    where
+        F: for<'agent, 'gc, 'scope> FnOnce(
+            &'agent mut Agent,
+            JsResult<'_, ()>,
+            GcScope<'gc, 'scope>,
+        ) -> R,
+    {
+        let realm = job.realm.unwrap();
+        let execution_stack_depth_before_call = self.execution_context_stack.len();
+        self.push_execution_context(ExecutionContext {
+            ecmascript_code: None,
+            function: None,
+            realm,
+            script_or_module: None,
+        });
+        let (mut gc, mut scope) = unsafe { GcScope::create_root() };
+        let mut gc = GcScope::new(&mut gc, &mut scope);
+
+        let result = job.run(self, gc.reborrow()).unbind().bind(gc.nogc());
+        let result = then(self, result.unbind(), gc);
         assert_eq!(
             self.execution_context_stack.len(),
             execution_stack_depth_before_call + 1

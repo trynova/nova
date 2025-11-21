@@ -26,7 +26,15 @@ use super::agent::{HostHooks, Job};
 pub struct DefaultHostHooks;
 
 impl HostHooks for DefaultHostHooks {
+    fn enqueue_generic_job(&self, _job: Job) {
+        // No-op
+    }
+
     fn enqueue_promise_job(&self, _job: Job) {
+        // No-op
+    }
+
+    fn enqueue_timeout_job(&self, _timeout_job: Job, _milliseconds: u64) {
         // No-op
     }
 }

@@ -94,3 +94,7 @@ pub use builtin_function::{
 pub(crate) use builtin_function::{BuiltinIntrinsic, BuiltinIntrinsicConstructor};
 pub use control_abstraction_objects::*;
 pub(crate) use ecmascript_function::*;
+#[cfg(feature = "shared-array-buffer")]
+pub use shared_array_buffer::SharedArrayBuffer;
+#[cfg(feature = "array-buffer")]
+pub use typed_array::*;

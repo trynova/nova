@@ -78,6 +78,16 @@ pub struct GenericSharedTypedArray<'a, T: Viewable>(
 );
 
 impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
+    pub fn new_from_array_buffer(agent: &mut Agent, sab: SharedArrayBuffer<'ta>) -> Self {
+        agent.heap.create(SharedTypedArrayRecord {
+            object_index: None,
+            viewed_array_buffer: sab,
+            byte_length: ViewedArrayBufferByteLength::auto(),
+            byte_offset: ViewedArrayBufferByteOffset::value(0),
+            array_length: TypedArrayArrayLength::auto(),
+        })
+    }
+
     /// Constant to be used only for creating a build-time Self.
     pub(crate) const _DEF: Self = Self(BaseIndex::ZERO, PhantomData);
 
@@ -91,6 +101,11 @@ impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
         if core::any::TypeId::of::<T>() == core::any::TypeId::of::<()>() {
             panic!("Invalid GenericSharedTypedArray invocation using void type");
         }
+    }
+
+    /// \[\[ViewedArrayBuffer]]
+    pub fn get_viewed_array_buffer(self, agent: &Agent) -> SharedArrayBuffer<'ta> {
+        self.into_void_array().get(agent).viewed_array_buffer
     }
 
     /// ### [10.4.5.18 TypedArraySetElement ( O, index, value )](https://tc39.es/ecma262/#sec-typedarraysetelement)
@@ -854,6 +869,32 @@ pub enum SharedTypedArray<'a> {
     SharedFloat64Array(SharedFloat64Array<'a>) = SHARED_FLOAT_64_ARRAY_DISCRIMINANT,
 }
 bindable_handle!(SharedTypedArray);
+
+impl<'a> SharedTypedArray<'a> {
+    #[inline(always)]
+    const fn into_void_array(self) -> SharedVoidArray<'a> {
+        match self {
+            SharedTypedArray::SharedInt8Array(ta) => ta.into_void_array(),
+            SharedTypedArray::SharedUint8Array(ta) => ta.into_void_array(),
+            SharedTypedArray::SharedUint8ClampedArray(ta) => ta.into_void_array(),
+            SharedTypedArray::SharedInt16Array(ta) => ta.into_void_array(),
+            SharedTypedArray::SharedUint16Array(ta) => ta.into_void_array(),
+            SharedTypedArray::SharedInt32Array(ta) => ta.into_void_array(),
+            SharedTypedArray::SharedUint32Array(ta) => ta.into_void_array(),
+            SharedTypedArray::SharedBigInt64Array(ta) => ta.into_void_array(),
+            SharedTypedArray::SharedBigUint64Array(ta) => ta.into_void_array(),
+            #[cfg(feature = "proposal-float16array")]
+            SharedTypedArray::SharedFloat16Array(ta) => ta.into_void_array(),
+            SharedTypedArray::SharedFloat32Array(ta) => ta.into_void_array(),
+            SharedTypedArray::SharedFloat64Array(ta) => ta.into_void_array(),
+        }
+    }
+
+    /// \[\[ViewedArrayBuffer]]
+    pub fn viewed_array_buffer(self, agent: &Agent) -> SharedArrayBuffer<'a> {
+        self.into_void_array().get(agent).viewed_array_buffer
+    }
+}
 
 macro_rules! for_shared_typed_array {
     ($value: ident, $ta: ident, $expr: expr) => {
@@ -1749,6 +1790,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         true
     }
 
+    /// \[\[ByteOffset]]
     #[inline(always)]
     fn byte_offset(self, agent: &Agent) -> usize {
         let byte_offset = self.into_void_array().get(agent).byte_offset;
@@ -1801,6 +1843,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         size_of::<T>()
     }
 
+    /// \[\[ViewedArrayBuffer]]
     fn viewed_array_buffer(self, agent: &Agent) -> AnyArrayBuffer<'a> {
         self.into_void_array().get(agent).viewed_array_buffer.into()
     }

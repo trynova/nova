@@ -18,6 +18,7 @@ pub use language::{
     OrdinaryObject, Primitive, PropertyKey, PropertyKeySet, String, Symbol, TryGetResult, Value,
     bigint,
 };
-pub use spec::PrivateName;
-pub use spec::PropertyDescriptor;
+#[cfg(feature = "shared-array-buffer")]
+pub use spec::SharedDataBlock;
 pub(crate) use spec::*;
+pub use spec::{PrivateName, PropertyDescriptor};

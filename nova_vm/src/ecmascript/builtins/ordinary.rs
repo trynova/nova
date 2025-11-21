@@ -15,6 +15,8 @@ use caches::{CacheToPopulate, Caches, PropertyLookupCache, PropertyOffset};
 
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::data_view::data::SharedDataViewRecord;
+#[cfg(feature = "array-buffer")]
+use crate::ecmascript::types::try_get_result_into_value;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::{
@@ -25,8 +27,7 @@ use crate::{
             agent::{TryError, TryResult, unwrap_try},
         },
         types::{
-            IntoValue, SetCachedProps, SetResult, TryGetResult, TryHasResult,
-            handle_try_get_result, try_get_result_into_value,
+            IntoValue, SetCachedProps, SetResult, TryGetResult, TryHasResult, handle_try_get_result,
         },
     },
     engine::{
@@ -2069,6 +2070,7 @@ fn get_intrinsic_constructor<'a>(
     }
 }
 
+#[cfg(feature = "array-buffer")]
 pub(crate) fn try_get_prototype_from_constructor<'a>(
     agent: &mut Agent,
     constructor: Function<'a>,

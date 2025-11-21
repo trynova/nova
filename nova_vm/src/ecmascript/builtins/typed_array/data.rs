@@ -4,13 +4,14 @@
 
 use ahash::AHashMap;
 
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::builtins::{SharedArrayBuffer, SharedVoidArray};
 use crate::{
     ecmascript::{
         builtins::{
             ArrayBuffer,
             array_buffer::{ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset},
-            shared_array_buffer::SharedArrayBuffer,
-            typed_array::{SharedVoidArray, VoidArray},
+            typed_array::VoidArray,
         },
         types::OrdinaryObject,
     },
@@ -148,6 +149,7 @@ impl Default for TypedArrayRecord<'_> {
 }
 
 #[derive(Debug, Clone)]
+#[cfg(feature = "shared-array-buffer")]
 pub struct SharedTypedArrayRecord<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     /// ### [\[\[ViewedArrayBuffer\]\]](https://tc39.es/ecma262/#sec-properties-of-typedarray-instances)
@@ -159,8 +161,10 @@ pub struct SharedTypedArrayRecord<'a> {
     /// ### [\[\[ArrayLength\]\]](https://tc39.es/ecma262/#sec-properties-of-typedarray-instances)
     pub(crate) array_length: TypedArrayArrayLength,
 }
+#[cfg(feature = "shared-array-buffer")]
 bindable_handle!(SharedTypedArrayRecord);
 
+#[cfg(feature = "shared-array-buffer")]
 impl<'a> SharedTypedArrayRecord<'a> {
     /// Get the byte offset value of this SharedTypedArrayRecord.
     #[inline(always)]
@@ -196,6 +200,7 @@ impl<'a> SharedTypedArrayRecord<'a> {
     }
 }
 
+#[cfg(feature = "shared-array-buffer")]
 impl Default for SharedTypedArrayRecord<'_> {
     fn default() -> Self {
         Self {
@@ -234,6 +239,7 @@ impl HeapMarkAndSweep for TypedArrayRecord<'static> {
     }
 }
 
+#[cfg(feature = "shared-array-buffer")]
 impl HeapMarkAndSweep for SharedTypedArrayRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {

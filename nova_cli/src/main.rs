@@ -12,6 +12,9 @@ use std::{
     path::PathBuf,
     ptr::NonNull,
     rc::Rc,
+    sync::mpsc,
+    thread,
+    time::Duration,
 };
 
 use clap::{Parser as ClapParser, Subcommand};
@@ -33,7 +36,7 @@ use nova_vm::{
             },
             script::{HostDefined, parse_script, script_evaluation},
         },
-        types::{Object, String as JsString, Value},
+        types::{Object, SharedDataBlock, String as JsString, Value},
     },
     engine::{
         Global,
@@ -66,22 +69,31 @@ enum Command {
 
     /// Evaluates a file
     Eval {
+        /// Exposes internal functions needed by Test262.
         #[arg(long)]
         expose_internals: bool,
 
+        /// Evaluates the last file as an ECMAScript module.
         #[arg(short, long)]
         module: bool,
 
+        /// Sets the [[CanBlock]] value of the Agent Record to false.
+        #[arg(long)]
+        no_block: bool,
+
+        /// Disabled garbage collection.
         #[arg(long)]
         nogc: bool,
 
+        /// Evaluates all scripts in sloppy mode.
         #[arg(short, long)]
         no_strict: bool,
 
-        /// The files to evaluate
+        /// The files to evaluate.
         #[arg(required = true)]
         paths: Vec<String>,
 
+        /// Prints all internal data during evaluation.
         #[arg(short, long)]
         verbose: bool,
     },
@@ -99,9 +111,21 @@ enum Command {
     },
 }
 
-#[derive(Default)]
+enum HostToChildMessage {
+    Broadcast(SharedDataBlock),
+}
+
+enum ChildToHostMessage {
+    Joined,
+    Report(String),
+}
+
 struct CliHostHooks {
     promise_job_queue: RefCell<VecDeque<Job>>,
+    macrotask_queue: RefCell<Vec<Job>>,
+    receiver: mpsc::Receiver<ChildToHostMessage>,
+    own_sender: mpsc::SyncSender<ChildToHostMessage>,
+    child_senders: RefCell<Vec<mpsc::SyncSender<HostToChildMessage>>>,
 }
 
 // RefCell doesn't implement Debug
@@ -114,6 +138,21 @@ impl Debug for CliHostHooks {
 }
 
 impl CliHostHooks {
+    fn new() -> Self {
+        let (sender, receiver) = mpsc::sync_channel(10);
+        Self {
+            promise_job_queue: Default::default(),
+            macrotask_queue: Default::default(),
+            receiver,
+            own_sender: sender,
+            child_senders: Default::default(),
+        }
+    }
+
+    fn add_child(&self, child_sender: mpsc::SyncSender<HostToChildMessage>) {
+        self.child_senders.borrow_mut().push(child_sender);
+    }
+
     fn has_promise_jobs(&self) -> bool {
         !self.promise_job_queue.borrow().is_empty()
     }
@@ -121,12 +160,42 @@ impl CliHostHooks {
     fn pop_promise_job(&self) -> Option<Job> {
         self.promise_job_queue.borrow_mut().pop_front()
     }
+
+    fn has_macrotasks(&self) -> bool {
+        !self.macrotask_queue.borrow().is_empty()
+    }
+
+    fn pop_macrotask(&self) -> Option<Job> {
+        let mut off_thread_job_queue = self.macrotask_queue.borrow_mut();
+        let mut counter = 0u8;
+        while !off_thread_job_queue.is_empty() {
+            counter = counter.wrapping_add(1);
+            for (i, job) in off_thread_job_queue.iter().enumerate() {
+                if job.is_finished() {
+                    let job = off_thread_job_queue.swap_remove(i);
+                    return Some(job);
+                }
+            }
+            if counter == 0 {
+                thread::sleep(Duration::from_millis(5));
+            } else {
+                core::hint::spin_loop();
+            }
+        }
+        None
+    }
 }
 
 impl HostHooks for CliHostHooks {
+    fn enqueue_generic_job(&self, job: Job) {
+        self.macrotask_queue.borrow_mut().push(job);
+    }
+
     fn enqueue_promise_job(&self, job: Job) {
         self.promise_job_queue.borrow_mut().push_back(job);
     }
+
+    fn enqueue_timeout_job(&self, _timeout_job: Job, _milliseconds: u64) {}
 
     fn load_imported_module<'gc>(
         &self,
@@ -215,6 +284,10 @@ impl HostHooks for CliHostHooks {
         });
         finish_loading_imported_module(agent, referrer, module_request, payload, result, gc);
     }
+
+    fn get_host_data(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 struct ModuleMap {
@@ -272,16 +345,57 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Command::Eval {
             verbose,
             module,
+            no_block,
             no_strict,
             nogc,
             expose_internals,
             paths,
         } => {
-            let host_hooks: NonNull<CliHostHooks> = NonNull::from(Box::leak(Box::default()));
+            fn run_microtask_queue<'gc>(
+                agent: &mut Agent,
+                host_hooks: &CliHostHooks,
+                mut gc: GcScope<'gc, '_>,
+            ) -> JsResult<'gc, ()> {
+                while let Some(job) = host_hooks.pop_promise_job() {
+                    job.run(agent, gc.reborrow()).unbind()?.bind(gc.nogc());
+                }
+                Ok(())
+            }
+
+            fn print_result(
+                agent: &mut Agent,
+                result: JsResult<Value>,
+                verbose: bool,
+                gc: GcScope,
+            ) {
+                match result {
+                    Ok(result) => {
+                        if verbose {
+                            println!("{result:?}");
+                        }
+                    }
+                    Err(error) => {
+                        eprintln!(
+                            "Uncaught exception: {}",
+                            error
+                                .value()
+                                .unbind()
+                                .string_repr(agent, gc)
+                                .as_wtf8(agent)
+                                .to_string_lossy()
+                        );
+                        std::process::exit(1);
+                    }
+                }
+            }
+
+            let host_hooks: NonNull<CliHostHooks> =
+                NonNull::from(Box::leak(Box::new(CliHostHooks::new())));
             let mut agent = GcAgent::new(
                 Options {
                     disable_gc: nogc,
                     print_internals: verbose,
+                    no_block,
                 },
                 // SAFETY: Host hooks is a valid pointer.
                 unsafe { host_hooks.as_ref() },
@@ -307,6 +421,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             realm.initialize_host_defined(&mut agent, module_map.clone());
             let last_index = paths.len() - 1;
             for (index, path) in paths.into_iter().enumerate() {
+                // SAFETY: Still valid.
+                let host_hooks = unsafe { host_hooks.as_ref() };
                 agent.run_in_realm(
                     &realm,
                     |agent, mut gc| -> Result<(), Box<dyn std::error::Error>> {
@@ -331,11 +447,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             };
                             module_map
                                 .add(absolute_path, Global::new(agent, module.unbind().into()));
-                            agent.run_parsed_module(
-                                module.unbind(),
-                                Some(module_map.clone()),
-                                gc.reborrow(),
-                            )
+                            agent
+                                .run_parsed_module(
+                                    module.unbind(),
+                                    Some(module_map.clone()),
+                                    gc.reborrow(),
+                                )
+                                .unbind()
+                                .bind(gc.nogc())
                         } else {
                             let script = match parse_script(
                                 agent,
@@ -353,73 +472,69 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 }
                             };
                             script_evaluation(agent, script.unbind(), gc.reborrow())
-                        };
-
-                        fn run_microtask_queue<'gc>(
-                            agent: &mut Agent,
-                            host_hooks: &CliHostHooks,
-                            result: JsResult<Value>,
-                            mut gc: GcScope<'gc, '_>,
-                        ) -> JsResult<'gc, Value<'gc>> {
-                            match result.bind(gc.nogc()) {
-                                Ok(result) => {
-                                    let ok_result = result.unbind().scope(agent, gc.nogc());
-                                    while let Some(job) = host_hooks.pop_promise_job() {
-                                        job.run(agent, gc.reborrow()).unbind()?.bind(gc.nogc());
-                                    }
-                                    Ok(ok_result.get(agent).bind(gc.into_nogc()))
-                                }
-                                Err(_) => result.unbind(),
-                            }
-                        }
-
-                        // SAFETY: Still valid.
-                        let host_hooks = unsafe { host_hooks.as_ref() };
-                        let result = if host_hooks.has_promise_jobs() {
-                            run_microtask_queue(agent, host_hooks, result.unbind(), gc.reborrow())
                                 .unbind()
                                 .bind(gc.nogc())
+                        };
+
+                        let result = if let Ok(result) = result
+                            && host_hooks.has_promise_jobs()
+                        {
+                            let result = result.scope(agent, gc.nogc());
+                            let microtask_result =
+                                run_microtask_queue(agent, host_hooks, gc.reborrow())
+                                    .unbind()
+                                    .bind(gc.nogc());
+                            // SAFETY: not shared.
+                            microtask_result.map(|_| unsafe { result.take(agent) }.bind(gc.nogc()))
                         } else {
                             result
                         };
 
-                        match result {
-                            Ok(result) => {
-                                if verbose {
-                                    println!("{result:?}");
-                                }
-                            }
-                            Err(error) => {
-                                eprintln!(
-                                    "Uncaught exception: {}",
-                                    error
-                                        .value()
-                                        .unbind()
-                                        .string_repr(agent, gc.reborrow())
-                                        .as_wtf8(agent)
-                                        .to_string_lossy()
-                                );
-                                std::process::exit(1);
-                            }
-                        }
+                        print_result(agent, result.unbind(), verbose, gc);
                         Ok(())
                     },
                 )?;
             }
+            {
+                // SAFETY: Still valid.
+                let host_hooks = unsafe { host_hooks.as_ref() };
+                if host_hooks.has_macrotasks() {
+                    while let Some(job) = host_hooks.pop_macrotask() {
+                        agent.run_job(job, |agent, result, mut gc| {
+                            let result = if result.is_ok() && host_hooks.has_promise_jobs() {
+                                run_microtask_queue(agent, host_hooks, gc.reborrow())
+                                    .unbind()
+                                    .bind(gc.nogc())
+                            } else {
+                                result
+                            };
+                            print_result(
+                                agent,
+                                result.map(|_| Value::Undefined).unbind(),
+                                false,
+                                gc,
+                            );
+                        });
+                    }
+                }
+            }
             agent.remove_realm(realm);
+            drop(agent);
             // SAFETY: Host hooks are no longer used as agent is dropped.
-            let _ = unsafe { Box::from_raw(host_hooks.as_ptr()) };
+            drop(unsafe { Box::from_raw(host_hooks.as_ptr()) });
         }
         Command::Repl {
             expose_internals,
             print_internals,
             disable_gc,
         } => {
-            let host_hooks: &CliHostHooks = &*Box::leak(Box::default());
+            let host_hooks: &CliHostHooks = &*Box::leak(Box::new(CliHostHooks::new()));
             let mut agent = GcAgent::new(
                 Options {
                     disable_gc,
                     print_internals,
+                    // Never allow blocking in the REPL.
+                    no_block: true,
                 },
                 host_hooks,
             );

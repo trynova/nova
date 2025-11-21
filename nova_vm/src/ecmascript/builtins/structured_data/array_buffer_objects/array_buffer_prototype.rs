@@ -444,6 +444,7 @@ pub(crate) fn require_internal_slot_any_array_buffer<'a>(
     match o {
         // 1. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         Value::ArrayBuffer(sab) => Ok(sab.into()),
+        #[cfg(feature = "shared-array-buffer")]
         Value::SharedArrayBuffer(sab) => Ok(sab.into()),
         _ => Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,

@@ -201,6 +201,9 @@ impl BaseTest262Runner {
             if metadata.flags.module {
                 command.arg("--module");
             }
+            if metadata.flags.can_block == Some(false) {
+                command.arg("--no-block");
+            }
             if !strict {
                 command.arg("--no-strict");
             }

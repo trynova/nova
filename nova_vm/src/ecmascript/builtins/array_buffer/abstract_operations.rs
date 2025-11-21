@@ -5,13 +5,15 @@
 use ecmascript_atomics::Ordering;
 
 use super::{AnyArrayBuffer, ArrayBuffer, InternalBuffer};
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::types::SharedDataBlock;
 use crate::{
     ecmascript::{
         abstract_operations::{operations_on_objects::get, type_conversion::to_index},
         builtins::ordinary::ordinary_create_from_constructor,
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, Function, Numeric, Object, SharedDataBlock, Value, Viewable,
+            BUILTIN_STRING_MEMORY, Function, Numeric, Object, Value, Viewable,
             create_byte_data_block,
         },
     },
@@ -218,6 +220,7 @@ pub(crate) fn raw_bytes_to_numeric<'a, T: Viewable>(
 /// TypedArray element type), isTypedArray (a Boolean), and order (SEQ-CST
 /// or UNORDERED) and returns a List of byte values.
 #[inline(always)]
+#[cfg(feature = "shared-array-buffer")]
 pub(crate) fn get_raw_bytes_from_shared_block<T: Viewable>(
     block: &SharedDataBlock,
     byte_index: usize,
@@ -265,6 +268,7 @@ pub(crate) fn get_value_from_buffer<'a, T: Viewable>(
     // 4. Let elementSize be the Element Size value specified in Table 71 for Element Type type.
     let raw_value = match array_buffer {
         // 5. If IsSharedArrayBuffer(arrayBuffer) is true, then
+        #[cfg(feature = "shared-array-buffer")]
         AnyArrayBuffer::SharedArrayBuffer(sab) => {
             // 3. Let block be arrayBuffer.[[ArrayBufferData]].
             let block = sab.get_data_block(agent);
@@ -275,6 +279,7 @@ pub(crate) fn get_value_from_buffer<'a, T: Viewable>(
         }
         // 6. Else,
         AnyArrayBuffer::ArrayBuffer(ab) => {
+            let _ = order;
             // 3. Let block be arrayBuffer.[[ArrayBufferData]].
             let block = agent[ab].get_data_block();
             // a. Let rawValue be a List whose elements are bytes from block at indices
@@ -377,6 +382,7 @@ pub(crate) fn set_value_in_buffer<T: Viewable>(
     let raw_bytes = numeric_to_raw_bytes::<T>(agent, value, is_little_endian);
     match array_buffer {
         // 8. If IsSharedArrayBuffer(arrayBuffer) is true, then
+        #[cfg(feature = "shared-array-buffer")]
         AnyArrayBuffer::SharedArrayBuffer(sab) => {
             // 4. Let block be arrayBuffer.[[ArrayBufferData]].
             let block = sab.get_data_block(agent);
@@ -396,6 +402,8 @@ pub(crate) fn set_value_in_buffer<T: Viewable>(
         }
         // 9. Else,
         AnyArrayBuffer::ArrayBuffer(ab) => {
+            let _ = order;
+            let _ = is_typed_array;
             // 4. Let block be arrayBuffer.[[ArrayBufferData]].
             let block = agent[ab].get_data_block_mut();
             // a. Store the individual bytes of rawBytes into block, starting at block[byteIndex].
@@ -413,6 +421,7 @@ pub(crate) fn set_value_in_buffer<T: Viewable>(
 /// non-negative integer), type (a TypedArray element type), value (a Number or
 /// a BigInt), and op (a read-modify-write modification function) and returns a
 /// Number or a BigInt.
+#[cfg(feature = "atomics")]
 pub(crate) fn get_modify_set_value_in_buffer<'gc, Type: Viewable, const OP: u8>(
     agent: &mut Agent,
     array_buffer: AnyArrayBuffer,
@@ -519,8 +528,10 @@ pub(crate) fn get_modify_set_value_in_buffer<'gc, Type: Viewable, const OP: u8>(
     raw_bytes_read.into_ne_value(agent, gc)
 }
 
+#[cfg(feature = "atomics")]
 type ModifyOp<T> = fn(T, T) -> T;
 
+#[cfg(feature = "atomics")]
 const fn get_array_buffer_op<T: Viewable, const OP: u8>() -> ModifyOp<T> {
     if const { OP == 0 } {
         // Add
@@ -545,6 +556,7 @@ const fn get_array_buffer_op<T: Viewable, const OP: u8>() -> ModifyOp<T> {
     }
 }
 
+#[cfg(feature = "atomics")]
 pub(crate) fn compare_exchange_in_buffer<'gc, Type: Viewable>(
     agent: &mut Agent,
     array_buffer: AnyArrayBuffer,
