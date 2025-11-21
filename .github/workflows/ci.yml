@@ -66,7 +66,7 @@ jobs:
       matrix:
         os:
           [
-            "macos-14",
+            "macos-15-intel",
             "macos-latest",
             "ubuntu-24.04-arm",
             "ubuntu-latest",
