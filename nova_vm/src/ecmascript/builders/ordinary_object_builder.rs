@@ -361,7 +361,8 @@ pub(super) fn create_intrinsic_backing_object(
     let (cap, index) = agent
         .heap
         .elements
-        .allocate_keys_with_capacity(properties_count);
+        .allocate_keys_with_capacity(properties_count)
+        .expect("Intrinsic object's property allocation failed");
     let cap = cap.make_intrinsic();
     let keys_memory = agent.heap.elements.get_keys_uninit_raw(cap, index);
     for (slot, key) in keys_memory.iter_mut().zip(properties.iter().map(|e| e.0)) {

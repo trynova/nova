@@ -2951,19 +2951,21 @@ pub(super) fn execute_async_iterator_close_with_error(
     false
 }
 
-pub(super) fn execute_create_unmapped_arguments_object(
+pub(super) fn execute_create_unmapped_arguments_object<'gc>(
     agent: &mut Agent,
     vm: &mut Vm,
-    gc: NoGcScope,
-) {
+    gc: NoGcScope<'gc, '_>,
+) -> JsResult<'gc, ()> {
     let Some(VmIteratorRecord::SliceIterator(slice)) = vm.iterator_stack.last() else {
         unreachable!()
     };
-    vm.result = Some(
-        create_unmapped_arguments_object(agent, slice, gc)
-            .into_value()
-            .unbind(),
-    );
+    match create_unmapped_arguments_object(agent, slice, gc) {
+        Ok(o) => {
+            vm.result = Some(o.into_value().unbind());
+            Ok(())
+        }
+        Err(err) => Err(agent.throw_allocation_exception(err, gc)),
+    }
 }
 
 pub(super) fn execute_get_new_target(agent: &mut Agent, vm: &mut Vm, gc: NoGcScope) {
@@ -3027,7 +3029,8 @@ pub(super) fn execute_import_meta(agent: &mut Agent, vm: &mut Vm, gc: NoGcScope)
                     .into_iter()
                     .map(|(key, value)| ObjectEntry::new_data_entry(key, value))
                     .collect::<Box<[ObjectEntry]>>(),
-            );
+            )
+            .expect("Should perform GC here");
             // d. Perform HostFinalizeImportMeta(importMeta, module).
             agent
                 .host_hooks

@@ -2248,7 +2248,7 @@ pub(crate) fn try_copy_data_properties_into_object<'gc, 'b>(
         }
     }
 
-    TryResult::Continue(OrdinaryObject::create_object(
+    let obj = OrdinaryObject::create_object(
         agent,
         Some(
             agent
@@ -2258,7 +2258,13 @@ pub(crate) fn try_copy_data_properties_into_object<'gc, 'b>(
                 .into_object(),
         ),
         &entries,
-    ))
+    );
+    if let Ok(obj) = obj {
+        TryResult::Continue(obj)
+    } else {
+        // We failed to allocate: try run GC.
+        TryError::GcError.into()
+    }
 }
 
 /// ### [7.3.25 CopyDataProperties ( target, source, excludedItems )](https://tc39.es/ecma262/#sec-copydataproperties)
@@ -2327,7 +2333,7 @@ pub(crate) fn copy_data_properties_into_object<'a, 'b>(
         i += 1;
     }
 
-    let object = OrdinaryObject::create_object(
+    let object = match OrdinaryObject::create_object(
         agent,
         Some(
             agent
@@ -2337,8 +2343,10 @@ pub(crate) fn copy_data_properties_into_object<'a, 'b>(
                 .into_object(),
         ),
         &entries,
-    )
-    .bind(gc.nogc());
+    ) {
+        Ok(obj) => obj,
+        Err(err) => return Err(agent.throw_allocation_exception(err, gc.into_nogc())),
+    };
 
     if broke {
         let _ = keys.drain(..i);

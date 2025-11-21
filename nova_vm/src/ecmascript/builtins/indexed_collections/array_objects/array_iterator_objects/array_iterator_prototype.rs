@@ -64,7 +64,8 @@ impl ArrayIteratorPrototype {
         // 23.1.5.1 CreateArrayIterator ( array, kind ), step 1. b
         // NOTE: We set `array` to None when the generator in the spec text has returned.
         let Some(array) = agent[iterator].array else {
-            return Ok(create_iter_result_object(agent, Value::Undefined, true).into_value());
+            return create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
+                .map(|o| o.into_value());
         };
         let mut array = array.bind(gc.nogc());
 
@@ -114,7 +115,8 @@ impl ArrayIteratorPrototype {
         // iii. If index ≥ len, return NormalCompletion(undefined).
         if agent[iterator].next_index >= len {
             agent[iterator].array = None;
-            return Ok(create_iter_result_object(agent, Value::Undefined, true).into_value());
+            return create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
+                .map(|o| o.into_value());
         }
 
         // iv. Let indexNumber be 𝔽(index).
@@ -188,7 +190,8 @@ impl ArrayIteratorPrototype {
         };
 
         // vii. Perform ? GeneratorYield(CreateIteratorResultObject(result, false)).
-        Ok(create_iter_result_object(agent, result.unbind(), false).into_value())
+        create_iter_result_object(agent, result.unbind(), false, gc.into_nogc())
+            .map(|o| o.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {

@@ -314,6 +314,7 @@ impl<'gc> ElementsVector<'gc> {
         elements.reserve_elements(self, new_len)
     }
 
+    #[must_use]
     pub(crate) fn push(
         &mut self,
         elements: &mut ElementArrays,
@@ -1248,6 +1249,7 @@ impl<const N: usize> ElementArray<N> {
         }
     }
 
+    #[must_use]
     fn push(
         &mut self,
         source: &[Option<Value>],
@@ -1255,6 +1257,9 @@ impl<const N: usize> ElementArray<N> {
     ) -> Result<ElementIndex<'static>, TryReserveError> {
         let length = source.len();
         self.values.try_reserve(1)?;
+        if descriptors.is_some() {
+            self.descriptors.try_reserve(1)?;
+        }
         let remaining = self.values.spare_capacity_mut();
         assert!(length <= N);
         let last = remaining.get_mut(0).unwrap();
@@ -1300,14 +1305,18 @@ impl<const N: usize> ElementArray<N> {
         Ok(index)
     }
 
+    #[must_use]
     fn push_with_removal(
         &mut self,
         source: ElementStorageRef,
         removal_index: u32,
-    ) -> ElementIndex<'static> {
+    ) -> Result<ElementIndex<'static>, TryReserveError> {
         let source_length = source.values.len();
         let target_length = source_length - 1;
-        self.values.reserve(1);
+        self.values.try_reserve(1)?;
+        if source.descriptors.is_some() {
+            self.descriptors.try_reserve(1)?;
+        }
         let remaining = self.values.spare_capacity_mut();
         assert!((removal_index as usize) < source_length);
         assert!(target_length <= N);
@@ -1347,7 +1356,7 @@ impl<const N: usize> ElementArray<N> {
             let inserted_new = self.descriptors.insert(key, descriptors).is_none();
             debug_assert!(inserted_new);
         }
-        key
+        Ok(key)
     }
 }
 
@@ -1402,9 +1411,13 @@ impl<const N: usize> PropertyKeyArray<N> {
         self.keys[index.into_index()].as_mut_slice()
     }
 
-    fn push(&mut self, source: &[PropertyKey]) -> PropertyKeyIndex<'static> {
+    #[must_use]
+    fn push(
+        &mut self,
+        source: &[PropertyKey],
+    ) -> Result<PropertyKeyIndex<'static>, TryReserveError> {
         let length = source.len();
-        self.keys.reserve(1);
+        self.keys.try_reserve(1)?;
         let remaining = self.keys.spare_capacity_mut();
         assert!(length <= N);
         let last = remaining.get_mut(0).unwrap();
@@ -1427,17 +1440,18 @@ impl<const N: usize> PropertyKeyArray<N> {
         unsafe {
             self.keys.set_len(self.keys.len() + 1);
         }
-        PropertyKeyIndex::last_property_key_index(&self.keys)
+        Ok(PropertyKeyIndex::last_property_key_index(&self.keys))
     }
 
+    #[must_use]
     fn push_with_removal(
         &mut self,
         source: &[PropertyKey],
         removal_index: usize,
-    ) -> PropertyKeyIndex<'static> {
+    ) -> Result<PropertyKeyIndex<'static>, TryReserveError> {
         let source_length = source.len();
         let target_length = source_length - 1;
-        self.keys.reserve(1);
+        self.keys.try_reserve(1)?;
         let remaining = self.keys.spare_capacity_mut();
         assert!(removal_index < source_length);
         assert!(target_length <= N);
@@ -1463,7 +1477,7 @@ impl<const N: usize> PropertyKeyArray<N> {
         unsafe {
             self.keys.set_len(self.keys.len() + 1);
         }
-        PropertyKeyIndex::last_property_key_index(&self.keys)
+        Ok(PropertyKeyIndex::last_property_key_index(&self.keys))
     }
 
     unsafe fn push_key(&mut self, index: PropertyKeyIndex, len: u32, key: PropertyKey) {
@@ -1490,32 +1504,36 @@ impl<const N: usize> PropertyKeyArray<N> {
 
     /// Push a copy of a PropertyKey storage into the PropertyKeyArray, copying
     /// the first len keys.
+    #[must_use]
     fn push_within<'a>(
         &mut self,
         key_index: PropertyKeyIndex<'a>,
         len: u32,
-    ) -> PropertyKeyIndex<'a> {
+    ) -> Result<PropertyKeyIndex<'a>, TryReserveError> {
+        self.keys.try_reserve(1)?;
         let start = key_index.into_index();
-        let end = start.wrapping_add(1);
+        let end = start.saturating_add(1);
         // TODO: We'd want to use split_at_spare_mut here to only copy len keys
         // instead of copying N keys and writing None into N - len.
         self.keys.extend_from_within(start..end);
         let last = &mut self.keys.last_mut().unwrap()[len as usize..];
         last.fill(None);
-        PropertyKeyIndex::last_property_key_index(&self.keys)
+        Ok(PropertyKeyIndex::last_property_key_index(&self.keys))
     }
 
     /// Push a copy of a PropertyKey storage into the PropertyKeyArray, copying
     /// the first len keys.
+    #[must_use]
     fn push_within_with_removal<'a>(
         &mut self,
         key_index: PropertyKeyIndex<'a>,
         len: u32,
         removal_index: usize,
-    ) -> PropertyKeyIndex<'a> {
+    ) -> Result<PropertyKeyIndex<'a>, TryReserveError> {
+        self.keys.try_reserve(1)?;
         let len = len as usize;
         let start = key_index.into_index();
-        let end = start.wrapping_add(1);
+        let end = start.saturating_add(1);
         // TODO: We'd want to use split_at_spare_mut here to only copy len keys
         // instead of copying N keys and writing None into N - len.
         self.keys.extend_from_within(start..end);
@@ -1523,9 +1541,9 @@ impl<const N: usize> PropertyKeyArray<N> {
         debug_assert!(removal_index < last.len());
         debug_assert!(last[removal_index].is_some());
         debug_assert!(removal_index < len);
-        last.copy_within(removal_index.wrapping_add(1)..len, removal_index);
+        last.copy_within(removal_index.saturating_add(1)..len, removal_index);
         last[len.wrapping_sub(1)] = None;
-        PropertyKeyIndex::last_property_key_index(&self.keys)
+        Ok(PropertyKeyIndex::last_property_key_index(&self.keys))
     }
 }
 
@@ -1618,6 +1636,7 @@ impl IndexMut<&ElementsVector<'_>> for Agent {
 }
 
 impl ElementArrays {
+    #[must_use]
     fn push_values(
         &mut self,
         key: ElementArrayKey,
@@ -1661,6 +1680,7 @@ impl ElementArrays {
         }
     }
 
+    #[must_use]
     fn reserve_elements(
         &mut self,
         elements_vector: &mut ElementsVector,
@@ -1678,6 +1698,7 @@ impl ElementArrays {
         )
     }
 
+    #[must_use]
     pub(crate) fn reserve_elements_raw(
         &mut self,
         index: &mut ElementIndex,
@@ -1955,30 +1976,33 @@ impl ElementArrays {
                 e2pow32.push(source, descriptors.cloned())
             }
         };
-        *cap = new_key;
         *index = new_index?;
+        *cap = new_key;
         Ok(())
     }
 
+    #[must_use]
     pub(crate) fn reserve_keys_raw(
         &mut self,
         index: &mut PropertyKeyIndex,
         cap: &mut ElementArrayKey,
         old_len: u32,
         additional: u32,
-    ) {
+    ) -> Result<(), TryReserveError> {
         let new_len = old_len
             .checked_add(additional)
             .expect("Ridiculous amount of keys");
         let new_cap = ElementArrayKey::from(new_len);
         if new_cap == *cap {
-            return;
+            return Ok(());
         }
         let new_index = self.grow_keys_internal(*cap, *index, new_cap, old_len);
+        *index = new_index?;
         *cap = new_cap;
-        *index = new_index;
+        Ok(())
     }
 
+    #[must_use]
     pub(crate) fn allocate_elements_with_length(
         &mut self,
         length: usize,
@@ -1987,6 +2011,7 @@ impl ElementArrays {
         Self::allocate_elements_with_capacity(self, cap)
     }
 
+    #[must_use]
     pub(crate) fn allocate_elements_with_capacity(
         &mut self,
         cap: ElementArrayKey,
@@ -1999,6 +2024,7 @@ impl ElementArrays {
         })
     }
 
+    #[must_use]
     fn allocate_object_property_storage(
         &mut self,
         length: usize,
@@ -2017,10 +2043,11 @@ impl ElementArrays {
     }
 
     /// Allocate an empty PropertyKey backing store with the given capacity.
+    #[must_use]
     pub(crate) fn allocate_keys_with_capacity(
         &mut self,
         capacity: usize,
-    ) -> (ElementArrayKey, PropertyKeyIndex<'static>) {
+    ) -> Result<(ElementArrayKey, PropertyKeyIndex<'static>), TryReserveError> {
         let Self {
             k2pow1,
             k2pow2,
@@ -2040,31 +2067,32 @@ impl ElementArrays {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {
                 PropertyKeyIndex::from_u32_index(0)
             }
-            ElementArrayKey::E1 => k2pow1.push(&[]),
-            ElementArrayKey::E2 => k2pow2.push(&[]),
-            ElementArrayKey::E3 => k2pow3.push(&[]),
-            ElementArrayKey::E4 => k2pow4.push(&[]),
-            ElementArrayKey::E6 => k2pow6.push(&[]),
-            ElementArrayKey::E8 => k2pow8.push(&[]),
-            ElementArrayKey::E10 => k2pow10.push(&[]),
-            ElementArrayKey::E12 => k2pow12.push(&[]),
-            ElementArrayKey::E16 => k2pow16.push(&[]),
-            ElementArrayKey::E24 => k2pow24.push(&[]),
-            ElementArrayKey::E32 => k2pow32.push(&[]),
+            ElementArrayKey::E1 => k2pow1.push(&[])?,
+            ElementArrayKey::E2 => k2pow2.push(&[])?,
+            ElementArrayKey::E3 => k2pow3.push(&[])?,
+            ElementArrayKey::E4 => k2pow4.push(&[])?,
+            ElementArrayKey::E6 => k2pow6.push(&[])?,
+            ElementArrayKey::E8 => k2pow8.push(&[])?,
+            ElementArrayKey::E10 => k2pow10.push(&[])?,
+            ElementArrayKey::E12 => k2pow12.push(&[])?,
+            ElementArrayKey::E16 => k2pow16.push(&[])?,
+            ElementArrayKey::E24 => k2pow24.push(&[])?,
+            ElementArrayKey::E32 => k2pow32.push(&[])?,
         };
-        (key, index)
+        Ok((key, index))
     }
 
     /// Allocate a new PropertyKey backing store with an added key.
+    #[must_use]
     pub(crate) fn copy_keys_with_addition<'a>(
         &mut self,
         cap: ElementArrayKey,
         index: PropertyKeyIndex<'a>,
         len: u32,
         key: PropertyKey<'a>,
-    ) -> (ElementArrayKey, PropertyKeyIndex<'a>) {
+    ) -> Result<(ElementArrayKey, PropertyKeyIndex<'a>), TryReserveError> {
         let new_len = len.checked_add(1).expect("Ridiculous amount of keys");
-        let (new_cap, new_key) = self.copy_keys_with_capacity(new_len as usize, cap, index, len);
+        let (new_cap, new_key) = self.copy_keys_with_capacity(new_len as usize, cap, index, len)?;
         let Self {
             k2pow1,
             k2pow2,
@@ -2115,7 +2143,7 @@ impl ElementArrays {
                 k2pow32.get_uninit(new_key)[len as usize] = Some(key.unbind());
             }
         }
-        (new_cap, new_key)
+        Ok((new_cap, new_key))
     }
 
     /// Mutate a property key storage by removing a key at index.
@@ -2181,13 +2209,14 @@ impl ElementArrays {
     ///
     /// Effectively, those objects would find that their object key-value pairs
     /// no longer match the expected values.
+    #[must_use]
     pub(crate) unsafe fn push_key(
         &mut self,
         cap: &mut ElementArrayKey,
         index: &mut PropertyKeyIndex,
         len: &mut u32,
         key: PropertyKey,
-    ) {
+    ) -> Result<(), TryReserveError> {
         let Self {
             k2pow1,
             k2pow2,
@@ -2221,24 +2250,26 @@ impl ElementArrays {
             }
         } else {
             // We need to grow our backing store.
-            let (new_cap, new_index) = self.copy_keys_with_addition(*cap, *index, *len, key);
+            let (new_cap, new_index) = self.copy_keys_with_addition(*cap, *index, *len, key)?;
             *cap = new_cap;
             *index = new_index.unbind();
         }
         *len += 1;
+        Ok(())
     }
 
+    #[must_use]
     pub(crate) fn copy_keys_with_removal<'a>(
         &mut self,
         cap: ElementArrayKey,
         index: PropertyKeyIndex<'a>,
         len: u32,
         removal_index: usize,
-    ) -> (ElementArrayKey, PropertyKeyIndex<'a>) {
+    ) -> Result<(ElementArrayKey, PropertyKeyIndex<'a>), TryReserveError> {
         if len <= 1 {
             // Removing the last key.
             debug_assert_eq!(removal_index, 0);
-            return (ElementArrayKey::Empty, PropertyKeyIndex::from_u32_index(0));
+            return Ok((ElementArrayKey::Empty, PropertyKeyIndex::from_u32_index(0)));
         }
         let Self {
             k2pow1,
@@ -2393,21 +2424,22 @@ impl ElementArrays {
                 ElementArrayKey::E32 => unreachable!(),
             }
         };
-        (new_cap, new_index)
+        Ok((new_cap, new_index?))
     }
 
     /// Allocate a new PropertyKey backing store with the given capacity,
     /// copying the first len values into the new allocation from the source
     /// backing store.
+    #[must_use]
     pub(crate) fn copy_keys_with_capacity<'a>(
         &mut self,
         capacity: usize,
         cap: ElementArrayKey,
         index: PropertyKeyIndex<'a>,
         len: u32,
-    ) -> (ElementArrayKey, PropertyKeyIndex<'a>) {
+    ) -> Result<(ElementArrayKey, PropertyKeyIndex<'a>), TryReserveError> {
         if capacity == 0 {
-            return (ElementArrayKey::Empty, PropertyKeyIndex::from_u32_index(0));
+            return Ok((ElementArrayKey::Empty, PropertyKeyIndex::from_u32_index(0)));
         }
         let Self {
             k2pow1,
@@ -2444,9 +2476,10 @@ impl ElementArrays {
             // Change in capacity.
             self.grow_keys_internal(cap, index, new_cap, len)
         };
-        (new_cap, new_index)
+        Ok((new_cap, new_index?))
     }
 
+    #[must_use]
     pub(crate) fn realloc_values_with_removal<'a>(
         &mut self,
         src_cap: ElementArrayKey,
@@ -2454,11 +2487,11 @@ impl ElementArrays {
         dst_cap: ElementArrayKey,
         len: u32,
         removal_index: u32,
-    ) -> ElementIndex<'a> {
+    ) -> Result<ElementIndex<'a>, TryReserveError> {
         if dst_cap.capacity() == 0 {
             // Removing the last key.
             debug_assert_eq!(removal_index, 0);
-            return ElementIndex::from_u32_index(0);
+            return Ok(ElementIndex::from_u32_index(0));
         }
 
         if dst_cap == src_cap {
@@ -2880,13 +2913,14 @@ impl ElementArrays {
     }
 
     /// Grow a keys storage to new capacity.
+    #[must_use]
     fn grow_keys_internal<'a>(
         &mut self,
         cap: ElementArrayKey,
         index: PropertyKeyIndex,
         new_cap: ElementArrayKey,
         len: u32,
-    ) -> PropertyKeyIndex<'a> {
+    ) -> Result<PropertyKeyIndex<'a>, TryReserveError> {
         let Self {
             k2pow1,
             k2pow2,
@@ -3038,6 +3072,7 @@ impl ElementArrays {
         }
     }
 
+    #[must_use]
     pub(crate) fn allocate_object_property_storage_from_entries_vec<'a>(
         &mut self,
         mut entries: Vec<(
@@ -3065,6 +3100,7 @@ impl ElementArrays {
         self.allocate_object_property_storage(length, &values, descriptors)
     }
 
+    #[must_use]
     pub(crate) fn allocate_property_storage<'a>(
         &mut self,
         values: &[Option<Value<'a>>],
@@ -3074,6 +3110,7 @@ impl ElementArrays {
         self.allocate_object_property_storage(length, values, descriptors)
     }
 
+    #[must_use]
     pub(crate) fn allocate_object_property_storage_from_entries_slice<'a>(
         &mut self,
         entries: &[ObjectEntry<'a>],

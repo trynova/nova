@@ -1053,7 +1053,7 @@ impl Agent {
         error: TryReserveError,
         gc: NoGcScope<'a, '_>,
     ) -> JsError<'a> {
-        self.throw_exception(ExceptionType::ReferenceError, error.to_string(), gc)
+        self.throw_exception(ExceptionType::RangeError, error.to_string(), gc)
     }
 
     pub(crate) fn running_execution_context(&self) -> &ExecutionContext {

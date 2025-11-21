@@ -2,7 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{cmp::Ordering, marker::PhantomData, num::NonZeroU32, ptr::NonNull};
+use std::{
+    cmp::Ordering, collections::TryReserveError, marker::PhantomData, num::NonZeroU32, ptr::NonNull,
+};
 
 use ahash::AHashMap;
 use hashbrown::{HashTable, hash_table::Entry};
@@ -299,7 +301,11 @@ impl<'a> ObjectShape<'a> {
     /// ## Safety
     ///
     /// This is only safe to use on intrinsic Object Shapes.
-    unsafe fn push_key(self, agent: &mut Agent, key: PropertyKey<'a>) {
+    unsafe fn push_key(
+        self,
+        agent: &mut Agent,
+        key: PropertyKey<'a>,
+    ) -> Result<(), TryReserveError> {
         debug_assert_eq!(self.values_capacity(agent), self.len(agent).into());
         let ObjectShapeRecord {
             prototype: _,
@@ -308,8 +314,9 @@ impl<'a> ObjectShape<'a> {
             values_cap,
             len,
         } = self.get_direct_mut(&mut agent.heap.object_shapes);
-        unsafe { agent.heap.elements.push_key(keys_cap, keys, len, key) };
+        unsafe { agent.heap.elements.push_key(keys_cap, keys, len, key) }?;
         *values_cap = (*len).into();
+        Ok(())
     }
 
     /// Get or create an Object Shape with the given key added to this shape.
@@ -320,18 +327,23 @@ impl<'a> ObjectShape<'a> {
     ///
     /// > NOTE: This function will create a new Object Shape if an existing one
     /// > cannot be found.
-    pub(crate) fn get_child_shape(self, agent: &mut Agent, key: PropertyKey<'a>) -> Self {
+    #[must_use]
+    pub(crate) fn get_child_shape(
+        self,
+        agent: &mut Agent,
+        key: PropertyKey<'a>,
+    ) -> Result<Self, TryReserveError> {
         if self.is_intrinsic(agent) {
             // SAFETY: self is intrinsic.
-            unsafe { self.push_key(agent, key) };
-            return self;
+            unsafe { self.push_key(agent, key)? };
+            return Ok(self);
         }
         let frozen = !self.extensible();
         if let Some(mut next_shape) = self.get_transition_to(agent, key) {
             if frozen {
                 next_shape.set_extensible(false);
             }
-            return next_shape;
+            return Ok(next_shape);
         }
         let prototype = self.get_prototype(agent);
         let len = self.len(agent) as usize;
@@ -354,7 +366,7 @@ impl<'a> ObjectShape<'a> {
             let (new_keys_cap, new_keys_index) = agent
                 .heap
                 .elements
-                .copy_keys_with_addition(cap, keys_index, len as u32, key);
+                .copy_keys_with_addition(cap, keys_index, len as u32, key)?;
             ObjectShapeRecord::create(prototype, new_keys_index, new_keys_cap, new_len)
         };
         let mut child = agent
@@ -364,7 +376,7 @@ impl<'a> ObjectShape<'a> {
         if frozen {
             child.set_extensible(false);
         }
-        child
+        Ok(child)
     }
 
     /// Get an ancestor Object Shape with the given number of keys.
@@ -457,7 +469,11 @@ impl<'a> ObjectShape<'a> {
     ///
     /// > NOTE: This function will create a new Object Shape, or possibly
     /// > multiple ones, if an existing one cannot be found.
-    pub(crate) fn get_shape_with_removal(self, agent: &mut Agent, index: u32) -> Self {
+    pub(crate) fn get_shape_with_removal(
+        self,
+        agent: &mut Agent,
+        index: u32,
+    ) -> Result<Self, TryReserveError> {
         let len = self.len(agent);
         debug_assert!(index < len);
         let keys_cap = self.keys_capacity(agent);
@@ -476,12 +492,12 @@ impl<'a> ObjectShape<'a> {
             // border here.
             data.values_cap = data.len.into();
             debug_assert_eq!(self.values_capacity(agent), self.len(agent).into());
-            return self;
+            return Ok(self);
         }
         let prototype = self.get_prototype(agent);
         if len == 1 {
             // Removing the last property; just get the prototype shape.
-            return Self::get_shape_for_prototype(agent, prototype);
+            return Ok(Self::get_shape_for_prototype(agent, prototype));
         }
         let ancestor_shape = self.get_ancestor_shape(agent, index);
         if let Some(mut parent_shape) = ancestor_shape {
@@ -501,17 +517,17 @@ impl<'a> ObjectShape<'a> {
                     keys_index,
                     len,
                     index as usize,
-                );
+                )?;
                 // Create remaining shapes using the final key storage.
-                return parent_shape.create_shapes_for_property_storage(
+                return Ok(parent_shape.create_shapes_for_property_storage(
                     agent,
                     prototype,
                     new_cap,
                     new_keys_index,
                     len.wrapping_sub(1),
-                );
+                ));
             }
-            parent_shape
+            Ok(parent_shape)
         } else {
             unreachable!()
         }
@@ -527,7 +543,7 @@ impl<'a> ObjectShape<'a> {
         agent: &mut Agent,
         private_fields: &[PrivateField<'a>],
         insertion_index: usize,
-    ) -> (Self, usize) {
+    ) -> Result<(Self, usize), TryReserveError> {
         let ObjectShapeRecord {
             prototype: _,
             keys,
@@ -539,7 +555,7 @@ impl<'a> ObjectShape<'a> {
         agent
             .heap
             .elements
-            .reserve_keys_raw(keys, keys_cap, *len, private_fields_count);
+            .reserve_keys_raw(keys, keys_cap, *len, private_fields_count)?;
         let keys = agent.heap.elements.get_keys_uninit_raw(*keys_cap, *keys);
         keys.copy_within(
             insertion_index..*len as usize,
@@ -553,7 +569,7 @@ impl<'a> ObjectShape<'a> {
         }
         *len += private_fields_count;
         *values_cap = (*len).into();
-        (self, insertion_index)
+        Ok((self, insertion_index))
     }
 
     /// Get an Object Shape with the given private field keys added. Returns
@@ -575,7 +591,7 @@ impl<'a> ObjectShape<'a> {
         self,
         agent: &mut Agent,
         private_fields: NonNull<[PrivateField<'a>]>,
-    ) -> (Self, usize) {
+    ) -> Result<(Self, usize), TryReserveError> {
         // SAFETY: User guarantees that the fields are not backed by memory
         // that we're going to be mutating.
         let private_fields = unsafe { private_fields.as_ref() };
@@ -611,9 +627,9 @@ impl<'a> ObjectShape<'a> {
                 // We're inserting the fields at the end.
                 for field in private_fields {
                     // SAFETY: self is intrinsic.
-                    unsafe { self.push_key(agent, field.get_key().into()) };
+                    unsafe { self.push_key(agent, field.get_key().into())? };
                 }
-                return (self, insertion_index);
+                return Ok((self, insertion_index));
             }
             // SAFETY: self is intrinsic.
             return unsafe {
@@ -626,9 +642,9 @@ impl<'a> ObjectShape<'a> {
             // each.
             let mut shape = self;
             for field in private_fields {
-                shape = shape.get_child_shape(agent, field.get_key().into());
+                shape = shape.get_child_shape(agent, field.get_key().into())?;
             }
-            return (shape, insertion_index);
+            return Ok((shape, insertion_index));
         }
         // We're inserting fields into the start or middle of a shape. We need
         // to first find our common ancestor shape.
@@ -639,7 +655,7 @@ impl<'a> ObjectShape<'a> {
         if let Some(mut parent_shape) = ancestor_shape {
             for field in private_fields {
                 let key = field.get_key();
-                parent_shape = parent_shape.get_child_shape(agent, key.into());
+                parent_shape = parent_shape.get_child_shape(agent, key.into())?;
             }
             for i in insertion_index..original_len as usize {
                 // Add old keys to parent shape.
@@ -647,9 +663,9 @@ impl<'a> ObjectShape<'a> {
                     .heap
                     .elements
                     .get_keys_raw(cap, keys_index, original_len)[i];
-                parent_shape = parent_shape.get_child_shape(agent, key);
+                parent_shape = parent_shape.get_child_shape(agent, key)?;
             }
-            (parent_shape, insertion_index)
+            Ok((parent_shape, insertion_index))
         } else {
             // Couldn't find a matching ancestor shape. This means that our
             // source shape comes from eg. an intrinsic which doesn't have a
@@ -667,7 +683,7 @@ impl<'a> ObjectShape<'a> {
             let mut parent_shape = Self::get_shape_for_prototype(agent, prototype);
             for field in private_fields {
                 let key = field.get_key();
-                parent_shape = parent_shape.get_child_shape(agent, key.into());
+                parent_shape = parent_shape.get_child_shape(agent, key.into())?;
             }
             for i in 0..original_len as usize {
                 // Add old keys to parent shape.
@@ -675,9 +691,9 @@ impl<'a> ObjectShape<'a> {
                     .heap
                     .elements
                     .get_keys_raw(cap, keys_index, original_len)[i];
-                parent_shape = parent_shape.get_child_shape(agent, key);
+                parent_shape = parent_shape.get_child_shape(agent, key)?;
             }
-            (parent_shape, 0)
+            Ok((parent_shape, 0))
         }
     }
 
@@ -746,7 +762,7 @@ impl<'a> ObjectShape<'a> {
     }
 
     /// Create an intrinsic copy of the given Object Shape.
-    pub(crate) fn make_intrinsic(self, agent: &mut Agent) -> Self {
+    pub(crate) fn make_intrinsic(self, agent: &mut Agent) -> Result<Self, TryReserveError> {
         let properties_count = self.len(agent);
         let prototype = self.get_prototype(agent);
         // Note: intrinsics must always own their keys uniquely, so a copy must
@@ -758,14 +774,14 @@ impl<'a> ObjectShape<'a> {
             cap,
             keys,
             properties_count,
-        );
+        )?;
         let cap = cap.make_intrinsic();
-        agent.heap.create(ObjectShapeRecord::create(
+        Ok(agent.heap.create(ObjectShapeRecord::create(
             prototype,
             index,
             cap,
             properties_count as usize,
-        ))
+        )))
     }
 
     /// Create basic shapes for a new Realm's intrinsics.

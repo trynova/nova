@@ -713,7 +713,8 @@ impl PromiseConstructor {
                     reject_function.into_value(),
                 ),
             ],
-        );
+        )
+        .expect("Should perform GC here");
 
         // 7. Return obj.
         Ok(obj.into_value())

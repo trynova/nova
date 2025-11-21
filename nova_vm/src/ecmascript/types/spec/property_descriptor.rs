@@ -279,7 +279,8 @@ impl<'a> PropertyDescriptor<'a> {
                     .into_object(),
             ),
             &entries,
-        );
+        )
+        .expect("Should perform GC here");
 
         // 10. Return obj.
         Some(obj.bind(gc))

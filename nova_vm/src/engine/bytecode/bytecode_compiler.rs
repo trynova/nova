@@ -556,7 +556,9 @@ fn create_object_with_shape<'s>(
             unreachable!()
         };
         let identifier = ctx.create_property_key(&id.name);
-        shape = shape.get_child_shape(ctx.get_agent_mut(), identifier);
+        shape = shape
+            .get_child_shape(ctx.get_agent_mut(), identifier)
+            .expect("Should perform GC here");
         if is_anonymous_function_definition(&prop.value) {
             ctx.add_instruction_with_constant(Instruction::StoreConstant, identifier);
             ctx.name_identifier = Some(NamedEvaluationParameter::Result);
@@ -1908,7 +1910,9 @@ fn compile_create_iterator_result_object(ctx: &mut CompileContext, done: bool) {
         .bind(gc);
     let shape = ObjectShape::get_shape_for_prototype(agent, Some(prototype.into_object()))
         .get_child_shape(agent, BUILTIN_STRING_MEMORY.value.to_property_key())
-        .get_child_shape(agent, BUILTIN_STRING_MEMORY.done.to_property_key());
+        .expect("Should perform GC here")
+        .get_child_shape(agent, BUILTIN_STRING_MEMORY.done.to_property_key())
+        .expect("Should perform GC here");
     ctx.add_instruction(Instruction::Load);
     ctx.add_instruction_with_constant(Instruction::LoadConstant, done);
     ctx.add_instruction_with_shape(Instruction::ObjectCreateWithShape, shape);

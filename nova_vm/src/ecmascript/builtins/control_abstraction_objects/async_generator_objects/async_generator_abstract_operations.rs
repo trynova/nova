@@ -127,7 +127,8 @@ fn async_generator_complete_step(
             agent.set_current_realm(realm);
         }
         // iii. Let iteratorResult be CreateIteratorResultObject(value, done).
-        let iterator_result = create_iter_result_object(agent, value, done);
+        let iterator_result =
+            create_iter_result_object(agent, value, done, gc).expect("Should perform GC here");
         // iv. Set the running execution context's Realm to oldRealm.
         if set_realm {
             agent.set_current_realm(old_realm);
@@ -136,7 +137,7 @@ fn async_generator_complete_step(
     } else {
         // c. Else,
         // i. Let iteratorResult be CreateIteratorResultObject(value, done).
-        create_iter_result_object(agent, value, done)
+        create_iter_result_object(agent, value, done, gc).expect("Should perform GC here")
     };
     // d. Perform ! Call(promiseCapability.[[Resolve]], undefined, « iteratorResult »).
     unwrap_try(promise_capability.try_resolve(agent, iterator_result.into_value(), gc));

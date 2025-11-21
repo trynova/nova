@@ -836,11 +836,10 @@ pub(crate) fn ordinary_function_create<'agent, 'program, 'gc>(
                 .function_prototype()
                 .into_object()
     {
-        function.object_index = Some(OrdinaryObject::create_object(
-            agent,
-            Some(function_prototype),
-            &[],
-        ));
+        function.object_index = Some(
+            OrdinaryObject::create_object(agent, Some(function_prototype), &[])
+                .expect("Should perform GC here"),
+        );
     }
 
     // 18. Set F.[[Fields]] to a new empty List.

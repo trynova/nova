@@ -132,7 +132,8 @@ impl<'a, T: 'a + FunctionInternalProperties<'a>> InternalSlots<'a> for T {
             },
         };
         let backing_object =
-            OrdinaryObject::create_object(agent, Some(prototype), &[length_entry, name_entry]);
+            OrdinaryObject::create_object(agent, Some(prototype), &[length_entry, name_entry])
+                .expect("Should perform GC here");
         self.set_backing_object(agent, backing_object.unbind());
         backing_object.unbind()
     }

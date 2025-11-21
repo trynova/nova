@@ -364,14 +364,16 @@ impl<'a> OrdinaryObject<'a> {
     /// Turn an OrdinaryObject's Object Shape into an intrinsic.
     ///
     /// For objects with an intrinsic shape, this is a no-op.
-    pub(crate) fn make_intrinsic(self, agent: &mut Agent) {
+    #[must_use]
+    pub(crate) fn make_intrinsic(self, agent: &mut Agent) -> Result<(), TryReserveError> {
         let shape = self.object_shape(agent);
         if shape.is_intrinsic(agent) {
             // Already an intrinsic shape, nothing to do.
-            return;
+            return Ok(());
         }
-        let new_shape = shape.make_intrinsic(agent);
+        let new_shape = shape.make_intrinsic(agent)?;
         self.get_mut(agent).set_shape(new_shape);
+        Ok(())
     }
 
     pub(crate) fn get_property_storage<'b>(self, agent: &'b Agent) -> PropertyStorageRef<'b, 'a> {
@@ -511,13 +513,13 @@ impl<'a> OrdinaryObject<'a> {
         agent: &mut Agent,
         prototype: Option<Object<'a>>,
         entries: &[ObjectEntry<'a>],
-    ) -> Self {
+    ) -> Result<Self, TryReserveError> {
         let base_shape = ObjectShape::get_shape_for_prototype(agent, prototype);
         let mut shape = base_shape;
         for e in entries {
-            shape = shape.get_child_shape(agent, e.key);
+            shape = shape.get_child_shape(agent, e.key)?;
         }
-        Self::create_object_internal(agent, shape, entries)
+        Ok(Self::create_object_internal(agent, shape, entries))
     }
 
     pub(crate) fn create_object_with_shape_and_data_properties(
@@ -566,12 +568,12 @@ impl<'a> OrdinaryObject<'a> {
         agent: &mut Agent,
         prototype: Option<Object<'a>>,
         entries: &[ObjectEntry<'a>],
-    ) -> Self {
+    ) -> Result<Self, TryReserveError> {
         let properties_count = entries.len();
         let (cap, index) = agent
             .heap
             .elements
-            .allocate_keys_with_capacity(properties_count);
+            .allocate_keys_with_capacity(properties_count)?;
         let cap = cap.make_intrinsic();
         let keys_memory = agent.heap.elements.get_keys_uninit_raw(cap, index);
         for (slot, key) in keys_memory.iter_mut().zip(entries.iter().map(|e| e.key)) {
@@ -583,7 +585,7 @@ impl<'a> OrdinaryObject<'a> {
             cap,
             properties_count,
         ));
-        Self::create_object_internal(agent, shape, entries)
+        Ok(Self::create_object_internal(agent, shape, entries))
     }
 
     /// Attempts to make this ordinary Object a copy of some source ordinary

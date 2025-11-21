@@ -79,7 +79,8 @@ impl RegExpStringIteratorPrototype {
         // 4. If O.[[Done]] is true, then
         if o.done(agent) {
             // a. Return CreateIteratorResultObject(undefined, true).
-            return Ok(create_iter_result_object(agent, Value::Undefined, true).into_value());
+            return create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
+                .map(|o| o.into_value());
         }
         // 5. Let R be O.[[IteratingRegExp]].
         let r = o.iterating_regexp(agent);
@@ -99,16 +100,21 @@ impl RegExpStringIteratorPrototype {
             // a. Set O.[[Done]] to true.
             scoped_o.get(agent).set_done(agent);
             // b. Return CreateIteratorResultObject(undefined, true).
-            return Ok(create_iter_result_object(agent, Value::Undefined, true).into_value());
+            return create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
+                .map(|o| o.into_value());
         };
         // 11. If global is false, then
         if !global {
             // a. Set O.[[Done]] to true.
             scoped_o.get(agent).set_done(agent);
             // b. Return CreateIteratorResultObject(match, false).
-            return Ok(
-                create_iter_result_object(agent, r#match.into_value().unbind(), false).into_value(),
-            );
+            return create_iter_result_object(
+                agent,
+                r#match.into_value().unbind(),
+                false,
+                gc.into_nogc(),
+            )
+            .map(|o| o.into_value());
         }
         // 12. Let matchStr be ? ToString(? Get(match, "0")).
         let match_str = if let Some(s) = try_result_into_js(try_get_result_into_value(try_get(
@@ -171,7 +177,8 @@ impl RegExpStringIteratorPrototype {
             r#match = unsafe { scoped_match.take(agent) }.bind(gc.nogc());
         }
         // 14. Return CreateIteratorResultObject(match, false).
-        Ok(create_iter_result_object(agent, r#match.into_value().unbind(), false).into_value())
+        create_iter_result_object(agent, r#match.into_value().unbind(), false, gc.into_nogc())
+            .map(|o| o.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {

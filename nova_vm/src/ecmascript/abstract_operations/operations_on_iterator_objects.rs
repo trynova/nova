@@ -25,7 +25,7 @@ use crate::{
     },
     engine::{
         ScopableCollection, ScopedCollection, VmIteratorRecord,
-        context::{Bindable, GcScope, bindable_handle},
+        context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::Scopable,
     },
     heap::{
@@ -609,7 +609,8 @@ pub(crate) fn create_iter_result_object<'a>(
     agent: &mut Agent,
     value: Value<'a>,
     done: bool,
-) -> OrdinaryObject<'a> {
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<'a, OrdinaryObject<'a>> {
     // 1. Let obj be OrdinaryObjectCreate(%Object.prototype%).
     // 2. Perform ! CreateDataPropertyOrThrow(obj, "value", value).
     // 3. Perform ! CreateDataPropertyOrThrow(obj, "done", done).
@@ -644,6 +645,7 @@ pub(crate) fn create_iter_result_object<'a>(
             },
         ],
     )
+    .map_err(|err| agent.throw_allocation_exception(err, gc))
 }
 
 /// ### [7.4.16 IteratorToList ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratortolist)

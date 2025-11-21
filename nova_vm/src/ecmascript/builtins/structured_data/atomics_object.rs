@@ -1647,6 +1647,7 @@ fn create_wait_result_object<'gc>(
             ObjectEntry::new_data_entry(BUILTIN_STRING_MEMORY.value.into(), value),
         ],
     )
+    .expect("Should perform GC here")
 }
 
 #[derive(Debug)]

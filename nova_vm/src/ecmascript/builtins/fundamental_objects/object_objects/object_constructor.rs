@@ -412,7 +412,7 @@ impl ObjectConstructor {
     ) -> JsResult<'gc, Value<'gc>> {
         let nogc = gc.nogc();
         let o = arguments.get(0).bind(nogc);
-        let properties = arguments.get(1).bind(nogc);
+        let mut properties = arguments.get(1).bind(nogc);
         let proto = if o == Value::Null {
             None
         } else if let Ok(o) = Object::try_from(o) {
@@ -430,7 +430,18 @@ impl ObjectConstructor {
                 gc.into_nogc(),
             ));
         };
-        let obj = OrdinaryObject::create_object(agent, proto, &[]).bind(nogc);
+        let obj = if let Ok(obj) = OrdinaryObject::create_object(agent, proto, &[]) {
+            obj
+        } else {
+            let scoped_properties = properties.scope(agent, gc.nogc());
+            let proto = proto.map(|p| p.scope(agent, gc.nogc()));
+            agent.gc(gc.reborrow());
+            // SAFETY: not shared.
+            let proto = proto.map(|p| unsafe { p.take(agent).bind(gc.nogc()) });
+            // SAFETY: not shared.
+            properties = unsafe { scoped_properties.take(agent) }.bind(gc.nogc());
+            OrdinaryObject::create_object(agent, proto, &[]).expect("Failed to allocate after GC")
+        };
         if properties != Value::Undefined {
             Ok(object_define_properties(
                 agent,
@@ -695,7 +706,7 @@ impl ObjectConstructor {
                     }
                 }
                 if valid {
-                    let object = OrdinaryObject::create_object(
+                    let object = match OrdinaryObject::create_object(
                         agent,
                         Some(
                             agent
@@ -705,7 +716,12 @@ impl ObjectConstructor {
                                 .into_object(),
                         ),
                         &object_entries,
-                    );
+                    ) {
+                        Ok(o) => o,
+                        Err(err) => {
+                            return Err(agent.throw_allocation_exception(err, gc.into_nogc()));
+                        }
+                    };
                     return Ok(object.into_value().unbind());
                 }
             }
@@ -810,7 +826,7 @@ impl ObjectConstructor {
             i += 1;
         }
         // 3. Let descriptors be OrdinaryObjectCreate(%Object.prototype%).
-        let descriptors = OrdinaryObject::create_object(
+        let descriptors = match OrdinaryObject::create_object(
             agent,
             Some(
                 agent
@@ -820,8 +836,12 @@ impl ObjectConstructor {
                     .into_object(),
             ),
             &descriptors,
-        )
-        .bind(gc.nogc());
+        ) {
+            Ok(o) => o,
+            Err(err) => {
+                return Err(agent.throw_allocation_exception(err, gc.into_nogc()));
+            }
+        };
         if i < own_keys.len() {
             let _ = own_keys.drain(..i);
             let obj = scoped_obj.unwrap_or_else(|| obj.scope(agent, gc.nogc()));
@@ -919,7 +939,12 @@ impl ObjectConstructor {
                 )
             })
             .collect::<Vec<_>>();
-        let object = OrdinaryObject::create_object(agent, None, &entries).bind(gc);
+        let object = match OrdinaryObject::create_object(agent, None, &entries) {
+            Ok(o) => o,
+            Err(err) => {
+                return Err(agent.throw_allocation_exception(err, gc.into_nogc()));
+            }
+        };
 
         // 4. Return obj.
         Ok(object.into_value())

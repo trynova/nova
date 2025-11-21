@@ -814,11 +814,10 @@ pub fn create_builtin_function<'a>(
                     configurable: true,
                 },
             };
-            Some(OrdinaryObject::create_object(
-                agent,
-                Some(prototype),
-                &[length_entry, name_entry],
-            ))
+            Some(
+                OrdinaryObject::create_object(agent, Some(prototype), &[length_entry, name_entry])
+                    .expect("Should perform GC here"),
+            )
         }
     } else {
         None

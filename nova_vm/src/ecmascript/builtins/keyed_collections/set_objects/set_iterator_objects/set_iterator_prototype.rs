@@ -53,7 +53,8 @@ impl SetIteratorPrototype {
         // 24.2.6.1 CreateSetIterator ( set, kind )
         // NOTE: We set `set` to None when the generator in the spec text has returned.
         let Some(set) = agent[iterator].set else {
-            return Ok(create_iter_result_object(agent, Value::Undefined, true).into_value());
+            return create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
+                .map(|o| o.into_value());
         };
 
         // b. Let entries be set.[[SetData]].
@@ -86,14 +87,16 @@ impl SetIteratorPrototype {
                 }
             };
 
-            return Ok(create_iter_result_object(agent, result.unbind(), false).into_value());
+            return create_iter_result_object(agent, result.unbind(), false, gc.into_nogc())
+                .map(|o| o.into_value());
         }
 
         debug_assert_eq!(agent[iterator].next_index, agent[set].values(gc).len());
 
         // e. Return undefined.
         agent[iterator].set = None;
-        Ok(create_iter_result_object(agent, Value::Undefined, true).into_value())
+        create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
+            .map(|o| o.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {

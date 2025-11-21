@@ -26,6 +26,8 @@
 //!
 //! ECMAScript implementations of arguments exotic objects have historically contained an accessor property named "caller". Prior to ECMAScript 2017, this specification included the definition of a throwing "caller" property on ordinary arguments objects. Since implementations do not contain this extension any longer, ECMAScript 2017 dropped the requirement for a throwing "caller" accessor.
 
+use std::collections::TryReserveError;
+
 use ahash::AHashMap;
 
 use crate::{
@@ -124,7 +126,7 @@ pub(crate) fn create_unmapped_arguments_object<'a, 'b>(
     agent: &mut Agent,
     arguments_list: &ScopedArgumentsList<'b>,
     gc: NoGcScope<'a, 'b>,
-) -> Object<'a> {
+) -> Result<Object<'a>, TryReserveError> {
     // 1. Let len be the number of elements in argumentsList.
     let len = arguments_list.len(agent);
     // SAFETY: GC is not allowed in this scope, and no other scoped values are
@@ -136,11 +138,11 @@ pub(crate) fn create_unmapped_arguments_object<'a, 'b>(
     // 2. Let obj be OrdinaryObjectCreate(%Object.prototype%, « [[ParameterMap]] »).
     let prototype = agent.current_realm_record().intrinsics().object_prototype();
     let mut shape = ObjectShape::get_shape_for_prototype(agent, Some(prototype.into_object()));
-    shape = shape.get_child_shape(agent, BUILTIN_STRING_MEMORY.length.to_property_key());
-    shape = shape.get_child_shape(agent, BUILTIN_STRING_MEMORY.callee.into());
-    shape = shape.get_child_shape(agent, WellKnownSymbolIndexes::Iterator.into());
+    shape = shape.get_child_shape(agent, BUILTIN_STRING_MEMORY.length.to_property_key())?;
+    shape = shape.get_child_shape(agent, BUILTIN_STRING_MEMORY.callee.into())?;
+    shape = shape.get_child_shape(agent, WellKnownSymbolIndexes::Iterator.into())?;
     for index in 0..len {
-        shape = shape.get_child_shape(agent, index.into());
+        shape = shape.get_child_shape(agent, index.into())?;
     }
     let obj = OrdinaryObject::create_object_with_shape(agent, shape)
         .expect("Failed to create Arguments object storage");
@@ -213,7 +215,7 @@ pub(crate) fn create_unmapped_arguments_object<'a, 'b>(
     // [[Configurable]]: false
     // }).
     // 9. Return obj.
-    Object::Arguments(obj)
+    Ok(Object::Arguments(obj))
 }
 
 // 10.4.4.7 CreateMappedArgumentsObject ( func, formals, argumentsList, env )
