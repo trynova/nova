@@ -695,7 +695,10 @@ impl AtomicsObject {
             // SAFETY: offset was checked.
             let slot = unsafe { slot.as_aligned::<u64>().unwrap_unchecked() };
             if c == usize::MAX {
-                slot.notify_all()
+                // Force the notify count down into a reasonable range: the
+                // ecmascript_futex may return usize::MAX if the OS doesn't
+                // give us a count number.
+                slot.notify_all().min(i32::MAX as usize)
             } else {
                 slot.notify_many(c)
             }
@@ -703,7 +706,10 @@ impl AtomicsObject {
             // SAFETY: offset was checked.
             let slot = unsafe { slot.as_aligned::<u32>().unwrap_unchecked() };
             if c == usize::MAX {
-                slot.notify_all()
+                // Force the notify count down into a reasonable range: the
+                // ecmascript_futex may return usize::MAX if the OS doesn't
+                // give us a count number.
+                slot.notify_all().min(i32::MAX as usize)
             } else {
                 slot.notify_many(c)
             }
