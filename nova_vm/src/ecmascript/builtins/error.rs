@@ -131,7 +131,8 @@ impl<'a> InternalSlots<'a> for Error<'a> {
                 OrdinaryObject::create_object(agent, Some(prototype), &[cause_entry])
             } else {
                 OrdinaryObject::create_object(agent, Some(prototype), &[])
-            };
+            }
+            .expect("Should perform GC here");
         self.set_backing_object(agent, backing_object);
         backing_object
     }

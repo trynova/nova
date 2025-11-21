@@ -57,7 +57,8 @@ impl Generator<'_> {
             }
             GeneratorState::Completed => {
                 // 2. If state is completed, return CreateIterResultObject(undefined, true).
-                return Ok(create_iter_result_object(agent, Value::Undefined, true).into_value());
+                return create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
+                    .map(|o| o.into_value());
             }
             GeneratorState::SuspendedStart(_) | GeneratorState::SuspendedYield(_) => {
                 // 3. Assert: state is either suspended-start or suspended-yield.
@@ -121,7 +122,8 @@ impl Generator<'_> {
                 // j. Else if result is a return completion, then
                 //    i. Let resultValue be result.[[Value]].
                 // l. Return CreateIterResultObject(resultValue, true).
-                Ok(create_iter_result_object(agent, result_value, true).into_value())
+                create_iter_result_object(agent, result_value, true, gc.into_nogc())
+                    .map(|o| o.into_value())
             }
             ExecutionResult::Throw(err) => {
                 // GeneratorStart step 4:
@@ -243,7 +245,8 @@ impl Generator<'_> {
         match execution_result {
             ExecutionResult::Return(result) => {
                 agent[generator].generator_state = Some(GeneratorState::Completed);
-                Ok(create_iter_result_object(agent, result.unbind(), true).into_value())
+                create_iter_result_object(agent, result.unbind(), true, gc.into_nogc())
+                    .map(|o| o.into_value())
             }
             ExecutionResult::Throw(err) => {
                 agent[generator].generator_state = Some(GeneratorState::Completed);
@@ -285,9 +288,13 @@ impl Generator<'_> {
 
                 // 3. If abruptCompletion is a return completion, then
                 // i. Return CreateIteratorResultObject(abruptCompletion.[[Value]], true).
-                return Ok(
-                    create_iter_result_object(agent, abrupt_completion.unbind(), true).into_value(),
-                );
+                return create_iter_result_object(
+                    agent,
+                    abrupt_completion.unbind(),
+                    true,
+                    gc.into_nogc(),
+                )
+                .map(|o| o.into_value());
             }
             GeneratorState::SuspendedYield(_) => {
                 // 4. Assert: state is suspended-yield.
@@ -302,9 +309,13 @@ impl Generator<'_> {
             GeneratorState::Completed => {
                 // 3. If abruptCompletion is a return completion, then
                 // i. Return CreateIteratorResultObject(abruptCompletion.[[Value]], true).
-                return Ok(
-                    create_iter_result_object(agent, abrupt_completion.unbind(), true).into_value(),
-                );
+                return create_iter_result_object(
+                    agent,
+                    abrupt_completion.unbind(),
+                    true,
+                    gc.into_nogc(),
+                )
+                .map(|o| o.into_value());
             }
         };
 
@@ -362,7 +373,8 @@ impl Generator<'_> {
         match execution_result {
             ExecutionResult::Return(result) => {
                 agent[generator].generator_state = Some(GeneratorState::Completed);
-                Ok(create_iter_result_object(agent, result, true).into_value())
+                create_iter_result_object(agent, result, true, gc.into_nogc())
+                    .map(|o| o.into_value())
             }
             ExecutionResult::Throw(err) => {
                 agent[generator].generator_state = Some(GeneratorState::Completed);

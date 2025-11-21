@@ -63,7 +63,11 @@ pub(crate) fn array_create<'a>(
         {
             None
         } else {
-            Some(OrdinaryObject::create_object(agent, Some(proto), &[]).bind(gc))
+            Some(
+                OrdinaryObject::create_object(agent, Some(proto), &[])
+                    .expect("Should perform GC here")
+                    .bind(gc),
+            )
         }
     } else {
         None

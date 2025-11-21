@@ -1053,11 +1053,25 @@ impl Agent {
         error: TryReserveError,
         gc: NoGcScope<'a, '_>,
     ) -> JsError<'a> {
-        self.throw_exception(ExceptionType::ReferenceError, error.to_string(), gc)
+        self.throw_exception(ExceptionType::RangeError, error.to_string(), gc)
     }
 
     pub(crate) fn running_execution_context(&self) -> &ExecutionContext {
         self.execution_context_stack.last().unwrap()
+    }
+
+    pub(crate) fn check_call_depth<'gc>(&mut self, gc: NoGcScope<'gc, '_>) -> JsResult<'gc, ()> {
+        // Experimental number that caused stack overflow on local machine. A
+        // better limit creation logic would be nice.
+        if self.execution_context_stack.len() > 3500 {
+            Err(self.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "Maximum call stack size exceeded",
+                gc,
+            ))
+        } else {
+            Ok(())
+        }
     }
 
     /// Returns the realm of the previous execution context.

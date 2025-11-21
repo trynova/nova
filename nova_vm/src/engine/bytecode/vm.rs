@@ -666,7 +666,7 @@ impl Vm {
             Instruction::ArrayElision => execute_array_elision(agent, vm, gc)?,
             Instruction::BitwiseNot => execute_bitwise_not(agent, vm, gc)?,
             Instruction::CreateUnmappedArgumentsObject => {
-                execute_create_unmapped_arguments_object(agent, vm, gc.into_nogc())
+                execute_create_unmapped_arguments_object(agent, vm, gc.into_nogc())?
             }
             Instruction::CopyDataProperties => execute_copy_data_properties(agent, vm, gc)?,
             Instruction::CopyDataPropertiesIntoObject => {

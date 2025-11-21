@@ -162,7 +162,8 @@ pub(super) fn get_template_object<'a>(
             },
             // }).
         }],
-    );
+    )
+    .expect("Should perform GC here");
     template.set_backing_object(agent, template_backing_object.unbind());
     // 15. Perform ! SetIntegrityLevel(template, frozen).
     unwrap_try(template.try_prevent_extensions(agent, gc));

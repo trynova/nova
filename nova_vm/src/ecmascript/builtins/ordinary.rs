@@ -187,7 +187,8 @@ pub(crate) fn ordinary_set_prototype_of(
     {
         prototype
             .get_or_create_backing_object(agent)
-            .make_intrinsic(agent);
+            .make_intrinsic(agent)
+            .expect("Should perform GC here");
     }
 
     // 8. Set O.[[Prototype]] to V.
@@ -1501,7 +1502,8 @@ pub(crate) fn ordinary_delete(
         // a. Remove the own property with name P from O.
         backing_object
             .property_storage()
-            .remove(agent, o, property_key);
+            .remove(agent, o, property_key)
+            .expect("Should perform GC here");
 
         // b. Return true.
         return true;
@@ -1600,7 +1602,9 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
 ) -> Object<'a> {
     let Some(proto_intrinsics) = proto_intrinsics else {
         assert!(prototype.is_none());
-        return OrdinaryObject::create_object(agent, None, &[]).into();
+        return OrdinaryObject::create_object(agent, None, &[])
+            .expect("Should perform GC here")
+            .into();
     };
 
     let object = match proto_intrinsics {
@@ -1648,6 +1652,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
             ),
             &[],
         )
+        .expect("Should perform GC here")
         .into(),
         ProtoIntrinsics::RangeError => agent
             .heap
@@ -1762,6 +1767,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
             ),
             &[],
         )
+        .expect("Should perform GC here")
         .into_object(),
         ProtoIntrinsics::Map => agent.heap.create(MapHeapData::default()).into_object(),
         ProtoIntrinsics::MapIterator => agent
@@ -1813,7 +1819,8 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
         if !prototype.is_proxy() && !prototype.is_module() {
             prototype
                 .get_or_create_backing_object(agent)
-                .make_intrinsic(agent);
+                .make_intrinsic(agent)
+                .expect("Should perform GC here");
         }
         object.internal_set_prototype(agent, Some(prototype));
     }

@@ -157,8 +157,13 @@ impl AsyncFromSyncIteratorPrototype {
         // 8. If return is undefined, then
         let Some(r#return) = r#return else {
             // a. Let iteratorResult be CreateIteratorResultObject(value, true).
-            let iterator_result =
-                create_iter_result_object(agent, value.unwrap_or(Value::Undefined), true);
+            let iterator_result = create_iter_result_object(
+                agent,
+                value.unwrap_or(Value::Undefined),
+                true,
+                gc.nogc(),
+            )
+            .expect("Should perform GC here");
             // b. Perform ! Call(promiseCapability.[[Resolve]], undefined, « iteratorResult »).
             unwrap_try(promise_capability.try_resolve(
                 agent,

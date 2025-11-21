@@ -49,11 +49,12 @@ pub struct ActiveIterator<'a> {
 fn convert_to_iter_result_object<'a>(
     agent: &mut Agent,
     result: Option<Value<'a>>,
-) -> OrdinaryObject<'a> {
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<'a, OrdinaryObject<'a>> {
     if let Some(result) = result {
-        create_iter_result_object(agent, result, false)
+        create_iter_result_object(agent, result, false, gc)
     } else {
-        create_iter_result_object(agent, Value::Undefined, true)
+        create_iter_result_object(agent, Value::Undefined, true, gc)
     }
 }
 
@@ -74,7 +75,7 @@ impl<'a> ActiveIterator<'a> {
         &mut self,
         agent: &mut Agent,
         value: Option<Value>,
-        gc: GcScope<'gc, '_>,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         match self.get(agent) {
             VmIteratorRecord::InvalidIterator { .. } => {
@@ -85,8 +86,10 @@ impl<'a> ActiveIterator<'a> {
                 unreachable!()
             }
             VmIteratorRecord::ArrayValues(_) => ArrayValuesIterator::new(self)
-                .next(agent, gc)
-                .map(|r| convert_to_iter_result_object(agent, r).into_value()),
+                .next(agent, gc.reborrow())
+                .unbind()
+                .and_then(|r| convert_to_iter_result_object(agent, r.unbind(), gc.into_nogc()))
+                .map(|o| o.into_value()),
             VmIteratorRecord::AsyncFromSyncGenericIterator(_) => {
                 Ok(AsyncFromSyncGenericIterator::new(self)
                     .call_next(agent, value, gc)
@@ -95,13 +98,14 @@ impl<'a> ActiveIterator<'a> {
             VmIteratorRecord::GenericIterator(_) => {
                 GenericIterator::new(self).call_next(agent, value, gc)
             }
-            VmIteratorRecord::SliceIterator(slice_ref) => Ok(convert_to_iter_result_object(
-                agent,
-                slice_ref.unshift(agent, gc.into_nogc()),
-            )
-            .into_value()),
+            VmIteratorRecord::SliceIterator(slice_ref) => {
+                let gc = gc.into_nogc();
+                convert_to_iter_result_object(agent, slice_ref.unshift(agent, gc), gc)
+                    .map(|o| o.into_value())
+            }
             VmIteratorRecord::EmptySliceIterator => {
-                Ok(create_iter_result_object(agent, Value::Undefined, true).into_value())
+                create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
+                    .map(|o| o.into_value())
             }
         }
     }

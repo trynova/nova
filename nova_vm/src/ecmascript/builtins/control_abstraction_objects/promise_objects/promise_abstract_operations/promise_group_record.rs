@@ -209,6 +209,7 @@ impl<'a> PromiseGroup<'a> {
             ),
             &entries,
         )
+        .expect("Should perform GC here")
         .bind(gc);
 
         obj.into_value().unbind()

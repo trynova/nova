@@ -208,7 +208,8 @@ impl PromiseReactionJob {
                 //    called:
                 // a. Return CreateIteratorResultObject(v, done).
                 (
-                    Ok(create_iter_result_object(agent, argument, done).into_value()),
+                    create_iter_result_object(agent, argument, done, gc.nogc())
+                        .map(|o| o.into_value()),
                     capability,
                 )
             }

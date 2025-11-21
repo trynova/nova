@@ -146,14 +146,13 @@ impl ArrayConstructor {
                     int_len as usize,
                     proto.map(|p| p.get(agent)),
                     gc,
-                )
-                .unwrap();
+                )?;
                 // e. Perform ! Set(array, "length", intLen, true).
                 debug_assert_eq!(array.len(agent), int_len);
                 array
             } else {
                 // b. Let array be ! ArrayCreate(0, proto).
-                let array = array_create(agent, 1, 1, proto, gc).unwrap();
+                let array = array_create(agent, 1, 1, proto, gc)?;
                 // i. Perform ! CreateDataPropertyOrThrow(array, "0", len).
                 unwrap_try(try_create_data_property_or_throw(
                     agent,

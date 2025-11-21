@@ -159,6 +159,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseFinallyFunction<'a> {
         arguments_list: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        agent.check_call_depth(gc.nogc()).unbind()?;
         let f = self.bind(gc.nogc());
         match f.get(agent).resolve_type {
             PromiseFinallyFunctionType::ResolveFinally { on_finally, c } => {

@@ -86,7 +86,10 @@ impl AsyncGeneratorPrototype {
         // 6. If state is completed, then
         if state.is_completed() {
             // a. Let iteratorResult be CreateIteratorResultObject(undefined, true).
-            let iterator_result = create_iter_result_object(agent, Value::Undefined, true);
+            let iterator_result =
+                create_iter_result_object(agent, Value::Undefined, true, gc.nogc())
+                    .unbind()?
+                    .bind(gc.nogc());
             // b. Perform ! Call(promiseCapability.[[Resolve]], undefined, « iteratorResult »).
             promise_capability
                 .unbind()

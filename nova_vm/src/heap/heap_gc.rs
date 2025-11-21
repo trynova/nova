@@ -2178,7 +2178,9 @@ fn test_heap_gc() {
     let (mut gc, mut scope) = unsafe { GcScope::create_root() };
     let mut gc = GcScope::new(&mut gc, &mut scope);
     assert!(agent.heap.objects.is_empty());
-    let obj = HeapRootData::Object(OrdinaryObject::create_object(&mut agent, None, &[]));
+    let obj = HeapRootData::Object(
+        OrdinaryObject::create_object(&mut agent, None, &[]).expect("Should perform GC here"),
+    );
     agent.heap.globals.borrow_mut().push(obj);
     heap_gc(&mut agent, &mut [], gc.reborrow());
 

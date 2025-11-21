@@ -135,7 +135,7 @@ impl<'a> PropertyStorage<'a> {
         elements_vector.reserve(&mut agent.heap.elements, new_len)?;
         // SAFETY: User says so.
         let (new_shape, insertion_index) =
-            unsafe { old_shape.add_private_fields(agent, private_fields) };
+            unsafe { old_shape.add_private_fields(agent, private_fields)? };
         // SAFETY: insertion index is <= old_len; old_len + private_fields.len() was checked.
         let insertion_end_index = unsafe { insertion_index.unchecked_add(private_fields.len()) };
         // Note: use saturating_mul to avoid a panic site.
@@ -405,7 +405,7 @@ impl<'a> PropertyStorage<'a> {
         let mut elements_vector = object.get_elements_vector(agent);
         elements_vector.reserve(&mut agent.heap.elements, new_len)?;
         elements_vector.len = new_len;
-        let new_shape = old_shape.get_child_shape(agent, key);
+        let new_shape = old_shape.get_child_shape(agent, key)?;
         agent.heap.alloc_counter += core::mem::size_of::<Option<Value>>()
             + if desc.is_some() {
                 core::mem::size_of::<(u32, ElementDescriptor)>()
@@ -461,7 +461,12 @@ impl<'a> PropertyStorage<'a> {
         Ok(())
     }
 
-    pub fn remove(self, agent: &mut Agent, o: Object, key: PropertyKey<'a>) {
+    pub fn remove(
+        self,
+        agent: &mut Agent,
+        o: Object,
+        key: PropertyKey<'a>,
+    ) -> Result<(), TryReserveError> {
         let object = self.0;
 
         let old_shape = object.object_shape(agent);
@@ -476,14 +481,14 @@ impl<'a> PropertyStorage<'a> {
             .map(|res| res.0);
         let Some(index) = result else {
             // No match; nothing to delete.
-            return;
+            return Ok(());
         };
         // Note: keys can only go up to 2^32.
         let index = index as u32;
         let old_len = keys.len() as u32;
         let new_len = old_len - 1;
 
-        let new_shape = old_shape.get_shape_with_removal(agent, index);
+        let new_shape = old_shape.get_shape_with_removal(agent, index)?;
         let new_cap = new_shape.values_capacity(agent);
 
         if new_cap != old_cap {
@@ -500,7 +505,7 @@ impl<'a> PropertyStorage<'a> {
                 new_cap,
                 old_len,
                 index,
-            );
+            )?;
             object.get_mut(agent).set_values(new_values);
         } else {
             // Capacity of the property storage isn't changing, so we can
@@ -551,5 +556,6 @@ impl<'a> PropertyStorage<'a> {
         } else {
             object.get_mut(agent).set_shape(new_shape);
         }
+        Ok(())
     }
 }

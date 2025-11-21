@@ -330,6 +330,7 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
         arguments_list: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        agent.check_call_depth(gc.nogc()).unbind()?;
         let f = self.bind(gc.nogc());
         let mut id = 0;
         ndt::javascript_call_start!(|| {
@@ -835,11 +836,10 @@ pub(crate) fn ordinary_function_create<'agent, 'program, 'gc>(
                 .function_prototype()
                 .into_object()
     {
-        function.object_index = Some(OrdinaryObject::create_object(
-            agent,
-            Some(function_prototype),
-            &[],
-        ));
+        function.object_index = Some(
+            OrdinaryObject::create_object(agent, Some(function_prototype), &[])
+                .expect("Should perform GC here"),
+        );
     }
 
     // 18. Set F.[[Fields]] to a new empty List.

@@ -180,7 +180,8 @@ impl<'a> InternalSlots<'a> for RegExp<'a> {
                     configurable: false,
                 },
             }],
-        );
+        )
+        .expect("Should perform GC here");
         self.set_backing_object(agent, backing_object);
         backing_object
     }

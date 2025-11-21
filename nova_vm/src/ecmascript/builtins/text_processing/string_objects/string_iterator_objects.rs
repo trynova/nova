@@ -176,7 +176,8 @@ impl StringIteratorPrototype {
         };
         // 2. If state is completed, return CreateIteratorResultObject(undefined, true).
         if generator.is_completed(agent) {
-            return Ok(create_iter_result_object(agent, Value::Undefined, true).into_value());
+            return create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
+                .map(|o| o.into_value());
         }
         let StringIteratorHeapData { s, position, .. } = generator.get_data(agent);
         let position = *position;
@@ -196,7 +197,8 @@ impl StringIteratorPrototype {
         generator.get_data_mut(agent).position = next_index;
         // v. Perform ? GeneratorYield(CreateIteratorResultObject(resultString, false)).
         // 11. Return ? result.
-        Ok(create_iter_result_object(agent, result_string.into_value(), false).into_value())
+        create_iter_result_object(agent, result_string.into_value(), false, gc.into_nogc())
+            .map(|o| o.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
