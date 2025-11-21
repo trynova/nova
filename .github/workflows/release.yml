@@ -26,7 +26,7 @@ jobs:
             asset-name: nova-linux-arm64
 
           # macOS (Intel)
-          - os: macos-13
+          - os: macos-14
             rust-target: x86_64-apple-darwin
             asset-name: nova-macos-amd64
 
