@@ -680,6 +680,10 @@ impl AtomicsObject {
         let gc = gc.into_nogc();
         // SAFETY: not shared.
         let typed_array = unsafe { typed_array.take(agent) }.bind(gc);
+
+        if c == 0 {
+            return Ok(0.into());
+        }
         // 5. Let buffer be typedArray.[[ViewedArrayBuffer]].
         let buffer = typed_array.viewed_array_buffer(agent);
         // 7. If IsSharedArrayBuffer(buffer) is false,
