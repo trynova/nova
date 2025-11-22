@@ -249,7 +249,6 @@
   "built-ins/Atomics/waitAsync/bigint/true-for-timeout.js": "FAIL",
   "built-ins/Atomics/waitAsync/returns-result-object-value-is-promise-resolves-to-timed-out.js": "FAIL",
   "built-ins/Atomics/waitAsync/true-for-timeout.js": "FAIL",
-  "built-ins/BigInt/asUintN/arithmetic.js": "CRASH",
   "built-ins/Boolean/proto-from-ctor-realm.js": "FAIL",
   "built-ins/DataView/proto-from-ctor-realm-sab.js": "FAIL",
   "built-ins/DataView/proto-from-ctor-realm.js": "FAIL",

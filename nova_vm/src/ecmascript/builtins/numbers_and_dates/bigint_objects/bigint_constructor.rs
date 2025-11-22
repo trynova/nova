@@ -204,26 +204,36 @@ impl BigIntConstructor {
         let bigint = to_big_int(agent, bigint.get(agent), gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
-        match bigint {
-            BigInt::BigInt(int) => {
-                let int = &agent[int].data;
-                let modulus = 2i64.pow(bits);
-                Ok(
-                    BigInt::from_num_bigint(agent, ((int % modulus) + modulus) % modulus)
-                        .into_value(),
-                )
-            }
-            BigInt::SmallBigInt(int) => {
-                let int = int.into_i64();
-                if let Some(modulo) = 2i64
-                    .checked_pow(bits)
-                    .and_then(|base| int.checked_rem_euclid(base))
-                {
+
+        match 2i64.checked_pow(bits) {
+            Some(modulus) => match bigint {
+                BigInt::BigInt(int) => {
+                    let int = &agent[int].data;
+                    Ok(
+                        BigInt::from_num_bigint(agent, ((int % modulus) + modulus) % modulus)
+                            .into_value(),
+                    )
+                }
+                BigInt::SmallBigInt(int) => {
+                    let int = int.into_i64();
+                    let modulo = int.rem_euclid(modulus);
                     Ok(BigInt::from(SmallBigInt::try_from(modulo).unwrap()).into_value())
-                } else {
-                    let modulus = num_bigint::BigInt::from(2).pow(bits);
-                    let result = ((int % modulus.clone()) + modulus.clone()) % modulus;
-                    Ok(BigInt::from_num_bigint(agent, result).into_value())
+                }
+            },
+            None => {
+                let modulus =
+                    num_bigint::BigInt::from_bytes_le(num_bigint::Sign::Plus, &[2]).pow(bits);
+                match bigint {
+                    BigInt::BigInt(int) => {
+                        let int = &agent[int].data;
+                        let result = ((int % &modulus) + &modulus) % &modulus;
+                        Ok(BigInt::from_num_bigint(agent, result).into_value())
+                    }
+                    BigInt::SmallBigInt(int) => {
+                        let int = int.into_i64();
+                        let result = ((int % &modulus) + &modulus) % &modulus;
+                        Ok(BigInt::from_num_bigint(agent, result).into_value())
+                    }
                 }
             }
         }
