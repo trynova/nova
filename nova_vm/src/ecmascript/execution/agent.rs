@@ -291,7 +291,10 @@ impl Job {
             #[cfg(feature = "atomics")]
             InnerJob::WaitAsync(job) => job.run(agent, gc),
             #[cfg(feature = "weak-refs")]
-            InnerJob::FinalizationRegistry(job) => Ok(job.run(agent, gc)),
+            InnerJob::FinalizationRegistry(job) => {
+                job.run(agent, gc);
+                Ok(())
+            }
         };
 
         if pushed_context {

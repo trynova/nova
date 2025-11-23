@@ -110,10 +110,7 @@ impl<'fr> CleanupRecord<'fr> {
 
     pub(super) fn get_cleanup_queue(&mut self) -> (Function<'fr>, Vec<Value<'fr>>) {
         self.cleanup_requested = false;
-        (
-            self.callback,
-            core::mem::replace(&mut self.cleanup_queue, vec![]),
-        )
+        (self.callback, core::mem::take(&mut self.cleanup_queue))
     }
 
     pub(super) fn push_cleanup_queue(&mut self, queue: Vec<Value<'fr>>) -> bool {
@@ -152,7 +149,7 @@ impl HeapMarkAndSweep for FinalizationRegistryRecordRef<'_, 'static> {
             cleanup,
             object_index,
         } = self;
-        for value in cells_weak_ref_target_to_held_value.values().into_iter() {
+        for value in cells_weak_ref_target_to_held_value.values() {
             value.mark_values(queues);
         }
         cleanup.mark_values(queues);
