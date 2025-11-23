@@ -26,7 +26,7 @@ use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "atomics")]
 use crate::ecmascript::builtins::structured_data::atomics_object::WaitAsyncJob;
 #[cfg(feature = "weak-refs")]
-use crate::ecmascript::execution::clear_kept_objects;
+use crate::ecmascript::execution::{FinalizationRegistryCleanupJob, clear_kept_objects};
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_string,
@@ -248,6 +248,8 @@ pub(crate) enum InnerJob {
     PromiseReaction(PromiseReactionJob),
     #[cfg(feature = "atomics")]
     WaitAsync(WaitAsyncJob),
+    #[cfg(feature = "weak-refs")]
+    FinalizationRegistry(FinalizationRegistryCleanupJob),
 }
 
 pub struct Job {
@@ -288,6 +290,11 @@ impl Job {
             InnerJob::PromiseReaction(job) => job.run(agent, gc),
             #[cfg(feature = "atomics")]
             InnerJob::WaitAsync(job) => job.run(agent, gc),
+            #[cfg(feature = "weak-refs")]
+            InnerJob::FinalizationRegistry(job) => {
+                job.run(agent, gc);
+                Ok(())
+            }
         };
 
         if pushed_context {
@@ -386,6 +393,33 @@ pub trait HostHooks: core::fmt::Debug {
     /// An implementation of HostEnqueueTimeoutJob must conform to the
     /// requirements in 9.5.
     fn enqueue_timeout_job(&self, timeout_job: Job, milliseconds: u64);
+
+    /// ### [9.9.4.1 HostEnqueueFinalizationRegistryCleanupJob ( finalizationRegistry )](https://tc39.es/ecma262/#sec-host-cleanup-finalization-registry)
+    ///
+    /// The host-defined abstract operation
+    /// HostEnqueueFinalizationRegistryCleanupJob takes argument
+    /// _finalizationRegistry_ (a FinalizationRegistry) and returns unused.
+    ///
+    /// Let _cleanupJob_ be a new Job Abstract Closure with no parameters that
+    /// captures _finalizationRegistry_ and performs the following steps when
+    /// called:
+    ///
+    /// ```text
+    /// 1. Let cleanupResult be
+    ///    Completion(CleanupFinalizationRegistry(finalizationRegistry)).
+    /// 2. If cleanupResult is an abrupt completion, perform any host-defined
+    ///    steps for reporting the error.
+    /// 3. Return unused.
+    /// ```
+    ///
+    /// An implementation of HostEnqueueFinalizationRegistryCleanupJob
+    /// schedules cleanupJob to be performed at some future time, if possible.
+    /// It must also conform to the requirements in 9.5.
+    #[allow(unused_variables)]
+    #[cfg(feature = "weak-refs")]
+    fn enqueue_finalization_registry_cleanup_job(&self, job: Job) {
+        // By default, just ignore cleanup.
+    }
 
     /// ### [27.2.1.9 HostPromiseRejectionTracker ( promise, operation )](https://tc39.es/ecma262/#sec-host-promise-rejection-tracker)
     #[allow(unused_variables)]

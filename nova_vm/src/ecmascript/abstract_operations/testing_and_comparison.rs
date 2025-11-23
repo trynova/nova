@@ -277,8 +277,7 @@ pub(crate) fn same_value<'a, V1: Copy + Into<Value<'a>>, V2: Copy + Into<Value<'
 /// The abstract operation SameValueZero takes arguments x (an ECMAScript
 /// language value) and y (an ECMAScript language value) and returns a Boolean.
 /// It determines whether or not the two arguments are the same value (ignoring
-/// the difference between +0𝔽 and -0𝔽). It performs the following steps when
-/// called:
+/// the difference between +0𝔽 and -0𝔽).
 pub(crate) fn same_value_zero<'a>(
     agent: &impl PrimitiveHeapIndexable,
     x: impl Copy + Into<Value<'a>>,

@@ -341,7 +341,7 @@ pub(crate) const PRIMITIVE_OBJECT_DISCRIMINANT: u8 =
 pub(crate) const ARGUMENTS_DISCRIMINANT: u8 =
     value_discriminant(Value::Arguments(OrdinaryObject::_def()));
 pub(crate) const FINALIZATION_REGISTRY_DISCRIMINANT: u8 =
-    value_discriminant(Value::FinalizationRegistry(FinalizationRegistry::_def()));
+    value_discriminant(Value::FinalizationRegistry(FinalizationRegistry::_DEF));
 pub(crate) const MAP_DISCRIMINANT: u8 = value_discriminant(Value::Map(Map::_def()));
 pub(crate) const PROMISE_DISCRIMINANT: u8 = value_discriminant(Value::Promise(Promise::_def()));
 pub(crate) const PROXY_DISCRIMINANT: u8 = value_discriminant(Value::Proxy(Proxy::_def()));

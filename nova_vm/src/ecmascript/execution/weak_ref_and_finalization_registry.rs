@@ -6,11 +6,19 @@
 
 use crate::{
     ecmascript::{
-        builtins::fundamental_objects::symbol_objects::symbol_constructor::key_for_symbol,
-        execution::{Agent, weak_key::WeakKey},
+        abstract_operations::operations_on_objects::call_function,
+        builtins::{
+            ArgumentsList, finalization_registry::FinalizationRegistry,
+            fundamental_objects::symbol_objects::symbol_constructor::key_for_symbol,
+        },
+        execution::{Agent, JsResult, weak_key::WeakKey},
         types::{Object, Value},
     },
-    engine::context::NoGcScope,
+    engine::{
+        Global, ScopableCollection,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
+    },
 };
 
 use super::agent::{ExceptionType, JsError};
@@ -45,6 +53,121 @@ pub(crate) fn add_to_kept_objects(agent: &mut Agent, _value: WeakKey) {
     // 2. Append value to agentRecord.[[KeptAlive]].
     agent.kept_alive = true;
     // 3. Return unused.
+}
+
+pub(crate) struct FinalizationRegistryCleanupJob {
+    finalization_registry: Global<FinalizationRegistry<'static>>,
+}
+
+impl FinalizationRegistryCleanupJob {
+    pub(crate) fn new(agent: &mut Agent, finalization_registry: FinalizationRegistry) -> Self {
+        Self {
+            finalization_registry: Global::new(agent, finalization_registry.unbind()),
+        }
+    }
+    pub(crate) fn run<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) {
+        let finalization_registry = self.finalization_registry.take(agent).bind(gc.nogc());
+        // 1. Let cleanupResult be
+        //    Completion(CleanupFinalizationRegistry(finalizationRegistry)).
+        let cleanup_result =
+            cleanup_finalization_registry(agent, finalization_registry.unbind(), gc);
+        // 2. If cleanupResult is an abrupt completion, perform any host-defined steps for reporting the error.
+        if cleanup_result.is_err() {
+            let _ = cleanup_result;
+        }
+        // 3. Return unused.
+    }
+}
+
+/// ### [9.12 CleanupFinalizationRegistry ( finalizationRegistry )](https://tc39.es/ecma262/#sec-cleanup-finalization-registry)
+///
+/// The abstract operation CleanupFinalizationRegistry takes argument
+/// finalizationRegistry (a FinalizationRegistry) and returns either a normal
+/// completion containing unused or a throw completion.
+pub(crate) fn cleanup_finalization_registry<'gc>(
+    agent: &mut Agent,
+    finalization_registry: FinalizationRegistry,
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, ()> {
+    let finalization_registry = finalization_registry.bind(gc.nogc());
+    // 1. Assert: finalizationRegistry has [[Cells]] and [[CleanupCallback]]
+    //    internal slots.
+    // 2. Let callback be finalizationRegistry.[[CleanupCallback]].
+    let (callback, mut queue) = finalization_registry.get_cleanup_queue(agent);
+    if queue.is_empty() {
+        return Ok(());
+    }
+    let value = queue.pop().unwrap();
+    // 3. While finalizationRegistry.[[Cells]] contains a Record cell such that
+    //    cell.[[WeakRefTarget]] is empty, an implementation may perform the
+    //    following steps:
+    //         a. Choose any such cell.
+    //         b. Remove cell from finalizationRegistry.[[Cells]].
+    //         c. Perform ? HostCallJobCallback(callback, undefined, « cell.[[HeldValue]] »).
+    if queue.len() == 1 {
+        // 2. Return ? Call(jobCallback.[[Callback]], V, argumentsList).
+        let _ = call_function(
+            agent,
+            callback.unbind(),
+            Value::Undefined,
+            Some(ArgumentsList::from_mut_value(&mut value.unbind())),
+            gc,
+        )?;
+    } else {
+        let scoped_callback = callback.scope(agent, gc.nogc());
+        let finalization_registry = finalization_registry.scope(agent, gc.nogc());
+        let queue = queue.scope(agent, gc.nogc());
+        let result = call_function(
+            agent,
+            callback.unbind(),
+            Value::Undefined,
+            Some(ArgumentsList::from_mut_value(&mut value.unbind())),
+            gc.reborrow(),
+        )
+        .unbind()
+        .bind(gc.nogc());
+        let mut err_and_i = None;
+        if let Err(err) = result {
+            err_and_i = Some((err.unbind(), 0));
+        } else {
+            for (i, value) in queue.iter(agent).enumerate() {
+                let value = value.get(gc.nogc());
+                let result = call_function(
+                    agent,
+                    scoped_callback.get(agent),
+                    Value::Undefined,
+                    Some(ArgumentsList::from_mut_value(&mut value.unbind())),
+                    gc.reborrow(),
+                )
+                .unbind()
+                .bind(gc.nogc());
+                if let Err(err) = result {
+                    err_and_i = Some((err.unbind(), i));
+                    break;
+                }
+            }
+        }
+        // If an error was thrown by a cleanup callback, we interrupt any
+        // further cleanup and add any leftover cleanups back into the
+        // FinalizationRegistry. This will re-request cleanup of the registry
+        // if necessary.
+        if let Some((err, i)) = err_and_i {
+            let err = err.unbind();
+            let gc = gc.into_nogc();
+            let err = err.bind(gc);
+            let mut queue = queue.take(agent).bind(gc);
+            // Drain all elements that were found so far.
+            queue.drain(0..i);
+            let finalization_registry = unsafe { finalization_registry.take(agent) }.bind(gc);
+            let _ = unsafe { scoped_callback.take(agent) };
+            if !queue.is_empty() {
+                finalization_registry.add_cleanups(agent, queue);
+            }
+            return Err(err);
+        }
+    }
+    // 4. Return unused.
+    Ok(())
 }
 
 /// ### [9.13 CanBeHeldWeakly ( v )](https://tc39.es/ecma262/#sec-canbeheldweakly)

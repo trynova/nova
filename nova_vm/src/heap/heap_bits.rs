@@ -316,7 +316,7 @@ impl HeapBits {
         let errors = vec![false; heap.errors.len()];
         let executables = vec![false; heap.executables.len()];
         let source_codes = vec![false; heap.source_codes.len()];
-        let finalization_registrys = vec![false; heap.finalization_registrys.len()];
+        let finalization_registrys = vec![false; heap.finalization_registrys.len() as usize];
         let function_environments = vec![false; heap.environments.function.len()];
         let generators = vec![false; heap.generators.len()];
         let global_environments = vec![false; heap.environments.global.len()];
@@ -508,7 +508,9 @@ impl WorkQueues {
             errors: Vec::with_capacity(heap.errors.len() / 4),
             executables: Vec::with_capacity(heap.executables.len() / 4),
             source_codes: Vec::with_capacity(heap.source_codes.len() / 4),
-            finalization_registrys: Vec::with_capacity(heap.finalization_registrys.len() / 4),
+            finalization_registrys: Vec::with_capacity(
+                heap.finalization_registrys.len() as usize / 4,
+            ),
             function_environments: Vec::with_capacity(heap.environments.function.len() / 4),
             generators: Vec::with_capacity(heap.generators.len() / 4),
             global_environments: Vec::with_capacity(heap.environments.global.len() / 4),
@@ -1733,7 +1735,7 @@ pub(crate) fn sweep_heap_vector_values<T: HeapMarkAndSweep>(
     });
 }
 
-pub(crate) fn sweep_heap_soa_vector_values<T: SoAble + HeapMarkAndSweep>(
+pub(crate) fn sweep_heap_soa_vector_values<T: SoAble>(
     vec: &mut SoAVec<T>,
     compactions: &CompactionLists,
     bits: &[bool],
