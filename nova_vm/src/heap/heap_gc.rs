@@ -108,7 +108,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
     bits.symbols[0..WellKnownSymbolIndexes::Unscopables as usize].fill(true);
     queues.object_shapes.push(ObjectShape::NULL);
     agent.mark_values(&mut queues);
-
+    let mut has_finalization_registrys = false;
     while !queues.is_empty() {
         let Heap {
             #[cfg(feature = "array-buffer")]
@@ -595,6 +595,9 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         let mut finalization_registry_marks: Box<[FinalizationRegistry]> =
             queues.finalization_registrys.drain(..).collect();
         finalization_registry_marks.sort();
+        if !finalization_registry_marks.is_empty() {
+            has_finalization_registrys = true;
+        }
         finalization_registry_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
             if let Some(marked) = bits.finalization_registrys.get_mut(index) {
@@ -1442,6 +1445,9 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
     }
 
     sweep(agent, &bits, root_realms, gc);
+    if has_finalization_registrys {
+        FinalizationRegistry::enqueue_cleanup_jobs(agent);
+    }
     ndt::gc_done!(|| ());
 }
 

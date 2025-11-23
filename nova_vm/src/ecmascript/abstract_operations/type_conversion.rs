@@ -60,8 +60,7 @@ pub enum PreferredType {
 /// returns either a normal completion containing an ECMAScript language value
 /// or a throw completion. It converts its input argument to a non-Object type.
 /// If an object is capable of converting to more than one primitive type, it
-/// may use the optional hint preferredType to favour that type. It performs
-/// the following steps when called:
+/// may use the optional hint preferredType to favour that type.
 ///
 /// > NOTE: When ToPrimitive is called without a hint, then it generally
 /// > behaves as if the hint were NUMBER. However, objects may over-ride this

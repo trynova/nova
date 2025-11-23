@@ -67,7 +67,7 @@ use super::{
 use super::{
     ArrayHeapData, async_generator_objects::AsyncGeneratorHeapData,
     control_abstraction_objects::generator_objects::GeneratorHeapData, error::ErrorHeapData,
-    finalization_registry::data::FinalizationRegistryHeapData,
+    finalization_registry::data::FinalizationRegistryRecord,
     indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
     keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
     map::data::MapHeapData, module::Module, primitive_objects::PrimitiveObjectRecord,
@@ -1725,7 +1725,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
             .into_object(),
         ProtoIntrinsics::FinalizationRegistry => agent
             .heap
-            .create(FinalizationRegistryHeapData::default())
+            .create(FinalizationRegistryRecord::default())
             .into_object(),
         #[cfg(feature = "proposal-float16array")]
         ProtoIntrinsics::Float16Array => {
