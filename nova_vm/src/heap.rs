@@ -156,7 +156,7 @@ pub(crate) struct Heap {
     pub(crate) errors: Vec<ErrorHeapData<'static>>,
     /// Stores compiled bytecodes
     pub(crate) executables: Vec<ExecutableHeapData<'static>>,
-    pub(crate) finalization_registrys: Vec<FinalizationRegistryRecord<'static>>,
+    pub(crate) finalization_registrys: SoAVec<FinalizationRegistryRecord<'static>>,
     pub(crate) generators: Vec<GeneratorHeapData<'static>>,
     pub(crate) globals: RefCell<Vec<HeapRootData>>,
     pub(crate) maps: Vec<MapHeapData<'static>>,
@@ -323,7 +323,7 @@ impl Heap {
             errors: Vec::with_capacity(1024),
             executables: Vec::with_capacity(1024),
             source_codes: Vec::with_capacity(0),
-            finalization_registrys: Vec::with_capacity(0),
+            finalization_registrys: SoAVec::with_capacity(0).expect("Failed to allocate Heap"),
             generators: Vec::with_capacity(1024),
             globals: RefCell::new(Vec::with_capacity(1024)),
             maps: Vec::with_capacity(128),

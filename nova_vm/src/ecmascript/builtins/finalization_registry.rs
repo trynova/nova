@@ -2,8 +2,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use soavec::SoAVec;
+
 use crate::{
     ecmascript::{
+        builtins::finalization_registry::data::{
+            FinalizationRegistryRecordMut, FinalizationRegistryRecordRef,
+        },
         execution::{
             Agent, FinalizationRegistryCleanupJob, ProtoIntrinsics, Realm, WeakKey,
             agent::{InnerJob, Job},
@@ -37,14 +42,14 @@ impl<'fr> FinalizationRegistry<'fr> {
     }
 
     pub(crate) fn get_cleanup_queue(self, agent: &mut Agent) -> (Function<'fr>, Vec<Value<'fr>>) {
-        self.get_mut(agent).get_cleanup_queue()
+        self.get_mut(agent).cleanup.get_cleanup_queue()
     }
 
     pub(crate) fn add_cleanups(self, agent: &mut Agent, queue: Vec<Value<'fr>>) {
         if queue.is_empty() {
             return;
         }
-        let do_request_cleanup = self.get_mut(agent).push_cleanup_queue(queue);
+        let do_request_cleanup = self.get_mut(agent).cleanup.push_cleanup_queue(queue);
         if do_request_cleanup {
             agent
                 .host_hooks
@@ -61,6 +66,8 @@ impl<'fr> FinalizationRegistry<'fr> {
         let frs_to_enqueue = agent
             .heap
             .finalization_registrys
+            .as_mut_slice()
+            .cleanup
             .iter_mut()
             .enumerate()
             .filter_map(|(i, record)| {
@@ -94,7 +101,11 @@ impl<'fr> FinalizationRegistry<'fr> {
         cleanup_callback: Function,
     ) {
         // SAFETY: precondition.
-        unsafe { self.get_mut(agent).initialise(realm, cleanup_callback) };
+        unsafe {
+            self.get_mut(agent)
+                .cleanup
+                .initialise(realm, cleanup_callback)
+        };
     }
 
     pub(crate) fn register(
@@ -105,47 +116,48 @@ impl<'fr> FinalizationRegistry<'fr> {
         unregister_token: Option<WeakKey<'fr>>,
     ) {
         self.get_mut(agent)
+            .cells
             .register(target, held_value, unregister_token);
     }
 
     pub(crate) fn unregister(self, agent: &mut Agent, unregister_token: WeakKey<'fr>) -> bool {
-        self.get_mut(agent).unregister(unregister_token)
+        self.get_mut(agent).cells.unregister(unregister_token)
     }
 
     #[inline(always)]
-    fn get<'a>(self, agent: &'a Agent) -> &'a FinalizationRegistryRecord<'fr> {
+    fn get<'a>(self, agent: &'a Agent) -> FinalizationRegistryRecordRef<'a, 'fr> {
         self.get_direct(&agent.heap.finalization_registrys)
     }
 
     #[inline(always)]
-    fn get_mut<'a>(self, agent: &'a mut Agent) -> &'a mut FinalizationRegistryRecord<'fr> {
+    fn get_mut<'a>(self, agent: &'a mut Agent) -> FinalizationRegistryRecordMut<'a, 'fr> {
         self.get_direct_mut(&mut agent.heap.finalization_registrys)
     }
 
     #[inline(always)]
     fn get_direct<'a>(
         self,
-        finalization_registrys: &'a [FinalizationRegistryRecord<'static>],
-    ) -> &'a FinalizationRegistryRecord<'fr> {
+        finalization_registrys: &'a SoAVec<FinalizationRegistryRecord<'static>>,
+    ) -> FinalizationRegistryRecordRef<'a, 'fr> {
         finalization_registrys
-            .get(self.get_index())
+            .get(self.0.into_u32_index())
             .expect("Invalid FinalizationRegistry reference")
     }
 
     #[inline(always)]
     fn get_direct_mut<'a>(
         self,
-        finalization_registrys: &'a mut [FinalizationRegistryRecord<'static>],
-    ) -> &'a mut FinalizationRegistryRecord<'fr> {
+        finalization_registrys: &'a mut SoAVec<FinalizationRegistryRecord<'static>>,
+    ) -> FinalizationRegistryRecordMut<'a, 'fr> {
         // SAFETY: Lifetime transmute to thread GC lifetime to temporary heap
         // reference.
         unsafe {
             core::mem::transmute::<
-                &'a mut FinalizationRegistryRecord<'static>,
-                &'a mut FinalizationRegistryRecord<'fr>,
+                FinalizationRegistryRecordMut<'a, 'static>,
+                FinalizationRegistryRecordMut<'a, 'fr>,
             >(
                 finalization_registrys
-                    .get_mut(self.get_index())
+                    .get_mut(self.0.into_u32_index())
                     .expect("Invalid FinalizationRegistry reference"),
             )
         }
@@ -225,10 +237,12 @@ impl<'a> InternalMethods<'a> for FinalizationRegistry<'a> {}
 
 impl<'a> CreateHeapData<FinalizationRegistryRecord<'a>, FinalizationRegistry<'a>> for Heap {
     fn create(&mut self, data: FinalizationRegistryRecord<'a>) -> FinalizationRegistry<'a> {
-        self.finalization_registrys.push(data.unbind());
+        let i = self.finalization_registrys.len();
+        self.finalization_registrys
+            .push(data.unbind())
+            .expect("Failed to allocate FinalizationRegistry");
         self.alloc_counter += core::mem::size_of::<FinalizationRegistryRecord<'static>>();
-
-        FinalizationRegistry(BaseIndex::last(&self.finalization_registrys))
+        FinalizationRegistry(BaseIndex::from_u32_index(i))
     }
 }
 

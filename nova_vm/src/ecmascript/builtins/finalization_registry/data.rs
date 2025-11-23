@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use ahash::AHashMap;
+use soavec_derive::SoAble;
 
 use crate::{
     ecmascript::{
@@ -13,88 +14,18 @@ use crate::{
     heap::{CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues},
 };
 
-#[derive(Debug)]
-struct CleanupRecord<'a> {
-    cleanup_queue: Vec<Value<'a>>,
-    /// \[\[CleanupCallback]]
-    callback: Function<'a>,
-    /// \[\[Realm]]
-    realm: Realm<'a>,
-    cleanup_requested: bool,
-}
-bindable_handle!(CleanupRecord);
-
-impl Default for CleanupRecord<'_> {
-    fn default() -> Self {
-        Self {
-            cleanup_queue: Default::default(),
-            // Note: impossible value currently.
-            callback: Function::BuiltinPromiseCollectorFunction,
-            realm: const { Realm::from_u32(u32::MAX - 1) },
-            cleanup_requested: false,
-        }
-    }
-}
-
+/// \[\[Cells]]
+///
+/// This maps a _cell_.\[\[WeakRefTarget]] to a _cell_.\[\[HeldValue]].
 #[derive(Debug, Default)]
-pub struct FinalizationRegistryRecord<'a> {
-    /// \[\[Cells]]
-    ///
+pub(crate) struct Cells<'a> {
     /// This maps a _cell_.\[\[WeakRefTarget]] to a _cell_.\[\[HeldValue]].
     cells_weak_ref_target_to_held_value: AHashMap<WeakKey<'a>, Value<'a>>,
-    /// \[\[Cells]]
-    ///
     /// This maps a _cell_.\[\[UnregisterToken]] to a _cell_.\[\[WeakRefTarget]].
     cells_unregister_token_to_weak_ref_target: AHashMap<WeakKey<'a>, WeakKey<'a>>,
-    cleanup: CleanupRecord<'a>,
-    pub(super) object_index: Option<OrdinaryObject<'a>>,
 }
-bindable_handle!(FinalizationRegistryRecord);
 
-impl<'fr> FinalizationRegistryRecord<'fr> {
-    pub(super) fn needs_cleanup(&mut self) -> bool {
-        if !self.cleanup.cleanup_queue.is_empty() && !self.cleanup.cleanup_requested {
-            // We request cleanup by returning true from this method.
-            self.cleanup.cleanup_requested = true;
-            true
-        } else {
-            false
-        }
-    }
-
-    pub(super) fn get_cleanup_queue(&mut self) -> (Function<'fr>, Vec<Value<'fr>>) {
-        self.cleanup.cleanup_requested = false;
-        (
-            self.cleanup.callback,
-            core::mem::replace(&mut self.cleanup.cleanup_queue, vec![]),
-        )
-    }
-
-    pub(super) fn push_cleanup_queue(&mut self, queue: Vec<Value<'fr>>) -> bool {
-        self.cleanup.cleanup_queue.extend(queue);
-        if !self.cleanup.cleanup_requested {
-            // We haven't requested cleanup yet, so we should do it now.
-            self.cleanup.cleanup_requested = true;
-            true
-        } else {
-            // We're waiting for cleanup, no need to request it again.
-            false
-        }
-    }
-
-    /// # Safety
-    ///
-    /// FinalizationRegistry must be previously uninitialised.
-    pub(super) unsafe fn initialise(&mut self, realm: Realm, cleanup_callback: Function) {
-        debug_assert_eq!(self.cleanup.realm, const { Realm::from_u32(u32::MAX - 1) });
-        debug_assert_eq!(
-            self.cleanup.callback,
-            Function::BuiltinPromiseCollectorFunction
-        );
-        self.cleanup.realm = realm.unbind();
-        self.cleanup.callback = cleanup_callback.unbind();
-    }
-
+impl Cells<'_> {
     pub(super) fn register(
         &mut self,
         weak_ref_target: WeakKey,
@@ -133,13 +64,91 @@ impl<'fr> FinalizationRegistryRecord<'fr> {
     }
 }
 
-impl HeapMarkAndSweep for FinalizationRegistryRecord<'static> {
+#[derive(Debug)]
+pub(crate) struct CleanupRecord<'a> {
+    cleanup_queue: Vec<Value<'a>>,
+    /// \[\[CleanupCallback]]
+    callback: Function<'a>,
+    /// \[\[Realm]]
+    realm: Realm<'a>,
+    cleanup_requested: bool,
+}
+bindable_handle!(CleanupRecord);
+
+impl Default for CleanupRecord<'_> {
+    fn default() -> Self {
+        Self {
+            cleanup_queue: Default::default(),
+            // Note: impossible value currently.
+            callback: Function::BuiltinPromiseCollectorFunction,
+            realm: const { Realm::from_u32(u32::MAX - 1) },
+            cleanup_requested: false,
+        }
+    }
+}
+
+impl<'fr> CleanupRecord<'fr> {
+    pub(super) fn needs_cleanup(&mut self) -> bool {
+        if !self.cleanup_queue.is_empty() && !self.cleanup_requested {
+            // We request cleanup by returning true from this method.
+            self.cleanup_requested = true;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// # Safety
+    ///
+    /// FinalizationRegistry must be previously uninitialised.
+    pub(super) unsafe fn initialise(&mut self, realm: Realm, cleanup_callback: Function) {
+        debug_assert_eq!(self.realm, const { Realm::from_u32(u32::MAX - 1) });
+        debug_assert_eq!(self.callback, Function::BuiltinPromiseCollectorFunction);
+        self.realm = realm.unbind();
+        self.callback = cleanup_callback.unbind();
+    }
+
+    pub(super) fn get_cleanup_queue(&mut self) -> (Function<'fr>, Vec<Value<'fr>>) {
+        self.cleanup_requested = false;
+        (
+            self.callback,
+            core::mem::replace(&mut self.cleanup_queue, vec![]),
+        )
+    }
+
+    pub(super) fn push_cleanup_queue(&mut self, queue: Vec<Value<'fr>>) -> bool {
+        self.cleanup_queue.extend(queue);
+        if !self.cleanup_requested {
+            // We haven't requested cleanup yet, so we should do it now.
+            self.cleanup_requested = true;
+            true
+        } else {
+            // We're waiting for cleanup, no need to request it again.
+            false
+        }
+    }
+}
+
+#[derive(Debug, Default, SoAble)]
+pub(crate) struct FinalizationRegistryRecord<'a> {
+    /// \[\[Cells]]
+    pub(super) cells: Cells<'a>,
+    pub(super) cleanup: CleanupRecord<'a>,
+    pub(super) object_index: Option<OrdinaryObject<'a>>,
+}
+bindable_handle!(FinalizationRegistryRecord);
+
+impl HeapMarkAndSweep for FinalizationRegistryRecordRef<'_, 'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
-            cells_weak_ref_target_to_held_value,
-            // note: cells_unregister_token_to_weak_ref_target holds neither
-            // key nor value strongly and thus performs no marking.
-            cells_unregister_token_to_weak_ref_target: _,
+            cells:
+                Cells {
+                    cells_weak_ref_target_to_held_value,
+                    // Note: cells_unregister_token_to_weak_ref_target holds
+                    // neither key nor value strongly and thus performs no
+                    // marking.
+                    cells_unregister_token_to_weak_ref_target: _,
+                },
             cleanup,
             object_index,
         } = self;
@@ -150,10 +159,23 @@ impl HeapMarkAndSweep for FinalizationRegistryRecord<'static> {
         object_index.mark_values(queues);
     }
 
+    fn sweep_values(&mut self, _: &CompactionLists) {
+        unreachable!()
+    }
+}
+
+impl HeapMarkAndSweep for FinalizationRegistryRecordMut<'_, 'static> {
+    fn mark_values(&self, _: &mut WorkQueues) {
+        unreachable!()
+    }
+
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let Self {
-            cells_weak_ref_target_to_held_value,
-            cells_unregister_token_to_weak_ref_target,
+            cells:
+                Cells {
+                    cells_weak_ref_target_to_held_value,
+                    cells_unregister_token_to_weak_ref_target,
+                },
             cleanup,
             object_index,
         } = self;

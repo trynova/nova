@@ -606,7 +606,9 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                     return;
                 }
                 *marked = true;
-                finalization_registrys.get(index).mark_values(&mut queues);
+                finalization_registrys
+                    .get(index as u32)
+                    .mark_values(&mut queues);
             }
         });
         let mut generator_marks: Box<[Generator]> = queues.generators.drain(..).collect();
@@ -1913,7 +1915,7 @@ fn sweep(
         }
         if !finalization_registrys.is_empty() {
             s.spawn(|| {
-                sweep_heap_vector_values(
+                sweep_heap_soa_vector_values(
                     finalization_registrys,
                     &compactions,
                     &bits.finalization_registrys,
