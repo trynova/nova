@@ -5,11 +5,14 @@
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin},
-        execution::{Agent, JsResult, Realm},
+        builtins::{ArgumentsList, Behaviour, Builtin, weak_map::WeakMap},
+        execution::{
+            Agent, JsResult, Realm, agent::ExceptionType, can_be_held_weakly,
+            throw_not_weak_key_error,
+        },
         types::{BUILTIN_STRING_MEMORY, IntoValue, String, Value},
     },
-    engine::context::GcScope,
+    engine::context::{Bindable, GcScope, NoGcScope},
     heap::WellKnownSymbolIndexes,
 };
 
@@ -33,7 +36,7 @@ impl Builtin for WeakMapPrototypeHas {
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(WeakMapPrototype::has);
 }
-struct WeakMapPrototypeSet;
+pub(super) struct WeakMapPrototypeSet;
 impl Builtin for WeakMapPrototypeSet {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.set;
     const LENGTH: u8 = 2;
@@ -49,72 +52,105 @@ impl WeakMapPrototype {
     /// > structures.
     fn delete<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
+        this_value: Value,
+        arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        let gc = gc.into_nogc();
+        let key = arguments.get(0).bind(gc);
         // 1. Let M be the this value.
+        let m = this_value.bind(gc);
         // 2. Perform ? RequireInternalSlot(M, [[WeakMapData]]).
-        // 3. If CanBeHeldWeakly(key) is false, return false.
+        let m = require_internal_slot_weak_map_data(agent, m, gc)?;
+        // 3. If CanBeHeldWeakly(key) is false,
+        let Some(key) = can_be_held_weakly(agent, key) else {
+            // return false.
+            return Ok(false.into_value());
+        };
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[WeakMapData]], do
-        //         a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, then
-        //                 i. Set p.[[Key]] to EMPTY.
-        //                 ii. Set p.[[Value]] to EMPTY.
-        //                 iii. Return true.
+        // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, then
+        // i. Set p.[[Key]] to EMPTY.
+        // ii. Set p.[[Value]] to EMPTY.
+        // iii. Return true.
         // 5. Return false.
-        Err(agent.todo("WeakMap.prototype.delete", gc.into_nogc()))
+        Ok(m.delete(agent, key).into_value())
     }
 
     /// ### [24.3.3.3 WeakMap.prototype.get ( key )](https://tc39.es/ecma262/#sec-weakmap.prototype.get)
     fn get<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
+        this_value: Value,
+        arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        let gc = gc.into_nogc();
+        let key = arguments.get(0).bind(gc);
         // 1. Let M be the this value.
+        let m = this_value.bind(gc);
         // 2. Perform ? RequireInternalSlot(M, [[WeakMapData]]).
-        // 3. If CanBeHeldWeakly(key) is false, return false.
+        let m = require_internal_slot_weak_map_data(agent, m, gc)?;
+        // 3. If CanBeHeldWeakly(key) is false,
+        let Some(key) = can_be_held_weakly(agent, key) else {
+            // return undefined.
+            return Ok(Value::Undefined);
+        };
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[WeakMapData]], do
-        //        a. If p.[[Key]] is not empty and SameValue(p.[[Key]], key) is true, return true.
-        // 5. Return false.
-        Err(agent.todo("WeakMap.prototype.get", gc.into_nogc()))
+        // a. If p.[[Key]] is not empty and SameValue(p.[[Key]], key) is true, return p.[[Value]].
+        // 5. Return undefined.
+        Ok(m.get_v(agent, key).unwrap_or(Value::Undefined))
     }
 
     /// ### [24.3.3.4 WeakMap.prototype.has ( key )](https://tc39.es/ecma262/#sec-weakmap.prototype.has)
     fn has<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
+        this_value: Value,
+        arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        let gc = gc.into_nogc();
+        let key = arguments.get(0).bind(gc);
         // 1. Let M be the this value.
+        let m = this_value.bind(gc);
         // 2. Perform ? RequireInternalSlot(M, [[WeakMapData]]).
-        // 3. If CanBeHeldWeakly(key) is false, return false.
+        let m = require_internal_slot_weak_map_data(agent, m, gc)?;
+        // 3. If CanBeHeldWeakly(key) is false,
+        let Some(key) = can_be_held_weakly(agent, key) else {
+            // return false.
+            return Ok(false.into_value());
+        };
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[WeakMapData]], do
-        //        a. If p.[[Key]] is not empty and SameValue(p.[[Key]], key) is true, return true.
+        // a. If p.[[Key]] is not empty and SameValue(p.[[Key]], key) is true, return true.
         // 5. Return false.
-        Err(agent.todo("WeakMap.prototype.has", gc.into_nogc()))
+        Ok(m.has(agent, key).into_value())
     }
 
     /// ### [24.3.3.5 WeakMap.prototype.set ( key, value )](https://tc39.es/ecma262/#sec-weakmap.prototype.set)
     fn set<'gc>(
         agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
+        this_value: Value,
+        arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        let gc = gc.into_nogc();
+        let key = arguments.get(0).bind(gc);
+        let value = arguments.get(1).bind(gc);
         // 1. Let M be the this value.
+        let m = this_value.bind(gc);
         // 2. Perform ? RequireInternalSlot(M, [[WeakMapData]]).
+        let m = require_internal_slot_weak_map_data(agent, m, gc)?;
         // 3. If CanBeHeldWeakly(key) is false, throw a TypeError exception.
+        let Some(key) = can_be_held_weakly(agent, key) else {
+            return Err(throw_not_weak_key_error(agent, key, gc));
+        };
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[WeakMapData]], do
-        //        a. If p.[[Key]] is not empty and SameValue(p.[[Key]], key) is true, then
-        //               i. Set p.[[Value]] to value.
-        //               ii. Return M.
+        // a. If p.[[Key]] is not empty and SameValue(p.[[Key]], key) is true, then
+        // i. Set p.[[Value]] to value.
+        // ii. Return M.
         // 5. Let p be the Record { [[Key]]: key, [[Value]]: value }.
         // 6. Append p to M.[[WeakMapData]].
+        m.set(agent, key, value);
         // 7. Return M.
-        Err(agent.todo("WeakMap.prototype.set", gc.into_nogc()))
+        Ok(m.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -140,5 +176,21 @@ impl WeakMapPrototype {
                     .build()
             })
             .build();
+    }
+}
+
+#[inline(always)]
+fn require_internal_slot_weak_map_data<'a>(
+    agent: &mut Agent,
+    value: Value,
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<'a, WeakMap<'a>> {
+    match value {
+        Value::WeakMap(map) => Ok(map.bind(gc)),
+        _ => Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Object is not a WeakMap",
+            gc,
+        )),
     }
 }

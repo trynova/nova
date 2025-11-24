@@ -440,14 +440,15 @@ pub fn add_entries_from_iterable_map_constructor<'a>(
 /// > element array-like object whose first element is a value that will be used
 /// > as a Map key and whose second element is the value to associate with that
 /// > key.
-pub(crate) fn add_entries_from_iterable<'a>(
+pub(crate) fn add_entries_from_iterable<'a, T: Into<Object<'a>> + TryFrom<Object<'a>>>(
     agent: &mut Agent,
-    target: Map,
+    target: T,
     iterable: Value,
     adder: Function,
     mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, Map<'a>> {
+) -> JsResult<'a, T> {
     let nogc = gc.nogc();
+    let target: Object = target.into();
     let target = target.scope(agent, nogc);
     let iterable = iterable.bind(nogc);
     let adder = adder.scope(agent, nogc);
@@ -482,7 +483,11 @@ pub(crate) fn add_entries_from_iterable<'a>(
         .bind(gc.nogc());
         // b. If next is DONE, return target.
         let Some(next) = next else {
-            return Ok(target.get(agent).bind(gc.into_nogc()));
+            // SAFETY: not shared.
+            let target = unsafe { target.take(agent).bind(gc.into_nogc()) };
+            // SAFETY: passed in type is still the same type.
+            let target = unsafe { T::try_from(target).unwrap_unchecked() };
+            return Ok(target);
         };
         // c. If next is not an Object, then
         let Ok(next) = Object::try_from(next) else {
