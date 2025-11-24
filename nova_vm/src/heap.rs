@@ -55,7 +55,7 @@ use crate::ecmascript::builtins::{
 };
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{
-    weak_map::data::WeakMapHeapData, weak_ref::data::WeakRefHeapData,
+    weak_map::data::WeakMapRecord, weak_ref::data::WeakRefHeapData,
     weak_set::data::WeakSetHeapData,
 };
 use crate::{
@@ -214,7 +214,7 @@ pub(crate) struct Heap {
     #[cfg(feature = "shared-array-buffer")]
     pub(crate) shared_data_view_byte_offsets: AHashMap<SharedDataView<'static>, usize>,
     #[cfg(feature = "weak-refs")]
-    pub(crate) weak_maps: Vec<WeakMapHeapData<'static>>,
+    pub(crate) weak_maps: Vec<WeakMapRecord<'static>>,
     #[cfg(feature = "weak-refs")]
     pub(crate) weak_refs: Vec<WeakRefHeapData<'static>>,
     #[cfg(feature = "weak-refs")]
