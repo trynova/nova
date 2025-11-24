@@ -14,6 +14,7 @@ use ahash::AHashMap;
 use ahash::AHashSet;
 use hashbrown::HashTable;
 use soavec::{SoAVec, SoAble};
+use soavec_derive::SoAble;
 
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -1595,33 +1596,35 @@ impl WorkQueues {
     }
 }
 
-#[derive(Debug)]
+#[repr(transparent)]
 pub(crate) struct CompactionList {
-    indexes: Box<[u32]>,
-    shifts: Box<[u32]>,
+    shifts: SoAVec<ShiftData>,
 }
 
 impl CompactionList {
     /// Perform a shift on a strongly held reference index. Returns a shifted
     /// index.
     fn shift_strong_u32_index(&self, index: u32) -> u32 {
-        assert!(self.indexes.len() == self.shifts.len());
-        if self.indexes.is_empty() {
+        if self.shifts.is_empty() {
             // If there are no shifts, then all items stay where they are.
             return index;
         }
-        match self.indexes.binary_search(&index) {
+        let ShiftDataSlice {
+            index: indexes,
+            shift: shifts,
+        } = self.shifts.as_slice();
+        match indexes.binary_search(&index) {
             Ok(exact_index) => {
                 // An exact match means we have the exact correct index to get
                 // our shift from.
-                index - self.shifts[exact_index]
+                index - shifts[exact_index]
             }
             Err(upper_bound_index) => {
                 // Otherwise we find an upper-bound index; it can be zero.
                 let own_location = upper_bound_index.checked_sub(1);
                 // If the upper-bound index is zero, then our shift amount is
                 // zero as well.
-                index - own_location.map(|i| self.shifts[i]).unwrap_or(0)
+                index - own_location.map(|i| shifts[i]).unwrap_or(0)
             }
         }
     }
@@ -1629,34 +1632,37 @@ impl CompactionList {
     /// Shift a weakly held bare u32 reference index. Returns a new index if
     /// the reference target is live, otherwise returns None.
     pub(crate) fn shift_weak_u32_index(&self, index: u32) -> Option<u32> {
-        assert!(self.indexes.len() == self.shifts.len());
         // If there are no shift indexes, then all values are live.
-        if self.indexes.is_empty() {
+        if self.shifts.is_empty() {
             return Some(index);
         }
+        let ShiftDataSlice {
+            index: indexes,
+            shift: shifts,
+        } = self.shifts.as_slice();
         // Find the place in the indexes list where our index is or should be
         // placed to maintain order.
-        let found_index = self.indexes.binary_search(&index);
+        let found_index = indexes.binary_search(&index);
         let insertion_index = match found_index {
             Ok(exact_index) => {
                 // If we found an exact index then it means that our index is
                 // necessarily live and we just need to shift it down by the
                 // appropriate amount.
-                let shift_amount = self.shifts[exact_index];
+                let shift_amount = shifts[exact_index];
                 return Some(index - shift_amount);
             }
             Err(i) => i,
         };
         // It's possible that our index is at the "top shift" position.
         // In that case our index is necessarily alive.
-        if insertion_index == self.indexes.len() {
-            let own_shift_amount = *self.shifts.last().unwrap();
+        if insertion_index == indexes.len() {
+            let own_shift_amount = *shifts.last().unwrap();
             return Some(index - own_shift_amount);
         }
         // This is the lowest index that could overwrite our index...
-        let upper_bound = self.indexes[insertion_index];
+        let upper_bound = indexes[insertion_index];
         // ... and this is how much it shifts down.
-        let upper_bound_shift_amount = self.shifts[insertion_index];
+        let upper_bound_shift_amount = shifts[insertion_index];
         // After the shift, it ends up at this index.
         let post_shift_upper_bound = upper_bound - upper_bound_shift_amount;
         // Our own shift amount is found in the next slot below the insertion
@@ -1664,7 +1670,7 @@ impl CompactionList {
         let own_location = insertion_index.checked_sub(1);
         // If insertion index is zero then our index does not shift but can
         // still be overwritten.
-        let own_shift_amount = own_location.map(|i| self.shifts[i]).unwrap_or(0);
+        let own_shift_amount = own_location.map(|i| shifts[i]).unwrap_or(0);
         let post_shift_index = index - own_shift_amount;
 
         // If the post-shift upper bound shifts to be less or equal than our
@@ -1730,16 +1736,12 @@ impl CompactionList {
         Some(unsafe { NonZeroU32::new_unchecked(base_index) })
     }
 
-    fn build(indexes: Vec<u32>, shifts: Vec<u32>) -> Self {
-        assert_eq!(indexes.len(), shifts.len());
-        Self {
-            indexes: indexes.into_boxed_slice(),
-            shifts: shifts.into_boxed_slice(),
-        }
+    fn build(shifts: SoAVec<ShiftData>) -> Self {
+        Self { shifts }
     }
 
     pub(crate) fn from_mark_bits(range: &BitRange, marks: &[AtomicU8]) -> Self {
-        let builder = CompactionListBuilder::with_bits_length(range.len());
+        let builder = CompactionListBuilder::with_bits_length(range.len() as u32);
         if range.is_empty() {
             return builder.done();
         }
@@ -1771,7 +1773,7 @@ impl CompactionList {
     }
 
     pub(crate) fn from_mark_u8s(marks: &[(bool, u8)]) -> Self {
-        let mut builder = CompactionListBuilder::with_bits_length(marks.len());
+        let mut builder = CompactionListBuilder::with_bits_length(marks.len() as u32);
         marks.iter().for_each(|mark| {
             if mark.0 {
                 builder.mark_used();
@@ -1783,7 +1785,7 @@ impl CompactionList {
     }
 
     pub(crate) fn from_mark_u16s(marks: &[(bool, u16)]) -> Self {
-        let mut builder = CompactionListBuilder::with_bits_length(marks.len());
+        let mut builder = CompactionListBuilder::with_bits_length(marks.len() as u32);
         marks.iter().for_each(|mark| {
             if mark.0 {
                 builder.mark_used();
@@ -1795,7 +1797,7 @@ impl CompactionList {
     }
 
     pub(crate) fn from_mark_u32s(marks: &[(bool, u32)]) -> Self {
-        let mut builder = CompactionListBuilder::with_bits_length(marks.len());
+        let mut builder = CompactionListBuilder::with_bits_length(marks.len() as u32);
         marks.iter().for_each(|mark| {
             if mark.0 {
                 builder.mark_used();
@@ -1807,26 +1809,30 @@ impl CompactionList {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, SoAble)]
+pub(crate) struct ShiftData {
+    /// Starting from this index...
+    pub(crate) index: u32,
+    /// ...shift reference values down by this much.
+    pub(crate) shift: u32,
+}
+
 pub(crate) struct CompactionListBuilder {
-    // TODO: Use a combined Box<[MaybeUninit<u32>]> and separate `len: u32`.
-    indexes: Vec<u32>,
-    shifts: Vec<u32>,
+    shifts: SoAVec<ShiftData>,
     current_index: u32,
     current_shift: u32,
     current_used: bool,
 }
 
 impl CompactionListBuilder {
-    fn with_bits_length(bits_length: usize) -> Self {
+    fn with_bits_length(bits_length: u32) -> Self {
         // Note: the maximum possible size of the indexes and shifts vectors is
         // half the bits length; this happens if every other bit is 1.
         // It's unlikely that we find this case, so we halve that for a fairly
         // conservative guess.
         let capacity = bits_length / 4;
         Self {
-            indexes: Vec::with_capacity(capacity),
-            shifts: Vec::with_capacity(capacity),
+            shifts: SoAVec::with_capacity(capacity).unwrap(),
             current_index: 0,
             current_shift: 0,
             current_used: true,
@@ -1837,11 +1843,12 @@ impl CompactionListBuilder {
     fn add_current_index(&mut self) {
         let index = self.current_index;
         let shift = self.current_shift;
-        assert_eq!(self.shifts.len(), self.indexes.len());
-        assert!(self.indexes.is_empty() || *self.indexes.last().unwrap() < index);
-        assert!(self.shifts.is_empty() || *self.shifts.last().unwrap() < shift);
-        self.shifts.push(shift);
-        self.indexes.push(index);
+        assert!(
+            self.shifts.is_empty()
+                || *self.shifts.get(self.shifts.len() - 1).unwrap().index < index
+                    && *self.shifts.get(self.shifts.len() - 1).unwrap().shift < shift
+        );
+        self.shifts.push(ShiftData { index, shift }).unwrap();
     }
 
     fn mark_used(&mut self) {
@@ -1869,15 +1876,14 @@ impl CompactionListBuilder {
         if !self.current_used {
             self.add_current_index();
         }
-        CompactionList::build(self.indexes, self.shifts)
+        CompactionList::build(self.shifts)
     }
 }
 
 impl Default for CompactionListBuilder {
     fn default() -> Self {
         Self {
-            indexes: Vec::with_capacity(16),
-            shifts: Vec::with_capacity(16),
+            shifts: SoAVec::with_capacity(16).unwrap(),
             current_index: 0,
             current_shift: 0,
             current_used: true,
