@@ -16,6 +16,7 @@ use crate::{
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
+#[derive(Debug)]
 pub struct DataViewRecord<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     // TODO: Add a helper function for a u32::MAX value which signifies an a under-construction value:
@@ -41,6 +42,7 @@ impl Default for DataViewRecord<'_> {
 }
 
 #[cfg(feature = "shared-array-buffer")]
+#[derive(Debug)]
 pub struct SharedDataViewRecord<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     // TODO: Add a helper function for a u32::MAX value which signifies an a under-construction value:

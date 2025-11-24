@@ -55,8 +55,7 @@ use crate::ecmascript::builtins::{
 };
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{
-    weak_map::data::WeakMapRecord, weak_ref::data::WeakRefHeapData,
-    weak_set::data::WeakSetHeapData,
+    weak_map::data::WeakMapRecord, weak_ref::data::WeakRefHeapData, weak_set::data::WeakSetHeapData,
 };
 use crate::{
     ecmascript::{
@@ -124,7 +123,7 @@ use hashbrown::HashTable;
 #[cfg(feature = "weak-refs")]
 pub(crate) use heap_bits::sweep_side_set;
 pub(crate) use heap_bits::{
-    CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WeakReference, WorkQueues,
+    BitRange, CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WeakReference, WorkQueues,
     sweep_heap_vector_values,
 };
 use soavec::SoAVec;

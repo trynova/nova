@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{marker::PhantomData, num::NonZeroU32};
+use std::{marker::PhantomData, num::NonZeroU32, sync::atomic::AtomicU8};
 
 use hashbrown::{HashTable, hash_table::Entry};
 
@@ -16,8 +16,8 @@ use crate::{
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
-        CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, PropertyKeyHeap, WeakReference,
-        WorkQueues, sweep_heap_vector_values,
+        BitRange, CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, PropertyKeyHeap,
+        WeakReference, WorkQueues, sweep_heap_vector_values,
     },
 };
 
@@ -399,6 +399,10 @@ impl<'a> Caches<'a> {
         debug_assert!(previous.is_none());
     }
 
+    pub(crate) fn is_empty(&self) -> bool {
+        self.property_lookup_caches.is_empty()
+    }
+
     pub(crate) fn len(&self) -> usize {
         self.property_lookup_caches.len()
     }
@@ -428,11 +432,17 @@ impl Caches<'static> {
         self.property_lookup_cache_prototypes[index].mark_values(queues);
     }
 
-    pub(crate) fn sweep_cache(&mut self, compactions: &CompactionLists, bits: &[bool]) {
-        sweep_heap_vector_values(&mut self.property_lookup_caches, compactions, bits);
+    pub(crate) fn sweep_cache(
+        &mut self,
+        compactions: &CompactionLists,
+        range: &BitRange,
+        bits: &[AtomicU8],
+    ) {
+        sweep_heap_vector_values(&mut self.property_lookup_caches, compactions, range, bits);
         sweep_heap_vector_values(
             &mut self.property_lookup_cache_prototypes,
             compactions,
+            range,
             bits,
         );
     }

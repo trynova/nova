@@ -1,4 +1,13 @@
 use core::{hash::Hash, num::NonZeroU32};
+#[cfg(feature = "weak-refs")]
+use std::ops::Range;
+use std::{
+    cell::UnsafeCell,
+    hint::assert_unchecked,
+    mem::MaybeUninit,
+    ops::{Div, Rem},
+    sync::atomic::{AtomicU8, Ordering},
+};
 
 use ahash::AHashMap;
 #[cfg(feature = "weak-refs")]
@@ -79,24 +88,256 @@ use crate::ecmascript::{
 };
 use crate::engine::Executable;
 
+#[derive(Debug, Clone, Default)]
+pub struct BitRange(Range<usize>);
+
+impl BitRange {
+    #[inline]
+    pub(crate) fn from_range(range: Range<usize>) -> Self {
+        Self(range)
+    }
+
+    #[inline]
+    pub(crate) fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    #[inline]
+    pub(crate) fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Set a bit and return true if it was not already set.
+    pub(crate) fn mark_bit(&self, index: usize, bits: &[AtomicU8]) -> bool {
+        let index = self.0.start + index;
+        let byte_index = index / 8;
+        let bit_index = (index % 8) as u8;
+        let byte = &bits[byte_index];
+        let bitmask = 1u8 << bit_index;
+        let old_value = byte.fetch_or(bitmask, Ordering::Relaxed);
+        (old_value & bitmask) == 0
+    }
+
+    pub(crate) fn mark_range(&self, range_to_mark: Range<u32>, bits: &mut [AtomicU8]) {
+        let start = self.0.start + range_to_mark.start as usize;
+        let end = self.0.start + range_to_mark.end as usize;
+
+        let range = BitRange::from_range(start..end);
+
+        range.for_each_byte_mut(bits, |mark_byte, bit_iterator| {
+            if let Some(bit_iterator) = bit_iterator {
+                *mark_byte = bit_iterator.fold(*mark_byte, |acc, bitmask| acc | bitmask);
+            } else {
+                *mark_byte = 0xFF;
+            }
+        });
+    }
+
+    pub(crate) fn iter<'a>(&self, bits: &'a [AtomicU8]) -> BitRangeIterator<'a> {
+        let (byte_range, bit_range) = BitOffset::from_range(&self.0);
+        let bits = &bits[byte_range.start..byte_range.end];
+        BitRangeIterator { bits, bit_range }
+    }
+
+    #[inline]
+    pub(crate) fn for_each_byte(
+        &self,
+        marks: &[AtomicU8],
+        mut cb: impl FnMut(&AtomicU8, Option<BitIterator>),
+    ) {
+        let (byte_range, bit_range) = BitOffset::from_range(&self.0);
+        let mut marks = &marks[byte_range.start..byte_range.end];
+        debug_assert!(!marks.is_empty());
+        if marks.len() == 1 && !bit_range.start.is_zero() && !bit_range.end.is_zero() {
+            cb(&marks[0], Some(BitIterator::from_range(bit_range)));
+            return;
+        }
+        if !bit_range.start.is_zero() {
+            let (first, m) = marks.split_first().unwrap();
+            marks = m;
+            cb(first, Some(BitIterator::from_offset(bit_range.start)));
+        }
+        let mut end = None;
+        if !bit_range.end.is_zero()
+            && let Some((last, m)) = marks.split_last()
+        {
+            marks = m;
+            end = Some(last);
+        }
+        for mark_byte in marks {
+            cb(mark_byte, None);
+        }
+        if let Some(end) = end {
+            cb(end, Some(BitIterator::until_offset(bit_range.end)));
+        }
+    }
+
+    #[inline]
+    pub(crate) fn for_each_byte_mut(
+        &self,
+        marks: &mut [AtomicU8],
+        mut cb: impl FnMut(&mut u8, Option<BitIterator>),
+    ) {
+        let (byte_range, bit_range) = BitOffset::from_range(&self.0);
+        let mut marks = &mut marks[byte_range.start..byte_range.end];
+        debug_assert!(!marks.is_empty());
+        if marks.len() == 1 && !bit_range.start.is_zero() && !bit_range.end.is_zero() {
+            cb(marks[0].get_mut(), Some(BitIterator::from_range(bit_range)));
+            return;
+        }
+        if !bit_range.start.is_zero() {
+            let (first, m) = marks.split_first_mut().unwrap();
+            marks = m;
+            cb(
+                first.get_mut(),
+                Some(BitIterator::from_offset(bit_range.start)),
+            );
+        }
+        let mut end = None;
+        if !bit_range.end.is_zero() {
+            let (last, m) = marks.split_last_mut().unwrap();
+            marks = m;
+            end = Some(last.get_mut());
+        }
+        for mark_byte in marks.iter_mut() {
+            cb(mark_byte.get_mut(), None);
+        }
+        if let Some(end) = end {
+            cb(end, Some(BitIterator::until_offset(bit_range.end)));
+        }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct BitRangeIterator<'a> {
+    bits: &'a [AtomicU8],
+    bit_range: Range<BitOffset>,
+}
+
+impl<'a> Iterator for BitRangeIterator<'a> {
+    type Item = bool;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let Some(byte) = self.bits.first() else {
+            return None;
+        };
+        let bitmask = self.bit_range.start.advance();
+        let value = (byte.load(Ordering::Relaxed) & bitmask) > 0;
+        if self.bits.len() == 1 && self.bit_range.start == self.bit_range.end {
+            // We've reached the end of our bit range.
+            self.bits = &[];
+        } else if self.bit_range.start.is_zero() {
+            // We've passed the last bit of the current byte and need to
+            // advance further.
+            self.bits = self.bits.split_first().unwrap().1;
+        }
+        Some(value)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
+pub struct BitOffset(u8);
+
+impl BitOffset {
+    fn advance(&mut self) -> u8 {
+        let bitmask = self.into_bitmask();
+        self.0 = (self.0 + 1) % 8;
+        bitmask
+    }
+
+    #[inline]
+    pub(crate) fn is_zero(&self) -> bool {
+        self.0 == 0
+    }
+
+    /// Creates a byte with only this offset bit set.
+    pub(crate) fn into_bitmask(&self) -> u8 {
+        1u8 << self.0
+    }
+
+    pub(crate) fn from_range(range: &Range<usize>) -> (Range<usize>, Range<BitOffset>) {
+        let start_byte_offset = range.start.div(8);
+        let start_bit_offset = range.start.rem(8);
+        // SAFETY: rem should always return < 8.
+        unsafe { assert_unchecked(start_bit_offset < 8) };
+        let start_bit_offset = start_bit_offset as u8;
+        let end_byte_offset = range.end.div_ceil(8);
+        let end_bit_offset = range.end.rem(8);
+        // SAFETY: rem should always return < 8.
+        unsafe { assert_unchecked(end_bit_offset < 8) };
+        let end_bit_offset = end_bit_offset as u8;
+        (
+            Range {
+                start: start_byte_offset,
+                end: end_byte_offset,
+            },
+            Range {
+                start: BitOffset(start_bit_offset),
+                end: BitOffset(end_bit_offset),
+            },
+        )
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct BitIterator {
+    start: BitOffset,
+    end: BitOffset,
+}
+
+impl BitIterator {
+    fn from_range(range: Range<BitOffset>) -> Self {
+        debug_assert!(
+            !range.start.is_zero() || !range.end.is_zero(),
+            "Full byte should not need a bitmask iterator"
+        );
+        BitIterator {
+            start: range.start,
+            end: range.end,
+        }
+    }
+
+    fn from_offset(start: BitOffset) -> Self {
+        debug_assert!(
+            !start.is_zero(),
+            "Full byte should not need a bitmask iterator"
+        );
+        BitIterator {
+            start,
+            end: BitOffset(0),
+        }
+    }
+
+    fn until_offset(end: BitOffset) -> Self {
+        debug_assert!(
+            !end.is_zero(),
+            "Full byte should not need a bitmask iterator"
+        );
+        BitIterator {
+            start: BitOffset(0),
+            end,
+        }
+    }
+}
+
+impl Iterator for BitIterator {
+    type Item = u8;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.start == self.end {
+            // We've reached the end of our bit range.
+            None
+        } else {
+            let bitmask = self.start.advance();
+            Some(bitmask)
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct HeapBits {
-    #[cfg(feature = "array-buffer")]
-    pub array_buffers: Box<[bool]>,
-    pub arrays: Box<[bool]>,
-    pub array_iterators: Box<[bool]>,
-    pub async_generators: Box<[bool]>,
-    pub await_reactions: Box<[bool]>,
-    pub bigints: Box<[bool]>,
-    pub bound_functions: Box<[bool]>,
-    pub builtin_constructors: Box<[bool]>,
-    pub builtin_functions: Box<[bool]>,
-    pub caches: Box<[bool]>,
-    #[cfg(feature = "array-buffer")]
-    pub data_views: Box<[bool]>,
-    #[cfg(feature = "date")]
-    pub dates: Box<[bool]>,
-    pub declarative_environments: Box<[bool]>,
+    pub(crate) bits: Box<[AtomicU8]>,
     pub e_2_1: Box<[(bool, u8)]>,
     pub e_2_2: Box<[(bool, u8)]>,
     pub e_2_3: Box<[(bool, u8)]>,
@@ -119,60 +360,76 @@ pub struct HeapBits {
     pub k_2_16: Box<[(bool, u16)]>,
     pub k_2_24: Box<[(bool, u32)]>,
     pub k_2_32: Box<[(bool, u32)]>,
-    pub ecmascript_functions: Box<[bool]>,
-    pub embedder_objects: Box<[bool]>,
-    pub errors: Box<[bool]>,
-    pub executables: Box<[bool]>,
-    pub source_codes: Box<[bool]>,
-    pub finalization_registrys: Box<[bool]>,
-    pub function_environments: Box<[bool]>,
-    pub generators: Box<[bool]>,
-    pub global_environments: Box<[bool]>,
-    pub maps: Box<[bool]>,
-    pub map_iterators: Box<[bool]>,
-    pub module_environments: Box<[bool]>,
-    pub modules: Box<[bool]>,
-    pub module_request_records: Box<[bool]>,
-    pub numbers: Box<[bool]>,
-    pub object_environments: Box<[bool]>,
-    pub object_shapes: Box<[bool]>,
-    pub objects: Box<[bool]>,
-    pub primitive_objects: Box<[bool]>,
-    pub private_environments: Box<[bool]>,
-    pub promise_reaction_records: Box<[bool]>,
-    pub promise_resolving_functions: Box<[bool]>,
-    pub promise_finally_functions: Box<[bool]>,
-    pub promises: Box<[bool]>,
-    pub promise_group_records: Box<[bool]>,
-    pub proxies: Box<[bool]>,
-    pub realms: Box<[bool]>,
-    #[cfg(feature = "regexp")]
-    pub regexps: Box<[bool]>,
-    #[cfg(feature = "regexp")]
-    pub regexp_string_iterators: Box<[bool]>,
-    pub scripts: Box<[bool]>,
-    #[cfg(feature = "set")]
-    pub sets: Box<[bool]>,
-    #[cfg(feature = "set")]
-    pub set_iterators: Box<[bool]>,
-    #[cfg(feature = "shared-array-buffer")]
-    pub shared_array_buffers: Box<[bool]>,
-    #[cfg(feature = "shared-array-buffer")]
-    pub shared_data_views: Box<[bool]>,
-    #[cfg(feature = "shared-array-buffer")]
-    pub shared_typed_arrays: Box<[bool]>,
-    pub source_text_module_records: Box<[bool]>,
-    pub string_iterators: Box<[bool]>,
-    pub strings: Box<[bool]>,
-    pub symbols: Box<[bool]>,
     #[cfg(feature = "array-buffer")]
-    pub typed_arrays: Box<[bool]>,
+    pub array_buffers: BitRange,
+    pub arrays: BitRange,
+    pub array_iterators: BitRange,
+    pub async_generators: BitRange,
+    pub await_reactions: BitRange,
+    pub bigints: BitRange,
+    pub bound_functions: BitRange,
+    pub builtin_constructors: BitRange,
+    pub builtin_functions: BitRange,
+    pub caches: BitRange,
+    #[cfg(feature = "array-buffer")]
+    pub data_views: BitRange,
+    #[cfg(feature = "date")]
+    pub dates: BitRange,
+    pub declarative_environments: BitRange,
+    pub ecmascript_functions: BitRange,
+    pub embedder_objects: BitRange,
+    pub errors: BitRange,
+    pub executables: BitRange,
+    pub source_codes: BitRange,
+    pub finalization_registrys: BitRange,
+    pub function_environments: BitRange,
+    pub generators: BitRange,
+    pub global_environments: BitRange,
+    pub maps: BitRange,
+    pub map_iterators: BitRange,
+    pub module_environments: BitRange,
+    pub modules: BitRange,
+    pub module_request_records: BitRange,
+    pub numbers: BitRange,
+    pub object_environments: BitRange,
+    pub object_shapes: BitRange,
+    pub objects: BitRange,
+    pub primitive_objects: BitRange,
+    pub private_environments: BitRange,
+    pub promise_reaction_records: BitRange,
+    pub promise_resolving_functions: BitRange,
+    pub promise_finally_functions: BitRange,
+    pub promises: BitRange,
+    pub promise_group_records: BitRange,
+    pub proxies: BitRange,
+    pub realms: BitRange,
+    #[cfg(feature = "regexp")]
+    pub regexps: BitRange,
+    #[cfg(feature = "regexp")]
+    pub regexp_string_iterators: BitRange,
+    pub scripts: BitRange,
+    #[cfg(feature = "set")]
+    pub sets: BitRange,
+    #[cfg(feature = "set")]
+    pub set_iterators: BitRange,
+    #[cfg(feature = "shared-array-buffer")]
+    pub shared_array_buffers: BitRange,
+    #[cfg(feature = "shared-array-buffer")]
+    pub shared_data_views: BitRange,
+    #[cfg(feature = "shared-array-buffer")]
+    pub shared_typed_arrays: BitRange,
+    pub source_text_module_records: BitRange,
+    pub string_iterators: BitRange,
+    pub strings: BitRange,
+    pub symbols: BitRange,
+    #[cfg(feature = "array-buffer")]
+    pub typed_arrays: BitRange,
     #[cfg(feature = "weak-refs")]
-    pub weak_maps: Box<[bool]>,
+    pub weak_maps: BitRange,
     #[cfg(feature = "weak-refs")]
-    pub weak_refs: Box<[bool]>,
+    pub weak_refs: BitRange,
     #[cfg(feature = "weak-refs")]
-    pub weak_sets: Box<[bool]>,
+    pub weak_sets: BitRange,
 }
 
 #[derive(Debug)]
@@ -273,22 +530,7 @@ pub(crate) struct WorkQueues {
 
 impl HeapBits {
     pub fn new(heap: &Heap) -> Self {
-        #[cfg(feature = "array-buffer")]
-        let array_buffers = vec![false; heap.array_buffers.len()];
-        let arrays = vec![false; heap.arrays.len() as usize];
-        let array_iterators = vec![false; heap.array_iterators.len()];
-        let async_generators = vec![false; heap.async_generators.len()];
-        let await_reactions = vec![false; heap.await_reactions.len()];
-        let bigints = vec![false; heap.bigints.len()];
-        let bound_functions = vec![false; heap.bound_functions.len()];
-        let builtin_constructors = vec![false; heap.builtin_constructors.len()];
-        let builtin_functions = vec![false; heap.builtin_functions.len()];
-        let caches = vec![false; heap.caches.len()];
-        #[cfg(feature = "array-buffer")]
-        let data_views = vec![false; heap.data_views.len()];
-        #[cfg(feature = "date")]
-        let dates = vec![false; heap.dates.len()];
-        let declarative_environments = vec![false; heap.environments.declarative.len()];
+        let mut bit_count = 0;
         let e_2_1 = vec![(false, 0u8); heap.elements.e2pow1.values.len()];
         let e_2_2 = vec![(false, 0u8); heap.elements.e2pow2.values.len()];
         let e_2_3 = vec![(false, 0u8); heap.elements.e2pow3.values.len()];
@@ -311,77 +553,659 @@ impl HeapBits {
         let k_2_16 = vec![(false, 0u16); heap.elements.k2pow16.keys.len()];
         let k_2_24 = vec![(false, 0u32); heap.elements.k2pow24.keys.len()];
         let k_2_32 = vec![(false, 0u32); heap.elements.k2pow32.keys.len()];
-        let ecmascript_functions = vec![false; heap.ecmascript_functions.len()];
-        let embedder_objects = vec![false; heap.embedder_objects.len()];
-        let errors = vec![false; heap.errors.len()];
-        let executables = vec![false; heap.executables.len()];
-        let source_codes = vec![false; heap.source_codes.len()];
-        let finalization_registrys = vec![false; heap.finalization_registrys.len() as usize];
-        let function_environments = vec![false; heap.environments.function.len()];
-        let generators = vec![false; heap.generators.len()];
-        let global_environments = vec![false; heap.environments.global.len()];
-        let maps = vec![false; heap.maps.len()];
-        let map_iterators = vec![false; heap.map_iterators.len()];
-        let module_environments = vec![false; heap.environments.module.len()];
-        let modules = vec![false; heap.modules.len()];
-        let module_request_records = vec![false; heap.module_request_records.len()];
-        let numbers = vec![false; heap.numbers.len()];
-        let object_environments = vec![false; heap.environments.object.len()];
-        let object_shapes = vec![false; heap.object_shapes.len()];
-        let objects = vec![false; heap.objects.len()];
-        let primitive_objects = vec![false; heap.primitive_objects.len()];
-        let promise_reaction_records = vec![false; heap.promise_reaction_records.len()];
-        let promise_resolving_functions = vec![false; heap.promise_resolving_functions.len()];
-        let promise_finally_functions = vec![false; heap.promise_finally_functions.len()];
-        let private_environments = vec![false; heap.environments.private.len()];
-        let promises = vec![false; heap.promises.len()];
-        let promise_group_records = vec![false; heap.promise_group_records.len()];
-        let proxies = vec![false; heap.proxies.len()];
-        let realms = vec![false; heap.realms.len()];
-        #[cfg(feature = "regexp")]
-        let regexps = vec![false; heap.regexps.len()];
-        #[cfg(feature = "regexp")]
-        let regexp_string_iterators = vec![false; heap.regexp_string_iterators.len()];
-        let scripts = vec![false; heap.scripts.len()];
-        #[cfg(feature = "set")]
-        let sets = vec![false; heap.sets.len()];
-        #[cfg(feature = "set")]
-        let set_iterators = vec![false; heap.set_iterators.len()];
-        #[cfg(feature = "shared-array-buffer")]
-        let shared_array_buffers = vec![false; heap.shared_array_buffers.len()];
-        #[cfg(feature = "shared-array-buffer")]
-        let shared_data_views = vec![false; heap.shared_data_views.len()];
-        #[cfg(feature = "shared-array-buffer")]
-        let shared_typed_arrays = vec![false; heap.shared_typed_arrays.len()];
-        let source_text_module_records = vec![false; heap.source_text_module_records.len()];
-        let string_iterators = vec![false; heap.string_iterators.len()];
-        let strings = vec![false; heap.strings.len()];
-        let symbols = vec![false; heap.symbols.len()];
         #[cfg(feature = "array-buffer")]
-        let typed_arrays = vec![false; heap.typed_arrays.len()];
+        let array_buffers = if heap.array_buffers.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.array_buffers.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let arrays = if heap.arrays.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.arrays.len() as usize;
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let array_iterators = if heap.array_iterators.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.array_iterators.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let async_generators = if heap.async_generators.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.async_generators.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let await_reactions = if heap.await_reactions.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.await_reactions.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let bigints = if heap.bigints.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.bigints.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let bound_functions = if heap.bound_functions.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.bound_functions.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let builtin_constructors = if heap.builtin_constructors.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.builtin_constructors.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let builtin_functions = if heap.builtin_functions.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.builtin_functions.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let caches = if heap.caches.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.caches.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        #[cfg(feature = "array-buffer")]
+        let data_views = if heap.data_views.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.data_views.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        #[cfg(feature = "date")]
+        let dates = if heap.dates.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.dates.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let declarative_environments = if heap.environments.declarative.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.environments.declarative.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let ecmascript_functions = if heap.ecmascript_functions.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.ecmascript_functions.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let embedder_objects = if heap.embedder_objects.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.embedder_objects.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let errors = if heap.errors.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.errors.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let executables = if heap.executables.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.executables.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let source_codes = if heap.source_codes.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.source_codes.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let finalization_registrys = if heap.finalization_registrys.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.finalization_registrys.len() as usize;
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let function_environments = if heap.environments.function.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.environments.function.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let generators = if heap.generators.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.generators.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let global_environments = if heap.environments.global.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.environments.global.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let maps = if heap.maps.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.maps.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let map_iterators = if heap.map_iterators.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.map_iterators.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let module_environments = if heap.environments.module.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.environments.module.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let modules = if heap.modules.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.modules.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let module_request_records = if heap.module_request_records.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.module_request_records.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let numbers = if heap.numbers.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.numbers.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let object_environments = if heap.environments.object.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.environments.object.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let object_shapes = if heap.object_shapes.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.object_shapes.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let objects = if heap.objects.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.objects.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let primitive_objects = if heap.primitive_objects.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.primitive_objects.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let promise_reaction_records = if heap.promise_reaction_records.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.promise_reaction_records.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let promise_resolving_functions = if heap.promise_resolving_functions.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.promise_resolving_functions.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let promise_finally_functions = if heap.promise_finally_functions.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.promise_finally_functions.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let private_environments = if heap.environments.private.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.environments.private.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let promises = if heap.promises.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.promises.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let promise_group_records = if heap.promise_group_records.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.promise_group_records.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let proxies = if heap.proxies.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.proxies.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let realms = if heap.realms.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.realms.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        #[cfg(feature = "regexp")]
+        let regexps = if heap.regexps.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.regexps.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        #[cfg(feature = "regexp")]
+        let regexp_string_iterators = if heap.regexp_string_iterators.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.regexp_string_iterators.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let scripts = if heap.scripts.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.scripts.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        #[cfg(feature = "set")]
+        let sets = if heap.sets.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.sets.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        #[cfg(feature = "set")]
+        let set_iterators = if heap.set_iterators.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.set_iterators.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        #[cfg(feature = "shared-array-buffer")]
+        let shared_array_buffers = if heap.shared_array_buffers.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.shared_array_buffers.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        #[cfg(feature = "shared-array-buffer")]
+        let shared_data_views = if heap.shared_data_views.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.shared_data_views.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        #[cfg(feature = "shared-array-buffer")]
+        let shared_typed_arrays = if heap.shared_typed_arrays.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.shared_typed_arrays.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let source_text_module_records = if heap.source_text_module_records.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.source_text_module_records.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let string_iterators = if heap.string_iterators.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.string_iterators.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let strings = if heap.strings.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.strings.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let symbols = if heap.symbols.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.symbols.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        #[cfg(feature = "array-buffer")]
+        let typed_arrays = if heap.typed_arrays.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.typed_arrays.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
         #[cfg(feature = "weak-refs")]
-        let weak_maps = vec![false; heap.weak_maps.len()];
+        let weak_maps = if heap.weak_maps.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.weak_maps.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
         #[cfg(feature = "weak-refs")]
-        let weak_refs = vec![false; heap.weak_refs.len()];
+        let weak_refs = if heap.weak_refs.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.weak_refs.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
         #[cfg(feature = "weak-refs")]
-        let weak_sets = vec![false; heap.weak_sets.len()];
+        let weak_sets = if heap.weak_sets.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.weak_sets.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let byte_count = bit_count.div_ceil(8) as usize;
+        let mut bits = Box::<[AtomicU8]>::new_uninit_slice(byte_count);
+        bits.fill_with(|| MaybeUninit::new(AtomicU8::new(0)));
+        // SAFETY: filled in.
+        let bits = unsafe { bits.assume_init() };
         Self {
+            bits,
             #[cfg(feature = "array-buffer")]
-            array_buffers: array_buffers.into_boxed_slice(),
-            arrays: arrays.into_boxed_slice(),
-            array_iterators: array_iterators.into_boxed_slice(),
-            async_generators: async_generators.into_boxed_slice(),
-            await_reactions: await_reactions.into_boxed_slice(),
-            bigints: bigints.into_boxed_slice(),
-            bound_functions: bound_functions.into_boxed_slice(),
-            builtin_constructors: builtin_constructors.into_boxed_slice(),
-            builtin_functions: builtin_functions.into_boxed_slice(),
-            caches: caches.into_boxed_slice(),
+            array_buffers: array_buffers,
+            arrays: arrays,
+            array_iterators: array_iterators,
+            async_generators: async_generators,
+            await_reactions: await_reactions,
+            bigints: bigints,
+            bound_functions: bound_functions,
+            builtin_constructors: builtin_constructors,
+            builtin_functions: builtin_functions,
+            caches: caches,
             #[cfg(feature = "array-buffer")]
-            data_views: data_views.into_boxed_slice(),
+            data_views: data_views,
             #[cfg(feature = "date")]
-            dates: dates.into_boxed_slice(),
-            declarative_environments: declarative_environments.into_boxed_slice(),
+            dates: dates,
+            declarative_environments: declarative_environments,
             e_2_1: e_2_1.into_boxed_slice(),
             e_2_2: e_2_2.into_boxed_slice(),
             e_2_3: e_2_3.into_boxed_slice(),
@@ -404,60 +1228,60 @@ impl HeapBits {
             k_2_16: k_2_16.into_boxed_slice(),
             k_2_24: k_2_24.into_boxed_slice(),
             k_2_32: k_2_32.into_boxed_slice(),
-            ecmascript_functions: ecmascript_functions.into_boxed_slice(),
-            embedder_objects: embedder_objects.into_boxed_slice(),
-            errors: errors.into_boxed_slice(),
-            executables: executables.into_boxed_slice(),
-            source_codes: source_codes.into_boxed_slice(),
-            finalization_registrys: finalization_registrys.into_boxed_slice(),
-            function_environments: function_environments.into_boxed_slice(),
-            generators: generators.into_boxed_slice(),
-            global_environments: global_environments.into_boxed_slice(),
-            maps: maps.into_boxed_slice(),
-            map_iterators: map_iterators.into_boxed_slice(),
-            module_environments: module_environments.into_boxed_slice(),
-            modules: modules.into_boxed_slice(),
-            module_request_records: module_request_records.into_boxed_slice(),
-            numbers: numbers.into_boxed_slice(),
-            object_environments: object_environments.into_boxed_slice(),
-            object_shapes: object_shapes.into_boxed_slice(),
-            objects: objects.into_boxed_slice(),
-            primitive_objects: primitive_objects.into_boxed_slice(),
-            promise_reaction_records: promise_reaction_records.into_boxed_slice(),
-            promise_resolving_functions: promise_resolving_functions.into_boxed_slice(),
-            promise_finally_functions: promise_finally_functions.into_boxed_slice(),
-            private_environments: private_environments.into_boxed_slice(),
-            promises: promises.into_boxed_slice(),
-            promise_group_records: promise_group_records.into_boxed_slice(),
-            proxies: proxies.into_boxed_slice(),
-            realms: realms.into_boxed_slice(),
+            ecmascript_functions: ecmascript_functions,
+            embedder_objects: embedder_objects,
+            errors: errors,
+            executables: executables,
+            source_codes: source_codes,
+            finalization_registrys: finalization_registrys,
+            function_environments: function_environments,
+            generators: generators,
+            global_environments: global_environments,
+            maps: maps,
+            map_iterators: map_iterators,
+            module_environments: module_environments,
+            modules: modules,
+            module_request_records: module_request_records,
+            numbers: numbers,
+            object_environments: object_environments,
+            object_shapes: object_shapes,
+            objects: objects,
+            primitive_objects: primitive_objects,
+            promise_reaction_records: promise_reaction_records,
+            promise_resolving_functions: promise_resolving_functions,
+            promise_finally_functions: promise_finally_functions,
+            private_environments: private_environments,
+            promises: promises,
+            promise_group_records: promise_group_records,
+            proxies: proxies,
+            realms: realms,
             #[cfg(feature = "regexp")]
-            regexps: regexps.into_boxed_slice(),
+            regexps: regexps,
             #[cfg(feature = "regexp")]
-            regexp_string_iterators: regexp_string_iterators.into_boxed_slice(),
-            scripts: scripts.into_boxed_slice(),
+            regexp_string_iterators: regexp_string_iterators,
+            scripts: scripts,
             #[cfg(feature = "set")]
-            sets: sets.into_boxed_slice(),
+            sets: sets,
             #[cfg(feature = "set")]
-            set_iterators: set_iterators.into_boxed_slice(),
+            set_iterators: set_iterators,
             #[cfg(feature = "shared-array-buffer")]
-            shared_array_buffers: shared_array_buffers.into_boxed_slice(),
+            shared_array_buffers: shared_array_buffers,
             #[cfg(feature = "shared-array-buffer")]
-            shared_data_views: shared_data_views.into_boxed_slice(),
+            shared_data_views: shared_data_views,
             #[cfg(feature = "shared-array-buffer")]
-            shared_typed_arrays: shared_typed_arrays.into_boxed_slice(),
-            source_text_module_records: source_text_module_records.into_boxed_slice(),
-            string_iterators: string_iterators.into_boxed_slice(),
-            strings: strings.into_boxed_slice(),
-            symbols: symbols.into_boxed_slice(),
+            shared_typed_arrays: shared_typed_arrays,
+            source_text_module_records: source_text_module_records,
+            string_iterators: string_iterators,
+            strings: strings,
+            symbols: symbols,
             #[cfg(feature = "array-buffer")]
-            typed_arrays: typed_arrays.into_boxed_slice(),
+            typed_arrays: typed_arrays,
             #[cfg(feature = "weak-refs")]
-            weak_maps: weak_maps.into_boxed_slice(),
+            weak_maps: weak_maps,
             #[cfg(feature = "weak-refs")]
-            weak_refs: weak_refs.into_boxed_slice(),
+            weak_refs: weak_refs,
             #[cfg(feature = "weak-refs")]
-            weak_sets: weak_sets.into_boxed_slice(),
+            weak_sets: weak_sets,
         }
     }
 }
@@ -914,16 +1738,36 @@ impl CompactionList {
         }
     }
 
-    pub(crate) fn from_mark_bits(marks: &[bool]) -> Self {
-        let mut builder = CompactionListBuilder::with_bits_length(marks.len());
-        marks.iter().for_each(|bit| {
-            if *bit {
-                builder.mark_used();
+    pub(crate) fn from_mark_bits(range: &BitRange, marks: &[AtomicU8]) -> Self {
+        let builder = CompactionListBuilder::with_bits_length(range.len());
+        if range.is_empty() {
+            return builder.done();
+        }
+        let builder = UnsafeCell::new(builder);
+        range.for_each_byte(marks, |mark_byte, bit_iterator| {
+            // SAFETY: synchronous calls.
+            let builder = unsafe { builder.get().as_mut().unwrap() };
+            let mark_byte = mark_byte.load(Ordering::Relaxed);
+            if let Some(bit_iterator) = bit_iterator {
+                for bitmask in bit_iterator {
+                    if (mark_byte & bitmask) > 0 {
+                        builder.mark_used();
+                    } else {
+                        builder.mark_unused();
+                    }
+                }
             } else {
-                builder.mark_unused();
+                for inner_bit_offset in 0..8 {
+                    let bitmask = 1u8 << inner_bit_offset;
+                    if (mark_byte & bitmask) > 0 {
+                        builder.mark_used();
+                    } else {
+                        builder.mark_unused();
+                    }
+                }
             }
         });
-        builder.done()
+        builder.into_inner().done()
     }
 
     pub(crate) fn from_mark_u8s(marks: &[(bool, u8)]) -> Self {
@@ -1148,15 +1992,25 @@ impl CompactionLists {
         // areas can exist. We can use this mathematical bound to estimate a good
         // vector allocation.
         Self {
-            modules: CompactionList::from_mark_bits(&bits.modules),
-            scripts: CompactionList::from_mark_bits(&bits.scripts),
-            realms: CompactionList::from_mark_bits(&bits.realms),
+            modules: CompactionList::from_mark_bits(&bits.modules, &bits.bits),
+            scripts: CompactionList::from_mark_bits(&bits.scripts, &bits.bits),
+            realms: CompactionList::from_mark_bits(&bits.realms, &bits.bits),
             declarative_environments: CompactionList::from_mark_bits(
                 &bits.declarative_environments,
+                &bits.bits,
             ),
-            function_environments: CompactionList::from_mark_bits(&bits.function_environments),
-            global_environments: CompactionList::from_mark_bits(&bits.global_environments),
-            object_environments: CompactionList::from_mark_bits(&bits.object_environments),
+            function_environments: CompactionList::from_mark_bits(
+                &bits.function_environments,
+                &bits.bits,
+            ),
+            global_environments: CompactionList::from_mark_bits(
+                &bits.global_environments,
+                &bits.bits,
+            ),
+            object_environments: CompactionList::from_mark_bits(
+                &bits.object_environments,
+                &bits.bits,
+            ),
             e_2_1: CompactionList::from_mark_u8s(&bits.e_2_1),
             e_2_2: CompactionList::from_mark_u8s(&bits.e_2_2),
             e_2_3: CompactionList::from_mark_u8s(&bits.e_2_3),
@@ -1179,77 +2033,111 @@ impl CompactionLists {
             k_2_16: CompactionList::from_mark_u16s(&bits.k_2_16),
             k_2_24: CompactionList::from_mark_u32s(&bits.k_2_24),
             k_2_32: CompactionList::from_mark_u32s(&bits.k_2_32),
-            arrays: CompactionList::from_mark_bits(&bits.arrays),
+            arrays: CompactionList::from_mark_bits(&bits.arrays, &bits.bits),
             #[cfg(feature = "array-buffer")]
-            array_buffers: CompactionList::from_mark_bits(&bits.array_buffers),
-            array_iterators: CompactionList::from_mark_bits(&bits.array_iterators),
-            async_generators: CompactionList::from_mark_bits(&bits.async_generators),
-            await_reactions: CompactionList::from_mark_bits(&bits.await_reactions),
-            bigints: CompactionList::from_mark_bits(&bits.bigints),
-            bound_functions: CompactionList::from_mark_bits(&bits.bound_functions),
-            builtin_constructors: CompactionList::from_mark_bits(&bits.builtin_constructors),
-            builtin_functions: CompactionList::from_mark_bits(&bits.builtin_functions),
-            caches: CompactionList::from_mark_bits(&bits.caches),
-            ecmascript_functions: CompactionList::from_mark_bits(&bits.ecmascript_functions),
-            embedder_objects: CompactionList::from_mark_bits(&bits.embedder_objects),
-            generators: CompactionList::from_mark_bits(&bits.generators),
-            source_codes: CompactionList::from_mark_bits(&bits.source_codes),
+            array_buffers: CompactionList::from_mark_bits(&bits.array_buffers, &bits.bits),
+            array_iterators: CompactionList::from_mark_bits(&bits.array_iterators, &bits.bits),
+            async_generators: CompactionList::from_mark_bits(&bits.async_generators, &bits.bits),
+            await_reactions: CompactionList::from_mark_bits(&bits.await_reactions, &bits.bits),
+            bigints: CompactionList::from_mark_bits(&bits.bigints, &bits.bits),
+            bound_functions: CompactionList::from_mark_bits(&bits.bound_functions, &bits.bits),
+            builtin_constructors: CompactionList::from_mark_bits(
+                &bits.builtin_constructors,
+                &bits.bits,
+            ),
+            builtin_functions: CompactionList::from_mark_bits(&bits.builtin_functions, &bits.bits),
+            caches: CompactionList::from_mark_bits(&bits.caches, &bits.bits),
+            ecmascript_functions: CompactionList::from_mark_bits(
+                &bits.ecmascript_functions,
+                &bits.bits,
+            ),
+            embedder_objects: CompactionList::from_mark_bits(&bits.embedder_objects, &bits.bits),
+            generators: CompactionList::from_mark_bits(&bits.generators, &bits.bits),
+            source_codes: CompactionList::from_mark_bits(&bits.source_codes, &bits.bits),
             #[cfg(feature = "date")]
-            dates: CompactionList::from_mark_bits(&bits.dates),
-            errors: CompactionList::from_mark_bits(&bits.errors),
-            executables: CompactionList::from_mark_bits(&bits.executables),
-            maps: CompactionList::from_mark_bits(&bits.maps),
-            map_iterators: CompactionList::from_mark_bits(&bits.map_iterators),
-            module_environments: CompactionList::from_mark_bits(&bits.module_environments),
-            module_request_records: CompactionList::from_mark_bits(&bits.module_request_records),
-            numbers: CompactionList::from_mark_bits(&bits.numbers),
-            object_shapes: CompactionList::from_mark_bits(&bits.object_shapes),
-            objects: CompactionList::from_mark_bits(&bits.objects),
-            primitive_objects: CompactionList::from_mark_bits(&bits.primitive_objects),
-            private_environments: CompactionList::from_mark_bits(&bits.private_environments),
+            dates: CompactionList::from_mark_bits(&bits.dates, &bits.bits),
+            errors: CompactionList::from_mark_bits(&bits.errors, &bits.bits),
+            executables: CompactionList::from_mark_bits(&bits.executables, &bits.bits),
+            maps: CompactionList::from_mark_bits(&bits.maps, &bits.bits),
+            map_iterators: CompactionList::from_mark_bits(&bits.map_iterators, &bits.bits),
+            module_environments: CompactionList::from_mark_bits(
+                &bits.module_environments,
+                &bits.bits,
+            ),
+            module_request_records: CompactionList::from_mark_bits(
+                &bits.module_request_records,
+                &bits.bits,
+            ),
+            numbers: CompactionList::from_mark_bits(&bits.numbers, &bits.bits),
+            object_shapes: CompactionList::from_mark_bits(&bits.object_shapes, &bits.bits),
+            objects: CompactionList::from_mark_bits(&bits.objects, &bits.bits),
+            primitive_objects: CompactionList::from_mark_bits(&bits.primitive_objects, &bits.bits),
+            private_environments: CompactionList::from_mark_bits(
+                &bits.private_environments,
+                &bits.bits,
+            ),
             promise_reaction_records: CompactionList::from_mark_bits(
                 &bits.promise_reaction_records,
+                &bits.bits,
             ),
             promise_resolving_functions: CompactionList::from_mark_bits(
                 &bits.promise_resolving_functions,
+                &bits.bits,
             ),
             promise_finally_functions: CompactionList::from_mark_bits(
                 &bits.promise_finally_functions,
+                &bits.bits,
             ),
-            promises: CompactionList::from_mark_bits(&bits.promises),
-            promise_group_records: CompactionList::from_mark_bits(&bits.promise_group_records),
+            promises: CompactionList::from_mark_bits(&bits.promises, &bits.bits),
+            promise_group_records: CompactionList::from_mark_bits(
+                &bits.promise_group_records,
+                &bits.bits,
+            ),
             #[cfg(feature = "regexp")]
-            regexps: CompactionList::from_mark_bits(&bits.regexps),
+            regexps: CompactionList::from_mark_bits(&bits.regexps, &bits.bits),
             #[cfg(feature = "regexp")]
-            regexp_string_iterators: CompactionList::from_mark_bits(&bits.regexp_string_iterators),
+            regexp_string_iterators: CompactionList::from_mark_bits(
+                &bits.regexp_string_iterators,
+                &bits.bits,
+            ),
             #[cfg(feature = "set")]
-            sets: CompactionList::from_mark_bits(&bits.sets),
+            sets: CompactionList::from_mark_bits(&bits.sets, &bits.bits),
             #[cfg(feature = "set")]
-            set_iterators: CompactionList::from_mark_bits(&bits.set_iterators),
-            string_iterators: CompactionList::from_mark_bits(&bits.string_iterators),
-            strings: CompactionList::from_mark_bits(&bits.strings),
+            set_iterators: CompactionList::from_mark_bits(&bits.set_iterators, &bits.bits),
+            string_iterators: CompactionList::from_mark_bits(&bits.string_iterators, &bits.bits),
+            strings: CompactionList::from_mark_bits(&bits.strings, &bits.bits),
             #[cfg(feature = "shared-array-buffer")]
-            shared_array_buffers: CompactionList::from_mark_bits(&bits.shared_array_buffers),
+            shared_array_buffers: CompactionList::from_mark_bits(
+                &bits.shared_array_buffers,
+                &bits.bits,
+            ),
             #[cfg(feature = "shared-array-buffer")]
-            shared_data_views: CompactionList::from_mark_bits(&bits.shared_data_views),
+            shared_data_views: CompactionList::from_mark_bits(&bits.shared_data_views, &bits.bits),
             #[cfg(feature = "shared-array-buffer")]
-            shared_typed_arrays: CompactionList::from_mark_bits(&bits.shared_typed_arrays),
+            shared_typed_arrays: CompactionList::from_mark_bits(
+                &bits.shared_typed_arrays,
+                &bits.bits,
+            ),
             source_text_module_records: CompactionList::from_mark_bits(
                 &bits.source_text_module_records,
+                &bits.bits,
             ),
-            symbols: CompactionList::from_mark_bits(&bits.symbols),
+            symbols: CompactionList::from_mark_bits(&bits.symbols, &bits.bits),
             #[cfg(feature = "array-buffer")]
-            data_views: CompactionList::from_mark_bits(&bits.data_views),
-            finalization_registrys: CompactionList::from_mark_bits(&bits.finalization_registrys),
-            proxies: CompactionList::from_mark_bits(&bits.proxies),
+            data_views: CompactionList::from_mark_bits(&bits.data_views, &bits.bits),
+            finalization_registrys: CompactionList::from_mark_bits(
+                &bits.finalization_registrys,
+                &bits.bits,
+            ),
+            proxies: CompactionList::from_mark_bits(&bits.proxies, &bits.bits),
             #[cfg(feature = "weak-refs")]
-            weak_maps: CompactionList::from_mark_bits(&bits.weak_maps),
+            weak_maps: CompactionList::from_mark_bits(&bits.weak_maps, &bits.bits),
             #[cfg(feature = "weak-refs")]
-            weak_refs: CompactionList::from_mark_bits(&bits.weak_refs),
+            weak_refs: CompactionList::from_mark_bits(&bits.weak_refs, &bits.bits),
             #[cfg(feature = "weak-refs")]
-            weak_sets: CompactionList::from_mark_bits(&bits.weak_sets),
+            weak_sets: CompactionList::from_mark_bits(&bits.weak_sets, &bits.bits),
             #[cfg(feature = "array-buffer")]
-            typed_arrays: CompactionList::from_mark_bits(&bits.typed_arrays),
+            typed_arrays: CompactionList::from_mark_bits(&bits.typed_arrays, &bits.bits),
         }
     }
 }
@@ -1720,13 +2608,14 @@ fn sweep_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
 pub(crate) fn sweep_heap_vector_values<T: HeapMarkAndSweep>(
     vec: &mut Vec<T>,
     compactions: &CompactionLists,
-    bits: &[bool],
+    range: &BitRange,
+    bits: &[AtomicU8],
 ) {
-    assert_eq!(vec.len(), bits.len());
-    let mut iter = bits.iter();
+    assert_eq!(vec.len(), range.len());
+    let mut iter = range.iter(bits);
     vec.retain_mut(|item| {
         let do_retain = iter.next().unwrap();
-        if *do_retain {
+        if do_retain {
             item.sweep_values(compactions);
             true
         } else {
@@ -1738,15 +2627,16 @@ pub(crate) fn sweep_heap_vector_values<T: HeapMarkAndSweep>(
 pub(crate) fn sweep_heap_soa_vector_values<T: SoAble>(
     vec: &mut SoAVec<T>,
     compactions: &CompactionLists,
-    bits: &[bool],
+    range: &BitRange,
+    bits: &[AtomicU8],
 ) where
     for<'a> T::Mut<'a>: HeapMarkAndSweep,
 {
-    assert_eq!(vec.len() as usize, bits.len());
-    let mut iter = bits.iter();
+    assert_eq!(vec.len() as usize, range.len());
+    let mut iter = range.iter(bits);
     vec.retain_mut(|mut item| {
         let do_retain = iter.next().unwrap();
-        if *do_retain {
+        if do_retain {
             item.sweep_values(compactions);
             true
         } else {
