@@ -267,6 +267,7 @@ pub enum Value<'a> {
     ArrayIterator(ArrayIterator<'a>),
     #[cfg(feature = "set")]
     SetIterator(SetIterator<'a>),
+    #[cfg(feature = "set")]
     MapIterator(MapIterator<'a>),
     StringIterator(StringIterator<'a>),
     #[cfg(feature = "regexp")]
@@ -447,6 +448,7 @@ pub(crate) const ARRAY_ITERATOR_DISCRIMINANT: u8 =
 #[cfg(feature = "set")]
 pub(crate) const SET_ITERATOR_DISCRIMINANT: u8 =
     value_discriminant(Value::SetIterator(SetIterator::_def()));
+#[cfg(feature = "set")]
 pub(crate) const MAP_ITERATOR_DISCRIMINANT: u8 =
     value_discriminant(Value::MapIterator(MapIterator::_def()));
 pub(crate) const STRING_ITERATOR_DISCRIMINANT: u8 =

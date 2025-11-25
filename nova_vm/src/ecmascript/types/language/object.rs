@@ -267,6 +267,7 @@ pub enum Object<'a> {
     ArrayIterator(ArrayIterator<'a>) = ARRAY_ITERATOR_DISCRIMINANT,
     #[cfg(feature = "set")]
     SetIterator(SetIterator<'a>) = SET_ITERATOR_DISCRIMINANT,
+    #[cfg(feature = "set")]
     MapIterator(MapIterator<'a>) = MAP_ITERATOR_DISCRIMINANT,
     StringIterator(StringIterator<'a>) = STRING_ITERATOR_DISCRIMINANT,
     #[cfg(feature = "regexp")]

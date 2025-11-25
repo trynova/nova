@@ -15,7 +15,7 @@ use crate::{
 
 #[derive(Debug, Default)]
 pub struct WeakMapRecord<'a> {
-    pub(crate) weak_map_data: AHashMap<WeakKey<'a>, Option<Value<'a>>>,
+    pub(crate) weak_map_data: AHashMap<WeakKey<'a>, Value<'a>>,
     pub(super) object_index: Option<OrdinaryObject<'a>>,
 }
 bindable_handle!(WeakMapRecord);
@@ -35,14 +35,14 @@ impl<'a> WeakMapRecord<'a> {
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[WeakMapData]], do
         // a. If p.[[Key]] is not empty and SameValue(p.[[Key]], key) is true, return p.[[Value]].
         // 5. Return undefined.
-        self.weak_map_data.get(&key).map_or(None, |v| v.to_owned())
+        self.weak_map_data.get(&key).cloned()
     }
 
     pub(super) fn has(&mut self, key: WeakKey<'a>) -> bool {
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[WeakMapData]], do
         // a. If p.[[Key]] is not empty and SameValue(p.[[Key]], key) is true, return true.
         // 5. Return false.
-        self.weak_map_data.get(&key).is_some_and(|v| v.is_some())
+        self.weak_map_data.contains_key(&key)
     }
 
     pub(super) fn set(&mut self, key: WeakKey<'a>, value: Value<'a>) {
@@ -52,7 +52,7 @@ impl<'a> WeakMapRecord<'a> {
         // ii. Return M.
         // 5. Let p be the Record { [[Key]]: key, [[Value]]: value }.
         // 6. Append p to M.[[WeakMapData]].
-        self.weak_map_data.insert(key, Some(value));
+        self.weak_map_data.insert(key, value);
     }
 }
 
@@ -62,10 +62,12 @@ impl HeapMarkAndSweep for WeakMapRecord<'static> {
             weak_map_data: map,
             object_index,
         } = self;
-        // Note: this is not correct. The values should be held weakly unless
-        // key is still live.
-        for value in map.values() {
-            value.mark_values(queues);
+        for (key, value) in map.iter() {
+            if queues.bits.is_marked(key) {
+                value.mark_values(queues);
+            } else {
+                queues.pending_ephemerons.push((*key, *value));
+            }
         }
         object_index.mark_values(queues);
     }

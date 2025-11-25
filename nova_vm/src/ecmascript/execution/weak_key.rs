@@ -120,7 +120,7 @@ use crate::{
 };
 
 /// ### [6.1 ECMAScript Language Types](https://tc39.es/ecma262/#sec-ecmascript-language-types)
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u8)]
 pub(crate) enum WeakKey<'a> {
     Symbol(Symbol<'a>) = SYMBOL_DISCRIMINANT,
@@ -219,6 +219,7 @@ pub(crate) enum WeakKey<'a> {
     ArrayIterator(ArrayIterator<'a>) = ARRAY_ITERATOR_DISCRIMINANT,
     #[cfg(feature = "set")]
     SetIterator(SetIterator<'a>) = SET_ITERATOR_DISCRIMINANT,
+    #[cfg(feature = "set")]
     MapIterator(MapIterator<'a>) = MAP_ITERATOR_DISCRIMINANT,
     StringIterator(StringIterator<'a>) = STRING_ITERATOR_DISCRIMINANT,
     #[cfg(feature = "regexp")]

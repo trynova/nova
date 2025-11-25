@@ -97,6 +97,11 @@ impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
         GenericSharedTypedArray(self.0, PhantomData)
     }
 
+    #[inline(always)]
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+
     fn check_not_void_array() {
         if core::any::TypeId::of::<T>() == core::any::TypeId::of::<()>() {
             panic!("Invalid GenericSharedTypedArray invocation using void type");
@@ -290,11 +295,6 @@ impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
 pub(crate) type SharedVoidArray<'a> = GenericSharedTypedArray<'a, ()>;
 
 impl<'gc> SharedVoidArray<'gc> {
-    #[inline(always)]
-    pub(crate) fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
     #[inline(always)]
     fn get<'a>(self, agent: &'a Agent) -> &'a SharedTypedArrayRecord<'gc> {
         self.get_direct(&agent.heap.shared_typed_arrays)

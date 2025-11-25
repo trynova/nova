@@ -5,7 +5,6 @@ use std::{
     cell::UnsafeCell,
     hint::assert_unchecked,
     mem::MaybeUninit,
-    ops::{Div, Rem},
     sync::atomic::{AtomicU8, Ordering},
 };
 
@@ -75,7 +74,7 @@ use crate::ecmascript::{
     },
     execution::{
         DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ModuleEnvironment,
-        ObjectEnvironment, PrivateEnvironment, Realm,
+        ObjectEnvironment, PrivateEnvironment, Realm, WeakKey,
     },
     scripts_and_modules::{
         module::module_semantics::{ModuleRequest, source_text_module_records::SourceTextModule},
@@ -83,17 +82,18 @@ use crate::ecmascript::{
         source_code::SourceCode,
     },
     types::{
-        BUILTIN_STRINGS_LIST, HeapNumber, HeapString, OrdinaryObject, Symbol, bigint::HeapBigInt,
+        BUILTIN_STRINGS_LIST, HeapNumber, HeapString, OrdinaryObject, Symbol, Value,
+        bigint::HeapBigInt,
     },
 };
 use crate::engine::Executable;
 
 #[derive(Debug, Clone, Default)]
-pub struct BitRange(Range<usize>);
+pub(crate) struct BitRange(Range<usize>);
 
 impl BitRange {
     #[inline]
-    pub(crate) fn from_range(range: Range<usize>) -> Self {
+    pub(crate) const fn from_range(range: Range<usize>) -> Self {
         Self(range)
     }
 
@@ -273,38 +273,38 @@ impl core::fmt::Debug for BitRangeIterator<'_> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct BitOffset(u8);
+pub(crate) struct BitOffset(u8);
 
 impl BitOffset {
-    fn new(value: u8) -> Self {
+    const fn new(value: u8) -> Self {
         unsafe { assert_unchecked(value < 8) };
         Self(value)
     }
 
-    fn advance(&mut self) -> BitOffset {
+    const fn advance(&mut self) -> BitOffset {
         let offset = *self;
         self.0 = (self.0 + 1) % 8;
         offset
     }
 
     #[inline]
-    pub(crate) fn is_zero(&self) -> bool {
+    pub(crate) const fn is_zero(&self) -> bool {
         self.0 == 0
     }
 
     /// Creates a byte with only this offset bit set.
-    pub(crate) fn into_bitmask(&self) -> u8 {
+    pub(crate) const fn into_bitmask(&self) -> u8 {
         1u8 << self.0
     }
 
-    pub(crate) fn from_range(range: &Range<usize>) -> (Range<usize>, Range<BitOffset>) {
-        let start_byte_offset = range.start.div(8);
-        let start_bit_offset = range.start.rem(8);
+    pub(crate) const fn from_range(range: &Range<usize>) -> (Range<usize>, Range<BitOffset>) {
+        let start_byte_offset = range.start / 8;
+        let start_bit_offset = range.start % 8;
         // SAFETY: rem should always return < 8.
         unsafe { assert_unchecked(start_bit_offset < 8) };
         let start_bit_offset = start_bit_offset as u8;
         let end_byte_offset = range.end.div_ceil(8);
-        let end_bit_offset = range.end.rem(8);
+        let end_bit_offset = range.end % 8;
         // SAFETY: rem should always return < 8.
         unsafe { assert_unchecked(end_bit_offset < 8) };
         let end_bit_offset = end_bit_offset as u8;
@@ -403,200 +403,202 @@ impl AtomicBits {
 }
 
 #[derive(Debug)]
-pub struct HeapBits {
-    pub(crate) bits: Box<[AtomicBits]>,
-    pub(crate) e_2_1: BitRange,
-    pub(crate) e_2_2: BitRange,
-    pub(crate) e_2_3: BitRange,
-    pub(crate) e_2_4: BitRange,
-    pub(crate) e_2_6: BitRange,
-    pub(crate) e_2_8: BitRange,
-    pub(crate) e_2_10: BitRange,
-    pub(crate) e_2_12: BitRange,
-    pub(crate) e_2_16: BitRange,
-    pub(crate) e_2_24: BitRange,
-    pub(crate) e_2_32: BitRange,
-    pub(crate) k_2_1: BitRange,
-    pub(crate) k_2_2: BitRange,
-    pub(crate) k_2_3: BitRange,
-    pub(crate) k_2_4: BitRange,
-    pub(crate) k_2_6: BitRange,
-    pub(crate) k_2_8: BitRange,
-    pub(crate) k_2_10: BitRange,
-    pub(crate) k_2_12: BitRange,
-    pub(crate) k_2_16: BitRange,
-    pub(crate) k_2_24: BitRange,
-    pub(crate) k_2_32: BitRange,
+pub(crate) struct HeapBits {
+    pub(super) bits: Box<[AtomicBits]>,
+    pub(super) e_2_1: BitRange,
+    pub(super) e_2_2: BitRange,
+    pub(super) e_2_3: BitRange,
+    pub(super) e_2_4: BitRange,
+    pub(super) e_2_6: BitRange,
+    pub(super) e_2_8: BitRange,
+    pub(super) e_2_10: BitRange,
+    pub(super) e_2_12: BitRange,
+    pub(super) e_2_16: BitRange,
+    pub(super) e_2_24: BitRange,
+    pub(super) e_2_32: BitRange,
+    pub(super) k_2_1: BitRange,
+    pub(super) k_2_2: BitRange,
+    pub(super) k_2_3: BitRange,
+    pub(super) k_2_4: BitRange,
+    pub(super) k_2_6: BitRange,
+    pub(super) k_2_8: BitRange,
+    pub(super) k_2_10: BitRange,
+    pub(super) k_2_12: BitRange,
+    pub(super) k_2_16: BitRange,
+    pub(super) k_2_24: BitRange,
+    pub(super) k_2_32: BitRange,
     #[cfg(feature = "array-buffer")]
-    pub array_buffers: BitRange,
-    pub arrays: BitRange,
-    pub array_iterators: BitRange,
-    pub async_generators: BitRange,
-    pub await_reactions: BitRange,
-    pub bigints: BitRange,
-    pub bound_functions: BitRange,
-    pub builtin_constructors: BitRange,
-    pub builtin_functions: BitRange,
-    pub caches: BitRange,
+    pub(super) array_buffers: BitRange,
+    pub(super) arrays: BitRange,
+    pub(super) array_iterators: BitRange,
+    pub(super) async_generators: BitRange,
+    pub(super) await_reactions: BitRange,
+    pub(super) bigints: BitRange,
+    pub(super) bound_functions: BitRange,
+    pub(super) builtin_constructors: BitRange,
+    pub(super) builtin_functions: BitRange,
+    pub(super) caches: BitRange,
     #[cfg(feature = "array-buffer")]
-    pub data_views: BitRange,
+    pub(super) data_views: BitRange,
     #[cfg(feature = "date")]
-    pub dates: BitRange,
-    pub declarative_environments: BitRange,
-    pub ecmascript_functions: BitRange,
-    pub embedder_objects: BitRange,
-    pub errors: BitRange,
-    pub executables: BitRange,
-    pub source_codes: BitRange,
-    pub finalization_registrys: BitRange,
-    pub function_environments: BitRange,
-    pub generators: BitRange,
-    pub global_environments: BitRange,
-    pub maps: BitRange,
-    pub map_iterators: BitRange,
-    pub module_environments: BitRange,
-    pub modules: BitRange,
-    pub module_request_records: BitRange,
-    pub numbers: BitRange,
-    pub object_environments: BitRange,
-    pub object_shapes: BitRange,
-    pub objects: BitRange,
-    pub primitive_objects: BitRange,
-    pub private_environments: BitRange,
-    pub promise_reaction_records: BitRange,
-    pub promise_resolving_functions: BitRange,
-    pub promise_finally_functions: BitRange,
-    pub promises: BitRange,
-    pub promise_group_records: BitRange,
-    pub proxies: BitRange,
-    pub realms: BitRange,
+    pub(super) dates: BitRange,
+    pub(super) declarative_environments: BitRange,
+    pub(super) ecmascript_functions: BitRange,
+    pub(super) embedder_objects: BitRange,
+    pub(super) errors: BitRange,
+    pub(super) executables: BitRange,
+    pub(super) source_codes: BitRange,
+    pub(super) finalization_registrys: BitRange,
+    pub(super) function_environments: BitRange,
+    pub(super) generators: BitRange,
+    pub(super) global_environments: BitRange,
+    pub(super) maps: BitRange,
+    pub(super) map_iterators: BitRange,
+    pub(super) module_environments: BitRange,
+    pub(super) modules: BitRange,
+    pub(super) module_request_records: BitRange,
+    pub(super) numbers: BitRange,
+    pub(super) object_environments: BitRange,
+    pub(super) object_shapes: BitRange,
+    pub(super) objects: BitRange,
+    pub(super) primitive_objects: BitRange,
+    pub(super) private_environments: BitRange,
+    pub(super) promise_reaction_records: BitRange,
+    pub(super) promise_resolving_functions: BitRange,
+    pub(super) promise_finally_functions: BitRange,
+    pub(super) promises: BitRange,
+    pub(super) promise_group_records: BitRange,
+    pub(super) proxies: BitRange,
+    pub(super) realms: BitRange,
     #[cfg(feature = "regexp")]
-    pub regexps: BitRange,
+    pub(super) regexps: BitRange,
     #[cfg(feature = "regexp")]
-    pub regexp_string_iterators: BitRange,
-    pub scripts: BitRange,
+    pub(super) regexp_string_iterators: BitRange,
+    pub(super) scripts: BitRange,
     #[cfg(feature = "set")]
-    pub sets: BitRange,
+    pub(super) sets: BitRange,
     #[cfg(feature = "set")]
-    pub set_iterators: BitRange,
+    pub(super) set_iterators: BitRange,
     #[cfg(feature = "shared-array-buffer")]
-    pub shared_array_buffers: BitRange,
+    pub(super) shared_array_buffers: BitRange,
     #[cfg(feature = "shared-array-buffer")]
-    pub shared_data_views: BitRange,
+    pub(super) shared_data_views: BitRange,
     #[cfg(feature = "shared-array-buffer")]
-    pub shared_typed_arrays: BitRange,
-    pub source_text_module_records: BitRange,
-    pub string_iterators: BitRange,
-    pub strings: BitRange,
-    pub symbols: BitRange,
+    pub(super) shared_typed_arrays: BitRange,
+    pub(super) source_text_module_records: BitRange,
+    pub(super) string_iterators: BitRange,
+    pub(super) strings: BitRange,
+    pub(super) symbols: BitRange,
     #[cfg(feature = "array-buffer")]
-    pub typed_arrays: BitRange,
+    pub(super) typed_arrays: BitRange,
     #[cfg(feature = "weak-refs")]
-    pub weak_maps: BitRange,
+    pub(super) weak_maps: BitRange,
     #[cfg(feature = "weak-refs")]
-    pub weak_refs: BitRange,
+    pub(super) weak_refs: BitRange,
     #[cfg(feature = "weak-refs")]
-    pub weak_sets: BitRange,
+    pub(super) weak_sets: BitRange,
 }
 
 #[derive(Debug)]
-pub(crate) struct WorkQueues {
+pub(crate) struct WorkQueues<'a> {
+    pub(crate) bits: &'a HeapBits,
+    pub(crate) pending_ephemerons: Vec<(WeakKey<'static>, Value<'static>)>,
     #[cfg(feature = "array-buffer")]
-    pub array_buffers: Vec<ArrayBuffer<'static>>,
-    pub arrays: Vec<Array<'static>>,
-    pub array_iterators: Vec<ArrayIterator<'static>>,
-    pub async_generators: Vec<AsyncGenerator<'static>>,
-    pub await_reactions: Vec<AwaitReaction<'static>>,
-    pub bigints: Vec<HeapBigInt<'static>>,
-    pub bound_functions: Vec<BoundFunction<'static>>,
-    pub builtin_constructors: Vec<BuiltinConstructorFunction<'static>>,
-    pub builtin_functions: Vec<BuiltinFunction<'static>>,
-    pub caches: Vec<PropertyLookupCache<'static>>,
+    pub(crate) array_buffers: Vec<ArrayBuffer<'static>>,
+    pub(crate) arrays: Vec<Array<'static>>,
+    pub(crate) array_iterators: Vec<ArrayIterator<'static>>,
+    pub(crate) async_generators: Vec<AsyncGenerator<'static>>,
+    pub(crate) await_reactions: Vec<AwaitReaction<'static>>,
+    pub(crate) bigints: Vec<HeapBigInt<'static>>,
+    pub(crate) bound_functions: Vec<BoundFunction<'static>>,
+    pub(crate) builtin_constructors: Vec<BuiltinConstructorFunction<'static>>,
+    pub(crate) builtin_functions: Vec<BuiltinFunction<'static>>,
+    pub(crate) caches: Vec<PropertyLookupCache<'static>>,
     #[cfg(feature = "array-buffer")]
-    pub data_views: Vec<DataView<'static>>,
+    pub(crate) data_views: Vec<DataView<'static>>,
     #[cfg(feature = "date")]
-    pub dates: Vec<Date<'static>>,
-    pub declarative_environments: Vec<DeclarativeEnvironment<'static>>,
-    pub e_2_1: Vec<(ElementIndex<'static>, u32)>,
-    pub e_2_2: Vec<(ElementIndex<'static>, u32)>,
-    pub e_2_3: Vec<(ElementIndex<'static>, u32)>,
-    pub e_2_4: Vec<(ElementIndex<'static>, u32)>,
-    pub e_2_6: Vec<(ElementIndex<'static>, u32)>,
-    pub e_2_8: Vec<(ElementIndex<'static>, u32)>,
-    pub e_2_10: Vec<(ElementIndex<'static>, u32)>,
-    pub e_2_12: Vec<(ElementIndex<'static>, u32)>,
-    pub e_2_16: Vec<(ElementIndex<'static>, u32)>,
-    pub e_2_24: Vec<(ElementIndex<'static>, u32)>,
-    pub e_2_32: Vec<(ElementIndex<'static>, u32)>,
-    pub k_2_1: Vec<(PropertyKeyIndex<'static>, u32)>,
-    pub k_2_2: Vec<(PropertyKeyIndex<'static>, u32)>,
-    pub k_2_3: Vec<(PropertyKeyIndex<'static>, u32)>,
-    pub k_2_4: Vec<(PropertyKeyIndex<'static>, u32)>,
-    pub k_2_6: Vec<(PropertyKeyIndex<'static>, u32)>,
-    pub k_2_8: Vec<(PropertyKeyIndex<'static>, u32)>,
-    pub k_2_10: Vec<(PropertyKeyIndex<'static>, u32)>,
-    pub k_2_12: Vec<(PropertyKeyIndex<'static>, u32)>,
-    pub k_2_16: Vec<(PropertyKeyIndex<'static>, u32)>,
-    pub k_2_24: Vec<(PropertyKeyIndex<'static>, u32)>,
-    pub k_2_32: Vec<(PropertyKeyIndex<'static>, u32)>,
-    pub ecmascript_functions: Vec<ECMAScriptFunction<'static>>,
-    pub embedder_objects: Vec<EmbedderObject<'static>>,
-    pub source_codes: Vec<SourceCode<'static>>,
-    pub errors: Vec<Error<'static>>,
-    pub executables: Vec<Executable<'static>>,
-    pub finalization_registrys: Vec<FinalizationRegistry<'static>>,
-    pub function_environments: Vec<FunctionEnvironment<'static>>,
-    pub generators: Vec<Generator<'static>>,
-    pub global_environments: Vec<GlobalEnvironment<'static>>,
-    pub maps: Vec<Map<'static>>,
-    pub map_iterators: Vec<MapIterator<'static>>,
-    pub module_environments: Vec<ModuleEnvironment<'static>>,
-    pub modules: Vec<Module<'static>>,
-    pub module_request_records: Vec<ModuleRequest<'static>>,
-    pub numbers: Vec<HeapNumber<'static>>,
-    pub object_environments: Vec<ObjectEnvironment<'static>>,
-    pub objects: Vec<OrdinaryObject<'static>>,
-    pub object_shapes: Vec<ObjectShape<'static>>,
-    pub primitive_objects: Vec<PrimitiveObject<'static>>,
-    pub private_environments: Vec<PrivateEnvironment<'static>>,
-    pub promises: Vec<Promise<'static>>,
-    pub promise_reaction_records: Vec<PromiseReaction<'static>>,
-    pub promise_resolving_functions: Vec<BuiltinPromiseResolvingFunction<'static>>,
-    pub promise_finally_functions: Vec<BuiltinPromiseFinallyFunction<'static>>,
-    pub promise_group_records: Vec<PromiseGroup<'static>>,
-    pub proxies: Vec<Proxy<'static>>,
-    pub realms: Vec<Realm<'static>>,
+    pub(crate) dates: Vec<Date<'static>>,
+    pub(crate) declarative_environments: Vec<DeclarativeEnvironment<'static>>,
+    pub(crate) e_2_1: Vec<(ElementIndex<'static>, u32)>,
+    pub(crate) e_2_2: Vec<(ElementIndex<'static>, u32)>,
+    pub(crate) e_2_3: Vec<(ElementIndex<'static>, u32)>,
+    pub(crate) e_2_4: Vec<(ElementIndex<'static>, u32)>,
+    pub(crate) e_2_6: Vec<(ElementIndex<'static>, u32)>,
+    pub(crate) e_2_8: Vec<(ElementIndex<'static>, u32)>,
+    pub(crate) e_2_10: Vec<(ElementIndex<'static>, u32)>,
+    pub(crate) e_2_12: Vec<(ElementIndex<'static>, u32)>,
+    pub(crate) e_2_16: Vec<(ElementIndex<'static>, u32)>,
+    pub(crate) e_2_24: Vec<(ElementIndex<'static>, u32)>,
+    pub(crate) e_2_32: Vec<(ElementIndex<'static>, u32)>,
+    pub(crate) k_2_1: Vec<(PropertyKeyIndex<'static>, u32)>,
+    pub(crate) k_2_2: Vec<(PropertyKeyIndex<'static>, u32)>,
+    pub(crate) k_2_3: Vec<(PropertyKeyIndex<'static>, u32)>,
+    pub(crate) k_2_4: Vec<(PropertyKeyIndex<'static>, u32)>,
+    pub(crate) k_2_6: Vec<(PropertyKeyIndex<'static>, u32)>,
+    pub(crate) k_2_8: Vec<(PropertyKeyIndex<'static>, u32)>,
+    pub(crate) k_2_10: Vec<(PropertyKeyIndex<'static>, u32)>,
+    pub(crate) k_2_12: Vec<(PropertyKeyIndex<'static>, u32)>,
+    pub(crate) k_2_16: Vec<(PropertyKeyIndex<'static>, u32)>,
+    pub(crate) k_2_24: Vec<(PropertyKeyIndex<'static>, u32)>,
+    pub(crate) k_2_32: Vec<(PropertyKeyIndex<'static>, u32)>,
+    pub(crate) ecmascript_functions: Vec<ECMAScriptFunction<'static>>,
+    pub(crate) embedder_objects: Vec<EmbedderObject<'static>>,
+    pub(crate) source_codes: Vec<SourceCode<'static>>,
+    pub(crate) errors: Vec<Error<'static>>,
+    pub(crate) executables: Vec<Executable<'static>>,
+    pub(crate) finalization_registrys: Vec<FinalizationRegistry<'static>>,
+    pub(crate) function_environments: Vec<FunctionEnvironment<'static>>,
+    pub(crate) generators: Vec<Generator<'static>>,
+    pub(crate) global_environments: Vec<GlobalEnvironment<'static>>,
+    pub(crate) maps: Vec<Map<'static>>,
+    pub(crate) map_iterators: Vec<MapIterator<'static>>,
+    pub(crate) module_environments: Vec<ModuleEnvironment<'static>>,
+    pub(crate) modules: Vec<Module<'static>>,
+    pub(crate) module_request_records: Vec<ModuleRequest<'static>>,
+    pub(crate) numbers: Vec<HeapNumber<'static>>,
+    pub(crate) object_environments: Vec<ObjectEnvironment<'static>>,
+    pub(crate) objects: Vec<OrdinaryObject<'static>>,
+    pub(crate) object_shapes: Vec<ObjectShape<'static>>,
+    pub(crate) primitive_objects: Vec<PrimitiveObject<'static>>,
+    pub(crate) private_environments: Vec<PrivateEnvironment<'static>>,
+    pub(crate) promises: Vec<Promise<'static>>,
+    pub(crate) promise_reaction_records: Vec<PromiseReaction<'static>>,
+    pub(crate) promise_resolving_functions: Vec<BuiltinPromiseResolvingFunction<'static>>,
+    pub(crate) promise_finally_functions: Vec<BuiltinPromiseFinallyFunction<'static>>,
+    pub(crate) promise_group_records: Vec<PromiseGroup<'static>>,
+    pub(crate) proxies: Vec<Proxy<'static>>,
+    pub(crate) realms: Vec<Realm<'static>>,
     #[cfg(feature = "regexp")]
-    pub regexps: Vec<RegExp<'static>>,
+    pub(crate) regexps: Vec<RegExp<'static>>,
     #[cfg(feature = "regexp")]
-    pub regexp_string_iterators: Vec<RegExpStringIterator<'static>>,
-    pub scripts: Vec<Script<'static>>,
+    pub(crate) regexp_string_iterators: Vec<RegExpStringIterator<'static>>,
+    pub(crate) scripts: Vec<Script<'static>>,
     #[cfg(feature = "set")]
-    pub sets: Vec<Set<'static>>,
+    pub(crate) sets: Vec<Set<'static>>,
     #[cfg(feature = "set")]
-    pub set_iterators: Vec<SetIterator<'static>>,
+    pub(crate) set_iterators: Vec<SetIterator<'static>>,
     #[cfg(feature = "shared-array-buffer")]
-    pub shared_array_buffers: Vec<SharedArrayBuffer<'static>>,
+    pub(crate) shared_array_buffers: Vec<SharedArrayBuffer<'static>>,
     #[cfg(feature = "shared-array-buffer")]
-    pub shared_data_views: Vec<SharedDataView<'static>>,
+    pub(crate) shared_data_views: Vec<SharedDataView<'static>>,
     #[cfg(feature = "shared-array-buffer")]
-    pub shared_typed_arrays: Vec<SharedVoidArray<'static>>,
-    pub source_text_module_records: Vec<SourceTextModule<'static>>,
-    pub string_iterators: Vec<StringIterator<'static>>,
-    pub strings: Vec<HeapString<'static>>,
-    pub symbols: Vec<Symbol<'static>>,
+    pub(crate) shared_typed_arrays: Vec<SharedVoidArray<'static>>,
+    pub(crate) source_text_module_records: Vec<SourceTextModule<'static>>,
+    pub(crate) string_iterators: Vec<StringIterator<'static>>,
+    pub(crate) strings: Vec<HeapString<'static>>,
+    pub(crate) symbols: Vec<Symbol<'static>>,
     #[cfg(feature = "array-buffer")]
-    pub typed_arrays: Vec<VoidArray<'static>>,
+    pub(crate) typed_arrays: Vec<VoidArray<'static>>,
     #[cfg(feature = "weak-refs")]
-    pub weak_maps: Vec<WeakMap<'static>>,
+    pub(crate) weak_maps: Vec<WeakMap<'static>>,
     #[cfg(feature = "weak-refs")]
-    pub weak_refs: Vec<WeakRef<'static>>,
+    pub(crate) weak_refs: Vec<WeakRef<'static>>,
     #[cfg(feature = "weak-refs")]
-    pub weak_sets: Vec<WeakSet<'static>>,
+    pub(crate) weak_sets: Vec<WeakSet<'static>>,
 }
 
 impl HeapBits {
-    pub fn new(heap: &Heap) -> Self {
+    pub(crate) fn new(heap: &Heap) -> Self {
         let mut bit_count = 0;
 
         let e_2_1 = if heap.elements.e2pow1.values.is_empty() {
@@ -1572,11 +1574,159 @@ impl HeapBits {
             weak_sets: weak_sets,
         }
     }
+
+    pub(crate) fn is_marked(&self, key: &WeakKey) -> bool {
+        match key {
+            WeakKey::Symbol(d) => self.symbols.get_bit(d.get_index(), &self.bits),
+            WeakKey::Object(d) => self.objects.get_bit(d.get_index(), &self.bits),
+            WeakKey::BoundFunction(d) => self.bound_functions.get_bit(d.get_index(), &self.bits),
+            WeakKey::BuiltinFunction(d) => {
+                self.builtin_functions.get_bit(d.get_index(), &self.bits)
+            }
+            WeakKey::ECMAScriptFunction(d) => {
+                self.ecmascript_functions.get_bit(d.get_index(), &self.bits)
+            }
+            WeakKey::BuiltinConstructorFunction(d) => {
+                self.builtin_constructors.get_bit(d.get_index(), &self.bits)
+            }
+            WeakKey::BuiltinPromiseResolvingFunction(d) => self
+                .promise_resolving_functions
+                .get_bit(d.get_index(), &self.bits),
+            WeakKey::BuiltinPromiseFinallyFunction(d) => self
+                .promise_finally_functions
+                .get_bit(d.get_index(), &self.bits),
+            WeakKey::BuiltinPromiseCollectorFunction | WeakKey::BuiltinProxyRevokerFunction => {
+                unreachable!()
+            }
+            WeakKey::PrimitiveObject(d) => {
+                self.primitive_objects.get_bit(d.get_index(), &self.bits)
+            }
+            WeakKey::Arguments(d) => self.objects.get_bit(d.get_index(), &self.bits),
+            WeakKey::Array(d) => self.arrays.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "date")]
+            WeakKey::Date(d) => self.dates.get_bit(d.get_index(), &self.bits),
+            WeakKey::Error(d) => self.errors.get_bit(d.get_index(), &self.bits),
+            WeakKey::FinalizationRegistry(d) => self
+                .finalization_registrys
+                .get_bit(d.get_index(), &self.bits),
+            WeakKey::Map(d) => self.maps.get_bit(d.get_index(), &self.bits),
+            WeakKey::Promise(d) => self.promises.get_bit(d.get_index(), &self.bits),
+            WeakKey::Proxy(d) => self.proxies.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "regexp")]
+            WeakKey::RegExp(d) => self.regexps.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "set")]
+            WeakKey::Set(d) => self.sets.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "weak-refs")]
+            WeakKey::WeakMap(d) => self.weak_maps.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "weak-refs")]
+            WeakKey::WeakRef(d) => self.weak_refs.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "weak-refs")]
+            WeakKey::WeakSet(d) => self.weak_sets.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "array-buffer")]
+            WeakKey::ArrayBuffer(d) => self.array_buffers.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "array-buffer")]
+            WeakKey::DataView(d) => self.data_views.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "array-buffer")]
+            WeakKey::Int8Array(d) => self.typed_arrays.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "array-buffer")]
+            WeakKey::Uint8Array(d) => self.typed_arrays.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "array-buffer")]
+            WeakKey::Uint8ClampedArray(d) => self.typed_arrays.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "array-buffer")]
+            WeakKey::Int16Array(d) => self.typed_arrays.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "array-buffer")]
+            WeakKey::Uint16Array(d) => self.typed_arrays.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "array-buffer")]
+            WeakKey::Int32Array(d) => self.typed_arrays.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "array-buffer")]
+            WeakKey::Uint32Array(d) => self.typed_arrays.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "array-buffer")]
+            WeakKey::BigInt64Array(d) => self.typed_arrays.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "array-buffer")]
+            WeakKey::BigUint64Array(d) => self.typed_arrays.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "proposal-float16array")]
+            WeakKey::Float16Array(d) => self.typed_arrays.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "array-buffer")]
+            WeakKey::Float32Array(d) => self.typed_arrays.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "array-buffer")]
+            WeakKey::Float64Array(d) => self.typed_arrays.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedArrayBuffer(d) => {
+                self.shared_array_buffers.get_bit(d.get_index(), &self.bits)
+            }
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedDataView(d) => self.shared_data_views.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedInt8Array(d) => {
+                self.shared_typed_arrays.get_bit(d.get_index(), &self.bits)
+            }
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedUint8Array(d) => {
+                self.shared_typed_arrays.get_bit(d.get_index(), &self.bits)
+            }
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedUint8ClampedArray(d) => {
+                self.shared_typed_arrays.get_bit(d.get_index(), &self.bits)
+            }
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedInt16Array(d) => {
+                self.shared_typed_arrays.get_bit(d.get_index(), &self.bits)
+            }
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedUint16Array(d) => {
+                self.shared_typed_arrays.get_bit(d.get_index(), &self.bits)
+            }
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedInt32Array(d) => {
+                self.shared_typed_arrays.get_bit(d.get_index(), &self.bits)
+            }
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedUint32Array(d) => {
+                self.shared_typed_arrays.get_bit(d.get_index(), &self.bits)
+            }
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedBigInt64Array(d) => {
+                self.shared_typed_arrays.get_bit(d.get_index(), &self.bits)
+            }
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedBigUint64Array(d) => {
+                self.shared_typed_arrays.get_bit(d.get_index(), &self.bits)
+            }
+            #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+            WeakKey::SharedFloat16Array(d) => {
+                self.shared_typed_arrays.get_bit(d.get_index(), &self.bits)
+            }
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedFloat32Array(d) => {
+                self.shared_typed_arrays.get_bit(d.get_index(), &self.bits)
+            }
+            #[cfg(feature = "shared-array-buffer")]
+            WeakKey::SharedFloat64Array(d) => {
+                self.shared_typed_arrays.get_bit(d.get_index(), &self.bits)
+            }
+            WeakKey::AsyncGenerator(d) => self.async_generators.get_bit(d.get_index(), &self.bits),
+            WeakKey::ArrayIterator(d) => self.array_iterators.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "set")]
+            WeakKey::SetIterator(d) => self.set_iterators.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "set")]
+            WeakKey::MapIterator(d) => self.map_iterators.get_bit(d.get_index(), &self.bits),
+            WeakKey::StringIterator(d) => self.string_iterators.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "regexp")]
+            WeakKey::RegExpStringIterator(d) => self
+                .regexp_string_iterators
+                .get_bit(d.get_index(), &self.bits),
+            WeakKey::Generator(d) => self.generators.get_bit(d.get_index(), &self.bits),
+            WeakKey::Module(d) => self.modules.get_bit(d.get_index(), &self.bits),
+            WeakKey::EmbedderObject(d) => self.embedder_objects.get_bit(d.get_index(), &self.bits),
+        }
+    }
 }
 
-impl WorkQueues {
-    pub fn new(heap: &Heap) -> Self {
+impl<'a> WorkQueues<'a> {
+    pub(crate) fn new(heap: &Heap, bits: &'a HeapBits) -> Self {
         Self {
+            bits,
+            pending_ephemerons: vec![],
             #[cfg(feature = "array-buffer")]
             array_buffers: Vec::with_capacity(heap.array_buffers.len() / 4),
             arrays: Vec::with_capacity(heap.arrays.len() as usize / 4),
@@ -1678,8 +1828,11 @@ impl WorkQueues {
         }
     }
 
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         let Self {
+            bits: _,
+            // Note: we can have pending ephemerons that will never resolve.
+            pending_ephemerons: _,
             #[cfg(feature = "array-buffer")]
             array_buffers,
             arrays,
@@ -2159,101 +2312,101 @@ impl Default for CompactionListBuilder {
 
 pub(crate) struct CompactionLists {
     #[cfg(feature = "array-buffer")]
-    pub array_buffers: CompactionList,
-    pub arrays: CompactionList,
-    pub array_iterators: CompactionList,
-    pub async_generators: CompactionList,
-    pub await_reactions: CompactionList,
-    pub bigints: CompactionList,
-    pub bound_functions: CompactionList,
-    pub builtin_constructors: CompactionList,
-    pub builtin_functions: CompactionList,
-    pub caches: CompactionList,
+    pub(crate) array_buffers: CompactionList,
+    pub(crate) arrays: CompactionList,
+    pub(crate) array_iterators: CompactionList,
+    pub(crate) async_generators: CompactionList,
+    pub(crate) await_reactions: CompactionList,
+    pub(crate) bigints: CompactionList,
+    pub(crate) bound_functions: CompactionList,
+    pub(crate) builtin_constructors: CompactionList,
+    pub(crate) builtin_functions: CompactionList,
+    pub(crate) caches: CompactionList,
     #[cfg(feature = "array-buffer")]
-    pub data_views: CompactionList,
+    pub(crate) data_views: CompactionList,
     #[cfg(feature = "date")]
-    pub dates: CompactionList,
-    pub declarative_environments: CompactionList,
-    pub e_2_1: CompactionList,
-    pub e_2_2: CompactionList,
-    pub e_2_3: CompactionList,
-    pub e_2_4: CompactionList,
-    pub e_2_6: CompactionList,
-    pub e_2_8: CompactionList,
-    pub e_2_10: CompactionList,
-    pub e_2_12: CompactionList,
-    pub e_2_16: CompactionList,
-    pub e_2_24: CompactionList,
-    pub e_2_32: CompactionList,
-    pub k_2_1: CompactionList,
-    pub k_2_2: CompactionList,
-    pub k_2_3: CompactionList,
-    pub k_2_4: CompactionList,
-    pub k_2_6: CompactionList,
-    pub k_2_8: CompactionList,
-    pub k_2_10: CompactionList,
-    pub k_2_12: CompactionList,
-    pub k_2_16: CompactionList,
-    pub k_2_24: CompactionList,
-    pub k_2_32: CompactionList,
-    pub ecmascript_functions: CompactionList,
-    pub embedder_objects: CompactionList,
-    pub source_codes: CompactionList,
-    pub source_text_module_records: CompactionList,
-    pub errors: CompactionList,
-    pub executables: CompactionList,
-    pub finalization_registrys: CompactionList,
-    pub function_environments: CompactionList,
-    pub generators: CompactionList,
-    pub global_environments: CompactionList,
-    pub maps: CompactionList,
-    pub map_iterators: CompactionList,
-    pub modules: CompactionList,
-    pub module_environments: CompactionList,
-    pub module_request_records: CompactionList,
-    pub numbers: CompactionList,
-    pub object_environments: CompactionList,
-    pub object_shapes: CompactionList,
-    pub objects: CompactionList,
-    pub primitive_objects: CompactionList,
-    pub private_environments: CompactionList,
-    pub promise_reaction_records: CompactionList,
-    pub promise_resolving_functions: CompactionList,
-    pub promise_finally_functions: CompactionList,
-    pub promises: CompactionList,
-    pub promise_group_records: CompactionList,
-    pub proxies: CompactionList,
-    pub realms: CompactionList,
+    pub(crate) dates: CompactionList,
+    pub(crate) declarative_environments: CompactionList,
+    pub(crate) e_2_1: CompactionList,
+    pub(crate) e_2_2: CompactionList,
+    pub(crate) e_2_3: CompactionList,
+    pub(crate) e_2_4: CompactionList,
+    pub(crate) e_2_6: CompactionList,
+    pub(crate) e_2_8: CompactionList,
+    pub(crate) e_2_10: CompactionList,
+    pub(crate) e_2_12: CompactionList,
+    pub(crate) e_2_16: CompactionList,
+    pub(crate) e_2_24: CompactionList,
+    pub(crate) e_2_32: CompactionList,
+    pub(crate) k_2_1: CompactionList,
+    pub(crate) k_2_2: CompactionList,
+    pub(crate) k_2_3: CompactionList,
+    pub(crate) k_2_4: CompactionList,
+    pub(crate) k_2_6: CompactionList,
+    pub(crate) k_2_8: CompactionList,
+    pub(crate) k_2_10: CompactionList,
+    pub(crate) k_2_12: CompactionList,
+    pub(crate) k_2_16: CompactionList,
+    pub(crate) k_2_24: CompactionList,
+    pub(crate) k_2_32: CompactionList,
+    pub(crate) ecmascript_functions: CompactionList,
+    pub(crate) embedder_objects: CompactionList,
+    pub(crate) source_codes: CompactionList,
+    pub(crate) source_text_module_records: CompactionList,
+    pub(crate) errors: CompactionList,
+    pub(crate) executables: CompactionList,
+    pub(crate) finalization_registrys: CompactionList,
+    pub(crate) function_environments: CompactionList,
+    pub(crate) generators: CompactionList,
+    pub(crate) global_environments: CompactionList,
+    pub(crate) maps: CompactionList,
+    pub(crate) map_iterators: CompactionList,
+    pub(crate) modules: CompactionList,
+    pub(crate) module_environments: CompactionList,
+    pub(crate) module_request_records: CompactionList,
+    pub(crate) numbers: CompactionList,
+    pub(crate) object_environments: CompactionList,
+    pub(crate) object_shapes: CompactionList,
+    pub(crate) objects: CompactionList,
+    pub(crate) primitive_objects: CompactionList,
+    pub(crate) private_environments: CompactionList,
+    pub(crate) promise_reaction_records: CompactionList,
+    pub(crate) promise_resolving_functions: CompactionList,
+    pub(crate) promise_finally_functions: CompactionList,
+    pub(crate) promises: CompactionList,
+    pub(crate) promise_group_records: CompactionList,
+    pub(crate) proxies: CompactionList,
+    pub(crate) realms: CompactionList,
     #[cfg(feature = "regexp")]
-    pub regexps: CompactionList,
+    pub(crate) regexps: CompactionList,
     #[cfg(feature = "regexp")]
-    pub regexp_string_iterators: CompactionList,
-    pub scripts: CompactionList,
+    pub(crate) regexp_string_iterators: CompactionList,
+    pub(crate) scripts: CompactionList,
     #[cfg(feature = "set")]
-    pub sets: CompactionList,
+    pub(crate) sets: CompactionList,
     #[cfg(feature = "set")]
-    pub set_iterators: CompactionList,
+    pub(crate) set_iterators: CompactionList,
     #[cfg(feature = "shared-array-buffer")]
-    pub shared_array_buffers: CompactionList,
+    pub(crate) shared_array_buffers: CompactionList,
     #[cfg(feature = "shared-array-buffer")]
-    pub shared_data_views: CompactionList,
+    pub(crate) shared_data_views: CompactionList,
     #[cfg(feature = "shared-array-buffer")]
-    pub shared_typed_arrays: CompactionList,
-    pub string_iterators: CompactionList,
-    pub strings: CompactionList,
-    pub symbols: CompactionList,
+    pub(crate) shared_typed_arrays: CompactionList,
+    pub(crate) string_iterators: CompactionList,
+    pub(crate) strings: CompactionList,
+    pub(crate) symbols: CompactionList,
     #[cfg(feature = "array-buffer")]
-    pub typed_arrays: CompactionList,
+    pub(crate) typed_arrays: CompactionList,
     #[cfg(feature = "weak-refs")]
-    pub weak_maps: CompactionList,
+    pub(crate) weak_maps: CompactionList,
     #[cfg(feature = "weak-refs")]
-    pub weak_refs: CompactionList,
+    pub(crate) weak_refs: CompactionList,
     #[cfg(feature = "weak-refs")]
-    pub weak_sets: CompactionList,
+    pub(crate) weak_sets: CompactionList,
 }
 
 impl CompactionLists {
-    pub fn create_from_bits(bits: &HeapBits) -> Self {
+    pub(crate) fn create_from_bits(bits: &HeapBits) -> Self {
         // TODO: Instead of each list creating its own Vecs, this
         // could instead be a singular Vec segmented into slices.
         // The total number of vector items needed for compactions can

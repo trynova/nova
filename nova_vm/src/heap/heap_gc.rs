@@ -99,15 +99,18 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         0..(WellKnownSymbolIndexes::Unscopables as u32),
         &mut bits.bits,
     );
-    let mut queues = WorkQueues::new(&agent.heap);
+    let mut queues = WorkQueues::new(&agent.heap, &bits);
     root_realms.iter().for_each(|realm| {
         if let Some(realm) = realm {
             queues.realms.push(realm.unbind());
         }
     });
     queues.object_shapes.push(ObjectShape::NULL);
+    agent.heap.prototype_shapes.mark_values(&mut queues);
+    agent.heap.caches.mark_values(&mut queues);
     agent.mark_values(&mut queues);
     let mut has_finalization_registrys = false;
+
     while !queues.is_empty() {
         let Heap {
             #[cfg(feature = "array-buffer")]
@@ -142,7 +145,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             numbers,
             object_shapes,
             object_shape_transitions,
-            prototype_shapes,
+            prototype_shapes: _,
             objects,
             primitive_objects,
             promise_reaction_records,
@@ -238,227 +241,290 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             k2pow32,
         } = elements;
 
-        prototype_shapes.mark_values(&mut queues);
-        caches.mark_values(&mut queues);
-
-        let mut module_marks: Box<[Module]> = queues.modules.drain(..).collect();
-        module_marks.sort();
-        module_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.modules.set_bit(index, &bits.bits) {
-                // Did mark.
-                modules.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut script_marks: Box<[Script]> = queues.scripts.drain(..).collect();
-        script_marks.sort();
-        script_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
-            if bits.scripts.set_bit(index, &bits.bits) {
-                // Did mark.
-                scripts.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut realm_marks: Box<[Realm]> = queues.realms.drain(..).collect();
-        realm_marks.sort();
-        realm_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
-            if bits.realms.set_bit(index, &bits.bits) {
-                // Did mark.
-                realms.get(index).mark_values(&mut queues);
-            }
-        });
-
-        let mut declarative_environment_marks: Box<[DeclarativeEnvironment]> =
-            queues.declarative_environments.drain(..).collect();
-        declarative_environment_marks.sort();
-        declarative_environment_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
-            if bits.declarative_environments.set_bit(index, &bits.bits) {
-                // Did mark.
-                declarative_environments.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut function_environment_marks: Box<[FunctionEnvironment]> =
-            queues.function_environments.drain(..).collect();
-        function_environment_marks.sort();
-        function_environment_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
-            if bits.function_environments.set_bit(index, &bits.bits) {
-                // Did mark.
-                function_environments.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut global_environment_marks: Box<[GlobalEnvironment]> =
-            queues.global_environments.drain(..).collect();
-        global_environment_marks.sort();
-        global_environment_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
-            if bits.global_environments.set_bit(index, &bits.bits) {
-                // Did mark.
-                global_environments.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut module_environment_marks: Box<[ModuleEnvironment]> =
-            queues.module_environments.drain(..).collect();
-        module_environment_marks.sort();
-        module_environment_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
-            if bits.module_environments.set_bit(index, &bits.bits) {
-                // Did mark.
-                module_environments.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut object_environment_marks: Box<[ObjectEnvironment]> =
-            queues.object_environments.drain(..).collect();
-        object_environment_marks.sort();
-        object_environment_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
-            if bits.object_environments.set_bit(index, &bits.bits) {
-                // Did mark.
-                object_environments.get(index).mark_values(&mut queues);
-            }
-        });
-
-        let mut array_marks: Box<[Array]> = queues.arrays.drain(..).collect();
-        array_marks.sort();
-        array_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.arrays.set_bit(index, &bits.bits) {
-                // Did mark.
-                arrays.get(index as u32).mark_values(&mut queues);
-            }
-        });
-        #[cfg(feature = "array-buffer")]
-        {
-            let mut array_buffer_marks: Box<[ArrayBuffer]> =
-                queues.array_buffers.drain(..).collect();
-            array_buffer_marks.sort();
-            array_buffer_marks.iter().for_each(|&idx| {
+        if !queues.modules.is_empty() {
+            let mut module_marks: Box<[Module]> = queues.modules.drain(..).collect();
+            module_marks.sort();
+            module_marks.iter().for_each(|&idx| {
                 let index = idx.get_index();
-                if bits.array_buffers.set_bit(index, &bits.bits) {
+                if bits.modules.set_bit(index, &bits.bits) {
                     // Did mark.
-                    array_buffers.get(index).mark_values(&mut queues);
+                    modules.get(index).mark_values(&mut queues);
                 }
             });
         }
-        let mut array_iterator_marks: Box<[ArrayIterator]> =
-            queues.array_iterators.drain(..).collect();
-        array_iterator_marks.sort();
-        array_iterator_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.array_iterators.set_bit(index, &bits.bits) {
-                // Did mark.
-                array_iterators.get(index).mark_values(&mut queues);
+        if !queues.scripts.is_empty() {
+            let mut script_marks: Box<[Script]> = queues.scripts.drain(..).collect();
+            script_marks.sort();
+            script_marks.iter().for_each(|&idx| {
+                let index = idx.into_index();
+                if bits.scripts.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    scripts.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+        if !queues.realms.is_empty() {
+            let mut realm_marks: Box<[Realm]> = queues.realms.drain(..).collect();
+            realm_marks.sort();
+            realm_marks.iter().for_each(|&idx| {
+                let index = idx.into_index();
+                if bits.realms.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    realms.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+
+        if !queues.declarative_environments.is_empty() {
+            let mut declarative_environment_marks: Box<[DeclarativeEnvironment]> =
+                queues.declarative_environments.drain(..).collect();
+            declarative_environment_marks.sort();
+            declarative_environment_marks.iter().for_each(|&idx| {
+                let index = idx.into_index();
+                if bits.declarative_environments.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    declarative_environments.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+
+        if !queues.function_environments.is_empty() {
+            let mut function_environment_marks: Box<[FunctionEnvironment]> =
+                queues.function_environments.drain(..).collect();
+            function_environment_marks.sort();
+            function_environment_marks.iter().for_each(|&idx| {
+                let index = idx.into_index();
+                if bits.function_environments.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    function_environments.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+
+        if !queues.global_environments.is_empty() {
+            let mut global_environment_marks: Box<[GlobalEnvironment]> =
+                queues.global_environments.drain(..).collect();
+            global_environment_marks.sort();
+            global_environment_marks.iter().for_each(|&idx| {
+                let index = idx.into_index();
+                if bits.global_environments.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    global_environments.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+
+        if !queues.module_environments.is_empty() {
+            let mut module_environment_marks: Box<[ModuleEnvironment]> =
+                queues.module_environments.drain(..).collect();
+            module_environment_marks.sort();
+            module_environment_marks.iter().for_each(|&idx| {
+                let index = idx.into_index();
+                if bits.module_environments.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    module_environments.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+
+        if !queues.object_environments.is_empty() {
+            let mut object_environment_marks: Box<[ObjectEnvironment]> =
+                queues.object_environments.drain(..).collect();
+            object_environment_marks.sort();
+            object_environment_marks.iter().for_each(|&idx| {
+                let index = idx.into_index();
+                if bits.object_environments.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    object_environments.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+
+        if !queues.pending_ephemerons.is_empty() {
+            queues.pending_ephemerons.sort_by_key(|(key, _)| *key);
+            let new_values_to_mark = queues
+                .pending_ephemerons
+                .extract_if(.., |(key, _)| queues.bits.is_marked(key))
+                .map(|(_, value)| value)
+                .collect::<Vec<_>>();
+            for value in new_values_to_mark {
+                value.mark_values(&mut queues);
             }
-        });
-        let mut async_generator_marks: Box<[AsyncGenerator]> =
-            queues.async_generators.drain(..).collect();
-        async_generator_marks.sort();
-        async_generator_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.async_generators.set_bit(index, &bits.bits) {
-                // Did mark.
-                async_generators.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut await_reaction_marks: Box<[AwaitReaction]> =
-            queues.await_reactions.drain(..).collect();
-        await_reaction_marks.sort();
-        await_reaction_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
-            if bits.await_reactions.set_bit(index, &bits.bits) {
-                // Did mark.
-                await_reactions.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut bigint_marks: Box<[HeapBigInt]> = queues.bigints.drain(..).collect();
-        bigint_marks.sort();
-        bigint_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.bigints.set_bit(index, &bits.bits) {
-                // Did mark.
-                bigints.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut bound_function_marks: Box<[BoundFunction]> =
-            queues.bound_functions.drain(..).collect();
-        bound_function_marks.sort();
-        bound_function_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.bound_functions.set_bit(index, &bits.bits) {
-                // Did mark.
-                bound_functions.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut ecmascript_function_marks: Box<[ECMAScriptFunction]> =
-            queues.ecmascript_functions.drain(..).collect();
-        ecmascript_function_marks.sort();
-        ecmascript_function_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.ecmascript_functions.set_bit(index, &bits.bits) {
-                // Did mark.
-                ecmascript_functions.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut error_marks: Box<[Error]> = queues.errors.drain(..).collect();
-        error_marks.sort();
-        error_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.errors.set_bit(index, &bits.bits) {
-                // Did mark.
-                errors.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut executable_marks: Box<[Executable]> = queues.executables.drain(..).collect();
-        executable_marks.sort();
-        executable_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.executables.set_bit(index, &bits.bits) {
-                // Did mark.
-                executables.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut source_code_marks: Box<[SourceCode]> = queues.source_codes.drain(..).collect();
-        source_code_marks.sort();
-        source_code_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.source_codes.set_bit(index, &bits.bits) {
-                // Did mark.
-                source_codes.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut builtin_constructors_marks: Box<[BuiltinConstructorFunction]> =
-            queues.builtin_constructors.drain(..).collect();
-        builtin_constructors_marks.sort();
-        builtin_constructors_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.builtin_constructors.set_bit(index, &bits.bits) {
-                // Did mark.
-                builtin_constructors.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut builtin_functions_marks: Box<[BuiltinFunction]> =
-            queues.builtin_functions.drain(..).collect();
-        builtin_functions_marks.sort();
-        builtin_functions_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.builtin_functions.set_bit(index, &bits.bits) {
-                // Did mark.
-                builtin_functions.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut caches_marks: Box<[PropertyLookupCache]> = queues.caches.drain(..).collect();
-        caches_marks.sort();
-        caches_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.caches.set_bit(index, &bits.bits) {
-                // Did mark.
-                caches.mark_cache(index, &mut queues);
-            }
-        });
+        }
+
+        if !queues.arrays.is_empty() {
+            let mut array_marks: Box<[Array]> = queues.arrays.drain(..).collect();
+            array_marks.sort();
+            array_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.arrays.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    arrays.get(index as u32).mark_values(&mut queues);
+                }
+            });
+        }
+
         #[cfg(feature = "array-buffer")]
         {
+            if !queues.array_buffers.is_empty() {
+                let mut array_buffer_marks: Box<[ArrayBuffer]> =
+                    queues.array_buffers.drain(..).collect();
+                array_buffer_marks.sort();
+                array_buffer_marks.iter().for_each(|&idx| {
+                    let index = idx.get_index();
+                    if bits.array_buffers.set_bit(index, &bits.bits) {
+                        // Did mark.
+                        array_buffers.get(index).mark_values(&mut queues);
+                    }
+                });
+            }
+        }
+
+        if !queues.array_iterators.is_empty() {
+            let mut array_iterator_marks: Box<[ArrayIterator]> =
+                queues.array_iterators.drain(..).collect();
+            array_iterator_marks.sort();
+            array_iterator_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.array_iterators.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    array_iterators.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+
+        if !queues.async_generators.is_empty() {
+            let mut async_generator_marks: Box<[AsyncGenerator]> =
+                queues.async_generators.drain(..).collect();
+            async_generator_marks.sort();
+            async_generator_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.async_generators.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    async_generators.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+
+        if !queues.await_reactions.is_empty() {
+            let mut await_reaction_marks: Box<[AwaitReaction]> =
+                queues.await_reactions.drain(..).collect();
+            await_reaction_marks.sort();
+            await_reaction_marks.iter().for_each(|&idx| {
+                let index = idx.into_index();
+                if bits.await_reactions.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    await_reactions.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+
+        if !queues.bigints.is_empty() {
+            let mut bigint_marks: Box<[HeapBigInt]> = queues.bigints.drain(..).collect();
+            bigint_marks.sort();
+            bigint_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.bigints.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    bigints.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+
+        if !queues.bound_functions.is_empty() {
+            let mut bound_function_marks: Box<[BoundFunction]> =
+                queues.bound_functions.drain(..).collect();
+            bound_function_marks.sort();
+            bound_function_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.bound_functions.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    bound_functions.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+        if !queues.ecmascript_functions.is_empty() {
+            let mut ecmascript_function_marks: Box<[ECMAScriptFunction]> =
+                queues.ecmascript_functions.drain(..).collect();
+            ecmascript_function_marks.sort();
+            ecmascript_function_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.ecmascript_functions.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    ecmascript_functions.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+        if !queues.errors.is_empty() {
+            let mut error_marks: Box<[Error]> = queues.errors.drain(..).collect();
+            error_marks.sort();
+            error_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.errors.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    errors.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+        if !queues.executables.is_empty() {
+            let mut executable_marks: Box<[Executable]> = queues.executables.drain(..).collect();
+            executable_marks.sort();
+            executable_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.executables.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    executables.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+        if !queues.source_codes.is_empty() {
+            let mut source_code_marks: Box<[SourceCode]> = queues.source_codes.drain(..).collect();
+            source_code_marks.sort();
+            source_code_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.source_codes.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    source_codes.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+        if !queues.builtin_constructors.is_empty() {
+            let mut builtin_constructors_marks: Box<[BuiltinConstructorFunction]> =
+                queues.builtin_constructors.drain(..).collect();
+            builtin_constructors_marks.sort();
+            builtin_constructors_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.builtin_constructors.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    builtin_constructors.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+        if !queues.builtin_functions.is_empty() {
+            let mut builtin_functions_marks: Box<[BuiltinFunction]> =
+                queues.builtin_functions.drain(..).collect();
+            builtin_functions_marks.sort();
+            builtin_functions_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.builtin_functions.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    builtin_functions.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+        if !queues.caches.is_empty() {
+            let mut caches_marks: Box<[PropertyLookupCache]> = queues.caches.drain(..).collect();
+            caches_marks.sort();
+            caches_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.caches.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    caches.mark_cache(index, &mut queues);
+                }
+            });
+        }
+        #[cfg(feature = "array-buffer")]
+        if !queues.data_views.is_empty() {
             let mut data_view_marks: Box<[DataView]> = queues.data_views.drain(..).collect();
             data_view_marks.sort();
             data_view_marks.iter().for_each(|&idx| {
@@ -469,8 +535,9 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 }
             });
         }
+
         #[cfg(feature = "date")]
-        {
+        if !queues.dates.is_empty() {
             let mut date_marks: Box<[Date]> = queues.dates.drain(..).collect();
             date_marks.sort();
             date_marks.iter().for_each(|&idx| {
@@ -481,299 +548,347 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 }
             });
         }
-        let mut embedder_object_marks: Box<[EmbedderObject]> =
-            queues.embedder_objects.drain(..).collect();
-        embedder_object_marks.sort();
-        embedder_object_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.embedder_objects.set_bit(index, &bits.bits) {
-                // Did mark.
-                embedder_objects.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut finalization_registry_marks: Box<[FinalizationRegistry]> =
-            queues.finalization_registrys.drain(..).collect();
-        finalization_registry_marks.sort();
-        if !finalization_registry_marks.is_empty() {
-            has_finalization_registrys = true;
-        }
-        finalization_registry_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.finalization_registrys.set_bit(index, &bits.bits) {
-                // Did mark.
-                finalization_registrys
-                    .get(index as u32)
-                    .mark_values(&mut queues);
-            }
-        });
-        let mut generator_marks: Box<[Generator]> = queues.generators.drain(..).collect();
-        generator_marks.sort();
-        generator_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.generators.set_bit(index, &bits.bits) {
-                // Did mark.
-                generators.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut object_marks: Box<[ObjectShape]> = queues.object_shapes.drain(..).collect();
-        object_marks.sort();
-        object_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.object_shapes.set_bit(index, &bits.bits) {
-                // Did mark.
-                object_shapes.get(index).mark_values(&mut queues);
-                object_shape_transitions.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut object_marks: Box<[OrdinaryObject]> = queues.objects.drain(..).collect();
-        object_marks.sort();
-        object_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.objects.set_bit(index, &bits.bits) {
-                // Did mark.
-                if let Some(rec) = objects.get(index) {
-                    rec.mark_values(&mut queues, &agent.heap.object_shapes);
-                }
-            }
-        });
-        let mut promise_marks: Box<[Promise]> = queues.promises.drain(..).collect();
-        promise_marks.sort();
-        promise_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.promises.set_bit(index, &bits.bits) {
-                // Did mark.
-                promises.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut promise_reaction_record_marks: Box<[PromiseReaction]> =
-            queues.promise_reaction_records.drain(..).collect();
-        promise_reaction_record_marks.sort();
-        promise_reaction_record_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.promise_reaction_records.set_bit(index, &bits.bits) {
-                // Did mark.
-                promise_reaction_records.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut promise_group_record_marks: Box<[PromiseGroup]> =
-            queues.promise_group_records.drain(..).collect();
-        promise_group_record_marks.sort();
-        promise_group_record_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.promise_group_records.set_bit(index, &bits.bits) {
-                // Did mark.
-                promise_group_records.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut promise_resolving_function_marks: Box<[BuiltinPromiseResolvingFunction]> =
-            queues.promise_resolving_functions.drain(..).collect();
-        promise_resolving_function_marks.sort();
-        promise_resolving_function_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.promise_resolving_functions.set_bit(index, &bits.bits) {
-                // Did mark.
-                promise_resolving_functions
-                    .get(index)
-                    .mark_values(&mut queues);
-            }
-        });
-        let mut promise_finally_function_marks: Box<[BuiltinPromiseFinallyFunction]> =
-            queues.promise_finally_functions.drain(..).collect();
-        promise_finally_function_marks.sort();
-        promise_finally_function_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.promise_finally_functions.set_bit(index, &bits.bits) {
-                // Did mark.
-                promise_finally_functions
-                    .get(index)
-                    .mark_values(&mut queues);
-            }
-        });
-        let mut proxy_marks: Box<[Proxy]> = queues.proxies.drain(..).collect();
-        proxy_marks.sort();
-        proxy_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.proxies.set_bit(index, &bits.bits) {
-                // Did mark.
-                proxies.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut map_marks: Box<[Map]> = queues.maps.drain(..).collect();
-        map_marks.sort();
-        map_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.maps.set_bit(index, &bits.bits) {
-                // Did mark.
-                maps.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut map_iterator_marks: Box<[MapIterator]> = queues.map_iterators.drain(..).collect();
-        map_iterator_marks.sort();
-        map_iterator_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.map_iterators.set_bit(index, &bits.bits) {
-                // Did mark.
-                map_iterators.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut module_request_record_marks: Box<[ModuleRequest]> =
-            queues.module_request_records.drain(..).collect();
-        module_request_record_marks.sort();
-        module_request_record_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.module_request_records.set_bit(index, &bits.bits) {
-                // Did mark.
-                module_request_records.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut number_marks: Box<[HeapNumber]> = queues.numbers.drain(..).collect();
-        number_marks.sort();
-        number_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.numbers.set_bit(index, &bits.bits) {
-                // Did mark.
-                numbers.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut primitive_object_marks: Box<[PrimitiveObject]> =
-            queues.primitive_objects.drain(..).collect();
-        primitive_object_marks.sort();
-        primitive_object_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.primitive_objects.set_bit(index, &bits.bits) {
-                // Did mark.
-                primitive_objects.get(index).mark_values(&mut queues);
-            }
-        });
-        #[cfg(feature = "regexp")]
-        {
-            let mut regexp_marks: Box<[RegExp]> = queues.regexps.drain(..).collect();
-            regexp_marks.sort();
-            regexp_marks.iter().for_each(|&idx| {
+
+        if !queues.embedder_objects.is_empty() {
+            let mut embedder_object_marks: Box<[EmbedderObject]> =
+                queues.embedder_objects.drain(..).collect();
+            embedder_object_marks.sort();
+            embedder_object_marks.iter().for_each(|&idx| {
                 let index = idx.get_index();
-                if bits.regexps.set_bit(index, &bits.bits) {
+                if bits.embedder_objects.set_bit(index, &bits.bits) {
                     // Did mark.
-                    regexps.get(index).mark_values(&mut queues);
+                    embedder_objects.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+        if !queues.finalization_registrys.is_empty() {
+            let mut finalization_registry_marks: Box<[FinalizationRegistry]> =
+                queues.finalization_registrys.drain(..).collect();
+            finalization_registry_marks.sort();
+            if !finalization_registry_marks.is_empty() {
+                has_finalization_registrys = true;
+            }
+            finalization_registry_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.finalization_registrys.set_bit(index, &bits.bits) {
+                    // Did mark.
+
+                    finalization_registrys
+                        .get(index as u32)
+                        .mark_values(&mut queues);
+                }
+            });
+        }
+        if !queues.generators.is_empty() {
+            let mut generator_marks: Box<[Generator]> = queues.generators.drain(..).collect();
+            generator_marks.sort();
+            generator_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.generators.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    generators.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+        if !queues.object_shapes.is_empty() {
+            let mut object_marks: Box<[ObjectShape]> = queues.object_shapes.drain(..).collect();
+            object_marks.sort();
+            object_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.object_shapes.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    object_shapes.get(index).mark_values(&mut queues);
+                    object_shape_transitions.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+        if !queues.objects.is_empty() {
+            let mut object_marks: Box<[OrdinaryObject]> = queues.objects.drain(..).collect();
+            object_marks.sort();
+            object_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.objects.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    if let Some(rec) = objects.get(index) {
+                        rec.mark_values(&mut queues, &agent.heap.object_shapes);
+                    }
+                }
+            });
+        }
+        if !queues.promises.is_empty() {
+            let mut promise_marks: Box<[Promise]> = queues.promises.drain(..).collect();
+            promise_marks.sort();
+            promise_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.promises.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    promises.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+        if !queues.promise_reaction_records.is_empty() {
+            let mut promise_reaction_record_marks: Box<[PromiseReaction]> =
+                queues.promise_reaction_records.drain(..).collect();
+            promise_reaction_record_marks.sort();
+            promise_reaction_record_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.promise_reaction_records.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    promise_reaction_records.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+        if !queues.promise_group_records.is_empty() {
+            let mut promise_group_record_marks: Box<[PromiseGroup]> =
+                queues.promise_group_records.drain(..).collect();
+            promise_group_record_marks.sort();
+            promise_group_record_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.promise_group_records.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    promise_group_records.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+        if !queues.promise_resolving_functions.is_empty() {
+            let mut promise_resolving_function_marks: Box<[BuiltinPromiseResolvingFunction]> =
+                queues.promise_resolving_functions.drain(..).collect();
+            promise_resolving_function_marks.sort();
+            promise_resolving_function_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.promise_resolving_functions.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    promise_resolving_functions
+                        .get(index)
+                        .mark_values(&mut queues);
+                }
+            });
+        }
+        if !queues.promise_finally_functions.is_empty() {
+            let mut promise_finally_function_marks: Box<[BuiltinPromiseFinallyFunction]> =
+                queues.promise_finally_functions.drain(..).collect();
+            promise_finally_function_marks.sort();
+            promise_finally_function_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.promise_finally_functions.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    promise_finally_functions
+                        .get(index)
+                        .mark_values(&mut queues);
+                }
+            });
+        }
+        if !queues.proxies.is_empty() {
+            let mut proxy_marks: Box<[Proxy]> = queues.proxies.drain(..).collect();
+            proxy_marks.sort();
+            proxy_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.proxies.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    proxies.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+        if !queues.maps.is_empty() {
+            let mut map_marks: Box<[Map]> = queues.maps.drain(..).collect();
+            map_marks.sort();
+            map_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.maps.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    maps.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+        if !queues.map_iterators.is_empty() {
+            let mut map_iterator_marks: Box<[MapIterator]> =
+                queues.map_iterators.drain(..).collect();
+            map_iterator_marks.sort();
+            map_iterator_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.map_iterators.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    map_iterators.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+        if !queues.module_request_records.is_empty() {
+            let mut module_request_record_marks: Box<[ModuleRequest]> =
+                queues.module_request_records.drain(..).collect();
+            module_request_record_marks.sort();
+            module_request_record_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.module_request_records.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    module_request_records.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+        if !queues.numbers.is_empty() {
+            let mut number_marks: Box<[HeapNumber]> = queues.numbers.drain(..).collect();
+            number_marks.sort();
+            number_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.numbers.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    numbers.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+        if !queues.primitive_objects.is_empty() {
+            let mut primitive_object_marks: Box<[PrimitiveObject]> =
+                queues.primitive_objects.drain(..).collect();
+            primitive_object_marks.sort();
+            primitive_object_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.primitive_objects.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    primitive_objects.get(index).mark_values(&mut queues);
                 }
             });
         }
         #[cfg(feature = "regexp")]
         {
-            let mut regexp_string_iterator_marks: Box<[RegExpStringIterator]> =
-                queues.regexp_string_iterators.drain(..).collect();
-            regexp_string_iterator_marks.sort();
-            regexp_string_iterator_marks.iter().for_each(|&idx| {
-                let index = idx.get_index();
-                if bits.regexp_string_iterators.set_bit(index, &bits.bits) {
-                    // Did mark.
-                    regexp_string_iterators.get(index).mark_values(&mut queues);
-                }
-            });
+            if !queues.regexps.is_empty() {
+                let mut regexp_marks: Box<[RegExp]> = queues.regexps.drain(..).collect();
+                regexp_marks.sort();
+                regexp_marks.iter().for_each(|&idx| {
+                    let index = idx.get_index();
+                    if bits.regexps.set_bit(index, &bits.bits) {
+                        // Did mark.
+                        regexps.get(index).mark_values(&mut queues);
+                    }
+                });
+            }
+            if !queues.regexp_string_iterators.is_empty() {
+                let mut regexp_string_iterator_marks: Box<[RegExpStringIterator]> =
+                    queues.regexp_string_iterators.drain(..).collect();
+                regexp_string_iterator_marks.sort();
+                regexp_string_iterator_marks.iter().for_each(|&idx| {
+                    let index = idx.get_index();
+                    if bits.regexp_string_iterators.set_bit(index, &bits.bits) {
+                        // Did mark.
+                        regexp_string_iterators.get(index).mark_values(&mut queues);
+                    }
+                });
+            }
         }
         #[cfg(feature = "set")]
         {
-            let mut set_marks: Box<[Set]> = queues.sets.drain(..).collect();
-            set_marks.sort();
-            set_marks.iter().for_each(|&idx| {
-                let index = idx.get_index();
-                if bits.sets.set_bit(index, &bits.bits) {
-                    // Did mark.
-                    sets.get(index).mark_values(&mut queues);
-                }
-            });
+            if !queues.sets.is_empty() {
+                let mut set_marks: Box<[Set]> = queues.sets.drain(..).collect();
+                set_marks.sort();
+                set_marks.iter().for_each(|&idx| {
+                    let index = idx.get_index();
+                    if bits.sets.set_bit(index, &bits.bits) {
+                        // Did mark.
+                        sets.get(index).mark_values(&mut queues);
+                    }
+                });
+            }
 
-            let mut set_iterator_marks: Box<[SetIterator]> =
-                queues.set_iterators.drain(..).collect();
-            set_iterator_marks.sort();
-            set_iterator_marks.iter().for_each(|&idx| {
-                let index = idx.get_index();
-                if bits.set_iterators.set_bit(index, &bits.bits) {
-                    // Did mark.
-                    set_iterators.get(index).mark_values(&mut queues);
-                }
-            });
+            if !queues.set_iterators.is_empty() {
+                let mut set_iterator_marks: Box<[SetIterator]> =
+                    queues.set_iterators.drain(..).collect();
+                set_iterator_marks.sort();
+                set_iterator_marks.iter().for_each(|&idx| {
+                    let index = idx.get_index();
+                    if bits.set_iterators.set_bit(index, &bits.bits) {
+                        // Did mark.
+                        set_iterators.get(index).mark_values(&mut queues);
+                    }
+                });
+            }
         }
         #[cfg(feature = "shared-array-buffer")]
         {
-            let mut shared_array_buffer_marks: Box<[SharedArrayBuffer]> =
-                queues.shared_array_buffers.drain(..).collect();
-            shared_array_buffer_marks.sort();
-            shared_array_buffer_marks.iter().for_each(|&idx| {
+            if !queues.shared_array_buffers.is_empty() {
+                let mut shared_array_buffer_marks: Box<[SharedArrayBuffer]> =
+                    queues.shared_array_buffers.drain(..).collect();
+                shared_array_buffer_marks.sort();
+                shared_array_buffer_marks.iter().for_each(|&idx| {
+                    let index = idx.get_index();
+                    if bits.shared_array_buffers.set_bit(index, &bits.bits) {
+                        // Did mark.
+                        shared_array_buffers.get(index).mark_values(&mut queues);
+                    }
+                });
+            }
+            if !queues.shared_data_views.is_empty() {
+                let mut shared_data_view_marks: Box<[SharedDataView]> =
+                    queues.shared_data_views.drain(..).collect();
+                shared_data_view_marks.sort();
+                shared_data_view_marks.iter().for_each(|&idx| {
+                    let index = idx.get_index();
+                    if bits.shared_data_views.set_bit(index, &bits.bits) {
+                        // Did mark.
+                        shared_data_views.get(index).mark_values(&mut queues);
+                    }
+                });
+            }
+            if !queues.shared_typed_arrays.is_empty() {
+                let mut shared_typed_array_marks: Box<[SharedVoidArray]> =
+                    queues.shared_typed_arrays.drain(..).collect();
+                shared_typed_array_marks.sort();
+                shared_typed_array_marks.iter().for_each(|&idx| {
+                    let index = idx.get_index();
+                    if bits.shared_typed_arrays.set_bit(index, &bits.bits) {
+                        // Did mark.
+                        shared_typed_arrays.get(index).mark_values(&mut queues);
+                    }
+                });
+            }
+        }
+        if !queues.source_text_module_records.is_empty() {
+            let mut source_text_module_record_marks: Box<[SourceTextModule]> =
+                queues.source_text_module_records.drain(..).collect();
+            source_text_module_record_marks.sort();
+            source_text_module_record_marks.iter().for_each(|&idx| {
                 let index = idx.get_index();
-                if bits.shared_array_buffers.set_bit(index, &bits.bits) {
+                if bits.source_text_module_records.set_bit(index, &bits.bits) {
                     // Did mark.
-                    shared_array_buffers.get(index).mark_values(&mut queues);
+                    source_text_module_records
+                        .get(index)
+                        .mark_values(&mut queues);
                 }
             });
         }
-        #[cfg(feature = "shared-array-buffer")]
-        {
-            let mut shared_data_view_marks: Box<[SharedDataView]> =
-                queues.shared_data_views.drain(..).collect();
-            shared_data_view_marks.sort();
-            shared_data_view_marks.iter().for_each(|&idx| {
+        if !queues.string_iterators.is_empty() {
+            let mut string_generator_marks: Box<[StringIterator]> =
+                queues.string_iterators.drain(..).collect();
+            string_generator_marks.sort();
+            string_generator_marks.iter().for_each(|&idx| {
                 let index = idx.get_index();
-                if bits.shared_data_views.set_bit(index, &bits.bits) {
+                if bits.string_iterators.set_bit(index, &bits.bits) {
                     // Did mark.
-                    shared_data_views.get(index).mark_values(&mut queues);
+                    string_iterators.get(index).mark_values(&mut queues);
                 }
             });
         }
-        #[cfg(feature = "shared-array-buffer")]
-        {
-            let mut shared_typed_array_marks: Box<[SharedVoidArray]> =
-                queues.shared_typed_arrays.drain(..).collect();
-            shared_typed_array_marks.sort();
-            shared_typed_array_marks.iter().for_each(|&idx| {
+        if !queues.strings.is_empty() {
+            let mut string_marks: Box<[HeapString]> = queues.strings.drain(..).collect();
+            string_marks.sort();
+            string_marks.iter().for_each(|&idx| {
                 let index = idx.get_index();
-                if bits.shared_typed_arrays.set_bit(index, &bits.bits) {
+                if bits.strings.set_bit(index, &bits.bits) {
                     // Did mark.
-                    shared_typed_arrays.get(index).mark_values(&mut queues);
+                    strings.get(index).mark_values(&mut queues);
                 }
             });
         }
-        let mut source_text_module_record_marks: Box<[SourceTextModule]> =
-            queues.source_text_module_records.drain(..).collect();
-        source_text_module_record_marks.sort();
-        source_text_module_record_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.source_text_module_records.set_bit(index, &bits.bits) {
-                // Did mark.
-                source_text_module_records
-                    .get(index)
-                    .mark_values(&mut queues);
-            }
-        });
-        let mut string_generator_marks: Box<[StringIterator]> =
-            queues.string_iterators.drain(..).collect();
-        string_generator_marks.sort();
-        string_generator_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.string_iterators.set_bit(index, &bits.bits) {
-                // Did mark.
-                string_iterators.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut string_marks: Box<[HeapString]> = queues.strings.drain(..).collect();
-        string_marks.sort();
-        string_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.strings.set_bit(index, &bits.bits) {
-                // Did mark.
-                strings.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut symbol_marks: Box<[Symbol]> = queues.symbols.drain(..).collect();
-        symbol_marks.sort();
-        symbol_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if bits.symbols.set_bit(index, &bits.bits) {
-                // Did mark.
-                symbols.get(index).mark_values(&mut queues);
-            }
-        });
+        if !queues.symbols.is_empty() {
+            let mut symbol_marks: Box<[Symbol]> = queues.symbols.drain(..).collect();
+            symbol_marks.sort();
+            symbol_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.symbols.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    symbols.get(index).mark_values(&mut queues);
+                }
+            });
+        }
         #[cfg(feature = "array-buffer")]
-        {
+        if !queues.typed_arrays.is_empty() {
             let mut typed_arrays_marks: Box<[VoidArray]> = queues.typed_arrays.drain(..).collect();
             typed_arrays_marks.sort();
             typed_arrays_marks.iter().for_each(|&idx| {
@@ -786,311 +901,366 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         }
         #[cfg(feature = "weak-refs")]
         {
-            let mut weak_map_marks: Box<[WeakMap]> = queues.weak_maps.drain(..).collect();
-            weak_map_marks.sort();
-            weak_map_marks.iter().for_each(|&idx| {
-                let index = idx.get_index();
-                if bits.weak_maps.set_bit(index, &bits.bits) {
-                    // Did mark.
-                    weak_maps.get(index).mark_values(&mut queues);
+            if !queues.weak_maps.is_empty() {
+                let mut weak_map_marks: Box<[WeakMap]> = queues.weak_maps.drain(..).collect();
+                weak_map_marks.sort();
+                weak_map_marks.iter().for_each(|&idx| {
+                    let index = idx.get_index();
+                    if bits.weak_maps.set_bit(index, &bits.bits) {
+                        // Did mark.
+                        weak_maps.get(index).mark_values(&mut queues);
+                    }
+                });
+            }
+            if !queues.weak_refs.is_empty() {
+                let mut weak_ref_marks: Box<[WeakRef]> = queues.weak_refs.drain(..).collect();
+                weak_ref_marks.sort();
+                weak_ref_marks.iter().for_each(|&idx| {
+                    let index = idx.get_index();
+                    if bits.weak_refs.set_bit(index, &bits.bits) {
+                        // Did mark.
+                        weak_refs.get(index).mark_values(&mut queues);
+                    }
+                });
+            }
+            if !queues.weak_sets.is_empty() {
+                let mut weak_set_marks: Box<[WeakSet]> = queues.weak_sets.drain(..).collect();
+                weak_set_marks.sort();
+                weak_set_marks.iter().for_each(|&idx| {
+                    let index = idx.get_index();
+                    if bits.weak_sets.set_bit(index, &bits.bits) {
+                        // Did mark.
+                        weak_sets.get(index).mark_values(&mut queues);
+                    }
+                });
+            }
+        }
+
+        if !queues.e_2_1.is_empty() {
+            let mut e_2_1_marks: Box<[(ElementIndex, u32)]> = queues.e_2_1.drain(..).collect();
+            e_2_1_marks.sort();
+            e_2_1_marks.iter().for_each(|&(idx, len)| {
+                let index = idx.into_index();
+                if bits.e_2_1.set_bit(index, &bits.bits) {
+                    if let Some(descriptors) = e2pow1.descriptors.get(&idx) {
+                        mark_descriptors(descriptors, &mut queues);
+                    }
+                    if let Some(array) = e2pow1.values.get(index) {
+                        mark_array_with_length(array, &mut queues, len);
+                    }
+                } else {
+                    panic!("ElementsVector was not unique");
                 }
             });
-            let mut weak_ref_marks: Box<[WeakRef]> = queues.weak_refs.drain(..).collect();
-            weak_ref_marks.sort();
-            weak_ref_marks.iter().for_each(|&idx| {
-                let index = idx.get_index();
-                if bits.weak_refs.set_bit(index, &bits.bits) {
-                    // Did mark.
-                    weak_refs.get(index).mark_values(&mut queues);
+        }
+        if !queues.e_2_2.is_empty() {
+            let mut e_2_2_marks: Box<[(ElementIndex, u32)]> = queues.e_2_2.drain(..).collect();
+            e_2_2_marks.sort();
+            e_2_2_marks.iter().for_each(|&(idx, len)| {
+                let index = idx.into_index();
+                if bits.e_2_2.set_bit(index, &bits.bits) {
+                    if let Some(descriptors) = e2pow2.descriptors.get(&idx) {
+                        mark_descriptors(descriptors, &mut queues);
+                    }
+                    if let Some(array) = e2pow2.values.get(index) {
+                        mark_array_with_length(array, &mut queues, len);
+                    }
+                } else {
+                    panic!("ElementsVector was not unique");
                 }
             });
-            let mut weak_set_marks: Box<[WeakSet]> = queues.weak_sets.drain(..).collect();
-            weak_set_marks.sort();
-            weak_set_marks.iter().for_each(|&idx| {
-                let index = idx.get_index();
-                if bits.weak_sets.set_bit(index, &bits.bits) {
-                    // Did mark.
-                    weak_sets.get(index).mark_values(&mut queues);
+        }
+        if !queues.e_2_3.is_empty() {
+            let mut e_2_3_marks: Box<[(ElementIndex, u32)]> = queues.e_2_3.drain(..).collect();
+            e_2_3_marks.sort();
+            e_2_3_marks.iter().for_each(|&(idx, len)| {
+                let index = idx.into_index();
+                if bits.e_2_3.set_bit(index, &bits.bits) {
+                    if let Some(descriptors) = e2pow3.descriptors.get(&idx) {
+                        mark_descriptors(descriptors, &mut queues);
+                    }
+                    if let Some(array) = e2pow3.values.get(index) {
+                        mark_array_with_length(array, &mut queues, len);
+                    }
+                } else {
+                    panic!("ElementsVector was not unique");
+                }
+            });
+        }
+        if !queues.e_2_4.is_empty() {
+            let mut e_2_4_marks: Box<[(ElementIndex, u32)]> = queues.e_2_4.drain(..).collect();
+            e_2_4_marks.sort();
+            e_2_4_marks.iter().for_each(|&(idx, len)| {
+                let index = idx.into_index();
+                if bits.e_2_4.set_bit(index, &bits.bits) {
+                    if let Some(descriptors) = e2pow4.descriptors.get(&idx) {
+                        mark_descriptors(descriptors, &mut queues);
+                    }
+                    if let Some(array) = e2pow4.values.get(index) {
+                        mark_array_with_length(array, &mut queues, len);
+                    }
+                } else {
+                    panic!("ElementsVector was not unique");
+                }
+            });
+        }
+        if !queues.e_2_6.is_empty() {
+            let mut e_2_6_marks: Box<[(ElementIndex, u32)]> = queues.e_2_6.drain(..).collect();
+            e_2_6_marks.sort();
+            e_2_6_marks.iter().for_each(|&(idx, len)| {
+                let index = idx.into_index();
+                if bits.e_2_6.set_bit(index, &bits.bits) {
+                    if let Some(descriptors) = e2pow6.descriptors.get(&idx) {
+                        mark_descriptors(descriptors, &mut queues);
+                    }
+                    if let Some(array) = e2pow6.values.get(index) {
+                        mark_array_with_length(array, &mut queues, len);
+                    }
+                } else {
+                    panic!("ElementsVector was not unique");
+                }
+            });
+        }
+        if !queues.e_2_8.is_empty() {
+            let mut e_2_8_marks: Box<[(ElementIndex, u32)]> = queues.e_2_8.drain(..).collect();
+            e_2_8_marks.sort();
+            e_2_8_marks.iter().for_each(|&(idx, len)| {
+                let index = idx.into_index();
+                if bits.e_2_8.set_bit(index, &bits.bits) {
+                    if let Some(descriptors) = e2pow8.descriptors.get(&idx) {
+                        mark_descriptors(descriptors, &mut queues);
+                    }
+                    if let Some(array) = e2pow8.values.get(index) {
+                        mark_array_with_length(array, &mut queues, len);
+                    }
+                } else {
+                    panic!("ElementsVector was not unique");
+                }
+            });
+        }
+        if !queues.e_2_10.is_empty() {
+            let mut e_2_10_marks: Box<[(ElementIndex, u32)]> = queues.e_2_10.drain(..).collect();
+            e_2_10_marks.sort();
+            e_2_10_marks.iter().for_each(|&(idx, len)| {
+                let index = idx.into_index();
+                if bits.e_2_10.set_bit(index, &bits.bits) {
+                    if let Some(descriptors) = e2pow10.descriptors.get(&idx) {
+                        mark_descriptors(descriptors, &mut queues);
+                    }
+                    if let Some(array) = e2pow10.values.get(index) {
+                        mark_array_with_length(array, &mut queues, len);
+                    }
+                } else {
+                    panic!("ElementsVector was not unique");
+                }
+            });
+        }
+        if !queues.e_2_12.is_empty() {
+            let mut e_2_12_marks: Box<[(ElementIndex, u32)]> = queues.e_2_12.drain(..).collect();
+            e_2_12_marks.sort();
+            e_2_12_marks.iter().for_each(|&(idx, len)| {
+                let index = idx.into_index();
+                if bits.e_2_12.set_bit(index, &bits.bits) {
+                    if let Some(descriptors) = e2pow12.descriptors.get(&idx) {
+                        mark_descriptors(descriptors, &mut queues);
+                    }
+                    if let Some(array) = e2pow12.values.get(index) {
+                        mark_array_with_length(array, &mut queues, len);
+                    }
+                } else {
+                    panic!("ElementsVector was not unique");
+                }
+            });
+        }
+        if !queues.e_2_16.is_empty() {
+            let mut e_2_16_marks: Box<[(ElementIndex, u32)]> = queues.e_2_16.drain(..).collect();
+            e_2_16_marks.sort();
+            e_2_16_marks.iter().for_each(|&(idx, len)| {
+                let index = idx.into_index();
+                if bits.e_2_16.set_bit(index, &bits.bits) {
+                    if let Some(descriptors) = e2pow16.descriptors.get(&idx) {
+                        mark_descriptors(descriptors, &mut queues);
+                    }
+                    if let Some(array) = e2pow16.values.get(index) {
+                        mark_array_with_length(array, &mut queues, len);
+                    }
+                } else {
+                    panic!("ElementsVector was not unique");
+                }
+            });
+        }
+        if !queues.e_2_24.is_empty() {
+            let mut e_2_24_marks: Box<[(ElementIndex, u32)]> = queues.e_2_24.drain(..).collect();
+            e_2_24_marks.sort();
+            e_2_24_marks.iter().for_each(|&(idx, len)| {
+                let index = idx.into_index();
+                if bits.e_2_24.set_bit(index, &bits.bits) {
+                    if let Some(descriptors) = e2pow24.descriptors.get(&idx) {
+                        mark_descriptors(descriptors, &mut queues);
+                    }
+                    if let Some(array) = e2pow24.values.get(index) {
+                        mark_array_with_length(array, &mut queues, len);
+                    }
+                } else {
+                    panic!("ElementsVector was not unique");
+                }
+            });
+        }
+        if !queues.e_2_32.is_empty() {
+            let mut e_2_32_marks: Box<[(ElementIndex, u32)]> = queues.e_2_32.drain(..).collect();
+            e_2_32_marks.sort();
+            e_2_32_marks.iter().for_each(|&(idx, len)| {
+                let index = idx.into_index();
+                if bits.e_2_32.set_bit(index, &bits.bits) {
+                    if let Some(descriptors) = e2pow32.descriptors.get(&idx) {
+                        mark_descriptors(descriptors, &mut queues);
+                    }
+                    if let Some(array) = e2pow32.values.get(index) {
+                        mark_array_with_length(array, &mut queues, len);
+                    }
+                } else {
+                    panic!("ElementsVector was not unique");
                 }
             });
         }
 
-        let mut e_2_1_marks: Box<[(ElementIndex, u32)]> = queues.e_2_1.drain(..).collect();
-        e_2_1_marks.sort();
-        e_2_1_marks.iter().for_each(|&(idx, len)| {
-            let index = idx.into_index();
-            if bits.e_2_1.set_bit(index, &bits.bits) {
-                if let Some(descriptors) = e2pow1.descriptors.get(&idx) {
-                    mark_descriptors(descriptors, &mut queues);
+        if !queues.k_2_4.is_empty() {
+            let mut k_2_4_marks: Box<[(PropertyKeyIndex, u32)]> = queues.k_2_4.drain(..).collect();
+            k_2_4_marks.sort();
+            k_2_4_marks.iter().for_each(|&(idx, len)| {
+                let index = idx.into_index();
+                if bits.k_2_4.set_bit(index, &bits.bits) {
+                    if let Some(array) = k2pow4.keys.get(index) {
+                        mark_array_with_length(array, &mut queues, len);
+                    }
                 }
-                if let Some(array) = e2pow1.values.get(index) {
-                    mark_array_with_length(array, &mut queues, len);
+            });
+        }
+        if !queues.k_2_1.is_empty() {
+            let mut k_2_1_marks: Box<[(PropertyKeyIndex, u32)]> = queues.k_2_1.drain(..).collect();
+            k_2_1_marks.sort();
+            k_2_1_marks.iter().for_each(|&(idx, len)| {
+                let index = idx.into_index();
+                if bits.k_2_1.set_bit(index, &bits.bits) {
+                    if let Some(array) = k2pow1.keys.get(index) {
+                        mark_array_with_length(array, &mut queues, len);
+                    }
                 }
-            } else {
-                panic!("ElementsVector was not unique");
-            }
-        });
-        let mut e_2_2_marks: Box<[(ElementIndex, u32)]> = queues.e_2_2.drain(..).collect();
-        e_2_2_marks.sort();
-        e_2_2_marks.iter().for_each(|&(idx, len)| {
-            let index = idx.into_index();
-            if bits.e_2_2.set_bit(index, &bits.bits) {
-                if let Some(descriptors) = e2pow2.descriptors.get(&idx) {
-                    mark_descriptors(descriptors, &mut queues);
+            });
+        }
+        if !queues.k_2_2.is_empty() {
+            let mut k_2_2_marks: Box<[(PropertyKeyIndex, u32)]> = queues.k_2_2.drain(..).collect();
+            k_2_2_marks.sort();
+            k_2_2_marks.iter().for_each(|&(idx, len)| {
+                let index = idx.into_index();
+                if bits.k_2_2.set_bit(index, &bits.bits) {
+                    if let Some(array) = k2pow2.keys.get(index) {
+                        mark_array_with_length(array, &mut queues, len);
+                    }
                 }
-                if let Some(array) = e2pow2.values.get(index) {
-                    mark_array_with_length(array, &mut queues, len);
+            });
+        }
+        if !queues.k_2_3.is_empty() {
+            let mut k_2_3_marks: Box<[(PropertyKeyIndex, u32)]> = queues.k_2_3.drain(..).collect();
+            k_2_3_marks.sort();
+            k_2_3_marks.iter().for_each(|&(idx, len)| {
+                let index = idx.into_index();
+                if bits.k_2_3.set_bit(index, &bits.bits) {
+                    if let Some(array) = k2pow3.keys.get(index) {
+                        mark_array_with_length(array, &mut queues, len);
+                    }
                 }
-            } else {
-                panic!("ElementsVector was not unique");
-            }
-        });
-        let mut e_2_3_marks: Box<[(ElementIndex, u32)]> = queues.e_2_3.drain(..).collect();
-        e_2_3_marks.sort();
-        e_2_3_marks.iter().for_each(|&(idx, len)| {
-            let index = idx.into_index();
-            if bits.e_2_3.set_bit(index, &bits.bits) {
-                if let Some(descriptors) = e2pow3.descriptors.get(&idx) {
-                    mark_descriptors(descriptors, &mut queues);
+            });
+        }
+        if !queues.k_2_6.is_empty() {
+            let mut k_2_6_marks: Box<[(PropertyKeyIndex, u32)]> = queues.k_2_6.drain(..).collect();
+            k_2_6_marks.sort();
+            k_2_6_marks.iter().for_each(|&(idx, len)| {
+                let index = idx.into_index();
+                if bits.k_2_6.set_bit(index, &bits.bits) {
+                    if let Some(array) = k2pow6.keys.get(index) {
+                        mark_array_with_length(array, &mut queues, len);
+                    }
                 }
-                if let Some(array) = e2pow3.values.get(index) {
-                    mark_array_with_length(array, &mut queues, len);
+            });
+        }
+        if !queues.k_2_8.is_empty() {
+            let mut k_2_8_marks: Box<[(PropertyKeyIndex, u32)]> = queues.k_2_8.drain(..).collect();
+            k_2_8_marks.sort();
+            k_2_8_marks.iter().for_each(|&(idx, len)| {
+                let index = idx.into_index();
+                if bits.k_2_8.set_bit(index, &bits.bits) {
+                    if let Some(array) = k2pow8.keys.get(index) {
+                        mark_array_with_length(array, &mut queues, len);
+                    }
                 }
-            } else {
-                panic!("ElementsVector was not unique");
-            }
-        });
-        let mut e_2_4_marks: Box<[(ElementIndex, u32)]> = queues.e_2_4.drain(..).collect();
-        e_2_4_marks.sort();
-        e_2_4_marks.iter().for_each(|&(idx, len)| {
-            let index = idx.into_index();
-            if bits.e_2_4.set_bit(index, &bits.bits) {
-                if let Some(descriptors) = e2pow4.descriptors.get(&idx) {
-                    mark_descriptors(descriptors, &mut queues);
+            });
+        }
+        if !queues.k_2_10.is_empty() {
+            let mut k_2_10_marks: Box<[(PropertyKeyIndex, u32)]> =
+                queues.k_2_10.drain(..).collect();
+            k_2_10_marks.sort();
+            k_2_10_marks.iter().for_each(|&(idx, len)| {
+                let index = idx.into_index();
+                if bits.k_2_10.set_bit(index, &bits.bits) {
+                    if let Some(array) = k2pow10.keys.get(index) {
+                        mark_array_with_length(array, &mut queues, len);
+                    }
                 }
-                if let Some(array) = e2pow4.values.get(index) {
-                    mark_array_with_length(array, &mut queues, len);
+            });
+        }
+        if !queues.k_2_12.is_empty() {
+            let mut k_2_12_marks: Box<[(PropertyKeyIndex, u32)]> =
+                queues.k_2_12.drain(..).collect();
+            k_2_12_marks.sort();
+            k_2_12_marks.iter().for_each(|&(idx, len)| {
+                let index = idx.into_index();
+                if bits.k_2_12.set_bit(index, &bits.bits) {
+                    if let Some(array) = k2pow12.keys.get(index) {
+                        mark_array_with_length(array, &mut queues, len);
+                    }
                 }
-            } else {
-                panic!("ElementsVector was not unique");
-            }
-        });
-        let mut e_2_6_marks: Box<[(ElementIndex, u32)]> = queues.e_2_6.drain(..).collect();
-        e_2_6_marks.sort();
-        e_2_6_marks.iter().for_each(|&(idx, len)| {
-            let index = idx.into_index();
-            if bits.e_2_6.set_bit(index, &bits.bits) {
-                if let Some(descriptors) = e2pow6.descriptors.get(&idx) {
-                    mark_descriptors(descriptors, &mut queues);
+            });
+        }
+        if !queues.k_2_16.is_empty() {
+            let mut k_2_16_marks: Box<[(PropertyKeyIndex, u32)]> =
+                queues.k_2_16.drain(..).collect();
+            k_2_16_marks.sort();
+            k_2_16_marks.iter().for_each(|&(idx, len)| {
+                let index = idx.into_index();
+                if bits.k_2_16.set_bit(index, &bits.bits) {
+                    if let Some(array) = k2pow16.keys.get(index) {
+                        mark_array_with_length(array, &mut queues, len);
+                    }
                 }
-                if let Some(array) = e2pow6.values.get(index) {
-                    mark_array_with_length(array, &mut queues, len);
+            });
+        }
+        if !queues.k_2_24.is_empty() {
+            let mut k_2_24_marks: Box<[(PropertyKeyIndex, u32)]> =
+                queues.k_2_24.drain(..).collect();
+            k_2_24_marks.sort();
+            k_2_24_marks.iter().for_each(|&(idx, len)| {
+                let index = idx.into_index();
+                if bits.k_2_24.set_bit(index, &bits.bits) {
+                    if let Some(array) = k2pow24.keys.get(index) {
+                        mark_array_with_length(array, &mut queues, len);
+                    }
                 }
-            } else {
-                panic!("ElementsVector was not unique");
-            }
-        });
-        let mut e_2_8_marks: Box<[(ElementIndex, u32)]> = queues.e_2_8.drain(..).collect();
-        e_2_8_marks.sort();
-        e_2_8_marks.iter().for_each(|&(idx, len)| {
-            let index = idx.into_index();
-            if bits.e_2_8.set_bit(index, &bits.bits) {
-                if let Some(descriptors) = e2pow8.descriptors.get(&idx) {
-                    mark_descriptors(descriptors, &mut queues);
+            });
+        }
+        if !queues.k_2_32.is_empty() {
+            let mut k_2_32_marks: Box<[(PropertyKeyIndex, u32)]> =
+                queues.k_2_32.drain(..).collect();
+            k_2_32_marks.sort();
+            k_2_32_marks.iter().for_each(|&(idx, len)| {
+                let index = idx.into_index();
+                if bits.k_2_32.set_bit(index, &bits.bits) {
+                    if let Some(array) = k2pow32.keys.get(index) {
+                        mark_array_with_length(array, &mut queues, len);
+                    }
                 }
-                if let Some(array) = e2pow8.values.get(index) {
-                    mark_array_with_length(array, &mut queues, len);
-                }
-            } else {
-                panic!("ElementsVector was not unique");
-            }
-        });
-        let mut e_2_10_marks: Box<[(ElementIndex, u32)]> = queues.e_2_10.drain(..).collect();
-        e_2_10_marks.sort();
-        e_2_10_marks.iter().for_each(|&(idx, len)| {
-            let index = idx.into_index();
-            if bits.e_2_10.set_bit(index, &bits.bits) {
-                if let Some(descriptors) = e2pow10.descriptors.get(&idx) {
-                    mark_descriptors(descriptors, &mut queues);
-                }
-                if let Some(array) = e2pow10.values.get(index) {
-                    mark_array_with_length(array, &mut queues, len);
-                }
-            } else {
-                panic!("ElementsVector was not unique");
-            }
-        });
-        let mut e_2_12_marks: Box<[(ElementIndex, u32)]> = queues.e_2_12.drain(..).collect();
-        e_2_12_marks.sort();
-        e_2_12_marks.iter().for_each(|&(idx, len)| {
-            let index = idx.into_index();
-            if bits.e_2_12.set_bit(index, &bits.bits) {
-                if let Some(descriptors) = e2pow12.descriptors.get(&idx) {
-                    mark_descriptors(descriptors, &mut queues);
-                }
-                if let Some(array) = e2pow12.values.get(index) {
-                    mark_array_with_length(array, &mut queues, len);
-                }
-            } else {
-                panic!("ElementsVector was not unique");
-            }
-        });
-        let mut e_2_16_marks: Box<[(ElementIndex, u32)]> = queues.e_2_16.drain(..).collect();
-        e_2_16_marks.sort();
-        e_2_16_marks.iter().for_each(|&(idx, len)| {
-            let index = idx.into_index();
-            if bits.e_2_16.set_bit(index, &bits.bits) {
-                if let Some(descriptors) = e2pow16.descriptors.get(&idx) {
-                    mark_descriptors(descriptors, &mut queues);
-                }
-                if let Some(array) = e2pow16.values.get(index) {
-                    mark_array_with_length(array, &mut queues, len);
-                }
-            } else {
-                panic!("ElementsVector was not unique");
-            }
-        });
-        let mut e_2_24_marks: Box<[(ElementIndex, u32)]> = queues.e_2_24.drain(..).collect();
-        e_2_24_marks.sort();
-        e_2_24_marks.iter().for_each(|&(idx, len)| {
-            let index = idx.into_index();
-            if bits.e_2_24.set_bit(index, &bits.bits) {
-                if let Some(descriptors) = e2pow24.descriptors.get(&idx) {
-                    mark_descriptors(descriptors, &mut queues);
-                }
-                if let Some(array) = e2pow24.values.get(index) {
-                    mark_array_with_length(array, &mut queues, len);
-                }
-            } else {
-                panic!("ElementsVector was not unique");
-            }
-        });
-        let mut e_2_32_marks: Box<[(ElementIndex, u32)]> = queues.e_2_32.drain(..).collect();
-        e_2_32_marks.sort();
-        e_2_32_marks.iter().for_each(|&(idx, len)| {
-            let index = idx.into_index();
-            if bits.e_2_32.set_bit(index, &bits.bits) {
-                if let Some(descriptors) = e2pow32.descriptors.get(&idx) {
-                    mark_descriptors(descriptors, &mut queues);
-                }
-                if let Some(array) = e2pow32.values.get(index) {
-                    mark_array_with_length(array, &mut queues, len);
-                }
-            } else {
-                panic!("ElementsVector was not unique");
-            }
-        });
-
-        let mut k_2_4_marks: Box<[(PropertyKeyIndex, u32)]> = queues.k_2_4.drain(..).collect();
-        k_2_4_marks.sort();
-        k_2_4_marks.iter().for_each(|&(idx, len)| {
-            let index = idx.into_index();
-            if bits.k_2_4.set_bit(index, &bits.bits) {
-                if let Some(array) = k2pow4.keys.get(index) {
-                    mark_array_with_length(array, &mut queues, len);
-                }
-            }
-        });
-        let mut k_2_1_marks: Box<[(PropertyKeyIndex, u32)]> = queues.k_2_1.drain(..).collect();
-        k_2_1_marks.sort();
-        k_2_1_marks.iter().for_each(|&(idx, len)| {
-            let index = idx.into_index();
-            if bits.k_2_1.set_bit(index, &bits.bits) {
-                if let Some(array) = k2pow1.keys.get(index) {
-                    mark_array_with_length(array, &mut queues, len);
-                }
-            }
-        });
-        let mut k_2_2_marks: Box<[(PropertyKeyIndex, u32)]> = queues.k_2_2.drain(..).collect();
-        k_2_2_marks.sort();
-        k_2_2_marks.iter().for_each(|&(idx, len)| {
-            let index = idx.into_index();
-            if bits.k_2_2.set_bit(index, &bits.bits) {
-                if let Some(array) = k2pow2.keys.get(index) {
-                    mark_array_with_length(array, &mut queues, len);
-                }
-            }
-        });
-        let mut k_2_3_marks: Box<[(PropertyKeyIndex, u32)]> = queues.k_2_3.drain(..).collect();
-        k_2_3_marks.sort();
-        k_2_3_marks.iter().for_each(|&(idx, len)| {
-            let index = idx.into_index();
-            if bits.k_2_3.set_bit(index, &bits.bits) {
-                if let Some(array) = k2pow3.keys.get(index) {
-                    mark_array_with_length(array, &mut queues, len);
-                }
-            }
-        });
-        let mut k_2_6_marks: Box<[(PropertyKeyIndex, u32)]> = queues.k_2_6.drain(..).collect();
-        k_2_6_marks.sort();
-        k_2_6_marks.iter().for_each(|&(idx, len)| {
-            let index = idx.into_index();
-            if bits.k_2_6.set_bit(index, &bits.bits) {
-                if let Some(array) = k2pow6.keys.get(index) {
-                    mark_array_with_length(array, &mut queues, len);
-                }
-            }
-        });
-        let mut k_2_8_marks: Box<[(PropertyKeyIndex, u32)]> = queues.k_2_8.drain(..).collect();
-        k_2_8_marks.sort();
-        k_2_8_marks.iter().for_each(|&(idx, len)| {
-            let index = idx.into_index();
-            if bits.k_2_8.set_bit(index, &bits.bits) {
-                if let Some(array) = k2pow8.keys.get(index) {
-                    mark_array_with_length(array, &mut queues, len);
-                }
-            }
-        });
-        let mut k_2_10_marks: Box<[(PropertyKeyIndex, u32)]> = queues.k_2_10.drain(..).collect();
-        k_2_10_marks.sort();
-        k_2_10_marks.iter().for_each(|&(idx, len)| {
-            let index = idx.into_index();
-            if bits.k_2_10.set_bit(index, &bits.bits) {
-                if let Some(array) = k2pow10.keys.get(index) {
-                    mark_array_with_length(array, &mut queues, len);
-                }
-            }
-        });
-        let mut k_2_12_marks: Box<[(PropertyKeyIndex, u32)]> = queues.k_2_12.drain(..).collect();
-        k_2_12_marks.sort();
-        k_2_12_marks.iter().for_each(|&(idx, len)| {
-            let index = idx.into_index();
-            if bits.k_2_12.set_bit(index, &bits.bits) {
-                if let Some(array) = k2pow12.keys.get(index) {
-                    mark_array_with_length(array, &mut queues, len);
-                }
-            }
-        });
-        let mut k_2_16_marks: Box<[(PropertyKeyIndex, u32)]> = queues.k_2_16.drain(..).collect();
-        k_2_16_marks.sort();
-        k_2_16_marks.iter().for_each(|&(idx, len)| {
-            let index = idx.into_index();
-            if bits.k_2_16.set_bit(index, &bits.bits) {
-                if let Some(array) = k2pow16.keys.get(index) {
-                    mark_array_with_length(array, &mut queues, len);
-                }
-            }
-        });
-        let mut k_2_24_marks: Box<[(PropertyKeyIndex, u32)]> = queues.k_2_24.drain(..).collect();
-        k_2_24_marks.sort();
-        k_2_24_marks.iter().for_each(|&(idx, len)| {
-            let index = idx.into_index();
-            if bits.k_2_24.set_bit(index, &bits.bits) {
-                if let Some(array) = k2pow24.keys.get(index) {
-                    mark_array_with_length(array, &mut queues, len);
-                }
-            }
-        });
-        let mut k_2_32_marks: Box<[(PropertyKeyIndex, u32)]> = queues.k_2_32.drain(..).collect();
-        k_2_32_marks.sort();
-        k_2_32_marks.iter().for_each(|&(idx, len)| {
-            let index = idx.into_index();
-            if bits.k_2_32.set_bit(index, &bits.bits) {
-                if let Some(array) = k2pow32.keys.get(index) {
-                    mark_array_with_length(array, &mut queues, len);
-                }
-            }
-        });
+            });
+        }
     }
 
     sweep(agent, &bits, root_realms, gc);

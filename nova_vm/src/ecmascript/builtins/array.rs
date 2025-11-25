@@ -183,7 +183,7 @@ impl<'a> Array<'a> {
         create_array_from_list(agent, elements, gc)
     }
 
-    pub(crate) fn get_index(self) -> usize {
+    pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
     }
 
