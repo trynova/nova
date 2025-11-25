@@ -123,8 +123,8 @@ use hashbrown::HashTable;
 #[cfg(feature = "weak-refs")]
 pub(crate) use heap_bits::sweep_side_set;
 pub(crate) use heap_bits::{
-    BitRange, CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WeakReference, WorkQueues,
-    sweep_heap_vector_values,
+    AtomicBits, BitRange, CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WeakReference,
+    WorkQueues, sweep_heap_vector_values,
 };
 use soavec::SoAVec;
 use wtf8::{Wtf8, Wtf8Buf};

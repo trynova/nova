@@ -10,11 +10,8 @@ use super::{
     Heap, WellKnownSymbolIndexes,
     element_array::ElementArrays,
     heap_bits::{
-        CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues, mark_array_with_u32_length,
+        CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues, mark_array_with_length,
         mark_descriptors, sweep_heap_elements_vector_descriptors, sweep_heap_soa_vector_values,
-        sweep_heap_u8_elements_vector_values, sweep_heap_u8_property_key_vector,
-        sweep_heap_u16_elements_vector_values, sweep_heap_u16_property_key_vector,
-        sweep_heap_u32_elements_vector_values, sweep_heap_u32_property_key_vector,
         sweep_heap_vector_values, sweep_lookup_table,
     },
     indexes::{ElementIndex, PropertyKeyIndex},
@@ -96,20 +93,18 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
     ndt::gc_start!(|| ());
 
     let mut bits = HeapBits::new(&agent.heap);
-    let mut queues = WorkQueues::new(&agent.heap);
-
-    root_realms.iter().for_each(|realm| {
-        if let Some(realm) = realm {
-            queues.realms.push(realm.unbind());
-        }
-    });
-
     bits.strings
         .mark_range(0..(BUILTIN_STRINGS_LIST.len() as u32), &mut bits.bits);
     bits.symbols.mark_range(
         0..(WellKnownSymbolIndexes::Unscopables as u32),
         &mut bits.bits,
     );
+    let mut queues = WorkQueues::new(&agent.heap);
+    root_realms.iter().for_each(|realm| {
+        if let Some(realm) = realm {
+            queues.realms.push(realm.unbind());
+        }
+    });
     queues.object_shapes.push(ObjectShape::NULL);
     agent.mark_values(&mut queues);
     let mut has_finalization_registrys = false;
@@ -250,7 +245,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         module_marks.sort();
         module_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.modules.mark_bit(index, &bits.bits) {
+            if bits.modules.set_bit(index, &bits.bits) {
                 // Did mark.
                 modules.get(index).mark_values(&mut queues);
             }
@@ -259,7 +254,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         script_marks.sort();
         script_marks.iter().for_each(|&idx| {
             let index = idx.into_index();
-            if bits.scripts.mark_bit(index, &bits.bits) {
+            if bits.scripts.set_bit(index, &bits.bits) {
                 // Did mark.
                 scripts.get(index).mark_values(&mut queues);
             }
@@ -268,7 +263,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         realm_marks.sort();
         realm_marks.iter().for_each(|&idx| {
             let index = idx.into_index();
-            if bits.realms.mark_bit(index, &bits.bits) {
+            if bits.realms.set_bit(index, &bits.bits) {
                 // Did mark.
                 realms.get(index).mark_values(&mut queues);
             }
@@ -279,7 +274,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         declarative_environment_marks.sort();
         declarative_environment_marks.iter().for_each(|&idx| {
             let index = idx.into_index();
-            if bits.declarative_environments.mark_bit(index, &bits.bits) {
+            if bits.declarative_environments.set_bit(index, &bits.bits) {
                 // Did mark.
                 declarative_environments.get(index).mark_values(&mut queues);
             }
@@ -289,7 +284,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         function_environment_marks.sort();
         function_environment_marks.iter().for_each(|&idx| {
             let index = idx.into_index();
-            if bits.function_environments.mark_bit(index, &bits.bits) {
+            if bits.function_environments.set_bit(index, &bits.bits) {
                 // Did mark.
                 function_environments.get(index).mark_values(&mut queues);
             }
@@ -299,7 +294,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         global_environment_marks.sort();
         global_environment_marks.iter().for_each(|&idx| {
             let index = idx.into_index();
-            if bits.global_environments.mark_bit(index, &bits.bits) {
+            if bits.global_environments.set_bit(index, &bits.bits) {
                 // Did mark.
                 global_environments.get(index).mark_values(&mut queues);
             }
@@ -309,7 +304,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         module_environment_marks.sort();
         module_environment_marks.iter().for_each(|&idx| {
             let index = idx.into_index();
-            if bits.module_environments.mark_bit(index, &bits.bits) {
+            if bits.module_environments.set_bit(index, &bits.bits) {
                 // Did mark.
                 module_environments.get(index).mark_values(&mut queues);
             }
@@ -319,7 +314,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         object_environment_marks.sort();
         object_environment_marks.iter().for_each(|&idx| {
             let index = idx.into_index();
-            if bits.object_environments.mark_bit(index, &bits.bits) {
+            if bits.object_environments.set_bit(index, &bits.bits) {
                 // Did mark.
                 object_environments.get(index).mark_values(&mut queues);
             }
@@ -329,7 +324,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         array_marks.sort();
         array_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.arrays.mark_bit(index, &bits.bits) {
+            if bits.arrays.set_bit(index, &bits.bits) {
                 // Did mark.
                 arrays.get(index as u32).mark_values(&mut queues);
             }
@@ -341,7 +336,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             array_buffer_marks.sort();
             array_buffer_marks.iter().for_each(|&idx| {
                 let index = idx.get_index();
-                if bits.array_buffers.mark_bit(index, &bits.bits) {
+                if bits.array_buffers.set_bit(index, &bits.bits) {
                     // Did mark.
                     array_buffers.get(index).mark_values(&mut queues);
                 }
@@ -352,7 +347,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         array_iterator_marks.sort();
         array_iterator_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.array_iterators.mark_bit(index, &bits.bits) {
+            if bits.array_iterators.set_bit(index, &bits.bits) {
                 // Did mark.
                 array_iterators.get(index).mark_values(&mut queues);
             }
@@ -362,7 +357,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         async_generator_marks.sort();
         async_generator_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.async_generators.mark_bit(index, &bits.bits) {
+            if bits.async_generators.set_bit(index, &bits.bits) {
                 // Did mark.
                 async_generators.get(index).mark_values(&mut queues);
             }
@@ -372,7 +367,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         await_reaction_marks.sort();
         await_reaction_marks.iter().for_each(|&idx| {
             let index = idx.into_index();
-            if bits.await_reactions.mark_bit(index, &bits.bits) {
+            if bits.await_reactions.set_bit(index, &bits.bits) {
                 // Did mark.
                 await_reactions.get(index).mark_values(&mut queues);
             }
@@ -381,7 +376,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         bigint_marks.sort();
         bigint_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.bigints.mark_bit(index, &bits.bits) {
+            if bits.bigints.set_bit(index, &bits.bits) {
                 // Did mark.
                 bigints.get(index).mark_values(&mut queues);
             }
@@ -391,7 +386,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         bound_function_marks.sort();
         bound_function_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.bound_functions.mark_bit(index, &bits.bits) {
+            if bits.bound_functions.set_bit(index, &bits.bits) {
                 // Did mark.
                 bound_functions.get(index).mark_values(&mut queues);
             }
@@ -401,7 +396,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         ecmascript_function_marks.sort();
         ecmascript_function_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.ecmascript_functions.mark_bit(index, &bits.bits) {
+            if bits.ecmascript_functions.set_bit(index, &bits.bits) {
                 // Did mark.
                 ecmascript_functions.get(index).mark_values(&mut queues);
             }
@@ -410,7 +405,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         error_marks.sort();
         error_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.errors.mark_bit(index, &bits.bits) {
+            if bits.errors.set_bit(index, &bits.bits) {
                 // Did mark.
                 errors.get(index).mark_values(&mut queues);
             }
@@ -419,7 +414,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         executable_marks.sort();
         executable_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.executables.mark_bit(index, &bits.bits) {
+            if bits.executables.set_bit(index, &bits.bits) {
                 // Did mark.
                 executables.get(index).mark_values(&mut queues);
             }
@@ -428,7 +423,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         source_code_marks.sort();
         source_code_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.source_codes.mark_bit(index, &bits.bits) {
+            if bits.source_codes.set_bit(index, &bits.bits) {
                 // Did mark.
                 source_codes.get(index).mark_values(&mut queues);
             }
@@ -438,7 +433,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         builtin_constructors_marks.sort();
         builtin_constructors_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.builtin_constructors.mark_bit(index, &bits.bits) {
+            if bits.builtin_constructors.set_bit(index, &bits.bits) {
                 // Did mark.
                 builtin_constructors.get(index).mark_values(&mut queues);
             }
@@ -448,7 +443,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         builtin_functions_marks.sort();
         builtin_functions_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.builtin_functions.mark_bit(index, &bits.bits) {
+            if bits.builtin_functions.set_bit(index, &bits.bits) {
                 // Did mark.
                 builtin_functions.get(index).mark_values(&mut queues);
             }
@@ -457,7 +452,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         caches_marks.sort();
         caches_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.caches.mark_bit(index, &bits.bits) {
+            if bits.caches.set_bit(index, &bits.bits) {
                 // Did mark.
                 caches.mark_cache(index, &mut queues);
             }
@@ -468,7 +463,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             data_view_marks.sort();
             data_view_marks.iter().for_each(|&idx| {
                 let index = idx.get_index();
-                if bits.data_views.mark_bit(index, &bits.bits) {
+                if bits.data_views.set_bit(index, &bits.bits) {
                     // Did mark.
                     data_views.get(index).mark_values(&mut queues);
                 }
@@ -480,7 +475,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             date_marks.sort();
             date_marks.iter().for_each(|&idx| {
                 let index = idx.get_index();
-                if bits.dates.mark_bit(index, &bits.bits) {
+                if bits.dates.set_bit(index, &bits.bits) {
                     // Did mark.
                     dates.get(index).mark_values(&mut queues);
                 }
@@ -491,7 +486,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         embedder_object_marks.sort();
         embedder_object_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.embedder_objects.mark_bit(index, &bits.bits) {
+            if bits.embedder_objects.set_bit(index, &bits.bits) {
                 // Did mark.
                 embedder_objects.get(index).mark_values(&mut queues);
             }
@@ -504,7 +499,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         }
         finalization_registry_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.finalization_registrys.mark_bit(index, &bits.bits) {
+            if bits.finalization_registrys.set_bit(index, &bits.bits) {
                 // Did mark.
                 finalization_registrys
                     .get(index as u32)
@@ -515,7 +510,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         generator_marks.sort();
         generator_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.generators.mark_bit(index, &bits.bits) {
+            if bits.generators.set_bit(index, &bits.bits) {
                 // Did mark.
                 generators.get(index).mark_values(&mut queues);
             }
@@ -524,7 +519,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         object_marks.sort();
         object_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.object_shapes.mark_bit(index, &bits.bits) {
+            if bits.object_shapes.set_bit(index, &bits.bits) {
                 // Did mark.
                 object_shapes.get(index).mark_values(&mut queues);
                 object_shape_transitions.get(index).mark_values(&mut queues);
@@ -534,7 +529,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         object_marks.sort();
         object_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.objects.mark_bit(index, &bits.bits) {
+            if bits.objects.set_bit(index, &bits.bits) {
                 // Did mark.
                 if let Some(rec) = objects.get(index) {
                     rec.mark_values(&mut queues, &agent.heap.object_shapes);
@@ -545,7 +540,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         promise_marks.sort();
         promise_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.promises.mark_bit(index, &bits.bits) {
+            if bits.promises.set_bit(index, &bits.bits) {
                 // Did mark.
                 promises.get(index).mark_values(&mut queues);
             }
@@ -555,7 +550,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         promise_reaction_record_marks.sort();
         promise_reaction_record_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.promise_reaction_records.mark_bit(index, &bits.bits) {
+            if bits.promise_reaction_records.set_bit(index, &bits.bits) {
                 // Did mark.
                 promise_reaction_records.get(index).mark_values(&mut queues);
             }
@@ -565,7 +560,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         promise_group_record_marks.sort();
         promise_group_record_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.promise_group_records.mark_bit(index, &bits.bits) {
+            if bits.promise_group_records.set_bit(index, &bits.bits) {
                 // Did mark.
                 promise_group_records.get(index).mark_values(&mut queues);
             }
@@ -575,7 +570,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         promise_resolving_function_marks.sort();
         promise_resolving_function_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.promise_resolving_functions.mark_bit(index, &bits.bits) {
+            if bits.promise_resolving_functions.set_bit(index, &bits.bits) {
                 // Did mark.
                 promise_resolving_functions
                     .get(index)
@@ -587,7 +582,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         promise_finally_function_marks.sort();
         promise_finally_function_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.promise_finally_functions.mark_bit(index, &bits.bits) {
+            if bits.promise_finally_functions.set_bit(index, &bits.bits) {
                 // Did mark.
                 promise_finally_functions
                     .get(index)
@@ -598,7 +593,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         proxy_marks.sort();
         proxy_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.proxies.mark_bit(index, &bits.bits) {
+            if bits.proxies.set_bit(index, &bits.bits) {
                 // Did mark.
                 proxies.get(index).mark_values(&mut queues);
             }
@@ -607,7 +602,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         map_marks.sort();
         map_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.maps.mark_bit(index, &bits.bits) {
+            if bits.maps.set_bit(index, &bits.bits) {
                 // Did mark.
                 maps.get(index).mark_values(&mut queues);
             }
@@ -616,7 +611,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         map_iterator_marks.sort();
         map_iterator_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.map_iterators.mark_bit(index, &bits.bits) {
+            if bits.map_iterators.set_bit(index, &bits.bits) {
                 // Did mark.
                 map_iterators.get(index).mark_values(&mut queues);
             }
@@ -626,7 +621,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         module_request_record_marks.sort();
         module_request_record_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.module_request_records.mark_bit(index, &bits.bits) {
+            if bits.module_request_records.set_bit(index, &bits.bits) {
                 // Did mark.
                 module_request_records.get(index).mark_values(&mut queues);
             }
@@ -635,7 +630,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         number_marks.sort();
         number_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.numbers.mark_bit(index, &bits.bits) {
+            if bits.numbers.set_bit(index, &bits.bits) {
                 // Did mark.
                 numbers.get(index).mark_values(&mut queues);
             }
@@ -645,7 +640,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         primitive_object_marks.sort();
         primitive_object_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.primitive_objects.mark_bit(index, &bits.bits) {
+            if bits.primitive_objects.set_bit(index, &bits.bits) {
                 // Did mark.
                 primitive_objects.get(index).mark_values(&mut queues);
             }
@@ -656,7 +651,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             regexp_marks.sort();
             regexp_marks.iter().for_each(|&idx| {
                 let index = idx.get_index();
-                if bits.regexps.mark_bit(index, &bits.bits) {
+                if bits.regexps.set_bit(index, &bits.bits) {
                     // Did mark.
                     regexps.get(index).mark_values(&mut queues);
                 }
@@ -669,7 +664,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             regexp_string_iterator_marks.sort();
             regexp_string_iterator_marks.iter().for_each(|&idx| {
                 let index = idx.get_index();
-                if bits.regexp_string_iterators.mark_bit(index, &bits.bits) {
+                if bits.regexp_string_iterators.set_bit(index, &bits.bits) {
                     // Did mark.
                     regexp_string_iterators.get(index).mark_values(&mut queues);
                 }
@@ -681,7 +676,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             set_marks.sort();
             set_marks.iter().for_each(|&idx| {
                 let index = idx.get_index();
-                if bits.sets.mark_bit(index, &bits.bits) {
+                if bits.sets.set_bit(index, &bits.bits) {
                     // Did mark.
                     sets.get(index).mark_values(&mut queues);
                 }
@@ -692,7 +687,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             set_iterator_marks.sort();
             set_iterator_marks.iter().for_each(|&idx| {
                 let index = idx.get_index();
-                if bits.set_iterators.mark_bit(index, &bits.bits) {
+                if bits.set_iterators.set_bit(index, &bits.bits) {
                     // Did mark.
                     set_iterators.get(index).mark_values(&mut queues);
                 }
@@ -705,7 +700,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             shared_array_buffer_marks.sort();
             shared_array_buffer_marks.iter().for_each(|&idx| {
                 let index = idx.get_index();
-                if bits.shared_array_buffers.mark_bit(index, &bits.bits) {
+                if bits.shared_array_buffers.set_bit(index, &bits.bits) {
                     // Did mark.
                     shared_array_buffers.get(index).mark_values(&mut queues);
                 }
@@ -718,7 +713,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             shared_data_view_marks.sort();
             shared_data_view_marks.iter().for_each(|&idx| {
                 let index = idx.get_index();
-                if bits.shared_data_views.mark_bit(index, &bits.bits) {
+                if bits.shared_data_views.set_bit(index, &bits.bits) {
                     // Did mark.
                     shared_data_views.get(index).mark_values(&mut queues);
                 }
@@ -731,7 +726,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             shared_typed_array_marks.sort();
             shared_typed_array_marks.iter().for_each(|&idx| {
                 let index = idx.get_index();
-                if bits.shared_typed_arrays.mark_bit(index, &bits.bits) {
+                if bits.shared_typed_arrays.set_bit(index, &bits.bits) {
                     // Did mark.
                     shared_typed_arrays.get(index).mark_values(&mut queues);
                 }
@@ -742,7 +737,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         source_text_module_record_marks.sort();
         source_text_module_record_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.source_text_module_records.mark_bit(index, &bits.bits) {
+            if bits.source_text_module_records.set_bit(index, &bits.bits) {
                 // Did mark.
                 source_text_module_records
                     .get(index)
@@ -754,7 +749,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         string_generator_marks.sort();
         string_generator_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.string_iterators.mark_bit(index, &bits.bits) {
+            if bits.string_iterators.set_bit(index, &bits.bits) {
                 // Did mark.
                 string_iterators.get(index).mark_values(&mut queues);
             }
@@ -763,7 +758,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         string_marks.sort();
         string_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.strings.mark_bit(index, &bits.bits) {
+            if bits.strings.set_bit(index, &bits.bits) {
                 // Did mark.
                 strings.get(index).mark_values(&mut queues);
             }
@@ -772,7 +767,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         symbol_marks.sort();
         symbol_marks.iter().for_each(|&idx| {
             let index = idx.get_index();
-            if bits.symbols.mark_bit(index, &bits.bits) {
+            if bits.symbols.set_bit(index, &bits.bits) {
                 // Did mark.
                 symbols.get(index).mark_values(&mut queues);
             }
@@ -783,7 +778,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             typed_arrays_marks.sort();
             typed_arrays_marks.iter().for_each(|&idx| {
                 let index = idx.get_index();
-                if bits.typed_arrays.mark_bit(index, &bits.bits) {
+                if bits.typed_arrays.set_bit(index, &bits.bits) {
                     // Did mark.
                     typed_arrays.get(index).mark_values(&mut queues);
                 }
@@ -795,7 +790,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             weak_map_marks.sort();
             weak_map_marks.iter().for_each(|&idx| {
                 let index = idx.get_index();
-                if bits.weak_maps.mark_bit(index, &bits.bits) {
+                if bits.weak_maps.set_bit(index, &bits.bits) {
                     // Did mark.
                     weak_maps.get(index).mark_values(&mut queues);
                 }
@@ -804,7 +799,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             weak_ref_marks.sort();
             weak_ref_marks.iter().for_each(|&idx| {
                 let index = idx.get_index();
-                if bits.weak_refs.mark_bit(index, &bits.bits) {
+                if bits.weak_refs.set_bit(index, &bits.bits) {
                     // Did mark.
                     weak_refs.get(index).mark_values(&mut queues);
                 }
@@ -813,7 +808,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             weak_set_marks.sort();
             weak_set_marks.iter().for_each(|&idx| {
                 let index = idx.get_index();
-                if bits.weak_sets.mark_bit(index, &bits.bits) {
+                if bits.weak_sets.set_bit(index, &bits.bits) {
                     // Did mark.
                     weak_sets.get(index).mark_values(&mut queues);
                 }
@@ -824,231 +819,165 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         e_2_1_marks.sort();
         e_2_1_marks.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some((marked, length)) = bits.e_2_1.get_mut(index) {
-                if *marked {
-                    // Already marked, panic: Elements are uniquely owned
-                    // and any other reference existing to this entry is a sign of
-                    // a GC algorithm bug.
-                    panic!("ElementsVector was not unique");
-                }
-                *marked = true;
-                *length = len as u8;
+            if bits.e_2_1.set_bit(index, &bits.bits) {
                 if let Some(descriptors) = e2pow1.descriptors.get(&idx) {
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow1.values.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_length(array, &mut queues, len);
                 }
+            } else {
+                panic!("ElementsVector was not unique");
             }
         });
         let mut e_2_2_marks: Box<[(ElementIndex, u32)]> = queues.e_2_2.drain(..).collect();
         e_2_2_marks.sort();
         e_2_2_marks.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some((marked, length)) = bits.e_2_2.get_mut(index) {
-                if *marked {
-                    // Already marked, panic: Elements are uniquely owned
-                    // and any other reference existing to this entry is a sign of
-                    // a GC algorithm bug.
-                    panic!("ElementsVector was not unique");
-                }
-                *marked = true;
-                *length = len as u8;
+            if bits.e_2_2.set_bit(index, &bits.bits) {
                 if let Some(descriptors) = e2pow2.descriptors.get(&idx) {
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow2.values.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_length(array, &mut queues, len);
                 }
+            } else {
+                panic!("ElementsVector was not unique");
             }
         });
         let mut e_2_3_marks: Box<[(ElementIndex, u32)]> = queues.e_2_3.drain(..).collect();
         e_2_3_marks.sort();
         e_2_3_marks.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some((marked, length)) = bits.e_2_3.get_mut(index) {
-                if *marked {
-                    // Already marked, panic: Elements are uniquely owned
-                    // and any other reference existing to this entry is a sign of
-                    // a GC algorithm bug.
-                    panic!("ElementsVector was not unique");
-                }
-                *marked = true;
-                *length = len as u8;
+            if bits.e_2_3.set_bit(index, &bits.bits) {
                 if let Some(descriptors) = e2pow3.descriptors.get(&idx) {
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow3.values.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_length(array, &mut queues, len);
                 }
+            } else {
+                panic!("ElementsVector was not unique");
             }
         });
         let mut e_2_4_marks: Box<[(ElementIndex, u32)]> = queues.e_2_4.drain(..).collect();
         e_2_4_marks.sort();
         e_2_4_marks.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some((marked, length)) = bits.e_2_4.get_mut(index) {
-                if *marked {
-                    // Already marked, panic: Elements are uniquely owned
-                    // and any other reference existing to this entry is a sign of
-                    // a GC algorithm bug.
-                    panic!("ElementsVector was not unique");
-                }
-                *marked = true;
-                *length = len as u8;
+            if bits.e_2_4.set_bit(index, &bits.bits) {
                 if let Some(descriptors) = e2pow4.descriptors.get(&idx) {
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow4.values.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_length(array, &mut queues, len);
                 }
+            } else {
+                panic!("ElementsVector was not unique");
             }
         });
         let mut e_2_6_marks: Box<[(ElementIndex, u32)]> = queues.e_2_6.drain(..).collect();
         e_2_6_marks.sort();
         e_2_6_marks.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some((marked, length)) = bits.e_2_6.get_mut(index) {
-                if *marked {
-                    // Already marked, panic: Elements are uniquely owned
-                    // and any other reference existing to this entry is a sign of
-                    // a GC algorithm bug.
-                    panic!("ElementsVector was not unique");
-                }
-                *marked = true;
-                *length = len as u8;
+            if bits.e_2_6.set_bit(index, &bits.bits) {
                 if let Some(descriptors) = e2pow6.descriptors.get(&idx) {
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow6.values.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_length(array, &mut queues, len);
                 }
+            } else {
+                panic!("ElementsVector was not unique");
             }
         });
         let mut e_2_8_marks: Box<[(ElementIndex, u32)]> = queues.e_2_8.drain(..).collect();
         e_2_8_marks.sort();
         e_2_8_marks.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some((marked, length)) = bits.e_2_8.get_mut(index) {
-                if *marked {
-                    // Already marked, panic: Elements are uniquely owned
-                    // and any other reference existing to this entry is a sign of
-                    // a GC algorithm bug.
-                    panic!("ElementsVector was not unique");
-                }
-                *marked = true;
-                *length = len as u8;
+            if bits.e_2_8.set_bit(index, &bits.bits) {
                 if let Some(descriptors) = e2pow8.descriptors.get(&idx) {
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow8.values.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_length(array, &mut queues, len);
                 }
+            } else {
+                panic!("ElementsVector was not unique");
             }
         });
         let mut e_2_10_marks: Box<[(ElementIndex, u32)]> = queues.e_2_10.drain(..).collect();
         e_2_10_marks.sort();
         e_2_10_marks.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some((marked, length)) = bits.e_2_10.get_mut(index) {
-                if *marked {
-                    // Already marked, panic: Elements are uniquely owned
-                    // and any other reference existing to this entry is a sign of
-                    // a GC algorithm bug.
-                    panic!("ElementsVector was not unique");
-                }
-                *marked = true;
-                *length = len as u16;
+            if bits.e_2_10.set_bit(index, &bits.bits) {
                 if let Some(descriptors) = e2pow10.descriptors.get(&idx) {
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow10.values.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_length(array, &mut queues, len);
                 }
+            } else {
+                panic!("ElementsVector was not unique");
             }
         });
         let mut e_2_12_marks: Box<[(ElementIndex, u32)]> = queues.e_2_12.drain(..).collect();
         e_2_12_marks.sort();
         e_2_12_marks.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some((marked, length)) = bits.e_2_12.get_mut(index) {
-                if *marked {
-                    // Already marked, panic: Elements are uniquely owned
-                    // and any other reference existing to this entry is a sign of
-                    // a GC algorithm bug.
-                    panic!("ElementsVector was not unique");
-                }
-                *marked = true;
-                *length = len as u16;
+            if bits.e_2_12.set_bit(index, &bits.bits) {
                 if let Some(descriptors) = e2pow12.descriptors.get(&idx) {
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow12.values.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_length(array, &mut queues, len);
                 }
+            } else {
+                panic!("ElementsVector was not unique");
             }
         });
         let mut e_2_16_marks: Box<[(ElementIndex, u32)]> = queues.e_2_16.drain(..).collect();
         e_2_16_marks.sort();
         e_2_16_marks.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some((marked, length)) = bits.e_2_16.get_mut(index) {
-                if *marked {
-                    // Already marked, panic: Elements are uniquely owned
-                    // and any other reference existing to this entry is a sign of
-                    // a GC algorithm bug.
-                    panic!("ElementsVector was not unique");
-                }
-                *marked = true;
-                *length = len as u16;
+            if bits.e_2_16.set_bit(index, &bits.bits) {
                 if let Some(descriptors) = e2pow16.descriptors.get(&idx) {
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow16.values.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_length(array, &mut queues, len);
                 }
+            } else {
+                panic!("ElementsVector was not unique");
             }
         });
         let mut e_2_24_marks: Box<[(ElementIndex, u32)]> = queues.e_2_24.drain(..).collect();
         e_2_24_marks.sort();
         e_2_24_marks.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some((marked, length)) = bits.e_2_24.get_mut(index) {
-                if *marked {
-                    // Already marked, panic: Elements are uniquely owned
-                    // and any other reference existing to this entry is a sign of
-                    // a GC algorithm bug.
-                    panic!("ElementsVector was not unique");
-                }
-                *marked = true;
-                *length = len;
+            if bits.e_2_24.set_bit(index, &bits.bits) {
                 if let Some(descriptors) = e2pow24.descriptors.get(&idx) {
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow24.values.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_length(array, &mut queues, len);
                 }
+            } else {
+                panic!("ElementsVector was not unique");
             }
         });
         let mut e_2_32_marks: Box<[(ElementIndex, u32)]> = queues.e_2_32.drain(..).collect();
         e_2_32_marks.sort();
         e_2_32_marks.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some((marked, length)) = bits.e_2_32.get_mut(index) {
-                if *marked {
-                    // Already marked, panic: Elements are uniquely owned
-                    // and any other reference existing to this entry is a sign of
-                    // a GC algorithm bug.
-                    panic!("ElementsVector was not unique");
-                }
-                *marked = true;
-                *length = len;
+            if bits.e_2_32.set_bit(index, &bits.bits) {
                 if let Some(descriptors) = e2pow32.descriptors.get(&idx) {
                     mark_descriptors(descriptors, &mut queues);
                 }
                 if let Some(array) = e2pow32.values.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_length(array, &mut queues, len);
                 }
+            } else {
+                panic!("ElementsVector was not unique");
             }
         });
 
@@ -1056,15 +985,9 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         k_2_4_marks.sort();
         k_2_4_marks.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some((marked, length)) = bits.k_2_4.get_mut(index) {
-                if *marked {
-                    // Already marked, ignore
-                    return;
-                }
-                *marked = true;
-                *length = len as u8;
+            if bits.k_2_4.set_bit(index, &bits.bits) {
                 if let Some(array) = k2pow4.keys.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_length(array, &mut queues, len);
                 }
             }
         });
@@ -1072,15 +995,9 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         k_2_1_marks.sort();
         k_2_1_marks.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some((marked, length)) = bits.k_2_1.get_mut(index) {
-                if *marked {
-                    // Already marked, ignore
-                    return;
-                }
-                *marked = true;
-                *length = len as u8;
+            if bits.k_2_1.set_bit(index, &bits.bits) {
                 if let Some(array) = k2pow1.keys.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_length(array, &mut queues, len);
                 }
             }
         });
@@ -1088,15 +1005,9 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         k_2_2_marks.sort();
         k_2_2_marks.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some((marked, length)) = bits.k_2_2.get_mut(index) {
-                if *marked {
-                    // Already marked, ignore
-                    return;
-                }
-                *marked = true;
-                *length = len as u8;
+            if bits.k_2_2.set_bit(index, &bits.bits) {
                 if let Some(array) = k2pow2.keys.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_length(array, &mut queues, len);
                 }
             }
         });
@@ -1104,15 +1015,9 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         k_2_3_marks.sort();
         k_2_3_marks.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some((marked, length)) = bits.k_2_3.get_mut(index) {
-                if *marked {
-                    // Already marked, ignore
-                    return;
-                }
-                *marked = true;
-                *length = len as u8;
+            if bits.k_2_3.set_bit(index, &bits.bits) {
                 if let Some(array) = k2pow3.keys.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_length(array, &mut queues, len);
                 }
             }
         });
@@ -1120,15 +1025,9 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         k_2_6_marks.sort();
         k_2_6_marks.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some((marked, length)) = bits.k_2_6.get_mut(index) {
-                if *marked {
-                    // Already marked, ignore
-                    return;
-                }
-                *marked = true;
-                *length = len as u8;
+            if bits.k_2_6.set_bit(index, &bits.bits) {
                 if let Some(array) = k2pow6.keys.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_length(array, &mut queues, len);
                 }
             }
         });
@@ -1136,15 +1035,9 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         k_2_8_marks.sort();
         k_2_8_marks.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some((marked, length)) = bits.k_2_8.get_mut(index) {
-                if *marked {
-                    // Already marked, ignore
-                    return;
-                }
-                *marked = true;
-                *length = len as u8;
+            if bits.k_2_8.set_bit(index, &bits.bits) {
                 if let Some(array) = k2pow8.keys.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_length(array, &mut queues, len);
                 }
             }
         });
@@ -1152,15 +1045,9 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         k_2_10_marks.sort();
         k_2_10_marks.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some((marked, length)) = bits.k_2_10.get_mut(index) {
-                if *marked {
-                    // Already marked, ignore
-                    return;
-                }
-                *marked = true;
-                *length = len as u16;
+            if bits.k_2_10.set_bit(index, &bits.bits) {
                 if let Some(array) = k2pow10.keys.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_length(array, &mut queues, len);
                 }
             }
         });
@@ -1168,15 +1055,9 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         k_2_12_marks.sort();
         k_2_12_marks.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some((marked, length)) = bits.k_2_12.get_mut(index) {
-                if *marked {
-                    // Already marked, ignore
-                    return;
-                }
-                *marked = true;
-                *length = len as u16;
+            if bits.k_2_12.set_bit(index, &bits.bits) {
                 if let Some(array) = k2pow12.keys.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_length(array, &mut queues, len);
                 }
             }
         });
@@ -1184,15 +1065,9 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         k_2_16_marks.sort();
         k_2_16_marks.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some((marked, length)) = bits.k_2_16.get_mut(index) {
-                if *marked {
-                    // Already marked, ignore
-                    return;
-                }
-                *marked = true;
-                *length = len as u16;
+            if bits.k_2_16.set_bit(index, &bits.bits) {
                 if let Some(array) = k2pow16.keys.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_length(array, &mut queues, len);
                 }
             }
         });
@@ -1200,15 +1075,9 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         k_2_24_marks.sort();
         k_2_24_marks.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some((marked, length)) = bits.k_2_24.get_mut(index) {
-                if *marked {
-                    // Already marked, ignore
-                    return;
-                }
-                *marked = true;
-                *length = len;
+            if bits.k_2_24.set_bit(index, &bits.bits) {
                 if let Some(array) = k2pow24.keys.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_length(array, &mut queues, len);
                 }
             }
         });
@@ -1216,15 +1085,9 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
         k_2_32_marks.sort();
         k_2_32_marks.iter().for_each(|&(idx, len)| {
             let index = idx.into_index();
-            if let Some((marked, length)) = bits.k_2_32.get_mut(index) {
-                if *marked {
-                    // Already marked, ignore
-                    return;
-                }
-                *marked = true;
-                *length = len;
+            if bits.k_2_32.set_bit(index, &bits.bits) {
                 if let Some(array) = k2pow32.keys.get(index) {
-                    mark_array_with_u32_length(array, &mut queues, len);
+                    mark_array_with_length(array, &mut queues, len);
                 }
             }
         });
@@ -1406,8 +1269,9 @@ fn sweep(
                     &compactions,
                     &compactions.e_2_1,
                     &bits.e_2_1,
+                    &bits.bits,
                 );
-                sweep_heap_u8_elements_vector_values(&mut e2pow1.values, &compactions, &bits.e_2_1);
+                sweep_heap_vector_values(&mut e2pow1.values, &compactions, &bits.e_2_1, &bits.bits);
             });
         }
         if !e2pow2.values.is_empty() {
@@ -1417,8 +1281,9 @@ fn sweep(
                     &compactions,
                     &compactions.e_2_2,
                     &bits.e_2_2,
+                    &bits.bits,
                 );
-                sweep_heap_u8_elements_vector_values(&mut e2pow2.values, &compactions, &bits.e_2_2);
+                sweep_heap_vector_values(&mut e2pow2.values, &compactions, &bits.e_2_2, &bits.bits);
             });
         }
         if !e2pow3.values.is_empty() {
@@ -1428,8 +1293,9 @@ fn sweep(
                     &compactions,
                     &compactions.e_2_3,
                     &bits.e_2_3,
+                    &bits.bits,
                 );
-                sweep_heap_u8_elements_vector_values(&mut e2pow3.values, &compactions, &bits.e_2_3);
+                sweep_heap_vector_values(&mut e2pow3.values, &compactions, &bits.e_2_3, &bits.bits);
             });
         }
         if !e2pow4.values.is_empty() {
@@ -1439,8 +1305,9 @@ fn sweep(
                     &compactions,
                     &compactions.e_2_4,
                     &bits.e_2_4,
+                    &bits.bits,
                 );
-                sweep_heap_u8_elements_vector_values(&mut e2pow4.values, &compactions, &bits.e_2_4);
+                sweep_heap_vector_values(&mut e2pow4.values, &compactions, &bits.e_2_4, &bits.bits);
             });
         }
         if !e2pow6.values.is_empty() {
@@ -1450,8 +1317,9 @@ fn sweep(
                     &compactions,
                     &compactions.e_2_6,
                     &bits.e_2_6,
+                    &bits.bits,
                 );
-                sweep_heap_u8_elements_vector_values(&mut e2pow6.values, &compactions, &bits.e_2_6);
+                sweep_heap_vector_values(&mut e2pow6.values, &compactions, &bits.e_2_6, &bits.bits);
             });
         }
         if !e2pow8.values.is_empty() {
@@ -1461,8 +1329,9 @@ fn sweep(
                     &compactions,
                     &compactions.e_2_8,
                     &bits.e_2_8,
+                    &bits.bits,
                 );
-                sweep_heap_u8_elements_vector_values(&mut e2pow8.values, &compactions, &bits.e_2_8);
+                sweep_heap_vector_values(&mut e2pow8.values, &compactions, &bits.e_2_8, &bits.bits);
             });
         }
         if !e2pow10.values.is_empty() {
@@ -1472,11 +1341,13 @@ fn sweep(
                     &compactions,
                     &compactions.e_2_10,
                     &bits.e_2_10,
+                    &bits.bits,
                 );
-                sweep_heap_u16_elements_vector_values(
+                sweep_heap_vector_values(
                     &mut e2pow10.values,
                     &compactions,
                     &bits.e_2_10,
+                    &bits.bits,
                 );
             });
         }
@@ -1487,11 +1358,13 @@ fn sweep(
                     &compactions,
                     &compactions.e_2_12,
                     &bits.e_2_12,
+                    &bits.bits,
                 );
-                sweep_heap_u16_elements_vector_values(
+                sweep_heap_vector_values(
                     &mut e2pow12.values,
                     &compactions,
                     &bits.e_2_12,
+                    &bits.bits,
                 );
             });
         }
@@ -1502,11 +1375,13 @@ fn sweep(
                     &compactions,
                     &compactions.e_2_16,
                     &bits.e_2_16,
+                    &bits.bits,
                 );
-                sweep_heap_u16_elements_vector_values(
+                sweep_heap_vector_values(
                     &mut e2pow16.values,
                     &compactions,
                     &bits.e_2_16,
+                    &bits.bits,
                 );
             });
         }
@@ -1517,11 +1392,13 @@ fn sweep(
                     &compactions,
                     &compactions.e_2_24,
                     &bits.e_2_24,
+                    &bits.bits,
                 );
-                sweep_heap_u32_elements_vector_values(
+                sweep_heap_vector_values(
                     &mut e2pow24.values,
                     &compactions,
                     &bits.e_2_24,
+                    &bits.bits,
                 );
             });
         }
@@ -1532,67 +1409,69 @@ fn sweep(
                     &compactions,
                     &compactions.e_2_32,
                     &bits.e_2_32,
+                    &bits.bits,
                 );
-                sweep_heap_u32_elements_vector_values(
+                sweep_heap_vector_values(
                     &mut e2pow32.values,
                     &compactions,
                     &bits.e_2_32,
+                    &bits.bits,
                 );
             });
         }
         if !k2pow1.keys.is_empty() {
             s.spawn(|| {
-                sweep_heap_u8_property_key_vector(&mut k2pow1.keys, &compactions, &bits.k_2_1);
+                sweep_heap_vector_values(&mut k2pow1.keys, &compactions, &bits.k_2_1, &bits.bits);
             });
         }
         if !k2pow2.keys.is_empty() {
             s.spawn(|| {
-                sweep_heap_u8_property_key_vector(&mut k2pow2.keys, &compactions, &bits.k_2_2);
+                sweep_heap_vector_values(&mut k2pow2.keys, &compactions, &bits.k_2_2, &bits.bits);
             });
         }
         if !k2pow3.keys.is_empty() {
             s.spawn(|| {
-                sweep_heap_u8_property_key_vector(&mut k2pow3.keys, &compactions, &bits.k_2_3);
+                sweep_heap_vector_values(&mut k2pow3.keys, &compactions, &bits.k_2_3, &bits.bits);
             });
         }
         if !k2pow4.keys.is_empty() {
             s.spawn(|| {
-                sweep_heap_u8_property_key_vector(&mut k2pow4.keys, &compactions, &bits.k_2_4);
+                sweep_heap_vector_values(&mut k2pow4.keys, &compactions, &bits.k_2_4, &bits.bits);
             });
         }
         if !k2pow6.keys.is_empty() {
             s.spawn(|| {
-                sweep_heap_u8_property_key_vector(&mut k2pow6.keys, &compactions, &bits.k_2_6);
+                sweep_heap_vector_values(&mut k2pow6.keys, &compactions, &bits.k_2_6, &bits.bits);
             });
         }
         if !k2pow8.keys.is_empty() {
             s.spawn(|| {
-                sweep_heap_u8_property_key_vector(&mut k2pow8.keys, &compactions, &bits.k_2_8);
+                sweep_heap_vector_values(&mut k2pow8.keys, &compactions, &bits.k_2_8, &bits.bits);
             });
         }
         if !k2pow10.keys.is_empty() {
             s.spawn(|| {
-                sweep_heap_u16_property_key_vector(&mut k2pow10.keys, &compactions, &bits.k_2_10);
+                sweep_heap_vector_values(&mut k2pow10.keys, &compactions, &bits.k_2_10, &bits.bits);
             });
         }
         if !k2pow12.keys.is_empty() {
             s.spawn(|| {
-                sweep_heap_u16_property_key_vector(&mut k2pow12.keys, &compactions, &bits.k_2_12);
+                sweep_heap_vector_values(&mut k2pow12.keys, &compactions, &bits.k_2_12, &bits.bits);
             });
         }
         if !k2pow16.keys.is_empty() {
             s.spawn(|| {
-                sweep_heap_u16_property_key_vector(&mut k2pow16.keys, &compactions, &bits.k_2_16);
+                sweep_heap_vector_values(&mut k2pow16.keys, &compactions, &bits.k_2_16, &bits.bits);
             });
         }
         if !k2pow24.keys.is_empty() {
             s.spawn(|| {
-                sweep_heap_u32_property_key_vector(&mut k2pow24.keys, &compactions, &bits.k_2_24);
+                sweep_heap_vector_values(&mut k2pow24.keys, &compactions, &bits.k_2_24, &bits.bits);
             });
         }
         if !k2pow32.keys.is_empty() {
             s.spawn(|| {
-                sweep_heap_u32_property_key_vector(&mut k2pow32.keys, &compactions, &bits.k_2_32);
+                sweep_heap_vector_values(&mut k2pow32.keys, &compactions, &bits.k_2_32, &bits.bits);
             });
         }
         #[cfg(feature = "array-buffer")]

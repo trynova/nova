@@ -15,8 +15,8 @@ use crate::{
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct ObjectRecord<'a> {
-    shape: ObjectShape<'a>,
-    values: ElementIndex<'a>,
+    pub(crate) shape: ObjectShape<'a>,
+    pub(crate) values: ElementIndex<'a>,
 }
 
 impl<'a> ObjectRecord<'a> {

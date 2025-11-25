@@ -83,8 +83,7 @@ use crate::ecmascript::{
         source_code::SourceCode,
     },
     types::{
-        BUILTIN_STRINGS_LIST, HeapNumber, HeapString, OrdinaryObject, PropertyKey, Symbol, Value,
-        bigint::HeapBigInt,
+        BUILTIN_STRINGS_LIST, HeapNumber, HeapString, OrdinaryObject, Symbol, bigint::HeapBigInt,
     },
 };
 use crate::engine::Executable;
@@ -109,17 +108,24 @@ impl BitRange {
     }
 
     /// Set a bit and return true if it was not already set.
-    pub(crate) fn mark_bit(&self, index: usize, bits: &[AtomicU8]) -> bool {
+    pub(crate) fn get_bit(&self, index: usize, bits: &[AtomicBits]) -> bool {
         let index = self.0.start + index;
         let byte_index = index / 8;
         let bit_index = (index % 8) as u8;
-        let byte = &bits[byte_index];
-        let bitmask = 1u8 << bit_index;
-        let old_value = byte.fetch_or(bitmask, Ordering::Relaxed);
-        (old_value & bitmask) == 0
+        let bits = &bits[byte_index];
+        bits.get_bit(BitOffset::new(bit_index))
     }
 
-    pub(crate) fn mark_range(&self, range_to_mark: Range<u32>, bits: &mut [AtomicU8]) {
+    /// Set a bit and return true if it was not already set.
+    pub(crate) fn set_bit(&self, index: usize, bits: &[AtomicBits]) -> bool {
+        let index = self.0.start + index;
+        let byte_index = index / 8;
+        let bit_index = (index % 8) as u8;
+        let bits = &bits[byte_index];
+        bits.set_bit(BitOffset::new(bit_index))
+    }
+
+    pub(crate) fn mark_range(&self, range_to_mark: Range<u32>, bits: &mut [AtomicBits]) {
         let start = self.0.start + range_to_mark.start as usize;
         let end = self.0.start + range_to_mark.end as usize;
 
@@ -127,14 +133,15 @@ impl BitRange {
 
         range.for_each_byte_mut(bits, |mark_byte, bit_iterator| {
             if let Some(bit_iterator) = bit_iterator {
-                *mark_byte = bit_iterator.fold(*mark_byte, |acc, bitmask| acc | bitmask);
+                *mark_byte =
+                    bit_iterator.fold(*mark_byte, |acc, bitmask| acc | bitmask.into_bitmask());
             } else {
                 *mark_byte = 0xFF;
             }
         });
     }
 
-    pub(crate) fn iter<'a>(&self, bits: &'a [AtomicU8]) -> BitRangeIterator<'a> {
+    pub(crate) fn iter<'a>(&self, bits: &'a [AtomicBits]) -> BitRangeIterator<'a> {
         let (byte_range, bit_range) = BitOffset::from_range(&self.0);
         let bits = &bits[byte_range.start..byte_range.end];
         BitRangeIterator { bits, bit_range }
@@ -143,8 +150,8 @@ impl BitRange {
     #[inline]
     pub(crate) fn for_each_byte(
         &self,
-        marks: &[AtomicU8],
-        mut cb: impl FnMut(&AtomicU8, Option<BitIterator>),
+        marks: &[AtomicBits],
+        mut cb: impl FnMut(&AtomicBits, Option<BitIterator>),
     ) {
         let (byte_range, bit_range) = BitOffset::from_range(&self.0);
         let mut marks = &marks[byte_range.start..byte_range.end];
@@ -176,7 +183,7 @@ impl BitRange {
     #[inline]
     pub(crate) fn for_each_byte_mut(
         &self,
-        marks: &mut [AtomicU8],
+        marks: &mut [AtomicBits],
         mut cb: impl FnMut(&mut u8, Option<BitIterator>),
     ) {
         let (byte_range, bit_range) = BitOffset::from_range(&self.0);
@@ -209,21 +216,32 @@ impl BitRange {
     }
 }
 
-#[derive(Debug)]
 pub(crate) struct BitRangeIterator<'a> {
-    bits: &'a [AtomicU8],
+    bits: &'a [AtomicBits],
     bit_range: Range<BitOffset>,
 }
 
 impl<'a> Iterator for BitRangeIterator<'a> {
     type Item = bool;
 
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let mut hint = self.bits.len() * 8;
+        if !self.bit_range.start.is_zero() {
+            // Reduce before-start bits.
+            hint -= self.bit_range.start.0 as usize;
+        }
+        if !self.bit_range.end.is_zero() {
+            // Reduce after-end bits.
+            hint -= (8 - self.bit_range.end.0) as usize;
+        }
+        (hint, Some(hint))
+    }
+
     fn next(&mut self) -> Option<Self::Item> {
         let Some(byte) = self.bits.first() else {
             return None;
         };
-        let bitmask = self.bit_range.start.advance();
-        let value = (byte.load(Ordering::Relaxed) & bitmask) > 0;
+        let value = byte.get_bit(self.bit_range.start.advance());
         if self.bits.len() == 1 && self.bit_range.start == self.bit_range.end {
             // We've reached the end of our bit range.
             self.bits = &[];
@@ -236,15 +254,37 @@ impl<'a> Iterator for BitRangeIterator<'a> {
     }
 }
 
+impl ExactSizeIterator for BitRangeIterator<'_> {}
+
+impl core::fmt::Debug for BitRangeIterator<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let clone = Self {
+            bits: self.bits,
+            bit_range: self.bit_range.clone(),
+        };
+        let result = clone.fold(String::with_capacity(self.bits.len()), |a, b| {
+            a + if b { "1" } else { "0" }
+        });
+        f.debug_struct("BitRangeIterator")
+            .field("bits", &result)
+            .finish()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct BitOffset(u8);
 
 impl BitOffset {
-    fn advance(&mut self) -> u8 {
-        let bitmask = self.into_bitmask();
+    fn new(value: u8) -> Self {
+        unsafe { assert_unchecked(value < 8) };
+        Self(value)
+    }
+
+    fn advance(&mut self) -> BitOffset {
+        let offset = *self;
         self.0 = (self.0 + 1) % 8;
-        bitmask
+        offset
     }
 
     #[inline]
@@ -323,7 +363,7 @@ impl BitIterator {
 }
 
 impl Iterator for BitIterator {
-    type Item = u8;
+    type Item = BitOffset;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.start == self.end {
@@ -336,31 +376,57 @@ impl Iterator for BitIterator {
     }
 }
 
+#[derive(Debug, Default)]
+#[repr(transparent)]
+pub(crate) struct AtomicBits(AtomicU8);
+
+impl AtomicBits {
+    #[inline]
+    fn get_mut(&mut self) -> &mut u8 {
+        self.0.get_mut()
+    }
+
+    /// Get the nth bit atomically. Returns true if the bit is set.
+    #[inline]
+    fn get_bit(&self, offset: BitOffset) -> bool {
+        (self.0.load(Ordering::Relaxed) & offset.into_bitmask()) > 0
+    }
+
+    /// Set the nth bit atomically. Returns true if the bit was previously
+    /// unset.
+    #[inline]
+    fn set_bit(&self, offset: BitOffset) -> bool {
+        let bitmask = offset.into_bitmask();
+        let old_value = self.0.fetch_or(bitmask, Ordering::Relaxed);
+        (old_value & bitmask) == 0
+    }
+}
+
 #[derive(Debug)]
 pub struct HeapBits {
-    pub(crate) bits: Box<[AtomicU8]>,
-    pub e_2_1: Box<[(bool, u8)]>,
-    pub e_2_2: Box<[(bool, u8)]>,
-    pub e_2_3: Box<[(bool, u8)]>,
-    pub e_2_4: Box<[(bool, u8)]>,
-    pub e_2_6: Box<[(bool, u8)]>,
-    pub e_2_8: Box<[(bool, u8)]>,
-    pub e_2_10: Box<[(bool, u16)]>,
-    pub e_2_12: Box<[(bool, u16)]>,
-    pub e_2_16: Box<[(bool, u16)]>,
-    pub e_2_24: Box<[(bool, u32)]>,
-    pub e_2_32: Box<[(bool, u32)]>,
-    pub k_2_1: Box<[(bool, u8)]>,
-    pub k_2_2: Box<[(bool, u8)]>,
-    pub k_2_3: Box<[(bool, u8)]>,
-    pub k_2_4: Box<[(bool, u8)]>,
-    pub k_2_6: Box<[(bool, u8)]>,
-    pub k_2_8: Box<[(bool, u8)]>,
-    pub k_2_10: Box<[(bool, u16)]>,
-    pub k_2_12: Box<[(bool, u16)]>,
-    pub k_2_16: Box<[(bool, u16)]>,
-    pub k_2_24: Box<[(bool, u32)]>,
-    pub k_2_32: Box<[(bool, u32)]>,
+    pub(crate) bits: Box<[AtomicBits]>,
+    pub(crate) e_2_1: BitRange,
+    pub(crate) e_2_2: BitRange,
+    pub(crate) e_2_3: BitRange,
+    pub(crate) e_2_4: BitRange,
+    pub(crate) e_2_6: BitRange,
+    pub(crate) e_2_8: BitRange,
+    pub(crate) e_2_10: BitRange,
+    pub(crate) e_2_12: BitRange,
+    pub(crate) e_2_16: BitRange,
+    pub(crate) e_2_24: BitRange,
+    pub(crate) e_2_32: BitRange,
+    pub(crate) k_2_1: BitRange,
+    pub(crate) k_2_2: BitRange,
+    pub(crate) k_2_3: BitRange,
+    pub(crate) k_2_4: BitRange,
+    pub(crate) k_2_6: BitRange,
+    pub(crate) k_2_8: BitRange,
+    pub(crate) k_2_10: BitRange,
+    pub(crate) k_2_12: BitRange,
+    pub(crate) k_2_16: BitRange,
+    pub(crate) k_2_24: BitRange,
+    pub(crate) k_2_32: BitRange,
     #[cfg(feature = "array-buffer")]
     pub array_buffers: BitRange,
     pub arrays: BitRange,
@@ -532,28 +598,249 @@ pub(crate) struct WorkQueues {
 impl HeapBits {
     pub fn new(heap: &Heap) -> Self {
         let mut bit_count = 0;
-        let e_2_1 = vec![(false, 0u8); heap.elements.e2pow1.values.len()];
-        let e_2_2 = vec![(false, 0u8); heap.elements.e2pow2.values.len()];
-        let e_2_3 = vec![(false, 0u8); heap.elements.e2pow3.values.len()];
-        let e_2_4 = vec![(false, 0u8); heap.elements.e2pow4.values.len()];
-        let e_2_6 = vec![(false, 0u8); heap.elements.e2pow6.values.len()];
-        let e_2_8 = vec![(false, 0u8); heap.elements.e2pow8.values.len()];
-        let e_2_10 = vec![(false, 0u16); heap.elements.e2pow10.values.len()];
-        let e_2_12 = vec![(false, 0u16); heap.elements.e2pow12.values.len()];
-        let e_2_16 = vec![(false, 0u16); heap.elements.e2pow16.values.len()];
-        let e_2_24 = vec![(false, 0u32); heap.elements.e2pow24.values.len()];
-        let e_2_32 = vec![(false, 0u32); heap.elements.e2pow32.values.len()];
-        let k_2_1 = vec![(false, 0u8); heap.elements.k2pow1.keys.len()];
-        let k_2_2 = vec![(false, 0u8); heap.elements.k2pow2.keys.len()];
-        let k_2_3 = vec![(false, 0u8); heap.elements.k2pow3.keys.len()];
-        let k_2_4 = vec![(false, 0u8); heap.elements.k2pow4.keys.len()];
-        let k_2_6 = vec![(false, 0u8); heap.elements.k2pow6.keys.len()];
-        let k_2_8 = vec![(false, 0u8); heap.elements.k2pow8.keys.len()];
-        let k_2_10 = vec![(false, 0u16); heap.elements.k2pow10.keys.len()];
-        let k_2_12 = vec![(false, 0u16); heap.elements.k2pow12.keys.len()];
-        let k_2_16 = vec![(false, 0u16); heap.elements.k2pow16.keys.len()];
-        let k_2_24 = vec![(false, 0u32); heap.elements.k2pow24.keys.len()];
-        let k_2_32 = vec![(false, 0u32); heap.elements.k2pow32.keys.len()];
+
+        let e_2_1 = if heap.elements.e2pow1.values.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.elements.e2pow1.values.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let e_2_2 = if heap.elements.e2pow2.values.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.elements.e2pow2.values.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let e_2_3 = if heap.elements.e2pow3.values.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.elements.e2pow3.values.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let e_2_4 = if heap.elements.e2pow4.values.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.elements.e2pow4.values.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let e_2_6 = if heap.elements.e2pow6.values.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.elements.e2pow6.values.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let e_2_8 = if heap.elements.e2pow8.values.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.elements.e2pow8.values.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let k_2_1 = if heap.elements.k2pow1.keys.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.elements.k2pow1.keys.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let k_2_2 = if heap.elements.k2pow2.keys.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.elements.k2pow2.keys.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let k_2_3 = if heap.elements.k2pow3.keys.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.elements.k2pow3.keys.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let k_2_4 = if heap.elements.k2pow4.keys.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.elements.k2pow4.keys.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let k_2_6 = if heap.elements.k2pow6.keys.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.elements.k2pow6.keys.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let k_2_8 = if heap.elements.k2pow8.keys.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.elements.k2pow8.keys.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let e_2_10 = if heap.elements.e2pow10.values.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.elements.e2pow10.values.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let e_2_12 = if heap.elements.e2pow12.values.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.elements.e2pow12.values.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let e_2_16 = if heap.elements.e2pow16.values.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.elements.e2pow16.values.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let k_2_10 = if heap.elements.k2pow10.keys.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.elements.k2pow10.keys.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let k_2_12 = if heap.elements.k2pow12.keys.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.elements.k2pow12.keys.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let k_2_16 = if heap.elements.k2pow16.keys.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.elements.k2pow16.keys.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let e_2_24 = if heap.elements.e2pow24.values.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.elements.e2pow24.values.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let e_2_32 = if heap.elements.e2pow32.values.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.elements.e2pow32.values.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let k_2_24 = if heap.elements.k2pow24.keys.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.elements.k2pow24.keys.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
+        let k_2_32 = if heap.elements.k2pow32.keys.is_empty() {
+            Default::default()
+        } else {
+            let count = heap.elements.k2pow32.keys.len();
+            let start = bit_count;
+            bit_count += count;
+            BitRange::from_range(Range {
+                start,
+                end: bit_count,
+            })
+        };
         #[cfg(feature = "array-buffer")]
         let array_buffers = if heap.array_buffers.is_empty() {
             Default::default()
@@ -1185,8 +1472,8 @@ impl HeapBits {
             })
         };
         let byte_count = bit_count.div_ceil(8) as usize;
-        let mut bits = Box::<[AtomicU8]>::new_uninit_slice(byte_count);
-        bits.fill_with(|| MaybeUninit::new(AtomicU8::new(0)));
+        let mut bits = Box::<[AtomicBits]>::new_uninit_slice(byte_count);
+        bits.fill_with(|| MaybeUninit::new(Default::default()));
         // SAFETY: filled in.
         let bits = unsafe { bits.assume_init() };
         Self {
@@ -1207,28 +1494,28 @@ impl HeapBits {
             #[cfg(feature = "date")]
             dates: dates,
             declarative_environments: declarative_environments,
-            e_2_1: e_2_1.into_boxed_slice(),
-            e_2_2: e_2_2.into_boxed_slice(),
-            e_2_3: e_2_3.into_boxed_slice(),
-            e_2_4: e_2_4.into_boxed_slice(),
-            e_2_6: e_2_6.into_boxed_slice(),
-            e_2_8: e_2_8.into_boxed_slice(),
-            e_2_10: e_2_10.into_boxed_slice(),
-            e_2_12: e_2_12.into_boxed_slice(),
-            e_2_16: e_2_16.into_boxed_slice(),
-            e_2_24: e_2_24.into_boxed_slice(),
-            e_2_32: e_2_32.into_boxed_slice(),
-            k_2_1: k_2_1.into_boxed_slice(),
-            k_2_2: k_2_2.into_boxed_slice(),
-            k_2_3: k_2_3.into_boxed_slice(),
-            k_2_4: k_2_4.into_boxed_slice(),
-            k_2_6: k_2_6.into_boxed_slice(),
-            k_2_8: k_2_8.into_boxed_slice(),
-            k_2_10: k_2_10.into_boxed_slice(),
-            k_2_12: k_2_12.into_boxed_slice(),
-            k_2_16: k_2_16.into_boxed_slice(),
-            k_2_24: k_2_24.into_boxed_slice(),
-            k_2_32: k_2_32.into_boxed_slice(),
+            e_2_1,
+            e_2_2,
+            e_2_3,
+            e_2_4,
+            e_2_6,
+            e_2_8,
+            e_2_10,
+            e_2_12,
+            e_2_16,
+            e_2_24,
+            e_2_32,
+            k_2_1,
+            k_2_2,
+            k_2_3,
+            k_2_4,
+            k_2_6,
+            k_2_8,
+            k_2_10,
+            k_2_12,
+            k_2_16,
+            k_2_24,
+            k_2_32,
             ecmascript_functions: ecmascript_functions,
             embedder_objects: embedder_objects,
             errors: errors,
@@ -1601,6 +1888,23 @@ pub(crate) struct CompactionList {
     shifts: SoAVec<ShiftData>,
 }
 
+impl core::fmt::Debug for CompactionList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let slices = self.shifts.as_slice();
+
+        f.debug_list()
+            .entries(
+                slices
+                    .index
+                    .iter()
+                    .as_slice()
+                    .iter()
+                    .zip(slices.shift.iter()),
+            )
+            .finish()
+    }
+}
+
 impl CompactionList {
     /// Perform a shift on a strongly held reference index. Returns a shifted
     /// index.
@@ -1740,7 +2044,7 @@ impl CompactionList {
         Self { shifts }
     }
 
-    pub(crate) fn from_mark_bits(range: &BitRange, marks: &[AtomicU8]) -> Self {
+    pub(crate) fn from_mark_bits(range: &BitRange, marks: &[AtomicBits]) -> Self {
         let builder = CompactionListBuilder::with_bits_length(range.len() as u32);
         if range.is_empty() {
             return builder.done();
@@ -1749,19 +2053,17 @@ impl CompactionList {
         range.for_each_byte(marks, |mark_byte, bit_iterator| {
             // SAFETY: synchronous calls.
             let builder = unsafe { builder.get().as_mut().unwrap() };
-            let mark_byte = mark_byte.load(Ordering::Relaxed);
             if let Some(bit_iterator) = bit_iterator {
-                for bitmask in bit_iterator {
-                    if (mark_byte & bitmask) > 0 {
+                for bit_offset in bit_iterator {
+                    if mark_byte.get_bit(bit_offset) {
                         builder.mark_used();
                     } else {
                         builder.mark_unused();
                     }
                 }
             } else {
-                for inner_bit_offset in 0..8 {
-                    let bitmask = 1u8 << inner_bit_offset;
-                    if (mark_byte & bitmask) > 0 {
+                for bit_offset in 0..8 {
+                    if mark_byte.get_bit(BitOffset::new(bit_offset)) {
                         builder.mark_used();
                     } else {
                         builder.mark_unused();
@@ -1770,42 +2072,6 @@ impl CompactionList {
             }
         });
         builder.into_inner().done()
-    }
-
-    pub(crate) fn from_mark_u8s(marks: &[(bool, u8)]) -> Self {
-        let mut builder = CompactionListBuilder::with_bits_length(marks.len() as u32);
-        marks.iter().for_each(|mark| {
-            if mark.0 {
-                builder.mark_used();
-            } else {
-                builder.mark_unused();
-            }
-        });
-        builder.done()
-    }
-
-    pub(crate) fn from_mark_u16s(marks: &[(bool, u16)]) -> Self {
-        let mut builder = CompactionListBuilder::with_bits_length(marks.len() as u32);
-        marks.iter().for_each(|mark| {
-            if mark.0 {
-                builder.mark_used();
-            } else {
-                builder.mark_unused();
-            }
-        });
-        builder.done()
-    }
-
-    pub(crate) fn from_mark_u32s(marks: &[(bool, u32)]) -> Self {
-        let mut builder = CompactionListBuilder::with_bits_length(marks.len() as u32);
-        marks.iter().for_each(|mark| {
-            if mark.0 {
-                builder.mark_used();
-            } else {
-                builder.mark_unused();
-            }
-        });
-        builder.done()
     }
 }
 
@@ -2017,28 +2283,28 @@ impl CompactionLists {
                 &bits.object_environments,
                 &bits.bits,
             ),
-            e_2_1: CompactionList::from_mark_u8s(&bits.e_2_1),
-            e_2_2: CompactionList::from_mark_u8s(&bits.e_2_2),
-            e_2_3: CompactionList::from_mark_u8s(&bits.e_2_3),
-            e_2_4: CompactionList::from_mark_u8s(&bits.e_2_4),
-            e_2_6: CompactionList::from_mark_u8s(&bits.e_2_6),
-            e_2_8: CompactionList::from_mark_u8s(&bits.e_2_8),
-            e_2_10: CompactionList::from_mark_u16s(&bits.e_2_10),
-            e_2_12: CompactionList::from_mark_u16s(&bits.e_2_12),
-            e_2_16: CompactionList::from_mark_u16s(&bits.e_2_16),
-            e_2_24: CompactionList::from_mark_u32s(&bits.e_2_24),
-            e_2_32: CompactionList::from_mark_u32s(&bits.e_2_32),
-            k_2_1: CompactionList::from_mark_u8s(&bits.k_2_1),
-            k_2_2: CompactionList::from_mark_u8s(&bits.k_2_2),
-            k_2_3: CompactionList::from_mark_u8s(&bits.k_2_3),
-            k_2_4: CompactionList::from_mark_u8s(&bits.k_2_4),
-            k_2_6: CompactionList::from_mark_u8s(&bits.k_2_6),
-            k_2_8: CompactionList::from_mark_u8s(&bits.k_2_8),
-            k_2_10: CompactionList::from_mark_u16s(&bits.k_2_10),
-            k_2_12: CompactionList::from_mark_u16s(&bits.k_2_12),
-            k_2_16: CompactionList::from_mark_u16s(&bits.k_2_16),
-            k_2_24: CompactionList::from_mark_u32s(&bits.k_2_24),
-            k_2_32: CompactionList::from_mark_u32s(&bits.k_2_32),
+            e_2_1: CompactionList::from_mark_bits(&bits.e_2_1, &bits.bits),
+            e_2_2: CompactionList::from_mark_bits(&bits.e_2_2, &bits.bits),
+            e_2_3: CompactionList::from_mark_bits(&bits.e_2_3, &bits.bits),
+            e_2_4: CompactionList::from_mark_bits(&bits.e_2_4, &bits.bits),
+            e_2_6: CompactionList::from_mark_bits(&bits.e_2_6, &bits.bits),
+            e_2_8: CompactionList::from_mark_bits(&bits.e_2_8, &bits.bits),
+            e_2_10: CompactionList::from_mark_bits(&bits.e_2_10, &bits.bits),
+            e_2_12: CompactionList::from_mark_bits(&bits.e_2_12, &bits.bits),
+            e_2_16: CompactionList::from_mark_bits(&bits.e_2_16, &bits.bits),
+            e_2_24: CompactionList::from_mark_bits(&bits.e_2_24, &bits.bits),
+            e_2_32: CompactionList::from_mark_bits(&bits.e_2_32, &bits.bits),
+            k_2_1: CompactionList::from_mark_bits(&bits.k_2_1, &bits.bits),
+            k_2_2: CompactionList::from_mark_bits(&bits.k_2_2, &bits.bits),
+            k_2_3: CompactionList::from_mark_bits(&bits.k_2_3, &bits.bits),
+            k_2_4: CompactionList::from_mark_bits(&bits.k_2_4, &bits.bits),
+            k_2_6: CompactionList::from_mark_bits(&bits.k_2_6, &bits.bits),
+            k_2_8: CompactionList::from_mark_bits(&bits.k_2_8, &bits.bits),
+            k_2_10: CompactionList::from_mark_bits(&bits.k_2_10, &bits.bits),
+            k_2_12: CompactionList::from_mark_bits(&bits.k_2_12, &bits.bits),
+            k_2_16: CompactionList::from_mark_bits(&bits.k_2_16, &bits.bits),
+            k_2_24: CompactionList::from_mark_bits(&bits.k_2_24, &bits.bits),
+            k_2_32: CompactionList::from_mark_bits(&bits.k_2_32, &bits.bits),
             arrays: CompactionList::from_mark_bits(&bits.arrays, &bits.bits),
             #[cfg(feature = "array-buffer")]
             array_buffers: CompactionList::from_mark_bits(&bits.array_buffers, &bits.bits),
@@ -2212,6 +2478,25 @@ where
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         if let Some(content) = self {
             content.sweep_values(compactions);
+        }
+    }
+}
+
+impl<const N: usize, T> HeapMarkAndSweep for [T; N]
+where
+    T: HeapMarkAndSweep,
+{
+    #[inline]
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        for elem in self {
+            elem.mark_values(queues);
+        }
+    }
+
+    #[inline]
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        for elem in self {
+            elem.sweep_values(compactions);
         }
     }
 }
@@ -2577,7 +2862,7 @@ impl<K: HeapMarkAndSweep + core::fmt::Debug + Copy + Hash + Eq + Ord, V: HeapSwe
     }
 }
 
-pub(crate) fn mark_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
+pub(crate) fn mark_array_with_length<T: HeapMarkAndSweep, const N: usize>(
     array: &[T; N],
     queues: &mut WorkQueues,
     length: u32,
@@ -2596,26 +2881,11 @@ pub(crate) fn mark_descriptors(
     }
 }
 
-fn sweep_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
-    array: &mut [T; N],
-    compactions: &CompactionLists,
-    length: u32,
-) {
-    if length == 0 {
-        return;
-    }
-    array.as_mut()[..length as usize]
-        .iter_mut()
-        .for_each(|value| {
-            value.sweep_values(compactions);
-        });
-}
-
 pub(crate) fn sweep_heap_vector_values<T: HeapMarkAndSweep>(
     vec: &mut Vec<T>,
     compactions: &CompactionLists,
     range: &BitRange,
-    bits: &[AtomicU8],
+    bits: &[AtomicBits],
 ) {
     assert_eq!(vec.len(), range.len());
     let mut iter = range.iter(bits);
@@ -2634,7 +2904,7 @@ pub(crate) fn sweep_heap_soa_vector_values<T: SoAble>(
     vec: &mut SoAVec<T>,
     compactions: &CompactionLists,
     range: &BitRange,
-    bits: &[AtomicU8],
+    bits: &[AtomicBits],
 ) where
     for<'a> T::Mut<'a>: HeapMarkAndSweep,
 {
@@ -2651,125 +2921,18 @@ pub(crate) fn sweep_heap_soa_vector_values<T: SoAble>(
     });
 }
 
-pub(crate) fn sweep_heap_u8_property_key_vector<const N: usize>(
-    vec: &mut Vec<[Option<PropertyKey<'static>>; N]>,
-    compactions: &CompactionLists,
-    u8s: &[(bool, u8)],
-) {
-    assert_eq!(vec.len(), u8s.len());
-    let mut iter = u8s.iter();
-    vec.retain_mut(|item| {
-        let (mark, length) = iter.next().unwrap();
-        if *mark {
-            sweep_array_with_u32_length(item, compactions, *length as u32);
-            true
-        } else {
-            false
-        }
-    });
-}
-
-pub(crate) fn sweep_heap_u16_property_key_vector<const N: usize>(
-    vec: &mut Vec<[Option<PropertyKey<'static>>; N]>,
-    compactions: &CompactionLists,
-    u16s: &[(bool, u16)],
-) {
-    assert_eq!(vec.len(), u16s.len());
-    let mut iter = u16s.iter();
-    vec.retain_mut(|item| {
-        let (mark, length) = iter.next().unwrap();
-        if *mark {
-            sweep_array_with_u32_length(item, compactions, *length as u32);
-            true
-        } else {
-            false
-        }
-    });
-}
-
-pub(crate) fn sweep_heap_u32_property_key_vector<const N: usize>(
-    vec: &mut Vec<[Option<PropertyKey<'static>>; N]>,
-    compactions: &CompactionLists,
-    u32s: &[(bool, u32)],
-) {
-    assert_eq!(vec.len(), u32s.len());
-    let mut iter = u32s.iter();
-    vec.retain_mut(|item| {
-        let (mark, length) = iter.next().unwrap();
-        if *mark {
-            sweep_array_with_u32_length(item, compactions, *length);
-            true
-        } else {
-            false
-        }
-    });
-}
-
-pub(crate) fn sweep_heap_u8_elements_vector_values<const N: usize>(
-    vec: &mut Vec<[Option<Value<'static>>; N]>,
-    compactions: &CompactionLists,
-    u8s: &[(bool, u8)],
-) {
-    assert_eq!(vec.len(), u8s.len());
-    let mut iter = u8s.iter();
-    vec.retain_mut(|item| {
-        let (mark, length) = iter.next().unwrap();
-        if *mark {
-            sweep_array_with_u32_length(item, compactions, *length as u32);
-            true
-        } else {
-            false
-        }
-    });
-}
-
-pub(crate) fn sweep_heap_u16_elements_vector_values<const N: usize>(
-    vec: &mut Vec<[Option<Value<'static>>; N]>,
-    compactions: &CompactionLists,
-    u16s: &[(bool, u16)],
-) {
-    assert_eq!(vec.len(), u16s.len());
-    let mut iter = u16s.iter();
-    vec.retain_mut(|item| {
-        let (mark, length) = iter.next().unwrap();
-        if *mark {
-            sweep_array_with_u32_length(item, compactions, *length as u32);
-            true
-        } else {
-            false
-        }
-    });
-}
-
-pub(crate) fn sweep_heap_u32_elements_vector_values<const N: usize>(
-    vec: &mut Vec<[Option<Value<'static>>; N]>,
-    compactions: &CompactionLists,
-    u32s: &[(bool, u32)],
-) {
-    assert_eq!(vec.len(), u32s.len());
-    let mut iter = u32s.iter();
-    vec.retain_mut(|item| {
-        let (mark, length) = iter.next().unwrap();
-        if *mark {
-            sweep_array_with_u32_length(item, compactions, *length);
-            true
-        } else {
-            false
-        }
-    });
-}
-
-pub(crate) fn sweep_heap_elements_vector_descriptors<T>(
+pub(crate) fn sweep_heap_elements_vector_descriptors(
     descriptors: &mut AHashMap<ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
     compactions: &CompactionLists,
     self_compactions: &CompactionList,
-    marks: &[(bool, T)],
+    range: &BitRange,
+    bits: &[AtomicBits],
 ) {
-    let mut keys_to_remove = Vec::with_capacity(marks.len() / 4);
-    let mut keys_to_reassign = Vec::with_capacity(marks.len() / 4);
+    let mut keys_to_remove = Vec::with_capacity(range.len() / 4);
+    let mut keys_to_reassign = Vec::with_capacity(range.len() / 4);
     for (key, descriptor) in descriptors.iter_mut() {
         let old_key = *key;
-        if !marks.get(key.into_index()).unwrap().0 {
+        if !range.get_bit(old_key.into_index(), bits) {
             keys_to_remove.push(old_key);
         } else {
             for descriptor in descriptor.values_mut() {
