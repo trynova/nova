@@ -115,8 +115,8 @@ impl SetPrototype {
         // 3. Set value to CanonicalizeKeyedCollectionKey(value).
         let value = canonicalize_keyed_collection_key(numbers, value);
 
-        let set_heap_data = &mut sets[s].borrow_mut(&primitive_heap);
-        let values = &mut set_heap_data.values;
+        let set_heap_data = s.get_direct_mut(sets);
+        let values = set_heap_data.values;
         let set_data = set_heap_data.set_data.get_mut();
         let hasher = |value: Value| {
             let mut hasher = AHasher::default();
@@ -166,7 +166,9 @@ impl SetPrototype {
         // 3. For each element e of S.[[SetData]], do
         // a. Replace the element of S.[[SetData]] whose value is e with an
         // element whose value is EMPTY.
-        agent[s].clear();
+        let data = s.get_mut(agent);
+        data.set_data.borrow_mut().clear();
+        data.values.clear();
         // 4. Return undefined.
         Ok(Value::Undefined)
     }
@@ -206,8 +208,8 @@ impl SetPrototype {
             value.hash(&primitive_heap, &mut hasher);
             hasher.finish()
         };
-        let set_heap_data = &mut sets[s].borrow_mut(&primitive_heap);
-        let values = &mut set_heap_data.values;
+        let set_heap_data = s.get_direct_mut(sets);
+        let values = set_heap_data.values;
         let set_data = set_heap_data.set_data.get_mut();
         // 4. For each element e of S.[[SetData]], do
         if let Ok(entry) = set_data.find_entry(value_hash, |hash_equal_index| {
@@ -309,7 +311,7 @@ impl SetPrototype {
         // 5. Let numEntries be the number of elements in entries.
         // Note: We must use the values vector length, not the size. The size
         // does not contain empty slots.
-        let mut num_entries = agent[s].values(gc.nogc()).len() as u32;
+        let mut num_entries = s.get(agent).values.len() as u32;
 
         let callback_fn = callback_fn.scope(agent, nogc);
         let scoped_s = s.scope(agent, nogc);
@@ -320,7 +322,7 @@ impl SetPrototype {
         // 7. Repeat, while index < numEntries,
         while index < num_entries {
             // a. Let e be entries[index].
-            let e = agent[s].values(gc.nogc())[index as usize];
+            let e = s.get(agent).values[index as usize];
             // b. Set index to index + 1.
             index += 1;
             // c. If e is not EMPTY, then
@@ -341,7 +343,7 @@ impl SetPrototype {
                 // ii. NOTE: The number of elements in entries may have increased during execution of callbackfn.
                 // iii. Set numEntries to the number of elements in entries.
                 s = scoped_s.get(agent).bind(gc.nogc());
-                num_entries = agent[s].values(gc.nogc()).len() as u32;
+                num_entries = s.get(agent).values.len() as u32;
             }
         }
         // 8. Return undefined.
@@ -370,8 +372,8 @@ impl SetPrototype {
             ..
         } = &agent.heap;
         let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
-        let set_heap_data = &sets[s].borrow(&primitive_heap);
-        let values = &set_heap_data.values;
+        let set_heap_data = s.get_direct(sets);
+        let values = set_heap_data.values;
         let set_data = set_heap_data.set_data.borrow();
 
         // 3. Set value to CanonicalizeKeyedCollectionKey(value).
@@ -410,7 +412,7 @@ impl SetPrototype {
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value, gc)?;
         // 3. Let size be SetDataSize(S.[[SetData]]).
-        let size = agent[s].size();
+        let size = s.get(agent).set_data.borrow().len() as u32;
         // 4. Return 𝔽(size).
         Ok(Number::from(size).into_value())
     }

@@ -3,12 +3,9 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    ecmascript::types::{
-        BIGINT_DISCRIMINANT, HeapNumber, HeapString, NUMBER_DISCRIMINANT, OrdinaryObject,
-        STRING_DISCRIMINANT, Value, bigint::HeapBigInt,
-    },
-    engine::context::{Bindable, NoGcScope, bindable_handle},
-    heap::{CompactionLists, HeapMarkAndSweep, PrimitiveHeapIndexable, WorkQueues},
+    ecmascript::types::{OrdinaryObject, Value},
+    engine::context::bindable_handle,
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 use ahash::AHasher;
 use core::{
@@ -16,7 +13,7 @@ use core::{
     hash::{Hash, Hasher},
     sync::atomic::{AtomicBool, Ordering},
 };
-use hashbrown::{HashTable, hash_table::Entry};
+use hashbrown::HashTable;
 use soavec_derive::SoAble;
 
 #[derive(Debug, Default, SoAble)]
@@ -36,115 +33,6 @@ pub struct SetHeapData<'a> {
     // TODO: When an non-terminal (start or end) iterator exists for the Set,
     // the items in the set cannot be compacted.
     // pub(crate) observed: bool;
-}
-
-impl<'a> SetHeapData<'a> {
-    /// ### [24.2.1.5 SetDataSize ( setData )](https://tc39.es/ecma262/#sec-setdatasize)
-    ///
-    /// The abstract operation SetDataSize takes argument setData (a List of either
-    /// ECMAScript language values or EMPTY) and returns a non-negative integer.
-    #[inline(always)]
-    pub fn size(&self) -> u32 {
-        // 1. Let count be 0.
-        // 2. For each element e of setData, do
-        // a. If e is not EMPTY, set count to count + 1.
-        // 3. Return count.
-        self.set_data.borrow().len() as u32
-    }
-
-    pub fn values(&self, _gc: NoGcScope<'a, '_>) -> &[Option<Value<'a>>] {
-        &self.values
-    }
-
-    pub fn clear(&mut self) {
-        // 3. For each element e of S.[[SetData]], do
-        // a. Replace the element of S.[[SetData]] whose value is e with an
-        // element whose value is EMPTY.
-        self.set_data.get_mut().clear();
-        self.values.fill(None);
-    }
-
-    pub(crate) fn borrow(&self, arena: &impl PrimitiveHeapIndexable) -> &Self {
-        self.rehash_if_needed(arena);
-        self
-    }
-
-    pub(crate) fn borrow_mut(&mut self, arena: &impl PrimitiveHeapIndexable) -> &mut Self {
-        self.rehash_if_needed(arena);
-        self
-    }
-}
-
-impl SetHeapData<'_> {
-    fn rehash_if_needed(&self, arena: &impl PrimitiveHeapIndexable) {
-        if !self.needs_primitive_rehashing.load(Ordering::Relaxed) {
-            return;
-        }
-        let mut set_data = self.set_data.borrow_mut();
-
-        rehash_set_data(&self.values, &mut set_data, arena);
-        self.needs_primitive_rehashing
-            .store(false, Ordering::Relaxed);
-    }
-}
-
-fn rehash_set_data(
-    values: &[Option<Value>],
-    set_data: &mut HashTable<u32>,
-    arena: &impl PrimitiveHeapIndexable,
-) {
-    let hasher = |value: Value| {
-        let mut hasher = AHasher::default();
-        value.unbind().hash(arena, &mut hasher);
-        hasher.finish()
-    };
-    let hashes = {
-        let hasher = |discriminant: u8| {
-            let mut hasher = AHasher::default();
-            discriminant.hash(&mut hasher);
-            hasher.finish()
-        };
-        [
-            (0u8, hasher(STRING_DISCRIMINANT)),
-            (1u8, hasher(NUMBER_DISCRIMINANT)),
-            (2u8, hasher(BIGINT_DISCRIMINANT)),
-        ]
-    };
-    for (id, hash) in hashes {
-        let eq = |equal_hash_index: &u32| {
-            let value = values[*equal_hash_index as usize].unwrap();
-            match id {
-                0 => HeapString::try_from(value).is_ok(),
-                1 => HeapNumber::try_from(value).is_ok(),
-                2 => HeapBigInt::try_from(value).is_ok(),
-                _ => unreachable!(),
-            }
-        };
-        let mut entries = Vec::new();
-        while let Ok(entry) = set_data.find_entry(hash, eq) {
-            entries.push(*entry.get());
-            entry.remove();
-        }
-        entries.iter().for_each(|entry| {
-            let key = values[*entry as usize].unwrap();
-            let key_hash = hasher(key);
-            let result = set_data.entry(
-                key_hash,
-                |equal_hash_index| {
-                    // It should not be possible for there to be an equal item
-                    // in the Set already.
-                    debug_assert_ne!(values[*equal_hash_index as usize].unwrap(), key);
-                    false
-                },
-                |index_to_hash| hasher(values[*index_to_hash as usize].unwrap()),
-            );
-
-            let Entry::Vacant(result) = result else {
-                unreachable!();
-            };
-            result.insert(*entry);
-        });
-    }
 }
 
 bindable_handle!(SetHeapData);

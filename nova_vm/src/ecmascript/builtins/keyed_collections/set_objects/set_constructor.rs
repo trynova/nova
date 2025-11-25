@@ -142,7 +142,7 @@ impl SetConstructor {
                 let array_heap = ArrayHeap::new(elements, arrays);
                 let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
-                let set_heap_data = &mut sets[set].borrow_mut(&primitive_heap);
+                let mut set_heap_data = set.get_direct_mut(sets);
                 let values = &mut set_heap_data.values;
                 let set_data = set_heap_data.set_data.get_mut();
 

@@ -948,7 +948,7 @@ fn perform_promise_group<'gc>(
         #[cfg(feature = "set")]
         Object::Map(map) => agent[map].size(),
         #[cfg(feature = "set")]
-        Object::Set(set) => agent[set].size(),
+        Object::Set(set) => set.get(agent).set_data.borrow().len() as u32,
         _ => 0,
     };
 

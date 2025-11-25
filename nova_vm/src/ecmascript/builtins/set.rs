@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::ops::{Index, IndexMut};
-
 use crate::{
     Heap,
     ecmascript::{
@@ -20,7 +18,8 @@ use crate::{
     },
 };
 
-use self::data::SetHeapData;
+use self::data::{SetHeapData, SetHeapDataMut, SetHeapDataRef};
+use soavec::SoAVec;
 
 pub mod data;
 
@@ -35,6 +34,34 @@ impl Set<'_> {
 
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
+    }
+
+    #[inline(always)]
+    pub(crate) fn get<'a>(self, agent: &'a Agent) -> SetHeapDataRef<'a, 'static> {
+        self.get_direct(&agent.heap.sets)
+    }
+
+    #[inline(always)]
+    pub(crate) fn get_mut<'a>(self, agent: &'a mut Agent) -> SetHeapDataMut<'a, 'static> {
+        self.get_direct_mut(&mut agent.heap.sets)
+    }
+
+    #[inline(always)]
+    pub(crate) fn get_direct<'a>(
+        self,
+        sets: &'a SoAVec<SetHeapData<'static>>,
+    ) -> SetHeapDataRef<'a, 'static> {
+        sets.get(self.0.into_u32_index())
+            .expect("Invalid Set reference")
+    }
+
+    #[inline(always)]
+    pub(crate) fn get_direct_mut<'a>(
+        self,
+        sets: &'a mut SoAVec<SetHeapData<'static>>,
+    ) -> SetHeapDataMut<'a, 'static> {
+        sets.get_mut(self.0.into_u32_index())
+            .expect("Invalid Set reference")
     }
 }
 
@@ -81,12 +108,12 @@ impl<'a> InternalSlots<'a> for Set<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        *self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
-            agent[self]
+            self.get_mut(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()
@@ -112,34 +139,6 @@ impl HeapSweepWeakReference for Set<'static> {
     }
 }
 
-impl Index<Set<'_>> for Agent {
-    type Output = SetHeapData<'static>;
-
-    fn index(&self, index: Set) -> &Self::Output {
-        &self.heap.sets[index]
-    }
-}
-
-impl IndexMut<Set<'_>> for Agent {
-    fn index_mut(&mut self, index: Set) -> &mut Self::Output {
-        &mut self.heap.sets[index]
-    }
-}
-
-impl Index<Set<'_>> for Vec<SetHeapData<'static>> {
-    type Output = SetHeapData<'static>;
-
-    fn index(&self, index: Set) -> &Self::Output {
-        self.get(index.get_index()).expect("Set out of bounds")
-    }
-}
-
-impl IndexMut<Set<'_>> for Vec<SetHeapData<'static>> {
-    fn index_mut(&mut self, index: Set) -> &mut Self::Output {
-        self.get_mut(index.get_index()).expect("Set out of bounds")
-    }
-}
-
 impl TryFrom<HeapRootData> for Set<'_> {
     type Error = ();
 
@@ -155,8 +154,52 @@ impl TryFrom<HeapRootData> for Set<'_> {
 
 impl<'a> CreateHeapData<SetHeapData<'a>, Set<'a>> for Heap {
     fn create(&mut self, data: SetHeapData<'a>) -> Set<'a> {
-        self.sets.push(data.unbind());
+        let i = self.sets.len();
+        self.sets
+            .push(data.unbind())
+            .expect("Failed to allocate Set");
         self.alloc_counter += core::mem::size_of::<SetHeapData<'static>>();
-        Set(BaseIndex::last(&self.sets))
+        Set(BaseIndex::from_u32_index(i))
+    }
+}
+
+impl HeapMarkAndSweep for SetHeapDataRef<'_, 'static> {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let Self {
+            set_data: _,
+            values,
+            object_index,
+            needs_primitive_rehashing: _,
+        } = self;
+        values.mark_values(queues);
+        object_index.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, _: &CompactionLists) {
+        unreachable!()
+    }
+}
+
+impl HeapMarkAndSweep for SetHeapDataMut<'_, 'static> {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let Self {
+            set_data: _,
+            values,
+            object_index,
+            needs_primitive_rehashing: _,
+        } = self;
+        values.mark_values(queues);
+        object_index.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let Self {
+            set_data: _,
+            values,
+            object_index,
+            needs_primitive_rehashing: _,
+        } = self;
+        values.sweep_values(compactions);
+        object_index.sweep_values(compactions);
     }
 }
