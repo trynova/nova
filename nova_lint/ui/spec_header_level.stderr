@@ -1,0 +1,22 @@
+warning: the header level of your comment and the TC-39 specification does not match
+  --> $DIR/spec_header_level.rs:1:4
+   |
+LL | /// [1 Scope](https://tc39.es/ecma262/#sec-scope)
+   |    ^ help: use the correct header level: `#`
+   |
+   = note: `#[warn(spec_header_level)]` on by default
+
+warning: the header level of your comment and the TC-39 specification does not match
+  --> $DIR/spec_header_level.rs:3:4
+   |
+LL | /// [7.1.2 ToBoolean ( argument )](https://tc39.es/ecma262/#sec-toboolean)
+   |    ^ help: use the correct header level: `###`
+
+warning: the header level of your comment and the TC-39 specification does not match
+  --> $DIR/spec_header_level.rs:8:5
+   |
+LL | /// # [7.1.2 ToBoolean ( argument )](https://tc39.es/ecma262/#sec-toboolean)
+   |     ^ help: use the correct header level: `###`
+
+warning: 3 warnings emitted
+

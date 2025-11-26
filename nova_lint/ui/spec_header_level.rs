@@ -1,0 +1,20 @@
+/// [1 Scope](https://tc39.es/ecma262/#sec-scope)
+
+/// [7.1.2 ToBoolean ( argument )](https://tc39.es/ecma262/#sec-toboolean)
+fn to_boolean_nothing() {
+    unimplemented!()
+}
+
+/// # [7.1.2 ToBoolean ( argument )](https://tc39.es/ecma262/#sec-toboolean)
+fn to_boolean_wrong() {
+    unimplemented!()
+}
+
+/// ### [7.1.2 ToBoolean ( argument )](https://tc39.es/ecma262/#sec-toboolean)
+fn to_boolean() {
+    unimplemented!()
+}
+
+fn main() {
+    unimplemented!()
+}

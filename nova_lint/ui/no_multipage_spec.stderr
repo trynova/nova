@@ -1,0 +1,10 @@
+warning: linking to the multi-page TC-39 specification
+  --> $DIR/no_multipage_spec.rs:1:40
+   |
+LL | /// ### [7.1.2 ToBoolean ( argument )](https://tc39.es/ecma262/multipage/abstract-operations.html#sec-toboolean)
+   |                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: use the single-page version instead: `https://tc39.es/ecma262/`
+   |
+   = note: `#[warn(no_multipage_spec)]` on by default
+
+warning: 1 warning emitted
+

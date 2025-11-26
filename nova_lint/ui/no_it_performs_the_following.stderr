@@ -1,0 +1,11 @@
+warning: this comment contains "It performs the following steps when called:", a leftover from copy-pasting the TC-39 specification
+  --> $DIR/no_it_performs_the_following.rs:5:19
+   |
+LL | /// type Boolean. It performs the following steps when called:
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(no_it_performs_the_following)]` on by default
+   = help: consider removing this phrase
+
+warning: 1 warning emitted
+
