@@ -895,7 +895,6 @@ pub(crate) fn set_integrity_level<'a, T: Level>(
                 // 3. Perform ? DefinePropertyOrThrow(O, k, desc).
                 define_property_or_throw(agent, o, k.get(agent), desc, gc.reborrow()).unbind()?;
             }
-            i += 1;
         }
     }
     // 6. Return true.

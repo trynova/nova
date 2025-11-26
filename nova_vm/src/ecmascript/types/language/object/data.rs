@@ -15,8 +15,8 @@ use crate::{
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct ObjectRecord<'a> {
-    shape: ObjectShape<'a>,
-    values: ElementIndex<'a>,
+    pub(crate) shape: ObjectShape<'a>,
+    pub(crate) values: ElementIndex<'a>,
 }
 
 impl<'a> ObjectRecord<'a> {
@@ -98,20 +98,19 @@ impl ObjectRecord<'static> {
     ) {
         let Self { shape, values } = self;
         shape.mark_values(queues);
-        let len = shape.len(&shapes);
         match shape.values_capacity(&shapes) {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {}
-            ElementArrayKey::E1 => queues.e_2_1.push((*values, len)),
-            ElementArrayKey::E2 => queues.e_2_2.push((*values, len)),
-            ElementArrayKey::E3 => queues.e_2_3.push((*values, len)),
-            ElementArrayKey::E4 => queues.e_2_4.push((*values, len)),
-            ElementArrayKey::E6 => queues.e_2_6.push((*values, len)),
-            ElementArrayKey::E8 => queues.e_2_8.push((*values, len)),
-            ElementArrayKey::E10 => queues.e_2_10.push((*values, len)),
-            ElementArrayKey::E12 => queues.e_2_12.push((*values, len)),
-            ElementArrayKey::E16 => queues.e_2_16.push((*values, len)),
-            ElementArrayKey::E24 => queues.e_2_24.push((*values, len)),
-            ElementArrayKey::E32 => queues.e_2_32.push((*values, len)),
+            ElementArrayKey::E1 => queues.e_2_1.push(*values),
+            ElementArrayKey::E2 => queues.e_2_2.push(*values),
+            ElementArrayKey::E3 => queues.e_2_3.push(*values),
+            ElementArrayKey::E4 => queues.e_2_4.push(*values),
+            ElementArrayKey::E6 => queues.e_2_6.push(*values),
+            ElementArrayKey::E8 => queues.e_2_8.push(*values),
+            ElementArrayKey::E10 => queues.e_2_10.push(*values),
+            ElementArrayKey::E12 => queues.e_2_12.push(*values),
+            ElementArrayKey::E16 => queues.e_2_16.push(*values),
+            ElementArrayKey::E24 => queues.e_2_24.push(*values),
+            ElementArrayKey::E32 => queues.e_2_32.push(*values),
         }
     }
 

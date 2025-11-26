@@ -622,6 +622,7 @@ pub enum HeapRootData {
     ArrayIterator(ArrayIterator<'static>) = ARRAY_ITERATOR_DISCRIMINANT,
     #[cfg(feature = "set")]
     SetIterator(SetIterator<'static>) = SET_ITERATOR_DISCRIMINANT,
+    #[cfg(feature = "set")]
     MapIterator(MapIterator<'static>) = MAP_ITERATOR_DISCRIMINANT,
     Generator(Generator<'static>) = GENERATOR_DISCRIMINANT,
     StringIterator(StringIterator<'static>) = STRING_ITERATOR_DISCRIMINANT,

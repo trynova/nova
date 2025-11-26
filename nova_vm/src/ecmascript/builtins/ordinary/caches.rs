@@ -16,8 +16,8 @@ use crate::{
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
-        CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, PropertyKeyHeap, WeakReference,
-        WorkQueues, sweep_heap_vector_values,
+        AtomicBits, BitRange, CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference,
+        PropertyKeyHeap, WeakReference, WorkQueues, sweep_heap_vector_values,
     },
 };
 
@@ -428,11 +428,17 @@ impl Caches<'static> {
         self.property_lookup_cache_prototypes[index].mark_values(queues);
     }
 
-    pub(crate) fn sweep_cache(&mut self, compactions: &CompactionLists, bits: &[bool]) {
-        sweep_heap_vector_values(&mut self.property_lookup_caches, compactions, bits);
+    pub(crate) fn sweep_cache(
+        &mut self,
+        compactions: &CompactionLists,
+        range: &BitRange,
+        bits: &[AtomicBits],
+    ) {
+        sweep_heap_vector_values(&mut self.property_lookup_caches, compactions, range, bits);
         sweep_heap_vector_values(
             &mut self.property_lookup_cache_prototypes,
             compactions,
+            range,
             bits,
         );
     }

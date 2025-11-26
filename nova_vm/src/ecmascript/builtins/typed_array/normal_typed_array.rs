@@ -88,6 +88,11 @@ impl<'ta, T: Viewable> GenericTypedArray<'ta, T> {
         GenericTypedArray(self.0, PhantomData)
     }
 
+    #[inline(always)]
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+
     fn check_not_void_array() {
         if core::any::TypeId::of::<T>() == core::any::TypeId::of::<()>() {
             panic!("Invalid GenericTypedArray invocation using void type");
@@ -323,11 +328,6 @@ impl<'gc> VoidArray<'gc> {
     /// TypedArray.
     pub(crate) unsafe fn cast<T: Viewable>(self) -> GenericTypedArray<'gc, T> {
         GenericTypedArray(self.0, PhantomData)
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_index(self) -> usize {
-        self.0.into_index()
     }
 
     #[inline(always)]

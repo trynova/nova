@@ -81,8 +81,7 @@ use super::{
 };
 #[cfg(feature = "weak-refs")]
 use super::{
-    weak_map::data::WeakMapHeapData, weak_ref::data::WeakRefHeapData,
-    weak_set::data::WeakSetHeapData,
+    weak_map::data::WeakMapRecord, weak_ref::data::WeakRefHeapData, weak_set::data::WeakSetHeapData,
 };
 
 /// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
@@ -1808,7 +1807,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
             Object::Uint8ClampedArray(agent.heap.create(TypedArrayRecord::default()))
         }
         #[cfg(feature = "weak-refs")]
-        ProtoIntrinsics::WeakMap => agent.heap.create(WeakMapHeapData::default()).into_object(),
+        ProtoIntrinsics::WeakMap => agent.heap.create(WeakMapRecord::default()).into_object(),
         #[cfg(feature = "weak-refs")]
         ProtoIntrinsics::WeakRef => agent.heap.create(WeakRefHeapData::default()).into_object(),
         #[cfg(feature = "weak-refs")]

@@ -2,14 +2,24 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::hint::unreachable_unchecked;
+
 use crate::{
     ecmascript::{
+        abstract_operations::{operations_on_objects::get, testing_and_comparison::is_callable},
         builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
-        execution::{Agent, JsResult, Realm},
-        types::{BUILTIN_STRING_MEMORY, IntoObject, Object, String, Value},
+        builtins::{
+            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
+            keyed_collections::map_objects::map_constructor::add_entries_from_iterable,
+            ordinary::ordinary_create_from_constructor,
+        },
+        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
     },
-    engine::context::GcScope,
+    engine::{
+        context::{Bindable, GcScope},
+        rootable::Scopable,
+    },
     heap::IntrinsicConstructorIndexes,
 };
 
@@ -36,18 +46,74 @@ impl WeakMapConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
-        _new_target: Option<Object>,
-        gc: GcScope<'gc, '_>,
+        arguments: ArgumentsList,
+        new_target: Option<Object>,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        let iterable = arguments.get(0).bind(gc.nogc());
         // 1. If NewTarget is undefined, throw a TypeError exception.
+        let Some(new_target) = new_target else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "WeakMap Constructor requires 'new'",
+                gc.into_nogc(),
+            ));
+        };
+        let Ok(new_target) = Function::try_from(new_target) else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Function Proxies not yet supported",
+                gc.into_nogc(),
+            ));
+        };
+        let iterable_is_undefined_or_null = iterable.is_undefined() || iterable.is_null();
+        let iterable = iterable.scope(agent, gc.nogc());
         // 2. Let map be ? OrdinaryCreateFromConstructor(NewTarget, "%WeakMap.prototype%", « [[WeakMapData]] »).
+        let Object::WeakMap(map) = ordinary_create_from_constructor(
+            agent,
+            new_target,
+            ProtoIntrinsics::WeakMap,
+            gc.reborrow(),
+        )
+        .unbind()?
+        else {
+            // SAFETY: ProtoIntrinsics guarded.
+            unsafe { unreachable_unchecked() }
+        };
         // 3. Set map.[[WeakMapData]] to a new empty List.
         // 4. If iterable is either undefined or null, return map.
+        if iterable_is_undefined_or_null {
+            return Ok(map.into_value());
+        }
+        let scoped_map = map.scope(agent, gc.nogc());
         // 5. Let adder be ? Get(map, "set").
+        let adder = get(
+            agent,
+            map.unbind(),
+            BUILTIN_STRING_MEMORY.set.to_property_key(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
         // 6. If IsCallable(adder) is false, throw a TypeError exception.
+        let Some(adder) = is_callable(adder, gc.nogc()) else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "expected 'add' to be a function",
+                gc.into_nogc(),
+            ));
+        };
         // 7. Return ? AddEntriesFromIterable(map, iterable, adder).
-        Err(agent.todo("WeakMap", gc.into_nogc()))
+        add_entries_from_iterable(
+            agent,
+            // SAFETY: not shared.
+            unsafe { scoped_map.take(agent) },
+            // SAFETY: not shared.
+            unsafe { iterable.take(agent) },
+            adder.unbind(),
+            gc,
+        )
+        .map(|m| m.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {

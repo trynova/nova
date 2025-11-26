@@ -97,6 +97,11 @@ impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
         GenericSharedTypedArray(self.0, PhantomData)
     }
 
+    #[inline(always)]
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+
     fn check_not_void_array() {
         if core::any::TypeId::of::<T>() == core::any::TypeId::of::<()>() {
             panic!("Invalid GenericSharedTypedArray invocation using void type");
@@ -290,11 +295,6 @@ impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
 pub(crate) type SharedVoidArray<'a> = GenericSharedTypedArray<'a, ()>;
 
 impl<'gc> SharedVoidArray<'gc> {
-    #[inline(always)]
-    pub(crate) fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
     #[inline(always)]
     fn get<'a>(self, agent: &'a Agent) -> &'a SharedTypedArrayRecord<'gc> {
         self.get_direct(&agent.heap.shared_typed_arrays)
@@ -896,6 +896,7 @@ impl<'a> SharedTypedArray<'a> {
     }
 }
 
+#[cfg(feature = "shared-array-buffer")]
 macro_rules! for_shared_typed_array {
     ($value: ident, $ta: ident, $expr: expr) => {
         for_shared_typed_array($value, $ta, $expr, TA)
@@ -954,6 +955,7 @@ macro_rules! for_shared_typed_array {
         }
     };
 }
+#[cfg(feature = "shared-array-buffer")]
 pub(crate) use for_shared_typed_array;
 
 impl<'a> From<SharedTypedArray<'a>> for Value<'a> {
@@ -2221,9 +2223,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
             }
             #[cfg(feature = "shared-array-buffer")]
             AnyArrayBuffer::SharedArrayBuffer(source_buffer) => {
-                use crate::ecmascript::builtins::typed_array::{
-                    SharedTypedArray, for_shared_typed_array,
-                };
+                use crate::ecmascript::builtins::typed_array::SharedTypedArray;
 
                 let Ok(source) = SharedTypedArray::try_from(source) else {
                     // SAFETY: Cannot get SharedArrayBuffer from TypedArray.
@@ -2343,9 +2343,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
             }
             #[cfg(feature = "shared-array-buffer")]
             AnyArrayBuffer::SharedArrayBuffer(source_buffer) => {
-                use crate::ecmascript::builtins::typed_array::{
-                    SharedTypedArray, for_shared_typed_array,
-                };
+                use crate::ecmascript::builtins::typed_array::SharedTypedArray;
 
                 let Ok(source) = SharedTypedArray::try_from(source) else {
                     // SAFETY: Cannot get SharedArrayBuffer from TypedArray.

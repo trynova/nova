@@ -169,7 +169,7 @@ impl Default for ElementIndex<'static> {
     #[inline(always)]
     fn default() -> Self {
         Self(
-            unsafe { NonZeroU32::new_unchecked(1) },
+            const { NonZeroU32::new(1).unwrap() },
             PhantomData,
             PhantomData,
         )
@@ -203,7 +203,7 @@ impl<const N: usize> IndexMut<ElementIndex<'_>> for Vec<[Option<Value<'static>>;
 impl Default for PropertyKeyIndex<'static> {
     fn default() -> Self {
         Self(
-            unsafe { NonZeroU32::new_unchecked(1) },
+            const { NonZeroU32::new(1).unwrap() },
             PhantomData,
             PhantomData,
         )

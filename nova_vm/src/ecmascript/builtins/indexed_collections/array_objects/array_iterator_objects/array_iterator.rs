@@ -30,7 +30,7 @@ impl<'a> ArrayIterator<'a> {
         Self(BaseIndex::from_u32_index(0))
     }
 
-    pub(crate) fn get_index(self) -> usize {
+    pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
     }
 

@@ -12,7 +12,7 @@ use crate::{
     },
     engine::{
         context::{Bindable, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
+        rootable::HeapRootData,
     },
     heap::{
         CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
@@ -52,12 +52,40 @@ impl<'a> From<Map<'a>> for Object<'a> {
     }
 }
 
+impl From<Map<'_>> for HeapRootData {
+    fn from(value: Map) -> Self {
+        HeapRootData::Map(value.unbind())
+    }
+}
+
 impl<'a> TryFrom<Object<'a>> for Map<'a> {
     type Error = ();
 
     fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
         match value {
             Object::Map(data) => Ok(data),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<'a> TryFrom<Value<'a>> for Map<'a> {
+    type Error = ();
+
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Value::Map(data) => Ok(data),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<HeapRootData> for Map<'_> {
+    type Error = ();
+
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        match value {
+            HeapRootData::Map(data) => Ok(data),
             _ => Err(()),
         }
     }
@@ -124,29 +152,6 @@ impl Index<Map<'_>> for Vec<MapHeapData<'static>> {
 impl IndexMut<Map<'_>> for Vec<MapHeapData<'static>> {
     fn index_mut(&mut self, index: Map) -> &mut Self::Output {
         self.get_mut(index.get_index()).expect("Map out of bounds")
-    }
-}
-
-impl Rootable for Map<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::Map(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::Map(object) => Some(object),
-            _ => None,
-        }
     }
 }
 

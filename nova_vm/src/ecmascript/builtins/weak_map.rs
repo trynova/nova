@@ -2,12 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::ops::{Index, IndexMut};
-
 use crate::{
     Heap,
     ecmascript::{
-        execution::{Agent, ProtoIntrinsics},
+        execution::{Agent, ProtoIntrinsics, WeakKey},
         types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
     },
     engine::{
@@ -20,25 +18,74 @@ use crate::{
     },
 };
 
-use self::data::WeakMapHeapData;
+use self::data::WeakMapRecord;
 
 pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct WeakMap<'a>(BaseIndex<'a, WeakMapHeapData<'static>>);
+pub struct WeakMap<'a>(BaseIndex<'a, WeakMapRecord<'static>>);
+bindable_handle!(WeakMap);
 
-impl WeakMap<'_> {
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
+impl<'m> WeakMap<'m> {
+    pub(crate) fn delete(self, agent: &mut Agent, key: WeakKey<'m>) -> bool {
+        self.get_mut(agent).delete(key)
     }
+
+    pub(crate) fn get_v(self, agent: &mut Agent, key: WeakKey<'m>) -> Option<Value<'m>> {
+        self.get_mut(agent).get(key)
+    }
+
+    pub(crate) fn has(self, agent: &mut Agent, key: WeakKey<'m>) -> bool {
+        self.get_mut(agent).has(key)
+    }
+
+    pub(crate) fn set(self, agent: &mut Agent, key: WeakKey<'m>, value: Value<'m>) {
+        self.get_mut(agent).set(key, value)
+    }
+
+    pub(crate) const _DEF: Self = Self(BaseIndex::from_u32_index(u32::MAX - 1));
 
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
     }
-}
 
-bindable_handle!(WeakMap);
+    #[inline(always)]
+    pub(crate) fn get<'a>(self, agent: &'a Agent) -> &'a WeakMapRecord<'m> {
+        self.get_direct(&agent.heap.weak_maps)
+    }
+
+    #[inline(always)]
+    pub(crate) fn get_mut<'a>(self, agent: &'a mut Agent) -> &'a mut WeakMapRecord<'m> {
+        self.get_direct_mut(&mut agent.heap.weak_maps)
+    }
+
+    #[inline(always)]
+    pub(crate) fn get_direct<'a>(
+        self,
+        weak_maps: &'a [WeakMapRecord<'static>],
+    ) -> &'a WeakMapRecord<'m> {
+        weak_maps
+            .get(self.get_index())
+            .expect("Invalid WeakMap reference")
+    }
+
+    #[inline(always)]
+    pub(crate) fn get_direct_mut<'a>(
+        self,
+        weak_maps: &'a mut [WeakMapRecord<'static>],
+    ) -> &'a mut WeakMapRecord<'m> {
+        // SAFETY: Lifetime transmute to thread GC lifetime to temporary heap
+        // reference.
+        unsafe {
+            core::mem::transmute::<&'a mut WeakMapRecord<'static>, &'a mut WeakMapRecord<'m>>(
+                weak_maps
+                    .get_mut(self.get_index())
+                    .expect("Invalid WeakMap reference"),
+            )
+        }
+    }
+}
 
 impl<'a> From<WeakMap<'a>> for Value<'a> {
     fn from(value: WeakMap<'a>) -> Self {
@@ -52,52 +99,35 @@ impl<'a> From<WeakMap<'a>> for Object<'a> {
     }
 }
 
-impl<'a> InternalSlots<'a> for WeakMap<'a> {
-    const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::WeakMap;
-
-    #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
-    }
-
-    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(
-            agent[self]
-                .object_index
-                .replace(backing_object.unbind())
-                .is_none()
-        );
+impl<'a> From<WeakMap<'a>> for HeapRootData {
+    fn from(value: WeakMap<'a>) -> Self {
+        HeapRootData::WeakMap(value.unbind())
     }
 }
 
-impl<'a> InternalMethods<'a> for WeakMap<'a> {}
+impl<'a> TryFrom<Value<'a>> for WeakMap<'a> {
+    type Error = ();
 
-impl Index<WeakMap<'_>> for Agent {
-    type Output = WeakMapHeapData<'static>;
-
-    fn index(&self, index: WeakMap) -> &Self::Output {
-        &self.heap.weak_maps[index]
+    #[inline]
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
+        if let Value::WeakMap(value) = value {
+            Ok(value)
+        } else {
+            Err(())
+        }
     }
 }
 
-impl IndexMut<WeakMap<'_>> for Agent {
-    fn index_mut(&mut self, index: WeakMap) -> &mut Self::Output {
-        &mut self.heap.weak_maps[index]
-    }
-}
+impl<'a> TryFrom<Object<'a>> for WeakMap<'a> {
+    type Error = ();
 
-impl Index<WeakMap<'_>> for Vec<WeakMapHeapData<'static>> {
-    type Output = WeakMapHeapData<'static>;
-
-    fn index(&self, index: WeakMap) -> &Self::Output {
-        self.get(index.get_index()).expect("WeakMap out of bounds")
-    }
-}
-
-impl IndexMut<WeakMap<'_>> for Vec<WeakMapHeapData<'static>> {
-    fn index_mut(&mut self, index: WeakMap) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("WeakMap out of bounds")
+    #[inline]
+    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
+        if let Object::WeakMap(value) = value {
+            Ok(value)
+        } else {
+            Err(())
+        }
     }
 }
 
@@ -114,10 +144,30 @@ impl TryFrom<HeapRootData> for WeakMap<'_> {
     }
 }
 
-impl<'a> CreateHeapData<WeakMapHeapData<'a>, WeakMap<'a>> for Heap {
-    fn create(&mut self, data: WeakMapHeapData<'a>) -> WeakMap<'a> {
+impl<'a> InternalSlots<'a> for WeakMap<'a> {
+    const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::WeakMap;
+
+    #[inline(always)]
+    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
+        self.get(agent).object_index.unbind()
+    }
+
+    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
+        assert!(
+            self.get_mut(agent)
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
+    }
+}
+
+impl<'a> InternalMethods<'a> for WeakMap<'a> {}
+
+impl<'a> CreateHeapData<WeakMapRecord<'a>, WeakMap<'a>> for Heap {
+    fn create(&mut self, data: WeakMapRecord<'a>) -> WeakMap<'a> {
         self.weak_maps.push(data.unbind());
-        self.alloc_counter += core::mem::size_of::<WeakMapHeapData<'static>>();
+        self.alloc_counter += core::mem::size_of::<WeakMapRecord<'static>>();
         WeakMap(BaseIndex::last(&self.weak_maps))
     }
 }

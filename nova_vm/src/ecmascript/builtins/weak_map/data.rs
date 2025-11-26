@@ -2,60 +2,88 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use ahash::AHashMap;
+
 use crate::{
-    ecmascript::types::{OrdinaryObject, Value},
+    ecmascript::{
+        execution::WeakKey,
+        types::{OrdinaryObject, Value},
+    },
     engine::context::bindable_handle,
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+    heap::{CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues},
 };
 
-#[derive(Debug, Clone, Default)]
-pub struct WeakMapHeapData<'a> {
-    pub(crate) object_index: Option<OrdinaryObject<'a>>,
-    // TODO: This isn't even close to a hashmap; HashMap won't allow inserting
-    // Value as key; f32 isn't hashable. And our f64s are found on the Heap and
-    // require fetching; What we actually should do is more like:
-    // pub(crate) map: HashMap<ValueHash, u32>
-    // pub(crate) key_values: ParallelVec<Option<Value>, Option<Value>>
-    // ValueHash is created using a Value.hash(agent) function and connects to
-    // an index; the index points to a key and value in parallel vector / Vec2.
-    // Note that empty slots are deleted values in the ParallelVec.
-    pub(crate) keys: Vec<Value<'a>>,
-    pub(crate) values: Vec<Value<'a>>,
-    // TODO: When an non-terminal (start or end) iterator exists for the Map,
-    // the items in the map cannot be compacted.
-    // pub(crate) observed: bool;
+#[derive(Debug, Default)]
+pub struct WeakMapRecord<'a> {
+    pub(crate) weak_map_data: AHashMap<WeakKey<'a>, Value<'a>>,
+    pub(super) object_index: Option<OrdinaryObject<'a>>,
+}
+bindable_handle!(WeakMapRecord);
+
+impl<'a> WeakMapRecord<'a> {
+    pub(super) fn delete(&mut self, key: WeakKey<'a>) -> bool {
+        // 4. For each Record { [[Key]], [[Value]] } p of M.[[WeakMapData]], do
+        // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, then
+        // i. Set p.[[Key]] to EMPTY.
+        // ii. Set p.[[Value]] to EMPTY.
+        // iii. Return true.
+        // 5. Return false.
+        self.weak_map_data.remove(&key).is_some()
+    }
+
+    pub(super) fn get(&mut self, key: WeakKey<'a>) -> Option<Value<'a>> {
+        // 4. For each Record { [[Key]], [[Value]] } p of M.[[WeakMapData]], do
+        // a. If p.[[Key]] is not empty and SameValue(p.[[Key]], key) is true, return p.[[Value]].
+        // 5. Return undefined.
+        self.weak_map_data.get(&key).cloned()
+    }
+
+    pub(super) fn has(&mut self, key: WeakKey<'a>) -> bool {
+        // 4. For each Record { [[Key]], [[Value]] } p of M.[[WeakMapData]], do
+        // a. If p.[[Key]] is not empty and SameValue(p.[[Key]], key) is true, return true.
+        // 5. Return false.
+        self.weak_map_data.contains_key(&key)
+    }
+
+    pub(super) fn set(&mut self, key: WeakKey<'a>, value: Value<'a>) {
+        // 4. For each Record { [[Key]], [[Value]] } p of M.[[WeakMapData]], do
+        // a. If p.[[Key]] is not empty and SameValue(p.[[Key]], key) is true, then
+        // i. Set p.[[Value]] to value.
+        // ii. Return M.
+        // 5. Let p be the Record { [[Key]]: key, [[Value]]: value }.
+        // 6. Append p to M.[[WeakMapData]].
+        self.weak_map_data.insert(key, value);
+    }
 }
 
-bindable_handle!(WeakMapHeapData);
-
-impl HeapMarkAndSweep for WeakMapHeapData<'static> {
+impl HeapMarkAndSweep for WeakMapRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
+            weak_map_data: map,
             object_index,
-            keys,
-            values,
         } = self;
+        for (key, value) in map.iter() {
+            if queues.bits.is_marked(key) {
+                value.mark_values(queues);
+            } else {
+                queues.pending_ephemerons.push((*key, *value));
+            }
+        }
         object_index.mark_values(queues);
-        for ele in keys {
-            ele.mark_values(queues);
-        }
-        for ele in values {
-            ele.mark_values(queues);
-        }
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let Self {
+            weak_map_data: map,
             object_index,
-            keys,
-            values,
         } = self;
+        let old_map = core::mem::replace(map, AHashMap::with_capacity(map.len()));
+        for (key, mut value) in old_map {
+            if let Some(key) = key.sweep_weak_reference(compactions) {
+                value.sweep_values(compactions);
+                map.insert(key, value);
+            }
+        }
         object_index.sweep_values(compactions);
-        for ele in keys {
-            ele.sweep_values(compactions);
-        }
-        for ele in values {
-            ele.sweep_values(compactions);
-        }
     }
 }
