@@ -40,7 +40,7 @@ dylint_linting::declare_early_lint! {
 impl EarlyLintPass for SpecHeaderLevel {
     fn check_attribute(&mut self, cx: &EarlyContext<'_>, attr: &Attribute) {
         static RE: LazyLock<Regex> = LazyLock::new(|| {
-            RegexBuilder::new(r"(#*)\s\[([0-9.]*)[^]]*]\(https?://tc39\.es/ecma262/.*\)")
+            RegexBuilder::new(r"^\s*(#*)\s\[([0-9.]*)[^]]*]\(https?://tc39\.es/ecma262/.*\)")
                 .build()
                 .unwrap()
         });
