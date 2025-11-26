@@ -20,6 +20,11 @@ fn to_boolean_wrong_2() {
     unimplemented!()
 }
 
+/// ### [B.2.1.1 escape ( string )](https://tc39.es/ecma262/#sec-escape-string)
+fn escape() {
+    unimplemented!()
+}
+
 /// ### [7.1.2 ToBoolean ( argument )](https://tc39.es/ecma262/#sec-toboolean)
 fn to_boolean() {
     unimplemented!()

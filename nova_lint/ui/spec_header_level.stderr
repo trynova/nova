@@ -24,5 +24,11 @@ warning: the header level of your comment and the TC-39 specification does not m
 LL | /// #### [7.1.2 ToBoolean ( argument )](https://tc39.es/ecma262/#sec-toboolean)
    |     ^^^^ help: use the correct header level: `###`
 
-warning: 4 warnings emitted
+warning: the header level of your comment and the TC-39 specification does not match
+  --> $DIR/spec_header_level.rs:23:5
+   |
+LL | /// ### [B.2.1.1 escape ( string )](https://tc39.es/ecma262/#sec-escape-string)
+   |     ^^^ help: use the correct header level: `####`
+
+warning: 5 warnings emitted
 
