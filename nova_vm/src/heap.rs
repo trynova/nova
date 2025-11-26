@@ -178,7 +178,7 @@ pub(crate) struct Heap {
     #[cfg(feature = "regexp")]
     pub(crate) regexp_string_iterators: Vec<RegExpStringIteratorRecord<'static>>,
     #[cfg(feature = "set")]
-    pub(crate) sets: Vec<SetHeapData<'static>>,
+    pub(crate) sets: SoAVec<SetHeapData<'static>>,
     #[cfg(feature = "set")]
     pub(crate) set_iterators: Vec<SetIteratorHeapData<'static>>,
     #[cfg(feature = "shared-array-buffer")]
@@ -348,7 +348,7 @@ impl Heap {
             regexp_string_iterators: Vec::with_capacity(0),
             scripts: Vec::with_capacity(1),
             #[cfg(feature = "set")]
-            sets: Vec::with_capacity(128),
+            sets: SoAVec::with_capacity(128).expect("Failed to allocate Heap"),
             #[cfg(feature = "set")]
             set_iterators: Vec::with_capacity(128),
             #[cfg(feature = "shared-array-buffer")]

@@ -735,7 +735,7 @@ impl HeapBits {
             BitRange::from_bit_count_and_len(&mut bit_count, heap.regexp_string_iterators.len());
         let scripts = BitRange::from_bit_count_and_len(&mut bit_count, heap.scripts.len());
         #[cfg(feature = "set")]
-        let sets = BitRange::from_bit_count_and_len(&mut bit_count, heap.sets.len());
+        let sets = BitRange::from_bit_count_and_len(&mut bit_count, heap.sets.len() as usize);
         #[cfg(feature = "set")]
         let set_iterators =
             BitRange::from_bit_count_and_len(&mut bit_count, heap.set_iterators.len());
@@ -1092,7 +1092,7 @@ impl<'a> WorkQueues<'a> {
             regexp_string_iterators: Vec::with_capacity(heap.regexp_string_iterators.len() / 4),
             scripts: Vec::with_capacity(heap.scripts.len() / 4),
             #[cfg(feature = "set")]
-            sets: Vec::with_capacity(heap.sets.len() / 4),
+            sets: Vec::with_capacity(heap.sets.len() as usize / 4),
             #[cfg(feature = "set")]
             set_iterators: Vec::with_capacity(heap.set_iterators.len() / 4),
             #[cfg(feature = "shared-array-buffer")]
