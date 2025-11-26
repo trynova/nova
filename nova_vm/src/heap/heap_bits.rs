@@ -92,6 +92,19 @@ use crate::engine::Executable;
 pub(crate) struct BitRange(Range<usize>);
 
 impl BitRange {
+    const fn from_bit_count_and_len(bit_count: &mut usize, len: usize) -> Self {
+        if len == 0 {
+            Self(Range { start: 0, end: 0 })
+        } else {
+            let start = *bit_count;
+            *bit_count += len;
+            Self(Range {
+                start,
+                end: *bit_count,
+            })
+        }
+    }
+
     #[inline]
     pub(crate) const fn from_range(range: Range<usize>) -> Self {
         Self(range)
@@ -599,878 +612,157 @@ impl HeapBits {
     pub(crate) fn new(heap: &Heap) -> Self {
         let mut bit_count = 0;
 
-        let e_2_1 = if heap.elements.e2pow1.values.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.elements.e2pow1.values.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let e_2_2 = if heap.elements.e2pow2.values.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.elements.e2pow2.values.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let e_2_3 = if heap.elements.e2pow3.values.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.elements.e2pow3.values.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let e_2_4 = if heap.elements.e2pow4.values.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.elements.e2pow4.values.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let e_2_6 = if heap.elements.e2pow6.values.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.elements.e2pow6.values.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let e_2_8 = if heap.elements.e2pow8.values.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.elements.e2pow8.values.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let k_2_1 = if heap.elements.k2pow1.keys.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.elements.k2pow1.keys.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let k_2_2 = if heap.elements.k2pow2.keys.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.elements.k2pow2.keys.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let k_2_3 = if heap.elements.k2pow3.keys.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.elements.k2pow3.keys.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let k_2_4 = if heap.elements.k2pow4.keys.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.elements.k2pow4.keys.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let k_2_6 = if heap.elements.k2pow6.keys.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.elements.k2pow6.keys.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let k_2_8 = if heap.elements.k2pow8.keys.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.elements.k2pow8.keys.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let e_2_10 = if heap.elements.e2pow10.values.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.elements.e2pow10.values.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let e_2_12 = if heap.elements.e2pow12.values.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.elements.e2pow12.values.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let e_2_16 = if heap.elements.e2pow16.values.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.elements.e2pow16.values.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let k_2_10 = if heap.elements.k2pow10.keys.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.elements.k2pow10.keys.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let k_2_12 = if heap.elements.k2pow12.keys.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.elements.k2pow12.keys.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let k_2_16 = if heap.elements.k2pow16.keys.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.elements.k2pow16.keys.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let e_2_24 = if heap.elements.e2pow24.values.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.elements.e2pow24.values.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let e_2_32 = if heap.elements.e2pow32.values.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.elements.e2pow32.values.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let k_2_24 = if heap.elements.k2pow24.keys.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.elements.k2pow24.keys.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let k_2_32 = if heap.elements.k2pow32.keys.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.elements.k2pow32.keys.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
+        let e_2_1 =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.elements.e2pow1.values.len());
+        let e_2_2 =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.elements.e2pow2.values.len());
+        let e_2_3 =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.elements.e2pow3.values.len());
+        let e_2_4 =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.elements.e2pow4.values.len());
+        let e_2_6 =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.elements.e2pow6.values.len());
+        let e_2_8 =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.elements.e2pow8.values.len());
+        let k_2_1 =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.elements.k2pow1.keys.len());
+        let k_2_2 =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.elements.k2pow2.keys.len());
+        let k_2_3 =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.elements.k2pow3.keys.len());
+        let k_2_4 =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.elements.k2pow4.keys.len());
+        let k_2_6 =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.elements.k2pow6.keys.len());
+        let k_2_8 =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.elements.k2pow8.keys.len());
+        let e_2_10 =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.elements.e2pow10.values.len());
+        let e_2_12 =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.elements.e2pow12.values.len());
+        let e_2_16 =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.elements.e2pow16.values.len());
+        let k_2_10 =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.elements.k2pow10.keys.len());
+        let k_2_12 =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.elements.k2pow12.keys.len());
+        let k_2_16 =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.elements.k2pow16.keys.len());
+        let e_2_24 =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.elements.e2pow24.values.len());
+        let e_2_32 =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.elements.e2pow32.values.len());
+        let k_2_24 =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.elements.k2pow24.keys.len());
+        let k_2_32 =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.elements.k2pow32.keys.len());
         #[cfg(feature = "array-buffer")]
-        let array_buffers = if heap.array_buffers.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.array_buffers.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let arrays = if heap.arrays.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.arrays.len() as usize;
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let array_iterators = if heap.array_iterators.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.array_iterators.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let async_generators = if heap.async_generators.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.async_generators.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let await_reactions = if heap.await_reactions.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.await_reactions.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let bigints = if heap.bigints.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.bigints.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let bound_functions = if heap.bound_functions.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.bound_functions.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let builtin_constructors = if heap.builtin_constructors.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.builtin_constructors.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let builtin_functions = if heap.builtin_functions.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.builtin_functions.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let caches = if heap.caches.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.caches.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
+        let array_buffers =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.array_buffers.len());
+        let arrays = BitRange::from_bit_count_and_len(&mut bit_count, heap.arrays.len() as usize);
+        let array_iterators =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.array_iterators.len());
+        let async_generators =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.async_generators.len());
+        let await_reactions =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.await_reactions.len());
+        let bigints = BitRange::from_bit_count_and_len(&mut bit_count, heap.bigints.len());
+        let bound_functions =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.bound_functions.len());
+        let builtin_constructors =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.builtin_constructors.len());
+        let builtin_functions =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.builtin_functions.len());
+        let caches = BitRange::from_bit_count_and_len(&mut bit_count, heap.caches.len());
         #[cfg(feature = "array-buffer")]
-        let data_views = if heap.data_views.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.data_views.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
+        let data_views = BitRange::from_bit_count_and_len(&mut bit_count, heap.data_views.len());
         #[cfg(feature = "date")]
-        let dates = if heap.dates.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.dates.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let declarative_environments = if heap.environments.declarative.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.environments.declarative.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let ecmascript_functions = if heap.ecmascript_functions.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.ecmascript_functions.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let embedder_objects = if heap.embedder_objects.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.embedder_objects.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let errors = if heap.errors.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.errors.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let executables = if heap.executables.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.executables.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let source_codes = if heap.source_codes.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.source_codes.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let finalization_registrys = if heap.finalization_registrys.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.finalization_registrys.len() as usize;
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let function_environments = if heap.environments.function.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.environments.function.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let generators = if heap.generators.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.generators.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let global_environments = if heap.environments.global.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.environments.global.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let maps = if heap.maps.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.maps.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let map_iterators = if heap.map_iterators.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.map_iterators.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let module_environments = if heap.environments.module.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.environments.module.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let modules = if heap.modules.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.modules.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let module_request_records = if heap.module_request_records.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.module_request_records.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let numbers = if heap.numbers.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.numbers.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let object_environments = if heap.environments.object.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.environments.object.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let object_shapes = if heap.object_shapes.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.object_shapes.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let objects = if heap.objects.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.objects.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let primitive_objects = if heap.primitive_objects.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.primitive_objects.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let promise_reaction_records = if heap.promise_reaction_records.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.promise_reaction_records.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let promise_resolving_functions = if heap.promise_resolving_functions.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.promise_resolving_functions.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let promise_finally_functions = if heap.promise_finally_functions.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.promise_finally_functions.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let private_environments = if heap.environments.private.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.environments.private.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let promises = if heap.promises.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.promises.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let promise_group_records = if heap.promise_group_records.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.promise_group_records.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let proxies = if heap.proxies.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.proxies.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let realms = if heap.realms.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.realms.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
+        let dates = BitRange::from_bit_count_and_len(&mut bit_count, heap.dates.len());
+        let declarative_environments =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.environments.declarative.len());
+        let ecmascript_functions =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.ecmascript_functions.len());
+        let embedder_objects =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.embedder_objects.len());
+        let errors = BitRange::from_bit_count_and_len(&mut bit_count, heap.errors.len());
+        let executables = BitRange::from_bit_count_and_len(&mut bit_count, heap.executables.len());
+        let source_codes =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.source_codes.len());
+        let finalization_registrys = BitRange::from_bit_count_and_len(
+            &mut bit_count,
+            heap.finalization_registrys.len() as usize,
+        );
+        let function_environments =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.environments.function.len());
+        let generators = BitRange::from_bit_count_and_len(&mut bit_count, heap.generators.len());
+        let global_environments =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.environments.global.len());
+        let maps = BitRange::from_bit_count_and_len(&mut bit_count, heap.maps.len());
+        let map_iterators =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.map_iterators.len());
+        let module_environments =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.environments.module.len());
+        let modules = BitRange::from_bit_count_and_len(&mut bit_count, heap.modules.len());
+        let module_request_records =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.module_request_records.len());
+        let numbers = BitRange::from_bit_count_and_len(&mut bit_count, heap.numbers.len());
+        let object_environments =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.environments.object.len());
+        let object_shapes =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.object_shapes.len());
+        let objects = BitRange::from_bit_count_and_len(&mut bit_count, heap.objects.len());
+        let primitive_objects =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.primitive_objects.len());
+        let promise_reaction_records =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.promise_reaction_records.len());
+        let promise_resolving_functions = BitRange::from_bit_count_and_len(
+            &mut bit_count,
+            heap.promise_resolving_functions.len(),
+        );
+        let promise_finally_functions =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.promise_finally_functions.len());
+        let private_environments =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.environments.private.len());
+        let promises = BitRange::from_bit_count_and_len(&mut bit_count, heap.promises.len());
+        let promise_group_records =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.promise_group_records.len());
+        let proxies = BitRange::from_bit_count_and_len(&mut bit_count, heap.proxies.len());
+        let realms = BitRange::from_bit_count_and_len(&mut bit_count, heap.realms.len());
         #[cfg(feature = "regexp")]
-        let regexps = if heap.regexps.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.regexps.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
+        let regexps = BitRange::from_bit_count_and_len(&mut bit_count, heap.regexps.len());
         #[cfg(feature = "regexp")]
-        let regexp_string_iterators = if heap.regexp_string_iterators.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.regexp_string_iterators.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let scripts = if heap.scripts.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.scripts.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
+        let regexp_string_iterators =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.regexp_string_iterators.len());
+        let scripts = BitRange::from_bit_count_and_len(&mut bit_count, heap.scripts.len());
         #[cfg(feature = "set")]
-        let sets = if heap.sets.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.sets.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
+        let sets = BitRange::from_bit_count_and_len(&mut bit_count, heap.sets.len());
         #[cfg(feature = "set")]
-        let set_iterators = if heap.set_iterators.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.set_iterators.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
+        let set_iterators =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.set_iterators.len());
         #[cfg(feature = "shared-array-buffer")]
-        let shared_array_buffers = if heap.shared_array_buffers.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.shared_array_buffers.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
+        let shared_array_buffers =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.shared_array_buffers.len());
         #[cfg(feature = "shared-array-buffer")]
-        let shared_data_views = if heap.shared_data_views.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.shared_data_views.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
+        let shared_data_views =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.shared_data_views.len());
         #[cfg(feature = "shared-array-buffer")]
-        let shared_typed_arrays = if heap.shared_typed_arrays.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.shared_typed_arrays.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let source_text_module_records = if heap.source_text_module_records.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.source_text_module_records.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let string_iterators = if heap.string_iterators.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.string_iterators.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let strings = if heap.strings.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.strings.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
-        let symbols = if heap.symbols.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.symbols.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
+        let shared_typed_arrays =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.shared_typed_arrays.len());
+        let source_text_module_records =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.source_text_module_records.len());
+        let string_iterators =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.string_iterators.len());
+        let strings = BitRange::from_bit_count_and_len(&mut bit_count, heap.strings.len());
+        let symbols = BitRange::from_bit_count_and_len(&mut bit_count, heap.symbols.len());
         #[cfg(feature = "array-buffer")]
-        let typed_arrays = if heap.typed_arrays.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.typed_arrays.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
+        let typed_arrays =
+            BitRange::from_bit_count_and_len(&mut bit_count, heap.typed_arrays.len());
         #[cfg(feature = "weak-refs")]
-        let weak_maps = if heap.weak_maps.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.weak_maps.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
+        let weak_maps = BitRange::from_bit_count_and_len(&mut bit_count, heap.weak_maps.len());
         #[cfg(feature = "weak-refs")]
-        let weak_refs = if heap.weak_refs.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.weak_refs.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
+        let weak_refs = BitRange::from_bit_count_and_len(&mut bit_count, heap.weak_refs.len());
         #[cfg(feature = "weak-refs")]
-        let weak_sets = if heap.weak_sets.is_empty() {
-            Default::default()
-        } else {
-            let count = heap.weak_sets.len();
-            let start = bit_count;
-            bit_count += count;
-            BitRange::from_range(Range {
-                start,
-                end: bit_count,
-            })
-        };
+        let weak_sets = BitRange::from_bit_count_and_len(&mut bit_count, heap.weak_sets.len());
         let byte_count = bit_count.div_ceil(8);
         let mut bits = Box::<[AtomicBits]>::new_uninit_slice(byte_count);
         bits.fill_with(|| MaybeUninit::new(Default::default()));

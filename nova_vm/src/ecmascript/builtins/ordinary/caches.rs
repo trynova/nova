@@ -399,10 +399,6 @@ impl<'a> Caches<'a> {
         debug_assert!(previous.is_none());
     }
 
-    pub(crate) fn is_empty(&self) -> bool {
-        self.property_lookup_caches.is_empty()
-    }
-
     pub(crate) fn len(&self) -> usize {
         self.property_lookup_caches.len()
     }
