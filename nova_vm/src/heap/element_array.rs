@@ -392,22 +392,22 @@ impl HeapMarkAndSweep for ElementsVector<'static> {
         let Self {
             elements_index,
             cap,
-            len,
+            len: _,
             len_writable: _,
         } = self;
         match cap {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {}
-            ElementArrayKey::E1 => queues.e_2_1.push((*elements_index, *len)),
-            ElementArrayKey::E2 => queues.e_2_2.push((*elements_index, *len)),
-            ElementArrayKey::E3 => queues.e_2_3.push((*elements_index, *len)),
-            ElementArrayKey::E4 => queues.e_2_4.push((*elements_index, *len)),
-            ElementArrayKey::E6 => queues.e_2_6.push((*elements_index, *len)),
-            ElementArrayKey::E8 => queues.e_2_8.push((*elements_index, *len)),
-            ElementArrayKey::E10 => queues.e_2_10.push((*elements_index, *len)),
-            ElementArrayKey::E12 => queues.e_2_12.push((*elements_index, *len)),
-            ElementArrayKey::E16 => queues.e_2_16.push((*elements_index, *len)),
-            ElementArrayKey::E24 => queues.e_2_24.push((*elements_index, *len)),
-            ElementArrayKey::E32 => queues.e_2_32.push((*elements_index, *len)),
+            ElementArrayKey::E1 => queues.e_2_1.push(*elements_index),
+            ElementArrayKey::E2 => queues.e_2_2.push(*elements_index),
+            ElementArrayKey::E3 => queues.e_2_3.push(*elements_index),
+            ElementArrayKey::E4 => queues.e_2_4.push(*elements_index),
+            ElementArrayKey::E6 => queues.e_2_6.push(*elements_index),
+            ElementArrayKey::E8 => queues.e_2_8.push(*elements_index),
+            ElementArrayKey::E10 => queues.e_2_10.push(*elements_index),
+            ElementArrayKey::E12 => queues.e_2_12.push(*elements_index),
+            ElementArrayKey::E16 => queues.e_2_16.push(*elements_index),
+            ElementArrayKey::E24 => queues.e_2_24.push(*elements_index),
+            ElementArrayKey::E32 => queues.e_2_32.push(*elements_index),
         }
     }
 

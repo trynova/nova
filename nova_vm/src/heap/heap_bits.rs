@@ -134,7 +134,7 @@ impl BitRange {
         range.for_each_byte_mut(bits, |mark_byte, bit_iterator| {
             if let Some(bit_iterator) = bit_iterator {
                 *mark_byte =
-                    bit_iterator.fold(*mark_byte, |acc, bitmask| acc | bitmask.into_bitmask());
+                    bit_iterator.fold(*mark_byte, |acc, bitmask| acc | bitmask.as_bitmask());
             } else {
                 *mark_byte = 0xFF;
             }
@@ -238,9 +238,7 @@ impl<'a> Iterator for BitRangeIterator<'a> {
     }
 
     fn next(&mut self) -> Option<Self::Item> {
-        let Some(byte) = self.bits.first() else {
-            return None;
-        };
+        let byte = self.bits.first()?;
         let value = byte.get_bit(self.bit_range.start.advance());
         if self.bits.len() == 1 && self.bit_range.start == self.bit_range.end {
             // We've reached the end of our bit range.
@@ -293,7 +291,7 @@ impl BitOffset {
     }
 
     /// Creates a byte with only this offset bit set.
-    pub(crate) const fn into_bitmask(&self) -> u8 {
+    pub(crate) const fn as_bitmask(&self) -> u8 {
         1u8 << self.0
     }
 
@@ -389,14 +387,14 @@ impl AtomicBits {
     /// Get the nth bit atomically. Returns true if the bit is set.
     #[inline]
     fn get_bit(&self, offset: BitOffset) -> bool {
-        (self.0.load(Ordering::Relaxed) & offset.into_bitmask()) > 0
+        (self.0.load(Ordering::Relaxed) & offset.as_bitmask()) > 0
     }
 
     /// Set the nth bit atomically. Returns true if the bit was previously
     /// unset.
     #[inline]
     fn set_bit(&self, offset: BitOffset) -> bool {
-        let bitmask = offset.into_bitmask();
+        let bitmask = offset.as_bitmask();
         let old_value = self.0.fetch_or(bitmask, Ordering::Relaxed);
         (old_value & bitmask) == 0
     }
@@ -519,28 +517,28 @@ pub(crate) struct WorkQueues<'a> {
     #[cfg(feature = "date")]
     pub(crate) dates: Vec<Date<'static>>,
     pub(crate) declarative_environments: Vec<DeclarativeEnvironment<'static>>,
-    pub(crate) e_2_1: Vec<(ElementIndex<'static>, u32)>,
-    pub(crate) e_2_2: Vec<(ElementIndex<'static>, u32)>,
-    pub(crate) e_2_3: Vec<(ElementIndex<'static>, u32)>,
-    pub(crate) e_2_4: Vec<(ElementIndex<'static>, u32)>,
-    pub(crate) e_2_6: Vec<(ElementIndex<'static>, u32)>,
-    pub(crate) e_2_8: Vec<(ElementIndex<'static>, u32)>,
-    pub(crate) e_2_10: Vec<(ElementIndex<'static>, u32)>,
-    pub(crate) e_2_12: Vec<(ElementIndex<'static>, u32)>,
-    pub(crate) e_2_16: Vec<(ElementIndex<'static>, u32)>,
-    pub(crate) e_2_24: Vec<(ElementIndex<'static>, u32)>,
-    pub(crate) e_2_32: Vec<(ElementIndex<'static>, u32)>,
-    pub(crate) k_2_1: Vec<(PropertyKeyIndex<'static>, u32)>,
-    pub(crate) k_2_2: Vec<(PropertyKeyIndex<'static>, u32)>,
-    pub(crate) k_2_3: Vec<(PropertyKeyIndex<'static>, u32)>,
-    pub(crate) k_2_4: Vec<(PropertyKeyIndex<'static>, u32)>,
-    pub(crate) k_2_6: Vec<(PropertyKeyIndex<'static>, u32)>,
-    pub(crate) k_2_8: Vec<(PropertyKeyIndex<'static>, u32)>,
-    pub(crate) k_2_10: Vec<(PropertyKeyIndex<'static>, u32)>,
-    pub(crate) k_2_12: Vec<(PropertyKeyIndex<'static>, u32)>,
-    pub(crate) k_2_16: Vec<(PropertyKeyIndex<'static>, u32)>,
-    pub(crate) k_2_24: Vec<(PropertyKeyIndex<'static>, u32)>,
-    pub(crate) k_2_32: Vec<(PropertyKeyIndex<'static>, u32)>,
+    pub(crate) e_2_1: Vec<ElementIndex<'static>>,
+    pub(crate) e_2_2: Vec<ElementIndex<'static>>,
+    pub(crate) e_2_3: Vec<ElementIndex<'static>>,
+    pub(crate) e_2_4: Vec<ElementIndex<'static>>,
+    pub(crate) e_2_6: Vec<ElementIndex<'static>>,
+    pub(crate) e_2_8: Vec<ElementIndex<'static>>,
+    pub(crate) e_2_10: Vec<ElementIndex<'static>>,
+    pub(crate) e_2_12: Vec<ElementIndex<'static>>,
+    pub(crate) e_2_16: Vec<ElementIndex<'static>>,
+    pub(crate) e_2_24: Vec<ElementIndex<'static>>,
+    pub(crate) e_2_32: Vec<ElementIndex<'static>>,
+    pub(crate) k_2_1: Vec<PropertyKeyIndex<'static>>,
+    pub(crate) k_2_2: Vec<PropertyKeyIndex<'static>>,
+    pub(crate) k_2_3: Vec<PropertyKeyIndex<'static>>,
+    pub(crate) k_2_4: Vec<PropertyKeyIndex<'static>>,
+    pub(crate) k_2_6: Vec<PropertyKeyIndex<'static>>,
+    pub(crate) k_2_8: Vec<PropertyKeyIndex<'static>>,
+    pub(crate) k_2_10: Vec<PropertyKeyIndex<'static>>,
+    pub(crate) k_2_12: Vec<PropertyKeyIndex<'static>>,
+    pub(crate) k_2_16: Vec<PropertyKeyIndex<'static>>,
+    pub(crate) k_2_24: Vec<PropertyKeyIndex<'static>>,
+    pub(crate) k_2_32: Vec<PropertyKeyIndex<'static>>,
     pub(crate) ecmascript_functions: Vec<ECMAScriptFunction<'static>>,
     pub(crate) embedder_objects: Vec<EmbedderObject<'static>>,
     pub(crate) source_codes: Vec<SourceCode<'static>>,
@@ -1473,7 +1471,7 @@ impl HeapBits {
                 end: bit_count,
             })
         };
-        let byte_count = bit_count.div_ceil(8) as usize;
+        let byte_count = bit_count.div_ceil(8);
         let mut bits = Box::<[AtomicBits]>::new_uninit_slice(byte_count);
         bits.fill_with(|| MaybeUninit::new(Default::default()));
         // SAFETY: filled in.
@@ -1481,21 +1479,21 @@ impl HeapBits {
         Self {
             bits,
             #[cfg(feature = "array-buffer")]
-            array_buffers: array_buffers,
-            arrays: arrays,
-            array_iterators: array_iterators,
-            async_generators: async_generators,
-            await_reactions: await_reactions,
-            bigints: bigints,
-            bound_functions: bound_functions,
-            builtin_constructors: builtin_constructors,
-            builtin_functions: builtin_functions,
-            caches: caches,
+            array_buffers,
+            arrays,
+            array_iterators,
+            async_generators,
+            await_reactions,
+            bigints,
+            bound_functions,
+            builtin_constructors,
+            builtin_functions,
+            caches,
             #[cfg(feature = "array-buffer")]
-            data_views: data_views,
+            data_views,
             #[cfg(feature = "date")]
-            dates: dates,
-            declarative_environments: declarative_environments,
+            dates,
+            declarative_environments,
             e_2_1,
             e_2_2,
             e_2_3,
@@ -1518,60 +1516,60 @@ impl HeapBits {
             k_2_16,
             k_2_24,
             k_2_32,
-            ecmascript_functions: ecmascript_functions,
-            embedder_objects: embedder_objects,
-            errors: errors,
-            executables: executables,
-            source_codes: source_codes,
-            finalization_registrys: finalization_registrys,
-            function_environments: function_environments,
-            generators: generators,
-            global_environments: global_environments,
-            maps: maps,
-            map_iterators: map_iterators,
-            module_environments: module_environments,
-            modules: modules,
-            module_request_records: module_request_records,
-            numbers: numbers,
-            object_environments: object_environments,
-            object_shapes: object_shapes,
-            objects: objects,
-            primitive_objects: primitive_objects,
-            promise_reaction_records: promise_reaction_records,
-            promise_resolving_functions: promise_resolving_functions,
-            promise_finally_functions: promise_finally_functions,
-            private_environments: private_environments,
-            promises: promises,
-            promise_group_records: promise_group_records,
-            proxies: proxies,
-            realms: realms,
+            ecmascript_functions,
+            embedder_objects,
+            errors,
+            executables,
+            source_codes,
+            finalization_registrys,
+            function_environments,
+            generators,
+            global_environments,
+            maps,
+            map_iterators,
+            module_environments,
+            modules,
+            module_request_records,
+            numbers,
+            object_environments,
+            object_shapes,
+            objects,
+            primitive_objects,
+            promise_reaction_records,
+            promise_resolving_functions,
+            promise_finally_functions,
+            private_environments,
+            promises,
+            promise_group_records,
+            proxies,
+            realms,
             #[cfg(feature = "regexp")]
-            regexps: regexps,
+            regexps,
             #[cfg(feature = "regexp")]
-            regexp_string_iterators: regexp_string_iterators,
-            scripts: scripts,
+            regexp_string_iterators,
+            scripts,
             #[cfg(feature = "set")]
-            sets: sets,
+            sets,
             #[cfg(feature = "set")]
-            set_iterators: set_iterators,
+            set_iterators,
             #[cfg(feature = "shared-array-buffer")]
-            shared_array_buffers: shared_array_buffers,
+            shared_array_buffers,
             #[cfg(feature = "shared-array-buffer")]
-            shared_data_views: shared_data_views,
+            shared_data_views,
             #[cfg(feature = "shared-array-buffer")]
-            shared_typed_arrays: shared_typed_arrays,
-            source_text_module_records: source_text_module_records,
-            string_iterators: string_iterators,
-            strings: strings,
-            symbols: symbols,
+            shared_typed_arrays,
+            source_text_module_records,
+            string_iterators,
+            strings,
+            symbols,
             #[cfg(feature = "array-buffer")]
-            typed_arrays: typed_arrays,
+            typed_arrays,
             #[cfg(feature = "weak-refs")]
-            weak_maps: weak_maps,
+            weak_maps,
             #[cfg(feature = "weak-refs")]
-            weak_refs: weak_refs,
+            weak_refs,
             #[cfg(feature = "weak-refs")]
-            weak_sets: weak_sets,
+            weak_sets,
         }
     }
 
@@ -3013,16 +3011,6 @@ impl<K: HeapMarkAndSweep + core::fmt::Debug + Copy + Hash + Eq + Ord, V: HeapSwe
             }
         }
     }
-}
-
-pub(crate) fn mark_array_with_length<T: HeapMarkAndSweep, const N: usize>(
-    array: &[T; N],
-    queues: &mut WorkQueues,
-    length: u32,
-) {
-    array.as_ref()[..length as usize].iter().for_each(|value| {
-        value.mark_values(queues);
-    });
 }
 
 pub(crate) fn mark_descriptors(

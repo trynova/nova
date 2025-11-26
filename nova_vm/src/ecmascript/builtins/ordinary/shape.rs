@@ -1162,7 +1162,7 @@ impl HeapMarkAndSweep for ObjectShapeRecord<'static> {
             prototype,
             keys,
             keys_cap,
-            len,
+            len: _,
             // Note: values capacity is only used for marking and sweeping
             // objects, not object shapes themselves.
             values_cap: _,
@@ -1170,17 +1170,17 @@ impl HeapMarkAndSweep for ObjectShapeRecord<'static> {
         prototype.mark_values(queues);
         match keys_cap {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {}
-            ElementArrayKey::E1 => queues.k_2_1.push((*keys, *len)),
-            ElementArrayKey::E2 => queues.k_2_2.push((*keys, *len)),
-            ElementArrayKey::E3 => queues.k_2_3.push((*keys, *len)),
-            ElementArrayKey::E4 => queues.k_2_4.push((*keys, *len)),
-            ElementArrayKey::E6 => queues.k_2_6.push((*keys, *len)),
-            ElementArrayKey::E8 => queues.k_2_8.push((*keys, *len)),
-            ElementArrayKey::E10 => queues.k_2_10.push((*keys, *len)),
-            ElementArrayKey::E12 => queues.k_2_12.push((*keys, *len)),
-            ElementArrayKey::E16 => queues.k_2_16.push((*keys, *len)),
-            ElementArrayKey::E24 => queues.k_2_24.push((*keys, *len)),
-            ElementArrayKey::E32 => queues.k_2_32.push((*keys, *len)),
+            ElementArrayKey::E1 => queues.k_2_1.push(*keys),
+            ElementArrayKey::E2 => queues.k_2_2.push(*keys),
+            ElementArrayKey::E3 => queues.k_2_3.push(*keys),
+            ElementArrayKey::E4 => queues.k_2_4.push(*keys),
+            ElementArrayKey::E6 => queues.k_2_6.push(*keys),
+            ElementArrayKey::E8 => queues.k_2_8.push(*keys),
+            ElementArrayKey::E10 => queues.k_2_10.push(*keys),
+            ElementArrayKey::E12 => queues.k_2_12.push(*keys),
+            ElementArrayKey::E16 => queues.k_2_16.push(*keys),
+            ElementArrayKey::E24 => queues.k_2_24.push(*keys),
+            ElementArrayKey::E32 => queues.k_2_32.push(*keys),
         }
     }
 
