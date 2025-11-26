@@ -35,7 +35,7 @@ impl BuiltinIntrinsicConstructor for FinalizationRegistryConstructor {
 }
 
 impl FinalizationRegistryConstructor {
-    /// ### [26.2.1.1 FinalizationRegistry ( cleanupCallback )](https://tc39.es/ecma262/#sec-finalization-registry-cleanup-callback)
+    /// #### [26.2.1.1 FinalizationRegistry ( cleanupCallback )](https://tc39.es/ecma262/#sec-finalization-registry-cleanup-callback)
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,

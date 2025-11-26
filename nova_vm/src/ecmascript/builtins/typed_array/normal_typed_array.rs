@@ -70,7 +70,7 @@ use crate::{
     },
 };
 
-/// ### [23.2 TypedArray Objects](https://tc39.es/ecma262/#sec-typedarray-objects)
+/// ## [23.2 TypedArray Objects](https://tc39.es/ecma262/#sec-typedarray-objects)
 ///
 /// A generic TypedArray its concrete type encoded in a type parameter.
 pub struct GenericTypedArray<'a, T: Viewable>(
@@ -99,7 +99,7 @@ impl<'ta, T: Viewable> GenericTypedArray<'ta, T> {
         }
     }
 
-    /// ### [10.4.5.18 TypedArraySetElement ( O, index, value )](https://tc39.es/ecma262/#sec-typedarraysetelement)
+    /// #### [10.4.5.18 TypedArraySetElement ( O, index, value )](https://tc39.es/ecma262/#sec-typedarraysetelement)
     ///
     /// The abstract operation TypedArraySetElement takes arguments O (a
     /// TypedArray), index (a Number), and value (an ECMAScript language value) and
@@ -153,7 +153,7 @@ impl<'ta, T: Viewable> GenericTypedArray<'ta, T> {
         Ok(())
     }
 
-    /// ### [10.4.5.18 Infallible TypedArraySetElement ( O, index, value )](https://tc39.es/ecma262/#sec-typedarraysetelement)
+    /// #### [10.4.5.18 Infallible TypedArraySetElement ( O, index, value )](https://tc39.es/ecma262/#sec-typedarraysetelement)
     ///
     /// The abstract operation TypedArraySetElement takes arguments O (a
     /// TypedArray), index (a Number), and value (an ECMAScript language value) and
@@ -541,7 +541,7 @@ impl<T: Viewable> Rootable for GenericTypedArray<'_, T> {
     }
 }
 
-/// ### [23.2 TypedArray Objects](https://tc39.es/ecma262/#sec-typedarray-objects)
+/// ## [23.2 TypedArray Objects](https://tc39.es/ecma262/#sec-typedarray-objects)
 ///
 /// A TypedArray presents an array-like view of an underlying binary data
 /// buffer (25.1).

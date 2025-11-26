@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! ## [16.2.1.6 Cyclic Module Records](https://tc39.es/ecma262/#sec-cyclic-module-records)
+//! #### [16.2.1.6 Cyclic Module Records](https://tc39.es/ecma262/#sec-cyclic-module-records)
 
 use crate::{
     ecmascript::{
@@ -392,7 +392,7 @@ impl<'m> CyclicModuleRecord<'m> {
     }
 }
 
-/// ### [16.2.1.6 Cyclic Module Records](https://tc39.es/ecma262/#sec-cyclic-module-records)
+/// #### [16.2.1.6 Cyclic Module Records](https://tc39.es/ecma262/#sec-cyclic-module-records)
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct CyclicModule<'a>(InnerCyclicModule<'a>);
@@ -460,7 +460,7 @@ pub(crate) trait CyclicModuleSlots: Copy {
     fn append_async_parent_module(self, agent: &mut Agent, module: SourceTextModule);
 }
 
-/// ### [Additional Abstract Methods of Cyclic Module Records](https://tc39.es/ecma262/#table-cyclic-module-methods)
+/// # [Additional Abstract Methods of Cyclic Module Records](https://tc39.es/ecma262/#table-cyclic-module-methods)
 pub(crate) trait CyclicModuleMethods: CyclicModuleSlots {
     /// ### InitializeEnvironment()
     ///
@@ -543,7 +543,7 @@ impl<'a> GraphLoadingStateRecord<'a> {
     }
 }
 
-/// ### [16.2.1.6.1.1.1 InnerModuleLoading ( state, module )](https://tc39.es/ecma262/#sec-InnerModuleLoading)
+/// ####### [16.2.1.6.1.1.1 InnerModuleLoading ( state, module )](https://tc39.es/ecma262/#sec-InnerModuleLoading)
 ///
 /// The abstract operation InnerModuleLoading takes arguments state (a
 /// GraphLoadingState Record) and module (a Module Record) and returns unused.
@@ -620,7 +620,7 @@ pub(super) fn inner_module_loading<'a>(
     // 6. Return unused.
 }
 
-/// ### [16.2.1.6.1.2.1 InnerModuleLinking ( module, stack, index )](https://tc39.es/ecma262/#sec-InnerModuleLinking)
+/// ####### [16.2.1.6.1.2.1 InnerModuleLinking ( module, stack, index )](https://tc39.es/ecma262/#sec-InnerModuleLinking)
 ///
 /// The abstract operation InnerModuleLinking takes arguments module (a Module
 /// Record), stack (a List of Cyclic Module Records), and index (a non-negative
@@ -732,7 +732,7 @@ pub(super) fn inner_module_linking<'a>(
     Ok(index)
 }
 
-/// ### [16.2.1.6.1.3.1 InnerModuleEvaluation ( module, stack, index )](https://tc39.es/ecma262/#sec-innermoduleevaluation)
+/// ####### [16.2.1.6.1.3.1 InnerModuleEvaluation ( module, stack, index )](https://tc39.es/ecma262/#sec-innermoduleevaluation)
 ///
 /// The abstract operation InnerModuleEvaluation takes arguments module (a
 /// Module Record), stack (a List of Cyclic Module Records), and index (a
@@ -1160,7 +1160,7 @@ pub(crate) fn async_module_execution_rejected(
     // 11. Return unused.
 }
 
-/// ### [16.2.1.6.1.3.3 GatherAvailableAncestors ( module, execList )](https://tc39.es/ecma262/#sec-gather-available-ancestors)
+/// ####### [16.2.1.6.1.3.3 GatherAvailableAncestors ( module, execList )](https://tc39.es/ecma262/#sec-gather-available-ancestors)
 ///
 /// The abstract operation GatherAvailableAncestors takes arguments module (a
 /// Cyclic Module Record) and execList (a List of Cyclic Module Records) and
@@ -1225,7 +1225,7 @@ fn gather_available_ancestors<'a>(
     // 2. Return unused.
 }
 
-/// ### [16.2.1.6.1.1.2 ContinueModuleLoading ( state, moduleCompletion )](https://tc39.es/ecma262/#sec-ContinueModuleLoading)
+/// ####### [16.2.1.6.1.1.2 ContinueModuleLoading ( state, moduleCompletion )](https://tc39.es/ecma262/#sec-ContinueModuleLoading)
 ///
 /// The abstract operation ContinueModuleLoading takes arguments state (a
 /// GraphLoadingState Record) and moduleCompletion (either a normal completion

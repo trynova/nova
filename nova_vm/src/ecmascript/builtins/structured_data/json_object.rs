@@ -489,7 +489,7 @@ impl JSONObject {
     }
 }
 
-/// [25.5.1.1 InternalizeJSONProperty ( holder, name, reviver )](https://tc39.es/ecma262/#sec-internalizejsonproperty)
+///#### [25.5.1.1 InternalizeJSONProperty ( holder, name, reviver )](https://tc39.es/ecma262/#sec-internalizejsonproperty)
 ///
 /// The abstract operation InternalizeJSONProperty takes arguments holder (an
 /// Object), name (a String), and reviver (a function object) and returns
@@ -666,7 +666,7 @@ impl IndirectPropertyKey for Scoped<'_, PropertyKey<'static>> {
     }
 }
 
-/// ### [25.5.2.2 SerializeJSONProperty ( state, key, holder )](https://tc39.es/ecma262/#sec-serializejsonproperty)
+/// #### [25.5.2.2 SerializeJSONProperty ( state, key, holder )](https://tc39.es/ecma262/#sec-serializejsonproperty)
 ///
 /// The abstract operation SerializeJSONProperty takes arguments state (a JSON
 /// Serialization Record), key (a String), and holder (an Object) and returns
@@ -802,7 +802,7 @@ fn get_serializable_json_property_value<'a>(
     }
 }
 
-/// ### [25.5.2.2 SerializeJSONProperty ( state, key, holder )](https://tc39.es/ecma262/#sec-serializejsonproperty)
+/// #### [25.5.2.2 SerializeJSONProperty ( state, key, holder )](https://tc39.es/ecma262/#sec-serializejsonproperty)
 ///
 /// > Note: This performs steps 5 through 9, and 11 of the
 /// > SerializeJSONProperty abstract operation.
@@ -863,7 +863,7 @@ fn serialize_json_property_value<'a, 'b>(
     Ok(())
 }
 
-/// ### [25.5.2.3 QuoteJSONString ( value )](https://tc39.es/ecma262/#sec-quotejsonstring)
+/// #### [25.5.2.3 QuoteJSONString ( value )](https://tc39.es/ecma262/#sec-quotejsonstring)
 ///
 /// The abstract operation QuoteJSONString takes argument value (a String) and
 /// returns a String. It wraps value in 0x0022 (QUOTATION MARK) code units and
@@ -956,7 +956,7 @@ fn quote_property_key(agent: &Agent, product: &mut Wtf8Buf, key: PropertyKey) {
     }
 }
 
-/// ### [25.5.2.5 SerializeJSONObject ( state, value )](https://tc39.es/ecma262/#sec-serializejsonobject)
+/// #### [25.5.2.5 SerializeJSONObject ( state, value )](https://tc39.es/ecma262/#sec-serializejsonobject)
 ///
 /// The abstract operation SerializeJSONObject takes arguments state (a JSON
 /// Serialization Record) and value (an Object) and returns either a normal
@@ -1126,7 +1126,7 @@ fn serialize_json_object<'a, 'b>(
     Ok(())
 }
 
-/// ### [25.5.2.6 SerializeJSONArray ( state, value )](https://tc39.es/ecma262/#sec-serializejsonarray)
+/// #### [25.5.2.6 SerializeJSONArray ( state, value )](https://tc39.es/ecma262/#sec-serializejsonarray)
 ///
 /// The abstract operation SerializeJSONArray takes arguments state (a JSON
 /// Serialization Record) and value (an ECMAScript language value) and returns

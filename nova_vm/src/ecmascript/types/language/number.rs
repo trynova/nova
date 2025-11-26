@@ -33,7 +33,7 @@ use num_traits::{PrimInt, Zero};
 use radix::make_float_string_ascii_lowercase;
 pub(crate) use radix::with_radix;
 
-/// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+/// #### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
 ///
 /// Heap-allocated [Number] data. Accessing the data must be done through the
 /// [Agent].
@@ -52,7 +52,7 @@ impl HeapNumber<'_> {
     }
 }
 
-/// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+/// #### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
 #[derive(Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub enum Number<'a> {
@@ -471,7 +471,7 @@ impl<'a> Number<'a> {
         }
     }
 
-    /// ### [truncate](https://tc39.es/ecma262/#eqn-truncate)
+    /// # [truncate](https://tc39.es/ecma262/#eqn-truncate)
     pub fn truncate(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Self {
         match self {
             Number::Number(n) => {
@@ -629,7 +629,7 @@ impl<'a> Number<'a> {
         Number::less_than(agent, x, y).map(|lt| !lt && !Number::is(agent, x, y))
     }
 
-    /// ### [6.1.6.1.1 Number::unaryMinus ( x )](https://tc39.es/ecma262/#sec-numeric-types-number-unaryMinus)
+    /// ##### [6.1.6.1.1 Number::unaryMinus ( x )](https://tc39.es/ecma262/#sec-numeric-types-number-unaryMinus)
     pub fn unary_minus(agent: &mut Agent, x: Self) -> Self {
         // 1. If x is NaN, return NaN.
         // NOTE: Computers do this automatically.
@@ -660,7 +660,7 @@ impl<'a> Number<'a> {
         }
     }
 
-    /// ### [6.1.6.1.2 Number::bitwiseNOT ( x )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseNOT)
+    /// ##### [6.1.6.1.2 Number::bitwiseNOT ( x )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseNOT)
     pub fn bitwise_not(agent: &mut Agent, x: Self) -> Self {
         // 1. Let oldValue be ! ToInt32(x).
         let old_value = to_int32_number(agent, x);
@@ -669,7 +669,7 @@ impl<'a> Number<'a> {
         Number::from(!old_value)
     }
 
-    /// ### [6.1.6.1.3 Number::exponentiate ( base, exponent )](https://tc39.es/ecma262/#sec-numeric-types-number-exponentiate)
+    /// ##### [6.1.6.1.3 Number::exponentiate ( base, exponent )](https://tc39.es/ecma262/#sec-numeric-types-number-exponentiate)
     pub fn exponentiate(agent: &mut Agent, base: Self, exponent: Self) -> Self {
         // 1. If exponent is NaN, return NaN.
         if exponent.is_nan(agent) {
@@ -805,7 +805,7 @@ impl<'a> Number<'a> {
             .create(base.into_f64(agent).powf(exponent.into_f64(agent)))
     }
 
-    /// ### [6.1.6.1.4 Number::multiply ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-multiply)
+    /// ##### [6.1.6.1.4 Number::multiply ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-multiply)
     ///
     /// The abstract operation Number::multiply takes arguments x (a Number)
     /// and y (a Number) and returns a Number. It performs multiplication
@@ -889,7 +889,7 @@ impl<'a> Number<'a> {
         Self::from_f64(agent, x.to_real(agent) * y.to_real(agent), gc)
     }
 
-    /// ### [6.1.6.1.5 Number::divide ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-divide)
+    /// ##### [6.1.6.1.5 Number::divide ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-divide)
     ///
     /// The abstract operation Number::divide takes arguments x (a Number) and
     /// y (a Number) and returns a Number. It performs division according to
@@ -976,7 +976,7 @@ impl<'a> Number<'a> {
         Number::from_f64(agent, result, gc)
     }
 
-    /// ### [6.1.6.1.6 Number::remainder ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-remainder)
+    /// ##### [6.1.6.1.6 Number::remainder ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-remainder)
     ///
     /// The abstract operation Number::remainder takes arguments n (a Number)
     /// and d (a Number) and returns a Number. It yields the remainder from an
@@ -1032,7 +1032,7 @@ impl<'a> Number<'a> {
         Self::from_f64(agent, r, gc)
     }
 
-    /// ### [6.1.6.1.7 Number::add ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-add)
+    /// ##### [6.1.6.1.7 Number::add ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-add)
     ///
     /// The abstract operation Number::add takes arguments x (a Number) and y
     /// (a Number) and returns a Number. It performs addition according to the
@@ -1076,7 +1076,7 @@ impl<'a> Number<'a> {
         agent.heap.create(x.into_f64(agent) + y.into_f64(agent))
     }
 
-    /// ### [6.1.6.1.8 Number::subtract ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-subtract)
+    /// ##### [6.1.6.1.8 Number::subtract ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-subtract)
     ///
     /// The abstract operation Number::subtract takes arguments x (a Number)
     /// and y (a Number) and returns a Number. It performs subtraction,
@@ -1088,7 +1088,7 @@ impl<'a> Number<'a> {
         Number::add(agent, x, negated_y)
     }
 
-    /// ### [6.1.6.1.9 Number::leftShift ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-leftShift)
+    /// ##### [6.1.6.1.9 Number::leftShift ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-leftShift)
     ///
     /// The abstract operation Number::signedRightShift takes arguments x
     /// (a Number) and y (a Number) and returns an integral Number.
@@ -1103,7 +1103,7 @@ impl<'a> Number<'a> {
         Number::from(lnum.signed_shl(shift_count))
     }
 
-    /// ### [6.1.6.1.10 Number::signedRightShift ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-signedRightShift)
+    /// ##### [6.1.6.1.10 Number::signedRightShift ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-signedRightShift)
     ///
     /// The abstract operation Number::unsignedRightShift takes arguments x
     /// (a Number) and y (a Number) and returns an integral Number.
@@ -1118,7 +1118,7 @@ impl<'a> Number<'a> {
         Number::from(lnum.signed_shr(shift_count))
     }
 
-    /// ### [6.1.6.1.11 Number::unsignedRightShift ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-unsignedRightShift)
+    /// ##### [6.1.6.1.11 Number::unsignedRightShift ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-unsignedRightShift)
     ///
     /// The abstract operation Number::lessThan takes arguments x (a Number)
     /// and y (a Number) and returns a Boolean or undefined.
@@ -1133,7 +1133,7 @@ impl<'a> Number<'a> {
         Number::from(lnum.unsigned_shr(shift_count))
     }
 
-    /// ### [6.1.6.1.12 Number::lessThan ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-lessThan)
+    /// ##### [6.1.6.1.12 Number::lessThan ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-lessThan)
     pub fn less_than(agent: &Agent, x: Self, y: Self) -> Option<bool> {
         // 1. If x is NaN, return undefined.
         if x.is_nan(agent) {
@@ -1197,7 +1197,7 @@ impl<'a> Number<'a> {
         })
     }
 
-    /// ### [6.1.6.1.13 Number::equal ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-equal)
+    /// ##### [6.1.6.1.13 Number::equal ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-equal)
     pub fn equal(agent: &impl Index<HeapNumber<'static>, Output = f64>, x: Self, y: Self) -> bool {
         // 1. If x is NaN, return false.
         if x.is_nan(agent) {
@@ -1228,7 +1228,7 @@ impl<'a> Number<'a> {
         false
     }
 
-    /// ### [6.1.6.1.14 Number::sameValue ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-sameValue)
+    /// ##### [6.1.6.1.14 Number::sameValue ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-sameValue)
     pub fn same_value(
         agent: &impl Index<HeapNumber<'static>, Output = f64>,
         x: Self,
@@ -1258,7 +1258,7 @@ impl<'a> Number<'a> {
         false
     }
 
-    /// ### [6.1.6.1.15 Number::sameValueZero ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-sameValueZero)
+    /// ##### [6.1.6.1.15 Number::sameValueZero ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-sameValueZero)
     pub fn same_value_zero(
         agent: &impl Index<HeapNumber<'static>, Output = f64>,
         x: Self,
@@ -1288,7 +1288,7 @@ impl<'a> Number<'a> {
         false
     }
 
-    /// ### [6.1.6.1.16 NumberBitwiseOp ( op, x, y )](https://tc39.es/ecma262/#sec-numberbitwiseop)
+    /// ##### [6.1.6.1.16 NumberBitwiseOp ( op, x, y )](https://tc39.es/ecma262/#sec-numberbitwiseop)
     #[inline(always)]
     fn bitwise_op(agent: &mut Agent, op: BitwiseOp, x: Self, y: Self) -> i32 {
         // 1. Let lnum be ! ToInt32(x).
@@ -1324,19 +1324,19 @@ impl<'a> Number<'a> {
         }
     }
 
-    /// ### [6.1.6.1.17 Number::bitwiseAND ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseAND)
+    /// ##### [6.1.6.1.17 Number::bitwiseAND ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseAND)
     pub fn bitwise_and(agent: &mut Agent, x: Self, y: Self) -> i32 {
         // 1. Return NumberBitwiseOp(&, x, y).
         Number::bitwise_op(agent, BitwiseOp::And, x, y)
     }
 
-    /// ### [6.1.6.1.18 Number::bitwiseXOR ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseXOR)
+    /// ##### [6.1.6.1.18 Number::bitwiseXOR ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseXOR)
     pub fn bitwise_xor(agent: &mut Agent, x: Self, y: Self) -> i32 {
         // 1. Return NumberBitwiseOp(^, x, y).
         Number::bitwise_op(agent, BitwiseOp::Xor, x, y)
     }
 
-    /// ### [6.1.6.1.19 Number::bitwiseOR ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseOR)
+    /// ##### [6.1.6.1.19 Number::bitwiseOR ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseOR)
     pub fn bitwise_or(agent: &mut Agent, x: Self, y: Self) -> i32 {
         // 1. Return NumberBitwiseOp(|, x, y).
         Number::bitwise_op(agent, BitwiseOp::Or, x, y)
@@ -1403,7 +1403,7 @@ impl<'a> Number<'a> {
         }
     }
 
-    /// ### [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
+    /// # [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
     pub(crate) fn to_real(self, agent: &impl Index<HeapNumber<'static>, Output = f64>) -> f64 {
         match self {
             Self::Number(n) => agent[n.unbind()],

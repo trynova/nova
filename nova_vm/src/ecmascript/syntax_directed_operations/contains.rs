@@ -15,12 +15,12 @@ pub(crate) enum ContainsSymbol {
     Yield,
 }
 
-/// ### [8.5 Contains](https://tc39.es/ecma262/#sec-static-semantics-contains)
+/// ## [8.5 Contains](https://tc39.es/ecma262/#sec-static-semantics-contains)
 ///
 /// The syntax-directed operation ComputedPropertyContains takes argument
 /// symbol (a grammar symbol) and returns a Boolean.
 pub(crate) trait Contains {
-    /// ### [8.5 Contains](https://tc39.es/ecma262/#sec-static-semantics-contains)
+    /// ## [8.5 Contains](https://tc39.es/ecma262/#sec-static-semantics-contains)
     fn contains(&self, symbol: ContainsSymbol) -> bool;
 }
 

@@ -57,25 +57,25 @@ pub enum Primitive<'a> {
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
     /// ### [6.1.5 The Symbol Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-symbol-type)
     Symbol(Symbol<'a>) = SYMBOL_DISCRIMINANT,
-    /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+    /// #### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
     /// f64 on the heap. Accessing the data must be done through the Agent.
     Number(HeapNumber<'a>) = NUMBER_DISCRIMINANT,
-    /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+    /// #### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
     /// 53-bit signed integer on the stack.
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
-    /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+    /// #### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
     /// 56-bit f64 on the stack. The missing byte is a zero least significant
     /// byte.
     SmallF64(SmallF64) = FLOAT_DISCRIMINANT,
-    /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
+    /// #### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
     ///
     /// Unlimited size integer data on the heap. Accessing the data must be
     /// done through the Agent.
     BigInt(HeapBigInt<'a>) = BIGINT_DISCRIMINANT,
-    /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
+    /// #### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
     ///
     /// 56-bit signed integer on the stack.
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
@@ -109,11 +109,11 @@ pub(crate) enum HeapPrimitive<'a> {
     /// Agent. ECMAScript specification compliant UTF-16 indexing is
     /// implemented through an index mapping.
     String(HeapString<'a>) = STRING_DISCRIMINANT,
-    /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+    /// #### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
     /// f64 on the heap. Accessing the data must be done through the Agent.
     Number(HeapNumber<'a>) = NUMBER_DISCRIMINANT,
-    /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
+    /// #### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
     ///
     /// Unlimited size integer data on the heap. Accessing the data must be
     /// done through the Agent.

@@ -60,7 +60,7 @@ impl Builtin for StringRaw {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.raw;
 }
 impl StringConstructor {
-    /// ### [22.1.1.1 String ( value )](https://tc39.es/ecma262/#sec-string-constructor-string-value)
+    /// #### [22.1.1.1 String ( value )](https://tc39.es/ecma262/#sec-string-constructor-string-value)
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -192,7 +192,7 @@ impl StringConstructor {
         Ok(String::from_wtf8_buf(agent, result, gc.into_nogc()).into())
     }
 
-    /// ### [22.1.2.2 String.fromCodePoint ( ...`codePoints` )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.fromcodepoint)
+    /// #### [22.1.2.2 String.fromCodePoint ( ...`codePoints` )](https://tc39.es/ecma262/#sec-string.fromcodepoint)
     ///
     /// This function may be called with any number of arguments which form
     /// the rest parameter `codePoints`.
@@ -299,7 +299,7 @@ impl StringConstructor {
         Ok(String::from_wtf8_buf(agent, result, gc.into_nogc()).into())
     }
 
-    /// ### [22.1.2.4 String.raw ( template, ...substitutions )](https://tc39.es/ecma262/#sec-string.raw)
+    /// #### [22.1.2.4 String.raw ( template, ...substitutions )](https://tc39.es/ecma262/#sec-string.raw)
     ///
     /// This function may be called with a variable number of arguments. The
     /// first argument is template and the remainder of the arguments form the

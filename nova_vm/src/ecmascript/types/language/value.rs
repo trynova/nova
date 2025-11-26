@@ -92,7 +92,7 @@ use core::{
     ops::Index,
 };
 
-/// ### [6.1 ECMAScript Language Types](https://tc39.es/ecma262/#sec-ecmascript-language-types)
+/// ## [6.1 ECMAScript Language Types](https://tc39.es/ecma262/#sec-ecmascript-language-types)
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 #[repr(u8)]
 pub enum Value<'a> {
@@ -122,26 +122,26 @@ pub enum Value<'a> {
     /// ### [6.1.5 The Symbol Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-symbol-type)
     Symbol(Symbol<'a>),
 
-    /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+    /// #### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
     /// f64 on the heap. Accessing the data must be done through the Agent.
     Number(HeapNumber<'a>),
-    /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+    /// #### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
     /// 53-bit signed integer on the stack.
     Integer(SmallInteger),
-    /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+    /// #### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
     /// 56-bit f64 on the stack. The missing byte is a zero least significant
     /// byte.
     SmallF64(SmallF64),
 
-    /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
+    /// #### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
     ///
     /// Unlimited size integer data on the heap. Accessing the data must be
     /// done through the Agent.
     BigInt(HeapBigInt<'a>),
-    /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
+    /// #### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
     ///
     /// 56-bit signed integer on the stack.
     SmallBigInt(SmallBigInt),
@@ -154,7 +154,7 @@ pub enum Value<'a> {
     BuiltinFunction(BuiltinFunction<'a>),
     ECMAScriptFunction(ECMAScriptFunction<'a>),
     /// Default class constructor created in step 14 of
-    /// [ClassDefinitionEvaluation](https://tc39.es/ecma262/#sec-runtime-semantics-classdefinitionevaluation).
+    ///# [ClassDefinitionEvaluation](https://tc39.es/ecma262/#sec-runtime-semantics-classdefinitionevaluation).
     BuiltinConstructorFunction(BuiltinConstructorFunction<'a>),
     BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction<'a>),
     BuiltinPromiseFinallyFunction(BuiltinPromiseFinallyFunction<'a>),
@@ -194,10 +194,10 @@ pub enum Value<'a> {
     #[cfg(feature = "weak-refs")]
     WeakSet(WeakSet<'a>),
 
-    /// ### [25.1 ArrayBuffer Objects](https://tc39.es/ecma262/#sec-arraybuffer-objects)
+    /// ## [25.1 ArrayBuffer Objects](https://tc39.es/ecma262/#sec-arraybuffer-objects)
     #[cfg(feature = "array-buffer")]
     ArrayBuffer(ArrayBuffer<'a>),
-    /// ### [25.3 DataView Objects](https://tc39.es/ecma262/#sec-dataview-objects)
+    /// ## [25.3 DataView Objects](https://tc39.es/ecma262/#sec-dataview-objects)
     #[cfg(feature = "array-buffer")]
     DataView(DataView<'a>),
     // ### [23.2 TypedArray Objects](https://tc39.es/ecma262/#sec-typedarray-objects)
@@ -226,10 +226,10 @@ pub enum Value<'a> {
     #[cfg(feature = "array-buffer")]
     Float64Array(Float64Array<'a>),
 
-    /// ### [25.2 SharedArrayBuffer Objects](https://tc39.es/ecma262/#sec-sharedarraybuffer-objects)
+    /// ## [25.2 SharedArrayBuffer Objects](https://tc39.es/ecma262/#sec-sharedarraybuffer-objects)
     #[cfg(feature = "shared-array-buffer")]
     SharedArrayBuffer(SharedArrayBuffer<'a>),
-    /// ### [25.3 DataView Objects](https://tc39.es/ecma262/#sec-dataview-objects)
+    /// ## [25.3 DataView Objects](https://tc39.es/ecma262/#sec-dataview-objects)
     ///
     /// A variant of DataView Objects viewing a SharedArrayBuffer.
     #[cfg(feature = "shared-array-buffer")]
@@ -753,7 +753,7 @@ impl<'a> Value<'a> {
         }
     }
 
-    /// ### [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
+    /// # [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
     pub fn to_real<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, f64> {
         Ok(match self {
             Value::Number(n) => agent[n],

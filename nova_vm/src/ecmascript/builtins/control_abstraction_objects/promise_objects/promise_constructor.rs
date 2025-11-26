@@ -134,7 +134,7 @@ enum PromiseGroupSetupResult<'a> {
 bindable_handle!(PromiseGroupSetupResult);
 
 impl PromiseConstructor {
-    /// ### [27.2.3.1 Promise ( executor )](https://tc39.es/ecma262/#sec-promise-executor)
+    /// #### [27.2.3.1 Promise ( executor )](https://tc39.es/ecma262/#sec-promise-executor)
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -237,7 +237,7 @@ impl PromiseConstructor {
         Ok(scoped_promise.get(agent).into_value())
     }
 
-    /// ### [27.2.4.1 Promise.all ( iterable )](https://tc39.es/ecma262/#sec-promise.all)
+    /// #### [27.2.4.1 Promise.all ( iterable )](https://tc39.es/ecma262/#sec-promise.all)
     ///
     /// > NOTE: This function requires its **this** value to be a constructor
     /// > function that supports the parameter conventions of the Promise
@@ -305,7 +305,7 @@ impl PromiseConstructor {
         Ok(result_value.unbind())
     }
 
-    /// ### [27.2.4.2 Promise.allSettled ( iterable )](https://tc39.es/ecma262/#sec-promise.allsettled)
+    /// #### [27.2.4.2 Promise.allSettled ( iterable )](https://tc39.es/ecma262/#sec-promise.allsettled)
     ///
     /// > NOTE: This function requires its this value to be a constructor
     /// > function that supports the parameter conventions of the Promise
@@ -373,7 +373,7 @@ impl PromiseConstructor {
         Ok(result_value.unbind())
     }
 
-    /// ### [27.2.4.3 Promise.any ( iterable )](https://tc39.es/ecma262/#sec-promise.any)
+    /// #### [27.2.4.3 Promise.any ( iterable )](https://tc39.es/ecma262/#sec-promise.any)
     ///
     /// > NOTE: This function requires its this value to be a constructor
     /// > function that supports the parameter conventions of the Promise
@@ -441,7 +441,7 @@ impl PromiseConstructor {
         Ok(result_value.unbind())
     }
 
-    /// ### [27.2.4.5 Promise.race ( iterable )](https://tc39.es/ecma262/#sec-promise.race)
+    /// #### [27.2.4.5 Promise.race ( iterable )](https://tc39.es/ecma262/#sec-promise.race)
     ///
     /// > NOTE 1: If the iterable argument yields no values or if none of the
     /// > promises yielded by iterable ever settle, then the pending promise
@@ -513,7 +513,7 @@ impl PromiseConstructor {
         Ok(result_value.unbind())
     }
 
-    /// ### [27.2.4.6 Promise.reject ( r )](https://tc39.es/ecma262/#sec-promise.reject)
+    /// #### [27.2.4.6 Promise.reject ( r )](https://tc39.es/ecma262/#sec-promise.reject)
     ///
     /// > NOTE: This function expects its this value to be a constructor
     /// > function that supports the parameter conventions of the Promise
@@ -545,7 +545,7 @@ impl PromiseConstructor {
         Ok(Promise::new_rejected(agent, r, gc).into_value())
     }
 
-    /// ### [27.2.4.7 Promise.resolve ( x )](https://tc39.es/ecma262/#sec-promise.resolve)
+    /// #### [27.2.4.7 Promise.resolve ( x )](https://tc39.es/ecma262/#sec-promise.resolve)
     ///
     /// > NOTE: This function expects its this value to be a constructor
     /// > function that supports the parameter conventions of the Promise
@@ -573,7 +573,7 @@ impl PromiseConstructor {
         Ok(Promise::resolve(agent, arguments.get(0), gc).into_value())
     }
 
-    /// ### [27.2.4.8 Promise.try ( callback, ...args )](https://tc39.es/ecma262/#sec-promise.try)
+    /// #### [27.2.4.8 Promise.try ( callback, ...args )](https://tc39.es/ecma262/#sec-promise.try)
     ///
     /// > NOTE: This function expects its this value to be a constructor
     /// > function that supports the parameter conventions of the Promise
@@ -640,7 +640,7 @@ impl PromiseConstructor {
         Ok(promise.into_value().unbind())
     }
 
-    /// ### [27.2.4.9 Promise.withResolvers ( )](https://tc39.es/ecma262/#sec-promise.withResolvers)
+    /// #### [27.2.4.9 Promise.withResolvers ( )](https://tc39.es/ecma262/#sec-promise.withResolvers)
     fn with_resolvers<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -750,7 +750,7 @@ impl PromiseConstructor {
     }
 }
 
-/// ### [27.2.4.1.1 GetPromiseResolve ( promiseConstructor )](https://tc39.es/ecma262/#sec-getpromiseresolve)
+/// ##### [27.2.4.1.1 GetPromiseResolve ( promiseConstructor )](https://tc39.es/ecma262/#sec-getpromiseresolve)
 /// The abstract operation GetPromiseResolve takes argument promiseConstructor
 /// (a constructor) and returns either a normal completion containing a function
 /// object or a throw completion.
@@ -921,9 +921,9 @@ fn handle_promise_group_result<'gc>(
     Ok(result.into_value().unbind())
 }
 
-/// ### [27.2.4.1.2 PerformPromiseAll ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiseall)
-/// ### [27.2.4.2.1 PerformPromiseAllSettled ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiseallsettled)
-/// ### [27.2.4.3.1 PerformPromiseAny ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiseany)
+/// ##### [27.2.4.1.2 PerformPromiseAll ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiseall)
+/// ##### [27.2.4.2.1 PerformPromiseAllSettled ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiseallsettled)
+/// ##### [27.2.4.3.1 PerformPromiseAny ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiseany)
 #[allow(clippy::too_many_arguments)]
 fn perform_promise_group<'gc>(
     agent: &mut Agent,
@@ -1072,7 +1072,7 @@ fn perform_promise_group<'gc>(
     }
 }
 
-/// ### [27.2.4.5.1 PerformPromiseRace ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiserace)
+/// ##### [27.2.4.5.1 PerformPromiseRace ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiserace)
 #[allow(clippy::too_many_arguments)]
 fn perform_promise_race<'gc>(
     agent: &mut Agent,

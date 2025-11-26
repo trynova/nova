@@ -194,7 +194,7 @@ impl Builtin for RegExpPrototypeGetUnicodeSets {
 impl BuiltinGetter for RegExpPrototypeGetUnicodeSets {}
 
 impl RegExpPrototype {
-    /// ### [22.2.6.2 RegExp.prototype.exec ( string )](https://tc39.es/ecma262/#sec-regexpbuiltinexec)
+    /// #### [22.2.6.2 RegExp.prototype.exec ( string )](https://tc39.es/ecma262/#sec-regexpbuiltinexec)
     ///
     /// This method searches string for an occurrence of the regular expression
     /// pattern and returns an Array containing the results of the match, or
@@ -224,7 +224,7 @@ impl RegExpPrototype {
             .map(|r| r.map_or(Value::Null, |a| a.into_value()))
     }
 
-    /// ### [22.2.6.3 get RegExp.prototype.dotAll](https://tc39.es/ecma262/#sec-get-regexp.prototype.dotAll)
+    /// #### [22.2.6.3 get RegExp.prototype.dotAll](https://tc39.es/ecma262/#sec-get-regexp.prototype.dotAll)
     ///
     /// RegExp.prototype.dotAll is an accessor property whose set accessor
     /// function is undefined.
@@ -242,7 +242,7 @@ impl RegExpPrototype {
             .map(|v| v.map_or(Value::Undefined, |v| v.into()))
     }
 
-    /// ### [22.2.6.4 get RegExp.prototype.flags](https://tc39.es/ecma262/#sec-get-regexp.prototype.flags)
+    /// #### [22.2.6.4 get RegExp.prototype.flags](https://tc39.es/ecma262/#sec-get-regexp.prototype.flags)
     fn get_flags<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -407,7 +407,7 @@ impl RegExpPrototype {
         Ok(Value::from_string(agent, res.to_string(), gc.nogc()).unbind())
     }
 
-    /// ### [22.2.6.5 get RegExp.prototype.global](https://tc39.es/ecma262/#sec-get-regexp.prototype.global)
+    /// #### [22.2.6.5 get RegExp.prototype.global](https://tc39.es/ecma262/#sec-get-regexp.prototype.global)
     ///
     /// RegExp.prototype.global is an accessor property whose set accessor
     /// function is undefined.
@@ -425,7 +425,7 @@ impl RegExpPrototype {
             .map(|v| v.map_or(Value::Undefined, |v| v.into()))
     }
 
-    /// ### [22.2.6.6 get RegExp.prototype.hasIndices](https://tc39.es/ecma262/#sec-get-regexp.prototype.hasIndices)
+    /// #### [22.2.6.6 get RegExp.prototype.hasIndices](https://tc39.es/ecma262/#sec-get-regexp.prototype.hasIndices)
     ///
     /// RegExp.prototype.hasIndices is an accessor property whose set accessor
     /// function is undefined.
@@ -443,7 +443,7 @@ impl RegExpPrototype {
             .map(|v| v.map_or(Value::Undefined, |v| v.into()))
     }
 
-    /// ### [22.2.6.7 get RegExp.prototype.ignoreCase](https://tc39.es/ecma262/#sec-get-regexp.prototype.ignorecase)
+    /// #### [22.2.6.7 get RegExp.prototype.ignoreCase](https://tc39.es/ecma262/#sec-get-regexp.prototype.ignorecase)
     ///
     /// RegExp.prototype.ignoreCase is an accessor property whose set accessor
     /// function is undefined.
@@ -723,7 +723,7 @@ impl RegExpPrototype {
         .into_value())
     }
 
-    /// ### [22.2.6.10 get RegExp.prototype.multiline](https://tc39.es/ecma262/#sec-get-regexp.prototype.multiline)
+    /// #### [22.2.6.10 get RegExp.prototype.multiline](https://tc39.es/ecma262/#sec-get-regexp.prototype.multiline)
     ///
     /// RegExp.prototype.multiline is an accessor property whose set accessor
     /// function is undefined.
@@ -1164,7 +1164,7 @@ impl RegExpPrototype {
         }
     }
 
-    /// ### [22.2.6.13 get RegExp.prototype.source](https://tc39.es/ecma262/#sec-get-regexp.prototype.source)
+    /// #### [22.2.6.13 get RegExp.prototype.source](https://tc39.es/ecma262/#sec-get-regexp.prototype.source)
     ///
     /// RegExp.prototype.source is an accessor property whose set accessor
     /// function is undefined.
@@ -1510,7 +1510,7 @@ impl RegExpPrototype {
         Ok(a.into_value())
     }
 
-    /// ### [22.2.6.15 get RegExp.prototype.sticky](https://tc39.es/ecma262/#sec-get-regexp.prototype.sticky)
+    /// #### [22.2.6.15 get RegExp.prototype.sticky](https://tc39.es/ecma262/#sec-get-regexp.prototype.sticky)
     ///
     /// RegExp.prototype.sticky is an accessor property whose set accessor
     /// function is undefined.
@@ -1528,7 +1528,7 @@ impl RegExpPrototype {
             .map(|v| v.map_or(Value::Undefined, |v| v.into()))
     }
 
-    /// ### [22.2.6.16 RegExp.prototype.test ( S )](https://tc39.es/ecma262/#sec-regexp.prototype.test)
+    /// #### [22.2.6.16 RegExp.prototype.test ( S )](https://tc39.es/ecma262/#sec-regexp.prototype.test)
     fn test<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1578,7 +1578,7 @@ impl RegExpPrototype {
         Ok(r#match.into_value())
     }
 
-    /// ### [22.2.6.17 RegExp.prototype.toString ( )](https://tc39.es/ecma262/#sec-regexp.prototype.tostring)
+    /// #### [22.2.6.17 RegExp.prototype.toString ( )](https://tc39.es/ecma262/#sec-regexp.prototype.tostring)
     ///
     /// > #### Note
     /// >
@@ -1653,7 +1653,7 @@ impl RegExpPrototype {
         Ok(result.into_value())
     }
 
-    /// ### [22.2.6.18 get RegExp.prototype.unicode](https://tc39.es/ecma262/#sec-get-regexp.prototype.unicode)
+    /// #### [22.2.6.18 get RegExp.prototype.unicode](https://tc39.es/ecma262/#sec-get-regexp.prototype.unicode)
     ///
     /// RegExp.prototype.unicode is an accessor property whose set accessor
     /// function is undefined.
@@ -1671,7 +1671,7 @@ impl RegExpPrototype {
             .map(|v| v.map_or(Value::Undefined, |v| v.into()))
     }
 
-    /// ### [22.2.6.19 get RegExp.prototype.unicodeSets](https://tc39.es/ecma262/#sec-get-regexp.prototype.unicodesets)
+    /// #### [22.2.6.19 get RegExp.prototype.unicodeSets](https://tc39.es/ecma262/#sec-get-regexp.prototype.unicodesets)
     ///
     /// RegExp.prototype.unicodeSets is an accessor property whose set accessor
     /// function is undefined.
@@ -1765,7 +1765,7 @@ fn throw_not_an_object<'a>(agent: &mut Agent, gc: NoGcScope<'a, '_>) -> JsError<
     agent.throw_exception_with_static_message(ExceptionType::TypeError, "not an object", gc)
 }
 
-/// ### [22.2.6.13.1 EscapeRegExpPattern ( P, F )](https://tc39.es/ecma262/#sec-escaperegexppattern)
+/// ##### [22.2.6.13.1 EscapeRegExpPattern ( P, F )](https://tc39.es/ecma262/#sec-escaperegexppattern)
 ///
 /// The abstract operation EscapeRegExpPattern takes arguments P (a String) and
 /// F (a String) and returns a String.

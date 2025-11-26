@@ -36,7 +36,7 @@ use crate::{
 
 use super::TryHasBindingContinue;
 
-/// ### [9.1.1.4 Global Environment Records](https://tc39.es/ecma262/#sec-global-environment-records)
+/// #### [9.1.1.4 Global Environment Records](https://tc39.es/ecma262/#sec-global-environment-records)
 ///
 /// A Global Environment Record is used to represent the outer most scope that
 /// is shared by all of the ECMAScript Script elements that are processed in a
@@ -114,7 +114,7 @@ impl HeapMarkAndSweep for GlobalEnvironmentRecord {
     }
 }
 
-/// ### [9.1.2.5 NewGlobalEnvironment ( G, thisValue )](https://tc39.es/ecma262/#sec-newglobalenvironment)
+/// #### [9.1.2.5 NewGlobalEnvironment ( G, thisValue )](https://tc39.es/ecma262/#sec-newglobalenvironment)
 ///
 /// The abstract operation NewGlobalEnvironment takes arguments G (an
 /// Object) and thisValue (an Object) and returns a Global Environment
@@ -191,7 +191,7 @@ impl<'e> GlobalEnvironment<'e> {
         obj_rec.try_has_binding(agent, name, cache, gc)
     }
 
-    /// ### [9.1.1.4.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-global-environment-records-hasbinding-n)
+    /// ##### [9.1.1.4.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-global-environment-records-hasbinding-n)
     ///
     /// The HasBinding concrete method of a Global Environment Record envRec
     /// takes argument N (a String) and returns either a normal completion
@@ -218,7 +218,7 @@ impl<'e> GlobalEnvironment<'e> {
         obj_rec.has_binding(agent, name.unbind(), gc)
     }
 
-    /// ### [9.1.1.4.2 CreateMutableBinding ( N, D )](https://tc39.es/ecma262/#sec-global-environment-records-createmutablebinding-n-d)
+    /// ##### [9.1.1.4.2 CreateMutableBinding ( N, D )](https://tc39.es/ecma262/#sec-global-environment-records-createmutablebinding-n-d)
     ///
     /// The CreateMutableBinding concrete method of a Global Environment Record
     /// envRec takes arguments N (a String) and D (a Boolean) and returns
@@ -252,7 +252,7 @@ impl<'e> GlobalEnvironment<'e> {
         }
     }
 
-    /// ### [9.1.1.4.3 CreateImmutableBinding ( N, S )](https://tc39.es/ecma262/#sec-global-environment-records-createimmutablebinding-n-s)
+    /// ##### [9.1.1.4.3 CreateImmutableBinding ( N, S )](https://tc39.es/ecma262/#sec-global-environment-records-createimmutablebinding-n-s)
     ///
     /// The CreateImmutableBinding concrete method of a Global Environment
     /// Record envRec takes arguments N (a String) and S (a Boolean) and
@@ -286,7 +286,7 @@ impl<'e> GlobalEnvironment<'e> {
         }
     }
 
-    /// ### [9.1.1.4.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-global-environment-records-initializebinding-n-v)
+    /// ##### [9.1.1.4.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-global-environment-records-initializebinding-n-v)
     ///
     /// The InitializeBinding concrete method of a Global Environment Record
     /// envRec takes arguments N (a String) and V (an ECMAScript language
@@ -320,7 +320,7 @@ impl<'e> GlobalEnvironment<'e> {
         }
     }
 
-    /// ### [9.1.1.4.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-global-environment-records-initializebinding-n-v)
+    /// ##### [9.1.1.4.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-global-environment-records-initializebinding-n-v)
     ///
     /// The InitializeBinding concrete method of a Global Environment Record
     /// envRec takes arguments N (a String) and V (an ECMAScript language
@@ -397,7 +397,7 @@ impl<'e> GlobalEnvironment<'e> {
         }
     }
 
-    /// ### [9.1.1.4.5 SetMutableBinding ( N, V, S )](https://tc39.es/ecma262/#sec-global-environment-records-setmutablebinding-n-v-s)
+    /// ##### [9.1.1.4.5 SetMutableBinding ( N, V, S )](https://tc39.es/ecma262/#sec-global-environment-records-setmutablebinding-n-v-s)
     ///
     /// The SetMutableBinding concrete method of a Global Environment Record
     /// envRec takes arguments N (a String), V (an ECMAScript language value),
@@ -483,7 +483,7 @@ impl<'e> GlobalEnvironment<'e> {
         }
     }
 
-    /// ### [9.1.1.4.6 GetBindingValue ( N, S )](https://tc39.es/ecma262/#sec-global-environment-records-getbindingvalue-n-s)
+    /// ##### [9.1.1.4.6 GetBindingValue ( N, S )](https://tc39.es/ecma262/#sec-global-environment-records-getbindingvalue-n-s)
     ///
     /// The GetBindingValue concrete method of a Global Environment Record
     /// envRec takes arguments N (a String) and S (a Boolean) and returns
@@ -565,7 +565,7 @@ impl<'e> GlobalEnvironment<'e> {
         }
     }
 
-    /// ### [9.1.1.4.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-global-environment-records-deletebinding-n)
+    /// ##### [9.1.1.4.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-global-environment-records-deletebinding-n)
     ///
     /// The DeleteBinding concrete method of a Global Environment Record envRec
     /// takes argument N (a String) and returns either a normal completion
@@ -625,7 +625,7 @@ impl<'e> GlobalEnvironment<'e> {
         }
     }
 
-    /// ### [9.1.1.4.11 GetThisBinding ( )](https://tc39.es/ecma262/#sec-global-environment-records-getthisbinding)
+    /// ##### [9.1.1.4.11 GetThisBinding ( )](https://tc39.es/ecma262/#sec-global-environment-records-getthisbinding)
     ///
     /// The GetThisBinding concrete method of a Global Environment Record
     /// envRec takes no arguments and returns a normal completion containing an
@@ -635,7 +635,7 @@ impl<'e> GlobalEnvironment<'e> {
         agent[self].global_this_value
     }
 
-    /// ### [9.1.1.4.12 HasVarDeclaration ( N )](https://tc39.es/ecma262/#sec-hasvardeclaration)
+    /// ##### [9.1.1.4.12 HasVarDeclaration ( N )](https://tc39.es/ecma262/#sec-hasvardeclaration)
     ///
     /// The HasVarDeclaration concrete method of a Global Environment Record
     /// envRec takes argument N (a String) and returns a Boolean. It determines
@@ -651,7 +651,7 @@ impl<'e> GlobalEnvironment<'e> {
         var_declared_names.contains(&name)
     }
 
-    /// ### [9.1.1.4.13 HasLexicalDeclaration ( N )](https://tc39.es/ecma262/#sec-haslexicaldeclaration)
+    /// ##### [9.1.1.4.13 HasLexicalDeclaration ( N )](https://tc39.es/ecma262/#sec-haslexicaldeclaration)
     ///
     /// The HasLexicalDeclaration concrete method of a Global Environment
     /// Record envRec takes argument N (a String) and returns a Boolean. It
@@ -666,7 +666,7 @@ impl<'e> GlobalEnvironment<'e> {
         dcl_rec.has_binding(agent, name)
     }
 
-    /// ### [9.1.1.4.14 HasRestrictedGlobalProperty ( N )](https://tc39.es/ecma262/#sec-hasrestrictedglobalproperty)
+    /// ##### [9.1.1.4.14 HasRestrictedGlobalProperty ( N )](https://tc39.es/ecma262/#sec-hasrestrictedglobalproperty)
     ///
     /// The HasRestrictedGlobalProperty concrete method of a Global Environment
     /// Record envRec takes argument N (a String) and returns either a normal
@@ -701,7 +701,7 @@ impl<'e> GlobalEnvironment<'e> {
         Ok(existing_prop.configurable != Some(true))
     }
 
-    /// ### [9.1.1.4.15 CanDeclareGlobalVar ( N )](https://tc39.es/ecma262/#sec-candeclareglobalvar)
+    /// ##### [9.1.1.4.15 CanDeclareGlobalVar ( N )](https://tc39.es/ecma262/#sec-candeclareglobalvar)
     ///
     /// The CanDeclareGlobalVar concrete method of a Global Environment Record
     /// envRec takes argument N (a String) and returns either a normal
@@ -736,7 +736,7 @@ impl<'e> GlobalEnvironment<'e> {
         }
     }
 
-    /// ### [9.1.1.4.16 CanDeclareGlobalFunction ( N )](https://tc39.es/ecma262/#sec-candeclareglobalfunction)
+    /// ##### [9.1.1.4.16 CanDeclareGlobalFunction ( N )](https://tc39.es/ecma262/#sec-candeclareglobalfunction)
     ///
     /// The CanDeclareGlobalFunction concrete method of a Global Environment
     /// Record envRec takes argument N (a String) and returns either a normal
@@ -782,7 +782,7 @@ impl<'e> GlobalEnvironment<'e> {
         }
     }
 
-    /// ### [9.1.1.4.17 CreateGlobalVarBinding ( N, D )](https://tc39.es/ecma262/#sec-createglobalvarbinding)
+    /// ##### [9.1.1.4.17 CreateGlobalVarBinding ( N, D )](https://tc39.es/ecma262/#sec-createglobalvarbinding)
     ///
     /// The CreateGlobalVarBinding concrete method of a Global Environment
     /// Record envRec takes arguments N (a String) and D (a Boolean) and
@@ -856,7 +856,7 @@ impl<'e> GlobalEnvironment<'e> {
         Ok(())
     }
 
-    /// ### [9.1.1.4.18 CreateGlobalFunctionBinding ( N, V, D )](https://tc39.es/ecma262/#sec-createglobalfunctionbinding)
+    /// ##### [9.1.1.4.18 CreateGlobalFunctionBinding ( N, V, D )](https://tc39.es/ecma262/#sec-createglobalfunctionbinding)
     ///
     /// The CreateGlobalFunctionBinding concrete method of a Global Environment
     /// Record envRec takes arguments N (a String), V (an ECMAScript language

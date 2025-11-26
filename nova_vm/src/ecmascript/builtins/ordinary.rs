@@ -84,7 +84,7 @@ use super::{
     weak_map::data::WeakMapRecord, weak_ref::data::WeakRefHeapData, weak_set::data::WeakSetHeapData,
 };
 
-/// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
+/// ## [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
 impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {
     fn get_own_property_at_offset<'gc>(
         self,
@@ -118,7 +118,7 @@ impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {
     }
 }
 
-/// ### [10.1.1.1 OrdinaryGetPrototypeOf ( O )](https://tc39.es/ecma262/#sec-ordinarygetprototypeof)
+/// #### [10.1.1.1 OrdinaryGetPrototypeOf ( O )](https://tc39.es/ecma262/#sec-ordinarygetprototypeof)
 pub(crate) fn ordinary_get_prototype_of<'a>(
     agent: &mut Agent,
     object: OrdinaryObject,
@@ -128,7 +128,7 @@ pub(crate) fn ordinary_get_prototype_of<'a>(
     object.internal_prototype(agent)
 }
 
-/// ### [10.1.2.1 OrdinarySetPrototypeOf ( O, V )](https://tc39.es/ecma262/#sec-ordinarysetprototypeof)
+/// #### [10.1.2.1 OrdinarySetPrototypeOf ( O, V )](https://tc39.es/ecma262/#sec-ordinarysetprototypeof)
 pub(crate) fn ordinary_set_prototype_of(
     agent: &mut Agent,
     object: Object,
@@ -210,13 +210,13 @@ pub(crate) fn ordinary_set_prototype_of(
     true
 }
 
-/// ### [10.1.3.1 OrdinaryIsExtensible ( O )](https://tc39.es/ecma262/#sec-ordinaryisextensible)
+/// #### [10.1.3.1 OrdinaryIsExtensible ( O )](https://tc39.es/ecma262/#sec-ordinaryisextensible)
 pub(crate) fn ordinary_is_extensible(agent: &mut Agent, object: OrdinaryObject) -> bool {
     // 1. Return O.[[Extensible]].
     object.internal_extensible(agent)
 }
 
-/// ### [10.1.4.1 OrdinaryPreventExtensions ( O )](https://tc39.es/ecma262/#sec-ordinarypreventextensions)
+/// #### [10.1.4.1 OrdinaryPreventExtensions ( O )](https://tc39.es/ecma262/#sec-ordinarypreventextensions)
 pub(crate) fn ordinary_prevent_extensions(agent: &mut Agent, object: OrdinaryObject) -> bool {
     // 1. Set O.[[Extensible]] to false.
     object.internal_set_extensible(agent, false);
@@ -225,7 +225,7 @@ pub(crate) fn ordinary_prevent_extensions(agent: &mut Agent, object: OrdinaryObj
     true
 }
 
-/// ### [10.1.5.1 OrdinaryGetOwnProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinarygetownproperty)
+/// #### [10.1.5.1 OrdinaryGetOwnProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinarygetownproperty)
 pub(crate) fn ordinary_get_own_property<'a>(
     agent: &mut Agent,
     object: Object,
@@ -311,7 +311,7 @@ pub(crate) fn ordinary_get_own_property<'a>(
     Some(descriptor)
 }
 
-/// ### [10.1.6.1 OrdinaryDefineOwnProperty ( O, P, Desc )](https://tc39.es/ecma262/#sec-ordinarydefineownproperty)
+/// #### [10.1.6.1 OrdinaryDefineOwnProperty ( O, P, Desc )](https://tc39.es/ecma262/#sec-ordinarydefineownproperty)
 pub(crate) fn ordinary_define_own_property<'gc>(
     agent: &mut Agent,
     o: Object,
@@ -342,7 +342,7 @@ pub(crate) fn ordinary_define_own_property<'gc>(
     .map_err(|err| agent.throw_allocation_exception(err, gc))
 }
 
-/// ### [10.1.6.2 IsCompatiblePropertyDescriptor ( Extensible, Desc, Current )](https://tc39.es/ecma262/#sec-iscompatiblepropertydescriptor)
+/// #### [10.1.6.2 IsCompatiblePropertyDescriptor ( Extensible, Desc, Current )](https://tc39.es/ecma262/#sec-iscompatiblepropertydescriptor)
 pub(crate) fn is_compatible_property_descriptor(
     agent: &mut Agent,
     extensible: bool,
@@ -362,7 +362,7 @@ pub(crate) fn is_compatible_property_descriptor(
     )
 }
 
-/// ### [10.1.6.3 ValidateAndApplyPropertyDescriptor ( O, P, extensible, Desc, current )](https://tc39.es/ecma262/#sec-validateandapplypropertydescriptor)
+/// #### [10.1.6.3 ValidateAndApplyPropertyDescriptor ( O, P, extensible, Desc, current )](https://tc39.es/ecma262/#sec-validateandapplypropertydescriptor)
 fn validate_and_apply_property_descriptor(
     agent: &mut Agent,
     o: Option<(Object, OrdinaryObject)>,
@@ -606,7 +606,7 @@ fn validate_and_apply_property_descriptor(
     Ok(true)
 }
 
-/// ### [10.1.7.1 OrdinaryHasProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinaryhasproperty)
+/// #### [10.1.7.1 OrdinaryHasProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinaryhasproperty)
 pub(crate) fn ordinary_try_has_property<'gc>(
     agent: &mut Agent,
     object: Object,
@@ -711,7 +711,7 @@ pub(crate) fn ordinary_try_has_property<'gc>(
     TryHasResult::Unset.into()
 }
 
-/// ### [10.1.7.1 OrdinaryHasProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinaryhasproperty)
+/// #### [10.1.7.1 OrdinaryHasProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinaryhasproperty)
 pub(crate) fn ordinary_has_property<'a>(
     agent: &mut Agent,
     object: Object,
@@ -815,7 +815,7 @@ pub(crate) fn ordinary_has_property_entry<'a, 'gc>(
     }
 }
 
-/// ### [10.1.8.1 OrdinaryGet ( O, P, Receiver )](https://tc39.es/ecma262/#sec-ordinaryget)
+/// #### [10.1.8.1 OrdinaryGet ( O, P, Receiver )](https://tc39.es/ecma262/#sec-ordinaryget)
 pub(crate) fn ordinary_try_get<'gc>(
     agent: &mut Agent,
     object: Object,
@@ -906,7 +906,7 @@ pub(crate) fn ordinary_try_get<'gc>(
     TryGetResult::Get(getter).into()
 }
 
-/// ### [10.1.8.1 OrdinaryGet ( O, P, Receiver )](https://tc39.es/ecma262/#sec-ordinaryget)
+/// #### [10.1.8.1 OrdinaryGet ( O, P, Receiver )](https://tc39.es/ecma262/#sec-ordinaryget)
 pub(crate) fn ordinary_get<'gc>(
     agent: &mut Agent,
     object: OrdinaryObject,
@@ -985,7 +985,7 @@ pub(crate) fn ordinary_get<'gc>(
     call_function(agent, getter.unbind(), receiver.unbind(), None, gc)
 }
 
-/// ### [10.1.9.1 OrdinarySet ( O, P, V, Receiver )](https://tc39.es/ecma262/#sec-ordinaryset)
+/// #### [10.1.9.1 OrdinarySet ( O, P, V, Receiver )](https://tc39.es/ecma262/#sec-ordinaryset)
 pub(crate) fn ordinary_try_set<'o, 'gc>(
     agent: &mut Agent,
     object: impl InternalMethods<'o>,
@@ -1011,7 +1011,7 @@ pub(crate) fn ordinary_try_set<'o, 'gc>(
     )
 }
 
-/// ### [10.1.9.1 OrdinarySet ( O, P, V, Receiver )](https://tc39.es/ecma262/#sec-ordinaryset)
+/// #### [10.1.9.1 OrdinarySet ( O, P, V, Receiver )](https://tc39.es/ecma262/#sec-ordinaryset)
 pub(crate) fn ordinary_set<'a>(
     agent: &mut Agent,
     object: Object,
@@ -1042,7 +1042,7 @@ pub(crate) fn ordinary_set<'a>(
     )
 }
 
-/// ### [10.1.9.2 OrdinarySetWithOwnDescriptor ( O, P, V, Receiver, ownDesc )](https://tc39.es/ecma262/#sec-ordinarysetwithowndescriptor)
+/// #### [10.1.9.2 OrdinarySetWithOwnDescriptor ( O, P, V, Receiver, ownDesc )](https://tc39.es/ecma262/#sec-ordinarysetwithowndescriptor)
 #[allow(clippy::too_many_arguments)]
 fn ordinary_try_set_with_own_descriptor<'gc, 'o>(
     agent: &mut Agent,
@@ -1186,7 +1186,7 @@ fn ordinary_try_set_with_own_descriptor<'gc, 'o>(
     SetResult::Set(setter).into()
 }
 
-/// ### [10.1.9.2 OrdinarySetWithOwnDescriptor ( O, P, V, Receiver, ownDesc )](https://tc39.es/ecma262/#sec-ordinarysetwithowndescriptor)
+/// #### [10.1.9.2 OrdinarySetWithOwnDescriptor ( O, P, V, Receiver, ownDesc )](https://tc39.es/ecma262/#sec-ordinarysetwithowndescriptor)
 fn ordinary_set_with_own_descriptor<'a>(
     agent: &mut Agent,
     object: Object,
@@ -1335,7 +1335,7 @@ fn ordinary_set_with_own_descriptor<'a>(
     Ok(true)
 }
 
-/// ### [10.1.9.1 OrdinarySet ( O, P, V, Receiver )](https://tc39.es/ecma262/#sec-ordinaryset)
+/// #### [10.1.9.1 OrdinarySet ( O, P, V, Receiver )](https://tc39.es/ecma262/#sec-ordinaryset)
 pub(crate) fn ordinary_set_at_offset<'a>(
     agent: &mut Agent,
     props: &SetCachedProps,
@@ -1480,7 +1480,7 @@ fn handle_super_set_inner<'gc>(
     })
 }
 
-/// ### [10.1.10.1 OrdinaryDelete ( O, P )](https://tc39.es/ecma262/#sec-ordinarydelete)
+/// #### [10.1.10.1 OrdinaryDelete ( O, P )](https://tc39.es/ecma262/#sec-ordinarydelete)
 pub(crate) fn ordinary_delete(
     agent: &mut Agent,
     o: Object,
@@ -1512,7 +1512,7 @@ pub(crate) fn ordinary_delete(
     false
 }
 
-/// ### [10.1.11.1 OrdinaryOwnPropertyKeys ( O )](https://tc39.es/ecma262/#sec-ordinaryownpropertykeys)
+/// #### [10.1.11.1 OrdinaryOwnPropertyKeys ( O )](https://tc39.es/ecma262/#sec-ordinaryownpropertykeys)
 pub(crate) fn ordinary_own_property_keys<'a>(
     agent: &Agent,
     object: OrdinaryObject<'a>,

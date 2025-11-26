@@ -1,4 +1,4 @@
-//! ## [27.1.6 Async-from-Sync Iterator Objects](https://tc39.es/ecma262/#sec-async-from-sync-iterator-objects)
+//! ### [27.1.6 Async-from-Sync Iterator Objects](https://tc39.es/ecma262/#sec-async-from-sync-iterator-objects)
 //!
 //! An Async-from-Sync Iterator object is an async iterator that adapts a
 //! specific synchronous iterator. Async-from-Sync Iterator objects are never
@@ -40,7 +40,7 @@ use crate::{
     },
 };
 
-/// ### [27.1.6.1 CreateAsyncFromSyncIterator ( syncIteratorRecord )](https://tc39.es/ecma262/#sec-createasyncfromsynciterator)
+/// #### [27.1.6.1 CreateAsyncFromSyncIterator ( syncIteratorRecord )](https://tc39.es/ecma262/#sec-createasyncfromsynciterator)
 ///
 /// The abstract operation CreateAsyncFromSyncIterator takes argument
 /// syncIteratorRecord (an Iterator Record) and returns an Iterator Record. It
@@ -372,7 +372,7 @@ impl AsyncFromSyncIteratorPrototype {
     }
 }
 
-/// ### [27.1.6.4 AsyncFromSyncIteratorContinuation ( result, promiseCapability, syncIteratorRecord, closeOnRejection )](https://tc39.es/ecma262/#sec-asyncfromsynciteratorcontinuation)
+/// #### [27.1.6.4 AsyncFromSyncIteratorContinuation ( result, promiseCapability, syncIteratorRecord, closeOnRejection )](https://tc39.es/ecma262/#sec-asyncfromsynciteratorcontinuation)
 ///
 /// The abstract operation AsyncFromSyncIteratorContinuation takes arguments
 /// result (an Object), promiseCapability (a PromiseCapability Record for an

@@ -126,7 +126,7 @@ impl NumberPrototype {
         }
     }
 
-    /// ### [21.1.3.3 Number.prototype.toFixed ( fractionDigits )](https://tc39.es/ecma262/#sec-number.prototype.tofixed)
+    /// #### [21.1.3.3 Number.prototype.toFixed ( fractionDigits )](https://tc39.es/ecma262/#sec-number.prototype.tofixed)
     ///
     /// > NOTE 1: This method returns a String containing this Number value
     /// > represented in decimal fixed-point notation with fractionDigits
@@ -197,7 +197,7 @@ impl NumberPrototype {
         Self::to_string(agent, this_value, arguments, gc)
     }
 
-    /// ### [21.1.3.5 Number.prototype.toPrecision ( precision )](https://tc39.es/ecma262/#sec-number.prototype.toprecision)
+    /// #### [21.1.3.5 Number.prototype.toPrecision ( precision )](https://tc39.es/ecma262/#sec-number.prototype.toprecision)
     ///
     /// Copied from Boa JS engine. Source https://github.com/boa-dev/boa/blob/6f1d7d11ce49040eafe54e5ff2da379be4d998c2/core/engine/src/builtins/number/mod.rs#L412
     ///
@@ -490,7 +490,7 @@ impl NumberPrototype {
         }
     }
 
-    /// ### [21.1.3.7 Number.prototype.valueOf ( )](https://tc39.es/ecma262/#sec-number.prototype.valueof)
+    /// #### [21.1.3.7 Number.prototype.valueOf ( )](https://tc39.es/ecma262/#sec-number.prototype.valueof)
     fn value_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -555,7 +555,7 @@ fn f64_to_exponential_with_precision<'a>(
     String::from_string(agent, res, gc)
 }
 
-/// ### [21.1.3.7.1 ThisNumberValue ( value )](https://tc39.es/ecma262/#sec-thisnumbervalue)
+/// ##### [21.1.3.7.1 ThisNumberValue ( value )](https://tc39.es/ecma262/#sec-thisnumbervalue)
 ///
 /// The abstract operation ThisNumberValue takes argument value (an ECMAScript
 /// language value) and returns either a normal completion containing a Number

@@ -8,7 +8,7 @@ use crate::ecmascript::{
     execution::{Agent, ProtoIntrinsics},
 };
 
-/// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
+/// ## [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
 pub trait InternalSlots<'a>
 where
     Self: 'a + Sized + Copy + Into<Object<'a>> + IntoObject<'a>,

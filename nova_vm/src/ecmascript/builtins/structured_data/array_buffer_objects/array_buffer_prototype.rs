@@ -90,7 +90,7 @@ impl Builtin for ArrayBufferPrototypeTransferToFixedLength {
 }
 
 impl ArrayBufferPrototype {
-    /// ### [25.1.6.1 get ArrayBuffer.prototype.byteLength](https://tc39.es/ecma262/#sec-get-arraybuffer.prototype.bytelength)
+    /// #### [25.1.6.1 get ArrayBuffer.prototype.byteLength](https://tc39.es/ecma262/#sec-get-arraybuffer.prototype.bytelength)
     ///
     /// ArrayBuffer.prototype.byteLength is an accessor property whose set
     /// accessor function is undefined.
@@ -113,7 +113,7 @@ impl ArrayBufferPrototype {
         Ok((o.byte_length(agent) as i64).try_into().unwrap())
     }
 
-    /// ### [25.1.6.3 get ArrayBuffer.prototype.detached](https://tc39.es/ecma262/#sec-get-arraybuffer.prototype.detached)
+    /// #### [25.1.6.3 get ArrayBuffer.prototype.detached](https://tc39.es/ecma262/#sec-get-arraybuffer.prototype.detached)
     ///
     /// ArrayBuffer.prototype.detached is an accessor property whose set
     /// accessor function is undefined.
@@ -131,7 +131,7 @@ impl ArrayBufferPrototype {
         Ok(is_detached_buffer(agent, o).into())
     }
 
-    /// ### [25.1.6.4 get ArrayBuffer.prototype.maxByteLength](https://tc39.es/ecma262/#sec-get-arraybuffer.prototype.maxbytelength)
+    /// #### [25.1.6.4 get ArrayBuffer.prototype.maxByteLength](https://tc39.es/ecma262/#sec-get-arraybuffer.prototype.maxbytelength)
     ///
     /// ArrayBuffer.prototype.maxByteLength is an accessor property whose set
     /// accessor function is undefined.
@@ -154,7 +154,7 @@ impl ArrayBufferPrototype {
         Ok((o.max_byte_length(agent) as i64).try_into().unwrap())
     }
 
-    /// ### [25.1.6.5 get ArrayBuffer.prototype.resizable](https://tc39.es/ecma262/#sec-get-arraybuffer.prototype.resizable)
+    /// #### [25.1.6.5 get ArrayBuffer.prototype.resizable](https://tc39.es/ecma262/#sec-get-arraybuffer.prototype.resizable)
     ///
     /// ArrayBuffer.prototype.resizable is an accessor property whose set
     /// accessor function is undefined.
@@ -172,7 +172,7 @@ impl ArrayBufferPrototype {
         Ok((!is_fixed_length_array_buffer(agent, o.into())).into())
     }
 
-    /// ### [25.1.6.6 ArrayBuffer.prototype.resize ( newLength )](https://tc39.es/ecma262/#sec-arraybuffer.prototype.resize)
+    /// #### [25.1.6.6 ArrayBuffer.prototype.resize ( newLength )](https://tc39.es/ecma262/#sec-arraybuffer.prototype.resize)
     fn resize<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -241,7 +241,7 @@ impl ArrayBufferPrototype {
         Ok(Value::Undefined)
     }
 
-    /// ### [25.1.6.7 ArrayBuffer.prototype.slice ( start, end )](https://tc39.es/ecma262/#sec-arraybuffer.prototype.slice)
+    /// #### [25.1.6.7 ArrayBuffer.prototype.slice ( start, end )](https://tc39.es/ecma262/#sec-arraybuffer.prototype.slice)
     fn slice<'gc>(
         agent: &mut Agent,
         this_value: Value,

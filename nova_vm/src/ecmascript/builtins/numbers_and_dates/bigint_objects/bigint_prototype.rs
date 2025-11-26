@@ -97,7 +97,7 @@ impl BigIntPrototype {
         }
     }
 
-    /// ### [21.2.3.4 BigInt.prototype.valueOf ( )](https://tc39.es/ecma262/#sec-bigint.prototype.valueof)
+    /// #### [21.2.3.4 BigInt.prototype.valueOf ( )](https://tc39.es/ecma262/#sec-bigint.prototype.valueof)
     fn value_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -133,7 +133,7 @@ impl BigIntPrototype {
     }
 }
 
-/// ### [21.2.3.4.1 ThisBigIntValue ( value )](https://tc39.es/ecma262/#sec-thisbigintvalue)
+/// ##### [21.2.3.4.1 ThisBigIntValue ( value )](https://tc39.es/ecma262/#sec-thisbigintvalue)
 ///
 /// The abstract operation ThisBigIntValue takes argument value (an ECMAScript
 /// language value) and returns either a normal completion containing a BigInt

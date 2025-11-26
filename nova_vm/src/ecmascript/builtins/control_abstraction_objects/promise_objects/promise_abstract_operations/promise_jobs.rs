@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! ## [27.2.2 Promise Jobs](https://tc39.es/ecma262/#sec-promise-jobs)
+//! ### [27.2.2 Promise Jobs](https://tc39.es/ecma262/#sec-promise-jobs)
 
 use crate::{
     ecmascript::{
@@ -108,7 +108,7 @@ impl PromiseResolveThenableJob {
     }
 }
 
-/// ### [27.2.2.2 NewPromiseResolveThenableJob ( promiseToResolve, thenable, then )](https://tc39.es/ecma262/#sec-newpromiseresolvethenablejob)
+/// #### [27.2.2.2 NewPromiseResolveThenableJob ( promiseToResolve, thenable, then )](https://tc39.es/ecma262/#sec-newpromiseresolvethenablejob)
 pub(crate) fn new_promise_resolve_thenable_job(
     agent: &mut Agent,
     promise_to_resolve: Promise,
@@ -323,7 +323,7 @@ impl PromiseReactionJob {
     }
 }
 
-/// ### [27.2.2.1 NewPromiseReactionJob ( reaction, argument )](https://tc39.es/ecma262/#sec-newpromisereactionjob)
+/// #### [27.2.2.1 NewPromiseReactionJob ( reaction, argument )](https://tc39.es/ecma262/#sec-newpromisereactionjob)
 pub(crate) fn new_promise_reaction_job(
     agent: &mut Agent,
     reaction: PromiseReaction,

@@ -771,7 +771,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
     }
 }
 
-/// ### [10.4.6.12 ModuleNamespaceCreate ( module, exports )](https://tc39.es/ecma262/#sec-modulenamespacecreate)
+/// #### [10.4.6.12 ModuleNamespaceCreate ( module, exports )](https://tc39.es/ecma262/#sec-modulenamespacecreate)
 ///
 /// The abstract operation ModuleNamespaceCreate takes arguments module (a
 /// Module Record) and exports (a List of Strings) and returns a module

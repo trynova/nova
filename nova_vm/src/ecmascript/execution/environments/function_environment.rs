@@ -29,7 +29,7 @@ pub(crate) enum ThisBindingStatus {
     Uninitialized,
 }
 
-/// ### [9.1.1.3 Function Environment Records](https://tc39.es/ecma262/#sec-function-environment-records)
+/// #### [9.1.1.3 Function Environment Records](https://tc39.es/ecma262/#sec-function-environment-records)
 ///
 /// A Function Environment Record is a Declarative Environment Record that is
 /// used to represent the top-level scope of a function and, if the function is
@@ -103,7 +103,7 @@ impl HeapMarkAndSweep for FunctionEnvironmentRecord {
     }
 }
 
-/// ### [9.1.2.4 NewFunctionEnvironment ( F, newTarget )](https://tc39.es/ecma262/#sec-newfunctionenvironment)
+/// #### [9.1.2.4 NewFunctionEnvironment ( F, newTarget )](https://tc39.es/ecma262/#sec-newfunctionenvironment)
 ///
 /// The abstract operation NewFunctionEnvironment takes arguments F (an
 /// ECMAScript function object) and newTarget (an Object or undefined) and
@@ -231,7 +231,7 @@ impl<'e> FunctionEnvironment<'e> {
         agent[self].this_binding_status
     }
 
-    /// ### [9.1.1.3.4 GetThisBinding ( )](https://tc39.es/ecma262/#sec-function-environment-records-getthisbinding)
+    /// ##### [9.1.1.3.4 GetThisBinding ( )](https://tc39.es/ecma262/#sec-function-environment-records-getthisbinding)
     /// The GetThisBinding concrete method of a Function Environment Record
     /// envRec takes no arguments and returns either a normal completion
     /// containing an ECMAScript language value or a throw completion.
@@ -255,12 +255,12 @@ impl<'e> FunctionEnvironment<'e> {
         }
     }
 
-    /// ### [9.1.1.1.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-hasbinding-n)
+    /// ##### [9.1.1.1.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-hasbinding-n)
     pub(crate) fn has_binding(self, agent: &Agent, name: String) -> bool {
         agent[self].declarative_environment.has_binding(agent, name)
     }
 
-    /// ### [9.1.1.1.2 CreateMutableBinding ( N, D )](https://tc39.es/ecma262/#sec-declarative-environment-records-createmutablebinding-n-d)
+    /// ##### [9.1.1.1.2 CreateMutableBinding ( N, D )](https://tc39.es/ecma262/#sec-declarative-environment-records-createmutablebinding-n-d)
     pub(crate) fn create_mutable_binding(
         self,
         agent: &mut Agent,
@@ -272,21 +272,21 @@ impl<'e> FunctionEnvironment<'e> {
             .create_mutable_binding(agent, name, is_deletable)
     }
 
-    /// ### [9.1.1.1.3 CreateImmutableBinding ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-createimmutablebinding-n-s)
+    /// ##### [9.1.1.1.3 CreateImmutableBinding ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-createimmutablebinding-n-s)
     pub(crate) fn create_immutable_binding(self, agent: &mut Agent, name: String, is_strict: bool) {
         agent[self]
             .declarative_environment
             .create_immutable_binding(agent, name, is_strict)
     }
 
-    /// ### [9.1.1.1.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-declarative-environment-records-initializebinding-n-v)
+    /// ##### [9.1.1.1.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-declarative-environment-records-initializebinding-n-v)
     pub(crate) fn initialize_binding(self, agent: &mut Agent, name: String, value: Value) {
         agent[self]
             .declarative_environment
             .initialize_binding(agent, name, value)
     }
 
-    /// ### [9.1.1.1.5 SetMutableBinding ( N, V, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-setmutablebinding-n-v-s)
+    /// ##### [9.1.1.1.5 SetMutableBinding ( N, V, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-setmutablebinding-n-v-s)
     pub(crate) fn set_mutable_binding<'a>(
         self,
         agent: &mut Agent,
@@ -363,7 +363,7 @@ impl<'e> FunctionEnvironment<'e> {
         Ok(())
     }
 
-    /// ### [9.1.1.1.6 GetBindingValue ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-getbindingvalue-n-s)
+    /// ##### [9.1.1.1.6 GetBindingValue ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-getbindingvalue-n-s)
     pub(crate) fn get_binding_value(
         self,
         agent: &mut Agent,
@@ -376,14 +376,14 @@ impl<'e> FunctionEnvironment<'e> {
             .get_binding_value(agent, name, is_strict, gc)
     }
 
-    /// ### [9.1.1.1.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-deletebinding-n)
+    /// ##### [9.1.1.1.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-deletebinding-n)
     pub(crate) fn delete_binding(self, agent: &mut Agent, name: String) -> bool {
         agent[self]
             .declarative_environment
             .delete_binding(agent, name)
     }
 
-    /// ### [9.1.1.3.1 BindThisValue ( V )](https://tc39.es/ecma262/#sec-bindthisvalue)
+    /// ##### [9.1.1.3.1 BindThisValue ( V )](https://tc39.es/ecma262/#sec-bindthisvalue)
     ///
     /// The BindThisValue concrete method of a Function Environment Record
     /// envRec takes argument V (an ECMAScript language value) and returns
@@ -419,7 +419,7 @@ impl<'e> FunctionEnvironment<'e> {
         Ok(value.bind(gc))
     }
 
-    /// ### [9.1.1.3.2 HasThisBinding ( )](https://tc39.es/ecma262/#sec-function-environment-records-hasthisbinding)
+    /// ##### [9.1.1.3.2 HasThisBinding ( )](https://tc39.es/ecma262/#sec-function-environment-records-hasthisbinding)
     ///
     /// The HasThisBinding concrete method of a Function Environment Record
     /// envRec takes no arguments and returns a Boolean.
@@ -430,7 +430,7 @@ impl<'e> FunctionEnvironment<'e> {
         env_rec.this_binding_status != ThisBindingStatus::Lexical
     }
 
-    /// ### [9.1.1.3.3 HasSuperBinding ( )](https://tc39.es/ecma262/#sec-function-environment-records-hassuperbinding)
+    /// ##### [9.1.1.3.3 HasSuperBinding ( )](https://tc39.es/ecma262/#sec-function-environment-records-hassuperbinding)
     ///
     /// The HasSuperBinding concrete method of a Function Environment Record
     /// envRec takes no arguments and returns a Boolean.
@@ -451,7 +451,7 @@ impl<'e> FunctionEnvironment<'e> {
         }
     }
 
-    /// ### [9.1.1.3.5 GetSuperBase ( )](https://tc39.es/ecma262/#sec-getsuperbase)
+    /// ##### [9.1.1.3.5 GetSuperBase ( )](https://tc39.es/ecma262/#sec-getsuperbase)
     ///
     /// The GetSuperBase concrete method of a Function Environment Record
     /// envRec takes no arguments and returns either a normal completion

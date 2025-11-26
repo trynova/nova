@@ -147,7 +147,7 @@ impl SetPrototype {
         Ok(s.into_value())
     }
 
-    /// ### [24.2.4.2 Set.prototype.clear ( )](https://tc39.es/ecma262/#sec-set.prototype.clear)
+    /// #### [24.2.4.2 Set.prototype.clear ( )](https://tc39.es/ecma262/#sec-set.prototype.clear)
     ///
     /// > NOTE: The existing \[\[SetData]] List is preserved because there may
     /// > be existing Set Iterator objects that are suspended midway through
@@ -173,7 +173,7 @@ impl SetPrototype {
         Ok(Value::Undefined)
     }
 
-    /// ### [24.2.4.4 Set.prototype.delete ( value )](https://tc39.es/ecma262/#sec-set.prototype.delete)
+    /// #### [24.2.4.4 Set.prototype.delete ( value )](https://tc39.es/ecma262/#sec-set.prototype.delete)
     ///
     /// > NOTE: The value EMPTY is used as a specification device to indicate
     /// > that an entry has been deleted. Actual implementations may take other
@@ -231,7 +231,7 @@ impl SetPrototype {
         }
     }
 
-    /// ### [24.2.4.6 Set.prototype.entries ( )](https://tc39.es/ecma262/#sec-set.prototype.entries)
+    /// #### [24.2.4.6 Set.prototype.entries ( )](https://tc39.es/ecma262/#sec-set.prototype.entries)
     ///
     /// > NOTE: For iteration purposes, a Set appears similar to a Map where
     /// > each entry has the same value for its key and value.
@@ -350,7 +350,7 @@ impl SetPrototype {
         Ok(Value::Undefined)
     }
 
-    /// ### [24.2.4.8 Set.prototype.has ( value )](https://tc39.es/ecma262/#sec-set.prototype.has)
+    /// #### [24.2.4.8 Set.prototype.has ( value )](https://tc39.es/ecma262/#sec-set.prototype.has)
     fn has<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -396,7 +396,7 @@ impl SetPrototype {
         Ok(found.into())
     }
 
-    /// ### [24.2.4.14 get Set.prototype.size](https://tc39.es/ecma262/#sec-get-set.prototype.size)
+    /// #### [24.2.4.14 get Set.prototype.size](https://tc39.es/ecma262/#sec-get-set.prototype.size)
     ///
     /// Set.prototype.size is an accessor property whose set accessor function
     /// is undefined.
@@ -417,7 +417,7 @@ impl SetPrototype {
         Ok(Number::from(size).into_value())
     }
 
-    /// ### [24.2.4.17 Set.prototype.values ( )](https://tc39.es/ecma262/#sec-set.prototype.values)
+    /// #### [24.2.4.17 Set.prototype.values ( )](https://tc39.es/ecma262/#sec-set.prototype.values)
     fn values<'gc>(
         agent: &mut Agent,
         this_value: Value,

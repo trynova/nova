@@ -86,7 +86,7 @@ impl SymbolConstructor {
             .into_value())
     }
 
-    /// ### [20.4.2.2 Symbol.for ( key )](https://tc39.es/ecma262/#sec-symbol.for)
+    /// #### [20.4.2.2 Symbol.for ( key )](https://tc39.es/ecma262/#sec-symbol.for)
     fn r#for<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -120,7 +120,7 @@ impl SymbolConstructor {
         Ok(new_symbol.into_value())
     }
 
-    /// ### [20.4.2.6 Symbol.keyFor ( sym )](https://tc39.es/ecma262/#sec-symbol.keyfor)
+    /// #### [20.4.2.6 Symbol.keyFor ( sym )](https://tc39.es/ecma262/#sec-symbol.keyfor)
     fn key_for<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -269,7 +269,7 @@ impl SymbolConstructor {
     }
 }
 
-/// ### [20.4.5.1 KeyForSymbol ( sym )](https://tc39.es/ecma262/#sec-keyforsymbol)
+/// #### [20.4.5.1 KeyForSymbol ( sym )](https://tc39.es/ecma262/#sec-keyforsymbol)
 ///
 /// The abstract operation KeyForSymbol takes argument sym (a Symbol) and returns a String or undefined.
 pub(crate) fn key_for_symbol<'a>(agent: &Agent, sym: Symbol<'a>) -> Option<String<'a>> {

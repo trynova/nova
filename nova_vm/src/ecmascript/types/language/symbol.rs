@@ -77,7 +77,7 @@ impl<'a> Symbol<'a> {
         }
     }
 
-    /// ### [20.4.3.3.1 SymbolDescriptiveString ( sym )](https://tc39.es/ecma262/#sec-symboldescriptivestring)
+    /// ##### [20.4.3.3.1 SymbolDescriptiveString ( sym )](https://tc39.es/ecma262/#sec-symboldescriptivestring)
     pub fn descriptive_string(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> String<'a> {
         if let Some(descriptor) = agent[self].descriptor {
             String::concat(

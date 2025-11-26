@@ -79,7 +79,7 @@ impl BuiltinGetter for ArrayGetSpecies {}
 
 /// ### [23.1.1 The Array Constructor](https://tc39.es/ecma262/#sec-array-constructor)
 impl ArrayConstructor {
-    /// ### [23.1.1.1 Array ( ...values )](https://tc39.es/ecma262/#sec-array)
+    /// #### [23.1.1.1 Array ( ...values )](https://tc39.es/ecma262/#sec-array)
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -500,7 +500,7 @@ impl ArrayConstructor {
         Ok(a.get(agent).into_value())
     }
 
-    /// ### [23.1.2.2 Array.isArray ( arg )](https://tc39.es/ecma262/#sec-array.isarray)
+    /// #### [23.1.2.2 Array.isArray ( arg )](https://tc39.es/ecma262/#sec-array.isarray)
     fn is_array<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -510,7 +510,7 @@ impl ArrayConstructor {
         is_array(agent, arguments.get(0), gc.into_nogc()).map(Value::Boolean)
     }
 
-    /// ### [23.1.2.3 Array.of ( ...items )](https://tc39.es/ecma262/#sec-array.of)
+    /// #### [23.1.2.3 Array.of ( ...items )](https://tc39.es/ecma262/#sec-array.of)
     fn of<'gc>(
         agent: &mut Agent,
         this_value: Value,

@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! [13.2.8 Template Literals](https://tc39.es/ecma262/#sec-template-literals)
+//!### [13.2.8 Template Literals](https://tc39.es/ecma262/#sec-template-literals)
 
 use std::ptr::NonNull;
 
@@ -22,7 +22,7 @@ use crate::{
     heap::{ObjectEntry, ObjectEntryPropertyDescriptor, element_array::ElementDescriptor},
 };
 
-/// ### [13.2.8.4 GetTemplateObject ( templateLiteral )](https://tc39.es/ecma262/#sec-gettemplateobject)
+/// #### [13.2.8.4 GetTemplateObject ( templateLiteral )](https://tc39.es/ecma262/#sec-gettemplateobject)
 ///
 /// The abstract operation GetTemplateObject takes argument templateLiteral (a
 /// Parse Node) and returns an Array.

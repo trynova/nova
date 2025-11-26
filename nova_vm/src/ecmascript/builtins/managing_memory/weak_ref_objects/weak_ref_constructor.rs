@@ -35,7 +35,7 @@ impl BuiltinIntrinsicConstructor for WeakRefConstructor {
 }
 
 impl WeakRefConstructor {
-    /// ### [26.1.1.1 WeakRef ( target )](https://tc39.es/ecma262/#sec-weak-ref-constructor)
+    /// #### [26.1.1.1 WeakRef ( target )](https://tc39.es/ecma262/#sec-weak-ref-constructor)
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,

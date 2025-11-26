@@ -77,7 +77,7 @@ impl Builtin for SharedArrayBufferPrototypeSlice {
 }
 
 impl SharedArrayBufferPrototype {
-    /// ### [25.2.5.1 get SharedArrayBuffer.prototype.byteLength](https://tc39.es/ecma262/#sec-get-sharedarraybuffer.prototype.bytelength)
+    /// #### [25.2.5.1 get SharedArrayBuffer.prototype.byteLength](https://tc39.es/ecma262/#sec-get-sharedarraybuffer.prototype.bytelength)
     ///
     /// SharedArrayBuffer.prototype.byteLength is an accessor property whose
     /// set accessor function is undefined.
@@ -99,7 +99,7 @@ impl SharedArrayBufferPrototype {
         Ok(Number::from_i64(agent, length as i64, gc).into_value())
     }
 
-    /// ### [25.2.5.3 SharedArrayBuffer.prototype.grow ( newLength )](https://tc39.es/ecma262/#sec-sharedarraybuffer.prototype.grow)
+    /// #### [25.2.5.3 SharedArrayBuffer.prototype.grow ( newLength )](https://tc39.es/ecma262/#sec-sharedarraybuffer.prototype.grow)
     fn grow<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -160,7 +160,7 @@ impl SharedArrayBufferPrototype {
         o.grow(agent, new_byte_length, gc).map(|_| Value::Undefined)
     }
 
-    /// ### [25.2.5.4 get SharedArrayBuffer.prototype.growable](https://tc39.es/ecma262/#sec-get-sharedarraybuffer.prototype.growable)
+    /// #### [25.2.5.4 get SharedArrayBuffer.prototype.growable](https://tc39.es/ecma262/#sec-get-sharedarraybuffer.prototype.growable)
     ///
     /// SharedArrayBuffer.prototype.growable is an accessor property whose set
     /// accessor function is undefined.
@@ -181,7 +181,7 @@ impl SharedArrayBufferPrototype {
         Ok(o.is_growable(agent).into_value())
     }
 
-    /// ### [25.2.5.5 get SharedArrayBuffer.prototype.maxByteLength](https://tc39.es/ecma262/#sec-get-sharedarraybuffer.prototype.maxbytelength)
+    /// #### [25.2.5.5 get SharedArrayBuffer.prototype.maxByteLength](https://tc39.es/ecma262/#sec-get-sharedarraybuffer.prototype.maxbytelength)
     ///
     /// SharedArrayBuffer.prototype.maxByteLength is an accessor property whose
     /// set accessor function is undefined.
@@ -207,7 +207,7 @@ impl SharedArrayBufferPrototype {
         Ok(Number::from_i64(agent, length as i64, gc).into_value())
     }
 
-    /// ### [25.2.5.6 SharedArrayBuffer.prototype.slice ( start, end )](https://tc39.es/ecma262/#sec-hostgrowsharedarraybuffer)
+    /// #### [25.2.5.6 SharedArrayBuffer.prototype.slice ( start, end )](https://tc39.es/ecma262/#sec-hostgrowsharedarraybuffer)
     fn slice<'gc>(
         agent: &mut Agent,
         this_value: Value,

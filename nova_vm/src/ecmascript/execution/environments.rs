@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! ### [9.1 Environment Records](https://tc39.es/ecma262/#sec-environment-records)
+//! ## [9.1 Environment Records](https://tc39.es/ecma262/#sec-environment-records)
 //!
 //! Environment Record is a specification type used to define the association of
 //! Identifiers to specific variables and functions, based upon the lexical
@@ -278,7 +278,7 @@ impl<'e> Environment<'e> {
         }
     }
 
-    /// ### [HasBinding(N)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    /// # [HasBinding(N)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     ///
     /// Determine if an Environment Record has a binding for the String value
     /// N. Return true if it does and false if it does not.
@@ -332,7 +332,7 @@ impl<'e> Environment<'e> {
         }
     }
 
-    /// ### [CreateMutableBinding(N, D)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    /// # [CreateMutableBinding(N, D)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     ///
     /// Create a new but uninitialized mutable binding in an Environment
     /// Record. The String value N is the text of the bound name. If the
@@ -364,7 +364,7 @@ impl<'e> Environment<'e> {
         }
     }
 
-    /// ### [CreateImmutableBinding(N, S)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    /// # [CreateImmutableBinding(N, S)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     ///
     /// Create a new but uninitialized immutable binding in an Environment
     /// Record. The String value N is the text of the bound name. If S is true
@@ -432,7 +432,7 @@ impl<'e> Environment<'e> {
         }
     }
 
-    /// ### [InitializeBinding(N, V)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    /// # [InitializeBinding(N, V)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     ///
     /// Set the value of an already existing but uninitialized binding in an
     /// Environment Record. The String value N is the text of the bound name.
@@ -505,7 +505,7 @@ impl<'e> Environment<'e> {
         }
     }
 
-    /// ### [SetMutableBinding(N, V, S)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    /// # [SetMutableBinding(N, V, S)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     ///
     /// Set the value of an already existing mutable binding in an Environment
     /// Record. The String value N is the text of the bound name. V is the
@@ -573,7 +573,7 @@ impl<'e> Environment<'e> {
         }
     }
 
-    /// ### [GetBindingValue(N, S)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    /// # [GetBindingValue(N, S)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     ///
     /// Returns the value of an already existing binding from an Environment
     /// Record. The String value N is the text of the bound name. S is used to
@@ -635,7 +635,7 @@ impl<'e> Environment<'e> {
         }
     }
 
-    /// ### [DeleteBinding(N)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    /// # [DeleteBinding(N)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     ///
     /// Delete a binding from an Environment Record. The String value N is the
     /// text of the bound name. If a binding for N exists, remove the binding
@@ -660,7 +660,7 @@ impl<'e> Environment<'e> {
         }
     }
 
-    /// ### [HasThisBinding()](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    /// # [HasThisBinding()](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     ///
     /// Determine if an Environment Record establishes a this binding. Return
     /// true if it does and false if it does not.
@@ -692,7 +692,7 @@ impl<'e> Environment<'e> {
         }
     }
 
-    /// ### [HasSuperBinding()](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    /// # [HasSuperBinding()](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     ///
     /// Determine if an Environment Record establishes a super method binding.
     /// Return true if it does and false if it does not.
@@ -703,7 +703,7 @@ impl<'e> Environment<'e> {
         }
     }
 
-    /// ### [WithBaseObject()](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    /// # [WithBaseObject()](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     ///
     /// If this Environment Record is associated with a with statement, return
     /// the with object. Otherwise, return undefined.
@@ -913,7 +913,7 @@ pub(crate) fn try_get_identifier_reference<'a>(
     }
 }
 
-/// ### [9.1.2.1 GetIdentifierReference ( env, name, strict )](https://tc39.es/ecma262/#sec-getidentifierreference)
+/// #### [9.1.2.1 GetIdentifierReference ( env, name, strict )](https://tc39.es/ecma262/#sec-getidentifierreference)
 ///
 /// The abstract operation GetIdentifierReference takes arguments env (an
 /// Environment Record or null), name (a String), and strict (a Boolean) and

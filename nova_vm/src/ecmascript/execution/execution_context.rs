@@ -15,7 +15,7 @@ use crate::{
 // TODO: Remove this.
 pub(crate) type ECMAScriptCode = ECMAScriptCodeEvaluationState;
 
-/// ### [code evaluation state](https://tc39.es/ecma262/#table-state-components-for-all-execution-contexts)
+/// # [code evaluation state](https://tc39.es/ecma262/#table-state-components-for-all-execution-contexts)
 ///
 /// ECMAScript code execution contexts have the additional state components
 /// listed in Table 26.
@@ -52,7 +52,7 @@ pub(crate) struct ECMAScriptCodeEvaluationState {
     pub(crate) source_code: SourceCode<'static>,
 }
 
-/// ### [9.4 Execution Contexts](https://tc39.es/ecma262/#sec-execution-contexts)
+/// ## [9.4 Execution Contexts](https://tc39.es/ecma262/#sec-execution-contexts)
 ///
 /// An execution context is a specification device that is used to track the
 /// runtime evaluation of code by an ECMAScript implementation. At any point in

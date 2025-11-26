@@ -54,7 +54,7 @@ impl Builtin for RegExpGetSpecies {
 impl BuiltinGetter for RegExpGetSpecies {}
 
 impl RegExpConstructor {
-    /// ### [22.2.4.1 RegExp ( pattern, flags )](https://tc39.es/ecma262/#sec-regexp-pattern-flags)
+    /// #### [22.2.4.1 RegExp ( pattern, flags )](https://tc39.es/ecma262/#sec-regexp-pattern-flags)
     ///
     /// > NOTE: If pattern is supplied using a StringLiteral, the usual escape
     /// > sequence substitutions are performed before the String is processed
@@ -273,7 +273,7 @@ impl RegExpConstructor {
     }
 }
 
-/// ### [22.2.5.1.1 EncodeForRegExpEscape ( cp )](https://tc39.es/ecma262/#sec-encodeforregexpescape)
+/// ##### [22.2.5.1.1 EncodeForRegExpEscape ( cp )](https://tc39.es/ecma262/#sec-encodeforregexpescape)
 ///
 /// The abstract operation EncodeForRegExpEscape takes argument cp (a code
 /// point) and returns a String. It returns a String representing a Pattern for
@@ -374,7 +374,7 @@ fn encode_for_reg_exp_escape(s: &mut std::string::String, cp: CodePoint) {
     }
 }
 
-/// ### [25.5.2.4 UnicodeEscape ( C )](https://tc39.es/ecma262/#sec-unicodeescape)
+/// #### [25.5.2.4 UnicodeEscape ( C )](https://tc39.es/ecma262/#sec-unicodeescape)
 ///
 /// The abstract operation UnicodeEscape takes argument C (a code unit) and
 /// returns a String. It represents C as a Unicode escape sequence.

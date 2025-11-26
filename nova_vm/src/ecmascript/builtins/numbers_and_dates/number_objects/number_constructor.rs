@@ -27,7 +27,7 @@ use crate::{
     heap::{CreateHeapData, IntrinsicConstructorIndexes},
 };
 
-/// ### [21.1.1.1 Number ( value )](https://tc39.es/ecma262/#sec-number-constructor-number-value)
+/// #### [21.1.1.1 Number ( value )](https://tc39.es/ecma262/#sec-number-constructor-number-value)
 pub struct NumberConstructor;
 
 impl Builtin for NumberConstructor {
@@ -148,7 +148,7 @@ impl NumberConstructor {
         Ok(o.unbind().into_value())
     }
 
-    /// ### [21.1.2.2 Number.isFinite ( number )](https://tc39.es/ecma262/#sec-number.isfinite)
+    /// #### [21.1.2.2 Number.isFinite ( number )](https://tc39.es/ecma262/#sec-number.isfinite)
     fn is_finite<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -168,7 +168,7 @@ impl NumberConstructor {
         Ok(number.is_finite(agent).into())
     }
 
-    /// ### [21.1.2.3 Number.isInteger ( number )](https://tc39.es/ecma262/#sec-number.isinteger)
+    /// #### [21.1.2.3 Number.isInteger ( number )](https://tc39.es/ecma262/#sec-number.isinteger)
     fn is_integer<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -182,7 +182,7 @@ impl NumberConstructor {
         Ok(is_integral_number(agent, maybe_number).into())
     }
 
-    /// ### [21.1.2.4 Number.isNaN ( number )](https://tc39.es/ecma262/#sec-number.isnan)
+    /// #### [21.1.2.4 Number.isNaN ( number )](https://tc39.es/ecma262/#sec-number.isnan)
     fn is_nan<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -202,7 +202,7 @@ impl NumberConstructor {
         Ok(number.is_nan(agent).into())
     }
 
-    /// ### [21.1.2.5 Number.isSafeInteger ( number )](https://tc39.es/ecma262/#sec-number.issafeinteger)
+    /// #### [21.1.2.5 Number.isSafeInteger ( number )](https://tc39.es/ecma262/#sec-number.issafeinteger)
     fn is_safe_integer<'gc>(
         agent: &mut Agent,
         _this_value: Value,

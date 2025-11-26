@@ -853,7 +853,7 @@ impl AtomicsObject {
     }
 }
 
-/// ### [25.4.3.1 ValidateIntegerTypedArray ( typedArray, waitable )](https://tc39.es/ecma262/#sec-validateintegertypedarray)
+/// #### [25.4.3.1 ValidateIntegerTypedArray ( typedArray, waitable )](https://tc39.es/ecma262/#sec-validateintegertypedarray)
 ///
 /// The abstract operation ValidateIntegerTypedArray takes arguments typedArray
 /// (an ECMAScript language value) and waitable (a Boolean) and returns either
@@ -1010,7 +1010,7 @@ fn try_validate_atomic_access_on_integer_typed_array<'gc>(
     }
 }
 
-/// ### [25.4.3.4 RevalidateAtomicAccess ( typedArray, byteIndexInBuffer )](https://tc39.es/ecma262/#sec-revalidateatomicaccess)
+/// #### [25.4.3.4 RevalidateAtomicAccess ( typedArray, byteIndexInBuffer )](https://tc39.es/ecma262/#sec-revalidateatomicaccess)
 ///
 /// The abstract operation RevalidateAtomicAccess takes arguments typedArray (a
 /// TypedArray) and byteIndexInBuffer (an integer) and returns either a normal
@@ -1058,7 +1058,7 @@ fn revalidate_atomic_access<'gc>(
     Ok(())
 }
 
-/// ### [25.4.3.17 AtomicReadModifyWrite ( typedArray, index, value, op )](https://tc39.es/ecma262/#sec-atomicreadmodifywrite)
+/// #### [25.4.3.17 AtomicReadModifyWrite ( typedArray, index, value, op )](https://tc39.es/ecma262/#sec-atomicreadmodifywrite)
 ///
 /// The abstract operation AtomicReadModifyWrite takes arguments typedArray (an
 /// ECMAScript language value), index (an ECMAScript language value), value (an
@@ -1340,7 +1340,7 @@ fn atomic_load_slow<'gc>(
     Ok((byte_index_in_buffer, typed_array))
 }
 
-/// ### [25.4.3.14 DoWait ( mode, typedArray, index, value, timeout )](https://tc39.es/ecma262/#sec-dowait)
+/// #### [25.4.3.14 DoWait ( mode, typedArray, index, value, timeout )](https://tc39.es/ecma262/#sec-dowait)
 ///
 /// The abstract operation DoWait takes arguments mode (sync or async),
 /// typedArray (an ECMAScript language value), index (an ECMAScript language
@@ -1710,7 +1710,7 @@ impl WaitAsyncJob {
     }
 }
 
-/// ### [25.4.3.15 EnqueueAtomicsWaitAsyncTimeoutJob ( WL, waiterRecord )](https://tc39.es/ecma262/#sec-enqueueatomicswaitasynctimeoutjob)
+/// #### [25.4.3.15 EnqueueAtomicsWaitAsyncTimeoutJob ( WL, waiterRecord )](https://tc39.es/ecma262/#sec-enqueueatomicswaitasynctimeoutjob)
 ///
 /// The abstract operation EnqueueAtomicsWaitAsyncTimeoutJob takes arguments WL
 /// (a WaiterList Record) and waiterRecord (a Waiter Record) and returns

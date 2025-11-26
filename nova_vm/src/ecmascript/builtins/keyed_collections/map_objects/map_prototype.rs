@@ -98,7 +98,7 @@ impl Builtin for MapPrototypeValues {
 }
 
 impl MapPrototype {
-    /// ### [24.1.3.1 Map.prototype.clear ( )](https://tc39.es/ecma262/#sec-map.prototype.clear)
+    /// #### [24.1.3.1 Map.prototype.clear ( )](https://tc39.es/ecma262/#sec-map.prototype.clear)
     ///
     /// > #### Note
     /// > The existing \[\[MapData]] List is preserved because there may be
@@ -122,7 +122,7 @@ impl MapPrototype {
         Ok(Value::Undefined)
     }
 
-    /// ### [24.1.3.3 Map.prototype.delete ( key )](https://tc39.es/ecma262/#sec-map.prototype.delete)
+    /// #### [24.1.3.3 Map.prototype.delete ( key )](https://tc39.es/ecma262/#sec-map.prototype.delete)
     ///
     /// > #### Note
     /// > The value EMPTY is used as a specification device to indicate that an
@@ -185,7 +185,7 @@ impl MapPrototype {
         }
     }
 
-    /// ### [24.1.3.4 Map.prototype.entries ( )](https://tc39.es/ecma262/#sec-map.prototype.entries)
+    /// #### [24.1.3.4 Map.prototype.entries ( )](https://tc39.es/ecma262/#sec-map.prototype.entries)
     fn entries<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -296,7 +296,7 @@ impl MapPrototype {
         Ok(Value::Undefined)
     }
 
-    /// ### [24.1.3.6 Map.prototype.get ( key )](https://tc39.es/ecma262/#sec-map.prototype.get)
+    /// #### [24.1.3.6 Map.prototype.get ( key )](https://tc39.es/ecma262/#sec-map.prototype.get)
     fn get<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -348,7 +348,7 @@ impl MapPrototype {
         }
     }
 
-    /// ### [24.1.3.7 Map.prototype.has ( key )](https://tc39.es/ecma262/#sec-map.prototype.has)
+    /// #### [24.1.3.7 Map.prototype.has ( key )](https://tc39.es/ecma262/#sec-map.prototype.has)
     fn has<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -393,7 +393,7 @@ impl MapPrototype {
         Ok(found.into())
     }
 
-    /// ### [24.1.3.8 Map.prototype.keys ( )](https://tc39.es/ecma262/#sec-map.prototype.keys)
+    /// #### [24.1.3.8 Map.prototype.keys ( )](https://tc39.es/ecma262/#sec-map.prototype.keys)
     fn keys<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -410,7 +410,7 @@ impl MapPrototype {
         Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::Key).into_value())
     }
 
-    /// ### [24.1.3.9 Map.prototype.set ( key, value )](https://tc39.es/ecma262/#sec-map.prototype.set)
+    /// #### [24.1.3.9 Map.prototype.set ( key, value )](https://tc39.es/ecma262/#sec-map.prototype.set)
     fn set<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -481,7 +481,7 @@ impl MapPrototype {
         Ok(m.into_value())
     }
 
-    /// ### [24.1.3.10 get Map.prototype.size](https://tc39.es/ecma262/#sec-get-map.prototype.size)
+    /// #### [24.1.3.10 get Map.prototype.size](https://tc39.es/ecma262/#sec-get-map.prototype.size)
     fn get_size<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -494,7 +494,7 @@ impl MapPrototype {
         Ok(count.into())
     }
 
-    /// ### [24.1.3.11 Map.prototype.values ( )](https://tc39.es/ecma262/#sec-map.prototype.values)
+    /// #### [24.1.3.11 Map.prototype.values ( )](https://tc39.es/ecma262/#sec-map.prototype.values)
     fn values<'gc>(
         agent: &mut Agent,
         this_value: Value,

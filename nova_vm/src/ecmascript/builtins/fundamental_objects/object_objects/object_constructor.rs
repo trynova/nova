@@ -313,7 +313,7 @@ impl ObjectConstructor {
         }
     }
 
-    /// ### [20.1.2.1 Object.assign ( target, ...sources )](https://tc39.es/ecma262/#sec-object.assign)
+    /// #### [20.1.2.1 Object.assign ( target, ...sources )](https://tc39.es/ecma262/#sec-object.assign)
     ///
     /// This function copies the values of all of the enumerable own properties
     /// from one or more source objects to a target object.
@@ -455,7 +455,7 @@ impl ObjectConstructor {
         }
     }
 
-    /// ### [20.1.2.3 Object.defineProperties ( O, Properties )](https://tc39.es/ecma262/#sec-object.defineproperties)
+    /// #### [20.1.2.3 Object.defineProperties ( O, Properties )](https://tc39.es/ecma262/#sec-object.defineproperties)
     ///
     /// This function adds own properties and/or updates the attributes of
     /// existing own properties of an object.
@@ -487,7 +487,7 @@ impl ObjectConstructor {
         Ok(result.into_value())
     }
 
-    /// ### [20.1.2.4 Object.defineProperty ( O, P, Attributes )](https://tc39.es/ecma262/#sec-object.defineproperty)
+    /// #### [20.1.2.4 Object.defineProperty ( O, P, Attributes )](https://tc39.es/ecma262/#sec-object.defineproperty)
     ///
     /// This function adds an own property and/or updates the attributes of an
     /// existing own property of an object.
@@ -579,7 +579,7 @@ impl ObjectConstructor {
         Ok(create_array_from_list(agent, &entry_list.unbind(), gc.into_nogc()).into_value())
     }
 
-    /// ### [20.1.2.6 Object.freeze ( O )](https://tc39.es/ecma262/#sec-object.freeze)
+    /// #### [20.1.2.6 Object.freeze ( O )](https://tc39.es/ecma262/#sec-object.freeze)
     fn freeze<'gc>(
         agent: &mut Agent,
         _: Value,
@@ -607,7 +607,7 @@ impl ObjectConstructor {
         }
     }
 
-    /// ### [20.1.2.7 Object.fromEntries ( iterable )](https://tc39.es/ecma262/#sec-object.fromentries)
+    /// #### [20.1.2.7 Object.fromEntries ( iterable )](https://tc39.es/ecma262/#sec-object.fromentries)
     fn from_entries<'gc>(
         agent: &mut Agent,
         _: Value,
@@ -747,7 +747,7 @@ impl ObjectConstructor {
             .map(|obj| obj.into_value())
     }
 
-    /// ### [20.1.2.8 Object.getOwnPropertyDescriptor ( O, P )](https://tc39.es/ecma262/#sec-object.getownpropertydescriptor)
+    /// #### [20.1.2.8 Object.getOwnPropertyDescriptor ( O, P )](https://tc39.es/ecma262/#sec-object.getownpropertydescriptor)
     fn get_own_property_descriptor<'gc>(
         agent: &mut Agent,
         _: Value,
@@ -782,7 +782,7 @@ impl ObjectConstructor {
         )
     }
 
-    /// ### [20.1.2.9 Object.getOwnPropertyDescriptors ( O )](https://tc39.es/ecma262/#sec-object.getownpropertydescriptors)
+    /// #### [20.1.2.9 Object.getOwnPropertyDescriptors ( O )](https://tc39.es/ecma262/#sec-object.getownpropertydescriptors)
     fn get_own_property_descriptors<'gc>(
         agent: &mut Agent,
         _: Value,
@@ -858,7 +858,7 @@ impl ObjectConstructor {
         }
     }
 
-    /// ### [20.1.2.10 Object.getOwnPropertyNames ( O )](https://tc39.es/ecma262/#sec-object.getownpropertynames)
+    /// #### [20.1.2.10 Object.getOwnPropertyNames ( O )](https://tc39.es/ecma262/#sec-object.getownpropertynames)
     fn get_own_property_names<'gc>(
         agent: &mut Agent,
         _: Value,
@@ -875,7 +875,7 @@ impl ObjectConstructor {
             .unbind())
     }
 
-    /// ### [20.1.2.11 Object.getOwnPropertySymbols ( O )](https://tc39.es/ecma262/#sec-object.getownpropertysymbols)
+    /// #### [20.1.2.11 Object.getOwnPropertySymbols ( O )](https://tc39.es/ecma262/#sec-object.getownpropertysymbols)
     fn get_own_property_symbols<'gc>(
         agent: &mut Agent,
         _: Value,
@@ -892,7 +892,7 @@ impl ObjectConstructor {
             .unbind())
     }
 
-    /// ### [20.1.2.12 Object.getPrototypeOf ( O )](https://tc39.es/ecma262/#sec-object.getprototypeof)
+    /// #### [20.1.2.12 Object.getPrototypeOf ( O )](https://tc39.es/ecma262/#sec-object.getprototypeof)
     fn get_prototype_of<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -1024,7 +1024,7 @@ impl ObjectConstructor {
         Ok(result.into_value())
     }
 
-    /// ### [20.1.2.19 Object.keys ( O )](https://tc39.es/ecma262/#sec-object.keys)
+    /// #### [20.1.2.19 Object.keys ( O )](https://tc39.es/ecma262/#sec-object.keys)
     fn keys<'gc>(
         agent: &mut Agent,
         _: Value,
@@ -1046,7 +1046,7 @@ impl ObjectConstructor {
             .unbind())
     }
 
-    /// ### [20.1.2.20 Object.preventExtensions ( O )](https://tc39.es/ecma262/#sec-object.preventextensions)
+    /// #### [20.1.2.20 Object.preventExtensions ( O )](https://tc39.es/ecma262/#sec-object.preventextensions)
     fn prevent_extensions<'gc>(
         agent: &mut Agent,
         _: Value,
@@ -1077,7 +1077,7 @@ impl ObjectConstructor {
         }
     }
 
-    /// ### [20.1.2.22 Object.seal ( O )](https://tc39.es/ecma262/#sec-object.seal)
+    /// #### [20.1.2.22 Object.seal ( O )](https://tc39.es/ecma262/#sec-object.seal)
     fn seal<'gc>(
         agent: &mut Agent,
         _: Value,
@@ -1105,7 +1105,7 @@ impl ObjectConstructor {
         }
     }
 
-    /// ### [20.1.2.23 Object.setPrototypeOf ( O, proto )](https://tc39.es/ecma262/#sec-object.setprototypeof)
+    /// #### [20.1.2.23 Object.setPrototypeOf ( O, proto )](https://tc39.es/ecma262/#sec-object.setprototypeof)
     fn set_prototype_of<'gc>(
         agent: &mut Agent,
         _: Value,
@@ -1218,7 +1218,7 @@ impl ObjectConstructor {
     }
 }
 
-/// ### [20.1.2.3.1 ObjectDefineProperties ( O, Properties )](https://tc39.es/ecma262/#sec-objectdefineproperties)
+/// ##### [20.1.2.3.1 ObjectDefineProperties ( O, Properties )](https://tc39.es/ecma262/#sec-objectdefineproperties)
 ///
 /// The abstract operation ObjectDefineProperties takes arguments O (an Object)
 /// and Properties (an ECMAScript language value) and returns either a normal
@@ -1296,7 +1296,7 @@ fn object_define_properties<'gc>(
     Ok(unsafe { scoped_o.take(agent) })
 }
 
-/// ### [24.1.1.2 AddEntriesFromIterable ( target, iterable, adder )](https://tc39.es/ecma262/#sec-add-entries-from-iterable)
+/// #### [24.1.1.2 AddEntriesFromIterable ( target, iterable, adder )](https://tc39.es/ecma262/#sec-add-entries-from-iterable)
 ///
 /// The abstract operation AddEntriesFromIterable takes arguments target (an
 /// Object), iterable (an ECMAScript language value, but not undefined or
@@ -1427,7 +1427,7 @@ pub fn add_entries_from_iterable_from_entries<'a>(
     }
 }
 
-/// ### [20.1.2.11.1 GetOwnPropertyKeys ( O, type )](https://tc39.es/ecma262/#sec-getownpropertykeys)
+/// ##### [20.1.2.11.1 GetOwnPropertyKeys ( O, type )](https://tc39.es/ecma262/#sec-getownpropertykeys)
 ///
 /// The abstract operation GetOwnPropertyKeys takes arguments O (an ECMAScript
 /// language value) and type (STRING or SYMBOL) and returns either a normal

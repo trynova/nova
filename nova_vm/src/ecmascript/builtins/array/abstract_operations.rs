@@ -91,7 +91,7 @@ pub(crate) fn array_create<'a>(
     Ok(agent.heap.create(data))
 }
 
-/// ### [10.4.2.3 ArraySpeciesCreate ( originalArray, length )](https://tc39.es/ecma262/#sec-arrayspeciescreate)
+/// #### [10.4.2.3 ArraySpeciesCreate ( originalArray, length )](https://tc39.es/ecma262/#sec-arrayspeciescreate)
 ///
 /// The abstract operation ArraySpeciesCreate takes arguments originalArray (an
 /// Object) and length (a non-negative integer) and returns either a normal
@@ -190,7 +190,7 @@ pub(crate) fn array_species_create<'a>(
     )
 }
 
-/// ### [10.4.2.4 ArraySetLength ( A, Desc )](https://tc39.es/ecma262/#sec-arraysetlength)
+/// #### [10.4.2.4 ArraySetLength ( A, Desc )](https://tc39.es/ecma262/#sec-arraysetlength)
 ///
 /// The abstract operation ArraySetLength takes arguments A (an Array) and Desc (a Property Descriptor) and returns either a normal completion containing a Boolean or a throw completion.
 pub(crate) fn array_set_length<'a>(

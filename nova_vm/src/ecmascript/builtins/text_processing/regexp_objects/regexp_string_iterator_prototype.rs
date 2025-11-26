@@ -30,7 +30,7 @@ use crate::{
     heap::WellKnownSymbolIndexes,
 };
 
-/// ### [22.2.9.2 The %RegExpStringIteratorPrototype% Object](https://tc39.es/ecma262/#sec-%regexpstringiteratorprototype%-object)
+/// #### [22.2.9.2 The %RegExpStringIteratorPrototype% Object](https://tc39.es/ecma262/#sec-%regexpstringiteratorprototype%-object)
 ///
 /// The %RegExpStringIteratorPrototype% object:
 /// * has properties that are inherited by all RegExp String Iterator objects.
@@ -49,7 +49,7 @@ impl Builtin for RegExpStringIteratorPrototypeNext {
 }
 
 impl RegExpStringIteratorPrototype {
-    /// ### [22.2.9.2.1 %RegExpStringIteratorPrototype%.next ( )](https://tc39.es/ecma262/#sec-%regexpstringiteratorprototype%.next)
+    /// ##### [22.2.9.2.1 %RegExpStringIteratorPrototype%.next ( )](https://tc39.es/ecma262/#sec-%regexpstringiteratorprototype%.next)
     fn next<'gc>(
         agent: &mut Agent,
         this_value: Value,

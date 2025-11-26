@@ -192,7 +192,7 @@ impl Builtin for DataViewPrototypeSetUint32 {
 }
 
 impl DataViewPrototype {
-    /// ### [25.3.4.1 get DataView.prototype.buffer](https://tc39.es/ecma262/#sec-get-dataview.prototype.buffer)
+    /// #### [25.3.4.1 get DataView.prototype.buffer](https://tc39.es/ecma262/#sec-get-dataview.prototype.buffer)
     ///
     /// DataView.prototype.buffer is an accessor property whose set accessor
     /// function is undefined.
@@ -212,7 +212,7 @@ impl DataViewPrototype {
         Ok(o.viewed_array_buffer(agent).into_value())
     }
 
-    /// ### [25.3.4.2 get DataView.prototype.byteLength](https://tc39.es/ecma262/#sec-get-dataview.prototype.bytelength)
+    /// #### [25.3.4.2 get DataView.prototype.byteLength](https://tc39.es/ecma262/#sec-get-dataview.prototype.bytelength)
     ///
     /// DataView.prototype.byteLength is an accessor property whose set accessor
     /// function is undefined.
@@ -243,7 +243,7 @@ impl DataViewPrototype {
         Ok(Number::from(SmallInteger::try_from(size).unwrap()).into_value())
     }
 
-    /// ### [25.3.4.3 get DataView.prototype.byteOffset](https://tc39.es/ecma262/#sec-get-dataview.prototype.byteoffset)
+    /// #### [25.3.4.3 get DataView.prototype.byteOffset](https://tc39.es/ecma262/#sec-get-dataview.prototype.byteoffset)
     ///
     /// DataView.prototype.byteOffset is an accessor property whose set accessor
     /// function is undefined.
@@ -357,7 +357,7 @@ impl DataViewPrototype {
             .map(|v| v.into_ne_value(agent, gc.into_nogc()).into_value())
     }
 
-    /// ### [25.3.4.9 DataView.prototype.getInt8 ( byteOffset )](https://tc39.es/ecma262/#sec-dataview.prototype.getint8)
+    /// #### [25.3.4.9 DataView.prototype.getInt8 ( byteOffset )](https://tc39.es/ecma262/#sec-dataview.prototype.getint8)
     fn get_int8<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -406,7 +406,7 @@ impl DataViewPrototype {
             .map(|v| v.into_ne_value(agent, gc.into_nogc()).into_value())
     }
 
-    /// ### [25.3.4.12 DataView.prototype.getUint8 ( byteOffset )](https://tc39.es/ecma262/#sec-dataview.prototype.getuint8)
+    /// #### [25.3.4.12 DataView.prototype.getUint8 ( byteOffset )](https://tc39.es/ecma262/#sec-dataview.prototype.getuint8)
     fn get_uint8<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -534,7 +534,7 @@ impl DataViewPrototype {
         set_view_value::<f64>(agent, this_value, byte_offset, little_endian, value, gc)
     }
 
-    /// ### [25.3.4.19 DataView.prototype.setInt8 ( byteOffset, value )](https://tc39.es/ecma262/#sec-dataview.prototype.setint8)
+    /// #### [25.3.4.19 DataView.prototype.setInt8 ( byteOffset, value )](https://tc39.es/ecma262/#sec-dataview.prototype.setint8)
     fn set_int8<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -580,7 +580,7 @@ impl DataViewPrototype {
         set_view_value::<i32>(agent, this_value, byte_offset, little_endian, value, gc)
     }
 
-    /// ### [25.3.4.22 DataView.prototype.setUint8 ( byteOffset, value )](https://tc39.es/ecma262/#sec-dataview.prototype.setuint8)
+    /// #### [25.3.4.22 DataView.prototype.setUint8 ( byteOffset, value )](https://tc39.es/ecma262/#sec-dataview.prototype.setuint8)
     fn set_uint8<'gc>(
         agent: &mut Agent,
         this_value: Value,

@@ -712,7 +712,7 @@ impl TypedArrayPrototypes {
     }
 }
 
-/// ### [23.2.5.1 TypedArray ( ...args )](https://tc39.es/ecma262/#sec-typedarray)
+/// #### [23.2.5.1 TypedArray ( ...args )](https://tc39.es/ecma262/#sec-typedarray)
 #[inline(always)]
 fn typed_array_constructor<'gc, T: Viewable>(
     agent: &mut Agent,

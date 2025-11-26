@@ -42,7 +42,7 @@ use crate::{
 
 use super::TryHasBindingContinue;
 
-/// ### [9.1.1.2 Object Environment Records](https://tc39.es/ecma262/#sec-object-environment-records)
+/// #### [9.1.1.2 Object Environment Records](https://tc39.es/ecma262/#sec-object-environment-records)
 ///
 /// Each Object Environment Record is associated with an object called its
 /// binding object. An Object Environment Record binds the set of string
@@ -77,7 +77,7 @@ pub struct ObjectEnvironmentRecord {
 }
 
 impl ObjectEnvironmentRecord {
-    /// ### [9.1.2.3 NewObjectEnvironment ( O, W, E )](https://tc39.es/ecma262/#sec-newobjectenvironmenthttps://tc39.es/ecma262/#sec-newobjectenvironment)
+    /// #### [9.1.2.3 NewObjectEnvironment ( O, W, E )](https://tc39.es/ecma262/#sec-newobjectenvironmenthttps://tc39.es/ecma262/#sec-newobjectenvironment)
     ///
     /// The abstract operation NewObjectEnvironment takes arguments O (an
     /// Object), W (a Boolean), and E (an Environment Record or null) and
@@ -197,7 +197,7 @@ impl<'e> ObjectEnvironment<'e> {
         found_binding.into()
     }
 
-    /// ### [9.1.1.2.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-object-environment-records-hasbinding-n)
+    /// ##### [9.1.1.2.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-object-environment-records-hasbinding-n)
     ///
     /// The HasBinding concrete method of an Object Environment Record envRec
     /// takes argument N (a String) and returns either a normal completion
@@ -266,7 +266,7 @@ impl<'e> ObjectEnvironment<'e> {
         }
     }
 
-    /// ### [9.1.1.2.2 CreateMutableBinding ( N, D )](https://tc39.es/ecma262/#sec-object-environment-records-createmutablebinding-n-d)
+    /// ##### [9.1.1.2.2 CreateMutableBinding ( N, D )](https://tc39.es/ecma262/#sec-object-environment-records-createmutablebinding-n-d)
     ///
     /// The CreateMutableBinding concrete method of an Object Environment
     /// Record envRec takes arguments N (a String) and D (a Boolean) and
@@ -311,7 +311,7 @@ impl<'e> ObjectEnvironment<'e> {
         // returned.
     }
 
-    /// ### [9.1.1.2.2 CreateMutableBinding ( N, D )](https://tc39.es/ecma262/#sec-object-environment-records-createmutablebinding-n-d)
+    /// ##### [9.1.1.2.2 CreateMutableBinding ( N, D )](https://tc39.es/ecma262/#sec-object-environment-records-createmutablebinding-n-d)
     ///
     /// The CreateMutableBinding concrete method of an Object Environment
     /// Record envRec takes arguments N (a String) and D (a Boolean) and
@@ -356,7 +356,7 @@ impl<'e> ObjectEnvironment<'e> {
         // returned.
     }
 
-    /// ### [9.1.1.2.3 CreateImmutableBinding ( N, S )](https://tc39.es/ecma262/#sec-object-environment-records-createimmutablebinding-n-s)
+    /// ##### [9.1.1.2.3 CreateImmutableBinding ( N, S )](https://tc39.es/ecma262/#sec-object-environment-records-createimmutablebinding-n-s)
     pub(crate) fn create_immutable_binding(self, _: &mut Agent, _: String, _: bool) {
         unreachable!(
             "The CreateImmutableBinding concrete method of an Object Environment Record is never used within this specification."
@@ -389,7 +389,7 @@ impl<'e> ObjectEnvironment<'e> {
         // Environment Records.
     }
 
-    /// ### [9.1.1.2.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-object-environment-records-initializebinding-n-v)
+    /// ##### [9.1.1.2.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-object-environment-records-initializebinding-n-v)
     ///
     /// The InitializeBinding concrete method of an Object Environment Record
     /// envRec takes arguments N (a String) and V (an ECMAScript language
@@ -416,7 +416,7 @@ impl<'e> ObjectEnvironment<'e> {
         // Environment Records.
     }
 
-    /// ### [9.1.1.2.5 SetMutableBinding ( N, V, S )](https://tc39.es/ecma262/#sec-object-environment-records-setmutablebinding-n-v-s)
+    /// ##### [9.1.1.2.5 SetMutableBinding ( N, V, S )](https://tc39.es/ecma262/#sec-object-environment-records-setmutablebinding-n-v-s)
     ///
     /// The SetMutableBinding concrete method of an Object Environment Record
     /// envRec takes arguments N (a String), V (an ECMAScript language value),
@@ -491,7 +491,7 @@ impl<'e> ObjectEnvironment<'e> {
         }
     }
 
-    /// ### [9.1.1.2.5 SetMutableBinding ( N, V, S )](https://tc39.es/ecma262/#sec-object-environment-records-setmutablebinding-n-v-s)
+    /// ##### [9.1.1.2.5 SetMutableBinding ( N, V, S )](https://tc39.es/ecma262/#sec-object-environment-records-setmutablebinding-n-v-s)
     ///
     /// The SetMutableBinding concrete method of an Object Environment Record
     /// envRec takes arguments N (a String), V (an ECMAScript language value),
@@ -676,7 +676,7 @@ impl<'e> ObjectEnvironment<'e> {
         agent.throw_exception(ExceptionType::ReferenceError, error_message, gc)
     }
 
-    /// ### [9.1.1.2.6 GetBindingValue ( N, S )](https://tc39.es/ecma262/#sec-object-environment-records-getbindingvalue-n-s)
+    /// ##### [9.1.1.2.6 GetBindingValue ( N, S )](https://tc39.es/ecma262/#sec-object-environment-records-getbindingvalue-n-s)
     ///
     /// The GetBindingValue concrete method of an Object Environment Record
     /// envRec takes arguments N (a String) and S (a Boolean) and returns
@@ -732,7 +732,7 @@ impl<'e> ObjectEnvironment<'e> {
         }
     }
 
-    /// ### [9.1.1.2.6 GetBindingValue ( N, S )](https://tc39.es/ecma262/#sec-object-environment-records-getbindingvalue-n-s)
+    /// ##### [9.1.1.2.6 GetBindingValue ( N, S )](https://tc39.es/ecma262/#sec-object-environment-records-getbindingvalue-n-s)
     ///
     /// The GetBindingValue concrete method of an Object Environment Record
     /// envRec takes arguments N (a String) and S (a Boolean) and returns
@@ -823,7 +823,7 @@ impl<'e> ObjectEnvironment<'e> {
         binding_object.try_delete(agent, name, gc)
     }
 
-    /// ### [9.1.1.2.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-object-environment-records-deletebinding-n)
+    /// ##### [9.1.1.2.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-object-environment-records-deletebinding-n)
     ///
     /// The DeleteBinding concrete method of an Object Environment Record
     /// envRec takes argument N (a String) and returns either a normal
@@ -844,7 +844,7 @@ impl<'e> ObjectEnvironment<'e> {
         binding_boject.internal_delete(agent, name, gc)
     }
 
-    /// ### [9.1.1.2.10 WithBaseObject ( )](https://tc39.es/ecma262/#sec-object-environment-records-withbaseobject)
+    /// ##### [9.1.1.2.10 WithBaseObject ( )](https://tc39.es/ecma262/#sec-object-environment-records-withbaseobject)
     ///
     /// The WithBaseObject concrete method of an Object Environment Record
     /// envRec takes no arguments and returns an Object or undefined.

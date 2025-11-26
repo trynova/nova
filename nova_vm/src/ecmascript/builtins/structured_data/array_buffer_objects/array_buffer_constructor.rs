@@ -124,7 +124,7 @@ impl ArrayBufferConstructor {
         .map(|ab| ab.into_value())
     }
 
-    /// ### [25.1.5.1 ArrayBuffer.isView ( arg )](https://tc39.es/ecma262/#sec-arraybuffer.isview)
+    /// #### [25.1.5.1 ArrayBuffer.isView ( arg )](https://tc39.es/ecma262/#sec-arraybuffer.isview)
     fn is_view<'gc>(
         _agent: &mut Agent,
         _this_value: Value,

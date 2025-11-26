@@ -147,7 +147,7 @@ pub(crate) fn to_primitive_object<'a, 'gc>(
     }
 }
 
-/// ### [7.1.1.1 OrdinaryToPrimitive ( O, hint )](https://tc39.es/ecma262/#sec-ordinarytoprimitive)
+/// #### [7.1.1.1 OrdinaryToPrimitive ( O, hint )](https://tc39.es/ecma262/#sec-ordinarytoprimitive)
 ///
 /// The abstract operation OrdinaryToPrimitive takes arguments O (an Object)
 /// and hint (STRING or NUMBER) and returns either a normal completion
@@ -325,7 +325,7 @@ pub(crate) fn to_number_primitive<'gc>(
     }
 }
 
-/// ### [7.1.4.1.1 StringToNumber ( str )](https://tc39.es/ecma262/#sec-stringtonumber)
+/// ##### [7.1.4.1.1 StringToNumber ( str )](https://tc39.es/ecma262/#sec-stringtonumber)
 ///
 /// The abstract operation StringToNumber takes argument str (a String) and
 /// returns a Number.

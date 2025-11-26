@@ -64,7 +64,7 @@ impl GeneratorPrototype {
         Ok(generator.resume(agent, arguments.get(0), gc)?.into_value())
     }
 
-    /// ### [27.5.1.3 %GeneratorPrototype%.return ( value )](https://tc39.es/ecma262/#sec-generator.prototype.return)
+    /// #### [27.5.1.3 %GeneratorPrototype%.return ( value )](https://tc39.es/ecma262/#sec-generator.prototype.return)
     fn r#return<'gc>(
         agent: &mut Agent,
         this_value: Value,

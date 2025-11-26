@@ -42,7 +42,7 @@ pub struct MapHeapData<'a> {
 }
 
 impl<'a> MapHeapData<'a> {
-    /// ### [24.2.1.5 MapDataSize ( setData )](https://tc39.es/ecma262/#sec-setdatasize)
+    /// #### [24.2.1.5 MapDataSize ( setData )](https://tc39.es/ecma262/#sec-setdatasize)
     ///
     /// The abstract operation MapDataSize takes argument setData (a List of either
     /// ECMAScript language values or EMPTY) and returns a non-negative integer.

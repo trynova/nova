@@ -88,7 +88,7 @@ impl<'a> Promise<'a> {
         };
     }
 
-    /// [27.2.4.7.1 PromiseResolve ( C, x )](https://tc39.es/ecma262/#sec-promise-resolve)
+    ///##### [27.2.4.7.1 PromiseResolve ( C, x )](https://tc39.es/ecma262/#sec-promise-resolve)
     pub fn resolve(agent: &mut Agent, x: Value, mut gc: GcScope<'a, '_>) -> Self {
         // 1. If IsPromise(x) is true, then
         if let Value::Promise(promise) = x {

@@ -156,7 +156,7 @@ impl Builtin for StringIteratorPrototypeNext {
 }
 
 impl StringIteratorPrototype {
-    /// ### [22.1.5.1.1 %StringIteratorPrototype%.next ( )](https://tc39.es/ecma262/#sec-%stringiteratorprototype%.next)
+    /// ##### [22.1.5.1.1 %StringIteratorPrototype%.next ( )](https://tc39.es/ecma262/#sec-%stringiteratorprototype%.next)
     fn next<'gc>(
         agent: &mut Agent,
         this_value: Value,

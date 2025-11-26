@@ -285,7 +285,7 @@ impl Builtin for ArrayPrototypeWith {
 }
 
 impl ArrayPrototype {
-    /// ### [23.1.3.1 Array.prototype.at ( index )](https://tc39.es/ecma262/#sec-array.prototype.at)
+    /// #### [23.1.3.1 Array.prototype.at ( index )](https://tc39.es/ecma262/#sec-array.prototype.at)
     fn at<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -350,7 +350,7 @@ impl ArrayPrototype {
         }
     }
 
-    /// ### [23.1.3.2 Array.prototype.concat ( ...items )](https://tc39.es/ecma262/#sec-array.prototype.concat)
+    /// #### [23.1.3.2 Array.prototype.concat ( ...items )](https://tc39.es/ecma262/#sec-array.prototype.concat)
     ///
     /// This method returns an array containing the array elements of the
     /// object followed by the array elements of each argument.
@@ -720,7 +720,7 @@ impl ArrayPrototype {
         Ok(o.get(agent).into_value())
     }
 
-    /// ### [23.1.3.5 Array.prototype.entries ( )](https://tc39.es/ecma262/#sec-array.prototype.entries)
+    /// #### [23.1.3.5 Array.prototype.entries ( )](https://tc39.es/ecma262/#sec-array.prototype.entries)
     fn entries<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1708,7 +1708,7 @@ impl ArrayPrototype {
         Ok((-1).into())
     }
 
-    /// ### [23.1.3.18 Array.prototype.join ( separator )](https://tc39.es/ecma262/#sec-array.prototype.join)
+    /// #### [23.1.3.18 Array.prototype.join ( separator )](https://tc39.es/ecma262/#sec-array.prototype.join)
     ///
     /// This method converts the elements of the array to Strings, and then
     /// concatenates these Strings, separated by occurrences of the separator.
@@ -1793,7 +1793,7 @@ impl ArrayPrototype {
         Ok(String::from_wtf8_buf(agent, r, gc.into_nogc()).into_value())
     }
 
-    /// ### [23.1.3.19 Array.prototype.keys ( )](https://tc39.es/ecma262/#sec-array.prototype.keys)
+    /// #### [23.1.3.19 Array.prototype.keys ( )](https://tc39.es/ecma262/#sec-array.prototype.keys)
     fn keys<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -2052,7 +2052,7 @@ impl ArrayPrototype {
         Ok(a.get(agent).into_value())
     }
 
-    /// ### [23.1.3.22 Array.prototype.pop ( )](https://tc39.es/ecma262/#sec-array.prototype.pop)
+    /// #### [23.1.3.22 Array.prototype.pop ( )](https://tc39.es/ecma262/#sec-array.prototype.pop)
     ///
     /// > NOTE 1
     /// >
@@ -2562,7 +2562,7 @@ impl ArrayPrototype {
         Ok(accumulator.get(agent))
     }
 
-    /// ### [23.1.3.26 Array.prototype.reverse ( )](https://tc39.es/ecma262/#sec-array.prototype.reverse)
+    /// #### [23.1.3.26 Array.prototype.reverse ( )](https://tc39.es/ecma262/#sec-array.prototype.reverse)
     ///
     /// > NOTE 1: This method rearranges the elements of the array so as to
     /// > reverse their order. It returns the reversed array.
@@ -2703,7 +2703,7 @@ impl ArrayPrototype {
         Ok(o.get(agent).into_value())
     }
 
-    /// ### [23.1.3.27 Array.prototype.shift ( )](https://tc39.es/ecma262/#sec-array.prototype.shift)
+    /// #### [23.1.3.27 Array.prototype.shift ( )](https://tc39.es/ecma262/#sec-array.prototype.shift)
     ///
     /// This method removes the first element of the array and returns it.
     ///
@@ -2843,7 +2843,7 @@ impl ArrayPrototype {
         Ok(first.get(agent))
     }
 
-    /// ### [23.1.3.28 Array.prototype.slice ( start, end )](https://tc39.es/ecma262/#sec-array.prototype.slice)
+    /// #### [23.1.3.28 Array.prototype.slice ( start, end )](https://tc39.es/ecma262/#sec-array.prototype.slice)
     ///
     /// This method returns an array containing the elements of the array from
     /// element start up to, but not including, element end (or through the end
@@ -3169,7 +3169,7 @@ impl ArrayPrototype {
         Ok(false.into())
     }
 
-    /// ### [23.1.3.30 Array.prototype.sort ( comparator )](https://tc39.es/ecma262/#sec-array.prototype.sort)
+    /// #### [23.1.3.30 Array.prototype.sort ( comparator )](https://tc39.es/ecma262/#sec-array.prototype.sort)
     ///
     /// This method sorts the elements of this array. The sort must be stable
     /// (that is, elements that compare equal must remain in their original
@@ -3260,7 +3260,7 @@ impl ArrayPrototype {
         Ok(obj.get(agent).into_value())
     }
 
-    /// ### [23.1.3.31 Array.prototype.splice ( start, deleteCount, ...items )](https://tc39.es/ecma262/#sec-array.prototype.splice)
+    /// #### [23.1.3.31 Array.prototype.splice ( start, deleteCount, ...items )](https://tc39.es/ecma262/#sec-array.prototype.splice)
     ///
     /// > NOTE 1: This method deletes the deleteCount elements of the array
     /// > starting at integer index start and replaces them with the elements
@@ -3497,7 +3497,7 @@ impl ArrayPrototype {
         Ok(a.get(agent).into_value())
     }
 
-    /// ### [23.1.3.32 Array.prototype.toLocaleString ( [ reserved1 [ , reserved2 ] ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-array.prototype.tolocalestring)
+    /// ### [23.1.3.32 Array.prototype.toLocaleString ( [ reserved1 [ , reserved2 ] ] )](https://tc39.es/ecma262/#sec-array.prototype.tolocalestring)
     /// An ECMAScript implementation that includes the ECMA-402
     /// Internationalization API must implement this method as specified in the
     /// ECMA-402 specification. If an ECMAScript implementation does not
@@ -3580,7 +3580,7 @@ impl ArrayPrototype {
         Ok(String::from_wtf8_buf(agent, r, gc.into_nogc()).into_value())
     }
 
-    /// ### [23.1.3.33 Array.prototype.toReversed ( )](https://tc39.es/ecma262/#sec-array.prototype.toreversed)
+    /// #### [23.1.3.33 Array.prototype.toReversed ( )](https://tc39.es/ecma262/#sec-array.prototype.toreversed)
     fn to_reversed<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -3638,7 +3638,7 @@ impl ArrayPrototype {
         Ok(a.get(agent).into_value())
     }
 
-    /// ### [23.1.3.34 Array.prototype.toSorted ( comparator )](https://tc39.es/ecma262/#sec-array.prototype.tosorted)
+    /// #### [23.1.3.34 Array.prototype.toSorted ( comparator )](https://tc39.es/ecma262/#sec-array.prototype.tosorted)
     fn to_sorted<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -3699,7 +3699,7 @@ impl ArrayPrototype {
         Ok(a.into_value())
     }
 
-    /// ### [23.1.3.35 Array.prototype.toSpliced ( start, skipCount, ...items )](https://tc39.es/ecma262/#sec-array.prototype.tospliced)
+    /// #### [23.1.3.35 Array.prototype.toSpliced ( start, skipCount, ...items )](https://tc39.es/ecma262/#sec-array.prototype.tospliced)
     fn to_spliced<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -3838,7 +3838,7 @@ impl ArrayPrototype {
         Ok(a.into_value())
     }
 
-    /// ### [23.1.3.36 Array.prototype.toString ( )](https://tc39.es/ecma262/#sec-array.prototype.tostring)
+    /// #### [23.1.3.36 Array.prototype.toString ( )](https://tc39.es/ecma262/#sec-array.prototype.tostring)
     fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -3878,7 +3878,7 @@ impl ArrayPrototype {
         )
     }
 
-    /// ### [23.1.3.37 Array.prototype.unshift ( ...items )](https://tc39.es/ecma262/#sec-array.prototype.unshift)
+    /// #### [23.1.3.37 Array.prototype.unshift ( ...items )](https://tc39.es/ecma262/#sec-array.prototype.unshift)
     ///
     /// This method prepends the arguments to the start of the array, such that
     /// their order within the array is the same as the order in which they appear
@@ -4012,7 +4012,7 @@ impl ArrayPrototype {
         Ok(len)
     }
 
-    /// ### [23.1.3.38 Array.prototype.values ( )](https://tc39.es/ecma262/#sec-array.prototype.values)
+    /// #### [23.1.3.38 Array.prototype.values ( )](https://tc39.es/ecma262/#sec-array.prototype.values)
     fn values<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -4031,7 +4031,7 @@ impl ArrayPrototype {
         Ok(ArrayIterator::from_object(agent, o, CollectionIteratorKind::Value).into_value())
     }
 
-    /// ### [23.1.3.39 Array.prototype.with ( index, value )](https://tc39.es/ecma262/#sec-array.prototype.with)
+    /// #### [23.1.3.39 Array.prototype.with ( index, value )](https://tc39.es/ecma262/#sec-array.prototype.with)
     fn with<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -4239,7 +4239,7 @@ impl ArrayPrototype {
     }
 }
 
-/// ### [23.1.3.2.1 IsConcatSpreadable ( O )](https://tc39.es/ecma262/#sec-isconcatspreadable)
+/// ##### [23.1.3.2.1 IsConcatSpreadable ( O )](https://tc39.es/ecma262/#sec-isconcatspreadable)
 ///
 /// The abstract operation IsConcatSpreadable takes argument O (an ECMAScript
 /// language value) and returns either a normal completion containing a Boolean
@@ -4282,7 +4282,7 @@ fn is_concat_spreadable<'a>(
     }
 }
 
-/// ### [23.1.3.12.1 FindViaPredicate ( O, len, direction, predicate, thisArg )](https://tc39.es/ecma262/#sec-findviapredicate)
+/// ##### [23.1.3.12.1 FindViaPredicate ( O, len, direction, predicate, thisArg )](https://tc39.es/ecma262/#sec-findviapredicate)
 ///
 /// The abstract operation FindViaPredicate takes arguments O (an Object), len
 /// (a non-negative integer), direction (ascending or descending), predicate
@@ -4540,7 +4540,7 @@ fn flatten_into_array<'a>(
     Ok(target_index)
 }
 
-/// ### [23.1.3.30.1 SortIndexedProperties ( obj, len, SortCompare, holes )](https://tc39.es/ecma262/#sec-sortindexedproperties)
+/// ##### [23.1.3.30.1 SortIndexedProperties ( obj, len, SortCompare, holes )](https://tc39.es/ecma262/#sec-sortindexedproperties)
 ///
 /// The abstract operation SortIndexedProperties takes arguments obj (an
 /// Object), len (a non-negative integer), SortCompare (an Abstract Closure
@@ -4658,7 +4658,7 @@ fn sort_indexed_properties<'gc, 'scope, const SKIP_HOLES: bool>(
     Ok(items.into_iter().map(|v| v.get(agent).bind(gc)).collect())
 }
 
-/// ### [23.1.3.30.2 CompareArrayElements ( x, y, comparator )](https://tc39.es/ecma262/#sec-comparearrayelements)
+/// ##### [23.1.3.30.2 CompareArrayElements ( x, y, comparator )](https://tc39.es/ecma262/#sec-comparearrayelements)
 /// The abstract operation CompareArrayElements takes arguments x (an
 /// ECMAScript language value), y (an ECMAScript language value), and
 /// comparator (a function object or undefined) and returns either a normal

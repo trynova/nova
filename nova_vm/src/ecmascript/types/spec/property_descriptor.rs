@@ -161,7 +161,7 @@ impl<'a> PropertyDescriptor<'a> {
         }
     }
 
-    /// ### [6.2.6.1 IsAccessorDescriptor ( Desc )](https://tc39.es/ecma262/#sec-isaccessordescriptor)
+    /// #### [6.2.6.1 IsAccessorDescriptor ( Desc )](https://tc39.es/ecma262/#sec-isaccessordescriptor)
     pub fn is_accessor_descriptor(&self) -> bool {
         // 1. If Desc is undefined, return false.
         match (self.get, self.set) {
@@ -174,7 +174,7 @@ impl<'a> PropertyDescriptor<'a> {
         }
     }
 
-    /// ### [6.2.6.2 IsDataDescriptor ( Desc )](https://tc39.es/ecma262/#sec-isdatadescriptor)
+    /// #### [6.2.6.2 IsDataDescriptor ( Desc )](https://tc39.es/ecma262/#sec-isdatadescriptor)
     pub fn is_data_descriptor(&self) -> bool {
         // 1. If Desc is undefined, return false.
         match (self.value, self.writable) {
@@ -187,7 +187,7 @@ impl<'a> PropertyDescriptor<'a> {
         }
     }
 
-    /// ### [6.2.6.3 IsGenericDescriptor ( Desc )](https://tc39.es/ecma262/#sec-isgenericdescriptor)
+    /// #### [6.2.6.3 IsGenericDescriptor ( Desc )](https://tc39.es/ecma262/#sec-isgenericdescriptor)
     pub fn is_generic_descriptor(&self) -> bool {
         // 1. If Desc is undefined, return false.
         // 2. If IsAccessorDescriptor(Desc) is true, return false.
@@ -196,7 +196,7 @@ impl<'a> PropertyDescriptor<'a> {
         !self.is_accessor_descriptor() && !self.is_data_descriptor()
     }
 
-    /// ### [6.2.6.4 FromPropertyDescriptor ( Desc )](https://tc39.es/ecma262/#sec-frompropertydescriptor)
+    /// #### [6.2.6.4 FromPropertyDescriptor ( Desc )](https://tc39.es/ecma262/#sec-frompropertydescriptor)
     ///
     /// The abstract operation FromPropertyDescriptor takes argument Desc (a
     /// Property Descriptor or undefined) and returns an Object or undefined.
@@ -286,7 +286,7 @@ impl<'a> PropertyDescriptor<'a> {
         Some(obj.bind(gc))
     }
 
-    /// ### [6.2.6.5 ToPropertyDescriptor ( Obj )](https://tc39.es/ecma262/#sec-topropertydescriptor)
+    /// #### [6.2.6.5 ToPropertyDescriptor ( Obj )](https://tc39.es/ecma262/#sec-topropertydescriptor)
     ///
     /// The abstract operation ToPropertyDescriptor takes argument Obj (an
     /// ECMAScript language value) and returns either a normal completion
@@ -674,7 +674,7 @@ impl<'a> PropertyDescriptor<'a> {
         TryResult::Continue(desc)
     }
 
-    /// ### [6.2.6.6 CompletePropertyDescriptor ( Desc )](https://tc39.es/ecma262/#sec-completepropertydescriptor)
+    /// #### [6.2.6.6 CompletePropertyDescriptor ( Desc )](https://tc39.es/ecma262/#sec-completepropertydescriptor)
     ///
     /// The abstract operation CompletePropertyDescriptor takes
     /// argument Desc (a Property Descriptor) and returns unused.

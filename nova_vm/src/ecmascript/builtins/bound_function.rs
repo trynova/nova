@@ -59,7 +59,7 @@ impl<'a> IntoValue<'a> for BoundFunction<'a> {
     }
 }
 
-/// ### [10.4.1.3 BoundFunctionCreate ( targetFunction, boundThis, boundArgs )](https://tc39.es/ecma262/#sec-boundfunctioncreate)
+/// #### [10.4.1.3 BoundFunctionCreate ( targetFunction, boundThis, boundArgs )](https://tc39.es/ecma262/#sec-boundfunctioncreate)
 ///
 /// The abstract operation BoundFunctionCreate takes arguments targetFunction
 /// (a function object), boundThis (an ECMAScript language value), and

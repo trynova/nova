@@ -932,7 +932,7 @@ impl SharedDataBlock {
 
 const DATA_BLOCK_SIZE_LIMIT: u64 = u64::pow(2, 53) - 1;
 
-/// ### [6.2.9.1 CreateByteDataBlock ( size )](https://tc39.es/ecma262/#sec-createbytedatablock)
+/// #### [6.2.9.1 CreateByteDataBlock ( size )](https://tc39.es/ecma262/#sec-createbytedatablock)
 ///
 /// The abstract operation CreateByteDataBlock takes argument size (a
 /// non-negative integer) and returns either a normal completion containing
@@ -969,7 +969,7 @@ pub(crate) fn create_byte_data_block<'a>(
     }
 }
 
-/// ### [6.2.9.2 CreateSharedByteDataBlock ( size )](https://tc39.es/ecma262/#sec-createsharedbytedatablock)
+/// #### [6.2.9.2 CreateSharedByteDataBlock ( size )](https://tc39.es/ecma262/#sec-createsharedbytedatablock)
 ///
 /// The abstract operation CreateSharedByteDataBlock takes argument size (a
 /// non-negative integer) and returns either a normal completion containing
@@ -1032,7 +1032,7 @@ pub(crate) unsafe fn create_shared_byte_data_block<'a>(
     }
 }
 
-/// ### [6.2.9.3 CopyDataBlockBytes ( toBlock, toIndex, fromBlock, fromIndex, count )](https://tc39.es/ecma262/#sec-copydatablockbytes)
+/// #### [6.2.9.3 CopyDataBlockBytes ( toBlock, toIndex, fromBlock, fromIndex, count )](https://tc39.es/ecma262/#sec-copydatablockbytes)
 ///
 /// The abstract operation CopyDataBlockBytes takes arguments toBlock (a
 /// Data Block or a Shared Data Block), toIndex (a non-negative integer),
@@ -1086,7 +1086,7 @@ pub(crate) fn copy_data_block_bytes(
     // 7. Return UNUSED.
 }
 
-/// ### [6.2.9.3 CopyDataBlockBytes ( toBlock, toIndex, fromBlock, fromIndex, count )](https://tc39.es/ecma262/#sec-copydatablockbytes)
+/// #### [6.2.9.3 CopyDataBlockBytes ( toBlock, toIndex, fromBlock, fromIndex, count )](https://tc39.es/ecma262/#sec-copydatablockbytes)
 ///
 /// The abstract operation CopyDataBlockBytes takes arguments toBlock (a
 /// Data Block or a Shared Data Block), toIndex (a non-negative integer),
