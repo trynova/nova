@@ -40,7 +40,7 @@ dylint_linting::declare_early_lint! {
 impl EarlyLintPass for SpecHeaderLevel {
     fn check_attribute(&mut self, cx: &EarlyContext<'_>, attr: &Attribute) {
         static RE: LazyLock<Regex> = LazyLock::new(|| {
-            RegexBuilder::new(r"^\s*(#*)\s\[([0-9.]*)[^]]*]\(https?://tc39\.es/ecma262/.*\)")
+            RegexBuilder::new(r"^(\s*)(#*)\s\[([0-9.]*)[^]]*]\(https?://tc39\.es/ecma262/.*\)")
                 .build()
                 .unwrap()
         });
@@ -52,12 +52,16 @@ impl EarlyLintPass for SpecHeaderLevel {
             return;
         };
 
-        let header_level = captures
+        let spaces = captures
             .get(1)
+            .map(|spaces| spaces.len() as u32)
+            .unwrap_or(0);
+        let header_level = captures
+            .get(2)
             .map(|hashes| hashes.len() as u32)
             .unwrap_or(0);
         let expected_level = captures
-            .get(2)
+            .get(3)
             .map(|numbering| numbering.as_str().chars().filter(|&c| c == '.').count() as u32 + 1)
             .unwrap_or(0);
 
@@ -66,8 +70,8 @@ impl EarlyLintPass for SpecHeaderLevel {
         }
 
         let span = Span::new(
-            attr.span.lo() + BytePos(header_level + 3),
-            attr.span.lo() + BytePos(header_level + 4),
+            attr.span.lo() + BytePos(3 + spaces),
+            attr.span.lo() + BytePos(3 + spaces + header_level),
             attr.span.ctxt(),
             attr.span.parent(),
         );

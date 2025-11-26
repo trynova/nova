@@ -11,7 +11,12 @@ fn to_boolean_nothing() {
 }
 
 /// # [7.1.2 ToBoolean ( argument )](https://tc39.es/ecma262/#sec-toboolean)
-fn to_boolean_wrong() {
+fn to_boolean_wrong_1() {
+    unimplemented!()
+}
+
+/// #### [7.1.2 ToBoolean ( argument )](https://tc39.es/ecma262/#sec-toboolean)
+fn to_boolean_wrong_2() {
     unimplemented!()
 }
 
