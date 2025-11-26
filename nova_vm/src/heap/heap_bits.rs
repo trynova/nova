@@ -1955,7 +1955,6 @@ macro_rules! trivially_sweepable {
         }
     };
 }
-pub(crate) use trivially_sweepable;
 
 trivially_sweepable!(());
 trivially_sweepable!(bool);

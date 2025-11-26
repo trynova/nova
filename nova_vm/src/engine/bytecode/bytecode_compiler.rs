@@ -3613,7 +3613,6 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::TSEnum
         );
 
         // 2. Analyze enum properties to determine if we can use ObjectCreateWithShape
-        let mut current_numeric_value = 0f64;
         let mut is_numeric_enum = true;
         let mut has_computed_members = false;
 
@@ -3624,9 +3623,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::TSEnum
                     ast::Expression::StringLiteral(_) => {
                         is_numeric_enum = false;
                     }
-                    ast::Expression::NumericLiteral(num_lit) => {
-                        current_numeric_value = num_lit.value + 1.0;
-                    }
+                    ast::Expression::NumericLiteral(_) => {}
                     _ => {
                         // Computed expression
                         is_numeric_enum = false;
@@ -3634,8 +3631,6 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::TSEnum
                         break;
                     }
                 }
-            } else {
-                current_numeric_value += 1.0;
             }
         }
 
@@ -3669,7 +3664,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::TSEnum
 
         // Add reverse mapping keys for numeric enums
         if is_numeric_enum {
-            current_numeric_value = 0f64;
+            let mut current_numeric_value = 0f64;
             for member in self.body.members.iter() {
                 let reverse_key_value =
                     if let Some(ast::Expression::NumericLiteral(num_lit)) = &member.initializer {
@@ -3709,7 +3704,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::TSEnum
         ));
 
         // 4. Compile values in correct order (matching the shape)
-        current_numeric_value = 0f64;
+        let mut current_numeric_value = 0f64;
 
         // Compile forward mapping values
         for member in self.body.members.iter() {
