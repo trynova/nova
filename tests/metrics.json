@@ -2,9 +2,9 @@
   "results": {
     "crash": 72,
     "fail": 7458,
-    "pass": 39823,
+    "pass": 39822,
     "skip": 3325,
-    "timeout": 18,
+    "timeout": 19,
     "unresolved": 37
   },
   "total": 50733

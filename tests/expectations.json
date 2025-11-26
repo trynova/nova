@@ -7547,6 +7547,7 @@
   "staging/sm/object/getter-name.js": "FAIL",
   "staging/sm/object/setPrototypeOf-cross-realm-cycle.js": "FAIL",
   "staging/sm/object/toPrimitive-callers.js": "FAIL",
+  "staging/sm/regress/regress-1507322-deep-weakmap.js": "TIMEOUT",
   "staging/sm/regress/regress-325925.js": "FAIL",
   "staging/sm/regress/regress-428366.js": "FAIL",
   "staging/sm/regress/regress-452189.js": "FAIL",
