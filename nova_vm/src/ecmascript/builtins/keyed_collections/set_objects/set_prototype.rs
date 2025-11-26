@@ -140,7 +140,7 @@ impl SetPrototype {
             // 5. Append value to S.[[SetData]].
             let index = u32::try_from(values.len()).unwrap();
             entry.insert(index);
-            values.push(Some(value.unbind()));
+            values.push(Some(value));
         }
         // i. Return S.
         // 6. Return S.

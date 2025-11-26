@@ -27,7 +27,7 @@ pub mod data;
 #[repr(transparent)]
 pub struct Set<'a>(BaseIndex<'a, SetHeapData<'static>>);
 
-impl Set<'_> {
+impl<'gc> Set<'gc> {
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -37,12 +37,12 @@ impl Set<'_> {
     }
 
     #[inline(always)]
-    pub(crate) fn get<'a>(self, agent: &'a Agent) -> SetHeapDataRef<'a, 'static> {
+    pub(crate) fn get<'a>(self, agent: &'a Agent) -> SetHeapDataRef<'a, 'gc> {
         self.get_direct(&agent.heap.sets)
     }
 
     #[inline(always)]
-    pub(crate) fn get_mut<'a>(self, agent: &'a mut Agent) -> SetHeapDataMut<'a, 'static> {
+    pub(crate) fn get_mut<'a>(self, agent: &'a mut Agent) -> SetHeapDataMut<'a, 'gc> {
         self.get_direct_mut(&mut agent.heap.sets)
     }
 
@@ -50,7 +50,7 @@ impl Set<'_> {
     pub(crate) fn get_direct<'a>(
         self,
         sets: &'a SoAVec<SetHeapData<'static>>,
-    ) -> SetHeapDataRef<'a, 'static> {
+    ) -> SetHeapDataRef<'a, 'gc> {
         sets.get(self.0.into_u32_index())
             .expect("Invalid Set reference")
     }
@@ -59,9 +59,15 @@ impl Set<'_> {
     pub(crate) fn get_direct_mut<'a>(
         self,
         sets: &'a mut SoAVec<SetHeapData<'static>>,
-    ) -> SetHeapDataMut<'a, 'static> {
-        sets.get_mut(self.0.into_u32_index())
-            .expect("Invalid Set reference")
+    ) -> SetHeapDataMut<'a, 'gc> {
+        // SAFETY: Lifetime transmute to thread GC lifetime to temporary heap
+        // reference.
+        unsafe {
+            core::mem::transmute::<SetHeapDataMut<'a, 'static>, SetHeapDataMut<'a, 'gc>>(
+                sets.get_mut(self.0.into_u32_index())
+                    .expect("Invalid Set reference"),
+            )
+        }
     }
 }
 
@@ -108,7 +114,7 @@ impl<'a> InternalSlots<'a> for Set<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        *self.get(agent).object_index
+        self.get(agent).object_index.unbind()
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {

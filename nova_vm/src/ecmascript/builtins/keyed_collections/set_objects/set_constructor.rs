@@ -181,7 +181,7 @@ impl SetConstructor {
                             }
                             hashbrown::hash_table::Entry::Vacant(vacant) => {
                                 vacant.insert(next_index);
-                                values.push(Some(value.unbind()));
+                                values.push(Some(value));
                             }
                         }
                     });
