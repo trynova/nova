@@ -37,7 +37,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
-          toolchain: nightly-2025-11-23
+          toolchain: nightly-2025-05-14
           components: rustfmt, clippy, llvm-tools-preview, rustc-dev
       - name: Cache on ${{ github.ref_name }}
         uses: Swatinem/rust-cache@v2
@@ -52,7 +52,7 @@ jobs:
       - name: Clippy
         run: |
           cargo +stable clippy --all-targets -- -D warnings
-          cargo +nightly-2025-11-23 clippy --all-targets --all-features -- -D warnings
+          cargo +nightly-2025-05-14 clippy --all-targets --all-features -- -D warnings
       - name: Dylint tests
         working-directory: nova_lint
         run: cargo test
