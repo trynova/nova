@@ -541,7 +541,7 @@ fn create_name_and_id<'a>(agent: &'a Agent, f: ECMAScriptFunction<'a>) -> (Cow<'
     (name, id)
 }
 
-/// #### [10.2.1.1 PrepareForOrdinaryCall ( F, newTarget )](https://tc39.es/ecma262/#sec-prepareforordinarycall)
+/// ### [10.2.1.1 PrepareForOrdinaryCall ( F, newTarget )](https://tc39.es/ecma262/#sec-prepareforordinarycall)
 ///
 /// The abstract operation PrepareForOrdinaryCall takes arguments `F` (an
 /// ECMAScript function object) and newTarget (an Object or undefined) and
@@ -592,7 +592,7 @@ pub(crate) fn prepare_for_ordinary_call<'a>(
     agent.running_execution_context()
 }
 
-/// #### [10.2.1.2 OrdinaryCallBindThis ( F, calleeContext, thisArgument )](https://tc39.es/ecma262/#sec-ordinarycallbindthis)
+/// ### [10.2.1.2 OrdinaryCallBindThis ( F, calleeContext, thisArgument )](https://tc39.es/ecma262/#sec-ordinarycallbindthis)
 ///
 /// The abstract operation OrdinaryCallBindThis takes arguments `F` (an
 /// ECMAScript function object), calleeContext (an execution context), and
@@ -649,7 +649,7 @@ pub(crate) fn ordinary_call_bind_this(
     // 10. Return UNUSED.
 }
 
-/// #### [10.2.1.3 Runtime Semantics: EvaluateBody](https://tc39.es/ecma262/#sec-runtime-semantics-evaluatebody)
+/// ### [10.2.1.3 Runtime Semantics: EvaluateBody](https://tc39.es/ecma262/#sec-runtime-semantics-evaluatebody)
 ///
 /// The syntax-directed operation EvaluateBody takes arguments `functionObject`
 /// (an ECMAScript function object) and `argumentsList` (a List of ECMAScript
@@ -725,7 +725,7 @@ pub(crate) fn evaluate_body<'gc>(
     // 2. Return ? EvaluateClassStaticBlockBody of ClassStaticBlockBody with argument functionObject.
 }
 
-/// #### [10.2.1.4 OrdinaryCallEvaluateBody ( F, argumentsList )](https://tc39.es/ecma262/#sec-ordinarycallevaluatebody)
+/// ### [10.2.1.4 OrdinaryCallEvaluateBody ( F, argumentsList )](https://tc39.es/ecma262/#sec-ordinarycallevaluatebody)
 ///
 /// The abstract operation OrdinaryCallEvaluateBody takes arguments `F` (an
 /// ECMAScript function object) and `argumentsList` (a List of ECMAScript

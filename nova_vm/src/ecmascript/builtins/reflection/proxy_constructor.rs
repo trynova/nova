@@ -37,7 +37,7 @@ impl Builtin for ProxyRevocable {
 }
 
 impl ProxyConstructor {
-    /// #### [28.2.1.1 Proxy ( target, handler )](https://tc39.es/ecma262/#sec-proxy-target-handler)
+    /// ### [28.2.1.1 Proxy ( target, handler )](https://tc39.es/ecma262/#sec-proxy-target-handler)
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -60,7 +60,7 @@ impl ProxyConstructor {
         proxy_create(agent, target, handler, gc).map(|proxy| proxy.into_value())
     }
 
-    /// #### [28.2.2.1 Proxy.revocable ( target, handler )](https://tc39.es/ecma262/#sec-proxy.revocable)
+    /// ### [28.2.2.1 Proxy.revocable ( target, handler )](https://tc39.es/ecma262/#sec-proxy.revocable)
     fn revocable<'gc>(
         agent: &mut Agent,
         _this_value: Value,

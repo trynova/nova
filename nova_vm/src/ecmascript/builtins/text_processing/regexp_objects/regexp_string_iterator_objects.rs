@@ -25,7 +25,7 @@ use crate::{
     },
 };
 
-/// #### [22.2.9.1 CreateRegExpStringIterator ( R, S, global, fullUnicode )](https://tc39.es/ecma262/#sec-createregexpstringiterator)
+/// ### [22.2.9.1 CreateRegExpStringIterator ( R, S, global, fullUnicode )](https://tc39.es/ecma262/#sec-createregexpstringiterator)
 ///
 /// The abstract operation CreateRegExpStringIterator takes arguments R (an
 /// Object), S (a String), global (a Boolean), and fullUnicode (a Boolean) and
@@ -173,7 +173,7 @@ impl<'a> InternalSlots<'a> for RegExpStringIterator<'a> {
 
 impl<'a> InternalMethods<'a> for RegExpStringIterator<'a> {}
 
-/// #### [22.2.9.3 Properties of RegExp String Iterator Instances](https://tc39.es/ecma262/#sec-properties-of-regexp-string-iterator-instances)
+/// ### [22.2.9.3 Properties of RegExp String Iterator Instances](https://tc39.es/ecma262/#sec-properties-of-regexp-string-iterator-instances)
 ///
 /// RegExp String Iterator instances are ordinary objects that inherit
 /// properties from the %RegExpStringIteratorPrototype% intrinsic object.

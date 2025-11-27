@@ -418,7 +418,7 @@ impl<'a> Reference<'a> {
 
 bindable_handle!(Reference);
 
-/// #### [6.2.5.1 IsPropertyReference ( V )](https://tc39.es/ecma262/#sec-ispropertyreference)
+/// ### [6.2.5.1 IsPropertyReference ( V )](https://tc39.es/ecma262/#sec-ispropertyreference)
 ///
 /// The abstract operation IsPropertyReference takes argument V (a Reference
 /// Record) and returns a Boolean.
@@ -435,7 +435,7 @@ pub(crate) fn is_property_reference(reference: &Reference) -> bool {
     }
 }
 
-/// #### [6.2.5.2 IsUnresolvableReference ( V )](https://tc39.es/ecma262/#sec-isunresolvablereference)
+/// ### [6.2.5.2 IsUnresolvableReference ( V )](https://tc39.es/ecma262/#sec-isunresolvablereference)
 ///
 /// The abstract operation IsUnresolvableReference takes argument V (a
 /// Reference Record) and returns a Boolean.
@@ -447,7 +447,7 @@ pub(crate) fn is_unresolvable_reference(reference: &Reference) -> bool {
     )
 }
 
-/// #### [6.2.5.3 IsSuperReference ( V )](https://tc39.es/ecma262/#sec-issuperreference)
+/// ### [6.2.5.3 IsSuperReference ( V )](https://tc39.es/ecma262/#sec-issuperreference)
 ///
 /// The abstract operation IsSuperReference takes argument V (a Reference
 /// Record) and returns a Boolean.
@@ -462,7 +462,7 @@ pub(crate) fn is_super_reference(reference: &Reference) -> bool {
     )
 }
 
-/// #### [6.2.5.4 IsPrivateReference ( V )](https://tc39.es/ecma262/#sec-isprivatereference)
+/// ### [6.2.5.4 IsPrivateReference ( V )](https://tc39.es/ecma262/#sec-isprivatereference)
 ///
 /// The abstract operation IsPrivateReference takes argument V (a Reference
 /// Record) and returns a Boolean.
@@ -477,7 +477,7 @@ pub(crate) fn is_private_reference(reference: &Reference) -> bool {
     )
 }
 
-/// #### [6.2.5.5 GetValue ( V )](https://tc39.es/ecma262/#sec-getvalue)
+/// ### [6.2.5.5 GetValue ( V )](https://tc39.es/ecma262/#sec-getvalue)
 /// The abstract operation GetValue takes argument V (a Reference Record or an
 /// ECMAScript language value) and returns either a normal completion
 /// containing an ECMAScript language value or an abrupt completion.
@@ -770,7 +770,7 @@ impl<'a> From<TryGetValueContinue<'a>> for ControlFlow<TryError<'a>, TryGetValue
     }
 }
 
-/// #### [6.2.5.5 GetValue ( V )](https://tc39.es/ecma262/#sec-getvalue)
+/// ### [6.2.5.5 GetValue ( V )](https://tc39.es/ecma262/#sec-getvalue)
 /// The abstract operation GetValue takes argument V (a Reference Record or an
 /// ECMAScript language value) and returns either a normal completion
 /// containing an ECMAScript language value or an abrupt completion.
@@ -879,7 +879,7 @@ pub(crate) fn try_get_value<'gc>(
     }
 }
 
-/// #### [6.2.5.6 PutValue ( V, W )](https://tc39.es/ecma262/#sec-putvalue)
+/// ### [6.2.5.6 PutValue ( V, W )](https://tc39.es/ecma262/#sec-putvalue)
 ///
 /// The abstract operation PutValue takes arguments V (a Reference Record or an
 /// ECMAScript language value) and W (an ECMAScript language value) and returns
@@ -1075,7 +1075,7 @@ pub(crate) fn put_value<'a>(
     // that object.
 }
 
-/// #### [6.2.5.6 PutValue ( V, W )](https://tc39.es/ecma262/#sec-putvalue)
+/// ### [6.2.5.6 PutValue ( V, W )](https://tc39.es/ecma262/#sec-putvalue)
 ///
 /// The abstract operation PutValue takes arguments V (a Reference Record or an
 /// ECMAScript language value) and W (an ECMAScript language value) and returns
@@ -1213,7 +1213,7 @@ pub(crate) fn throw_cannot_set_property<'a>(
     agent.throw_exception(ExceptionType::TypeError, error_message, gc)
 }
 
-/// #### [6.2.5.7 GetThisValue ( V )](https://tc39.es/ecma262/#sec-getthisvalue)
+/// ### [6.2.5.7 GetThisValue ( V )](https://tc39.es/ecma262/#sec-getthisvalue)
 ///
 /// The abstract operation GetThisValue takes argument V (a Reference Record)
 /// and returns an ECMAScript language value.
@@ -1266,7 +1266,7 @@ pub(crate) fn initialize_referenced_binding<'a>(
     }
 }
 
-/// #### [6.2.5.8 InitializeReferencedBinding ( V, W )](https://tc39.es/ecma262/#sec-initializereferencedbinding)
+/// ### [6.2.5.8 InitializeReferencedBinding ( V, W )](https://tc39.es/ecma262/#sec-initializereferencedbinding)
 ///
 /// The abstract operation InitializeReferencedBinding takes arguments V (a
 /// Reference Record) and W (an ECMAScript language value) and returns either a

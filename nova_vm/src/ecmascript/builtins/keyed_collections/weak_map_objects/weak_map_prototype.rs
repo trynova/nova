@@ -44,7 +44,7 @@ impl Builtin for WeakMapPrototypeSet {
 }
 
 impl WeakMapPrototype {
-    /// #### [24.3.3.2 WeakMap.prototype.delete ( key )](https://tc39.es/ecma262/#sec-weakmap.prototype.delete)
+    /// ### [24.3.3.2 WeakMap.prototype.delete ( key )](https://tc39.es/ecma262/#sec-weakmap.prototype.delete)
     ///
     /// > NOTE: The value EMPTY is used as a specification device to indicate
     /// > that an entry has been deleted. Actual implementations may take other
@@ -76,7 +76,7 @@ impl WeakMapPrototype {
         Ok(m.delete(agent, key).into_value())
     }
 
-    /// #### [24.3.3.3 WeakMap.prototype.get ( key )](https://tc39.es/ecma262/#sec-weakmap.prototype.get)
+    /// ### [24.3.3.3 WeakMap.prototype.get ( key )](https://tc39.es/ecma262/#sec-weakmap.prototype.get)
     fn get<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -100,7 +100,7 @@ impl WeakMapPrototype {
         Ok(m.get_v(agent, key).unwrap_or(Value::Undefined))
     }
 
-    /// #### [24.3.3.4 WeakMap.prototype.has ( key )](https://tc39.es/ecma262/#sec-weakmap.prototype.has)
+    /// ### [24.3.3.4 WeakMap.prototype.has ( key )](https://tc39.es/ecma262/#sec-weakmap.prototype.has)
     fn has<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -124,7 +124,7 @@ impl WeakMapPrototype {
         Ok(m.has(agent, key).into_value())
     }
 
-    /// #### [24.3.3.5 WeakMap.prototype.set ( key, value )](https://tc39.es/ecma262/#sec-weakmap.prototype.set)
+    /// ### [24.3.3.5 WeakMap.prototype.set ( key, value )](https://tc39.es/ecma262/#sec-weakmap.prototype.set)
     fn set<'gc>(
         agent: &mut Agent,
         this_value: Value,

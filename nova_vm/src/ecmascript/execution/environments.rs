@@ -913,7 +913,7 @@ pub(crate) fn try_get_identifier_reference<'a>(
     }
 }
 
-/// #### [9.1.2.1 GetIdentifierReference ( env, name, strict )](https://tc39.es/ecma262/#sec-getidentifierreference)
+/// ### [9.1.2.1 GetIdentifierReference ( env, name, strict )](https://tc39.es/ecma262/#sec-getidentifierreference)
 ///
 /// The abstract operation GetIdentifierReference takes arguments env (an
 /// Environment Record or null), name (a String), and strict (a Boolean) and

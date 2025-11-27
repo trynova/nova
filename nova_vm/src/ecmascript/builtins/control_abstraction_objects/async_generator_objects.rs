@@ -495,7 +495,7 @@ impl AsyncGeneratorState<'_> {
     }
 }
 
-/// #### [27.6.3.1 AsyncGeneratorRequest Records](https://tc39.es/ecma262/#sec-asyncgeneratorrequest-records)
+/// ### [27.6.3.1 AsyncGeneratorRequest Records](https://tc39.es/ecma262/#sec-asyncgeneratorrequest-records)
 ///
 /// An AsyncGeneratorRequest is a Record value used to store information about
 /// how an async generator should be resumed and contains capabilities for

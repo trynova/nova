@@ -89,7 +89,7 @@ pub(crate) fn allocate_array_buffer<'a>(
     Ok(obj)
 }
 
-/// #### [25.1.3.3 IsDetachedBuffer ( arrayBuffer )](https://tc39.es/ecma262/#sec-isdetachedbuffer)
+/// ### [25.1.3.3 IsDetachedBuffer ( arrayBuffer )](https://tc39.es/ecma262/#sec-isdetachedbuffer)
 ///
 /// The abstract operation IsDetachedBuffer takes argument *arrayBuffer* (an
 /// ArrayBuffer or a SharedArrayBuffer) and returns a Boolean.
@@ -131,7 +131,7 @@ pub(crate) fn detach_array_buffer<'a>(
     Ok(())
 }
 
-/// #### [25.1.3.6 GetArrayBufferMaxByteLengthOption ( options )](https://tc39.es/ecma262/#sec-getarraybuffermaxbytelengthoption)
+/// ### [25.1.3.6 GetArrayBufferMaxByteLengthOption ( options )](https://tc39.es/ecma262/#sec-getarraybuffermaxbytelengthoption)
 ///
 /// The abstract operation GetArrayBufferMaxByteLengthOption takes argument
 /// options (an ECMAScript language value) and returns either a normal
@@ -166,7 +166,7 @@ pub(crate) fn get_array_buffer_max_byte_length_option<'a>(
     Ok(Some(to_index(agent, max_byte_length.unbind(), gc)? as u64))
 }
 
-/// #### [25.1.3.8 IsFixedLengthArrayBuffer ( arrayBuffer )](https://tc39.es/ecma262/#sec-isfixedlengtharraybuffer)
+/// ### [25.1.3.8 IsFixedLengthArrayBuffer ( arrayBuffer )](https://tc39.es/ecma262/#sec-isfixedlengtharraybuffer)
 ///
 /// The abstract operation IsFixedLengthArrayBuffer takes argument
 /// arrayBuffer (an ArrayBuffer or a SharedArrayBuffer) and returns a
@@ -178,7 +178,7 @@ pub(crate) fn is_fixed_length_array_buffer(agent: &Agent, array_buffer: AnyArray
     !array_buffer.is_resizable(agent)
 }
 
-/// #### [25.1.3.13 RawBytesToNumeric ( type, rawBytes, isLittleEndian )](https://tc39.es/ecma262/#sec-rawbytestonumeric)
+/// ### [25.1.3.13 RawBytesToNumeric ( type, rawBytes, isLittleEndian )](https://tc39.es/ecma262/#sec-rawbytestonumeric)
 ///
 /// The abstract operation RawBytesToNumeric takes arguments type (a
 /// TypedArray element type), rawBytes (a List of byte values), and
@@ -213,7 +213,7 @@ pub(crate) fn raw_bytes_to_numeric<'a, T: Viewable>(
     }
 }
 
-/// #### [25.1.3.14 GetRawBytesFromSharedBlock ( block, byteIndex, type, isTypedArray, order )](https://tc39.es/ecma262/#sec-getrawbytesfromsharedblock)
+/// ### [25.1.3.14 GetRawBytesFromSharedBlock ( block, byteIndex, type, isTypedArray, order )](https://tc39.es/ecma262/#sec-getrawbytesfromsharedblock)
 ///
 /// The abstract operation GetRawBytesFromSharedBlock takes arguments block
 /// (a Shared Data Block), byteIndex (a non-negative integer), type (a
@@ -312,7 +312,7 @@ pub(crate) fn get_value_from_buffer<'a, T: Viewable>(
     raw_bytes_to_numeric::<T>(agent, raw_value, is_little_endian, gc)
 }
 
-/// #### [25.1.3.16 NumericToRawBytes ( type, value, isLittleEndian )](https://tc39.es/ecma262/#sec-numerictorawbytes)
+/// ### [25.1.3.16 NumericToRawBytes ( type, value, isLittleEndian )](https://tc39.es/ecma262/#sec-numerictorawbytes)
 ///
 /// The abstract operation NumericToRawBytes takes arguments type (a
 /// TypedArray element type), value (a Number or a BigInt), and
@@ -414,7 +414,7 @@ pub(crate) fn set_value_in_buffer<T: Viewable>(
     // 10. Return UNUSED.
 }
 
-/// #### [25.1.3.18 GetModifySetValueInBuffer ( arrayBuffer, byteIndex, type, value, op )](https://tc39.es/ecma262/#sec-getmodifysetvalueinbuffer)
+/// ### [25.1.3.18 GetModifySetValueInBuffer ( arrayBuffer, byteIndex, type, value, op )](https://tc39.es/ecma262/#sec-getmodifysetvalueinbuffer)
 ///
 /// The abstract operation GetModifySetValueInBuffer takes arguments
 /// arrayBuffer (an ArrayBuffer or a SharedArrayBuffer), byteIndex (a

@@ -114,7 +114,7 @@ impl IteratorPrototype {
         Ok(this_value.unbind())
     }
 
-    /// #### [27.1.4.3 Iterator.prototype.every ( predicate )](https://tc39.es/ecma262/#sec-iterator.prototype.every)
+    /// ### [27.1.4.3 Iterator.prototype.every ( predicate )](https://tc39.es/ecma262/#sec-iterator.prototype.every)
     fn every<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -224,7 +224,7 @@ impl IteratorPrototype {
         }
     }
 
-    /// #### [27.1.4.5 Iterator.prototype.find ( predicate )](https://tc39.es/ecma262/#sec-iterator.prototype.find)
+    /// ### [27.1.4.5 Iterator.prototype.find ( predicate )](https://tc39.es/ecma262/#sec-iterator.prototype.find)
     fn find<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -338,7 +338,7 @@ impl IteratorPrototype {
         }
     }
 
-    /// #### [27.1.4.7 Iterator.prototype.forEach ( procedure )](https://tc39.es/ecma262/#sec-iterator.prototype.foreach)
+    /// ### [27.1.4.7 Iterator.prototype.forEach ( procedure )](https://tc39.es/ecma262/#sec-iterator.prototype.foreach)
     fn for_each<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -571,7 +571,7 @@ impl IteratorPrototype {
         }
     }
 
-    /// #### [27.1.4.10 Iterator.prototype.some ( predicate )](https://tc39.es/ecma262/#sec-iterator.prototype.some)
+    /// ### [27.1.4.10 Iterator.prototype.some ( predicate )](https://tc39.es/ecma262/#sec-iterator.prototype.some)
     fn some<'gc>(
         agent: &mut Agent,
         this_value: Value,

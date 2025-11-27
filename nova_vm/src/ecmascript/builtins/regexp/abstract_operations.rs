@@ -316,7 +316,7 @@ pub(crate) fn require_internal_slot_reg_exp_object<'a>(
     }
 }
 
-/// #### [22.2.7.1 RegExpExec ( R, S )](https://tc39.es/ecma262/#sec-regexpexec)
+/// ### [22.2.7.1 RegExpExec ( R, S )](https://tc39.es/ecma262/#sec-regexpexec)
 ///
 /// The abstract operation RegExpExec takes arguments R (an Object) and S (a
 /// String) and returns either a normal completion containing either an Object
@@ -561,7 +561,7 @@ pub(crate) fn reg_exp_builtin_exec_prepare<'a>(
     })
 }
 
-/// #### [22.2.7.2 RegExpBuiltinExec ( R, S )](https://tc39.es/ecma262/#sec-regexpbuiltinexec)
+/// ### [22.2.7.2 RegExpBuiltinExec ( R, S )](https://tc39.es/ecma262/#sec-regexpbuiltinexec)
 ///
 /// The abstract operation RegExpBuiltinExec takes arguments R (an initialized
 /// RegExp instance) and S (a String) and returns either a normal completion
@@ -849,7 +849,7 @@ pub(crate) fn reg_exp_builtin_test<'a>(
     }
 }
 
-/// #### [22.2.7.3 AdvanceStringIndex ( S, index, unicode )](https://tc39.es/ecma262/#sec-advancestringindex)
+/// ### [22.2.7.3 AdvanceStringIndex ( S, index, unicode )](https://tc39.es/ecma262/#sec-advancestringindex)
 ///
 /// The abstract operation AdvanceStringIndex takes arguments S (a String),
 /// index (a non-negative integer), and unicode (a Boolean) and returns an

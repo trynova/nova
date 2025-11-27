@@ -84,7 +84,7 @@ pub(crate) struct TypedArrayWithBufferWitnessRecords<'a> {
 bindable_handle!(TypedArrayWithBufferWitnessRecords);
 
 impl<'ta> TypedArrayWithBufferWitnessRecords<'ta> {
-    /// #### [10.4.5.13 IsTypedArrayOutOfBounds ( taRecord )](https://tc39.es/ecma262/#sec-istypedarrayoutofbounds)
+    /// ### [10.4.5.13 IsTypedArrayOutOfBounds ( taRecord )](https://tc39.es/ecma262/#sec-istypedarrayoutofbounds)
     ///
     /// The abstract operation IsTypedArrayOutOfBounds takes argument taRecord (a
     /// TypedArray With Buffer Witness Record) and returns a Boolean. It checks if
@@ -95,7 +95,7 @@ impl<'ta> TypedArrayWithBufferWitnessRecords<'ta> {
             .is_typed_array_out_of_bounds(agent, self.cached_buffer_byte_length)
     }
 
-    /// #### [10.4.5.12 TypedArrayLength ( taRecord )](https://tc39.es/ecma262/#sec-typedarraylength)
+    /// ### [10.4.5.12 TypedArrayLength ( taRecord )](https://tc39.es/ecma262/#sec-typedarraylength)
     ///
     /// The abstract operation TypedArrayLength takes argument taRecord (a
     /// TypedArray With Buffer Witness Record) and returns a non-negative integer.
@@ -105,7 +105,7 @@ impl<'ta> TypedArrayWithBufferWitnessRecords<'ta> {
     }
 }
 
-/// #### [10.4.5.9 MakeTypedArrayWithBufferWitnessRecord ( obj, order )](https://tc39.es/ecma262/#sec-maketypedarraywithbufferwitnessrecord)
+/// ### [10.4.5.9 MakeTypedArrayWithBufferWitnessRecord ( obj, order )](https://tc39.es/ecma262/#sec-maketypedarraywithbufferwitnessrecord)
 ///
 /// The abstract operation MakeTypedArrayWithBufferWitnessRecord takes arguments
 /// obj (a TypedArray) and order (seq-cst or unordered) and returns a TypedArray
@@ -135,7 +135,7 @@ pub(crate) fn make_typed_array_with_buffer_witness_record<'a>(
     }
 }
 
-/// #### [10.4.5.10 TypedArrayCreate ( prototype )](https://tc39.es/ecma262/#sec-typedarraycreate)
+/// ### [10.4.5.10 TypedArrayCreate ( prototype )](https://tc39.es/ecma262/#sec-typedarraycreate)
 ///
 /// The abstract operation TypedArrayCreate takes argument prototype (an Object)
 /// and returns a TypedArray. It is used to specify the creation of new TypedArrays.
@@ -223,7 +223,7 @@ pub(crate) trait TypedArrayAbstractOperations<'ta>: Copy + Sized {
         order: Ordering,
     ) -> CachedBufferByteLength;
 
-    /// #### [10.4.5.11 TypedArrayByteLength ( taRecord )](https://tc39.es/ecma262/#sec-typedarraybytelength)
+    /// ### [10.4.5.11 TypedArrayByteLength ( taRecord )](https://tc39.es/ecma262/#sec-typedarraybytelength)
     ///
     /// The abstract operation TypedArrayByteLength takes argument taRecord (a
     /// TypedArray With Buffer Witness Record) and returns a non-negative integer.
@@ -257,7 +257,7 @@ pub(crate) trait TypedArrayAbstractOperations<'ta>: Copy + Sized {
         length * element_size
     }
 
-    /// #### [10.4.5.12 TypedArrayLength ( taRecord )](https://tc39.es/ecma262/#sec-typedarraylength)
+    /// ### [10.4.5.12 TypedArrayLength ( taRecord )](https://tc39.es/ecma262/#sec-typedarraylength)
     ///
     /// The abstract operation TypedArrayLength takes argument taRecord (a
     /// TypedArray With Buffer Witness Record) and returns a non-negative integer.
@@ -292,7 +292,7 @@ pub(crate) trait TypedArrayAbstractOperations<'ta>: Copy + Sized {
         (byte_length - byte_offset) / element_size
     }
 
-    /// #### [10.4.5.13 IsTypedArrayOutOfBounds ( taRecord )](https://tc39.es/ecma262/#sec-istypedarrayoutofbounds)
+    /// ### [10.4.5.13 IsTypedArrayOutOfBounds ( taRecord )](https://tc39.es/ecma262/#sec-istypedarrayoutofbounds)
     ///
     /// The abstract operation IsTypedArrayOutOfBounds takes argument taRecord (a
     /// TypedArray With Buffer Witness Record) and returns a Boolean. It checks if
@@ -339,7 +339,7 @@ pub(crate) trait TypedArrayAbstractOperations<'ta>: Copy + Sized {
         false
     }
 
-    /// #### [10.4.5.15 IsTypedArrayFixedLength ( O )](https://tc39.es/ecma262/#sec-istypedarrayfixedlength)
+    /// ### [10.4.5.15 IsTypedArrayFixedLength ( O )](https://tc39.es/ecma262/#sec-istypedarrayfixedlength)
     ///
     /// The abstract operation IsTypedArrayFixedLength takes argument O (a
     /// TypedArray) and returns a Boolean.
@@ -360,7 +360,7 @@ pub(crate) trait TypedArrayAbstractOperations<'ta>: Copy + Sized {
         }
     }
 
-    /// #### [10.4.5.16 IsValidIntegerIndex ( O, index )](https://tc39.es/ecma262/#sec-isvalidintegerindex)
+    /// ### [10.4.5.16 IsValidIntegerIndex ( O, index )](https://tc39.es/ecma262/#sec-isvalidintegerindex)
     ///
     /// The abstract operation IsValidIntegerIndex takes arguments O (a TypedArray)
     /// and index (a Number) and returns a Boolean.
@@ -396,7 +396,7 @@ pub(crate) trait TypedArrayAbstractOperations<'ta>: Copy + Sized {
         }
     }
 
-    /// #### [10.4.5.17 TypedArrayGetElement ( O, index )](https://tc39.es/ecma262/#sec-typedarraygetelement)
+    /// ### [10.4.5.17 TypedArrayGetElement ( O, index )](https://tc39.es/ecma262/#sec-typedarraygetelement)
     ///
     /// The abstract operation TypedArrayGetElement takes arguments O (a
     /// TypedArray) and index (a Number) and returns a Number, a BigInt,
@@ -429,7 +429,7 @@ pub(crate) trait TypedArrayAbstractOperations<'ta>: Copy + Sized {
         ))
     }
 
-    /// #### [10.4.5.18 TypedArraySetElement ( O, index, value )](https://tc39.es/ecma262/#sec-typedarraysetelement)
+    /// ### [10.4.5.18 TypedArraySetElement ( O, index, value )](https://tc39.es/ecma262/#sec-typedarraysetelement)
     ///
     /// The abstract operation TypedArraySetElement takes arguments O (a
     /// TypedArray), index (a Number), and value (an ECMAScript language value) and
@@ -509,7 +509,7 @@ pub(crate) trait TypedArrayAbstractOperations<'ta>: Copy + Sized {
         count: usize,
     );
 
-    ///##### [23.2.3.26.2 SetTypedArrayFromTypedArray ( target, targetOffset, source )](https://tc39.es/ecma262/#sec-settypedarrayfromtypedarray)
+    ///### [23.2.3.26.2 SetTypedArrayFromTypedArray ( target, targetOffset, source )](https://tc39.es/ecma262/#sec-settypedarrayfromtypedarray)
     ///
     /// The abstract operation SetTypedArrayFromTypedArray takes arguments
     /// target (a TypedArray), targetOffset (a non-negative integer or +∞), and
@@ -552,7 +552,7 @@ fn check_not_void_array<T: Viewable>() {
     }
 }
 
-/// #### [23.2.4.4 ValidateTypedArray ( O, order )](https://tc39.es/ecma262/#sec-validatetypedarray)
+/// ### [23.2.4.4 ValidateTypedArray ( O, order )](https://tc39.es/ecma262/#sec-validatetypedarray)
 ///
 /// The abstract operation ValidateTypedArray takes arguments O (an ECMAScript
 /// language value) and order (seq-cst or unordered) and returns either a normal
@@ -631,7 +631,7 @@ pub(crate) fn allocate_typed_array<'a, T: Viewable>(
     Ok(obj.unbind().bind(gc.into_nogc()))
 }
 
-/// ##### [23.2.5.1.3 InitializeTypedArrayFromArrayBuffer ( O, buffer, byteOffset, length )](https://tc39.es/ecma262/#sec-initializetypedarrayfromarraybuffer)
+/// ### [23.2.5.1.3 InitializeTypedArrayFromArrayBuffer ( O, buffer, byteOffset, length )](https://tc39.es/ecma262/#sec-initializetypedarrayfromarraybuffer)
 ///
 /// The abstract operation InitializeTypedArrayFromArrayBuffer takes arguments
 /// O (a TypedArray), buffer (an ArrayBuffer or a SharedArrayBuffer),
@@ -842,7 +842,7 @@ pub(crate) fn initialize_typed_array_from_array_buffer<'gc, T: Viewable>(
     // 12. Return unused.
 }
 
-/// ##### [23.2.5.1.4 InitializeTypedArrayFromList ( O, values )](https://tc39.es/ecma262/#sec-initializetypedarrayfromlist)
+/// ### [23.2.5.1.4 InitializeTypedArrayFromList ( O, values )](https://tc39.es/ecma262/#sec-initializetypedarrayfromlist)
 ///
 /// The abstract operation InitializeTypedArrayFromList takes arguments O (a
 /// TypedArray) and values (a List of ECMAScript language values) and returns
@@ -885,7 +885,7 @@ pub(crate) fn initialize_typed_array_from_list<'a, T: Viewable>(
     Ok(())
 }
 
-/// ##### [23.2.5.1.5 InitializeTypedArrayFromArrayLike ( O, arrayLike )](https://tc39.es/ecma262/#sec-initializetypedarrayfromarraylike)
+/// ### [23.2.5.1.5 InitializeTypedArrayFromArrayLike ( O, arrayLike )](https://tc39.es/ecma262/#sec-initializetypedarrayfromarraylike)
 ///
 /// The abstract operation InitializeTypedArrayFromArrayLike takes arguments O
 /// (a TypedArray) and arrayLike (an Object, but not a TypedArray or an
@@ -932,7 +932,7 @@ pub(crate) fn initialize_typed_array_from_array_like<'a, T: Viewable>(
     Ok(())
 }
 
-/// ##### [23.2.5.1.6 AllocateTypedArrayBuffer ( O, length )](https://tc39.es/ecma262/#sec-allocatetypedarraybuffer)
+/// ### [23.2.5.1.6 AllocateTypedArrayBuffer ( O, length )](https://tc39.es/ecma262/#sec-allocatetypedarraybuffer)
 ///
 /// The abstract operation AllocateTypedArrayBuffer takes arguments O (a
 /// TypedArray) and length (a non-negative integer) and returns either a normal
@@ -965,7 +965,7 @@ pub(crate) fn allocate_typed_array_buffer<'a, T: Viewable>(
     Ok(())
 }
 
-/// #### [23.2.4.2 TypedArrayCreateFromConstructor ( constructor, argumentList )](https://tc39.es/ecma262/#sec-typedarraycreatefromconstructor)
+/// ### [23.2.4.2 TypedArrayCreateFromConstructor ( constructor, argumentList )](https://tc39.es/ecma262/#sec-typedarraycreatefromconstructor)
 ///
 /// ### NOTE
 /// This method implements steps 2 onwards of the TypedArrayCreateFromConstructor abstract operation.
@@ -1007,7 +1007,7 @@ fn typed_array_create_from_constructor_internal<'a>(
     Ok(ta_record.object)
 }
 
-/// #### [23.2.4.2 TypedArrayCreateFromConstructor ( constructor, argumentList )](https://tc39.es/ecma262/#sec-typedarraycreatefromconstructor)
+/// ### [23.2.4.2 TypedArrayCreateFromConstructor ( constructor, argumentList )](https://tc39.es/ecma262/#sec-typedarraycreatefromconstructor)
 /// The abstract operation TypedArrayCreateFromConstructor takes arguments constructor (a constructor)
 /// and argumentList (a List of ECMAScript language values)
 /// and returns either a normal completion containing a TypedArray or a throw completion.
@@ -1038,7 +1038,7 @@ pub(crate) fn typed_array_create_from_constructor_with_length<'a>(
     )
 }
 
-/// #### [23.2.4.2 TypedArrayCreateFromConstructor ( constructor, argumentList )](https://tc39.es/ecma262/#sec-typedarraycreatefromconstructor)
+/// ### [23.2.4.2 TypedArrayCreateFromConstructor ( constructor, argumentList )](https://tc39.es/ecma262/#sec-typedarraycreatefromconstructor)
 /// The abstract operation TypedArrayCreateFromConstructor takes arguments constructor (a constructor)
 /// and argumentList (a List of ECMAScript language values)
 /// and returns either a normal completion containing a TypedArray or a throw completion.
@@ -1112,7 +1112,7 @@ pub(crate) fn typed_array_create_from_data_block<'a>(
     result
 }
 
-/// #### [23.2.4.1 TypedArraySpeciesCreate ( exemplar, argumentList )](https://tc39.es/ecma262/#typedarray-species-create)
+/// ### [23.2.4.1 TypedArraySpeciesCreate ( exemplar, argumentList )](https://tc39.es/ecma262/#typedarray-species-create)
 pub(crate) fn try_typed_array_species_create_with_length<'gc>(
     agent: &mut Agent,
     exemplar: AnyTypedArray<'gc>,
@@ -1139,7 +1139,7 @@ pub(crate) fn try_typed_array_species_create_with_length<'gc>(
     js_result_into_try(create_byte_data_block(agent, byte_length, gc))
 }
 
-/// #### [23.2.4.1 TypedArraySpeciesCreate ( exemplar, argumentList )](https://tc39.es/ecma262/#typedarray-species-create)
+/// ### [23.2.4.1 TypedArraySpeciesCreate ( exemplar, argumentList )](https://tc39.es/ecma262/#typedarray-species-create)
 pub(crate) fn typed_array_species_create_with_length<'gc>(
     agent: &mut Agent,
     exemplar: AnyTypedArray,
@@ -1182,7 +1182,7 @@ pub(crate) fn typed_array_species_create_with_length<'gc>(
     Ok(result.unbind())
 }
 
-/// #### [23.2.4.1 TypedArraySpeciesCreate ( exemplar, argumentList )](https://tc39.es/ecma262/#typedarray-species-create)
+/// ### [23.2.4.1 TypedArraySpeciesCreate ( exemplar, argumentList )](https://tc39.es/ecma262/#typedarray-species-create)
 pub(crate) fn typed_array_species_create_with_buffer<'a>(
     agent: &mut Agent,
     exemplar: AnyTypedArray,

@@ -42,7 +42,7 @@ pub mod abstract_module_records;
 pub mod cyclic_module_records;
 pub mod source_text_module_records;
 
-/// #### [16.2.1.3 ModuleRequest Records](https://tc39.es/ecma262/#sec-modulerequest-record)
+/// ### [16.2.1.3 ModuleRequest Records](https://tc39.es/ecma262/#sec-modulerequest-record)
 ///
 /// A ModuleRequest Record represents the request to import a module with given
 /// import attributes.
@@ -86,7 +86,7 @@ impl AsMut<[ModuleRequestRecord<'static>]> for Agent {
     }
 }
 
-/// #### [16.2.1.3 ModuleRequest Records](https://tc39.es/ecma262/#sec-modulerequest-record)
+/// ### [16.2.1.3 ModuleRequest Records](https://tc39.es/ecma262/#sec-modulerequest-record)
 ///
 /// A ModuleRequest Record represents the request to import a module with given
 /// import attributes.
@@ -301,7 +301,7 @@ impl<'a> LoadedModules<'a> {
     }
 }
 
-/// ##### [16.2.1.3.1 ModuleRequestsEqual ( left, right )](https://tc39.es/ecma262/#sec-ModuleRequestsEqual)
+/// ### [16.2.1.3.1 ModuleRequestsEqual ( left, right )](https://tc39.es/ecma262/#sec-ModuleRequestsEqual)
 ///
 /// The abstract operation ModuleRequestsEqual takes arguments left (a
 /// ModuleRequest Record or a LoadedModuleRequest Record) and right (a
@@ -339,7 +339,7 @@ fn module_requests_equal(left: &ModuleRequestRecord, right: &ModuleRequestRecord
     true
 }
 
-/// #### [16.2.1.9 GetImportedModule ( referrer, request )](https://tc39.es/ecma262/#sec-GetImportedModule)
+/// ### [16.2.1.9 GetImportedModule ( referrer, request )](https://tc39.es/ecma262/#sec-GetImportedModule)
 ///
 /// The abstract operation GetImportedModule takes arguments referrer (a Cyclic
 /// Module Record) and request (a ModuleRequest Record) and returns a Module
@@ -491,7 +491,7 @@ impl Referrer<'_> {
     }
 }
 
-/// #### [16.2.1.11 FinishLoadingImportedModule ( referrer, moduleRequest, payload, result )](https://tc39.es/ecma262/#sec-FinishLoadingImportedModule)
+/// ### [16.2.1.11 FinishLoadingImportedModule ( referrer, moduleRequest, payload, result )](https://tc39.es/ecma262/#sec-FinishLoadingImportedModule)
 ///
 /// The abstract operation FinishLoadingImportedModule takes arguments referrer
 /// (a Script Record, a Cyclic Module Record, or a Realm Record), moduleRequest
@@ -535,7 +535,7 @@ pub fn finish_loading_imported_module<'a>(
     // 4. Return unused.
 }
 
-/// #### [16.2.1.13 GetModuleNamespace ( module )](https://tc39.es/ecma262/#sec-getmodulenamespace)
+/// ### [16.2.1.13 GetModuleNamespace ( module )](https://tc39.es/ecma262/#sec-getmodulenamespace)
 ///
 /// The abstract operation GetModuleNamespace takes argument module (an
 /// instance of a concrete subclass of Module Record) and returns a Module

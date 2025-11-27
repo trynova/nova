@@ -38,7 +38,7 @@ impl ByteLength {
     }
 }
 
-/// #### [25.3.1.1 DataView With Buffer Witness Records](https://tc39.es/ecma262/#sec-dataview-with-buffer-witness-records)
+/// ### [25.3.1.1 DataView With Buffer Witness Records](https://tc39.es/ecma262/#sec-dataview-with-buffer-witness-records)
 ///
 /// A DataView With Buffer Witness Record is a Record value used to encapsulate
 /// a DataView along with a cached byte length of the viewed buffer. It is used
@@ -52,7 +52,7 @@ pub(crate) struct DataViewWithBufferWitnessRecord<'a> {
     cached_buffer_byte_length: ByteLength,
 }
 
-/// #### [25.3.1.2 MakeDataViewWithBufferWitnessRecord ( obj, order )](https://tc39.es/ecma262/#sec-makedataviewwithbufferwitnessrecord)
+/// ### [25.3.1.2 MakeDataViewWithBufferWitnessRecord ( obj, order )](https://tc39.es/ecma262/#sec-makedataviewwithbufferwitnessrecord)
 ///
 /// The abstract operation MakeDataViewWithBufferWitnessRecord takes arguments
 /// obj (a DataView) and order (seq-cst or unordered) and returns a DataView
@@ -75,7 +75,7 @@ pub(crate) fn make_data_view_with_buffer_witness_record<'a>(
     }
 }
 
-/// #### [25.3.1.3 GetViewByteLength ( viewRecord )](https://tc39.es/ecma262/#sec-getviewbytelength)
+/// ### [25.3.1.3 GetViewByteLength ( viewRecord )](https://tc39.es/ecma262/#sec-getviewbytelength)
 ///
 /// The abstract operation GetViewByteLength takes argument viewRecord
 /// (a DataView With Buffer Witness Record) and returns a non-negative integer.
@@ -115,7 +115,7 @@ pub(crate) fn get_view_byte_length(
     byte_length - byte_offset
 }
 
-/// #### [25.3.1.4 IsViewOutOfBounds ( viewRecord )](https://tc39.es/ecma262/#sec-isviewoutofbounds)
+/// ### [25.3.1.4 IsViewOutOfBounds ( viewRecord )](https://tc39.es/ecma262/#sec-isviewoutofbounds)
 ///
 /// The abstract operation IsViewOutOfBounds takes argument viewRecord
 /// (a DataView With Buffer Witness Record) and returns a Boolean.
@@ -163,7 +163,7 @@ pub(crate) fn is_view_out_of_bounds(
     false
 }
 
-/// #### [25.3.1.5 GetViewValue ( view, requestIndex, isLittleEndian, type )](https://tc39.es/ecma262/#sec-getviewvalue)
+/// ### [25.3.1.5 GetViewValue ( view, requestIndex, isLittleEndian, type )](https://tc39.es/ecma262/#sec-getviewvalue)
 ///
 /// The abstract operation GetViewValue takes arguments view (an ECMAScript
 /// language value), requestIndex (an ECMAScript language value), isLittleEndian
@@ -265,7 +265,7 @@ fn get_view_value_scope_slow<'gc>(
     Ok((unsafe { scoped_view.take(agent) }, index))
 }
 
-/// #### [25.3.1.6 SetViewValue ( view, requestIndex, isLittleEndian, type, value )](https://tc39.es/ecma262/#sec-setviewvalue)
+/// ### [25.3.1.6 SetViewValue ( view, requestIndex, isLittleEndian, type, value )](https://tc39.es/ecma262/#sec-setviewvalue)
 ///
 /// The abstract operation SetViewValue takes arguments view (an ECMAScript
 /// language value), requestIndex (an ECMAScript language value), isLittleEndian

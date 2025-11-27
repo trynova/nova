@@ -60,7 +60,7 @@ impl Builtin for PromisePrototypeThen {
 }
 
 impl PromisePrototype {
-    /// #### [27.2.5.1 Promise.prototype.catch ( onRejected )](https://tc39.es/ecma262/#sec-promise.prototype.catch)
+    /// ### [27.2.5.1 Promise.prototype.catch ( onRejected )](https://tc39.es/ecma262/#sec-promise.prototype.catch)
     fn catch<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -84,7 +84,7 @@ impl PromisePrototype {
         )
     }
 
-    /// #### [27.2.5.3 Promise.prototype.finally ( onFinally )](https://tc39.es/ecma262/#sec-promise.prototype.finally)
+    /// ### [27.2.5.3 Promise.prototype.finally ( onFinally )](https://tc39.es/ecma262/#sec-promise.prototype.finally)
     fn finally<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -151,7 +151,7 @@ impl PromisePrototype {
         )
     }
 
-    /// #### [27.2.5.4 Promise.prototype.then ( onFulfilled, onRejected )](https://tc39.es/ecma262/#sec-promise.prototype.then)
+    /// ### [27.2.5.4 Promise.prototype.then ( onFulfilled, onRejected )](https://tc39.es/ecma262/#sec-promise.prototype.then)
     fn then<'gc>(
         agent: &mut Agent,
         this_value: Value,

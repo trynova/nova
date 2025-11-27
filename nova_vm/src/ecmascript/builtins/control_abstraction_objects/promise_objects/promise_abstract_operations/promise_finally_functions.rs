@@ -40,7 +40,7 @@ enum PromiseFinallyFunctionType<'a> {
     },
 }
 
-/// ##### [27.2.1.3.1 Promise Finally Functions](https://tc39.es/ecma262/#sec-promise.prototype.finally)
+/// ### [27.2.1.3.1 Promise Finally Functions](https://tc39.es/ecma262/#sec-promise.prototype.finally)
 ///
 /// A promise finally function is an abstract closure
 /// \[\[Promise\]\] and \[\[AlreadyResolved\]\] internal slots.

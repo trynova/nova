@@ -86,7 +86,7 @@ impl BooleanPrototype {
     }
 }
 
-///  ##### [20.3.3.3.1 ThisBooleanValue ( value )](https://tc39.es/ecma262/#sec-thisbooleanvalue)
+///  ### [20.3.3.3.1 ThisBooleanValue ( value )](https://tc39.es/ecma262/#sec-thisbooleanvalue)
 ///
 /// The abstract operation ThisBooleanValue takes argument value (an
 /// ECMAScript language value) and returns either a normal completion

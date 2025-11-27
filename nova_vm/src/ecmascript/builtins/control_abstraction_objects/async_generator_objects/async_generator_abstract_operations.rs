@@ -34,7 +34,7 @@ use super::{
     AsyncGeneratorRequestCompletion, AsyncGeneratorState,
 };
 
-/// #### [27.6.3.3 AsyncGeneratorValidate ( generator, generatorBrand )](https://tc39.es/ecma262/#sec-asyncgeneratorvalidate)
+/// ### [27.6.3.3 AsyncGeneratorValidate ( generator, generatorBrand )](https://tc39.es/ecma262/#sec-asyncgeneratorvalidate)
 ///
 /// The abstract operation AsyncGeneratorValidate takes arguments generator (an
 /// ECMAScript language value) and generatorBrand (a String or empty) and
@@ -61,7 +61,7 @@ pub(super) fn async_generator_validate<'a>(
     }
 }
 
-/// #### [27.6.3.4 AsyncGeneratorEnqueue ( generator, completion, promiseCapability )](https://tc39.es/ecma262/#sec-asyncgeneratorenqueue)
+/// ### [27.6.3.4 AsyncGeneratorEnqueue ( generator, completion, promiseCapability )](https://tc39.es/ecma262/#sec-asyncgeneratorenqueue)
 ///
 /// The abstract operation AsyncGeneratorEnqueue takes arguments generator (an
 /// AsyncGenerator), completion (a Completion Record), and promiseCapability
@@ -144,7 +144,7 @@ fn async_generator_complete_step(
     // 8. Return unused.
 }
 
-/// #### [27.6.3.6 AsyncGeneratorResume ( generator, completion )](https://tc39.es/ecma262/#sec-asyncgeneratorresume)
+/// ### [27.6.3.6 AsyncGeneratorResume ( generator, completion )](https://tc39.es/ecma262/#sec-asyncgeneratorresume)
 ///
 /// The abstract operation AsyncGeneratorResume takes arguments generator (an
 /// AsyncGenerator) and completion (a Completion Record) and returns unused.
@@ -287,7 +287,7 @@ fn async_generator_perform_await(
     inner_promise_then(agent, promise, handler, handler, None, gc.nogc());
 }
 
-/// #### [27.6.3.7 AsyncGeneratorUnwrapYieldResumption ( resumptionValue )](https://tc39.es/ecma262/#sec-asyncgeneratorunwrapyieldresumption)
+/// ### [27.6.3.7 AsyncGeneratorUnwrapYieldResumption ( resumptionValue )](https://tc39.es/ecma262/#sec-asyncgeneratorunwrapyieldresumption)
 ///
 /// The abstract operation AsyncGeneratorUnwrapYieldResumption takes argument
 /// resumptionValue (a Completion Record) and returns either a normal
@@ -329,7 +329,7 @@ fn async_generator_unwrap_yield_resumption(
     resume_handle_result(agent, execution_result.unbind(), generator, gc);
 }
 
-/// #### [27.6.3.8 AsyncGeneratorYield ( value )](https://tc39.es/ecma262/#sec-asyncgeneratoryield)
+/// ### [27.6.3.8 AsyncGeneratorYield ( value )](https://tc39.es/ecma262/#sec-asyncgeneratoryield)
 ///
 /// The abstract operation AsyncGeneratorYield takes argument value (an
 /// ECMAScript language value) and returns either a normal completion
@@ -398,7 +398,7 @@ pub(super) fn async_generator_yield(
     }
 }
 
-/// #### [27.6.3.9 AsyncGeneratorAwaitReturn ( generator )](https://tc39.es/ecma262/#sec-asyncgeneratorawaitreturn)
+/// ### [27.6.3.9 AsyncGeneratorAwaitReturn ( generator )](https://tc39.es/ecma262/#sec-asyncgeneratorawaitreturn)
 ///
 /// The abstract operation AsyncGeneratorAwaitReturn takes argument generator
 /// (an AsyncGenerator) and returns unused.
@@ -500,7 +500,7 @@ pub(crate) fn async_generator_await_return_on_rejected(
     // e. Return undefined.
 }
 
-/// #### [27.6.3.10 AsyncGeneratorDrainQueue ( generator )](https://tc39.es/ecma262/#sec-asyncgeneratordrainqueue)
+/// ### [27.6.3.10 AsyncGeneratorDrainQueue ( generator )](https://tc39.es/ecma262/#sec-asyncgeneratordrainqueue)
 ///
 /// The abstract operation AsyncGeneratorDrainQueue takes argument generator
 /// (an AsyncGenerator) and returns unused. It drains the generator's

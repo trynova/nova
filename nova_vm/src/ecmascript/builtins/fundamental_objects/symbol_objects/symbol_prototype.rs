@@ -61,7 +61,7 @@ impl Builtin for SymbolPrototypeToPrimitive {
 }
 
 impl SymbolPrototype {
-    /// #### [20.4.3.2 get Symbol.prototype.description](https://tc39.es/ecma262/#sec-symbol.prototype.description)
+    /// ### [20.4.3.2 get Symbol.prototype.description](https://tc39.es/ecma262/#sec-symbol.prototype.description)
     ///
     /// Symbol.prototype.description is an accessor property whose set accessor
     /// function is undefined.
@@ -82,7 +82,7 @@ impl SymbolPrototype {
             .map_or_else(|| Ok(Value::Undefined), |desc| Ok(desc.into_value()))
     }
 
-    /// #### [20.4.3.3 Symbol.prototype.toString ( )](https://tc39.es/ecma262/#sec-symbol.prototype.tostring)
+    /// ### [20.4.3.3 Symbol.prototype.toString ( )](https://tc39.es/ecma262/#sec-symbol.prototype.tostring)
     fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -96,7 +96,7 @@ impl SymbolPrototype {
         Ok(symbol_descriptive_string(agent, symb, gc).into_value())
     }
 
-    /// #### [20.4.3.4 Symbol.prototype.valueOf ( )](https://tc39.es/ecma262/#sec-symbol.prototype.valueof)
+    /// ### [20.4.3.4 Symbol.prototype.valueOf ( )](https://tc39.es/ecma262/#sec-symbol.prototype.valueof)
     fn value_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -152,7 +152,7 @@ fn this_symbol_value<'a>(
     }
 }
 
-/// ##### [20.4.3.3.1 SymbolDescriptiveString ( sym )](https://tc39.es/ecma262/#sec-symboldescriptivestring)
+/// ### [20.4.3.3.1 SymbolDescriptiveString ( sym )](https://tc39.es/ecma262/#sec-symboldescriptivestring)
 ///
 /// The abstract operation SymbolDescriptiveString takes argument sym (a Symbol)
 /// and returns a String.

@@ -337,7 +337,7 @@ pub trait HostEnqueueGenericJobHandle {
 }
 
 pub trait HostHooks: core::fmt::Debug {
-    /// #### [19.2.1.2 HostEnsureCanCompileStrings ( calleeRealm )](https://tc39.es/ecma262/#sec-hostensurecancompilestrings)
+    /// ### [19.2.1.2 HostEnsureCanCompileStrings ( calleeRealm )](https://tc39.es/ecma262/#sec-hostensurecancompilestrings)
     #[allow(unused_variables)]
     fn ensure_can_compile_strings<'a>(
         &self,
@@ -394,7 +394,7 @@ pub trait HostHooks: core::fmt::Debug {
     /// requirements in 9.5.
     fn enqueue_timeout_job(&self, timeout_job: Job, milliseconds: u64);
 
-    /// #### [9.9.4.1 HostEnqueueFinalizationRegistryCleanupJob ( finalizationRegistry )](https://tc39.es/ecma262/#sec-host-cleanup-finalization-registry)
+    /// ### [9.9.4.1 HostEnqueueFinalizationRegistryCleanupJob ( finalizationRegistry )](https://tc39.es/ecma262/#sec-host-cleanup-finalization-registry)
     ///
     /// The host-defined abstract operation
     /// HostEnqueueFinalizationRegistryCleanupJob takes argument
@@ -421,7 +421,7 @@ pub trait HostHooks: core::fmt::Debug {
         // By default, just ignore cleanup.
     }
 
-    /// #### [27.2.1.9 HostPromiseRejectionTracker ( promise, operation )](https://tc39.es/ecma262/#sec-host-promise-rejection-tracker)
+    /// ### [27.2.1.9 HostPromiseRejectionTracker ( promise, operation )](https://tc39.es/ecma262/#sec-host-promise-rejection-tracker)
     #[allow(unused_variables)]
     fn promise_rejection_tracker(
         &self,
@@ -431,7 +431,7 @@ pub trait HostHooks: core::fmt::Debug {
         // The default implementation of HostPromiseRejectionTracker is to return unused.
     }
 
-    /// #### [16.2.1.10 HostLoadImportedModule ( referrer, moduleRequest, hostDefined, payload )](https://tc39.es/ecma262/#sec-HostLoadImportedModule)
+    /// ### [16.2.1.10 HostLoadImportedModule ( referrer, moduleRequest, hostDefined, payload )](https://tc39.es/ecma262/#sec-HostLoadImportedModule)
     ///
     /// The host-defined abstract operation HostLoadImportedModule takes
     /// arguments referrer (a Script Record, a Cyclic Module Record, or a Realm
@@ -506,7 +506,7 @@ pub trait HostHooks: core::fmt::Debug {
         unimplemented!();
     }
 
-    /// ##### [13.3.12.1.1 HostGetImportMetaProperties ( moduleRecord )](https://tc39.es/ecma262/#sec-hostgetimportmetaproperties)
+    /// ### [13.3.12.1.1 HostGetImportMetaProperties ( moduleRecord )](https://tc39.es/ecma262/#sec-hostgetimportmetaproperties)
     ///
     /// The host-defined abstract operation HostGetImportMetaProperties takes
     /// argument moduleRecord (a Module Record) and returns a List of Records
@@ -526,7 +526,7 @@ pub trait HostHooks: core::fmt::Debug {
         Default::default()
     }
 
-    /// ##### [13.3.12.1.2 HostFinalizeImportMeta ( importMeta, moduleRecord )](https://tc39.es/ecma262/#sec-hostfinalizeimportmeta)
+    /// ### [13.3.12.1.2 HostFinalizeImportMeta ( importMeta, moduleRecord )](https://tc39.es/ecma262/#sec-hostfinalizeimportmeta)
     ///
     /// The host-defined abstract operation HostFinalizeImportMeta takes
     /// arguments importMeta (an Object) and moduleRecord (a Module Record) and
@@ -1037,7 +1037,7 @@ impl Agent {
         )
     }
 
-    /// #### [5.2.3.2 Throw an Exception](https://tc39.es/ecma262/#sec-throw-an-exception)
+    /// ### [5.2.3.2 Throw an Exception](https://tc39.es/ecma262/#sec-throw-an-exception)
     #[must_use]
     pub fn throw_exception_with_static_message<'a>(
         &mut self,

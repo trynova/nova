@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! #### [16.2.1.7 Source Text Module Records](https://tc39.es/ecma262/#sec-source-text-module-records)
+//! ### [16.2.1.7 Source Text Module Records](https://tc39.es/ecma262/#sec-source-text-module-records)
 
 use std::{
     marker::PhantomData,
@@ -77,7 +77,7 @@ use super::{
 };
 
 #[derive(Debug)]
-/// #### [16.2.1.7 Source Text Module Records](https://tc39.es/ecma262/#sec-source-text-module-records)
+/// ### [16.2.1.7 Source Text Module Records](https://tc39.es/ecma262/#sec-source-text-module-records)
 pub(crate) struct SourceTextModuleRecord<'a> {
     abstract_fields: AbstractModuleRecord<'a>,
     cyclic_fields: CyclicModuleRecord<'a>,
@@ -145,7 +145,7 @@ pub(crate) struct SourceTextModuleRecord<'a> {
 // other threads.
 unsafe impl Send for SourceTextModuleRecord<'_> {}
 
-/// #### [16.2.1.7 Source Text Module Records](https://tc39.es/ecma262/#sec-source-text-module-records)
+/// ### [16.2.1.7 Source Text Module Records](https://tc39.es/ecma262/#sec-source-text-module-records)
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct SourceTextModule<'a>(u32, PhantomData<&'a GcToken>);
@@ -920,7 +920,7 @@ impl AbstractModuleMethods for SourceTextModule<'_> {
         star_resolution
     }
 
-    /// ###### [16.2.1.6.1.2 Link ( )](https://tc39.es/ecma262/#sec-moduledeclarationlinking)
+    /// ### [16.2.1.6.1.2 Link ( )](https://tc39.es/ecma262/#sec-moduledeclarationlinking)
     ///
     /// The Link concrete method of a Cyclic Module Record module takes no
     /// arguments and returns either a normal completion containing unused or a
@@ -969,7 +969,7 @@ impl AbstractModuleMethods for SourceTextModule<'_> {
         Ok(())
     }
 
-    /// ###### [16.2.1.6.1.3 Evaluate ( )](https://tc39.es/ecma262/#sec-moduleevaluation)
+    /// ### [16.2.1.6.1.3 Evaluate ( )](https://tc39.es/ecma262/#sec-moduleevaluation)
     ///
     /// The Evaluate concrete method of a Cyclic Module Record module takes no
     /// arguments and returns a Promise. Evaluate transitions this module's
@@ -1158,7 +1158,7 @@ impl CyclicModuleSlots for SourceTextModule<'_> {
 }
 
 impl CyclicModuleMethods for SourceTextModule<'_> {
-    /// ###### [16.2.1.7.3.1 InitializeEnvironment ( )](https://tc39.es/ecma262/#sec-source-text-module-record-initialize-environment)
+    /// ### [16.2.1.7.3.1 InitializeEnvironment ( )](https://tc39.es/ecma262/#sec-source-text-module-record-initialize-environment)
     ///
     /// The InitializeEnvironment concrete method of a Source Text Module
     /// Record module takes no arguments and returns either a normal
@@ -1688,7 +1688,7 @@ fn async_module_start(
 
 pub(crate) type ModuleOrErrors<'a> = Result<SourceTextModule<'a>, Vec<OxcDiagnostic>>;
 
-/// ##### [16.2.1.7.1 ParseModule ( sourceText, realm, hostDefined )](https://tc39.es/ecma262/#sec-parsemodule)
+/// ### [16.2.1.7.1 ParseModule ( sourceText, realm, hostDefined )](https://tc39.es/ecma262/#sec-parsemodule)
 pub fn parse_module<'a>(
     agent: &mut Agent,
     source_text: String,

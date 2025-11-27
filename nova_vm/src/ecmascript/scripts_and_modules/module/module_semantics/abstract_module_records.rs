@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! #### [16.2.1.5 Abstract Module Records](https://tc39.es/ecma262/#sec-abstract-module-records)
+//! ### [16.2.1.5 Abstract Module Records](https://tc39.es/ecma262/#sec-abstract-module-records)
 
 use crate::{
     ecmascript::{
@@ -20,7 +20,7 @@ use crate::{
 
 use super::source_text_module_records::SourceTextModule;
 
-/// #### [16.2.1.5 Abstract Module Records](https://tc39.es/ecma262/#sec-abstract-module-records)
+/// ### [16.2.1.5 Abstract Module Records](https://tc39.es/ecma262/#sec-abstract-module-records)
 #[derive(Debug)]
 pub(crate) struct AbstractModuleRecord<'a> {
     /// ### \[\[Realm]]
@@ -93,7 +93,7 @@ impl<'m> AbstractModuleRecord<'m> {
     }
 }
 
-/// #### [16.2.1.5 Abstract Module Records](https://tc39.es/ecma262/#sec-abstract-module-records)
+/// ### [16.2.1.5 Abstract Module Records](https://tc39.es/ecma262/#sec-abstract-module-records)
 ///
 /// A Module Record encapsulates structural information about the imports and
 /// exports of a single module. This information is used to link the imports

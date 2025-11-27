@@ -198,7 +198,7 @@ impl PrivateEnvironmentRecord {
     }
 }
 
-/// #### [9.2.1.1 NewPrivateEnvironment ( outerPrivEnv )](https://tc39.es/ecma262/#sec-newprivateenvironment)
+/// ### [9.2.1.1 NewPrivateEnvironment ( outerPrivEnv )](https://tc39.es/ecma262/#sec-newprivateenvironment)
 ///
 /// The abstract operation NewPrivateEnvironment takes argument outerPrivEnv (a
 /// PrivateEnvironment Record or null) and returns a PrivateEnvironment Record.
@@ -228,7 +228,7 @@ pub(crate) fn new_private_environment<'gc>(
     agent.heap.environments.push_private_environment(record, gc)
 }
 
-/// #### [9.2.1.2 ResolvePrivateIdentifier ( privateEnv, identifier )](https://tc39.es/ecma262/#sec-resolve-private-identifier)
+/// ### [9.2.1.2 ResolvePrivateIdentifier ( privateEnv, identifier )](https://tc39.es/ecma262/#sec-resolve-private-identifier)
 ///
 /// The abstract operation ResolvePrivateIdentifier takes arguments privateEnv
 /// (a PrivateEnvironment Record) and identifier (a String) and returns a

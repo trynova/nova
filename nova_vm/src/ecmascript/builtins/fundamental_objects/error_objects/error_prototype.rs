@@ -29,7 +29,7 @@ impl Builtin for ErrorPrototypeToString {
 }
 
 impl ErrorPrototype {
-    /// #### [20.5.3.4 Error.prototype.toString ( )](https://tc39.es/ecma262/#sec-error.prototype.tostring)
+    /// ### [20.5.3.4 Error.prototype.toString ( )](https://tc39.es/ecma262/#sec-error.prototype.tostring)
     fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,

@@ -305,7 +305,7 @@ impl TypedArrayIntrinsicObject {
         Ok(target_obj.into_value())
     }
 
-    /// #### [23.2.2.2 %TypedArray%.of ( ...items )](https://tc39.es/ecma262/#sec-properties-of-the-%typedarray%-intrinsic-object)
+    /// ### [23.2.2.2 %TypedArray%.of ( ...items )](https://tc39.es/ecma262/#sec-properties-of-the-%typedarray%-intrinsic-object)
     fn of<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -630,7 +630,7 @@ impl Builtin for TypedArrayPrototypeGetToStringTag {
 impl BuiltinGetter for TypedArrayPrototypeGetToStringTag {}
 
 impl TypedArrayPrototype {
-    /// #### [23.2.3.1 %TypedArray%.prototype.at ( index )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.at)
+    /// ### [23.2.3.1 %TypedArray%.prototype.at ( index )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.at)
     fn at<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -682,7 +682,7 @@ impl TypedArrayPrototype {
         )))
     }
 
-    /// #### [23.2.3.2 get %TypedArray%.prototype.buffer](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype.buffer)
+    /// ### [23.2.3.2 get %TypedArray%.prototype.buffer](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype.buffer)
     ///
     /// %TypedArray%.prototype.buffer is an accessor property whose set accessor
     /// function is undefined.
@@ -703,7 +703,7 @@ impl TypedArrayPrototype {
         Ok(o.viewed_array_buffer(agent).into_value())
     }
 
-    /// #### [23.2.3.3 get %TypedArray%.prototype.byteLength](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype.bytelength)
+    /// ### [23.2.3.3 get %TypedArray%.prototype.byteLength](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype.bytelength)
     ///
     /// %TypedArray%.prototype.byteLength is an accessor property whose set
     /// accessor function is undefined.
@@ -731,7 +731,7 @@ impl TypedArrayPrototype {
         Ok(Value::from_i64(agent, size as i64, gc))
     }
 
-    /// #### [23.2.3.4 get %TypedArray%.prototype.byteOffset](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype.byteoffset)
+    /// ### [23.2.3.4 get %TypedArray%.prototype.byteOffset](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype.byteoffset)
     ///
     /// %TypedArray%.prototype.byteOffset is an accessor property whose set
     /// accessor function is undefined.
@@ -889,7 +889,7 @@ impl TypedArrayPrototype {
         Ok((ta_record.object, len, target_index, start_index, end_index))
     }
 
-    /// #### [23.2.3.7 %TypedArray%.prototype.entries ( )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.entries)
+    /// ### [23.2.3.7 %TypedArray%.prototype.entries ( )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.entries)
     fn entries<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1518,7 +1518,7 @@ impl TypedArrayPrototype {
         Ok(result.map_or(-1, |v| v as i64).try_into().unwrap())
     }
 
-    /// #### [23.2.3.18 %TypedArray%.prototype.join ( separator )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.join)
+    /// ### [23.2.3.18 %TypedArray%.prototype.join ( separator )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.join)
     ///
     /// The interpretation and use of the arguments of this method are the same
     /// as for **Array.prototype.join** as defined in 23.1.3.18.
@@ -1626,7 +1626,7 @@ impl TypedArrayPrototype {
         Ok(String::from_wtf8_buf(agent, r, gc).into_value().unbind())
     }
 
-    /// #### [23.2.3.19 %TypedArray%.prototype.keys ( )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.keys)
+    /// ### [23.2.3.19 %TypedArray%.prototype.keys ( )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.keys)
     fn keys<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1731,7 +1731,7 @@ impl TypedArrayPrototype {
         Ok(result.map_or(-1, |v| v as i64).try_into().unwrap())
     }
 
-    /// #### [23.2.3.21 get %TypedArray%.prototype.length](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype.length)
+    /// ### [23.2.3.21 get %TypedArray%.prototype.length](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype.length)
     fn get_length<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1998,7 +1998,7 @@ impl TypedArrayPrototype {
         Ok(accumulator.get(agent))
     }
 
-    /// #### [23.2.3.25 %TypedArray%.prototype.reverse ( )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.reverse)
+    /// ### [23.2.3.25 %TypedArray%.prototype.reverse ( )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.reverse)
     ///
     /// The interpretation and use of the arguments of this method are the same
     /// as for **Array.prototype.reverse** as defined in 23.1.3.26.
@@ -2227,7 +2227,7 @@ impl TypedArrayPrototype {
         Ok(Value::Undefined)
     }
 
-    /// #### [23.2.3.27 %TypedArray%.prototype.slice ( start, end )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.slice)
+    /// ### [23.2.3.27 %TypedArray%.prototype.slice ( start, end )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.slice)
     ///
     /// The interpretation and use of the arguments of this method are the same
     /// as for **Array.prototype.slice** as defined in 23.1.3.28.
@@ -2474,7 +2474,7 @@ impl TypedArrayPrototype {
         Ok(false.into())
     }
 
-    /// #### [23.2.3.29 %TypedArray%.prototype.sort ( comparator )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.sort)
+    /// ### [23.2.3.29 %TypedArray%.prototype.sort ( comparator )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.sort)
     ///
     /// This is a distinct method that, except as described below, implements
     /// the same requirements as those of **Array.prototype.sort** as defined
@@ -2541,7 +2541,7 @@ impl TypedArrayPrototype {
         }
     }
 
-    /// #### [23.2.3.30 %TypedArray%.prototype.subarray ( start, end )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.subarray)
+    /// ### [23.2.3.30 %TypedArray%.prototype.subarray ( start, end )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.subarray)
     ///
     /// This method returns a new TypedArray whose element type is the element
     /// type of this TypedArray and whose ArrayBuffer is the ArrayBuffer of
@@ -2781,7 +2781,7 @@ impl TypedArrayPrototype {
         Ok(String::from_wtf8_buf(agent, r, gc.into_nogc()).into_value())
     }
 
-    /// #### [23.2.3.32 %TypedArray%.prototype.toReversed ( )](https://tc39.es/ecma262/#sec-array.prototype.tospliced)
+    /// ### [23.2.3.32 %TypedArray%.prototype.toReversed ( )](https://tc39.es/ecma262/#sec-array.prototype.tospliced)
     fn to_reversed<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -2814,7 +2814,7 @@ impl TypedArrayPrototype {
         Ok(a.into_value())
     }
 
-    /// #### [23.2.3.33 %TypedArray%.prototype.toSorted ( comparator )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.tosorted)
+    /// ### [23.2.3.33 %TypedArray%.prototype.toSorted ( comparator )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.tosorted)
     fn to_sorted<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -2879,7 +2879,7 @@ impl TypedArrayPrototype {
         Ok(a.into_value().unbind())
     }
 
-    /// #### [23.2.3.35 %TypedArray%.prototype.values ( )](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype-%symbol.tostringtag%)
+    /// ### [23.2.3.35 %TypedArray%.prototype.values ( )](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype-%symbol.tostringtag%)
     fn values<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -2897,7 +2897,7 @@ impl TypedArrayPrototype {
         )
     }
 
-    /// #### [23.2.3.36 %TypedArray%.prototype.with ( index, value )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.with)
+    /// ### [23.2.3.36 %TypedArray%.prototype.with ( index, value )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.with)
     fn with<'gc>(
         agent: &mut Agent,
         this_value: Value,

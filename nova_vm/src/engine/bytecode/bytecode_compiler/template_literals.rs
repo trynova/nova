@@ -22,7 +22,7 @@ use crate::{
     heap::{ObjectEntry, ObjectEntryPropertyDescriptor, element_array::ElementDescriptor},
 };
 
-/// #### [13.2.8.4 GetTemplateObject ( templateLiteral )](https://tc39.es/ecma262/#sec-gettemplateobject)
+/// ### [13.2.8.4 GetTemplateObject ( templateLiteral )](https://tc39.es/ecma262/#sec-gettemplateobject)
 ///
 /// The abstract operation GetTemplateObject takes argument templateLiteral (a
 /// Parse Node) and returns an Array.

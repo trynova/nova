@@ -58,7 +58,7 @@ impl Builtin for AsyncGeneratorPrototypeThrow {
 }
 
 impl AsyncGeneratorPrototype {
-    /// #### [27.6.1.2 %AsyncGeneratorPrototype%.next ( value )](https://tc39.es/ecma262/#sec-asyncgenerator-prototype-next)
+    /// ### [27.6.1.2 %AsyncGeneratorPrototype%.next ( value )](https://tc39.es/ecma262/#sec-asyncgenerator-prototype-next)
     fn next<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -117,7 +117,7 @@ impl AsyncGeneratorPrototype {
         Ok(unsafe { promise.take(agent).into_value() })
     }
 
-    /// #### [27.6.1.3 %AsyncGeneratorPrototype%.return ( value )](https://tc39.es/ecma262/#sec-asyncgenerator-prototype-return)
+    /// ### [27.6.1.3 %AsyncGeneratorPrototype%.return ( value )](https://tc39.es/ecma262/#sec-asyncgenerator-prototype-return)
     fn r#return<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -176,7 +176,7 @@ impl AsyncGeneratorPrototype {
         }
     }
 
-    /// #### [27.6.1.4 %AsyncGeneratorPrototype%.throw ( exception )](https://tc39.es/ecma262/#sec-asyncgenerator-prototype-throw)
+    /// ### [27.6.1.4 %AsyncGeneratorPrototype%.throw ( exception )](https://tc39.es/ecma262/#sec-asyncgenerator-prototype-throw)
     fn throw<'gc>(
         agent: &mut Agent,
         this_value: Value,

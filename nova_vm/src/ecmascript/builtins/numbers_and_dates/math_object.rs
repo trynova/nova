@@ -985,7 +985,7 @@ impl MathObject {
         ))
     }
 
-    /// #### [21.3.2.20 Math.imul ( x, y )](https://tc39.es/ecma262/#sec-math.imul)
+    /// ### [21.3.2.20 Math.imul ( x, y )](https://tc39.es/ecma262/#sec-math.imul)
     fn imul<'gc>(
         agent: &mut Agent,
         _this_value: Value,

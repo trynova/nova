@@ -404,7 +404,7 @@ impl Builtin for StringPrototypeSup {
 }
 
 impl StringPrototype {
-    /// #### [22.1.3.1 String.prototype.at ( index )](https://tc39.es/ecma262/#sec-string.prototype.at)
+    /// ### [22.1.3.1 String.prototype.at ( index )](https://tc39.es/ecma262/#sec-string.prototype.at)
     fn at<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -455,7 +455,7 @@ impl StringPrototype {
         }
     }
 
-    /// #### [22.1.3.2 String.prototype.charAt ( pos )](https://tc39.es/ecma262/#sec-string.prototype.charat)
+    /// ### [22.1.3.2 String.prototype.charAt ( pos )](https://tc39.es/ecma262/#sec-string.prototype.charat)
     fn char_at<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -496,7 +496,7 @@ impl StringPrototype {
         }
     }
 
-    /// #### [22.1.3.3 String.prototype.charCodeAt ( pos )](https://tc39.es/ecma262/#sec-string.prototype.charcodeat)
+    /// ### [22.1.3.3 String.prototype.charCodeAt ( pos )](https://tc39.es/ecma262/#sec-string.prototype.charcodeat)
     fn char_code_at<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -538,7 +538,7 @@ impl StringPrototype {
         }
     }
 
-    /// #### [22.1.3.4 String.prototype.codePointAt ( pos )](https://tc39.es/ecma262/#sec-string.prototype.codepointat)
+    /// ### [22.1.3.4 String.prototype.codePointAt ( pos )](https://tc39.es/ecma262/#sec-string.prototype.codepointat)
     ///
     /// > NOTE 1: This method returns a non-negative integral Number less than
     /// > or equal to 0x10FFFF𝔽 that is the numeric value of the UTF-16 encoded
@@ -592,7 +592,7 @@ impl StringPrototype {
         }
     }
 
-    /// #### [22.1.3.5 String.prototype.concat ( ...args )](https://tc39.es/ecma262/#sec-string.prototype.concat)
+    /// ### [22.1.3.5 String.prototype.concat ( ...args )](https://tc39.es/ecma262/#sec-string.prototype.concat)
     ///
     /// > NOTE 1: When this method is called it returns the String value
     /// > consisting of the code units of the this value (converted to a
@@ -1004,7 +1004,7 @@ impl StringPrototype {
         }
     }
 
-    /// #### [22.1.3.10 String.prototype.isWellFormed ( )](https://tc39.es/ecma262/#sec-string.prototype.iswellformed)
+    /// ### [22.1.3.10 String.prototype.isWellFormed ( )](https://tc39.es/ecma262/#sec-string.prototype.iswellformed)
     fn is_well_formed<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1262,7 +1262,7 @@ impl StringPrototype {
         }
     }
 
-    /// #### [22.1.3.13 String.prototype.match ( regexp )](https://tc39.es/ecma262/#sec-string.prototype.match)
+    /// ### [22.1.3.13 String.prototype.match ( regexp )](https://tc39.es/ecma262/#sec-string.prototype.match)
     ///
     /// > NOTE: This method is intentionally generic; it does not require that
     /// > its this value be a String object. Therefore, it can be transferred
@@ -1331,7 +1331,7 @@ impl StringPrototype {
         )
     }
 
-    /// #### [22.1.3.14 String.prototype.matchAll ( regexp )](https://tc39.es/ecma262/#sec-string.prototype.matchall)
+    /// ### [22.1.3.14 String.prototype.matchAll ( regexp )](https://tc39.es/ecma262/#sec-string.prototype.matchall)
     ///
     /// This method performs a regular expression match of the String
     /// representing the this value against regexp and returns an iterator that
@@ -1585,7 +1585,7 @@ impl StringPrototype {
         )
     }
 
-    /// #### [22.1.3.18 String.prototype.repeat ( count )](https://tc39.es/ecma262/#sec-string.prototype.repeat)
+    /// ### [22.1.3.18 String.prototype.repeat ( count )](https://tc39.es/ecma262/#sec-string.prototype.repeat)
     ///
     /// > NOTE 1: This method creates the String value consisting of the code
     /// > units of the this value (converted to String) repeated count times.
@@ -1663,7 +1663,7 @@ impl StringPrototype {
         ))
     }
 
-    /// #### [22.1.3.19 String.prototype.replace ( searchValue, replaceValue )](https://tc39.es/ecma262/#sec-string.prototype.replace)
+    /// ### [22.1.3.19 String.prototype.replace ( searchValue, replaceValue )](https://tc39.es/ecma262/#sec-string.prototype.replace)
     ///
     /// > NOTE: This method is intentionally generic; it does not require that
     /// > its this value be a String object. Therefore, it can be transferred
@@ -1789,7 +1789,7 @@ impl StringPrototype {
         Ok(String::from_string(agent, result, gc.into_nogc()).into_value())
     }
 
-    /// #### [22.1.3.20 String.prototype.replaceAll ( searchValue, replaceValue )](https://tc39.es/ecma262/#sec-string.prototype.replaceall)
+    /// ### [22.1.3.20 String.prototype.replaceAll ( searchValue, replaceValue )](https://tc39.es/ecma262/#sec-string.prototype.replaceall)
     fn replace_all<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1980,7 +1980,7 @@ impl StringPrototype {
         Ok(String::from_string(agent, result, gc.into_nogc()).into_value())
     }
 
-    /// #### [22.1.3.21 String.prototype.search ( regexp )](https://tc39.es/ecma262/#sec-string.prototype.search)
+    /// ### [22.1.3.21 String.prototype.search ( regexp )](https://tc39.es/ecma262/#sec-string.prototype.search)
     ///
     /// > NOTE: This method is intentionally generic; it does not require that
     /// > its this value be a String object. Therefore, it can be transferred
@@ -2046,7 +2046,7 @@ impl StringPrototype {
         )
     }
 
-    /// #### [22.1.3.22 String.prototype.slice ( start, end )](https://tc39.es/ecma262/#sec-string.prototype.slice)
+    /// ### [22.1.3.22 String.prototype.slice ( start, end )](https://tc39.es/ecma262/#sec-string.prototype.slice)
     ///
     /// > NOTE: This method is intentionally generic; it does not require that
     /// > its this value be a String object. Therefore, it can be transferred
@@ -2141,7 +2141,7 @@ impl StringPrototype {
         Ok(String::from_str(agent, substring, gc).into_value())
     }
 
-    /// #### [22.1.3.23 String.prototype.split ( separator, limit )](https://tc39.es/ecma262/#sec-string.prototype.split)
+    /// ### [22.1.3.23 String.prototype.split ( separator, limit )](https://tc39.es/ecma262/#sec-string.prototype.split)
     ///
     /// > NOTE 1: The value of separator may be an empty String. In this case,
     /// > separator does not match the empty substring at the beginning or end
@@ -2403,7 +2403,7 @@ impl StringPrototype {
             .into())
     }
 
-    /// #### [22.1.3.25 String.prototype.substring ( start, end )](https://tc39.es/ecma262/#sec-string.prototype.substring)
+    /// ### [22.1.3.25 String.prototype.substring ( start, end )](https://tc39.es/ecma262/#sec-string.prototype.substring)
     ///
     /// > NOTE: This method is intentionally generic; it does not require that
     /// > its this value be a String object. Therefore, it can be transferred
@@ -2556,7 +2556,7 @@ impl StringPrototype {
         Ok(String::from_string(agent, upper_case_string, gc.into_nogc()).into_value())
     }
 
-    /// #### [22.1.3.28 String.prototype.toLowerCase ( )](https://tc39.es/ecma262/#sec-string.prototype.tolowercase)
+    /// ### [22.1.3.28 String.prototype.toLowerCase ( )](https://tc39.es/ecma262/#sec-string.prototype.tolowercase)
     ///
     /// The implementation might not reflect the specification.
     ///
@@ -2586,7 +2586,7 @@ impl StringPrototype {
         Ok(String::from_string(agent, lower_case_string, gc.into_nogc()).into_value())
     }
 
-    /// #### [22.1.3.30 String.prototype.toUpperCase ( )](https://tc39.es/ecma262/#sec-string.prototype.touppercase)
+    /// ### [22.1.3.30 String.prototype.toUpperCase ( )](https://tc39.es/ecma262/#sec-string.prototype.touppercase)
     ///
     /// The implementation might not reflect the specification.
     ///
@@ -2616,7 +2616,7 @@ impl StringPrototype {
         Ok(String::from_string(agent, upper_case_string, gc.into_nogc()).into_value())
     }
 
-    /// #### [22.1.3.31 String.prototype.toWellFormed ( )](https://tc39.es/ecma262/#sec-string.prototype.towellformed)
+    /// ### [22.1.3.31 String.prototype.toWellFormed ( )](https://tc39.es/ecma262/#sec-string.prototype.towellformed)
     ///
     /// This method returns a String representation of this object with all
     /// leading surrogates and trailing surrogates that are not part of a
@@ -2658,7 +2658,7 @@ impl StringPrototype {
         }
     }
 
-    /// #### [22.1.3.32 String.prototype.trim ( )](https://tc39.es/ecma262/#sec-string.prototype.trim)
+    /// ### [22.1.3.32 String.prototype.trim ( )](https://tc39.es/ecma262/#sec-string.prototype.trim)
     ///
     /// This method interprets a String value as a sequence of UTF-16 encoded
     /// code points, as described in 6.1.4.
@@ -2677,7 +2677,7 @@ impl StringPrototype {
         Self::trim_string(agent, this_value, TrimWhere::StartAndEnd, gc)
     }
 
-    /// ##### [22.1.3.32.1 TrimString ( string, where )](https://tc39.es/ecma262/#sec-trimstring)
+    /// ### [22.1.3.32.1 TrimString ( string, where )](https://tc39.es/ecma262/#sec-trimstring)
     fn trim_string<'gc>(
         agent: &mut Agent,
         value: Value,
@@ -2718,7 +2718,7 @@ impl StringPrototype {
         }
     }
 
-    /// #### [22.1.3.33 String.prototype.trimEnd ( )](https://tc39.es/ecma262/#sec-string.prototype.trimend)
+    /// ### [22.1.3.33 String.prototype.trimEnd ( )](https://tc39.es/ecma262/#sec-string.prototype.trimend)
     ///
     /// This method interprets a String value as a sequence of UTF-16 encoded
     /// code points, as described in 6.1.4.
@@ -2737,7 +2737,7 @@ impl StringPrototype {
         Self::trim_string(agent, this_value, TrimWhere::End, gc)
     }
 
-    /// #### [22.1.3.34 String.prototype.trimStart ( )](https://tc39.es/ecma262/#sec-string.prototype.trimstart)
+    /// ### [22.1.3.34 String.prototype.trimStart ( )](https://tc39.es/ecma262/#sec-string.prototype.trimstart)
     ///
     /// This method interprets a String value as a sequence of UTF-16 encoded
     /// code points, as described in 6.1.4.
@@ -2756,8 +2756,8 @@ impl StringPrototype {
         Self::trim_string(agent, this_value, TrimWhere::Start, gc)
     }
 
-    /// #### [22.1.3.29 String.prototype.toString ( )](https://tc39.es/ecma262/#sec-string.prototype.tostring)
-    /// #### [22.1.3.35 String.prototype.valueOf ( )](https://tc39.es/ecma262/#sec-string.prototype.valueof)
+    /// ### [22.1.3.29 String.prototype.toString ( )](https://tc39.es/ecma262/#sec-string.prototype.tostring)
+    /// ### [22.1.3.35 String.prototype.valueOf ( )](https://tc39.es/ecma262/#sec-string.prototype.valueof)
     ///
     /// > NOTE: `String.prototype.toString` and `String.prototype.valueOf` are
     /// > different functions but have the exact same steps.
@@ -2796,7 +2796,7 @@ impl StringPrototype {
         Ok(StringIterator::create(agent, s.unbind(), gc.into_nogc()).into_value())
     }
 
-    /// #### [B.2.2.1 String.prototype.substr ( start, length )](https://tc39.es/ecma262/#sec-string.prototype.substr)
+    /// ### [B.2.2.1 String.prototype.substr ( start, length )](https://tc39.es/ecma262/#sec-string.prototype.substr)
     ///
     /// This method returns a substring of the result of converting the this
     /// value to a String, starting from index start and running for length
@@ -2874,7 +2874,7 @@ impl StringPrototype {
         .into_value())
     }
 
-    /// #### [B.2.2.2 String.prototype.anchor ( name )](https://tc39.es/ecma262/#sec-string.prototype.anchor)
+    /// ### [B.2.2.2 String.prototype.anchor ( name )](https://tc39.es/ecma262/#sec-string.prototype.anchor)
     #[cfg(feature = "annex-b-string")]
     fn anchor<'gc>(
         agent: &mut Agent,
@@ -2889,7 +2889,7 @@ impl StringPrototype {
         create_html(agent, this_value, "a", Some(("name", name.unbind())), gc).map(Value::from)
     }
 
-    /// #### [B.2.2.3 String.prototype.big ( )](https://tc39.es/ecma262/#sec-string.prototype.big)
+    /// ### [B.2.2.3 String.prototype.big ( )](https://tc39.es/ecma262/#sec-string.prototype.big)
     #[cfg(feature = "annex-b-string")]
     fn big<'gc>(
         agent: &mut Agent,
@@ -2902,7 +2902,7 @@ impl StringPrototype {
         create_html(agent, this_value, "big", None, gc).map(Value::from)
     }
 
-    /// #### [B.2.2.4 String.prototype.blink ( )](https://tc39.es/ecma262/#sec-string.prototype.blink)
+    /// ### [B.2.2.4 String.prototype.blink ( )](https://tc39.es/ecma262/#sec-string.prototype.blink)
     #[cfg(feature = "annex-b-string")]
     fn blink<'gc>(
         agent: &mut Agent,
@@ -2915,7 +2915,7 @@ impl StringPrototype {
         create_html(agent, this_value, "blink", None, gc).map(Value::from)
     }
 
-    /// #### [B.2.2.5 String.prototype.bold ( )](https://tc39.es/ecma262/#sec-string.prototype.bold)
+    /// ### [B.2.2.5 String.prototype.bold ( )](https://tc39.es/ecma262/#sec-string.prototype.bold)
     #[cfg(feature = "annex-b-string")]
     fn bold<'gc>(
         agent: &mut Agent,
@@ -2928,7 +2928,7 @@ impl StringPrototype {
         create_html(agent, this_value, "b", None, gc).map(Value::from)
     }
 
-    /// #### [B.2.2.6 String.prototype.fixed ( )](https://tc39.es/ecma262/#sec-string.prototype.fixed)
+    /// ### [B.2.2.6 String.prototype.fixed ( )](https://tc39.es/ecma262/#sec-string.prototype.fixed)
     #[cfg(feature = "annex-b-string")]
     fn fixed<'gc>(
         agent: &mut Agent,
@@ -2941,7 +2941,7 @@ impl StringPrototype {
         create_html(agent, this_value, "tt", None, gc).map(Value::from)
     }
 
-    /// #### [B.2.2.7 String.prototype.fontcolor ( colour )](https://tc39.es/ecma262/#sec-string.prototype.fontcolor)
+    /// ### [B.2.2.7 String.prototype.fontcolor ( colour )](https://tc39.es/ecma262/#sec-string.prototype.fontcolor)
     #[cfg(feature = "annex-b-string")]
     fn fontcolor<'gc>(
         agent: &mut Agent,
@@ -2963,7 +2963,7 @@ impl StringPrototype {
         .map(Value::from)
     }
 
-    /// #### [B.2.2.8 String.prototype.fontsize ( size )](https://tc39.es/ecma262/#sec-string.prototype.fontsize)
+    /// ### [B.2.2.8 String.prototype.fontsize ( size )](https://tc39.es/ecma262/#sec-string.prototype.fontsize)
     #[cfg(feature = "annex-b-string")]
     fn fontsize<'gc>(
         agent: &mut Agent,
@@ -2978,7 +2978,7 @@ impl StringPrototype {
         create_html(agent, this_value, "font", Some(("size", size.unbind())), gc).map(Value::from)
     }
 
-    /// #### [B.2.2.9 String.prototype.italics ( )](https://tc39.es/ecma262/#sec-string.prototype.italics)
+    /// ### [B.2.2.9 String.prototype.italics ( )](https://tc39.es/ecma262/#sec-string.prototype.italics)
     #[cfg(feature = "annex-b-string")]
     fn italics<'gc>(
         agent: &mut Agent,
@@ -2991,7 +2991,7 @@ impl StringPrototype {
         create_html(agent, this_value, "i", None, gc).map(Value::from)
     }
 
-    /// #### [B.2.2.10 String.prototype.link ( url )](https://tc39.es/ecma262/#sec-string.prototype.link)
+    /// ### [B.2.2.10 String.prototype.link ( url )](https://tc39.es/ecma262/#sec-string.prototype.link)
     #[cfg(feature = "annex-b-string")]
     fn link<'gc>(
         agent: &mut Agent,
@@ -3006,7 +3006,7 @@ impl StringPrototype {
         create_html(agent, this_value, "a", Some(("href", url.unbind())), gc).map(Value::from)
     }
 
-    /// #### [B.2.2.11 String.prototype.small ( )](https://tc39.es/ecma262/#sec-string.prototype.small)
+    /// ### [B.2.2.11 String.prototype.small ( )](https://tc39.es/ecma262/#sec-string.prototype.small)
     #[cfg(feature = "annex-b-string")]
     fn small<'gc>(
         agent: &mut Agent,
@@ -3019,7 +3019,7 @@ impl StringPrototype {
         create_html(agent, this_value, "small", None, gc).map(Value::from)
     }
 
-    /// #### [B.2.2.12 String.prototype.strike ( )](https://tc39.es/ecma262/#sec-string.prototype.strike)
+    /// ### [B.2.2.12 String.prototype.strike ( )](https://tc39.es/ecma262/#sec-string.prototype.strike)
     #[cfg(feature = "annex-b-string")]
     fn strike<'gc>(
         agent: &mut Agent,
@@ -3032,7 +3032,7 @@ impl StringPrototype {
         create_html(agent, this_value, "strike", None, gc).map(Value::from)
     }
 
-    /// #### [B.2.2.13 String.prototype.sub ( )](https://tc39.es/ecma262/#sec-string.prototype.sub)
+    /// ### [B.2.2.13 String.prototype.sub ( )](https://tc39.es/ecma262/#sec-string.prototype.sub)
     #[cfg(feature = "annex-b-string")]
     fn sub<'gc>(
         agent: &mut Agent,
@@ -3045,7 +3045,7 @@ impl StringPrototype {
         create_html(agent, this_value, "sub", None, gc).map(Value::from)
     }
 
-    /// #### [B.2.2.14 String.prototype.sup ( )](https://tc39.es/ecma262/#sec-string.prototype.sup)
+    /// ### [B.2.2.14 String.prototype.sup ( )](https://tc39.es/ecma262/#sec-string.prototype.sup)
     #[cfg(feature = "annex-b-string")]
     fn sup<'gc>(
         agent: &mut Agent,
@@ -3165,7 +3165,7 @@ impl StringPrototype {
     }
 }
 
-/// ##### [22.1.3.17.1 StringPaddingBuiltinsImpl ( O, maxLength, fillString, placement )](https://tc39.es/ecma262/#sec-stringpaddingbuiltinsimpl)
+/// ### [22.1.3.17.1 StringPaddingBuiltinsImpl ( O, maxLength, fillString, placement )](https://tc39.es/ecma262/#sec-stringpaddingbuiltinsimpl)
 ///
 /// The abstract operation StringPaddingBuiltinsImpl takes arguments O (an
 /// ECMAScript language value), maxLength (an ECMAScript language value),
@@ -3266,7 +3266,7 @@ fn string_padding_builtins_impl<'gc>(
     string_pad(agent, s, int_max_length, fill_string, placement_start, gc)
 }
 
-/// ##### [22.1.3.17.2 StringPad ( S, maxLength, fillString, placement )](https://tc39.es/ecma262/#sec-stringpad)
+/// ### [22.1.3.17.2 StringPad ( S, maxLength, fillString, placement )](https://tc39.es/ecma262/#sec-stringpad)
 ///
 /// The abstract operation StringPad takes arguments S (a String),
 /// maxLength (a non-negative integer), fillString (a String), and
@@ -3336,7 +3336,7 @@ fn string_pad<'gc>(
     Ok(String::from_wtf8_buf(agent, buf, gc).into_value())
 }
 
-/// ##### [22.1.3.17.3 ToZeroPaddedDecimalString ( n, minLength )](https://tc39.es/ecma262/#sec-tozeropaddeddecimalstring)
+/// ### [22.1.3.17.3 ToZeroPaddedDecimalString ( n, minLength )](https://tc39.es/ecma262/#sec-tozeropaddeddecimalstring)
 ///
 /// The abstract operation ToZeroPaddedDecimalString takes arguments n
 /// (a non-negative integer) and minLength (a non-negative integer) and returns
@@ -3352,7 +3352,7 @@ pub(crate) fn to_zero_padded_decimal_string(
     format!("{s:0>min_length$}")
 }
 
-/// ##### [22.1.3.19.1 GetSubstitution ( matched, str, position, captures, namedCaptures, replacementTemplate )](https://tc39.es/ecma262/#sec-getsubstitution)
+/// ### [22.1.3.19.1 GetSubstitution ( matched, str, position, captures, namedCaptures, replacementTemplate )](https://tc39.es/ecma262/#sec-getsubstitution)
 ///
 /// The abstract operation GetSubstitution takes arguments matched (a String),
 /// str (a String), position (a non-negative integer), captures (a List of
@@ -3552,7 +3552,7 @@ pub(crate) fn get_substitution<'gc, 'scope>(
     Ok(String::from_wtf8_buf(agent, result, gc.into_nogc()))
 }
 
-/// ##### [22.1.3.35.1 ThisStringValue ( value )](https://tc39.es/ecma262/#sec-thisstringvalue)
+/// ### [22.1.3.35.1 ThisStringValue ( value )](https://tc39.es/ecma262/#sec-thisstringvalue)
 ///
 /// The abstract operation ThisStringValue takes argument value (an ECMAScript
 /// language value) and returns either a normal completion containing a String
@@ -3588,7 +3588,7 @@ fn this_string_value<'gc>(
     }
 }
 
-/// ##### [B.2.2.2.1 CreateHTML ( string, tag, attribute, value )](https://tc39.es/ecma262/#sec-createhtml)
+/// ### [B.2.2.2.1 CreateHTML ( string, tag, attribute, value )](https://tc39.es/ecma262/#sec-createhtml)
 ///
 /// The abstract operation CreateHTML takes arguments string (an ECMAScript
 /// language value), tag (a String), attribute (a String), and value (an

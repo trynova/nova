@@ -21,7 +21,7 @@ pub mod source_code;
 pub(crate) enum ScriptOrModule<'a> {
     /// ## [16.1 Scripts](https://tc39.es/ecma262/#sec-scripts)
     Script(Script<'a>),
-    /// #### [16.2.1.7 Source Text Module Records](https://tc39.es/ecma262/#sec-source-text-module-records)
+    /// ### [16.2.1.7 Source Text Module Records](https://tc39.es/ecma262/#sec-source-text-module-records)
     SourceTextModule(SourceTextModule<'a>),
 }
 

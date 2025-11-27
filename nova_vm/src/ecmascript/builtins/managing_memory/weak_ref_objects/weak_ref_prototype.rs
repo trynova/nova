@@ -67,7 +67,7 @@ impl WeakRefPrototype {
     }
 }
 
-/// #### [26.1.4.1 WeakRefDeref ( weakRef )](https://tc39.es/ecma262/#sec-weakrefderef)
+/// ### [26.1.4.1 WeakRefDeref ( weakRef )](https://tc39.es/ecma262/#sec-weakrefderef)
 ///
 /// The abstract operation WeakRefDeref takes argument weakRef (a WeakRef) and
 /// returns an ECMAScript language value.

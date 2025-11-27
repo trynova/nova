@@ -113,7 +113,7 @@ impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
         self.into_void_array().get(agent).viewed_array_buffer
     }
 
-    /// #### [10.4.5.18 TypedArraySetElement ( O, index, value )](https://tc39.es/ecma262/#sec-typedarraysetelement)
+    /// ### [10.4.5.18 TypedArraySetElement ( O, index, value )](https://tc39.es/ecma262/#sec-typedarraysetelement)
     ///
     /// The abstract operation TypedArraySetElement takes arguments O (a
     /// TypedArray), index (a Number), and value (an ECMAScript language value) and
@@ -167,7 +167,7 @@ impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
         Ok(())
     }
 
-    /// #### [10.4.5.18 Infallible TypedArraySetElement ( O, index, value )](https://tc39.es/ecma262/#sec-typedarraysetelement)
+    /// ### [10.4.5.18 Infallible TypedArraySetElement ( O, index, value )](https://tc39.es/ecma262/#sec-typedarraysetelement)
     ///
     /// The abstract operation TypedArraySetElement takes arguments O (a
     /// TypedArray), index (a Number), and value (an ECMAScript language value) and

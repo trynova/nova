@@ -113,7 +113,7 @@ impl FunctionPrototype {
         Ok(Value::Undefined)
     }
 
-    /// #### [20.2.3.1 Function.prototype.apply ( thisArg, argArray )](https://tc39.es/ecma262/#sec-function.prototype.apply)
+    /// ### [20.2.3.1 Function.prototype.apply ( thisArg, argArray )](https://tc39.es/ecma262/#sec-function.prototype.apply)
     fn apply<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -155,7 +155,7 @@ impl FunctionPrototype {
         )
     }
 
-    /// #### [20.2.3.2 Function.prototype.bind ( thisArg, ...args )](https://tc39.es/ecma262/#sec-function.prototype.bind)
+    /// ### [20.2.3.2 Function.prototype.bind ( thisArg, ...args )](https://tc39.es/ecma262/#sec-function.prototype.bind)
     ///
     /// > #### Note 1
     /// >

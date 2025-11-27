@@ -157,7 +157,7 @@ impl BuiltinIntrinsic for GlobalObjectUnescape {
     const INDEX: IntrinsicFunctionIndexes = IntrinsicFunctionIndexes::Unescape;
 }
 
-/// #### [19.2.1.1 PerformEval ( x, strictCaller, direct )](https://tc39.es/ecma262/#sec-performeval)
+/// ### [19.2.1.1 PerformEval ( x, strictCaller, direct )](https://tc39.es/ecma262/#sec-performeval)
 ///
 /// The abstract operation PerformEval takes arguments x (an ECMAScript
 /// language value), strictCaller (a Boolean), and direct (a Boolean) and
@@ -451,7 +451,7 @@ fn create_id(x: String) -> u64 {
     }
 }
 
-/// #### [19.2.1.3 EvalDeclarationInstantiation ( body, varEnv, lexEnv, privateEnv, strict )](https://tc39.es/ecma262/#sec-evaldeclarationinstantiation)
+/// ### [19.2.1.3 EvalDeclarationInstantiation ( body, varEnv, lexEnv, privateEnv, strict )](https://tc39.es/ecma262/#sec-evaldeclarationinstantiation)
 ///
 /// The abstract operation EvalDeclarationInstantiation takes arguments body
 /// (a ScriptBody Parse Node), varEnv (an Environment Record), lexEnv (a
@@ -1174,7 +1174,7 @@ impl GlobalObject {
         }
     }
 
-    /// #### [19.2.6.1 decodeURI ( encodedURI )](https://tc39.es/ecma262/#sec-decodeuri-encodeduri)
+    /// ### [19.2.6.1 decodeURI ( encodedURI )](https://tc39.es/ecma262/#sec-decodeuri-encodeduri)
     ///
     /// This function computes a new version of a URI in which each escape
     /// sequence and UTF-8 encoding of the sort that might be introduced by the
@@ -1221,7 +1221,7 @@ impl GlobalObject {
         .map(IntoValue::into_value)
     }
 
-    /// #### [19.2.6.2 decodeURIComponent ( encodedURIComponent )](https://tc39.es/ecma262/#sec-decodeuricomponent-encodeduricomponent)
+    /// ### [19.2.6.2 decodeURIComponent ( encodedURIComponent )](https://tc39.es/ecma262/#sec-decodeuricomponent-encodeduricomponent)
     ///
     /// This function computes a new version of a URI in which each escape
     /// sequence and UTF-8 encoding of the sort that might be introduced by the
@@ -1255,7 +1255,7 @@ impl GlobalObject {
         .map(IntoValue::into_value)
     }
 
-    /// #### [19.2.6.3 encodeURI ( uri )](https://tc39.es/ecma262/#sec-encodeuri-uri)
+    /// ### [19.2.6.3 encodeURI ( uri )](https://tc39.es/ecma262/#sec-encodeuri-uri)
     ///
     /// This function computes a new version of a UTF-16 encoded (6.1.4) URI in
     /// which each instance of certain code points is replaced by one, two,
@@ -1281,7 +1281,7 @@ impl GlobalObject {
         encode::<true>(agent, uri_string, gc).map(|c| c.into_value())
     }
 
-    /// #### [19.2.6.4 encodeURIComponent ( uriComponent )](https://tc39.es/ecma262/#sec-encodeuricomponent-uricomponent)
+    /// ### [19.2.6.4 encodeURIComponent ( uriComponent )](https://tc39.es/ecma262/#sec-encodeuricomponent-uricomponent)
     ///
     /// This function computes a new version of a UTF-16 encoded (6.1.4) URI in
     /// which each instance of certain code points is replaced by one, two,
@@ -1307,7 +1307,7 @@ impl GlobalObject {
         encode::<false>(agent, component_string, gc).map(|c| c.into_value())
     }
 
-    /// #### [B.2.1.1 escape ( string )](https://tc39.es/ecma262/#sec-escape-string)
+    /// ### [B.2.1.1 escape ( string )](https://tc39.es/ecma262/#sec-escape-string)
     ///
     /// This function is a property of the global object. It computes a new
     /// version of a String value in which certain code units have been
@@ -1399,7 +1399,7 @@ impl GlobalObject {
         Ok(String::from_wtf8_buf(agent, r, gc).into_value())
     }
 
-    /// #### [B.2.1.2 unescape ( string )](https://tc39.es/ecma262/#sec-unescape-string)
+    /// ### [B.2.1.2 unescape ( string )](https://tc39.es/ecma262/#sec-unescape-string)
     ///
     /// This function is a property of the global object. It computes a new
     /// version of a String value in which each escape sequence of the sort
@@ -1601,7 +1601,7 @@ fn encode<'a, const EXTRA_UNESCAPED: bool>(
     Ok(String::from_string(agent, r, gc))
 }
 
-/// #### [19.2.6.6 Decode ( string, preserveEscapeSet )](https://tc39.es/ecma262/#sec-decode)
+/// ### [19.2.6.6 Decode ( string, preserveEscapeSet )](https://tc39.es/ecma262/#sec-decode)
 ///
 /// The abstract operation Decode takes arguments string (a String) and
 /// preserveEscapeSet (a String) and returns either a normal completion

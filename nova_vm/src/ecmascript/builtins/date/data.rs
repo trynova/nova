@@ -11,7 +11,7 @@ use crate::{
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
-/// #### [21.4.1.1 Time Values and Time Range](https://tc39.es/ecma262/#sec-time-values-and-time-range)
+/// ### [21.4.1.1 Time Values and Time Range](https://tc39.es/ecma262/#sec-time-values-and-time-range)
 ///
 /// A Number can exactly represent all integers from -9,007,199,254,740,992
 /// to 9,007,199,254,740,992 (21.1.2.8 and 21.1.2.6). A time value supports
@@ -53,7 +53,7 @@ impl DateValue {
     }
 }
 
-/// #### [21.4.1.31 TimeClip ( time )](https://tc39.es/ecma262/#sec-timeclip)
+/// ### [21.4.1.31 TimeClip ( time )](https://tc39.es/ecma262/#sec-timeclip)
 ///
 /// The abstract operation TimeClip takes argument time (a Number) and returns
 /// a Number. It calculates a number of milliseconds.

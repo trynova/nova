@@ -3050,7 +3050,7 @@ pub(super) fn execute_import_meta(agent: &mut Agent, vm: &mut Vm, gc: NoGcScope)
     vm.result = Some(import_meta.into_value().unbind());
 }
 
-/// #### [13.5.1.2 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-delete-operator-runtime-semantics-evaluation)
+/// ### [13.5.1.2 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-delete-operator-runtime-semantics-evaluation)
 pub(super) fn execute_delete<'a>(
     agent: &mut Agent,
     vm: &mut Vm,

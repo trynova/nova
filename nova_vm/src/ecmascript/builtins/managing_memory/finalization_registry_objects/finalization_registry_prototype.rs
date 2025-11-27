@@ -97,7 +97,7 @@ impl FinalizationRegistryPrototype {
         Ok(Value::Undefined)
     }
 
-    /// #### [26.2.3.3 FinalizationRegistry.prototype.unregister ( unregisterToken )](https://tc39.es/ecma262/#sec-finalization-registry.prototype.unregister)
+    /// ### [26.2.3.3 FinalizationRegistry.prototype.unregister ( unregisterToken )](https://tc39.es/ecma262/#sec-finalization-registry.prototype.unregister)
     fn unregister<'gc>(
         agent: &mut Agent,
         this_value: Value,

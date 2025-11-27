@@ -151,7 +151,7 @@ impl TryFrom<&num_bigint::BigInt> for SmallBigInt {
     }
 }
 
-/// #### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
+/// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
 ///
 /// The BigInt type represents an integer value. The value may be any size and
 /// is not limited to a particular bit-width. Generally, where not otherwise
@@ -247,7 +247,7 @@ impl<'a> BigInt<'a> {
         }
     }
 
-    /// ##### [6.1.6.2.1 BigInt::unaryMinus ( x )](https://tc39.es/ecma262/#sec-numeric-types-bigint-unaryMinus)
+    /// ### [6.1.6.2.1 BigInt::unaryMinus ( x )](https://tc39.es/ecma262/#sec-numeric-types-bigint-unaryMinus)
     ///
     /// The abstract operation BigInt::unaryMinus takes argument x (a BigInt)
     /// and returns a BigInt.
@@ -264,7 +264,7 @@ impl<'a> BigInt<'a> {
         }
     }
 
-    /// ##### [6.1.6.2.2 BigInt::bitwiseNOT ( x )](https://tc39.es/ecma262/#sec-numeric-types-bigint-bitwiseNOT)
+    /// ### [6.1.6.2.2 BigInt::bitwiseNOT ( x )](https://tc39.es/ecma262/#sec-numeric-types-bigint-bitwiseNOT)
     ///
     /// The abstract operation BigInt::bitwiseNOT takes argument x (a BigInt)
     /// and returns a BigInt. It returns the one's complement of x.
@@ -279,7 +279,7 @@ impl<'a> BigInt<'a> {
         }
     }
 
-    /// ##### [6.1.6.2.3 BigInt::exponentiate ( base, exponent )](https://tc39.es/ecma262/#sec-numeric-types-bigint-exponentiate)
+    /// ### [6.1.6.2.3 BigInt::exponentiate ( base, exponent )](https://tc39.es/ecma262/#sec-numeric-types-bigint-exponentiate)
     ///
     /// The abstract operation BigInt::exponentiate takes arguments base (a
     /// BigInt) and exponent (a BigInt) and returns either a normal completion
@@ -351,7 +351,7 @@ impl<'a> BigInt<'a> {
         // exponentiation.
     }
 
-    /// ##### [6.1.6.2.4 BigInt::multiply ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-multiply)
+    /// ### [6.1.6.2.4 BigInt::multiply ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-multiply)
     ///
     /// The abstract operation BigInt::multiply takes arguments x (a BigInt)
     /// and y (a BigInt) and returns a BigInt.
@@ -389,7 +389,7 @@ impl<'a> BigInt<'a> {
         }
     }
 
-    /// ##### [6.1.6.2.5 BigInt::divide ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-divide)
+    /// ### [6.1.6.2.5 BigInt::divide ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-divide)
     pub(crate) fn divide(
         agent: &mut Agent,
         x: Self,
@@ -436,7 +436,7 @@ impl<'a> BigInt<'a> {
         }
     }
 
-    /// ##### [6.1.6.2.6 BigInt::remainder ( n, d )](https://tc39.es/ecma262/#sec-numeric-types-bigint-remainder)
+    /// ### [6.1.6.2.6 BigInt::remainder ( n, d )](https://tc39.es/ecma262/#sec-numeric-types-bigint-remainder)
     ///
     /// The abstract operation BigInt::remainder takes arguments n (a BigInt)
     /// and d (a BigInt) and returns either a normal completion containing a
@@ -489,7 +489,7 @@ impl<'a> BigInt<'a> {
         }
     }
 
-    /// ##### [6.1.6.2.7 BigInt::add ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-add)
+    /// ### [6.1.6.2.7 BigInt::add ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-add)
     pub(crate) fn add(agent: &mut Agent, x: Self, y: Self) -> Self {
         match (x, y) {
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
@@ -514,7 +514,7 @@ impl<'a> BigInt<'a> {
         }
     }
 
-    /// ##### [6.1.6.2.8 BigInt::subtract ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-subtract)
+    /// ### [6.1.6.2.8 BigInt::subtract ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-subtract)
     pub(crate) fn subtract(agent: &mut Agent, x: Self, y: Self) -> Self {
         match (x, y) {
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
@@ -540,7 +540,7 @@ impl<'a> BigInt<'a> {
         }
     }
 
-    /// ##### [6.1.6.2.9 BigInt::leftShift ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-leftShift)
+    /// ### [6.1.6.2.9 BigInt::leftShift ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-leftShift)
     ///
     /// The abstract operation BigInt::leftShift takes arguments x (a BigInt)
     /// and y (a BigInt) and returns a BigInt.
@@ -581,7 +581,7 @@ impl<'a> BigInt<'a> {
         }
     }
 
-    /// ##### [6.1.6.2.10 BigInt::signedRightShift ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-signedRightShift)
+    /// ### [6.1.6.2.10 BigInt::signedRightShift ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-signedRightShift)
     ///
     /// The abstract operation BigInt::signedRightShift takes arguments x (a BigInt)
     /// and y (a BigInt) and returns a BigInt.
@@ -619,7 +619,7 @@ impl<'a> BigInt<'a> {
         }
     }
 
-    /// ##### [6.1.6.2.11 BigInt::unsignedRightShift ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-unsignedRightShift)
+    /// ### [6.1.6.2.11 BigInt::unsignedRightShift ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-unsignedRightShift)
     ///
     /// The abstract operation BigInt::unsignedRightShift takes arguments x (a BigInt)
     /// and y (a BigInt) and returns a throw completion.
@@ -636,7 +636,7 @@ impl<'a> BigInt<'a> {
         ))
     }
 
-    /// ##### [6.1.6.2.12 BigInt::lessThan ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-lessThan)
+    /// ### [6.1.6.2.12 BigInt::lessThan ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-lessThan)
     ///
     /// The abstract operation BigInt::lessThan takes arguments x (a BigInt)
     /// and y (a BigInt) and returns a Boolean.
@@ -654,7 +654,7 @@ impl<'a> BigInt<'a> {
         }
     }
 
-    /// ##### [6.1.6.2.13 BigInt::equal ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-equal)
+    /// ### [6.1.6.2.13 BigInt::equal ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-equal)
     ///
     /// The abstract operation BigInt::equal takes arguments x (a BigInt) and y
     /// (a BigInt) and returns a Boolean.
@@ -671,7 +671,7 @@ impl<'a> BigInt<'a> {
         }
     }
 
-    /// ##### [6.1.6.2.18 BigInt::bitwiseAND ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-bitwiseAND)
+    /// ### [6.1.6.2.18 BigInt::bitwiseAND ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-bitwiseAND)
     ///
     /// The abstract operation BigInt::bitwiseAND takes arguments x (a BigInt)
     /// and y (a BigInt) and returns a BigInt.
@@ -679,7 +679,7 @@ impl<'a> BigInt<'a> {
         bigint_bitwise_op!(agent, x, y, BitAnd::bitand)
     }
 
-    /// ##### [6.1.6.2.19 BigInt::bitwiseXOR ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-bitwiseXOR)
+    /// ### [6.1.6.2.19 BigInt::bitwiseXOR ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-bitwiseXOR)
     ///
     /// The abstract operation BigInt::bitwiseXOR takes arguments x (a BigInt)
     /// and y (a BigInt) and returns a BigInt.
@@ -687,7 +687,7 @@ impl<'a> BigInt<'a> {
         bigint_bitwise_op!(agent, x, y, BitXor::bitxor)
     }
 
-    /// ##### [6.1.6.2.20 BigInt::bitwiseOR ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-bitwiseOR)
+    /// ### [6.1.6.2.20 BigInt::bitwiseOR ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-bitwiseOR)
     ///
     /// The abstract operation BigInt::bitwiseOR takes arguments x (a BigInt)
     /// and y (a BigInt) and returns a BigInt.

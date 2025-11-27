@@ -14,7 +14,7 @@ use crate::{
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
-/// #### [9.1.1.1 Declarative Environment Records](https://tc39.es/ecma262/#sec-declarative-environment-records)
+/// ### [9.1.1.1 Declarative Environment Records](https://tc39.es/ecma262/#sec-declarative-environment-records)
 ///
 /// A Declarative Environment Record is used to define the effect of ECMAScript
 /// language syntactic elements such as FunctionDeclarations,
@@ -41,7 +41,7 @@ pub(crate) struct Binding {
 }
 
 impl DeclarativeEnvironmentRecord {
-    /// #### [9.1.2.2 NewDeclarativeEnvironment ( E )](https://tc39.es/ecma262/#sec-newdeclarativeenvironment)
+    /// ### [9.1.2.2 NewDeclarativeEnvironment ( E )](https://tc39.es/ecma262/#sec-newdeclarativeenvironment)
     ///
     /// The abstract operation NewDeclarativeEnvironment takes argument E (an
     /// Environment Record or null) and returns a Declarative Environment
@@ -56,13 +56,13 @@ impl DeclarativeEnvironmentRecord {
         }
     }
 
-    /// ##### [9.1.1.1.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-hasbinding-n)
+    /// ### [9.1.1.1.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-hasbinding-n)
     pub(super) fn has_binding(&self, name: String) -> bool {
         // 1. If envRec has a binding for N, return true.
         // 2. Return false.
         self.bindings.contains_key(&name)
     }
-    /// ##### [9.1.1.1.2 CreateMutableBinding ( N, D )](https://tc39.es/ecma262/#sec-declarative-environment-records-createmutablebinding-n-d)
+    /// ### [9.1.1.1.2 CreateMutableBinding ( N, D )](https://tc39.es/ecma262/#sec-declarative-environment-records-createmutablebinding-n-d)
     pub(super) fn create_mutable_binding(&mut self, name: String, is_deletable: bool) {
         // 1. Assert: envRec does not already have a binding for N.
         assert!(!self.has_binding(name));
@@ -83,7 +83,7 @@ impl DeclarativeEnvironmentRecord {
 
         // 3. Return UNUSED.
     }
-    /// ##### [9.1.1.1.3 CreateImmutableBinding ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-createimmutablebinding-n-s)
+    /// ### [9.1.1.1.3 CreateImmutableBinding ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-createimmutablebinding-n-s)
     pub(super) fn create_immutable_binding(&mut self, name: String, is_strict: bool) {
         // 1. Assert: envRec does not already have a binding for N.
         debug_assert!(!self.has_binding(name));
@@ -103,7 +103,7 @@ impl DeclarativeEnvironmentRecord {
 
         // 3. Return UNUSED.
     }
-    /// ##### [9.1.1.1.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-declarative-environment-records-initializebinding-n-v)
+    /// ### [9.1.1.1.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-declarative-environment-records-initializebinding-n-v)
     pub(super) fn initialize_binding(&mut self, name: String, value: Value) {
         // 1. Assert: envRec must have an uninitialized binding for N.
         let binding = self.bindings.get_mut(&name.unbind()).unwrap();
@@ -117,7 +117,7 @@ impl DeclarativeEnvironmentRecord {
         // 4. Return UNUSED.
     }
 
-    /// ##### [9.1.1.1.6 GetBindingValue ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-getbindingvalue-n-s)
+    /// ### [9.1.1.1.6 GetBindingValue ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-getbindingvalue-n-s)
     pub(super) fn get_binding_value(
         &self,
         name: String,
@@ -146,7 +146,7 @@ impl DeclarativeEnvironmentRecord {
         self.bindings.get_mut(&name.unbind())
     }
 
-    /// ##### [9.1.1.1.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-deletebinding-n)
+    /// ### [9.1.1.1.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-deletebinding-n)
     pub(super) fn delete_binding(&mut self, name: String) -> bool {
         // 1. Assert: envRec has a binding for N.
         let binding = self.bindings.get(&name).unwrap();
@@ -211,7 +211,7 @@ impl<'e> DeclarativeEnvironment<'e> {
         agent[self].outer_env
     }
 
-    /// ##### [9.1.1.1.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-hasbinding-n)
+    /// ### [9.1.1.1.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-hasbinding-n)
     ///
     /// The HasBinding concrete method of a Declarative Environment Record
     /// envRec takes argument N (a String) and returns a normal completion
@@ -223,7 +223,7 @@ impl<'e> DeclarativeEnvironment<'e> {
         env_rec.has_binding(name)
     }
 
-    /// ##### [9.1.1.1.2 CreateMutableBinding ( N, D )](https://tc39.es/ecma262/#sec-declarative-environment-records-createmutablebinding-n-d)
+    /// ### [9.1.1.1.2 CreateMutableBinding ( N, D )](https://tc39.es/ecma262/#sec-declarative-environment-records-createmutablebinding-n-d)
     ///
     /// The CreateMutableBinding concrete method of a Declarative Environment
     /// Record envRec takes arguments N (a String) and D (a Boolean) and
@@ -237,7 +237,7 @@ impl<'e> DeclarativeEnvironment<'e> {
         env_rec.create_mutable_binding(name, is_deletable);
     }
 
-    /// ##### [9.1.1.1.3 CreateImmutableBinding ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-createimmutablebinding-n-s)
+    /// ### [9.1.1.1.3 CreateImmutableBinding ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-createimmutablebinding-n-s)
     ///
     /// The CreateImmutableBinding concrete method of a Declarative Environment
     /// Record envRec takes arguments N (a String) and S (a Boolean) and
@@ -251,7 +251,7 @@ impl<'e> DeclarativeEnvironment<'e> {
         env_rec.create_immutable_binding(name, is_strict);
     }
 
-    /// ##### [9.1.1.1.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-declarative-environment-records-initializebinding-n-v)
+    /// ### [9.1.1.1.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-declarative-environment-records-initializebinding-n-v)
     ///
     /// The InitializeBinding concrete method of a Declarative Environment
     /// Record envRec takes arguments N (a String) and V (an ECMAScript
@@ -265,7 +265,7 @@ impl<'e> DeclarativeEnvironment<'e> {
         env_rec.initialize_binding(name, value)
     }
 
-    /// ##### [9.1.1.1.5 SetMutableBinding ( N, V, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-setmutablebinding-n-v-s)
+    /// ### [9.1.1.1.5 SetMutableBinding ( N, V, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-setmutablebinding-n-v-s)
     ///
     /// The SetMutableBinding concrete method of a Declarative Environment
     /// Record envRec takes arguments N (a String), V (an ECMAScript language
@@ -348,7 +348,7 @@ impl<'e> DeclarativeEnvironment<'e> {
         Ok(())
     }
 
-    /// ##### [9.1.1.1.6 GetBindingValue ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-getbindingvalue-n-s)
+    /// ### [9.1.1.1.6 GetBindingValue ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-getbindingvalue-n-s)
     ///
     /// The GetBindingValue concrete method of a Declarative Environment Record
     /// envRec takes arguments N (a String) and S (a Boolean) and returns
@@ -401,7 +401,7 @@ impl<'e> DeclarativeEnvironment<'e> {
             .get_binding_mut(name)
     }
 
-    /// ##### [9.1.1.1.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-deletebinding-n)
+    /// ### [9.1.1.1.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-deletebinding-n)
     ///
     /// The DeleteBinding concrete method of a Declarative Environment Record
     /// envRec takes argument N (a String) and returns a normal completion
@@ -426,7 +426,7 @@ impl HeapMarkAndSweep for DeclarativeEnvironment<'static> {
     }
 }
 
-/// #### [9.1.2.2 NewDeclarativeEnvironment ( E )](https://tc39.es/ecma262/#sec-newdeclarativeenvironment)
+/// ### [9.1.2.2 NewDeclarativeEnvironment ( E )](https://tc39.es/ecma262/#sec-newdeclarativeenvironment)
 ///
 /// The abstract operation NewDeclarativeEnvironment takes argument E (an
 /// Environment Record or null) and returns a Declarative Environment

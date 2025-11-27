@@ -308,7 +308,7 @@ impl Builtin for DatePrototypeToPrimitive {
 }
 
 impl DatePrototype {
-    /// #### [21.4.4.2 Date.prototype.getDate ( )](https://tc39.es/ecma262/#sec-date.prototype.getdate)
+    /// ### [21.4.4.2 Date.prototype.getDate ( )](https://tc39.es/ecma262/#sec-date.prototype.getdate)
     fn get_date<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -332,7 +332,7 @@ impl DatePrototype {
         ))
     }
 
-    /// #### [21.4.4.3 Date.prototype.getDay ( )](https://tc39.es/ecma262/#sec-date.prototype.getday)
+    /// ### [21.4.4.3 Date.prototype.getDay ( )](https://tc39.es/ecma262/#sec-date.prototype.getday)
     fn get_day<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -356,7 +356,7 @@ impl DatePrototype {
         ))
     }
 
-    /// #### [21.4.4.4 Date.prototype.getFullYear ( )](https://tc39.es/ecma262/#sec-date.prototype.getfullyear)
+    /// ### [21.4.4.4 Date.prototype.getFullYear ( )](https://tc39.es/ecma262/#sec-date.prototype.getfullyear)
     fn get_full_year<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -380,7 +380,7 @@ impl DatePrototype {
         ))
     }
 
-    /// #### [21.4.4.5 Date.prototype.getHours ( )](https://tc39.es/ecma262/#sec-date.prototype.gethours)
+    /// ### [21.4.4.5 Date.prototype.getHours ( )](https://tc39.es/ecma262/#sec-date.prototype.gethours)
     fn get_hours<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -404,7 +404,7 @@ impl DatePrototype {
         ))
     }
 
-    /// #### [21.4.4.6 Date.prototype.getMilliseconds ( )](https://tc39.es/ecma262/#sec-date.prototype.getmilliseconds)
+    /// ### [21.4.4.6 Date.prototype.getMilliseconds ( )](https://tc39.es/ecma262/#sec-date.prototype.getmilliseconds)
     fn get_milliseconds<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -428,7 +428,7 @@ impl DatePrototype {
         ))
     }
 
-    /// #### [21.4.4.7 Date.prototype.getMinutes ( )](https://tc39.es/ecma262/#sec-date.prototype.getminutes)
+    /// ### [21.4.4.7 Date.prototype.getMinutes ( )](https://tc39.es/ecma262/#sec-date.prototype.getminutes)
     fn get_minutes<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -452,7 +452,7 @@ impl DatePrototype {
         ))
     }
 
-    /// #### [21.4.4.8 Date.prototype.getMonth ( )](https://tc39.es/ecma262/#sec-date.prototype.getmonth)
+    /// ### [21.4.4.8 Date.prototype.getMonth ( )](https://tc39.es/ecma262/#sec-date.prototype.getmonth)
     fn get_month<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -476,7 +476,7 @@ impl DatePrototype {
         ))
     }
 
-    /// #### [21.4.4.9 Date.prototype.getSeconds ( )](https://tc39.es/ecma262/#sec-date.prototype.getseconds)
+    /// ### [21.4.4.9 Date.prototype.getSeconds ( )](https://tc39.es/ecma262/#sec-date.prototype.getseconds)
     fn get_seconds<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -500,7 +500,7 @@ impl DatePrototype {
         ))
     }
 
-    /// #### [21.4.4.10 Date.prototype.getTime ( )](https://tc39.es/ecma262/#sec-date.prototype.gettime)
+    /// ### [21.4.4.10 Date.prototype.getTime ( )](https://tc39.es/ecma262/#sec-date.prototype.gettime)
     fn get_time<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -538,7 +538,7 @@ impl DatePrototype {
         Ok(Value::from_f64(agent, result, gc.into_nogc()))
     }
 
-    /// #### [21.4.4.20 Date.prototype.setDate ( date )](https://tc39.es/ecma262/#sec-date.prototype.setdate)
+    /// ### [21.4.4.20 Date.prototype.setDate ( date )](https://tc39.es/ecma262/#sec-date.prototype.setdate)
     fn set_date<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -725,7 +725,7 @@ impl DatePrototype {
         Ok(u.into_value())
     }
 
-    /// #### [21.4.4.23 Date.prototype.setMilliseconds ( ms )](https://tc39.es/ecma262/#sec-date.prototype.setmilliseconds)
+    /// ### [21.4.4.23 Date.prototype.setMilliseconds ( ms )](https://tc39.es/ecma262/#sec-date.prototype.setmilliseconds)
     fn set_milliseconds<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -948,7 +948,7 @@ impl DatePrototype {
         Ok(u.into_value())
     }
 
-    /// #### [21.4.4.27 Date.prototype.setTime ( time )](https://tc39.es/ecma262/#sec-date.prototype.settime)
+    /// ### [21.4.4.27 Date.prototype.setTime ( time )](https://tc39.es/ecma262/#sec-date.prototype.settime)
     fn set_time<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -974,7 +974,7 @@ impl DatePrototype {
         Ok(v.into_value())
     }
 
-    /// #### [21.4.4.35 Date.prototype.toDateString ( )](https://tc39.es/ecma262/#sec-date.prototype.todatestring)
+    /// ### [21.4.4.35 Date.prototype.toDateString ( )](https://tc39.es/ecma262/#sec-date.prototype.todatestring)
     fn to_date_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1002,7 +1002,7 @@ impl DatePrototype {
         Ok(Value::from_string(agent, date_string(t), gc.into_nogc()))
     }
 
-    /// #### [21.4.4.36 Date.prototype.toISOString ( )](https://tc39.es/ecma262/#sec-date.prototype.toisostring)
+    /// ### [21.4.4.36 Date.prototype.toISOString ( )](https://tc39.es/ecma262/#sec-date.prototype.toisostring)
     fn to_iso_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1043,7 +1043,7 @@ impl DatePrototype {
         Ok(Value::from_string(agent, date_string, gc.into_nogc()))
     }
 
-    /// #### [21.4.4.37 Date.prototype.toJSON ( key )](https://tc39.es/ecma262/#sec-date.prototype.tojson)
+    /// ### [21.4.4.37 Date.prototype.toJSON ( key )](https://tc39.es/ecma262/#sec-date.prototype.tojson)
     ///
     /// This method provides a String representation of a Date for use
     /// by JSON.stringify (25.5.2).
@@ -1154,7 +1154,7 @@ impl DatePrototype {
         Err(agent.todo("Date.prototype.toLocaleTimeString", gc.into_nogc()))
     }
 
-    /// #### [21.4.4.41 Date.prototype.toString ( )](https://tc39.es/ecma262/#sec-date.prototype.tostring)
+    /// ### [21.4.4.41 Date.prototype.toString ( )](https://tc39.es/ecma262/#sec-date.prototype.tostring)
     ///
     /// > NOTE 1: For any Date d such that d.[[DateValue]] is evenly divisible
     /// > by 1000, the result of Date.parse(d.toString()) = d.valueOf(). See
@@ -1181,7 +1181,7 @@ impl DatePrototype {
         Ok(Value::from_string(agent, s, gc.into_nogc()))
     }
 
-    /// #### [21.4.4.42 Date.prototype.toTimeString ( )](https://tc39.es/ecma262/#sec-date.prototype.totimestring)
+    /// ### [21.4.4.42 Date.prototype.toTimeString ( )](https://tc39.es/ecma262/#sec-date.prototype.totimestring)
     fn to_time_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1213,7 +1213,7 @@ impl DatePrototype {
         ))
     }
 
-    /// #### [21.4.4.43 Date.prototype.toUTCString ( )](https://tc39.es/ecma262/#sec-date.prototype.toutcstring)
+    /// ### [21.4.4.43 Date.prototype.toUTCString ( )](https://tc39.es/ecma262/#sec-date.prototype.toutcstring)
     ///
     /// This method returns a String value representing the instant in time
     /// corresponding to the this value. The format of the String is based upon
@@ -1288,7 +1288,7 @@ impl DatePrototype {
         ))
     }
 
-    /// #### [21.4.4.44 Date.prototype.valueOf ( )](https://tc39.es/ecma262/#sec-date.prototype.valueof)
+    /// ### [21.4.4.44 Date.prototype.valueOf ( )](https://tc39.es/ecma262/#sec-date.prototype.valueof)
     fn value_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1440,7 +1440,7 @@ fn require_internal_slot_date<'a>(
     }
 }
 
-/// #### [21.4.1.2 Time-related Constants](https://tc39.es/ecma262/#sec-time-related-constants)
+/// ### [21.4.1.2 Time-related Constants](https://tc39.es/ecma262/#sec-time-related-constants)
 /// These constants are referenced by algorithms in the following sections.
 /// HoursPerDay = 24
 const HOURS_PER_DAY: f64 = 24.0;
@@ -1457,7 +1457,7 @@ const MS_PER_HOUR: f64 = MS_PER_MINUTE * MINUTES_PER_HOUR;
 /// msPerDay = 86400000𝔽 = msPerHour × 𝔽(HoursPerDay)
 const MS_PER_DAY: f64 = MS_PER_HOUR * HOURS_PER_DAY;
 
-/// #### [21.4.1.3 Day ( t )](https://tc39.es/ecma262/#sec-day)
+/// ### [21.4.1.3 Day ( t )](https://tc39.es/ecma262/#sec-day)
 ///
 /// The abstract operation Day takes argument t (a finite time value) and
 /// returns an integral Number. It returns the day number of the day in which t falls.
@@ -1466,7 +1466,7 @@ fn day(t: f64) -> f64 {
     (t / MS_PER_DAY).floor()
 }
 
-/// #### [21.4.1.4 TimeWithinDay ( t )](https://tc39.es/ecma262/#sec-timewithinday)
+/// ### [21.4.1.4 TimeWithinDay ( t )](https://tc39.es/ecma262/#sec-timewithinday)
 ///
 /// The abstract operation TimeWithinDay takes argument t (a finite time value)
 /// and returns an integral Number in the interval from +0𝔽 (inclusive) to
@@ -1477,7 +1477,7 @@ fn time_within_day(t: f64) -> f64 {
     t.rem_euclid(MS_PER_DAY)
 }
 
-/// #### [21.4.1.5 DaysInYear ( y )](https://tc39.es/ecma262/#sec-daysinyear)
+/// ### [21.4.1.5 DaysInYear ( y )](https://tc39.es/ecma262/#sec-daysinyear)
 ///
 /// The abstract operation DaysInYear takes argument y (an integral Number) and
 /// returns 365𝔽 or 366𝔽. It returns the number of days in year y. Leap years
@@ -1501,7 +1501,7 @@ fn days_in_year(y: i32) -> u16 {
     365
 }
 
-/// #### [21.4.1.6 DayFromYear ( y )](https://tc39.es/ecma262/#sec-dayfromyear)
+/// ### [21.4.1.6 DayFromYear ( y )](https://tc39.es/ecma262/#sec-dayfromyear)
 ///
 /// The abstract operation DayFromYear takes argument y (an integral Number)
 /// and returns an integral Number. It returns the day number of the first day
@@ -1531,7 +1531,7 @@ fn day_from_year(y: f64) -> f64 {
     365.0 * num_years_1 + num_years_4 - num_years_100 + num_years_400
 }
 
-/// #### [21.4.1.7 TimeFromYear ( y )](https://tc39.es/ecma262/#sec-timefromyear)
+/// ### [21.4.1.7 TimeFromYear ( y )](https://tc39.es/ecma262/#sec-timefromyear)
 ///
 /// The abstract operation TimeFromYear takes argument y (an integral Number)
 /// and returns a time value. It returns the time value of the start of year y.
@@ -1540,7 +1540,7 @@ fn time_from_year(y: f64) -> f64 {
     MS_PER_DAY * day_from_year(y)
 }
 
-/// #### [21.4.1.8 YearFromTime ( t )](https://tc39.es/ecma262/#sec-yearfromtime)
+/// ### [21.4.1.8 YearFromTime ( t )](https://tc39.es/ecma262/#sec-yearfromtime)
 ///
 /// Ported from Boa JS engine. Source https://github.com/boa-dev/boa/blob/13a030a0aa452e6f78e4a7e8bbc0e11b878bbd58/core/engine/src/builtins/date/utils.rs#L133
 ///
@@ -1560,7 +1560,7 @@ fn year_from_time(t: f64) -> i32 {
     year
 }
 
-/// #### [21.4.1.9 DayWithinYear ( t )](https://tc39.es/ecma262/#sec-daywithinyear)
+/// ### [21.4.1.9 DayWithinYear ( t )](https://tc39.es/ecma262/#sec-daywithinyear)
 ///
 /// The abstract operation DayWithinYear takes argument t (a finite time value)
 /// and returns an integral Number in the inclusive interval from +0𝔽 to 365𝔽.
@@ -1569,7 +1569,7 @@ fn day_within_year(t: f64) -> u16 {
     (day(t) - day_from_year(year_from_time(t).into())) as u16
 }
 
-/// #### [21.4.1.10 InLeapYear ( t )](https://tc39.es/ecma262/#sec-inleapyear)
+/// ### [21.4.1.10 InLeapYear ( t )](https://tc39.es/ecma262/#sec-inleapyear)
 ///
 /// The abstract operation InLeapYear takes argument t (a finite time value)
 /// and returns +0𝔽 or 1𝔽. It returns 1𝔽 if t is within a leap year and +0𝔽 otherwise.
@@ -1582,7 +1582,7 @@ fn in_leap_year(t: f64) -> u16 {
     }
 }
 
-/// #### [21.4.1.11 MonthFromTime ( t )](https://tc39.es/ecma262/#sec-monthfromtime)
+/// ### [21.4.1.11 MonthFromTime ( t )](https://tc39.es/ecma262/#sec-monthfromtime)
 ///
 /// The abstract operation MonthFromTime takes argument t (a finite time value)
 /// and returns an integral Number in the inclusive interval from +0𝔽 to 11𝔽.
@@ -1629,7 +1629,7 @@ fn month_from_time(t: f64) -> u8 {
     }
 }
 
-/// #### [21.4.1.12 DateFromTime ( t )](https://tc39.es/ecma262/#sec-datefromtime)
+/// ### [21.4.1.12 DateFromTime ( t )](https://tc39.es/ecma262/#sec-datefromtime)
 ///
 /// The abstract operation DateFromTime takes argument t (a finite time value)
 /// and returns an integral Number in the inclusive interval from 1𝔽 to 31𝔽.
@@ -1674,7 +1674,7 @@ fn date_from_time(t: f64) -> u8 {
     date as u8
 }
 
-/// #### [21.4.1.13 WeekDay ( t )](https://tc39.es/ecma262/#sec-weekday)
+/// ### [21.4.1.13 WeekDay ( t )](https://tc39.es/ecma262/#sec-weekday)
 ///
 /// The abstract operation WeekDay takes argument t (a finite time value) and
 /// returns an integral Number in the inclusive interval from +0𝔽 to 6𝔽.
@@ -1688,7 +1688,7 @@ fn week_day(t: f64) -> u8 {
     (day(t) + 4.0).rem_euclid(7.0) as u8
 }
 
-/// #### [21.4.1.14 HourFromTime ( t )](https://tc39.es/ecma262/#sec-hourfromtime)
+/// ### [21.4.1.14 HourFromTime ( t )](https://tc39.es/ecma262/#sec-hourfromtime)
 ///
 /// The abstract operation HourFromTime takes argument t (a finite time value)
 /// and returns an integral Number in the inclusive interval from +0𝔽 to 23𝔽.
@@ -1698,7 +1698,7 @@ fn hour_from_time(t: f64) -> u8 {
     ((t / MS_PER_HOUR).floor()).rem_euclid(HOURS_PER_DAY) as u8
 }
 
-/// #### [21.4.1.15 MinFromTime ( t )](https://tc39.es/ecma262/#sec-minfromtime)
+/// ### [21.4.1.15 MinFromTime ( t )](https://tc39.es/ecma262/#sec-minfromtime)
 ///
 /// The abstract operation MinFromTime takes argument t (a finite time value)
 /// and returns an integral Number in the inclusive interval from +0𝔽 to 59𝔽.
@@ -1708,7 +1708,7 @@ pub(super) fn min_from_time(t: f64) -> u8 {
     ((t / MS_PER_MINUTE).floor()).rem_euclid(MINUTES_PER_HOUR) as u8
 }
 
-/// #### [21.4.1.16 SecFromTime ( t )](https://tc39.es/ecma262/#sec-secfrotime)
+/// ### [21.4.1.16 SecFromTime ( t )](https://tc39.es/ecma262/#sec-secfrotime)
 ///
 /// The abstract operation SecFromTime takes argument t (a finite time value)
 /// and returns an integral Number in the inclusive interval from +0𝔽 to 59𝔽.
@@ -1718,7 +1718,7 @@ fn sec_from_time(t: f64) -> u8 {
     ((t / MS_PER_SECOND).floor()).rem_euclid(SECONDS_PER_MINUTE) as u8
 }
 
-/// #### [21.4.1.17 msFromTime ( t )](https://tc39.es/ecma262/#sec-msfromtime)
+/// ### [21.4.1.17 msFromTime ( t )](https://tc39.es/ecma262/#sec-msfromtime)
 ///
 /// The abstract operation msFromTime takes argument t (a finite time value)
 /// and returns an integral Number in the inclusive interval from +0𝔽 to 999𝔽.
@@ -1728,7 +1728,7 @@ fn ms_from_time(t: f64) -> u16 {
     (t.rem_euclid(MS_PER_SECOND)) as u16
 }
 
-/// #### [21.4.1.18 GetUTCEpochNanoseconds ( year, month, day, hour, minute, second, millisecond, microsecond, nanosecond )](https://tc39.es/ecma262/#sec-getutcepochnanoseconds)
+/// ### [21.4.1.18 GetUTCEpochNanoseconds ( year, month, day, hour, minute, second, millisecond, microsecond, nanosecond )](https://tc39.es/ecma262/#sec-getutcepochnanoseconds)
 ///
 /// The abstract operation GetUTCEpochNanoseconds takes arguments year
 /// (an integer), month (an integer in the inclusive interval from 1 to 12),
@@ -1770,7 +1770,7 @@ fn get_utc_epoch_nanoseconds(
     (ms * 1e6 + (microsecond as f64) * 1e3 + (nanosecond as f64)) as i64
 }
 
-/// #### [21.4.1.20 GetNamedTimeZoneEpochNanoseconds ( timeZoneIdentifier, year, month, day, hour, minute, second, millisecond, microsecond, nanosecond )](https://tc39.es/ecma262/#sec-getnamedtimezoneepochnanoseconds)
+/// ### [21.4.1.20 GetNamedTimeZoneEpochNanoseconds ( timeZoneIdentifier, year, month, day, hour, minute, second, millisecond, microsecond, nanosecond )](https://tc39.es/ecma262/#sec-getnamedtimezoneepochnanoseconds)
 ///
 /// The implementation-defined abstract operation
 /// GetNamedTimeZoneEpochNanoseconds takes arguments timeZoneIdentifier (a
@@ -1845,7 +1845,7 @@ fn get_named_time_zone_epoch_nanoseconds(
     [epoch_nanoseconds]
 }
 
-/// #### [21.4.1.21 GetNamedTimeZoneOffsetNanoseconds ( timeZoneIdentifier, epochNanoseconds )](https://tc39.es/ecma262/#sec-getnamedtimezoneoffsetnanoseconds)
+/// ### [21.4.1.21 GetNamedTimeZoneOffsetNanoseconds ( timeZoneIdentifier, epochNanoseconds )](https://tc39.es/ecma262/#sec-getnamedtimezoneoffsetnanoseconds)
 ///
 /// The implementation-defined abstract operation
 /// GetNamedTimeZoneOffsetNanoseconds takes arguments timeZoneIdentifier (a
@@ -1870,7 +1870,7 @@ fn get_named_time_zone_offset_nanoseconds(
     0.0
 }
 
-/// #### [21.4.1.24 SystemTimeZoneIdentifier ( )](https://tc39.es/ecma262/#sec-systemtimezoneidentifier)
+/// ### [21.4.1.24 SystemTimeZoneIdentifier ( )](https://tc39.es/ecma262/#sec-systemtimezoneidentifier)
 ///
 /// The implementation-defined abstract operation SystemTimeZoneIdentifier
 /// takes no arguments and returns a String. It returns a String representing
@@ -1899,7 +1899,7 @@ fn system_time_zone_identifier(_agent: &Agent) -> &'static str {
     "UTC"
 }
 
-/// #### [21.4.1.25 LocalTime ( t )](https://tc39.es/ecma262/#sec-localtime)
+/// ### [21.4.1.25 LocalTime ( t )](https://tc39.es/ecma262/#sec-localtime)
 ///
 /// The abstract operation LocalTime takes argument t (a finite time value) and
 /// returns an integral Number. It converts t from UTC to local time. The local
@@ -1948,7 +1948,7 @@ fn local_or_utc_time<const UTC: bool>(agent: &mut Agent, t: f64) -> f64 {
     if UTC { t } else { local_time(agent, t) }
 }
 
-/// #### [21.4.1.26 UTC ( t )](https://tc39.es/ecma262/#sec-utc-t)
+/// ### [21.4.1.26 UTC ( t )](https://tc39.es/ecma262/#sec-utc-t)
 ///
 /// The abstract operation UTC takes argument t (a Number) and returns a time
 /// value. It converts t from local time to a UTC time value. The local
@@ -2050,7 +2050,7 @@ pub(super) fn utc(agent: &Agent, t: f64) -> f64 {
     t - offset_ms
 }
 
-/// #### [21.4.1.27 MakeTime ( hour, min, sec, ms )](https://tc39.es/ecma262/#sec-maketime)
+/// ### [21.4.1.27 MakeTime ( hour, min, sec, ms )](https://tc39.es/ecma262/#sec-maketime)
 ///
 /// The abstract operation MakeTime takes arguments hour (a Number),
 /// min (a Number), sec (a Number), and ms (a Number) and returns a Number.
@@ -2085,7 +2085,7 @@ pub(super) fn make_time(hour: f64, min: f64, sec: f64, ms: f64) -> f64 {
     ((h * MS_PER_HOUR + m * MS_PER_MINUTE) + s * MS_PER_SECOND) + milli
 }
 
-/// #### [21.4.1.28 MakeDay ( year, month, date )](https://tc39.es/ecma262/#sec-makeday)
+/// ### [21.4.1.28 MakeDay ( year, month, date )](https://tc39.es/ecma262/#sec-makeday)
 ///
 /// Ported from Boa JS engine. Source https://github.com/boa-dev/boa/blob/13a030a0aa452e6f78e4a7e8bbc0e11b878bbd58/core/engine/src/builtins/date/utils.rs#L368
 ///
@@ -2150,7 +2150,7 @@ pub(super) fn make_day(year: f64, month: f64, date: f64) -> f64 {
     day(t) + dt - 1.0
 }
 
-/// #### [21.4.1.29 MakeDate ( day, time )](https://tc39.es/ecma262/#sec-makedate)
+/// ### [21.4.1.29 MakeDate ( day, time )](https://tc39.es/ecma262/#sec-makedate)
 ///
 /// The abstract operation MakeDate takes arguments day (a Number) and time (a Number)
 /// and returns a Number. It calculates a number of milliseconds.
@@ -2172,7 +2172,7 @@ pub(super) fn make_date(day: f64, time: f64) -> f64 {
     tv
 }
 
-/// #### [21.4.1.30 MakeFullYear ( year )](https://tc39.es/ecma262/#sec-makefullyear)
+/// ### [21.4.1.30 MakeFullYear ( year )](https://tc39.es/ecma262/#sec-makefullyear)
 ///
 /// The abstract operation MakeFullYear takes argument year (a Number) and
 /// returns an integral Number or NaN. It returns the full year associated with
@@ -2199,7 +2199,7 @@ pub(super) fn make_full_year(year: f64) -> f64 {
     truncated
 }
 
-/// ##### [21.4.1.33.1 IsTimeZoneOffsetString ( offsetString )](https://tc39.es/ecma262/#sec-istimezoneoffsetstring)
+/// ### [21.4.1.33.1 IsTimeZoneOffsetString ( offsetString )](https://tc39.es/ecma262/#sec-istimezoneoffsetstring)
 ///
 /// The abstract operation IsTimeZoneOffsetString takes argument offsetString
 /// (a String) and returns a Boolean. The return value indicates whether
@@ -2216,7 +2216,7 @@ fn is_time_zone_offset_string(_offset_string: &str) -> bool {
     true
 }
 
-/// ##### [21.4.1.33.2 ParseTimeZoneOffsetString ( offsetString )](https://tc39.es/ecma262/#sec-parsetimezoneoffsetstring)
+/// ### [21.4.1.33.2 ParseTimeZoneOffsetString ( offsetString )](https://tc39.es/ecma262/#sec-parsetimezoneoffsetstring)
 ///
 /// The abstract operation ParseTimeZoneOffsetString takes argument
 /// offsetString (a String) and returns an integer. The return value is the UTC
@@ -2256,7 +2256,7 @@ fn parse_time_zone_offset_string(_offset_string: &str) -> f64 {
     todo!()
 }
 
-/// ##### [21.4.4.41.1 TimeString ( tv )](https://tc39.es/ecma262/#sec-timestring)
+/// ### [21.4.4.41.1 TimeString ( tv )](https://tc39.es/ecma262/#sec-timestring)
 ///
 /// The abstract operation TimeString takes argument tv (a Number, but not NaN)
 /// and returns a String.
@@ -2271,7 +2271,7 @@ fn time_string(tv: f64) -> std::string::String {
     format!("{hour}:{minute}:{second} GMT")
 }
 
-/// ##### [21.4.4.41.2 DateString ( tv )](https://tc39.es/ecma262/#sec-datestring)
+/// ### [21.4.4.41.2 DateString ( tv )](https://tc39.es/ecma262/#sec-datestring)
 ///
 /// The abstract operation DateString takes argument tv (a Number, but not NaN)
 /// and returns a String.
@@ -2316,7 +2316,7 @@ fn date_string(tv: f64) -> std::string::String {
     format!("{weekday} {month} {day} {year_sign}{padded_year}")
 }
 
-/// ##### [21.4.4.41.3 TimeZoneString ( tv )](https://tc39.es/ecma262/#sec-timezoneestring)
+/// ### [21.4.4.41.3 TimeZoneString ( tv )](https://tc39.es/ecma262/#sec-timezoneestring)
 ///
 /// The abstract operation TimeZoneString takes argument tv (an integral
 /// Number) and returns a String.
@@ -2364,7 +2364,7 @@ fn time_zone_string(agent: &Agent, tv: f64) -> std::string::String {
     format!("{offset_sign}{offset_hour}{offset_min}{tz_name}")
 }
 
-/// ##### [21.4.4.41.4 ToDateString ( tv )](https://tc39.es/ecma262/#sec-todatestring)
+/// ### [21.4.4.41.4 ToDateString ( tv )](https://tc39.es/ecma262/#sec-todatestring)
 ///
 /// The abstract operation ToDateString takes argument tv (an integral Number
 /// or NaN) and returns a String.

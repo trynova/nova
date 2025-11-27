@@ -38,7 +38,7 @@ impl Builtin for WeakSetPrototypeHas {
 }
 
 impl WeakSetPrototype {
-    /// #### [24.4.3.1 WeakSet.prototype.add ( value )](https://tc39.es/ecma262/#sec-weakset.prototype.add)
+    /// ### [24.4.3.1 WeakSet.prototype.add ( value )](https://tc39.es/ecma262/#sec-weakset.prototype.add)
     pub(crate) fn add<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -66,7 +66,7 @@ impl WeakSetPrototype {
         Ok(s.into_value().unbind())
     }
 
-    /// #### [24.4.3.3 WeakSet.prototype.delete ( value )](https://tc39.es/ecma262/#sec-weakset.prototype.delete)
+    /// ### [24.4.3.3 WeakSet.prototype.delete ( value )](https://tc39.es/ecma262/#sec-weakset.prototype.delete)
     ///
     /// > Note: The value empty is used as a specification device to indicate
     /// > that an entry has been deleted. Actual implementations may take other
@@ -100,7 +100,7 @@ impl WeakSetPrototype {
         Ok(deleted.into_value())
     }
 
-    /// #### [24.4.3.4 WeakSet.prototype.has ( value )](https://tc39.es/ecma262/#sec-weakset.prototype.has)
+    /// ### [24.4.3.4 WeakSet.prototype.has ( value )](https://tc39.es/ecma262/#sec-weakset.prototype.has)
     fn has<'gc>(
         agent: &mut Agent,
         this_value: Value,

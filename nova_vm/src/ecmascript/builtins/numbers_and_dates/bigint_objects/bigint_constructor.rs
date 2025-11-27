@@ -24,7 +24,7 @@ use crate::{
     heap::IntrinsicConstructorIndexes,
 };
 
-/// #### [21.1.2.1 BigInt ( value )](https://tc39.es/ecma262/#sec-bigint-constructor)
+/// ### [21.1.2.1 BigInt ( value )](https://tc39.es/ecma262/#sec-bigint-constructor)
 pub struct BigIntConstructor;
 
 impl Builtin for BigIntConstructor {
@@ -50,7 +50,7 @@ impl Builtin for BigIntAsUintN {
 }
 
 impl BigIntConstructor {
-    /// #### [21.2.1.1 BigInt ( value )](https://tc39.es/ecma262/#sec-bigint-constructor-number-value)
+    /// ### [21.2.1.1 BigInt ( value )](https://tc39.es/ecma262/#sec-bigint-constructor-number-value)
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -97,7 +97,7 @@ impl BigIntConstructor {
         }
     }
 
-    /// #### [21.2.2.1 BigInt.asIntN ( bits, bigint )](https://tc39.es/ecma262/#sec-bigint.asintn)
+    /// ### [21.2.2.1 BigInt.asIntN ( bits, bigint )](https://tc39.es/ecma262/#sec-bigint.asintn)
     fn as_int_n<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -182,7 +182,7 @@ impl BigIntConstructor {
         }
     }
 
-    /// #### [21.2.2.2 BigInt.asUintN ( bits, bigint )](https://tc39.es/ecma262/#sec-bigint.asuintn)
+    /// ### [21.2.2.2 BigInt.asUintN ( bits, bigint )](https://tc39.es/ecma262/#sec-bigint.asuintn)
     fn as_uint_n<'gc>(
         agent: &mut Agent,
         _this_value: Value,

@@ -64,7 +64,7 @@ impl Builtin for DateUTC {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.UTC;
 }
 impl DateConstructor {
-    /// #### [21.4.2.1 Date ( ...values )](https://tc39.es/ecma262/#sec-date)
+    /// ### [21.4.2.1 Date ( ...values )](https://tc39.es/ecma262/#sec-date)
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -205,7 +205,7 @@ impl DateConstructor {
         Ok(o.into_value())
     }
 
-    /// #### [21.4.3.1 Date.now ( )](https://tc39.es/ecma262/#sec-date.now1)
+    /// ### [21.4.3.1 Date.now ( )](https://tc39.es/ecma262/#sec-date.now1)
     ///
     /// This function returns the time value designating the UTC date and time of the occurrence of the call to it.
     fn now<'gc>(
@@ -226,7 +226,7 @@ impl DateConstructor {
         )
     }
 
-    /// #### [21.4.3.2 Date.parse ( string )](https://tc39.es/ecma262/#sec-date.parse)
+    /// ### [21.4.3.2 Date.parse ( string )](https://tc39.es/ecma262/#sec-date.parse)
     ///
     /// This function applies the ToString operator to its argument. If ToString results in
     /// an abrupt completion the Completion Record is immediately returned. Otherwise,

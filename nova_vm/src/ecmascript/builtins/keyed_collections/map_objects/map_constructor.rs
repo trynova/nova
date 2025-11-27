@@ -179,7 +179,7 @@ impl MapConstructor {
         .map(|result| result.into_value())
     }
 
-    /// #### [24.1.2.1 Map.groupBy ( items, callback )](https://tc39.es/ecma262/#sec-map.groupby)
+    /// ### [24.1.2.1 Map.groupBy ( items, callback )](https://tc39.es/ecma262/#sec-map.groupby)
     fn group_by<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -282,7 +282,7 @@ impl MapConstructor {
     }
 }
 
-/// #### [24.1.1.2 AddEntriesFromIterable ( target, iterable, adder )](https://tc39.es/ecma262/#sec-add-entries-from-iterable)
+/// ### [24.1.1.2 AddEntriesFromIterable ( target, iterable, adder )](https://tc39.es/ecma262/#sec-add-entries-from-iterable)
 ///
 /// #### Unspecified specialization
 ///
@@ -427,7 +427,7 @@ pub fn add_entries_from_iterable_map_constructor<'a>(
     )
 }
 
-/// #### [24.1.1.2 AddEntriesFromIterable ( target, iterable, adder )](https://tc39.es/ecma262/#sec-add-entries-from-iterable)
+/// ### [24.1.1.2 AddEntriesFromIterable ( target, iterable, adder )](https://tc39.es/ecma262/#sec-add-entries-from-iterable)
 ///
 /// The abstract operation AddEntriesFromIterable takes arguments target (an
 /// Object), iterable (an ECMAScript language value, but not undefined or

@@ -44,7 +44,7 @@ use crate::{
 
 use super::{ScopedArgumentsList, ordinary::shape::ObjectShape};
 
-/// #### [10.4.4.6 CreateUnmappedArgumentsObject ( argumentsList )](https://tc39.es/ecma262/#sec-createunmappedargumentsobject)
+/// ### [10.4.4.6 CreateUnmappedArgumentsObject ( argumentsList )](https://tc39.es/ecma262/#sec-createunmappedargumentsobject)
 ///
 /// The abstract operation CreateUnmappedArgumentsObject takes argument
 /// argumentsList (a List of ECMAScript language values) and returns an

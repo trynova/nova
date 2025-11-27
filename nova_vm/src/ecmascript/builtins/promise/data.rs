@@ -55,7 +55,7 @@ pub(crate) enum PromiseReactions<'a> {
 }
 
 impl PromiseReactions<'_> {
-    /// #### [27.2.1.8 TriggerPromiseReactions ( reactions, argument )](https://tc39.es/ecma262/#sec-triggerpromisereactions)
+    /// ### [27.2.1.8 TriggerPromiseReactions ( reactions, argument )](https://tc39.es/ecma262/#sec-triggerpromisereactions)
     pub(crate) fn trigger(&self, agent: &mut Agent, argument: Value, gc: NoGcScope) {
         match self {
             PromiseReactions::One(reaction) => {

@@ -128,7 +128,7 @@ impl DynamicFunctionKind {
     }
 }
 
-/// ##### [20.2.1.1.1 CreateDynamicFunction ( constructor, newTarget, kind, parameterArgs, bodyArg )](https://tc39.es/ecma262/#sec-createdynamicfunction)
+/// ### [20.2.1.1.1 CreateDynamicFunction ( constructor, newTarget, kind, parameterArgs, bodyArg )](https://tc39.es/ecma262/#sec-createdynamicfunction)
 ///
 /// NOTE: This implementation doesn't cover steps 30-32, those should be handled by the caller.
 pub(crate) fn create_dynamic_function<'a>(

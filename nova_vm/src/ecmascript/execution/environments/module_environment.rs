@@ -23,7 +23,7 @@ use super::{
     DeclarativeEnvironment, DeclarativeEnvironmentRecord, Environments, ModuleEnvironment, OuterEnv,
 };
 
-/// #### [9.1.1.5 Module Environment Records](https://tc39.es/ecma262/#sec-module-environment-records)
+/// ### [9.1.1.5 Module Environment Records](https://tc39.es/ecma262/#sec-module-environment-records)
 /// A Module Environment Record is a Declarative Environment Record that is
 /// used to represent the outer scope of an ECMAScript Module. In additional to
 /// normal mutable and immutable bindings, Module Environment Records also
@@ -203,7 +203,7 @@ impl<'e> ModuleEnvironment<'e> {
             .set_mutable_binding(agent, name, value, true, gc)
     }
 
-    /// ##### [9.1.1.5.1 GetBindingValue ( N, S )](https://tc39.es/ecma262/#sec-module-environment-records)
+    /// ### [9.1.1.5.1 GetBindingValue ( N, S )](https://tc39.es/ecma262/#sec-module-environment-records)
     ///
     /// The GetBindingValue concrete method of a Module Environment Record
     /// envRec takes arguments N (a String) and S (a Boolean) and returns
@@ -264,7 +264,7 @@ pub(crate) fn throw_uninitialized_binding<'a>(
         gc,
     )
 }
-/// ##### [9.1.1.5.5 CreateImportBinding ( envRec, N, M, N2 )](https://tc39.es/ecma262/#sec-createimportbinding)
+/// ### [9.1.1.5.5 CreateImportBinding ( envRec, N, M, N2 )](https://tc39.es/ecma262/#sec-createimportbinding)
 ///
 /// The abstract operation CreateImportBinding takes arguments envRec (a
 /// Module Environment Record), N (a String), M (a Module Record), and N2
@@ -328,7 +328,7 @@ pub(crate) fn create_import_binding(
     // 4. Return unused.
 }
 
-/// ##### [9.1.1.5.5 CreateImportBinding ( envRec, N, M, N2 )](https://tc39.es/ecma262/#sec-createimportbinding)
+/// ### [9.1.1.5.5 CreateImportBinding ( envRec, N, M, N2 )](https://tc39.es/ecma262/#sec-createimportbinding)
 ///
 /// Note: this version does not assert that the target module will have a
 /// direct binding for the target name. It always creates an indirect binding.
@@ -362,7 +362,7 @@ pub(crate) fn create_indirect_import_binding(
     // 4. Return unused.
 }
 
-/// ##### [9.1.1.5.5 CreateImportBinding ( envRec, N, M, N2 )](https://tc39.es/ecma262/#sec-createimportbinding)
+/// ### [9.1.1.5.5 CreateImportBinding ( envRec, N, M, N2 )](https://tc39.es/ecma262/#sec-createimportbinding)
 ///
 /// > NOTE: Performs the initializing of a previously created import binding.
 pub(crate) fn initialize_import_binding(
