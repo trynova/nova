@@ -33,7 +33,7 @@ use crate::{
         types::{BUILTIN_STRING_MEMORY, BigInt, IntoValue, Object, PropertyKey, String, Value},
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope, trivially_bindable},
+        context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
     heap::WellKnownSymbolIndexes,
@@ -411,7 +411,6 @@ impl TemporalInstantPrototype {
         Ok(Value::from(true))
     }
 
-    trivially_bindable!(RoundingMode);
     /// ### [8.3.11 Temporal.Instant.prototype.toString ( [ options ] )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.tostring)
     fn to_string<'gc>(
         agent: &mut Agent,
@@ -438,7 +437,7 @@ impl TemporalInstantPrototype {
         // 5. Let digits be ? GetTemporalFractionalSecondDigitsOption(resolvedOptions).
         let digits = get_temporal_fractional_second_digits_option(
             agent,
-            resolved_options.unbind(),
+            resolved_options.get(agent),
             gc.reborrow(),
         )
         .unbind()?;
