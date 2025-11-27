@@ -9,7 +9,6 @@ use core::{
 use std::borrow::Cow;
 
 use oxc_ast::ast::{FormalParameters, FunctionBody};
-use oxc_ecmascript::IsSimpleParameterList;
 use oxc_span::Span;
 
 use crate::{
@@ -140,6 +139,148 @@ pub enum ThisMode {
     Global,
 }
 
+#[derive(Debug, Clone, Copy)]
+enum FunctionAstPtr {
+    Function(NonNull<oxc_ast::ast::Function<'static>>),
+    AsyncFunction(NonNull<oxc_ast::ast::Function<'static>>),
+    Generator(NonNull<oxc_ast::ast::Function<'static>>),
+    AsyncGenerator(NonNull<oxc_ast::ast::Function<'static>>),
+    ClassConstructor(NonNull<oxc_ast::ast::Function<'static>>),
+    Arrow(NonNull<oxc_ast::ast::ArrowFunctionExpression<'static>>),
+    AsyncArrow(NonNull<oxc_ast::ast::ArrowFunctionExpression<'static>>),
+}
+
+impl FunctionAstPtr {
+    /// Convert ECMAScript function AST pointer into a reference.
+    ///
+    /// # Safety
+    ///
+    /// The SourceCode that owns the AST allocation must still be live.
+    #[allow(unused_variables)]
+    pub(crate) unsafe fn as_ref<'a>(self) -> FunctionAstRef<'a> {
+        // SAFETY: access to this pointer is only be possible when
+        // ECMAScriptFunction still lives, and NoGcScope guarantees that it
+        // will remain live while this reference still lives.
+        unsafe {
+            match self {
+                FunctionAstPtr::Function(ptr) => FunctionAstRef::Function(ptr.as_ref()),
+                FunctionAstPtr::AsyncFunction(ptr) => FunctionAstRef::AsyncFunction(ptr.as_ref()),
+                FunctionAstPtr::Generator(ptr) => FunctionAstRef::Generator(ptr.as_ref()),
+                FunctionAstPtr::AsyncGenerator(ptr) => FunctionAstRef::AsyncGenerator(ptr.as_ref()),
+                FunctionAstPtr::Arrow(ptr) => FunctionAstRef::Arrow(ptr.as_ref()),
+                FunctionAstPtr::AsyncArrow(ptr) => FunctionAstRef::AsyncArrow(ptr.as_ref()),
+                FunctionAstPtr::ClassConstructor(ptr) => {
+                    FunctionAstRef::ClassConstructor(ptr.as_ref())
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum FunctionAstRef<'a> {
+    Function(&'a oxc_ast::ast::Function<'a>),
+    AsyncFunction(&'a oxc_ast::ast::Function<'a>),
+    Generator(&'a oxc_ast::ast::Function<'a>),
+    AsyncGenerator(&'a oxc_ast::ast::Function<'a>),
+    Arrow(&'a oxc_ast::ast::ArrowFunctionExpression<'a>),
+    AsyncArrow(&'a oxc_ast::ast::ArrowFunctionExpression<'a>),
+    ClassConstructor(&'a oxc_ast::ast::Function<'a>),
+}
+
+impl<'a> From<&'a oxc_ast::ast::Function<'a>> for FunctionAstRef<'a> {
+    fn from(f: &'a oxc_ast::ast::Function<'a>) -> Self {
+        match (f.r#async, f.generator) {
+            (true, true) => FunctionAstRef::AsyncGenerator(f),
+            (true, false) => FunctionAstRef::AsyncFunction(f),
+            (false, true) => FunctionAstRef::Generator(f),
+            (false, false) => FunctionAstRef::Function(f),
+        }
+    }
+}
+
+impl<'a> From<&'a oxc_ast::ast::ArrowFunctionExpression<'a>> for FunctionAstRef<'a> {
+    fn from(f: &'a oxc_ast::ast::ArrowFunctionExpression<'a>) -> Self {
+        match f.r#async {
+            true => FunctionAstRef::AsyncArrow(f),
+            false => FunctionAstRef::Arrow(f),
+        }
+    }
+}
+
+impl<'ast> FunctionAstRef<'ast> {
+    /// \[\[FormalParameters]].
+    #[inline]
+    pub(crate) fn formal_parameters(&self) -> &'ast FormalParameters<'ast> {
+        match self {
+            Self::Function(f)
+            | Self::AsyncFunction(f)
+            | Self::Generator(f)
+            | Self::AsyncGenerator(f)
+            | Self::ClassConstructor(f) => f.params.as_ref(),
+            Self::Arrow(f) | Self::AsyncArrow(f) => f.params.as_ref(),
+        }
+    }
+
+    /// \[\[ECMAScriptCode]]
+    #[inline]
+    pub(crate) fn ecmascript_code(&self) -> &'ast FunctionBody<'ast> {
+        match self {
+            Self::Function(f)
+            | Self::AsyncFunction(f)
+            | Self::Generator(f)
+            | Self::AsyncGenerator(f)
+            | Self::ClassConstructor(f) => {
+                // SAFETY: ECMAScriptFunction cannot refer to a TypeScript
+                // function declaration.
+                unsafe { f.body.as_ref().unwrap_unchecked() }
+            }
+            FunctionAstRef::Arrow(f) | FunctionAstRef::AsyncArrow(f) => f.body.as_ref(),
+        }
+    }
+
+    #[inline]
+    pub(crate) fn is_async(&self) -> bool {
+        matches!(
+            self,
+            Self::AsyncFunction(_) | Self::AsyncGenerator(_) | Self::AsyncArrow(_)
+        )
+    }
+
+    #[inline]
+    pub(crate) fn is_concise_body(&self) -> bool {
+        match self {
+            FunctionAstRef::Arrow(f) | FunctionAstRef::AsyncArrow(f) => f.expression,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub(crate) fn is_generator(&self) -> bool {
+        matches!(self, Self::Generator(_) | Self::AsyncGenerator(_))
+    }
+
+    #[inline]
+    fn as_ptr(&self) -> FunctionAstPtr {
+        // SAFETY: lifetime transmute for moving data into GC heap.
+        let static_ref =
+            unsafe { core::mem::transmute::<&FunctionAstRef<'_>, &FunctionAstRef<'static>>(self) };
+        match static_ref {
+            FunctionAstRef::Function(f) => FunctionAstPtr::Function(NonNull::from_ref(f)),
+            FunctionAstRef::AsyncFunction(f) => FunctionAstPtr::AsyncFunction(NonNull::from_ref(f)),
+            FunctionAstRef::Generator(f) => FunctionAstPtr::Generator(NonNull::from_ref(f)),
+            FunctionAstRef::AsyncGenerator(f) => {
+                FunctionAstPtr::AsyncGenerator(NonNull::from_ref(f))
+            }
+            FunctionAstRef::ClassConstructor(f) => {
+                FunctionAstPtr::ClassConstructor(NonNull::from_ref(f))
+            }
+            FunctionAstRef::Arrow(f) => FunctionAstPtr::Arrow(NonNull::from_ref(f)),
+            FunctionAstRef::AsyncArrow(f) => FunctionAstPtr::AsyncArrow(NonNull::from_ref(f)),
+        }
+    }
+}
+
 /// ## [10.2 ECMAScript Function Objects](https://tc39.es/ecma262/#sec-ecmascript-function-objects)
 #[derive(Debug)]
 pub(crate) struct ECMAScriptFunctionObjectHeapData<'a> {
@@ -150,27 +291,8 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData<'a> {
     pub private_environment: Option<PrivateEnvironment<'a>>,
 
     /// \[\[FormalParameters]]
-    ///
-    /// SAFETY: SourceCode owns the Allocator into which this refers to.
-    /// Our GC algorithm keeps it alive as long as this function is alive.
-    pub formal_parameters: NonNull<FormalParameters<'a>>,
-
     /// \[\[ECMAScriptCode]]
-    ///
-    /// SAFETY: SourceCode owns the Allocator into which this refers to.
-    /// Our GC algorithm keeps it alive as long as this function is alive.
-    pub ecmascript_code: NonNull<FunctionBody<'a>>,
-
-    /// True if the function body is a ConciseBody (can only be true for arrow
-    /// functions).
-    ///
-    /// This is used to know whether to treat the function as having an implicit
-    /// return or not.
-    pub is_concise_arrow_function: bool,
-
-    pub is_async: bool,
-
-    pub is_generator: bool,
+    ast: FunctionAstPtr,
 
     /// \[\[ConstructorKind]]
     /// \[\[IsClassConstructor]]
@@ -202,15 +324,11 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData<'a> {
     // TODO: [[Fields]],  [[PrivateMethods]], [[ClassFieldInitializerName]]
 }
 
-pub(crate) struct OrdinaryFunctionCreateParams<'agent, 'program, 'gc> {
+pub(crate) struct OrdinaryFunctionCreateParams<'ast, 'gc> {
     pub function_prototype: Option<Object<'gc>>,
     pub source_code: Option<SourceCode<'gc>>,
     pub source_text: Span,
-    pub parameters_list: &'agent FormalParameters<'program>,
-    pub body: &'agent FunctionBody<'program>,
-    pub is_concise_arrow_function: bool,
-    pub is_async: bool,
-    pub is_generator: bool,
+    pub ast: FunctionAstRef<'ast>,
     pub lexical_this: bool,
     pub env: Environment<'gc>,
     pub private_env: Option<PrivateEnvironment<'gc>>,
@@ -255,8 +373,52 @@ impl<'a> ECMAScriptFunction<'a> {
         self.0.into_index()
     }
 
+    /// Returns true if this function executes in strict mode.
+    pub fn is_strict(self, agent: &Agent) -> bool {
+        agent[self].ecmascript_function.strict
+    }
+
+    /// Returns this function's ThisMode.
+    pub(crate) fn get_this_mode(self, agent: &Agent) -> ThisMode {
+        agent[self].ecmascript_function.this_mode
+    }
+
+    #[inline]
     pub(crate) fn get_executable(self, agent: &Agent) -> Executable<'a> {
         agent[self].compiled_bytecode.unwrap().unbind()
+    }
+
+    #[inline]
+    pub(crate) fn get_source_code(self, agent: &Agent) -> SourceCode<'a> {
+        agent[self].ecmascript_function.source_code
+    }
+
+    /// Get a function's AST reference. This binds to the GC lifetime and is
+    /// thus guaranteed to be safe.
+    #[inline]
+    #[allow(unused_variables)]
+    pub(crate) fn get_ast<'gc>(self, agent: &Agent, gc: NoGcScope<'gc, '_>) -> FunctionAstRef<'gc> {
+        // SAFETY: ECMAScriptFunctionHeapData was found, which means that
+        // SourceData is still live. We bind to the GC lifetime, meaning that
+        // the reference cannot live past a GC safepoint.
+        unsafe { agent[self].ecmascript_function.ast.as_ref() }
+    }
+
+    /// Get a function's AST reference. This binds to the ECMAScriptFunction's
+    /// tarcked marker lifetime; if that is properly bound to the GC lifetime
+    /// then this is guaranteed to be safe. Otherwise this API may expose a
+    /// reference that becomes invalid at next GC safepoint.
+    ///
+    /// # Safety
+    ///
+    /// The returned reference must not live past a GC safepoint.
+    #[inline]
+    #[allow(unused_variables)]
+    pub(crate) unsafe fn get_ast_unbound(self, agent: &Agent) -> FunctionAstRef<'a> {
+        // SAFETY: ECMAScriptFunctionHeapData was found, which means that
+        // SourceData is still live. We bind to the GC lifetime, meaning that
+        // the reference cannot live past a GC point.
+        unsafe { agent[self].ecmascript_function.ast.as_ref() }
     }
 
     pub fn is_constructor(self, agent: &Agent) -> bool {
@@ -301,10 +463,9 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
         } else {
             let realm = agent[self].ecmascript_function.realm;
             let intrinsics = agent[realm].intrinsics();
-            let proto = match (
-                agent[self].ecmascript_function.is_async,
-                agent[self].ecmascript_function.is_generator,
-            ) {
+            // SAFETY: reference is dropped before next GC safepoint.
+            let f = unsafe { self.get_ast_unbound(agent) };
+            let proto = match (f.is_async(), f.is_generator()) {
                 (false, false) => intrinsics.function_prototype().into_object(),
                 (false, true) => intrinsics.generator_function_prototype().into_object(),
                 (true, false) => intrinsics.async_function_prototype().into_object(),
@@ -662,12 +823,8 @@ pub(crate) fn evaluate_body<'gc>(
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Value<'gc>> {
     let function_object = function_object.bind(gc.nogc());
-    let function_heap_data = &agent[function_object];
-    let ecmascript_function_object = &function_heap_data.ecmascript_function;
-    match (
-        ecmascript_function_object.is_generator,
-        ecmascript_function_object.is_async,
-    ) {
+    let f = function_object.get_ast(agent, gc.nogc());
+    match (f.is_generator(), f.is_async()) {
         (false, true) => {
             // AsyncFunctionBody : FunctionBody
             // 1. Return ? EvaluateAsyncFunctionBody of AsyncFunctionBody with arguments functionObject and argumentsList.
@@ -679,19 +836,6 @@ pub(crate) fn evaluate_body<'gc>(
             )
         }
         (false, false) => {
-            // SAFETY: AS the ECMAScriptFunction is alive in the heap, its referred
-            // SourceCode must be as well. Thus the Allocator is live as well, and no
-            // other references to it can exist.
-            if function_heap_data.compiled_bytecode.is_none()
-                && unsafe { ecmascript_function_object.ecmascript_code.as_ref() }
-                    .statements
-                    .is_empty()
-                && unsafe { ecmascript_function_object.formal_parameters.as_ref() }
-                    .is_simple_parameter_list()
-            {
-                // Optimisation: Empty body and only simple parameters means no code will effectively run.
-                return Ok(Value::Undefined);
-            }
             // FunctionBody : FunctionStatementList
             // 1. Return ? EvaluateFunctionBody of FunctionBody with arguments functionObject and argumentsList.
             // ConciseBody : ExpressionBody
@@ -753,9 +897,9 @@ pub(crate) fn ordinary_call_evaluate_body<'gc>(
 /// \[\[Construct\]\] internal method (although one may be subsequently added
 /// by an operation such as MakeConstructor). sourceText is the source text of
 /// the syntactic definition of the function to be created.
-pub(crate) fn ordinary_function_create<'agent, 'program, 'gc>(
-    agent: &'agent mut Agent,
-    params: OrdinaryFunctionCreateParams<'agent, 'program, 'gc>,
+pub(crate) fn ordinary_function_create<'gc>(
+    agent: &mut Agent,
+    params: OrdinaryFunctionCreateParams<'_, 'gc>,
     gc: NoGcScope<'gc, '_>,
 ) -> ECMAScriptFunction<'gc> {
     let (source_code, outer_env_is_strict) = if let Some(source_code) = params.source_code {
@@ -767,8 +911,9 @@ pub(crate) fn ordinary_function_create<'agent, 'program, 'gc>(
             running_ecmascript_code.is_strict_mode,
         )
     };
-    // 7. If the source text matched by Body is strict mode code, let Strict be true; else let Strict be false.
-    let strict = outer_env_is_strict || params.body.has_use_strict_directive();
+    // 7. If the source text matched by Body is strict mode code, let Strict be
+    //    true; else let Strict be false.
+    let strict = outer_env_is_strict || params.ast.ecmascript_code().has_use_strict_directive();
 
     // 1. Let internalSlotsList be the internal slots listed in Table 30.
     // 2. Let F be OrdinaryObjectCreate(functionPrototype, internalSlotsList).
@@ -779,23 +924,8 @@ pub(crate) fn ordinary_function_create<'agent, 'program, 'gc>(
         // 14. Set F.[[PrivateEnvironment]] to privateEnv.
         private_environment: params.private_env.unbind(),
         // 5. Set F.[[FormalParameters]] to ParameterList.
-        // SAFETY: The reference to FormalParameters points to ScriptOrModule
-        // and is valid until it gets dropped. Our GC keeps ScriptOrModule
-        // alive until this ECMAScriptFunction gets dropped, hence the 'static
-        // lifetime here is justified.
-        formal_parameters: NonNull::from(unsafe {
-            core::mem::transmute::<&FormalParameters<'program>, &FormalParameters<'static>>(
-                params.parameters_list,
-            )
-        }),
         // 6. Set F.[[ECMAScriptCode]] to Body.
-        // SAFETY: Same as above: Self-referential reference to ScriptOrModule.
-        ecmascript_code: NonNull::from(unsafe {
-            core::mem::transmute::<&FunctionBody<'program>, &FunctionBody<'static>>(params.body)
-        }),
-        is_concise_arrow_function: params.is_concise_arrow_function,
-        is_async: params.is_async,
-        is_generator: params.is_generator,
+        ast: params.ast.as_ptr(),
         // 12. Set F.[[IsClassConstructor]] to false.
         constructor_status: ConstructorStatus::NonConstructor,
         // 16. Set F.[[Realm]] to the current Realm Record.
@@ -846,7 +976,7 @@ pub(crate) fn ordinary_function_create<'agent, 'program, 'gc>(
     // 19. Set F.[[PrivateMethods]] to a new empty List.
     // 20. Set F.[[ClassFieldInitializerName]] to EMPTY.
     // 21. Let len be the ExpectedArgumentCount of ParameterList.
-    let len = expected_arguments_count(params.parameters_list);
+    let len = expected_arguments_count(params.ast.formal_parameters());
     // 22. Perform SetFunctionLength(F, len).
     set_ecmascript_function_length(agent, &mut function, len, gc).unwrap();
     // 23. Return F.
@@ -1193,11 +1323,7 @@ impl HeapMarkAndSweep for ECMAScriptFunctionHeapData<'static> {
         let ECMAScriptFunctionObjectHeapData {
             environment,
             private_environment,
-            formal_parameters: _,
-            ecmascript_code: _,
-            is_concise_arrow_function: _,
-            is_async: _,
-            is_generator: _,
+            ast: _,
             constructor_status: _,
             realm,
             script_or_module,
@@ -1229,11 +1355,7 @@ impl HeapMarkAndSweep for ECMAScriptFunctionHeapData<'static> {
         let ECMAScriptFunctionObjectHeapData {
             environment,
             private_environment,
-            formal_parameters: _,
-            ecmascript_code: _,
-            is_concise_arrow_function: _,
-            is_async: _,
-            is_generator: _,
+            ast: _,
             constructor_status: _,
             realm,
             script_or_module,

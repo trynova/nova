@@ -4,9 +4,7 @@
 
 use binding_methods::{execute_simple_array_binding, execute_simple_object_binding};
 use core::ops::ControlFlow;
-use oxc_ast::ast;
 use oxc_span::Span;
-use std::sync::OnceLock;
 
 use crate::{
     ecmascript::{
@@ -29,7 +27,7 @@ use crate::{
             },
         },
         builtins::{
-            ArgumentsList, Array, BuiltinConstructorArgs, ConstructorStatus,
+            ArgumentsList, Array, BuiltinConstructorArgs, ConstructorStatus, FunctionAstRef,
             OrdinaryFunctionCreateParams, SetFunctionNamePrefix, array_create,
             create_builtin_constructor, create_unmapped_arguments_object,
             global_object::perform_eval, make_constructor, make_method,
@@ -64,7 +62,6 @@ use crate::{
             executable::ArrowFunctionExpression,
             instructions::Instr,
             iterator::{ObjectPropertiesIteratorRecord, VmIteratorRecord},
-            vm::EmptyParametersList,
         },
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
@@ -458,11 +455,7 @@ pub(super) fn execute_object_define_method<'gc>(
         source_code: None,
         // 4. Let sourceText be the source text matched by MethodDefinition.
         source_text: function_expression.span,
-        parameters_list: &function_expression.params,
-        body: function_expression.body.as_ref().unwrap(),
-        is_concise_arrow_function: false,
-        is_async: function_expression.r#async,
-        is_generator: function_expression.generator,
+        ast: FunctionAstRef::from(function_expression),
         lexical_this: false,
         env,
         private_env,
@@ -552,26 +545,12 @@ pub(super) fn execute_object_define_getter<'gc>(
     // We have to create a temporary allocator to create the empty
     // items Vec. The allocator will never be asked to allocate
     // anything.
-    static EMPTY_PARAMETERS: OnceLock<EmptyParametersList> = OnceLock::new();
-    let empty_parameters = EMPTY_PARAMETERS.get_or_init(|| {
-        let allocator: &'static oxc_allocator::Allocator = Box::leak(Box::default());
-        EmptyParametersList(ast::FormalParameters {
-            span: Default::default(),
-            kind: ast::FormalParameterKind::FormalParameter,
-            items: oxc_allocator::Vec::new_in(allocator),
-            rest: None,
-        })
-    });
     let params = OrdinaryFunctionCreateParams {
         function_prototype: None,
         source_code: None,
         // 4. Let sourceText be the source text matched by MethodDefinition.
         source_text: function_expression.span,
-        parameters_list: &empty_parameters.0,
-        body: function_expression.body.as_ref().unwrap(),
-        is_async: function_expression.r#async,
-        is_generator: function_expression.generator,
-        is_concise_arrow_function: false,
+        ast: FunctionAstRef::from(function_expression),
         lexical_this: false,
         env,
         private_env,
@@ -656,11 +635,7 @@ pub(super) fn execute_object_define_setter<'gc>(
         source_code: None,
         // 4. Let sourceText be the source text matched by MethodDefinition.
         source_text: function_expression.span,
-        parameters_list: &function_expression.params,
-        body: function_expression.body.as_ref().unwrap(),
-        is_concise_arrow_function: false,
-        is_async: function_expression.r#async,
-        is_generator: function_expression.generator,
+        ast: FunctionAstRef::from(function_expression),
         lexical_this: false,
         env,
         private_env,
@@ -981,11 +956,7 @@ pub(super) fn execute_instantiate_arrow_function_expression<'gc>(
         function_prototype: None,
         source_code: None,
         source_text: function_expression.span,
-        parameters_list: &function_expression.params,
-        body: &function_expression.body,
-        is_concise_arrow_function: function_expression.expression,
-        is_async: function_expression.r#async,
-        is_generator: false,
+        ast: FunctionAstRef::from(function_expression),
         lexical_this: true,
         env,
         private_env,
@@ -1090,11 +1061,7 @@ pub(super) fn execute_instantiate_ordinary_function_expression<'gc>(
         function_prototype: None,
         source_code: None,
         source_text: function_expression.span,
-        parameters_list: &function_expression.params,
-        body: function_expression.body.as_ref().unwrap(),
-        is_concise_arrow_function: false,
-        is_async: function_expression.r#async,
-        is_generator: function_expression.generator,
+        ast: FunctionAstRef::from(function_expression),
         lexical_this: false,
         env,
         private_env,
@@ -1204,11 +1171,7 @@ pub(super) fn execute_class_define_constructor<'gc>(
         function_prototype,
         source_code: None,
         source_text: function_expression.span,
-        parameters_list: &function_expression.params,
-        body: function_expression.body.as_ref().unwrap(),
-        is_concise_arrow_function: false,
-        is_async: function_expression.r#async,
-        is_generator: function_expression.generator,
+        ast: FunctionAstRef::ClassConstructor(function_expression),
         lexical_this: false,
         env,
         private_env,
@@ -1344,11 +1307,7 @@ pub(super) fn execute_class_define_private_method<'gc>(
         source_code: None,
         // 4. Let sourceText be the source text matched by MethodDefinition.
         source_text: function_expression.span,
-        parameters_list: &function_expression.params,
-        body: function_expression.body.as_ref().unwrap(),
-        is_async: function_expression.r#async,
-        is_generator: function_expression.generator,
-        is_concise_arrow_function: false,
+        ast: FunctionAstRef::from(function_expression),
         lexical_this: false,
         env,
         private_env: Some(private_env),

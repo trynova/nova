@@ -858,8 +858,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
 
         function_declaration_instantiation::instantiation(
             self,
-            data.params,
-            data.body,
+            data.ast,
             data.is_strict,
             data.is_lexical,
         );
@@ -874,7 +873,8 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         // SAFETY: Script referred by the Function uniquely owns the Program
         // and the body buffer does not move under any circumstances during
         // heap operations.
-        let body: &[Statement] = unsafe { core::mem::transmute(data.body.statements.as_slice()) };
+        let body: &[Statement] =
+            unsafe { core::mem::transmute(data.ast.ecmascript_code().statements.as_slice()) };
 
         self.compile_statements(body);
     }

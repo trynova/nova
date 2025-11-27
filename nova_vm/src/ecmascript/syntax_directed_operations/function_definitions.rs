@@ -8,7 +8,8 @@ use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::try_define_property_or_throw,
         builtins::{
-            ArgumentsList, ECMAScriptFunction, OrdinaryFunctionCreateParams, ThisMode,
+            ArgumentsList, ECMAScriptFunction, FunctionAstRef, OrdinaryFunctionCreateParams,
+            ThisMode,
             async_generator_objects::AsyncGeneratorState,
             control_abstraction_objects::{
                 async_function_objects::await_reaction::AwaitReactionRecord,
@@ -124,11 +125,7 @@ pub(crate) fn instantiate_ordinary_function_object<'a>(
         function_prototype: None,
         source_code: None,
         source_text,
-        parameters_list: &function.params,
-        body: function.body.as_deref().unwrap(),
-        is_concise_arrow_function: false,
-        is_async: function.r#async,
-        is_generator: function.generator,
+        ast: FunctionAstRef::from(function),
         lexical_this: false,
         env,
         private_env,
@@ -200,35 +197,23 @@ pub(crate) fn instantiate_ordinary_function_object<'a>(
 }
 
 pub(crate) struct CompileFunctionBodyData<'a> {
-    pub(crate) params: &'a oxc_ast::ast::FormalParameters<'a>,
-    pub(crate) body: &'a oxc_ast::ast::FunctionBody<'a>,
+    pub(crate) ast: FunctionAstRef<'a>,
     pub(crate) source_code: SourceCode<'a>,
     pub(crate) is_strict: bool,
     pub(crate) is_lexical: bool,
-    pub(crate) is_concise_body: bool,
-    pub(crate) is_async: bool,
-    pub(crate) is_generator: bool,
 }
 
-impl CompileFunctionBodyData<'_> {
-    fn new(agent: &mut Agent, function: ECMAScriptFunction) -> Self {
-        let ecmascript_function = &agent[function].ecmascript_function;
-        // SAFETY: We're alive so SourceCode must be too.
-        let (params, body) = unsafe {
-            (
-                ecmascript_function.formal_parameters.as_ref(),
-                ecmascript_function.ecmascript_code.as_ref(),
-            )
-        };
+impl<'a> CompileFunctionBodyData<'a> {
+    fn new(agent: &mut Agent, function: ECMAScriptFunction<'a>, gc: NoGcScope<'a, '_>) -> Self {
+        let ast = function.get_ast(agent, gc);
+        let source_code = function.get_source_code(agent);
+        let is_strict = function.is_strict(agent);
+        let this_mode = function.get_this_mode(agent);
         CompileFunctionBodyData {
-            params,
-            body,
-            source_code: ecmascript_function.source_code,
-            is_strict: ecmascript_function.strict,
-            is_lexical: ecmascript_function.this_mode == ThisMode::Lexical,
-            is_concise_body: ecmascript_function.is_concise_arrow_function,
-            is_async: ecmascript_function.is_async,
-            is_generator: ecmascript_function.is_generator,
+            ast,
+            source_code,
+            is_strict,
+            is_lexical: this_mode == ThisMode::Lexical,
         }
     }
 }
@@ -252,7 +237,7 @@ pub(crate) fn evaluate_function_body<'gc>(
     let exe = if let Some(exe) = agent[function_object].compiled_bytecode {
         exe.bind(gc.nogc())
     } else {
-        let data = CompileFunctionBodyData::new(agent, function_object);
+        let data = CompileFunctionBodyData::new(agent, function_object, gc.nogc());
         let exe = Executable::compile_function_body(agent, data, gc.nogc());
         agent[function_object].compiled_bytecode = Some(exe.unbind());
         exe
@@ -287,7 +272,7 @@ pub(crate) fn evaluate_async_function_body<'a>(
     let exe = if let Some(exe) = agent[function_object].compiled_bytecode {
         exe.bind(gc.nogc())
     } else {
-        let data = CompileFunctionBodyData::new(agent, function_object);
+        let data = CompileFunctionBodyData::new(agent, function_object, gc.nogc());
         let exe = Executable::compile_function_body(agent, data, gc.nogc());
         agent[function_object].compiled_bytecode = Some(exe.unbind());
         exe
@@ -381,7 +366,7 @@ pub(crate) fn evaluate_generator_body<'gc>(
     let exe = if let Some(exe) = agent[function_object].compiled_bytecode {
         exe.scope(agent, gc.nogc())
     } else {
-        let data = CompileFunctionBodyData::new(agent, function_object);
+        let data = CompileFunctionBodyData::new(agent, function_object, gc.nogc());
         let exe = Executable::compile_function_body(agent, data, gc.nogc());
         agent[function_object].compiled_bytecode = Some(exe.unbind());
         exe.scope(agent, gc.nogc())
@@ -465,7 +450,7 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
     let exe = if let Some(exe) = agent[function_object].compiled_bytecode {
         exe.scope(agent, gc.nogc())
     } else {
-        let data = CompileFunctionBodyData::new(agent, function_object);
+        let data = CompileFunctionBodyData::new(agent, function_object, gc.nogc());
         let exe = Executable::compile_function_body(agent, data, gc.nogc());
         agent[function_object].compiled_bytecode = Some(exe.unbind());
         exe.scope(agent, gc.nogc())

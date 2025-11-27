@@ -3,12 +3,12 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use ahash::{AHashMap, AHashSet};
-use oxc_ast::ast::{FormalParameters, FunctionBody};
 use oxc_ecmascript::BoundNames;
 use oxc_span::Atom;
 
 use crate::{
     ecmascript::{
+        builtins::FunctionAstRef,
         syntax_directed_operations::{
             function_definitions::ContainsExpression,
             scope_analysis::{
@@ -49,15 +49,16 @@ use super::{CompileEvaluation, complex_array_pattern, simple_array_pattern};
 /// > ECMAScript that predate ECMAScript 2015.
 pub(crate) fn instantiation<'s>(
     ctx: &mut CompileContext<'_, 's, '_, '_>,
-    formals: &'s FormalParameters<'s>,
-    body: &'s FunctionBody<'s>,
+    func: FunctionAstRef<'s>,
     strict: bool,
     is_lexical: bool,
 ) {
     // 1. Let calleeContext be the running execution context.
     // 2. Let code be func.[[ECMAScriptCode]].
+    let body = func.ecmascript_code();
     // 3. Let strict be func.[[Strict]].
     // 4. Let formals be func.[[FormalParameters]].
+    let formals = func.formal_parameters();
     // 5. Let parameterNames be the BoundNames of formals.
     // 6. If parameterNames has any duplicate entries, let hasDuplicates be
     //    true. Otherwise, let hasDuplicates be false.

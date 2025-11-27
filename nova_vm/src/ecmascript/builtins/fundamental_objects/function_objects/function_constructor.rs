@@ -11,7 +11,7 @@ use crate::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor, ECMAScriptFunction,
-            OrdinaryFunctionCreateParams, make_constructor,
+            FunctionAstRef, OrdinaryFunctionCreateParams, make_constructor,
             ordinary::get_prototype_from_constructor, ordinary_function_create, set_function_name,
         },
         execution::{Agent, Environment, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
@@ -306,11 +306,7 @@ pub(crate) fn create_dynamic_function<'a>(
         // SAFETY: source_code was not shared.
         source_code: Some(unsafe { source_code.take(agent) }),
         source_text: function.span,
-        parameters_list: &function.params,
-        body: function.body.as_ref().unwrap(),
-        is_concise_arrow_function: false,
-        is_async: function.r#async,
-        is_generator: function.generator,
+        ast: FunctionAstRef::from(function),
         lexical_this: false,
         env: Environment::Global(
             agent

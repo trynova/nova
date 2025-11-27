@@ -44,7 +44,6 @@ use execute_instructions::{
     execute_string_concat, execute_throw_error, execute_to_number, execute_to_numeric,
     execute_to_object, execute_typeof, execute_unary_minus, execute_verify_is_object,
 };
-use oxc_ast::ast;
 use std::{hint::unreachable_unchecked, ptr::NonNull};
 use wtf8::Wtf8Buf;
 
@@ -81,10 +80,6 @@ use crate::{
     },
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
-
-struct EmptyParametersList(ast::FormalParameters<'static>);
-unsafe impl Send for EmptyParametersList {}
-unsafe impl Sync for EmptyParametersList {}
 
 #[derive(Debug)]
 pub(crate) enum ExecutionResult<'a> {

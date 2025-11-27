@@ -6,6 +6,7 @@ use std::{cell::Cell, collections::hash_map::Entry};
 
 use crate::{
     ecmascript::{
+        builtins::FunctionAstRef,
         execution::agent::ExceptionType,
         syntax_directed_operations::{
             function_definitions::CompileFunctionBodyData,
@@ -602,16 +603,11 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
             let source_code = constructor_ctx.get_source_code();
             if let Some(constructor) = constructor {
                 let constructor_data = CompileFunctionBodyData {
-                    body: constructor.value.body.as_ref().unwrap(),
-                    params: &constructor.value.params,
                     source_code,
-                    is_concise_body: false,
                     is_lexical: false,
                     // Class code is always strict.
                     is_strict: true,
-                    // Constructors are never async or generators.
-                    is_async: false,
-                    is_generator: false,
+                    ast: FunctionAstRef::ClassConstructor(&constructor.value),
                 };
                 constructor_ctx.compile_function_body(constructor_data);
                 let executable = constructor_ctx.finish();

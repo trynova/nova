@@ -2000,7 +2000,7 @@ pub(super) fn compile_put_value<'gc>(
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) enum ExpressionOutput<'gc> {
     Literal(Primitive<'gc>),
     Place(PropertyKey<'gc>),
@@ -2890,6 +2890,8 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Variab
                         return;
                     };
 
+                    // let s = identifier.symbol_id();
+
                     // 1. Let lhs be ! ResolveBinding(StringValue of BindingIdentifier).
                     let identifier = identifier.compile(ctx);
 
@@ -2920,6 +2922,19 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Variab
                         // b. Let value be ? GetValue(rhs).
                     }
                     compile_expression_get_value(init, ctx);
+
+                    // if let Some(ExpressionOutput::Literal(output)) = output {
+                    //     let maybe_global = {
+                    //         let source_code = ctx.get_source_code();
+                    //         let nodes = source_code.get_nodes(ctx.get_agent());
+                    //         let scoping = source_code.get_scoping(ctx.get_agent());
+                    //         let scope_id = scoping.symbol_scope_id(s);
+                    //         for ele in scoping.get_resolved_references(s) {
+                    //             let ref_scope_id = nodes.get_node(ele.node_id()).scope_id();
+                    //             eprintln!("Scope flags: {:?}", scoping.scope_flags(ref_scope_id));
+                    //         }
+                    //     };
+                    // }
 
                     // 5. Perform ! InitializeReferencedBinding(lhs, value).
                     if do_push_reference {
