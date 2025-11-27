@@ -1,3 +1,5 @@
+#![allow(dead_code, unused_variables)]
+
 /// [1 Scope](https://tc39.es/ecma262/#sec-scope)
 
 enum Instruction {

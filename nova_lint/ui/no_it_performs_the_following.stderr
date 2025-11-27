@@ -1,5 +1,5 @@
 warning: this comment contains "It performs the following steps when called:", a leftover from copy-pasting the TC-39 specification
-  --> $DIR/no_it_performs_the_following.rs:5:19
+  --> $DIR/no_it_performs_the_following.rs:7:19
    |
 LL | /// type Boolean. It performs the following steps when called:
    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

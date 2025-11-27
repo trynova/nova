@@ -1,5 +1,5 @@
 warning: the header level of your comment and the TC-39 specification does not match
-  --> $DIR/spec_header_level.rs:1:4
+  --> $DIR/spec_header_level.rs:3:4
    |
 LL | /// [1 Scope](https://tc39.es/ecma262/#sec-scope)
    |    ^ help: use the correct header level: `#`
@@ -7,28 +7,22 @@ LL | /// [1 Scope](https://tc39.es/ecma262/#sec-scope)
    = note: `#[warn(spec_header_level)]` on by default
 
 warning: the header level of your comment and the TC-39 specification does not match
-  --> $DIR/spec_header_level.rs:8:4
+  --> $DIR/spec_header_level.rs:10:4
    |
 LL | /// [7.1.2 ToBoolean ( argument )](https://tc39.es/ecma262/#sec-toboolean)
    |    ^ help: use the correct header level: `###`
 
 warning: the header level of your comment and the TC-39 specification does not match
-  --> $DIR/spec_header_level.rs:13:5
+  --> $DIR/spec_header_level.rs:15:5
    |
 LL | /// # [7.1.2 ToBoolean ( argument )](https://tc39.es/ecma262/#sec-toboolean)
    |     ^ help: use the correct header level: `###`
 
 warning: the header level of your comment and the TC-39 specification does not match
-  --> $DIR/spec_header_level.rs:18:5
+  --> $DIR/spec_header_level.rs:20:5
    |
 LL | /// #### [7.1.2 ToBoolean ( argument )](https://tc39.es/ecma262/#sec-toboolean)
    |     ^^^^ help: use the correct header level: `###`
 
-warning: the header level of your comment and the TC-39 specification does not match
-  --> $DIR/spec_header_level.rs:23:5
-   |
-LL | /// ### [B.2.1.1 escape ( string )](https://tc39.es/ecma262/#sec-escape-string)
-   |     ^^^ help: use the correct header level: `####`
-
-warning: 5 warnings emitted
+warning: 4 warnings emitted
 

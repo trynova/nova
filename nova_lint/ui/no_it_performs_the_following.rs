@@ -1,3 +1,5 @@
+#![allow(dead_code, unused_variables)]
+
 /// 7.1.2 ToBoolean ( argument )
 ///
 /// The abstract operation ToBoolean takes argument argument (an ECMAScript

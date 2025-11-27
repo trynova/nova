@@ -10,10 +10,15 @@ use rustc_span::{BytePos, Span};
 dylint_linting::declare_early_lint! {
     /// ### What it does
     ///
+    /// This lint checks that the header level of your documentation comments
+    /// matches the header level of the TC-39 specification, with a max cap of
+    /// 3 levels.
     ///
     /// ### Why is this bad?
     ///
-    ///
+    /// The TC-39 specification uses a specific header level for each section,
+    /// and to be consistent with the spec and in our codebase, your
+    /// documentation comments should match that level.
     ///
     /// ### Example
     ///
@@ -63,7 +68,8 @@ impl EarlyLintPass for SpecHeaderLevel {
         let expected_level = captures
             .get(3)
             .map(|numbering| numbering.as_str().chars().filter(|&c| c == '.').count() as u32 + 1)
-            .unwrap_or(0);
+            .unwrap_or(0)
+            .min(3);
 
         if header_level == expected_level {
             return;
