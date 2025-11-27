@@ -17,6 +17,8 @@ use crate::{
 };
 
 pub(crate) mod data;
+pub mod plain_time_constructor;
+pub mod plain_time_prototype;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
