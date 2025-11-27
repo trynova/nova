@@ -7,7 +7,7 @@ use crate::{
         BIGINT_DISCRIMINANT, HeapNumber, HeapPrimitive, HeapString, NUMBER_DISCRIMINANT,
         OrdinaryObject, STRING_DISCRIMINANT, Value, bigint::HeapBigInt,
     },
-    engine::context::{Bindable, NoGcScope, bindable_handle},
+    engine::context::{Bindable, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, PrimitiveHeapIndexable, WorkQueues},
 };
 use ahash::AHasher;
@@ -40,8 +40,9 @@ pub struct MapHeapData<'a> {
     // the items in the map cannot be compacted.
     // pub(crate) observed: bool;
 }
+bindable_handle!(MapHeapData);
 
-impl<'a> MapHeapData<'a> {
+impl MapHeapData<'_> {
     /// ### [24.2.1.5 MapDataSize ( setData )](https://tc39.es/ecma262/#sec-setdatasize)
     ///
     /// The abstract operation MapDataSize takes argument setData (a List of either
@@ -55,14 +56,6 @@ impl<'a> MapHeapData<'a> {
         self.map_data.borrow().len() as u32
     }
 
-    pub fn keys(&self, _gc: NoGcScope<'a, '_>) -> &[Option<Value<'a>>] {
-        &self.keys
-    }
-
-    pub fn values(&self, _gc: NoGcScope<'a, '_>) -> &[Option<Value<'a>>] {
-        &self.values
-    }
-
     pub fn clear(&mut self) {
         // 3. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
         // a. Set p.[[Key]] to EMPTY.
@@ -70,16 +63,6 @@ impl<'a> MapHeapData<'a> {
         self.map_data.get_mut().clear();
         self.values.fill(None);
         self.keys.fill(None);
-    }
-
-    pub(crate) fn borrow(&self, arena: &impl PrimitiveHeapIndexable) -> &Self {
-        self.rehash_if_needed(arena);
-        self
-    }
-
-    pub(crate) fn borrow_mut(&mut self, arena: &impl PrimitiveHeapIndexable) -> &mut Self {
-        self.rehash_if_needed_mut(arena);
-        self
     }
 
     pub fn with_capacity(new_len: usize) -> Self {
@@ -93,25 +76,30 @@ impl<'a> MapHeapData<'a> {
     }
 }
 
-impl MapHeapData<'_> {
-    fn rehash_if_needed_mut(&mut self, arena: &impl PrimitiveHeapIndexable) {
+impl<'map, 'soa> MapHeapDataMut<'map, 'soa> {
+    pub fn clear(&mut self) {
+        // 3. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
+        // a. Set p.[[Key]] to EMPTY.
+        // b. Set p.[[Value]] to EMPTY.
+        self.map_data.get_mut().clear();
+        self.values.fill(None);
+        self.keys.fill(None);
+    }
+
+    pub(crate) fn rehash_if_needed_mut(&mut self, arena: &impl PrimitiveHeapIndexable) {
         if !*self.needs_primitive_rehashing.get_mut() {
             return;
         }
 
-        rehash_map_data(&self.keys, self.map_data.get_mut(), arena);
+        rehash_map_data(self.keys, self.map_data.get_mut(), arena);
         self.needs_primitive_rehashing
             .store(false, Ordering::Relaxed);
     }
+}
 
-    fn rehash_if_needed(&self, arena: &impl PrimitiveHeapIndexable) {
-        if !self.needs_primitive_rehashing.load(Ordering::Relaxed) {
-            return;
-        }
-
-        rehash_map_data(&self.keys, &mut self.map_data.borrow_mut(), arena);
-        self.needs_primitive_rehashing
-            .store(false, Ordering::Relaxed);
+impl<'map, 'soa> MapHeapDataRef<'map, 'soa> {
+    pub fn size(&self) -> u32 {
+        self.map_data.borrow().len() as u32
     }
 }
 
@@ -174,9 +162,25 @@ fn rehash_map_data(
     }
 }
 
-bindable_handle!(MapHeapData);
+impl HeapMarkAndSweep for MapHeapDataRef<'_, 'static> {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let Self {
+            keys,
+            values,
+            object_index,
+            ..
+        } = self;
+        object_index.mark_values(queues);
+        keys.iter().for_each(|value| value.mark_values(queues));
+        values.iter().for_each(|value| value.mark_values(queues));
+    }
 
-impl HeapMarkAndSweep for MapHeapData<'static> {
+    fn sweep_values(&mut self, _compactions: &CompactionLists) {
+        unreachable!()
+    }
+}
+
+impl HeapMarkAndSweep for MapHeapDataMut<'_, 'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             keys,

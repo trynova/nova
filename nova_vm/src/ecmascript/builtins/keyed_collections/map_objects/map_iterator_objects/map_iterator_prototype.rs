@@ -60,7 +60,7 @@ impl MapIteratorPrototype {
         // a. Let entries be map.[[MapData]].
         // c. Let numEntries be the number of elements in entries.
         // d. Repeat, while index < numEntries,
-        while agent[iterator].next_index < agent[map].keys(gc).len() {
+        while agent[iterator].next_index < map.get(agent).keys.len() {
             // i. Let e be entries[index].
             // ii. Set index to index + 1.
             let index = agent[iterator].next_index;
@@ -71,7 +71,7 @@ impl MapIteratorPrototype {
                     // iii. If e.[[Key]] is not EMPTY, then
                     //   1. If kind is KEY, then
                     //     a. Let result be e.[[Key]].
-                    let Some(key) = agent[map].keys(gc)[index] else {
+                    let Some(key) = map.get(agent).keys[index] else {
                         continue;
                     };
                     key
@@ -80,7 +80,7 @@ impl MapIteratorPrototype {
                     // iii. If e.[[Key]] is not EMPTY, then
                     //   2. If kind is VALUE, then
                     //     a. Let result be e.[[Value]].
-                    let Some(value) = agent[map].values(gc)[index] else {
+                    let Some(value) = map.get(agent).values[index] else {
                         continue;
                     };
                     value
@@ -90,10 +90,10 @@ impl MapIteratorPrototype {
                     //   3. Else,
                     //     a. Assert: kind is KEY+VALUE.
                     //     b. Let result be CreateArrayFromList(« e.[[Key]], e.[[Value]] »).
-                    let Some(key) = agent[map].keys(gc)[index] else {
+                    let Some(key) = map.get(agent).keys[index] else {
                         continue;
                     };
-                    let value = agent[map].values(gc)[index].unwrap();
+                    let value = map.get(agent).values[index].unwrap();
                     create_array_from_list(agent, &[key, value], gc).into_value()
                 }
             };
@@ -103,7 +103,7 @@ impl MapIteratorPrototype {
                 .map(|o| o.into_value());
         }
 
-        debug_assert_eq!(agent[iterator].next_index, agent[map].keys(gc).len());
+        debug_assert_eq!(agent[iterator].next_index, map.get(agent).keys.len());
 
         // e. Return undefined.
         agent[iterator].map = None;
