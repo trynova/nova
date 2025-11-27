@@ -183,9 +183,9 @@ pub(crate) enum FunctionAstRef<'a> {
     AsyncFunction(&'a oxc_ast::ast::Function<'a>),
     Generator(&'a oxc_ast::ast::Function<'a>),
     AsyncGenerator(&'a oxc_ast::ast::Function<'a>),
+    ClassConstructor(&'a oxc_ast::ast::Function<'a>),
     Arrow(&'a oxc_ast::ast::ArrowFunctionExpression<'a>),
     AsyncArrow(&'a oxc_ast::ast::ArrowFunctionExpression<'a>),
-    ClassConstructor(&'a oxc_ast::ast::Function<'a>),
 }
 
 impl<'a> From<&'a oxc_ast::ast::Function<'a>> for FunctionAstRef<'a> {

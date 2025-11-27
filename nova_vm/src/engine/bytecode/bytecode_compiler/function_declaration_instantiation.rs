@@ -10,6 +10,7 @@ use crate::{
     ecmascript::{
         builtins::FunctionAstRef,
         syntax_directed_operations::{
+            contains::{Contains, ContainsSymbol},
             function_definitions::ContainsExpression,
             scope_analysis::{
                 LexicallyScopedDeclaration, VarScopedDeclaration,
@@ -116,7 +117,8 @@ pub(crate) fn instantiation<'s>(
         && (has_parameter_expressions
             || (!functions.contains_key("arguments")
                 && !function_body_lexically_declared_names(body)
-                    .contains(&Atom::from("arguments"))));
+                    .contains(&Atom::from("arguments"))))
+        && Contains::contains(&func, ContainsSymbol::Arguments);
 
     // 19. If strict is true or hasParameterExpressions is false, then
     //   a. NOTE: Only a single Environment Record is needed for the parameters,
