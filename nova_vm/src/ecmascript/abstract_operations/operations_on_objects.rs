@@ -1348,7 +1348,7 @@ pub(crate) fn ordinary_has_instance<'a, 'b>(
     is_prototype_of_loop(agent, p.unbind(), o.unbind(), gc)
 }
 
-/// ### [7.3.22 SpeciesConstructor ( O, defaultConstructor )](https://tc39.es/ecma262/multipage/abstract-operations.html#sec-speciesconstructor)
+/// ### [7.3.22 SpeciesConstructor ( O, defaultConstructor )](https://tc39.es/ecma262/#sec-speciesconstructor)
 pub(crate) fn species_constructor<'a>(
     agent: &mut Agent,
     o: Object<'a>,
@@ -1431,7 +1431,7 @@ fn throw_species_constructor_is_not_a_constructor<'gc>(
     )
 }
 
-/// ### [7.3.22 SpeciesConstructor ( O, defaultConstructor )](https://tc39.es/ecma262/multipage/abstract-operations.html#sec-speciesconstructor)
+/// ### [7.3.22 SpeciesConstructor ( O, defaultConstructor )](https://tc39.es/ecma262/#sec-speciesconstructor)
 #[cfg(feature = "array-buffer")]
 pub(crate) fn try_species_constructor<'gc>(
     agent: &mut Agent,
@@ -2701,7 +2701,7 @@ pub(crate) fn try_private_set<'gc>(
     }
 }
 
-/// [7.3.33 InitializeInstanceElements ( O, constructor )](https://tc39.es/ecma262/#sec-initializeinstanceelements)
+///### [7.3.33 InitializeInstanceElements ( O, constructor )](https://tc39.es/ecma262/#sec-initializeinstanceelements)
 ///
 /// The abstract operation InitializeInstanceElements takes arguments O (an
 /// Object) and constructor (an ECMAScript function object) and returns either

@@ -59,7 +59,7 @@ use crate::{
     heap::HeapMarkAndSweep,
 };
 
-/// ### [23.2 TypedArray Objects](https://tc39.es/ecma262/#sec-typedarray-objects)
+/// ## [23.2 TypedArray Objects](https://tc39.es/ecma262/#sec-typedarray-objects)
 ///
 /// An AnyTypedArray presents an array-like view of an underlying binary data
 /// buffer (25.1).

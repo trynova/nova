@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! ## [16.2.1.7 Source Text Module Records](https://tc39.es/ecma262/#sec-source-text-module-records)
+//! ### [16.2.1.7 Source Text Module Records](https://tc39.es/ecma262/#sec-source-text-module-records)
 
 use std::{
     marker::PhantomData,
@@ -507,7 +507,7 @@ impl<'a> From<Scoped<'a, SourceTextModule<'static>>> for Scoped<'a, AbstractModu
     }
 }
 
-/// ### [ImportEntry Record Fields](https://tc39.es/ecma262/#table-importentry-record-fields)
+/// # [ImportEntry Record Fields](https://tc39.es/ecma262/#table-importentry-record-fields)
 #[derive(Debug)]
 struct ImportEntryRecord<'a> {
     /// ### \[\[ModuleRequest]]
@@ -531,7 +531,7 @@ struct ImportEntryRecord<'a> {
     local_name: String<'a>,
 }
 
-/// ## [ExportEntry Record Fields](https://tc39.es/ecma262/#table-exportentry-records)
+/// # [ExportEntry Record Fields](https://tc39.es/ecma262/#table-exportentry-records)
 ///
 /// This struct is used for local export declarations.
 ///
@@ -558,7 +558,7 @@ struct LocalExportEntryRecord<'a> {
     local_name: String<'a>,
 }
 
-/// ## [ExportEntry Record Fields](https://tc39.es/ecma262/#table-exportentry-records)
+/// # [ExportEntry Record Fields](https://tc39.es/ecma262/#table-exportentry-records)
 ///
 /// This struct is used for re-export declarations.
 ///

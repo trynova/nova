@@ -471,7 +471,7 @@ impl<'a> Number<'a> {
         }
     }
 
-    /// ### [truncate](https://tc39.es/ecma262/#eqn-truncate)
+    /// # [truncate](https://tc39.es/ecma262/#eqn-truncate)
     pub fn truncate(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Self {
         match self {
             Number::Number(n) => {
@@ -1403,7 +1403,7 @@ impl<'a> Number<'a> {
         }
     }
 
-    /// ### [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
+    /// # [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
     pub(crate) fn to_real(self, agent: &impl Index<HeapNumber<'static>, Output = f64>) -> f64 {
         match self {
             Self::Number(n) => agent[n.unbind()],

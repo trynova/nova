@@ -89,7 +89,7 @@ impl BuiltinIntrinsic for SetPrototypeValues {
 }
 
 impl SetPrototype {
-    /// #### [24.2.4.1 Set.prototype.add ( value )](https://tc39.es/ecma262/#sec-set.prototype.add)
+    /// ### [24.2.4.1 Set.prototype.add ( value )](https://tc39.es/ecma262/#sec-set.prototype.add)
     fn add<'gc>(
         agent: &mut Agent,
         this_value: Value,

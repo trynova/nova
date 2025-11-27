@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! [6.2 ECMAScript Specification Types](https://tc39.es/ecma262/#sec-ecmascript-specification-types)
+//!## [6.2 ECMAScript Specification Types](https://tc39.es/ecma262/#sec-ecmascript-specification-types)
 
 #[cfg(feature = "array-buffer")]
 mod data_block;

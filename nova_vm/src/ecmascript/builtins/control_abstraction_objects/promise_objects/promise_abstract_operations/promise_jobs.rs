@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! ## [27.2.2 Promise Jobs](https://tc39.es/ecma262/#sec-promise-jobs)
+//! ### [27.2.2 Promise Jobs](https://tc39.es/ecma262/#sec-promise-jobs)
 
 use crate::{
     ecmascript::{

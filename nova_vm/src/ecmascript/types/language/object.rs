@@ -195,10 +195,10 @@ pub enum Object<'a> {
     #[cfg(feature = "weak-refs")]
     WeakSet(WeakSet<'a>) = WEAK_SET_DISCRIMINANT,
 
-    /// ### [25.1 ArrayBuffer Objects](https://tc39.es/ecma262/#sec-arraybuffer-objects)
+    /// ## [25.1 ArrayBuffer Objects](https://tc39.es/ecma262/#sec-arraybuffer-objects)
     #[cfg(feature = "array-buffer")]
     ArrayBuffer(ArrayBuffer<'a>) = ARRAY_BUFFER_DISCRIMINANT,
-    /// ### [25.3 DataView Objects](https://tc39.es/ecma262/#sec-dataview-objects)
+    /// ## [25.3 DataView Objects](https://tc39.es/ecma262/#sec-dataview-objects)
     #[cfg(feature = "array-buffer")]
     DataView(DataView<'a>) = DATA_VIEW_DISCRIMINANT,
     // ### [23.2 TypedArray Objects](https://tc39.es/ecma262/#sec-typedarray-objects)
@@ -227,10 +227,10 @@ pub enum Object<'a> {
     #[cfg(feature = "array-buffer")]
     Float64Array(Float64Array<'a>) = FLOAT_64_ARRAY_DISCRIMINANT,
 
-    /// ### [25.2 SharedArrayBuffer Objects](https://tc39.es/ecma262/#sec-sharedarraybuffer-objects)
+    /// ## [25.2 SharedArrayBuffer Objects](https://tc39.es/ecma262/#sec-sharedarraybuffer-objects)
     #[cfg(feature = "shared-array-buffer")]
     SharedArrayBuffer(SharedArrayBuffer<'a>) = SHARED_ARRAY_BUFFER_DISCRIMINANT,
-    /// ### [25.3 DataView Objects](https://tc39.es/ecma262/#sec-dataview-objects)
+    /// ## [25.3 DataView Objects](https://tc39.es/ecma262/#sec-dataview-objects)
     ///
     /// A variant of DataView Objects viewing a SharedArrayBuffer.
     #[cfg(feature = "shared-array-buffer")]

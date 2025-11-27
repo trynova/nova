@@ -61,7 +61,7 @@ impl Builtin for SymbolPrototypeToPrimitive {
 }
 
 impl SymbolPrototype {
-    /// ### [20.4.3.2 get Symbol.prototype.description](https://tc39.es/ecma262/multipage/fundamental-objects.html#sec-symbol.prototype.description)
+    /// ### [20.4.3.2 get Symbol.prototype.description](https://tc39.es/ecma262/#sec-symbol.prototype.description)
     ///
     /// Symbol.prototype.description is an accessor property whose set accessor
     /// function is undefined.

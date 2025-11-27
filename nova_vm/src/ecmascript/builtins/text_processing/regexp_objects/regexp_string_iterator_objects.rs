@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! ## [22.2.9 RegExp String Iterator Objects](https://tc39.es/ecma262/#sec-regexp-string-iterator-objects)
+//! ### [22.2.9 RegExp String Iterator Objects](https://tc39.es/ecma262/#sec-regexp-string-iterator-objects)
 //!
 //! A RegExp String Iterator is an object that represents a specific iteration
 //! over some specific String instance object, matching against some specific
@@ -55,7 +55,7 @@ pub(crate) fn create_reg_exp_string_iterator<'gc>(
     })
 }
 
-/// [22.2.9 RegExp String Iterator Objects](https://tc39.es/ecma262/#sec-regexp-string-iterator-objects)
+///### [22.2.9 RegExp String Iterator Objects](https://tc39.es/ecma262/#sec-regexp-string-iterator-objects)
 ///
 /// A RegExp String Iterator is an object that represents a specific iteration
 /// over some specific String instance object, matching against some specific

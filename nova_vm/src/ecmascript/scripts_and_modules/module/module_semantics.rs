@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! ## [16.2.1 Module Semantics](https://tc39.es/ecma262/#sec-module-semantics)
+//! ### [16.2.1 Module Semantics](https://tc39.es/ecma262/#sec-module-semantics)
 
 use std::{
     hash::{Hash, Hasher},
@@ -197,7 +197,7 @@ bindable_handle!(ModuleRequestRecord);
 
 bindable_handle!(ModuleRequest);
 
-/// ### [LoadedModuleRequest Records](https://tc39.es/ecma262/#table-loadedmodulerequest-fields)
+/// # [LoadedModuleRequest Records](https://tc39.es/ecma262/#table-loadedmodulerequest-fields)
 #[derive(Debug)]
 pub(crate) struct LoadedModuleRequestRecord<'a> {
     module_request: ModuleRequest<'a>,
@@ -209,7 +209,7 @@ pub(crate) struct LoadedModuleRequestRecord<'a> {
     module: AbstractModule<'a>,
 }
 
-/// ### [ImportAttribute Records](https://tc39.es/ecma262/#table-importattribute-fields)
+/// # [ImportAttribute Records](https://tc39.es/ecma262/#table-importattribute-fields)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImportAttributeRecord<'a> {
     /// ### \[\[Key]]

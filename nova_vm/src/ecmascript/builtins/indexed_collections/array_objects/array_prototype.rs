@@ -2158,7 +2158,7 @@ impl ArrayPrototype {
         }
     }
 
-    /// #### [23.1.3.23 Array.prototype.push ( ...items )](https://tc39.es/ecma262/#sec-array.prototype.push)
+    /// ### [23.1.3.23 Array.prototype.push ( ...items )](https://tc39.es/ecma262/#sec-array.prototype.push)
     ///
     /// > Note 1
     /// >
@@ -3497,7 +3497,7 @@ impl ArrayPrototype {
         Ok(a.get(agent).into_value())
     }
 
-    /// ### [23.1.3.32 Array.prototype.toLocaleString ( [ reserved1 [ , reserved2 ] ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-array.prototype.tolocalestring)
+    /// ### [23.1.3.32 Array.prototype.toLocaleString ( [ reserved1 [ , reserved2 ] ] )](https://tc39.es/ecma262/#sec-array.prototype.tolocalestring)
     /// An ECMAScript implementation that includes the ECMA-402
     /// Internationalization API must implement this method as specified in the
     /// ECMA-402 specification. If an ECMAScript implementation does not

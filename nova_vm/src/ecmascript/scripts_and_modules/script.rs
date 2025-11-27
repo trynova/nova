@@ -50,7 +50,7 @@ use super::{
 
 pub type HostDefined = Rc<dyn Any>;
 
-/// ### [16.1 Scripts](https://tc39.es/ecma262/#sec-scripts)
+/// ## [16.1 Scripts](https://tc39.es/ecma262/#sec-scripts)
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct Script<'a>(

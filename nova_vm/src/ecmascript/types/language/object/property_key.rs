@@ -33,7 +33,7 @@ use crate::{
 
 const PRIVATE_NAME_DISCRIMINANT: u8 = SYMBOL_DISCRIMINANT & 0b1000_0000;
 
-/// ### [Property key](https://tc39.es/ecma262/#property-key)
+/// # [Property key](https://tc39.es/ecma262/#property-key)
 ///
 /// The properties of an object are uniquely identified using property keys. A
 /// _property key_ is either a String or a Symbol. All Strings and Symbols,

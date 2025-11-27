@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! ## [16 ECMAScript Language: Scripts and Modules](https://tc39.es/ecma262/#sec-ecmascript-language-scripts-and-modules)
+//! # [16 ECMAScript Language: Scripts and Modules](https://tc39.es/ecma262/#sec-ecmascript-language-scripts-and-modules)
 
 use module::module_semantics::source_text_module_records::SourceTextModule;
 
@@ -19,7 +19,7 @@ pub mod source_code;
 
 #[derive(Clone, Copy)]
 pub(crate) enum ScriptOrModule<'a> {
-    /// ### [16.1 Scripts](https://tc39.es/ecma262/#sec-scripts)
+    /// ## [16.1 Scripts](https://tc39.es/ecma262/#sec-scripts)
     Script(Script<'a>),
     /// ### [16.2.1.7 Source Text Module Records](https://tc39.es/ecma262/#sec-source-text-module-records)
     SourceTextModule(SourceTextModule<'a>),

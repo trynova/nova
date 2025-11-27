@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! ## [16.2.1.5 Abstract Module Records](https://tc39.es/ecma262/#sec-abstract-module-records)
+//! ### [16.2.1.5 Abstract Module Records](https://tc39.es/ecma262/#sec-abstract-module-records)
 
 use crate::{
     ecmascript::{
@@ -229,7 +229,7 @@ pub(crate) struct ResolveSetEntry<'a> {
     pub(crate) export_name: String<'a>,
 }
 
-/// ### [Abstract Methods of Module Records](https://tc39.es/ecma262/#table-abstract-methods-of-module-records)
+/// # [Abstract Methods of Module Records](https://tc39.es/ecma262/#table-abstract-methods-of-module-records)
 pub(crate) trait AbstractModuleMethods: AbstractModuleSlots {
     /// ### LoadRequestedModules(\[hostDefined])
     ///

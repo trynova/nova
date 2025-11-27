@@ -1,0 +1,95 @@
+use std::sync::LazyLock;
+
+use clippy_utils::diagnostics::span_lint_and_sugg;
+use regex::{Regex, RegexBuilder};
+use rustc_ast::Attribute;
+use rustc_errors::Applicability;
+use rustc_lint::{EarlyContext, EarlyLintPass};
+use rustc_span::{BytePos, Span};
+
+dylint_linting::declare_early_lint! {
+    /// ### What it does
+    ///
+    /// This lint checks that the header level of your documentation comments
+    /// matches the header level of the TC-39 specification, with a max cap of
+    /// 3 levels.
+    ///
+    /// ### Why is this bad?
+    ///
+    /// The TC-39 specification uses a specific header level for each section,
+    /// and to be consistent with the spec and in our codebase, your
+    /// documentation comments should match that level.
+    ///
+    /// ### Example
+    ///
+    /// ```rust
+    /// /// ## [7.1.2 ToBoolean ( argument )](https://tc39.es/ecma262/#sec-toboolean)
+    /// fn to_boolean() {
+    ///     unimplemented!()
+    /// }
+    /// ```
+    ///
+    /// Use instead:
+    ///
+    /// ```rust
+    /// /// ### [7.1.2 ToBoolean ( argument )](https://tc39.es/ecma262/#sec-toboolean)
+    /// fn to_boolean() {
+    ///     unimplemented!()
+    /// }
+    /// ```
+    pub SPEC_HEADER_LEVEL,
+    Warn,
+    "you should match the header level of the TC-39 spec in your documentation comments"
+}
+
+impl EarlyLintPass for SpecHeaderLevel {
+    fn check_attribute(&mut self, cx: &EarlyContext<'_>, attr: &Attribute) {
+        static RE: LazyLock<Regex> = LazyLock::new(|| {
+            RegexBuilder::new(r"^(\s*)(#*)\s\[([0-9B.]*)[^]]*]\(https?://tc39\.es/ecma262/.*\)")
+                .build()
+                .unwrap()
+        });
+
+        let Some(doc) = attr.doc_str().map(|sym| sym.to_string()) else {
+            return;
+        };
+        let Some(captures) = RE.captures(&doc) else {
+            return;
+        };
+
+        let spaces = captures
+            .get(1)
+            .map(|spaces| spaces.len() as u32)
+            .unwrap_or(0);
+        let header_level = captures
+            .get(2)
+            .map(|hashes| hashes.len() as u32)
+            .unwrap_or(0);
+        let expected_level = captures
+            .get(3)
+            .map(|numbering| numbering.as_str().chars().filter(|&c| c == '.').count() as u32 + 1)
+            .unwrap_or(0)
+            .min(3);
+
+        if header_level == expected_level {
+            return;
+        }
+
+        let span = Span::new(
+            attr.span.lo() + BytePos(3 + spaces),
+            attr.span.lo() + BytePos(3 + spaces + header_level),
+            attr.span.ctxt(),
+            attr.span.parent(),
+        );
+
+        span_lint_and_sugg(
+            cx,
+            SPEC_HEADER_LEVEL,
+            span,
+            "the header level of your comment and the TC-39 specification does not match",
+            "use the correct header level",
+            "#".repeat(expected_level as usize),
+            Applicability::MachineApplicable,
+        );
+    }
+}

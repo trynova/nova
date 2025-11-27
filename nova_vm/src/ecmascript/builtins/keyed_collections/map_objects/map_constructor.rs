@@ -179,7 +179,7 @@ impl MapConstructor {
         .map(|result| result.into_value())
     }
 
-    /// ### [24.1.2.1 Map.groupBy ( items, callback )](https://tc39.es/ecma262/multipage/keyed-collections.html#sec-map.groupby)
+    /// ### [24.1.2.1 Map.groupBy ( items, callback )](https://tc39.es/ecma262/#sec-map.groupby)
     fn group_by<'gc>(
         agent: &mut Agent,
         _this_value: Value,

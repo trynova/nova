@@ -489,7 +489,7 @@ impl JSONObject {
     }
 }
 
-/// [25.5.1.1 InternalizeJSONProperty ( holder, name, reviver )](https://tc39.es/ecma262/#sec-internalizejsonproperty)
+///### [25.5.1.1 InternalizeJSONProperty ( holder, name, reviver )](https://tc39.es/ecma262/#sec-internalizejsonproperty)
 ///
 /// The abstract operation InternalizeJSONProperty takes arguments holder (an
 /// Object), name (a String), and reviver (a function object) and returns

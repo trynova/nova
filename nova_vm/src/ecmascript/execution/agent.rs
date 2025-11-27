@@ -5,10 +5,10 @@
 //! ## [9.6 Agents](https://tc39.es/ecma262/#sec-agents)
 //!
 //! An _agent_ comprises a set of ECMAScript
-//! [execution contexts](https://tc39.es/ecma262/#sec-execution-contexts), an
+//!# [execution contexts](https://tc39.es/ecma262/#sec-execution-contexts), an
 //! execution context stack, a running execution context, an _Agent Record_,
 //! and an _executing thread_. Except for the
-//! [executing thread](https://tc39.es/ecma262/#executing-thread), the
+//!# [executing thread](https://tc39.es/ecma262/#executing-thread), the
 //! constituents of an agent belong exclusively to that agent.
 //!
 //! In Nova, the [`Agent Record`](Agent) is the main entry point into the
@@ -777,7 +777,7 @@ impl GcAgent {
     }
 }
 
-/// ### [9.7 Agents](https://tc39.es/ecma262/#sec-agents)
+/// ## [9.7 Agents](https://tc39.es/ecma262/#sec-agents)
 pub struct Agent {
     pub(crate) heap: Heap,
     pub(crate) options: Options,

@@ -35,7 +35,7 @@ use super::{
 /// and share the same specifications for all of those methods except for
 /// GetBindingValue, DeleteBinding, HasThisBinding and GetThisBinding. In
 /// addition, Module Environment Records support the methods listed in
-/// [Table 22](https://tc39.es/ecma262/#table-additional-methods-of-module-environment-records).
+///# [Table 22](https://tc39.es/ecma262/#table-additional-methods-of-module-environment-records).
 ///
 /// NOTE: There is no data-wise difference between a DeclarativeEnvironment and
 /// a ModuleEnvironment, so we treat them exactly the same way.
@@ -114,7 +114,7 @@ impl<'e> ModuleEnvironment<'e> {
         self.get_declarative_env(agent).get_outer_env(agent)
     }
 
-    /// ### [HasBinding(N)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    /// # [HasBinding(N)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     ///
     /// Determine if an Environment Record has a binding for the String value
     /// N. Return true if it does and false if it does not.
@@ -124,7 +124,7 @@ impl<'e> ModuleEnvironment<'e> {
         env.has_indirect_binding(name) || env.declarative_environment.has_binding(agent, name)
     }
 
-    /// ### [CreateMutableBinding(N, D)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    /// # [CreateMutableBinding(N, D)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     ///
     /// Create a new but uninitialized mutable binding in an Environment
     /// Record. The String value N is the text of the bound name. If the
@@ -134,7 +134,7 @@ impl<'e> ModuleEnvironment<'e> {
             .create_mutable_binding(agent, name, is_deletable);
     }
 
-    /// ### [CreateImmutableBinding(N, S)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    /// # [CreateImmutableBinding(N, S)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     ///
     /// Create a new but uninitialized immutable binding in an Environment
     /// Record. The String value N is the text of the bound name. If S is true
@@ -155,7 +155,7 @@ impl<'e> ModuleEnvironment<'e> {
             .create_immutable_binding(name, true);
     }
 
-    /// ### [InitializeBinding(N, V)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    /// # [InitializeBinding(N, V)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     ///
     /// Set the value of an already existing but uninitialized binding in an
     /// Environment Record. The String value N is the text of the bound name.
@@ -176,7 +176,7 @@ impl<'e> ModuleEnvironment<'e> {
             .initialize_binding(name, value);
     }
 
-    /// ### [SetMutableBinding(N, V, S)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    /// # [SetMutableBinding(N, V, S)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     ///
     /// Set the value of an already existing mutable binding in an Environment
     /// Record. The String value N is the text of the bound name. V is the

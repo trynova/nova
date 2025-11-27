@@ -509,7 +509,7 @@ pub(crate) trait TypedArrayAbstractOperations<'ta>: Copy + Sized {
         count: usize,
     );
 
-    /// [23.2.3.26.2 SetTypedArrayFromTypedArray ( target, targetOffset, source )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-settypedarrayfromtypedarray)
+    ///### [23.2.3.26.2 SetTypedArrayFromTypedArray ( target, targetOffset, source )](https://tc39.es/ecma262/#sec-settypedarrayfromtypedarray)
     ///
     /// The abstract operation SetTypedArrayFromTypedArray takes arguments
     /// target (a TypedArray), targetOffset (a non-negative integer or +∞), and
@@ -965,7 +965,7 @@ pub(crate) fn allocate_typed_array_buffer<'a, T: Viewable>(
     Ok(())
 }
 
-/// ### [23.2.4.2 TypedArrayCreateFromConstructor ( constructor, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-typedarraycreatefromconstructor)
+/// ### [23.2.4.2 TypedArrayCreateFromConstructor ( constructor, argumentList )](https://tc39.es/ecma262/#sec-typedarraycreatefromconstructor)
 ///
 /// ### NOTE
 /// This method implements steps 2 onwards of the TypedArrayCreateFromConstructor abstract operation.
@@ -1007,7 +1007,7 @@ fn typed_array_create_from_constructor_internal<'a>(
     Ok(ta_record.object)
 }
 
-/// ### [23.2.4.2 TypedArrayCreateFromConstructor ( constructor, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-typedarraycreatefromconstructor)
+/// ### [23.2.4.2 TypedArrayCreateFromConstructor ( constructor, argumentList )](https://tc39.es/ecma262/#sec-typedarraycreatefromconstructor)
 /// The abstract operation TypedArrayCreateFromConstructor takes arguments constructor (a constructor)
 /// and argumentList (a List of ECMAScript language values)
 /// and returns either a normal completion containing a TypedArray or a throw completion.
@@ -1038,7 +1038,7 @@ pub(crate) fn typed_array_create_from_constructor_with_length<'a>(
     )
 }
 
-/// ### [23.2.4.2 TypedArrayCreateFromConstructor ( constructor, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-typedarraycreatefromconstructor)
+/// ### [23.2.4.2 TypedArrayCreateFromConstructor ( constructor, argumentList )](https://tc39.es/ecma262/#sec-typedarraycreatefromconstructor)
 /// The abstract operation TypedArrayCreateFromConstructor takes arguments constructor (a constructor)
 /// and argumentList (a List of ECMAScript language values)
 /// and returns either a normal completion containing a TypedArray or a throw completion.
@@ -1112,7 +1112,7 @@ pub(crate) fn typed_array_create_from_data_block<'a>(
     result
 }
 
-/// ### [23.2.4.1 TypedArraySpeciesCreate ( exemplar, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#typedarray-species-create)
+/// ### [23.2.4.1 TypedArraySpeciesCreate ( exemplar, argumentList )](https://tc39.es/ecma262/#typedarray-species-create)
 pub(crate) fn try_typed_array_species_create_with_length<'gc>(
     agent: &mut Agent,
     exemplar: AnyTypedArray<'gc>,
@@ -1139,7 +1139,7 @@ pub(crate) fn try_typed_array_species_create_with_length<'gc>(
     js_result_into_try(create_byte_data_block(agent, byte_length, gc))
 }
 
-/// ### [23.2.4.1 TypedArraySpeciesCreate ( exemplar, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#typedarray-species-create)
+/// ### [23.2.4.1 TypedArraySpeciesCreate ( exemplar, argumentList )](https://tc39.es/ecma262/#typedarray-species-create)
 pub(crate) fn typed_array_species_create_with_length<'gc>(
     agent: &mut Agent,
     exemplar: AnyTypedArray,
@@ -1182,7 +1182,7 @@ pub(crate) fn typed_array_species_create_with_length<'gc>(
     Ok(result.unbind())
 }
 
-/// ### [23.2.4.1 TypedArraySpeciesCreate ( exemplar, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#typedarray-species-create)
+/// ### [23.2.4.1 TypedArraySpeciesCreate ( exemplar, argumentList )](https://tc39.es/ecma262/#typedarray-species-create)
 pub(crate) fn typed_array_species_create_with_buffer<'a>(
     agent: &mut Agent,
     exemplar: AnyTypedArray,

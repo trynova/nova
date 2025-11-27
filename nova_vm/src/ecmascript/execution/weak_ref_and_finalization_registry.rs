@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! [9.9 Processing Model of WeakRef and FinalizationRegistry Targets](https://tc39.es/ecma262/#sec-weakref-processing-model)
+//!## [9.9 Processing Model of WeakRef and FinalizationRegistry Targets](https://tc39.es/ecma262/#sec-weakref-processing-model)
 
 use crate::{
     ecmascript::{
@@ -23,7 +23,7 @@ use crate::{
 
 use super::agent::{ExceptionType, JsError};
 
-/// ### [9.10 ClearKeptObjects ( )](https://tc39.es/ecma262/#sec-clear-kept-objects)
+/// ## [9.10 ClearKeptObjects ( )](https://tc39.es/ecma262/#sec-clear-kept-objects)
 ///
 /// The abstract operation ClearKeptObjects takes no arguments and returns
 /// unused. ECMAScript implementations are expected to call ClearKeptObjects
@@ -40,7 +40,7 @@ pub(super) fn clear_kept_objects(agent: &mut Agent) {
     // 3. Return unused.
 }
 
-/// ### [9.11 AddToKeptObjects ( value )](https://tc39.es/ecma262/#sec-addtokeptobjects)
+/// ## [9.11 AddToKeptObjects ( value )](https://tc39.es/ecma262/#sec-addtokeptobjects)
 ///
 /// The abstract operation AddToKeptObjects takes argument value (an Object or
 /// a Symbol) and returns unused.
@@ -79,7 +79,7 @@ impl FinalizationRegistryCleanupJob {
     }
 }
 
-/// ### [9.12 CleanupFinalizationRegistry ( finalizationRegistry )](https://tc39.es/ecma262/#sec-cleanup-finalization-registry)
+/// ## [9.12 CleanupFinalizationRegistry ( finalizationRegistry )](https://tc39.es/ecma262/#sec-cleanup-finalization-registry)
 ///
 /// The abstract operation CleanupFinalizationRegistry takes argument
 /// finalizationRegistry (a FinalizationRegistry) and returns either a normal
@@ -170,7 +170,7 @@ pub(crate) fn cleanup_finalization_registry<'gc>(
     Ok(())
 }
 
-/// ### [9.13 CanBeHeldWeakly ( v )](https://tc39.es/ecma262/#sec-canbeheldweakly)
+/// ## [9.13 CanBeHeldWeakly ( v )](https://tc39.es/ecma262/#sec-canbeheldweakly)
 ///
 /// The abstract operation CanBeHeldWeakly takes argument v (an ECMAScript
 /// language value) and returns a Boolean. It returns true if and only if v is

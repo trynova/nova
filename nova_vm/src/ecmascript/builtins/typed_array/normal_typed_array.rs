@@ -70,7 +70,7 @@ use crate::{
     },
 };
 
-/// ### [23.2 TypedArray Objects](https://tc39.es/ecma262/#sec-typedarray-objects)
+/// ## [23.2 TypedArray Objects](https://tc39.es/ecma262/#sec-typedarray-objects)
 ///
 /// A generic TypedArray its concrete type encoded in a type parameter.
 pub struct GenericTypedArray<'a, T: Viewable>(
@@ -541,7 +541,7 @@ impl<T: Viewable> Rootable for GenericTypedArray<'_, T> {
     }
 }
 
-/// ### [23.2 TypedArray Objects](https://tc39.es/ecma262/#sec-typedarray-objects)
+/// ## [23.2 TypedArray Objects](https://tc39.es/ecma262/#sec-typedarray-objects)
 ///
 /// A TypedArray presents an array-like view of an underlying binary data
 /// buffer (25.1).

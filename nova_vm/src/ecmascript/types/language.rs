@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! [6.1 ECMAScript Language Types](https://tc39.es/ecma262/#sec-ecmascript-language-types)
+//!## [6.1 ECMAScript Language Types](https://tc39.es/ecma262/#sec-ecmascript-language-types)
 
 pub mod bigint;
 mod function;

@@ -25,6 +25,9 @@ extern crate rustc_trait_selection;
 mod agent_comes_first;
 mod gc_scope_comes_last;
 mod gc_scope_is_only_passed_by_value;
+mod no_it_performs_the_following;
+mod no_multipage_spec;
+mod spec_header_level;
 mod utils;
 
 pub(crate) use utils::*;
@@ -34,6 +37,9 @@ pub fn register_lints(sess: &rustc_session::Session, lint_store: &mut rustc_lint
     agent_comes_first::register_lints(sess, lint_store);
     gc_scope_comes_last::register_lints(sess, lint_store);
     gc_scope_is_only_passed_by_value::register_lints(sess, lint_store);
+    no_it_performs_the_following::register_lints(sess, lint_store);
+    no_multipage_spec::register_lints(sess, lint_store);
+    spec_header_level::register_lints(sess, lint_store);
 }
 
 #[test]

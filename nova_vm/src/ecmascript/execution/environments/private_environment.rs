@@ -117,7 +117,7 @@ impl<'a> PrivateField<'a> {
 }
 bindable_handle!(PrivateField);
 
-/// ### [9.2 PrivateEnvironment Records](https://tc39.es/ecma262/#sec-privateenvironment-records)
+/// ## [9.2 PrivateEnvironment Records](https://tc39.es/ecma262/#sec-privateenvironment-records)
 ///
 /// A PrivateEnvironment Record is a specification mechanism used to track
 /// Private Names based upon the lexical nesting structure of ClassDeclarations

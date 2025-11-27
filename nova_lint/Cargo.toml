@@ -24,9 +24,22 @@ path = "ui/gc_scope_comes_last.rs"
 name = "gc_scope_is_only_passed_by_value"
 path = "ui/gc_scope_is_only_passed_by_value.rs"
 
+[[example]]
+name = "no_it_performs_the_following"
+path = "ui/no_it_performs_the_following.rs"
+
+[[example]]
+name = "no_multipage_spec"
+path = "ui/no_multipage_spec.rs"
+
+[[example]]
+name = "spec_header_level"
+path = "ui/spec_header_level.rs"
+
 [dependencies]
 clippy_utils = { git = "https://github.com/rust-lang/rust-clippy", rev = "c936595d17413c1f08e162e117e504fb4ed126e4" }
 dylint_linting = { version = "5.0.0", features = ["constituent"] }
+regex = "1"
 
 [dev-dependencies]
 dylint_testing = "5.0.0"

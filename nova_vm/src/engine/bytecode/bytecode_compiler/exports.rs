@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! ## [16.2.3.7 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-exports-runtime-semantics-evaluation)
+//! ### [16.2.3.7 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-exports-runtime-semantics-evaluation)
 
 use oxc_ast::ast;
 

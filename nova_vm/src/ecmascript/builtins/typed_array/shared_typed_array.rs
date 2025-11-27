@@ -68,7 +68,7 @@ use crate::{
     },
 };
 
-/// ### [23.2 TypedArray Objects](https://tc39.es/ecma262/#sec-typedarray-objects)
+/// ## [23.2 TypedArray Objects](https://tc39.es/ecma262/#sec-typedarray-objects)
 ///
 /// A generic TypedArray viewing a SharedArrayBuffer with its concrete type
 /// encoded in a type parameter.
@@ -843,7 +843,7 @@ impl<'a> InternalMethods<'a> for SharedTypedArray<'a> {
     }
 }
 
-/// ### [23.2 TypedArray Objects](https://tc39.es/ecma262/#sec-typedarray-objects)
+/// ## [23.2 TypedArray Objects](https://tc39.es/ecma262/#sec-typedarray-objects)
 ///
 /// A SharedTypedArray presents an array-like view of an underlying binary data
 /// buffer (25.1) that can be shared between Agents.

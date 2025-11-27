@@ -284,7 +284,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Identi
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::UnaryExpression<'s> {
     type Output = ();
-    /// ### ['a 13.5 Unary Operators](https://tc39.es/ecma262/#sec-unary-operators)
+    /// # ['a 13.5 Unary Operators](https://tc39.es/ecma262/#sec-unary-operators)
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) {
         match self.operator {
             // 13.5.5 Unary - Operator
@@ -1383,7 +1383,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
     for ast::ConditionalExpression<'s>
 {
     type Output = ();
-    /// ## ['a 13.14 Conditional Operator ( ? : )](https://tc39.es/ecma262/#sec-conditional-operator)
+    /// # ['a 13.14 Conditional Operator ( ? : )](https://tc39.es/ecma262/#sec-conditional-operator)
     /// ### [13.14.1 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-conditional-operator-runtime-semantics-evaluation)
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) {
         // 1. Let lref be ? Evaluation of ShortCircuitExpression.
@@ -1460,7 +1460,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::MetaPr
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::PrivateInExpression<'s> {
     type Output = ();
-    /// ## [13.10.1 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-relational-operators-runtime-semantics-evaluation)
+    /// ### [13.10.1 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-relational-operators-runtime-semantics-evaluation)
     /// ###  RelationalExpression : PrivateIdentifier in ShiftExpression
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) {
         // 1. Let privateIdentifier be the StringValue of PrivateIdentifier.
@@ -1653,7 +1653,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ThisEx
     }
 }
 
-/// ## [15.5.5 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-generator-function-definitions-runtime-semantics-evaluation)
+/// ### [15.5.5 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-generator-function-definitions-runtime-semantics-evaluation)
 ///
 /// ### YieldExpression : yield * AssignmentExpression
 fn compile_delegate_yield_expression<'s>(
@@ -2236,7 +2236,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Update
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ExpressionStatement<'s> {
     type Output = ();
-    /// ### ['a 14.5.1 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-expression-statement-runtime-semantics-evaluation)
+    /// # ['a 14.5.1 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-expression-statement-runtime-semantics-evaluation)
     /// `ExpressionStatement : Expression ;`
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) {
         // 1. Let exprRef be ? Evaluation of Expression.
@@ -2290,7 +2290,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::IfStat
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ArrayPattern<'s> {
     type Output = ();
-    /// ## [8.6.2 Runtime Semantics: BindingInitialization](https://tc39.es/ecma262/#sec-runtime-semantics-bindinginitialization)
+    /// ### [8.6.2 Runtime Semantics: BindingInitialization](https://tc39.es/ecma262/#sec-runtime-semantics-bindinginitialization)
     /// ### BindingPattern : ArrayBindingPattern
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
         if self.elements.is_empty() && self.rest.is_none() {
@@ -2689,7 +2689,7 @@ fn complex_object_pattern<'s>(
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::BindingPattern<'s> {
     type Output = ();
-    /// ## [8.6.2 Runtime Semantics: BindingInitialization](https://tc39.es/ecma262/#sec-runtime-semantics-bindinginitialization)
+    /// ### [8.6.2 Runtime Semantics: BindingInitialization](https://tc39.es/ecma262/#sec-runtime-semantics-bindinginitialization)
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) {
         match &self.kind {
             // ### BindingIdentifier : Identifier

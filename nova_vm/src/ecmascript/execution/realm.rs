@@ -193,7 +193,7 @@ impl HeapMarkAndSweep for Realm<'static> {
     }
 }
 
-/// ### [9.3 Realms](https://tc39.es/ecma262/#sec-code-realms)
+/// ## [9.3 Realms](https://tc39.es/ecma262/#sec-code-realms)
 ///
 /// Before it is evaluated, all ECMAScript code must be associated with a
 /// realm. Conceptually, a realm consists of a set of intrinsic objects, an
@@ -682,7 +682,7 @@ pub(crate) fn set_default_global_bindings<'a>(
     Ok(global.get(agent).bind(gc.into_nogc()))
 }
 
-/// ### [9.6 InitializeHostDefinedRealm ( )](https://tc39.es/ecma262/#sec-initializehostdefinedrealm)
+/// ## [9.6 InitializeHostDefinedRealm ( )](https://tc39.es/ecma262/#sec-initializehostdefinedrealm)
 pub(crate) fn initialize_host_defined_realm(
     agent: &mut Agent,
     create_global_object: Option<impl for<'a> FnOnce(&mut Agent, GcScope<'a, '_>) -> Object<'a>>,

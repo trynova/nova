@@ -1585,7 +1585,7 @@ impl StringPrototype {
         )
     }
 
-    /// ### [22.1.3.18 String.prototype.repeat ( count )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.repeat)
+    /// ### [22.1.3.18 String.prototype.repeat ( count )](https://tc39.es/ecma262/#sec-string.prototype.repeat)
     ///
     /// > NOTE 1: This method creates the String value consisting of the code
     /// > units of the this value (converted to String) repeated count times.
@@ -1663,7 +1663,7 @@ impl StringPrototype {
         ))
     }
 
-    /// ### [22.1.3.19 String.prototype.replace ( searchValue, replaceValue )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.replace)
+    /// ### [22.1.3.19 String.prototype.replace ( searchValue, replaceValue )](https://tc39.es/ecma262/#sec-string.prototype.replace)
     ///
     /// > NOTE: This method is intentionally generic; it does not require that
     /// > its this value be a String object. Therefore, it can be transferred
@@ -1789,7 +1789,7 @@ impl StringPrototype {
         Ok(String::from_string(agent, result, gc.into_nogc()).into_value())
     }
 
-    /// ### [22.1.3.20 String.prototype.replaceAll ( searchValue, replaceValue )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.replaceall)
+    /// ### [22.1.3.20 String.prototype.replaceAll ( searchValue, replaceValue )](https://tc39.es/ecma262/#sec-string.prototype.replaceall)
     fn replace_all<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -2141,7 +2141,7 @@ impl StringPrototype {
         Ok(String::from_str(agent, substring, gc).into_value())
     }
 
-    /// ### [22.1.3.23 String.prototype.split ( separator, limit )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.split)
+    /// ### [22.1.3.23 String.prototype.split ( separator, limit )](https://tc39.es/ecma262/#sec-string.prototype.split)
     ///
     /// > NOTE 1: The value of separator may be an empty String. In this case,
     /// > separator does not match the empty substring at the beginning or end

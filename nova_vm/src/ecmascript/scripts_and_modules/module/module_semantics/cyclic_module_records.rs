@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! ## [16.2.1.6 Cyclic Module Records](https://tc39.es/ecma262/#sec-cyclic-module-records)
+//! ### [16.2.1.6 Cyclic Module Records](https://tc39.es/ecma262/#sec-cyclic-module-records)
 
 use crate::{
     ecmascript::{
@@ -460,7 +460,7 @@ pub(crate) trait CyclicModuleSlots: Copy {
     fn append_async_parent_module(self, agent: &mut Agent, module: SourceTextModule);
 }
 
-/// ### [Additional Abstract Methods of Cyclic Module Records](https://tc39.es/ecma262/#table-cyclic-module-methods)
+/// # [Additional Abstract Methods of Cyclic Module Records](https://tc39.es/ecma262/#table-cyclic-module-methods)
 pub(crate) trait CyclicModuleMethods: CyclicModuleSlots {
     /// ### InitializeEnvironment()
     ///

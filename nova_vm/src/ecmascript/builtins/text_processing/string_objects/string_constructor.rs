@@ -192,7 +192,7 @@ impl StringConstructor {
         Ok(String::from_wtf8_buf(agent, result, gc.into_nogc()).into())
     }
 
-    /// ### [22.1.2.2 String.fromCodePoint ( ...`codePoints` )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.fromcodepoint)
+    /// ### [22.1.2.2 String.fromCodePoint ( ...`codePoints` )](https://tc39.es/ecma262/#sec-string.fromcodepoint)
     ///
     /// This function may be called with any number of arguments which form
     /// the rest parameter `codePoints`.

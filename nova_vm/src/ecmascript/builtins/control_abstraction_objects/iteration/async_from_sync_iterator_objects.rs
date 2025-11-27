@@ -1,4 +1,4 @@
-//! ## [27.1.6 Async-from-Sync Iterator Objects](https://tc39.es/ecma262/#sec-async-from-sync-iterator-objects)
+//! ### [27.1.6 Async-from-Sync Iterator Objects](https://tc39.es/ecma262/#sec-async-from-sync-iterator-objects)
 //!
 //! An Async-from-Sync Iterator object is an async iterator that adapts a
 //! specific synchronous iterator. Async-from-Sync Iterator objects are never
