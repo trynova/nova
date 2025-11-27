@@ -1,9 +1,7 @@
 use crate::{
     ecmascript::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor
-        },
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
         execution::{Agent, JsResult, Realm},
         types::{BUILTIN_STRING_MEMORY, IntoObject, Object, String, Value},
     },
@@ -40,7 +38,7 @@ impl TemporalDurationConstructor {
         BuiltinFunctionBuilder::new_intrinsic_constructor::<TemporalDurationConstructor>(
             agent, realm,
         )
-        .with_property_capacity(5)
+        .with_property_capacity(1)
         .with_prototype_property(duration_prototype.into_object())
         .build();
     }

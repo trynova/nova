@@ -8,14 +8,17 @@ pub mod instant;
 pub mod options;
 pub mod plain_time;
 
-use temporal_rs::options::{DifferenceSettings, RoundingIncrement, RoundingMode, Unit, UnitGroup};
+use temporal_rs::{
+    options::{DifferenceSettings, RoundingIncrement, RoundingMode, Unit, UnitGroup},
+    parsers::Precision,
+};
 
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::get,
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::temporal::{
-            instant::instant_prototype::{DefaultOption, get_temporal_unit_valued_option},
+            instant::instant_prototype::get_temporal_unit_valued_option,
             options::{get_rounding_increment_option, get_rounding_mode_option},
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
@@ -41,7 +44,7 @@ impl Temporal {
         let plain_time_constructor = intrinsics.temporal_plain_time();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
-            .with_property_capacity(3)
+            .with_property_capacity(4)
             .with_prototype(object_prototype)
             // 1.2.1 Temporal.Instant ( . . . )
             .with_property(|builder| {
@@ -93,6 +96,7 @@ trivially_bindable!(UnitGroup);
 trivially_bindable!(Unit);
 trivially_bindable!(RoundingMode);
 trivially_bindable!(RoundingIncrement);
+trivially_bindable!(Precision);
 
 /// [13.15 GetTemporalFractionalSecondDigitsOption ( options )](https://tc39.es/proposal-temporal/#sec-temporal-gettemporalfractionalseconddigitsoption)
 /// The abstract operation GetTemporalFractionalSecondDigitsOption takes argument
@@ -104,10 +108,10 @@ pub(crate) fn get_temporal_fractional_second_digits_option<'gc>(
     agent: &mut Agent,
     options: Object<'gc>,
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, Value<'gc>> {
+) -> JsResult<'gc, temporal_rs::parsers::Precision> {
     let options = options.bind(gc.nogc());
     // 1. Let digitsValue be ? Get(options, "fractionalSecondDigits").
-    let digits_value = get(
+    let mut digits_value = get(
         agent,
         options.unbind(),
         BUILTIN_STRING_MEMORY
@@ -119,20 +123,31 @@ pub(crate) fn get_temporal_fractional_second_digits_option<'gc>(
     .bind(gc.nogc());
     // 2. If digitsValue is undefined, return auto.
     if digits_value.is_undefined() {
-        return Ok(BUILTIN_STRING_MEMORY.auto.bind(gc.nogc()).into_value());
+        return Ok(temporal_rs::parsers::Precision::Auto);
+    }
+    if let Value::Integer(digits_value) = digits_value
+        && (0..=9).contains(&digits_value.into_i64())
+    {
+        return Ok(temporal_rs::parsers::Precision::Digit(
+            digits_value.into_i64() as u8,
+        ));
     }
     // 3. If digitsValue is not a Number, then
     if !digits_value.is_number() {
+        let scoped_digits_value = digits_value.scope(agent, gc.nogc());
         // a. If ? ToString(digitsValue) is not "auto", throw a RangeError exception.
         if digits_value
+            .unbind()
             .to_string(agent, gc.reborrow())
             .unbind()?
             .as_bytes(agent)
             != b"auto"
         {
             // b. Return auto.
-            return Ok(BUILTIN_STRING_MEMORY.auto.bind(gc.nogc()).into_value());
+            return Ok(temporal_rs::parsers::Precision::Auto);
         }
+        // SAFETY: not shared.
+        digits_value = unsafe { scoped_digits_value.take(agent) }.bind(gc.nogc());
     }
     // 4. If digitsValue is NaN, +∞𝔽, or -∞𝔽, throw a RangeError exception.
     if digits_value.is_nan(agent)
@@ -150,9 +165,9 @@ pub(crate) fn get_temporal_fractional_second_digits_option<'gc>(
         .to_number(agent, gc.reborrow())
         .unbind()?
         .bind(gc.nogc());
-    let digit_count = digit_count.into_f64(agent).floor() as i32;
+    let digit_count = digit_count.into_f64(agent).floor();
     // 6. If digitCount < 0 or digitCount > 9, throw a RangeError exception.
-    if digit_count < 0 || digit_count > 9 {
+    if digit_count < 0.0 || digit_count > 9.0 {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::RangeError,
             "fractionalSecondDigits must be between 0 and 9",
@@ -160,7 +175,7 @@ pub(crate) fn get_temporal_fractional_second_digits_option<'gc>(
         ));
     }
     // 7. Return digitCount.
-    Ok(Number::from_i64(agent, digit_count.into(), gc.nogc()).into_value())
+    Ok(temporal_rs::parsers::Precision::Digit(digit_count as u8))
 }
 
 /// [13.42 GetDifferenceSettings ( operation, options, unitGroup, disallowedUnits, fallbackSmallestUnit, smallestLargestDefaultUnit )](https://tc39.es/proposal-temporal/#sec-temporal-getdifferencesettings)
