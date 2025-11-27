@@ -22,7 +22,7 @@ use crate::{
             options::{get_rounding_increment_option, get_rounding_mode_option},
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, Number, Object, Value},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, Object, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope, trivially_bindable},
@@ -162,6 +162,7 @@ pub(crate) fn get_temporal_fractional_second_digits_option<'gc>(
     }
     // 5. Let digitCount be floor(ℝ(digitsValue)).
     let digit_count = digits_value
+        .unbind()
         .to_number(agent, gc.reborrow())
         .unbind()?
         .bind(gc.nogc());

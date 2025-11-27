@@ -39,7 +39,6 @@ any
 apply
 arguments
 Array
-#[cfg(feature="temporal")]auto
 Array Iterator
 #[cfg(feature = "array-buffer")]ArrayBuffer
 #[cfg(feature = "math")]asin
