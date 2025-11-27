@@ -15,6 +15,11 @@ use caches::{CacheToPopulate, Caches, PropertyLookupCache, PropertyOffset};
 
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::data_view::data::SharedDataViewRecord;
+#[cfg(feature = "temporal")]
+use crate::ecmascript::builtins::temporal::{
+    duration::data::DurationHeapData, instant::data::InstantRecord,
+    plain_time::data::PlainTimeHeapData,
+};
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::types::try_get_result_into_value;
 use crate::{
@@ -1685,6 +1690,19 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
             .heap
             .create(ErrorHeapData::new(ExceptionType::SyntaxError, None, None))
             .into_object(),
+        #[cfg(feature = "temporal")]
+        ProtoIntrinsics::TemporalInstant => {
+            agent.heap.create(InstantRecord::default()).into_object()
+        }
+        #[cfg(feature = "temporal")]
+        ProtoIntrinsics::TemporalDuration => {
+            agent.heap.create(DurationHeapData::default()).into_object()
+        }
+        #[cfg(feature = "temporal")]
+        ProtoIntrinsics::TemporalPlainTime => agent
+            .heap
+            .create(PlainTimeHeapData::default())
+            .into_object(),
         ProtoIntrinsics::TypeError => agent
             .heap
             .create(ErrorHeapData::new(ExceptionType::TypeError, None, None))
@@ -2073,6 +2091,14 @@ fn get_intrinsic_constructor<'a>(
         ProtoIntrinsics::WeakRef => Some(intrinsics.weak_ref().into_function()),
         #[cfg(feature = "weak-refs")]
         ProtoIntrinsics::WeakSet => Some(intrinsics.weak_set().into_function()),
+        #[cfg(feature = "temporal")]
+        ProtoIntrinsics::TemporalInstant => Some(intrinsics.temporal_instant().into_function()),
+        #[cfg(feature = "temporal")]
+        ProtoIntrinsics::TemporalDuration => Some(intrinsics.temporal_duration().into_function()),
+        #[cfg(feature = "temporal")]
+        ProtoIntrinsics::TemporalPlainTime => {
+            Some(intrinsics.temporal_plain_time().into_function())
+        }
     }
 }
 

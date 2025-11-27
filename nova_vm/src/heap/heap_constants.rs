@@ -34,6 +34,14 @@ pub(crate) enum IntrinsicObjectIndexes {
     MathObject,
     #[cfg(feature = "date")]
     DatePrototype,
+    #[cfg(feature = "temporal")]
+    Temporal,
+    #[cfg(feature = "temporal")]
+    TemporalInstantPrototype,
+    #[cfg(feature = "temporal")]
+    TemporalDurationPrototype,
+    #[cfg(feature = "temporal")]
+    TemporalPlainTimePrototype,
 
     // Text processing
     #[cfg(feature = "regexp")]
@@ -171,6 +179,12 @@ pub(crate) enum IntrinsicConstructorIndexes {
     BigInt,
     #[cfg(feature = "date")]
     Date,
+    #[cfg(feature = "temporal")]
+    TemporalInstant,
+    #[cfg(feature = "temporal")]
+    TemporalDuration,
+    #[cfg(feature = "temporal")]
+    TemporalPlainTime,
 
     // Text processing
     String,

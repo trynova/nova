@@ -18,6 +18,12 @@ use super::{
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
+#[cfg(feature = "temporal")]
+use crate::ecmascript::builtins::temporal::duration::TemporalDuration;
+#[cfg(feature = "temporal")]
+use crate::ecmascript::builtins::temporal::instant::TemporalInstant;
+#[cfg(feature = "temporal")]
+use crate::ecmascript::builtins::temporal::plain_time::TemporalPlainTime;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{ArrayBuffer, data_view::DataView, typed_array::VoidArray};
 #[cfg(feature = "shared-array-buffer")]
@@ -128,6 +134,12 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             caches,
             #[cfg(feature = "date")]
             dates,
+            #[cfg(feature = "temporal")]
+            instants,
+            #[cfg(feature = "temporal")]
+            durations,
+            #[cfg(feature = "temporal")]
+            plain_times,
             ecmascript_functions,
             elements,
             embedder_objects,
@@ -545,6 +557,37 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 if bits.dates.set_bit(index, &bits.bits) {
                     // Did mark.
                     dates.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+        #[cfg(feature = "temporal")]
+        {
+            let mut instant_marks: Box<[TemporalInstant]> = queues.instants.drain(..).collect();
+            instant_marks.sort();
+            instant_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.instants.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    instants.get(index).mark_values(&mut queues);
+                }
+            });
+            let mut duration_marks: Box<[TemporalDuration]> = queues.durations.drain(..).collect();
+            duration_marks.sort();
+            duration_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.durations.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    durations.get(index).mark_values(&mut queues);
+                }
+            });
+            let mut plain_time_marks: Box<[TemporalPlainTime]> =
+                queues.plain_times.drain(..).collect();
+            plain_time_marks.sort();
+            plain_time_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.plain_times.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    plain_times.get(index).mark_values(&mut queues);
                 }
             });
         }
@@ -1251,6 +1294,12 @@ fn sweep(
         caches,
         #[cfg(feature = "date")]
         dates,
+        #[cfg(feature = "temporal")]
+        instants,
+        #[cfg(feature = "temporal")]
+        durations,
+        #[cfg(feature = "temporal")]
+        plain_times,
         ecmascript_functions,
         elements,
         embedder_objects,
@@ -1702,6 +1751,24 @@ fn sweep(
         if !dates.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(dates, &compactions, &bits.dates, &bits.bits);
+            });
+        }
+        #[cfg(feature = "temporal")]
+        if !instants.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(instants, &compactions, &bits.instants, &bits.bits);
+            });
+        }
+        #[cfg(feature = "temporal")]
+        if !durations.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(durations, &compactions, &bits.durations, &bits.bits);
+            });
+        }
+        #[cfg(feature = "temporal")]
+        if !plain_times.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(plain_times, &compactions, &bits.plain_times, &bits.bits);
             });
         }
         if !declarative.is_empty() {

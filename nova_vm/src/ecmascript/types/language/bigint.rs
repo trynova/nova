@@ -231,6 +231,15 @@ impl<'a> BigInt<'a> {
         }
     }
 
+    #[inline]
+    pub(crate) fn from_num_bigint(agent: &mut Agent, value: num_bigint::BigInt) -> Self {
+        if let Ok(result) = SmallBigInt::try_from(&value) {
+            Self::SmallBigInt(result)
+        } else {
+            agent.heap.create(BigIntHeapData { data: value })
+        }
+    }
+
     pub fn try_into_i64(self, agent: &Agent) -> Result<i64, TryFromBigIntError<()>> {
         match self {
             BigInt::BigInt(b) => i64::try_from(&agent[b].data),
@@ -238,12 +247,27 @@ impl<'a> BigInt<'a> {
         }
     }
 
-    #[inline]
-    pub(crate) fn from_num_bigint(agent: &mut Agent, value: num_bigint::BigInt) -> Self {
-        if let Ok(result) = SmallBigInt::try_from(&value) {
-            Self::SmallBigInt(result)
-        } else {
-            agent.heap.create(BigIntHeapData { data: value })
+    pub fn try_into_i128(self, agent: &Agent) -> Option<i128> {
+        match self {
+            BigInt::BigInt(b) => {
+                let data = &agent[b].data;
+                let sign = data.sign();
+                let mut digits = data.iter_u64_digits();
+                if digits.len() > 2 {
+                    return None;
+                } else if digits.len() == 1 {
+                    let abs = digits.next().unwrap() as i128;
+                    if sign == Sign::Minus {
+                        return Some(abs.neg());
+                    } else {
+                        return Some(abs);
+                    }
+                }
+                // Hard part: check that u64 << 64 + u64 doesn't have an
+                // absolute value overflowing i128.
+                todo!();
+            }
+            BigInt::SmallBigInt(b) => Some(b.into_i64() as i128),
         }
     }
 
