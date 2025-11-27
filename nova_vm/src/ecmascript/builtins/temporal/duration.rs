@@ -166,7 +166,7 @@ impl<'a> CreateHeapData<DurationHeapData<'a>, TemporalDuration<'a>> for Heap {
 /// It creates a Temporal.Duration instance and fills
 /// the internal slots with valid values.
 /// It performs the following steps when called:
-pub(crate) fn create_temporal_duration<'gc>(// years,
+pub(crate) fn _create_temporal_duration<'gc>(// years,
     // months,
     // weeks,
     // days,
@@ -449,7 +449,7 @@ pub(crate) fn to_temporal_partial_duration_record<'gc>(
 /// duration (a Temporal.Duration) and returns a Temporal.Duration.
 /// It returns a new Temporal.Duration instance that is the
 /// negation of duration.
-pub(crate) fn create_negated_temporal_duration<'gc>(
+pub(crate) fn _create_negated_temporal_duration<'gc>(
     _agent: &mut Agent,
     _item: temporal_rs::Duration,
     mut _gc: GcScope<'gc, '_>,
