@@ -27,7 +27,10 @@ use crate::{
             keyed_collections::map_objects::map_prototype::{
                 MapPrototypeSet, canonicalize_keyed_collection_key,
             },
-            map::{Map, data::MapHeapData},
+            map::{
+                Map,
+                data::{MapHeapData, MapHeapDataMut},
+            },
             ordinary::ordinary_create_from_constructor,
         },
         execution::{
@@ -217,13 +220,12 @@ impl MapConstructor {
         } = &mut agent.heap;
         let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
-        let map_entry = &mut maps[map];
-        let MapHeapData {
+        let MapHeapDataMut {
             keys,
             values,
             map_data,
             ..
-        } = &mut map_entry.borrow_mut(&primitive_heap);
+        } = map.get_direct_mut(maps);
         let map_data = map_data.get_mut();
         let hasher = |value: Value| {
             let mut hasher = AHasher::default();
@@ -361,12 +363,12 @@ pub fn add_entries_from_iterable_map_constructor<'a>(
                     // Trivial, dense array of trivial, dense arrays of two elements.
                     let gc = gc.nogc();
                     let length = arr_elements.len();
-                    let MapHeapData {
+                    let MapHeapDataMut {
                         keys,
                         values,
                         map_data,
                         ..
-                    } = maps[target].borrow_mut(&primitive_heap);
+                    } = target.get_direct_mut(maps);
                     let map_data = map_data.get_mut();
 
                     let length = length as usize;
