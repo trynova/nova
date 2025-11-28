@@ -707,9 +707,13 @@ pub(crate) fn is_loosely_equal<'a>(
         }
 
         // b. If ℝ(x) = ℝ(y), return true; otherwise return false.
-        let a = a.to_real(agent);
         let b = b.to_real(agent);
-        return Ok(a == b);
+
+        // Compare BigInt with f64 using precise comparison.
+        return Ok(match a {
+            BigInt::BigInt(heap_big_int) => agent[heap_big_int] == b,
+            BigInt::SmallBigInt(small_big_int) => small_big_int.into_i64() as f64 == b,
+        });
     }
 
     // 14. Return false.

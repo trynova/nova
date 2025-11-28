@@ -734,23 +734,6 @@ impl<'a> BigInt<'a> {
             gc,
         )
     }
-
-    pub(crate) fn to_real(self, agent: &mut Agent) -> f64 {
-        match self {
-            BigInt::BigInt(heap_big_int) => {
-                let mut value = 0f64;
-                for (i, digits) in agent[heap_big_int].data.iter_u64_digits().enumerate() {
-                    if i == 0 {
-                        value += digits as f64;
-                    } else {
-                        value += ((digits as u128) << (i * 64)) as f64;
-                    }
-                }
-                value
-            }
-            BigInt::SmallBigInt(small_big_int) => small_big_int.into_i64() as f64,
-        }
-    }
 }
 
 bindable_handle!(BigInt);
