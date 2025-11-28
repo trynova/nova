@@ -186,15 +186,15 @@ impl<'gc> Executable<'gc> {
         gc: NoGcScope<'gc, '_>,
     ) -> Self {
         let mut ctx = CompileContext::new(agent, data.source_code, gc);
-        if data.is_generator {
-            ctx.set_generator_kind(if data.is_async {
+        if data.ast.is_generator() {
+            ctx.set_generator_kind(if data.ast.is_async() {
                 GeneratorKind::Async
             } else {
                 GeneratorKind::Sync
             });
         }
 
-        let is_concise = data.is_concise_body;
+        let is_concise = data.ast.is_concise_body();
 
         ctx.compile_function_body(data);
 

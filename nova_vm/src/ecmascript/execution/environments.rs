@@ -563,12 +563,7 @@ impl<'e> Environment<'e> {
                 js_result_into_try(e.get_binding_value(agent, name, is_strict, gc))
             }
             Environment::Global(e) => e.try_get_binding_value(agent, name, cache, is_strict, gc),
-            Environment::Module(e) => {
-                let Some(value) = e.get_binding_value(agent, name, is_strict, gc) else {
-                    return throw_uninitialized_binding(agent, name, gc).into();
-                };
-                TryResult::Continue(value)
-            }
+            Environment::Module(e) => e.try_get_binding_value(agent, name, is_strict, gc),
             Environment::Object(e) => e.try_get_binding_value(agent, name, cache, is_strict, gc),
         }
     }
@@ -601,10 +596,8 @@ impl<'e> Environment<'e> {
             Environment::Global(e) => e.get_binding_value(agent, name, is_strict, gc),
             Environment::Module(e) => {
                 let gc = gc.into_nogc();
-                let Some(value) = e.bind(gc).get_binding_value(agent, name, is_strict, gc) else {
-                    return Err(throw_uninitialized_binding(agent, name, gc));
-                };
-                Ok(value)
+                e.bind(gc)
+                    .env_get_binding_value(agent, name, is_strict, gc.into_nogc())
             }
             Environment::Object(e) => e.get_binding_value(agent, name, is_strict, gc),
         }

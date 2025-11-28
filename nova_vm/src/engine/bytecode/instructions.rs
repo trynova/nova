@@ -525,6 +525,7 @@ impl Instruction {
         )
     }
 
+    #[inline(always)]
     pub const fn argument_count(self) -> u8 {
         match self {
             // Number of repetitions and lexical status
@@ -703,39 +704,42 @@ impl Instr {
             return None;
         }
         *ip += 1;
-        let kind =
-            Instruction::try_from(instructions[cur_ip]).expect("Invalid bytecode instruction");
+        // NOTE: we read IP here.
+        let Ok(kind) = Instruction::try_from(instructions[cur_ip]) else {
+            panic_invalid_instruction()
+        };
 
         let arg_count = kind.argument_count() as usize;
 
         let cur_ip = *ip;
+        // SAFETY: we've read IP and now split at IP + 1. Thus IP < len,
+        // meaning that IP + 1 <= len.
+        let (_, bytes) = unsafe { instructions.split_at_unchecked(cur_ip) };
         match arg_count {
             0 => Some(Instr::new(kind)),
             1 => {
-                let bytes: [u8; 2] = [instructions[cur_ip], instructions[cur_ip + 1]];
-                let arg0 = IndexType::from_ne_bytes(bytes);
                 *ip += 2;
+                let Some(arg_slice) = bytes.first_chunk::<2>() else {
+                    panic_invalid_instruction()
+                };
+                let arg0 = IndexType::from_ne_bytes(*arg_slice);
                 Some(Instr::new_with_arg(kind, arg0))
             }
             2 => {
+                *ip += 4;
+                let Some(arg_slice) = bytes.first_chunk::<4>() else {
+                    panic_invalid_instruction()
+                };
                 if kind.has_double_arg() {
-                    let mut bytes = [0u8; 4];
-                    bytes.copy_from_slice(&instructions[cur_ip..cur_ip + 4]);
-                    *ip += 4;
-                    let arg = u32::from_ne_bytes(bytes);
+                    let arg = u32::from_ne_bytes(*arg_slice);
                     Some(Instr::new_with_double_arg(kind, arg))
                 } else {
-                    let mut bytes0 = [0u8; 2];
-                    let mut bytes1 = [0u8; 2];
-                    bytes0.copy_from_slice(&instructions[cur_ip..cur_ip + 2]);
-                    bytes1.copy_from_slice(&instructions[cur_ip + 2..cur_ip + 4]);
-                    *ip += 4;
-                    let arg0 = IndexType::from_ne_bytes(bytes0);
-                    let arg1 = IndexType::from_ne_bytes(bytes1);
+                    let arg0 = IndexType::from_ne_bytes([arg_slice[0], arg_slice[1]]);
+                    let arg1 = IndexType::from_ne_bytes([arg_slice[2], arg_slice[3]]);
                     Some(Instr::new_with_two_args(kind, arg0, arg1))
                 }
             }
-            _ => unreachable!(),
+            _ => panic_invalid_instruction(),
         }
     }
 
@@ -1123,6 +1127,7 @@ impl Iterator for InstructionIter<'_> {
 impl TryFrom<u8> for Instruction {
     type Error = ();
 
+    #[inline]
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         const APPLYADDITIONBINARYOPERATOR: u8 = Instruction::ApplyAdditionBinaryOperator.as_u8();
         const APPLYSUBTRACTIONBINARYOPERATOR: u8 =
@@ -1456,6 +1461,12 @@ impl TryFrom<u8> for Instruction {
 // needed for `get_first_arg` from 34 all the way down to 14 and showing
 // a minor but noticeable performance increase when running the "richards"
 // benchmark.
+
+#[cold]
+#[inline(never)]
+fn panic_invalid_instruction() -> ! {
+    panic!("Invalid bytecode instruction")
+}
 
 #[cold]
 #[inline(never)]

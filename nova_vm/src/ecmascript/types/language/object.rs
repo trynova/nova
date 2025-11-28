@@ -868,6 +868,7 @@ impl<'a> From<Object<'a>> for Value<'a> {
 
 impl<'a> TryFrom<Value<'a>> for Object<'a> {
     type Error = ();
+    #[inline]
     fn try_from(value: Value<'a>) -> Result<Self, ()> {
         match value {
             Value::Undefined
@@ -881,109 +882,8 @@ impl<'a> TryFrom<Value<'a>> for Object<'a> {
             | Value::SmallF64(_)
             | Value::BigInt(_)
             | Value::SmallBigInt(_) => Err(()),
-            Value::Object(x) => Ok(Self::from(x)),
-            Value::Array(x) => Ok(Self::from(x)),
-            #[cfg(feature = "date")]
-            Value::Date(x) => Ok(Self::Date(x)),
-            Value::Error(x) => Ok(Self::from(x)),
-            Value::BoundFunction(x) => Ok(Self::from(x)),
-            Value::BuiltinFunction(x) => Ok(Self::from(x)),
-            Value::ECMAScriptFunction(x) => Ok(Self::from(x)),
-            Value::BuiltinConstructorFunction(data) => Ok(Self::BuiltinConstructorFunction(data)),
-            Value::BuiltinPromiseResolvingFunction(data) => {
-                Ok(Self::BuiltinPromiseResolvingFunction(data))
-            }
-            Value::BuiltinPromiseFinallyFunction(data) => {
-                Ok(Self::BuiltinPromiseFinallyFunction(data))
-            }
-            Value::BuiltinPromiseCollectorFunction => Ok(Self::BuiltinPromiseCollectorFunction),
-            Value::BuiltinProxyRevokerFunction => Ok(Self::BuiltinProxyRevokerFunction),
-            Value::PrimitiveObject(data) => Ok(Self::PrimitiveObject(data)),
-            Value::Arguments(data) => Ok(Self::Arguments(data)),
-            Value::FinalizationRegistry(data) => Ok(Self::FinalizationRegistry(data)),
-            Value::Map(data) => Ok(Self::Map(data)),
-            Value::Promise(data) => Ok(Self::Promise(data)),
-            Value::Proxy(data) => Ok(Self::Proxy(data)),
-            #[cfg(feature = "regexp")]
-            Value::RegExp(idx) => Ok(Self::RegExp(idx)),
-            #[cfg(feature = "set")]
-            Value::Set(data) => Ok(Self::Set(data)),
-            #[cfg(feature = "weak-refs")]
-            Value::WeakMap(data) => Ok(Self::WeakMap(data)),
-            #[cfg(feature = "weak-refs")]
-            Value::WeakRef(data) => Ok(Self::WeakRef(data)),
-            #[cfg(feature = "weak-refs")]
-            Value::WeakSet(data) => Ok(Self::WeakSet(data)),
-
-            #[cfg(feature = "array-buffer")]
-            Value::ArrayBuffer(ab) => Ok(Self::ArrayBuffer(ab)),
-            #[cfg(feature = "array-buffer")]
-            Value::DataView(dv) => Ok(Self::DataView(dv)),
-            #[cfg(feature = "array-buffer")]
-            Value::Int8Array(ta) => Ok(Self::Int8Array(ta)),
-            #[cfg(feature = "array-buffer")]
-            Value::Uint8Array(ta) => Ok(Self::Uint8Array(ta)),
-            #[cfg(feature = "array-buffer")]
-            Value::Uint8ClampedArray(ta) => Ok(Self::Uint8ClampedArray(ta)),
-            #[cfg(feature = "array-buffer")]
-            Value::Int16Array(ta) => Ok(Self::Int16Array(ta)),
-            #[cfg(feature = "array-buffer")]
-            Value::Uint16Array(ta) => Ok(Self::Uint16Array(ta)),
-            #[cfg(feature = "array-buffer")]
-            Value::Int32Array(ta) => Ok(Self::Int32Array(ta)),
-            #[cfg(feature = "array-buffer")]
-            Value::Uint32Array(ta) => Ok(Self::Uint32Array(ta)),
-            #[cfg(feature = "array-buffer")]
-            Value::BigInt64Array(ta) => Ok(Self::BigInt64Array(ta)),
-            #[cfg(feature = "array-buffer")]
-            Value::BigUint64Array(ta) => Ok(Self::BigUint64Array(ta)),
-            #[cfg(feature = "proposal-float16array")]
-            Value::Float16Array(ta) => Ok(Self::Float16Array(ta)),
-            #[cfg(feature = "array-buffer")]
-            Value::Float32Array(ta) => Ok(Self::Float32Array(ta)),
-            #[cfg(feature = "array-buffer")]
-            Value::Float64Array(ta) => Ok(Self::Float64Array(ta)),
-
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedArrayBuffer(sab) => Ok(Self::SharedArrayBuffer(sab)),
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedDataView(sdv) => Ok(Self::SharedDataView(sdv)),
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedInt8Array(sta) => Ok(Self::SharedInt8Array(sta)),
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedUint8Array(sta) => Ok(Self::SharedUint8Array(sta)),
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedUint8ClampedArray(sta) => Ok(Self::SharedUint8ClampedArray(sta)),
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedInt16Array(sta) => Ok(Self::SharedInt16Array(sta)),
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedUint16Array(sta) => Ok(Self::SharedUint16Array(sta)),
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedInt32Array(sta) => Ok(Self::SharedInt32Array(sta)),
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedUint32Array(sta) => Ok(Self::SharedUint32Array(sta)),
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedBigInt64Array(sta) => Ok(Self::SharedBigInt64Array(sta)),
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedBigUint64Array(sta) => Ok(Self::SharedBigUint64Array(sta)),
-            #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
-            Value::SharedFloat16Array(sta) => Ok(Self::SharedFloat16Array(sta)),
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedFloat32Array(sta) => Ok(Self::SharedFloat32Array(sta)),
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedFloat64Array(sta) => Ok(Self::SharedFloat64Array(sta)),
-
-            Value::AsyncGenerator(data) => Ok(Self::AsyncGenerator(data)),
-            Value::ArrayIterator(data) => Ok(Self::ArrayIterator(data)),
-            #[cfg(feature = "set")]
-            Value::SetIterator(data) => Ok(Self::SetIterator(data)),
-            Value::MapIterator(data) => Ok(Self::MapIterator(data)),
-            Value::StringIterator(data) => Ok(Self::StringIterator(data)),
-            #[cfg(feature = "regexp")]
-            Value::RegExpStringIterator(data) => Ok(Self::RegExpStringIterator(data)),
-            Value::Generator(data) => Ok(Self::Generator(data)),
-            Value::Module(data) => Ok(Self::Module(data)),
-            Value::EmbedderObject(data) => Ok(Self::EmbedderObject(data)),
+            // SAFETY: non-primitives are all objects.
+            _ => Ok(unsafe { core::mem::transmute::<Value<'a>, Object<'a>>(value) }),
         }
     }
 }

@@ -7448,7 +7448,6 @@
   "staging/sm/TypedArray/slice.js": "FAIL",
   "staging/sm/TypedArray/sort-negative-nan.js": "FAIL",
   "staging/sm/TypedArray/sort-non-function.js": "FAIL",
-  "staging/sm/TypedArray/sort_large_countingsort.js": "TIMEOUT",
   "staging/sm/TypedArray/test-integrity-level-detached.js": "FAIL",
   "staging/sm/TypedArray/toLocaleString-detached.js": "FAIL",
   "staging/sm/TypedArray/toLocaleString.js": "FAIL",

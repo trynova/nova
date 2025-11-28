@@ -4,9 +4,7 @@
 
 use binding_methods::{execute_simple_array_binding, execute_simple_object_binding};
 use core::ops::ControlFlow;
-use oxc_ast::ast;
 use oxc_span::Span;
-use std::sync::OnceLock;
 
 use crate::{
     ecmascript::{
@@ -29,12 +27,13 @@ use crate::{
             },
         },
         builtins::{
-            ArgumentsList, Array, BuiltinConstructorArgs, ConstructorStatus,
+            ArgumentsList, Array, BuiltinConstructorArgs, ConstructorStatus, FunctionAstRef,
             OrdinaryFunctionCreateParams, SetFunctionNamePrefix, array_create,
             create_builtin_constructor, create_unmapped_arguments_object,
-            global_object::perform_eval, make_constructor, make_method,
-            ordinary::ordinary_object_create_with_intrinsics, ordinary_function_create,
-            set_function_name,
+            global_object::perform_eval,
+            make_constructor, make_method,
+            ordinary::{caches::PropertyLookupCache, ordinary_object_create_with_intrinsics},
+            ordinary_function_create, set_function_name,
         },
         execution::{
             Agent, Environment, JsResult, PrivateMethod, ProtoIntrinsics,
@@ -64,7 +63,6 @@ use crate::{
             executable::ArrowFunctionExpression,
             instructions::Instr,
             iterator::{ObjectPropertiesIteratorRecord, VmIteratorRecord},
-            vm::EmptyParametersList,
         },
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
@@ -223,18 +221,30 @@ pub(super) fn execute_resolve_binding_with_cache<'gc>(
     {
         reference
     } else {
-        let identifier = identifier.unbind();
-        let cache = cache.unbind();
-        with_vm_gc(
-            agent,
-            vm,
-            |agent, gc| resolve_binding(agent, identifier, Some(cache), None, gc),
-            gc,
-        )?
+        execute_resolve_binding_with_cache_cold(agent, vm, identifier.unbind(), cache.unbind(), gc)
+            .unbind()?
     };
 
     vm.reference = Some(reference.unbind());
     Ok(())
+}
+
+#[cold]
+fn execute_resolve_binding_with_cache_cold<'gc>(
+    agent: &mut Agent,
+    vm: &mut Vm,
+    identifier: String,
+    cache: PropertyLookupCache,
+    gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, Reference<'gc>> {
+    let identifier = identifier.unbind();
+    let cache = cache.unbind();
+    with_vm_gc(
+        agent,
+        vm,
+        |agent, gc| resolve_binding(agent, identifier, Some(cache), None, gc),
+        gc,
+    )
 }
 
 pub(super) fn execute_resolve_this_binding<'gc>(
@@ -458,11 +468,7 @@ pub(super) fn execute_object_define_method<'gc>(
         source_code: None,
         // 4. Let sourceText be the source text matched by MethodDefinition.
         source_text: function_expression.span,
-        parameters_list: &function_expression.params,
-        body: function_expression.body.as_ref().unwrap(),
-        is_concise_arrow_function: false,
-        is_async: function_expression.r#async,
-        is_generator: function_expression.generator,
+        ast: FunctionAstRef::from(function_expression),
         lexical_this: false,
         env,
         private_env,
@@ -552,26 +558,12 @@ pub(super) fn execute_object_define_getter<'gc>(
     // We have to create a temporary allocator to create the empty
     // items Vec. The allocator will never be asked to allocate
     // anything.
-    static EMPTY_PARAMETERS: OnceLock<EmptyParametersList> = OnceLock::new();
-    let empty_parameters = EMPTY_PARAMETERS.get_or_init(|| {
-        let allocator: &'static oxc_allocator::Allocator = Box::leak(Box::default());
-        EmptyParametersList(ast::FormalParameters {
-            span: Default::default(),
-            kind: ast::FormalParameterKind::FormalParameter,
-            items: oxc_allocator::Vec::new_in(allocator),
-            rest: None,
-        })
-    });
     let params = OrdinaryFunctionCreateParams {
         function_prototype: None,
         source_code: None,
         // 4. Let sourceText be the source text matched by MethodDefinition.
         source_text: function_expression.span,
-        parameters_list: &empty_parameters.0,
-        body: function_expression.body.as_ref().unwrap(),
-        is_async: function_expression.r#async,
-        is_generator: function_expression.generator,
-        is_concise_arrow_function: false,
+        ast: FunctionAstRef::from(function_expression),
         lexical_this: false,
         env,
         private_env,
@@ -656,11 +648,7 @@ pub(super) fn execute_object_define_setter<'gc>(
         source_code: None,
         // 4. Let sourceText be the source text matched by MethodDefinition.
         source_text: function_expression.span,
-        parameters_list: &function_expression.params,
-        body: function_expression.body.as_ref().unwrap(),
-        is_concise_arrow_function: false,
-        is_async: function_expression.r#async,
-        is_generator: function_expression.generator,
+        ast: FunctionAstRef::from(function_expression),
         lexical_this: false,
         env,
         private_env,
@@ -797,22 +785,9 @@ pub(super) fn execute_get_value<'gc>(
 ) -> JsResult<'gc, ()> {
     // 1. If V is not a Reference Record, return V.
     let reference = if keep_reference {
-        let reference = vm.reference.as_mut().unwrap();
-        if is_property_reference(reference) && !reference.is_static_property_reference() {
-            if let Ok(referenced_name) =
-                Primitive::try_from(reference.referenced_name_value().bind(gc.nogc()))
-            {
-                let referenced_name = to_property_key_primitive(agent, referenced_name, gc.nogc());
-                reference.set_referenced_name_to_property_key(referenced_name);
-                reference.clone()
-            } else {
-                mutate_reference_property_key(agent, vm, gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc())
-            }
-        } else {
-            reference.clone().bind(gc.nogc())
-        }
+        handle_keep_reference(agent, vm, gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc())
     } else {
         vm.reference.take().unwrap()
     };
@@ -834,6 +809,28 @@ pub(super) fn execute_get_value<'gc>(
     };
     vm.result = Some(result.unbind());
     Ok(())
+}
+
+#[cold]
+fn handle_keep_reference<'gc>(
+    agent: &mut Agent,
+    vm: &mut Vm,
+    gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, Reference<'gc>> {
+    let reference = vm.reference.as_mut().unwrap();
+    if is_property_reference(reference) && !reference.is_static_property_reference() {
+        if let Ok(referenced_name) =
+            Primitive::try_from(reference.referenced_name_value().bind(gc.nogc()))
+        {
+            let referenced_name = to_property_key_primitive(agent, referenced_name, gc.nogc());
+            reference.set_referenced_name_to_property_key(referenced_name);
+            Ok(reference.clone().bind(gc.into_nogc()))
+        } else {
+            mutate_reference_property_key(agent, vm, gc)
+        }
+    } else {
+        Ok(reference.clone().bind(gc.into_nogc()))
+    }
 }
 
 pub(super) fn execute_typeof<'gc>(
@@ -981,11 +978,7 @@ pub(super) fn execute_instantiate_arrow_function_expression<'gc>(
         function_prototype: None,
         source_code: None,
         source_text: function_expression.span,
-        parameters_list: &function_expression.params,
-        body: &function_expression.body,
-        is_concise_arrow_function: function_expression.expression,
-        is_async: function_expression.r#async,
-        is_generator: false,
+        ast: FunctionAstRef::from(function_expression),
         lexical_this: true,
         env,
         private_env,
@@ -1090,11 +1083,7 @@ pub(super) fn execute_instantiate_ordinary_function_expression<'gc>(
         function_prototype: None,
         source_code: None,
         source_text: function_expression.span,
-        parameters_list: &function_expression.params,
-        body: function_expression.body.as_ref().unwrap(),
-        is_concise_arrow_function: false,
-        is_async: function_expression.r#async,
-        is_generator: function_expression.generator,
+        ast: FunctionAstRef::from(function_expression),
         lexical_this: false,
         env,
         private_env,
@@ -1204,11 +1193,7 @@ pub(super) fn execute_class_define_constructor<'gc>(
         function_prototype,
         source_code: None,
         source_text: function_expression.span,
-        parameters_list: &function_expression.params,
-        body: function_expression.body.as_ref().unwrap(),
-        is_concise_arrow_function: false,
-        is_async: function_expression.r#async,
-        is_generator: function_expression.generator,
+        ast: FunctionAstRef::ClassConstructor(function_expression),
         lexical_this: false,
         env,
         private_env,
@@ -1344,11 +1329,7 @@ pub(super) fn execute_class_define_private_method<'gc>(
         source_code: None,
         // 4. Let sourceText be the source text matched by MethodDefinition.
         source_text: function_expression.span,
-        parameters_list: &function_expression.params,
-        body: function_expression.body.as_ref().unwrap(),
-        is_async: function_expression.r#async,
-        is_generator: function_expression.generator,
-        is_concise_arrow_function: false,
+        ast: FunctionAstRef::from(function_expression),
         lexical_this: false,
         env,
         private_env: Some(private_env),
@@ -1548,11 +1529,7 @@ pub(super) fn execute_direct_eval_call<'gc>(
             // iv. If IsStrict(this CallExpression) is true, let
             //     strictCaller be true. Otherwise let strictCaller
             //     be false.
-            let strict_caller = agent
-                .running_execution_context()
-                .ecmascript_code
-                .unwrap()
-                .is_strict_mode;
+            let strict_caller = agent.is_evaluating_strict_code();
             // v. Return ? PerformEval(evalArg, strictCaller, true).
             let eval_arg = eval_arg.unbind();
             with_vm_gc(
@@ -1773,11 +1750,7 @@ pub(super) fn execute_evaluate_property_access_with_expression_key(
 ) {
     let property_name_value = vm.result.take().unwrap().bind(gc);
     let base_value = vm.stack.pop().unwrap().bind(gc);
-    let strict = agent
-        .running_execution_context()
-        .ecmascript_code
-        .unwrap()
-        .is_strict_mode;
+    let strict = agent.is_evaluating_strict_code();
 
     vm.reference = Some(
         Reference::new_property_expression_reference(base_value, property_name_value, strict)
@@ -1795,11 +1768,7 @@ pub(super) fn execute_evaluate_property_access_with_identifier_key(
 ) {
     let property_key = executable.fetch_property_key(agent, instr.get_first_index(), gc);
     let base_value = vm.result.take().unwrap().bind(gc);
-    let strict = agent
-        .running_execution_context()
-        .ecmascript_code
-        .unwrap()
-        .is_strict_mode;
+    let strict = agent.is_evaluating_strict_code();
 
     vm.reference =
         Some(Reference::new_property_reference(base_value, property_key, strict).unbind());
@@ -1847,11 +1816,7 @@ pub(super) fn execute_make_super_property_reference_with_expression_key<'gc>(
     // 4. Let propertyNameValue be ? GetValue(propertyNameReference).
     let property_name_value = vm.result.take().unwrap().bind(gc);
     // 5. Let strict be IsStrict(this SuperProperty).
-    let strict = agent
-        .running_execution_context()
-        .ecmascript_code
-        .unwrap()
-        .is_strict_mode;
+    let strict = agent.is_evaluating_strict_code();
     // 6. NOTE: In most cases, ToPropertyKey will be performed on
     //    propertyNameValue immediately after this step. However,
     //    in the case of super[b] = c, it will not be performed
@@ -1905,11 +1870,7 @@ pub(super) fn execute_make_super_property_reference_with_identifier_key<'gc>(
     // 3. Let propertyKey be the StringValue of IdentifierName.
     let property_key = executable.fetch_property_key(agent, instr.get_first_index(), gc);
     // 4. Let strict be IsStrict(this SuperProperty).
-    let strict = agent
-        .running_execution_context()
-        .ecmascript_code
-        .unwrap()
-        .is_strict_mode;
+    let strict = agent.is_evaluating_strict_code();
     // 5. Return MakeSuperPropertyReference(actualThis, propertyKey, strict).
     // 1. Let env be GetThisEnvironment().
     // 2. Assert: env.HasSuperBinding() is true.

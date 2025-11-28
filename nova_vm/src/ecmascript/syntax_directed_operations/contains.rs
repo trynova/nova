@@ -6,8 +6,11 @@
 
 use oxc_ast::ast;
 
+use crate::ecmascript::builtins::FunctionAstRef;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ContainsSymbol {
+    Arguments,
     Await,
     NewTarget,
     Super,
@@ -42,6 +45,24 @@ impl Contains for ast::Function<'_> {
     }
 }
 
+impl Contains for FunctionAstRef<'_> {
+    fn contains(&self, symbol: ContainsSymbol) -> bool {
+        let (params, body) = match self {
+            FunctionAstRef::Function(f) |
+            FunctionAstRef::AsyncFunction(f) |
+            FunctionAstRef::Generator(f) |
+            FunctionAstRef::AsyncGenerator(f) |
+            // SAFETY: FunctionAstRef cannot point to a TypeScript function
+            // declaration.
+            FunctionAstRef::ClassConstructor(f) => (f.params.as_ref(), unsafe { f.body.as_deref().unwrap_unchecked() }),
+            FunctionAstRef::Arrow(f) |
+            FunctionAstRef::AsyncArrow(f) => (f.params.as_ref(), &*f.body),
+        };
+        params.items.iter().any(|p| p.contains(symbol))
+            || body.statements.iter().any(|st| st.contains(symbol))
+    }
+}
+
 impl Contains for ast::Class<'_> {
     /// ClassTail : ClassHeritageopt { ClassBody }
     fn contains(&self, symbol: ContainsSymbol) -> bool {
@@ -73,7 +94,10 @@ impl Contains for ast::ArrowFunctionExpression<'_> {
         // 1. If symbol is not one of NewTarget, SuperProperty, SuperCall, super, or this,
         if !matches!(
             symbol,
-            ContainsSymbol::NewTarget | ContainsSymbol::Super | ContainsSymbol::This
+            ContainsSymbol::Arguments
+                | ContainsSymbol::NewTarget
+                | ContainsSymbol::Super
+                | ContainsSymbol::This
         ) {
             // return false.
             return false;
@@ -146,7 +170,14 @@ impl Contains for ast::Super {
 
 impl Contains for ast::CallExpression<'_> {
     fn contains(&self, symbol: ContainsSymbol) -> bool {
-        self.callee.contains(symbol) || self.arguments.iter().any(|arg| arg.contains(symbol))
+        self.callee.contains(symbol)
+            || self.arguments.iter().any(|arg| arg.contains(symbol))
+            || symbol == ContainsSymbol::Arguments
+                && self
+                    .callee
+                    .get_identifier_reference()
+                    // eval may always cause an "arguments" reference :(
+                    .is_some_and(|id| id.name.as_str() == "eval")
     }
 }
 
@@ -431,9 +462,17 @@ impl Contains for ast::Expression<'_> {
             | ast::Expression::RegExpLiteral(_)
             | ast::Expression::StringLiteral(_) => false,
             ast::Expression::TemplateLiteral(e) => e.contains(symbol),
+            ast::Expression::Identifier(i)
+                if symbol == ContainsSymbol::Arguments && i.name.as_str() == "arguments" =>
+            {
+                true
+            }
             ast::Expression::Identifier(_) | ast::Expression::MetaProperty(_) => false,
             ast::Expression::Super(e) => e.contains(symbol),
             ast::Expression::ArrayExpression(e) => e.contains(symbol),
+            ast::Expression::ArrowFunctionExpression(f) if symbol == ContainsSymbol::Arguments => {
+                f.contains(symbol)
+            }
             ast::Expression::ArrowFunctionExpression(_) => false,
             ast::Expression::AssignmentExpression(e) => e.contains(symbol),
             ast::Expression::AwaitExpression(e) => e.contains(symbol),
