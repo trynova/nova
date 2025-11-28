@@ -46,6 +46,7 @@
     "language/identifiers/start-unicode-16.0.0-escaped.js",
     "language/identifiers/start-unicode-16.0.0.js",
     "staging/sm/Array/length-truncate-nonconfigurable-sparse.js",
-    "staging/sm/Array/length-truncate-with-indexed.js"
+    "staging/sm/Array/length-truncate-with-indexed.js",
+    "staging/sm/TypedArray/sort_large_countingsort.js"
   ]
 }
