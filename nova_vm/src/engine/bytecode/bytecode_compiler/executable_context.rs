@@ -31,6 +31,8 @@ use super::{IndexType, JumpIndex};
 pub(super) struct ExecutableContext<'agent, 'gc, 'scope> {
     pub(crate) agent: &'agent mut Agent,
     pub(crate) gc: NoGcScope<'gc, 'scope>,
+    /// Current depth of the Value stack.
+    current_value_stack_depth: u32,
     /// true if the current last instruction is a terminal instruction and no
     /// jumps point past it.
     current_instruction_pointer_is_unreachable: bool,
@@ -54,6 +56,7 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
         Self {
             agent,
             gc,
+            current_value_stack_depth: 0,
             current_instruction_pointer_is_unreachable: false,
             instructions: Vec::new(),
             caches: Vec::new(),
@@ -82,6 +85,16 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
         identifier: PropertyKey<'gc>,
     ) -> PropertyLookupCache<'gc> {
         PropertyLookupCache::new(self.agent, identifier)
+    }
+
+    pub(super) fn push_stack_variable(&mut self) -> u32 {
+        let curr = self.current_value_stack_depth;
+        self.current_value_stack_depth += 1;
+        curr
+    }
+
+    pub(super) fn pop_stack_variable(&mut self) {
+        self.current_value_stack_depth -= 1;
     }
 
     pub(super) fn create_bigint(&mut self, literal: &str, radix: u32) -> BigInt<'gc> {

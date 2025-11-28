@@ -529,11 +529,20 @@ impl Vm {
             Instruction::LoadCopy => {
                 vm.execute_load_copy();
             }
+            Instruction::LoadToIndex => {
+                vm.execute_load_to_index(instr.get_first_index());
+            }
             Instruction::Store => {
                 vm.execute_store();
             }
+            Instruction::StoreFromIndex => {
+                vm.execute_store_from_index(instr.get_first_index());
+            }
             Instruction::StoreConstant => {
                 execute_store_constant(agent, vm, executable, instr, gc.into_nogc());
+            }
+            Instruction::PopStack => {
+                vm.execute_pop_stack();
             }
             Instruction::Jump => execute_jump(agent, vm, instr),
             Instruction::JumpIfNot => execute_jump_if_not(agent, vm, instr),
@@ -600,8 +609,11 @@ impl Vm {
         let _: () = match instr.kind {
             Instruction::Load
             | Instruction::LoadCopy
+            | Instruction::LoadToIndex
             | Instruction::Store
             | Instruction::StoreConstant
+            | Instruction::StoreFromIndex
+            | Instruction::PopStack
             | Instruction::Jump
             | Instruction::JumpIfNot
             | Instruction::ResolveBinding
@@ -902,6 +914,11 @@ impl Vm {
     }
 
     #[inline(always)]
+    fn execute_load_to_index(&mut self, index: usize) {
+        self.stack[index] = self.result.take().unwrap();
+    }
+
+    #[inline(always)]
     fn execute_load_store_swap(&mut self) {
         let temp = self
             .result
@@ -940,8 +957,18 @@ impl Vm {
     }
 
     #[inline(always)]
+    fn execute_store_from_index(&mut self, index: usize) {
+        self.result = Some(self.stack[index]);
+    }
+
+    #[inline(always)]
     fn execute_store_copy(&mut self) {
         self.result = Some(*self.stack.last().expect("Trying to get from empty stack"));
+    }
+
+    #[inline(always)]
+    fn execute_pop_stack(&mut self) {
+        let _ = self.stack.pop().expect("Trying to pop from empty stack");
     }
 
     #[inline(always)]

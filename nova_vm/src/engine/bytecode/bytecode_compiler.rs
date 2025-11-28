@@ -60,6 +60,43 @@ impl<'a, 's, 'gc, 'scope, T: CompileEvaluation<'a, 's, 'gc, 'scope>>
     }
 }
 
+fn ctx_variable_escapes_scope(
+    ctx: &mut CompileContext,
+    identifier: &oxc_ast::ast::BindingIdentifier,
+) -> bool {
+    let agent = ctx.get_agent();
+    let sc = ctx.get_source_code();
+    let scoping = sc.get_scoping(agent);
+    variable_escapes_scope(scoping, identifier)
+}
+
+fn variable_escapes_scope(
+    scoping: &oxc_semantic::Scoping,
+    identifier: &oxc_ast::ast::BindingIdentifier,
+) -> bool {
+    let s = identifier.symbol_id();
+    let decl_scope = scoping.symbol_scope_id(s);
+    for reference in scoping.get_resolved_references(s) {
+        let s = reference.symbol_id().unwrap();
+        let mut scope = scoping.symbol_scope_id(s);
+        while scope != decl_scope {
+            if scoping.scope_flags(scope).contains(ScopeFlags::Function) {
+                eprintln!("Variable {} DOES escape scope", identifier.name.as_str());
+                return true;
+            }
+            let Some(s) = scoping.scope_parent_id(scope) else {
+                break;
+            };
+            scope = s;
+        }
+    }
+    eprintln!(
+        "Variable {} does not escape scope",
+        identifier.name.as_str()
+    );
+    false
+}
+
 pub(crate) fn is_reference(expression: &ast::Expression) -> bool {
     matches!(
         expression.get_inner_expression(),
@@ -194,42 +231,92 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::String
     }
 }
 
+enum VariableKind {
+    /// Stored on the stack, not accessible by name at all.
+    Stack(u32),
+    /// Stored in an environment.
+    Local,
+    /// Found in the global scope.
+    Global,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum IdentifierCompileResult<'a> {
+    Reference(String<'a>),
+    Stack(String<'a>, u32),
+}
+
+impl<'a> IdentifierCompileResult<'a> {
+    fn identifier(&self) -> String<'a> {
+        match self {
+            IdentifierCompileResult::Reference(id) | IdentifierCompileResult::Stack(id, _) => *id,
+        }
+    }
+}
+
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::IdentifierReference<'s> {
-    type Output = String<'gc>;
+    type Output = IdentifierCompileResult<'gc>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
-        let maybe_global = if let Some(id) = self.reference_id.get() {
-            let source_code = ctx.get_source_code();
-            let scoping = source_code.get_scoping(ctx.get_agent());
+        let source_code = ctx.get_source_code();
+        let scoping = source_code.get_scoping(ctx.get_agent());
+        let kind = if let Some(id) = self.reference_id.get() {
             let reference = scoping.get_reference(id);
-            reference.symbol_id().is_none_or(|s| {
-                let scope_id = scoping.symbol_scope_id(s);
-                let scope_flags = scoping.scope_flags(scope_id);
-                let symbol_flags = scoping.symbol_flags(s);
-                // Functions declarations and variables defined at the top
-                // level scope end up in the globalThis; we want a property
-                // lookup cache for those.
-                scope_flags.contains(ScopeFlags::Top)
-                    && (symbol_flags.contains(SymbolFlags::FunctionScopedVariable)
-                        | symbol_flags.contains(SymbolFlags::Function))
-            })
+            if let Some(s) = reference.symbol_id() {
+                // SymbolId means we might be a global, local, or a stack
+                // variable.
+                if let Some(i) = ctx.get_stack_index(s) {
+                    // We're a stack variable
+                    VariableKind::Stack(i)
+                } else {
+                    let scope_id = scoping.symbol_scope_id(s);
+                    let scope_flags = scoping.scope_flags(scope_id);
+                    let symbol_flags = scoping.symbol_flags(s);
+                    // Functions declarations and variables defined at the top
+                    // level scope end up in the globalThis; we want a property
+                    // lookup cache for those.
+                    if scope_flags.contains(ScopeFlags::Top)
+                        && (symbol_flags.contains(SymbolFlags::FunctionScopedVariable)
+                            | symbol_flags.contains(SymbolFlags::Function))
+                    {
+                        VariableKind::Global
+                    } else {
+                        VariableKind::Local
+                    }
+                }
+            } else {
+                // No SymbolId means this must be a global name.
+                VariableKind::Global
+            }
         } else {
-            true
+            // No reference at all: global I guess?
+            VariableKind::Global
         };
         let identifier = ctx.create_string(self.name.as_str());
-        if maybe_global {
-            let cache = ctx.create_property_lookup_cache(identifier.to_property_key());
-            ctx.add_instruction_with_identifier_and_cache(
-                Instruction::ResolveBindingWithCache,
-                identifier,
-                cache,
-            );
-        } else {
-            ctx.add_instruction_with_identifier(
-                Instruction::ResolveBinding,
-                identifier.to_property_key(),
-            );
+        match kind {
+            VariableKind::Stack(i) => {
+                // variable on the stack
+                ctx.add_instruction_with_immediate(Instruction::StoreFromIndex, i as usize);
+                IdentifierCompileResult::Stack(identifier, i)
+            }
+            VariableKind::Local => {
+                // Local variable: property name caching is not useful here.
+                ctx.add_instruction_with_identifier(
+                    Instruction::ResolveBinding,
+                    identifier.to_property_key(),
+                );
+                IdentifierCompileResult::Reference(identifier)
+            }
+            VariableKind::Global => {
+                // Global variable: property name caching is useful here.
+                let cache = ctx.create_property_lookup_cache(identifier.to_property_key());
+                ctx.add_instruction_with_identifier_and_cache(
+                    Instruction::ResolveBindingWithCache,
+                    identifier,
+                    cache,
+                );
+                IdentifierCompileResult::Reference(identifier)
+            }
         }
-        identifier
     }
 }
 
@@ -1962,6 +2049,9 @@ pub(super) fn compile_expression_output_get_value<'gc>(
     if let Some(ExpressionOutput::Place(identifier)) = output {
         let cache = ctx.create_property_lookup_cache(identifier);
         ctx.add_instruction_with_cache(Instruction::GetValueWithCache, cache);
+    } else if let Some(ExpressionOutput::Variable(IdentifierCompileResult::Stack(..))) = output {
+        // Stack variables never create a reference.
+        return;
     } else if is_reference(expr) {
         ctx.add_instruction(Instruction::GetValue);
     }
@@ -1991,8 +2081,11 @@ pub(super) fn compile_expression_get_value_keep_reference<'s, 'gc>(
 pub(super) fn compile_put_value<'gc>(
     ctx: &mut CompileContext<'_, '_, 'gc, '_>,
     identifier: Option<PropertyKey<'gc>>,
+    stack_slot: Option<u32>,
 ) {
-    if let Some(identifier) = identifier {
+    if let Some(stack_slot) = stack_slot {
+        ctx.add_instruction_with_immediate(Instruction::LoadToIndex, stack_slot as usize);
+    } else if let Some(identifier) = identifier {
         let cache = ctx.create_property_lookup_cache(identifier);
         ctx.add_instruction_with_cache(Instruction::PutValueWithCache, cache);
     } else {
@@ -2004,6 +2097,7 @@ pub(super) fn compile_put_value<'gc>(
 pub(crate) enum ExpressionOutput<'gc> {
     Literal(Primitive<'gc>),
     Place(PropertyKey<'gc>),
+    Variable(IdentifierCompileResult<'gc>),
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Expression<'s> {
@@ -2060,10 +2154,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Expres
                 x.compile(ctx);
                 None
             }
-            ast::Expression::Identifier(x) => {
-                x.compile(ctx);
-                None
-            }
+            ast::Expression::Identifier(x) => Some(ExpressionOutput::Variable(x.compile(ctx))),
             ast::Expression::ImportExpression(x) => {
                 x.compile(ctx);
                 None
@@ -2229,7 +2320,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Update
         if self.prefix {
             ctx.add_instruction(Instruction::LoadCopy);
         }
-        compile_put_value(ctx, identifier);
+        compile_put_value(ctx, identifier, None);
         ctx.add_instruction(Instruction::Store);
     }
 }
@@ -2844,11 +2935,13 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Variab
                         continue;
                     };
 
+                    let stack_index = ctx.get_stack_index(identifier.symbol_id());
+
                     // 1. Let bindingId be StringValue of BindingIdentifier.
                     // 2. Let lhs be ? ResolveBinding(bindingId).
                     let identifier = identifier.compile(ctx);
-                    let is_literal = init.is_literal();
-                    if !is_literal {
+                    let push_reference = stack_index.is_none() && !init.is_literal();
+                    if push_reference {
                         ctx.add_instruction(Instruction::PushReference);
                     }
 
@@ -2863,10 +2956,17 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Variab
                     }
                     compile_expression_get_value(init, ctx);
                     // 5. Perform ? PutValue(lhs, value).
-                    if !is_literal {
+                    if push_reference {
                         ctx.add_instruction(Instruction::PopReference);
                     }
-                    ctx.add_instruction(Instruction::PutValue);
+                    if let Some(stack_index) = stack_index {
+                        ctx.add_instruction_with_immediate(
+                            Instruction::LoadToIndex,
+                            stack_index as usize,
+                        );
+                    } else {
+                        ctx.add_instruction(Instruction::PutValue);
+                    }
 
                     // 6. Return EMPTY.
                 }
@@ -2890,10 +2990,14 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Variab
                         return;
                     };
 
-                    // let s = identifier.symbol_id();
+                    let stack_index = ctx.get_stack_index(identifier.symbol_id());
 
                     // 1. Let lhs be ! ResolveBinding(StringValue of BindingIdentifier).
-                    let identifier = identifier.compile(ctx);
+                    let identifier = if stack_index.is_none() {
+                        identifier.compile(ctx)
+                    } else {
+                        ctx.create_string(identifier.name.as_str())
+                    };
 
                     let Some(init) = &decl.init else {
                         // LexicalBinding : BindingIdentifier
@@ -2907,7 +3011,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Variab
                         continue;
                     };
 
-                    let do_push_reference = !init.is_literal();
+                    let do_push_reference = stack_index.is_none() && !init.is_literal();
                     //  LexicalBinding : BindingIdentifier Initializer
                     if do_push_reference {
                         ctx.add_instruction(Instruction::PushReference);
@@ -2923,24 +3027,18 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Variab
                     }
                     compile_expression_get_value(init, ctx);
 
-                    // if let Some(ExpressionOutput::Literal(output)) = output {
-                    //     let maybe_global = {
-                    //         let source_code = ctx.get_source_code();
-                    //         let nodes = source_code.get_nodes(ctx.get_agent());
-                    //         let scoping = source_code.get_scoping(ctx.get_agent());
-                    //         let scope_id = scoping.symbol_scope_id(s);
-                    //         for ele in scoping.get_resolved_references(s) {
-                    //             let ref_scope_id = nodes.get_node(ele.node_id()).scope_id();
-                    //             eprintln!("Scope flags: {:?}", scoping.scope_flags(ref_scope_id));
-                    //         }
-                    //     };
-                    // }
-
                     // 5. Perform ! InitializeReferencedBinding(lhs, value).
                     if do_push_reference {
                         ctx.add_instruction(Instruction::PopReference);
                     }
-                    ctx.add_instruction(Instruction::InitializeReferencedBinding);
+                    if let Some(stack_index) = stack_index {
+                        ctx.add_instruction_with_immediate(
+                            Instruction::LoadToIndex,
+                            stack_index as usize,
+                        );
+                    } else {
+                        ctx.add_instruction(Instruction::InitializeReferencedBinding);
+                    }
                     // 6. Return empty.
                 }
             }
@@ -2958,14 +3056,11 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::BlockS
             // 1. Return EMPTY.
             return;
         }
-        let did_enter_declarative_environment =
-            block_declaration_instantiation::instantiation(ctx, self);
-        for ele in &self.body {
-            ele.compile(ctx);
-        }
-        if did_enter_declarative_environment {
-            ctx.exit_lexical_scope();
-        }
+        block_declaration_instantiation::instantiation(ctx, self, |ctx| {
+            for ele in &self.body {
+                ele.compile(ctx);
+            }
+        });
     }
 }
 
@@ -3183,97 +3278,92 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
         ctx.enter_switch(label_set.cloned());
         // 3. Let oldEnv be the running execution context's LexicalEnvironment.
         // 4. Let blockEnv be NewDeclarativeEnvironment(oldEnv).
-        // 6. Set the running execution context's LexicalEnvironment to blockEnv.
         // 5. Perform BlockDeclarationInstantiation(CaseBlock, blockEnv).
-        let did_enter_declarative_environment =
-            block_declaration_instantiation::instantiation(ctx, self);
+        // 6. Set the running execution context's LexicalEnvironment to blockEnv.
+        block_declaration_instantiation::instantiation(ctx, self, |ctx| {
+            // 7. Let R be Completion(CaseBlockEvaluation of CaseBlock with argument switchValue).
+            let mut has_default = false;
+            let mut jump_indexes = Vec::with_capacity(self.cases.len());
+            for case in &self.cases {
+                let Some(test) = &case.test else {
+                    // Default case test does not care about the write order: After
+                    // all other cases have been tested, default will be entered if
+                    // no other was entered previously. The placement of the
+                    // default case only matters for fall-through behaviour.
+                    has_default = true;
+                    continue;
+                };
+                // Duplicate the switchValue on the stack. One will remain, one is
+                // used by the IsStrictlyEqual
+                ctx.add_instruction(Instruction::StoreCopy);
+                ctx.add_instruction(Instruction::Load);
+                // 2. Let exprRef be ? Evaluation of the Expression of C.
+                // 3. Let clauseSelector be ? GetValue(exprRef).
+                compile_expression_get_value(test, ctx);
+                // 4. Return IsStrictlyEqual(input, clauseSelector).
+                ctx.add_instruction(Instruction::IsStrictlyEqual);
+                // b. If found is true then [evaluate case]
+                jump_indexes.push(ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue));
+            }
 
-        // 7. Let R be Completion(CaseBlockEvaluation of CaseBlock with argument switchValue).
-        let mut has_default = false;
-        let mut jump_indexes = Vec::with_capacity(self.cases.len());
-        for case in &self.cases {
-            let Some(test) = &case.test else {
-                // Default case test does not care about the write order: After
-                // all other cases have been tested, default will be entered if
-                // no other was entered previously. The placement of the
-                // default case only matters for fall-through behaviour.
-                has_default = true;
-                continue;
-            };
-            // Duplicate the switchValue on the stack. One will remain, one is
-            // used by the IsStrictlyEqual
-            ctx.add_instruction(Instruction::StoreCopy);
-            ctx.add_instruction(Instruction::Load);
-            // 2. Let exprRef be ? Evaluation of the Expression of C.
-            // 3. Let clauseSelector be ? GetValue(exprRef).
-            compile_expression_get_value(test, ctx);
-            // 4. Return IsStrictlyEqual(input, clauseSelector).
-            ctx.add_instruction(Instruction::IsStrictlyEqual);
-            // b. If found is true then [evaluate case]
-            jump_indexes.push(ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue));
-        }
-
-        let jump_to_end = if has_default {
-            // 10. If foundInB is true, return V.
-            // 11. Let defaultR be Completion(Evaluation of DefaultClause).
-            jump_indexes.push(ctx.add_instruction_with_jump_slot(Instruction::Jump));
-            None
-        } else {
-            Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
-        };
-
-        let mut index = 0;
-        for (i, case) in self.cases.iter().enumerate() {
-            let fallthrough_jump = if i != 0 {
-                // OPTIMISATION: if previous case ended with a break or an
-                // otherwise terminal instruction, we don't need a fallthrough
-                // jump at the beginning of the next case.
-                if ctx.is_unreachable() {
-                    None
-                } else {
-                    Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
-                }
-            } else {
+            let jump_to_end = if has_default {
+                // 10. If foundInB is true, return V.
+                // 11. Let defaultR be Completion(Evaluation of DefaultClause).
+                jump_indexes.push(ctx.add_instruction_with_jump_slot(Instruction::Jump));
                 None
-            };
-            // Jump from IsStrictlyEqual comparison to here.
-            let jump_index = if case.test.is_some() {
-                let jump_index = jump_indexes.get(index).unwrap();
-                index += 1;
-                jump_index
             } else {
-                // Default case! The jump index is last in the Vec.
-                jump_indexes.last().unwrap()
+                Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
             };
-            ctx.set_jump_target_here(jump_index.clone());
 
-            // 1. Let V be undefined.
-            // Pop the switchValue from the stack.
-            ctx.add_instruction(Instruction::Store);
-            // And override it with undefined
-            ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+            let mut index = 0;
+            for (i, case) in self.cases.iter().enumerate() {
+                let fallthrough_jump = if i != 0 {
+                    // OPTIMISATION: if previous case ended with a break or an
+                    // otherwise terminal instruction, we don't need a fallthrough
+                    // jump at the beginning of the next case.
+                    if ctx.is_unreachable() {
+                        None
+                    } else {
+                        Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
+                    }
+                } else {
+                    None
+                };
+                // Jump from IsStrictlyEqual comparison to here.
+                let jump_index = if case.test.is_some() {
+                    let jump_index = jump_indexes.get(index).unwrap();
+                    index += 1;
+                    jump_index
+                } else {
+                    // Default case! The jump index is last in the Vec.
+                    jump_indexes.last().unwrap()
+                };
+                ctx.set_jump_target_here(jump_index.clone());
 
-            if let Some(fallthrough_jump) = fallthrough_jump {
-                ctx.set_jump_target_here(fallthrough_jump);
+                // 1. Let V be undefined.
+                // Pop the switchValue from the stack.
+                ctx.add_instruction(Instruction::Store);
+                // And override it with undefined
+                ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+
+                if let Some(fallthrough_jump) = fallthrough_jump {
+                    ctx.set_jump_target_here(fallthrough_jump);
+                }
+
+                // i. Let R be Completion(Evaluation of C).
+                for ele in &case.consequent {
+                    ele.compile(ctx);
+                }
+                // ii. If R.[[Value]] is not empty, set V to R.[[Value]].
+                // if !ctx.is_unreachable() {
+                //     ctx.add_instruction(Instruction::LoadReplace);
+                // }
             }
 
-            // i. Let R be Completion(Evaluation of C).
-            for ele in &case.consequent {
-                ele.compile(ctx);
+            if let Some(jump_to_end) = jump_to_end {
+                ctx.set_jump_target_here(jump_to_end);
             }
-            // ii. If R.[[Value]] is not empty, set V to R.[[Value]].
-            // if !ctx.is_unreachable() {
-            //     ctx.add_instruction(Instruction::LoadReplace);
-            // }
-        }
-
-        if let Some(jump_to_end) = jump_to_end {
-            ctx.set_jump_target_here(jump_to_end);
-        }
-
-        if did_enter_declarative_environment {
-            ctx.exit_lexical_scope();
-        }
+        });
 
         ctx.exit_switch();
         // iii. If R is an abrupt completion, return ? UpdateEmpty(R, V).

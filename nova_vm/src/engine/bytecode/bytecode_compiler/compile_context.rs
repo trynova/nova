@@ -93,6 +93,9 @@ pub(crate) struct CompileContext<'agent, 'script, 'gc, 'scope> {
     pub(super) is_call_optional_chain_this: bool,
     /// Stores data needed to generate control flow graph transition points.
     control_flow_stack: Vec<ControlFlowStackEntry<'script>>,
+    /// Stores a stack of variables on the stack that are accessed by stack
+    /// slot.
+    stack_variables: Vec<(oxc_semantic::SymbolId, u32)>,
     /// GeneratorKind of the currently compiled code.
     ///
     /// This affects generator yield and return behaviour.
@@ -113,6 +116,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             optional_chains: None,
             is_call_optional_chain_this: false,
             control_flow_stack: Vec::new(),
+            stack_variables: Vec::new(),
             generator_kind: None,
         }
     }
@@ -241,6 +245,39 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             return;
         }
         self.add_instruction(Instruction::ExitDeclarativeEnvironment);
+    }
+
+    pub(super) fn get_stack_index(&self, symbol: oxc_semantic::SymbolId) -> Option<u32> {
+        self.stack_variables
+            .iter()
+            .find(|(s, _)| *s == symbol)
+            .map(|(_, i)| *i)
+    }
+
+    /// Add a lexical variable. These variables must not escape the scope via
+    /// callback capture or exports.
+    pub(super) fn add_stack_variable(&mut self, symbol: oxc_semantic::SymbolId) {
+        self.add_instruction_with_constant(Instruction::LoadConstant, Value::Undefined);
+        let idx = self.executable.push_stack_variable();
+        self.stack_variables.push((symbol, idx));
+        self.control_flow_stack
+            .push(ControlFlowStackEntry::StackVariable);
+    }
+
+    /// Pop a lexical variable.
+    pub(super) fn pop_stack_variable(&mut self) {
+        matches!(
+            self.control_flow_stack.pop(),
+            Some(ControlFlowStackEntry::StackVariable)
+        );
+        self.stack_variables.pop().unwrap();
+        self.executable.pop_stack_variable();
+        if self.is_unreachable() {
+            // OPTIMISATION: We don't need to add exit handling if this line is
+            // unreachable.
+            return;
+        }
+        self.add_instruction(Instruction::UpdateEmpty);
     }
 
     /// Enter a private environment scope.

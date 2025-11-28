@@ -6,7 +6,12 @@ use oxc_ast::ast::{self, AssignmentOperator, LogicalOperator};
 
 use crate::{
     ecmascript::types::PropertyKey,
-    engine::{Instruction, bytecode::bytecode_compiler::compile_get_value_maybe_keep_reference},
+    engine::{
+        Instruction,
+        bytecode::bytecode_compiler::{
+            IdentifierCompileResult, compile_get_value_maybe_keep_reference,
+        },
+    },
 };
 
 use super::{
@@ -18,6 +23,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
     type Output = ();
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) {
         let mut named_evaluation_identifier = None;
+        let mut stack_slot = None;
         // 1. Let lref be ? Evaluation of LeftHandSideExpression.
         let lref = match &self.left {
             ast::AssignmentTarget::AssignmentTargetIdentifier(identifier) => {
@@ -29,7 +35,10 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
                 // happen.
                     && self.span.start == identifier.span.start
                 {
-                    named_evaluation_identifier = Some(name);
+                    named_evaluation_identifier = Some(name.identifier());
+                }
+                if let IdentifierCompileResult::Stack(_, i) = name {
+                    stack_slot = Some(i);
                 }
                 None
             }
@@ -87,9 +96,9 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
         };
 
         if self.operator.is_assign() {
-            let is_rhs_literal = self.right.is_literal();
+            let push_reference = stack_slot.is_none() && !self.right.is_literal();
 
-            if !is_rhs_literal {
+            if push_reference {
                 ctx.add_instruction(Instruction::PushReference);
             }
 
@@ -102,18 +111,17 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
 
             ctx.add_instruction(Instruction::LoadCopy);
 
-            if !is_rhs_literal {
+            if push_reference {
                 ctx.add_instruction(Instruction::PopReference);
             }
 
-            compile_put_value(ctx, lref);
-
+            compile_put_value(ctx, lref, stack_slot);
             // ... Return rval.
             ctx.add_instruction(Instruction::Store);
         } else if let Some(operator) = self.operator.to_logical_operator() {
             // 2. Let lval be ? GetValue(lref).
             compile_get_value_keep_reference(ctx, lref);
-            let needs_save_reference = !self.right.is_literal();
+            let needs_save_reference = stack_slot.is_none() && !self.right.is_literal();
             if needs_save_reference {
                 ctx.add_instruction(Instruction::PushReference);
             }
@@ -163,7 +171,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
             if needs_save_reference {
                 ctx.add_instruction(Instruction::PopReference);
             }
-            compile_put_value(ctx, lref);
+            compile_put_value(ctx, lref, stack_slot);
             let jump_over_else = if needs_save_reference {
                 ctx.add_instruction(Instruction::Store);
                 Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
@@ -221,7 +229,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
             if do_push_reference {
                 ctx.add_instruction(Instruction::PopReference);
             }
-            compile_put_value(ctx, lref);
+            compile_put_value(ctx, lref, stack_slot);
             // 9. Return r.
             ctx.add_instruction(Instruction::Store);
         };
@@ -267,7 +275,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
             // result: value
             // stack: []
             // reference: &target
-            compile_put_value(ctx, identifier);
+            compile_put_value(ctx, identifier, None);
             // result: None
             // stack: []
             // reference: None
@@ -383,7 +391,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                             ctx.add_instruction(Instruction::PopReference);
                         }
                         // 7. Return ? PutValue(lRef, v).
-                        compile_put_value(ctx, identifier);
+                        compile_put_value(ctx, identifier, None);
                     }
                 } else if let Some(element) = element.as_simple_assignment_target() {
                     // a. Let lRef be ? Evaluation of DestructuringAssignmentTarget.
@@ -399,7 +407,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                     // 5. Else,
                     // a. Let v be value.
                     // 7. Return ? PutValue(lRef, v).
-                    compile_put_value(ctx, identifier);
+                    compile_put_value(ctx, identifier, None);
                 } else {
                     // 2. Let value be undefined.
                     // 3. If iteratorRecord.[[Done]] is false, then
@@ -445,7 +453,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                 target.compile(ctx);
             } else {
                 // a. Return ? PutValue(lRef, A).
-                compile_put_value(ctx, identifier);
+                compile_put_value(ctx, identifier, None);
             }
         }
         // Note: An error during IteratorClose should not jump into

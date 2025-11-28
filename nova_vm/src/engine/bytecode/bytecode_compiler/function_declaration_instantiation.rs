@@ -20,7 +20,10 @@ use crate::{
         },
         types::{BUILTIN_STRING_MEMORY, Value},
     },
-    engine::{Instruction, bytecode::bytecode_compiler::CompileContext},
+    engine::{
+        Instruction,
+        bytecode::bytecode_compiler::{CompileContext, ctx_variable_escapes_scope},
+    },
 };
 
 use super::{CompileEvaluation, complex_array_pattern, simple_array_pattern};
@@ -71,6 +74,7 @@ pub(crate) fn instantiation<'s>(
         } else {
             parameter_names.insert(identifier.name);
         }
+        ctx_variable_escapes_scope(ctx, identifier);
     });
 
     // 8. Let hasParameterExpressions be ContainsExpression of formals.
