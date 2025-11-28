@@ -3,3 +3,4 @@ Cargo.lock
 /.vscode
 # e.g. `test.js` for local testing/development
 /*.js
+justfile
