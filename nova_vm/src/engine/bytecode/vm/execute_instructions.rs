@@ -30,9 +30,10 @@ use crate::{
             ArgumentsList, Array, BuiltinConstructorArgs, ConstructorStatus, FunctionAstRef,
             OrdinaryFunctionCreateParams, SetFunctionNamePrefix, array_create,
             create_builtin_constructor, create_unmapped_arguments_object,
-            global_object::perform_eval, make_constructor, make_method,
-            ordinary::ordinary_object_create_with_intrinsics, ordinary_function_create,
-            set_function_name,
+            global_object::perform_eval,
+            make_constructor, make_method,
+            ordinary::{caches::PropertyLookupCache, ordinary_object_create_with_intrinsics},
+            ordinary_function_create, set_function_name,
         },
         execution::{
             Agent, Environment, JsResult, PrivateMethod, ProtoIntrinsics,
@@ -220,18 +221,30 @@ pub(super) fn execute_resolve_binding_with_cache<'gc>(
     {
         reference
     } else {
-        let identifier = identifier.unbind();
-        let cache = cache.unbind();
-        with_vm_gc(
-            agent,
-            vm,
-            |agent, gc| resolve_binding(agent, identifier, Some(cache), None, gc),
-            gc,
-        )?
+        execute_resolve_binding_with_cache_cold(agent, vm, identifier.unbind(), cache.unbind(), gc)
+            .unbind()?
     };
 
     vm.reference = Some(reference.unbind());
     Ok(())
+}
+
+#[cold]
+fn execute_resolve_binding_with_cache_cold<'gc>(
+    agent: &mut Agent,
+    vm: &mut Vm,
+    identifier: String,
+    cache: PropertyLookupCache,
+    gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, Reference<'gc>> {
+    let identifier = identifier.unbind();
+    let cache = cache.unbind();
+    with_vm_gc(
+        agent,
+        vm,
+        |agent, gc| resolve_binding(agent, identifier, Some(cache), None, gc),
+        gc,
+    )
 }
 
 pub(super) fn execute_resolve_this_binding<'gc>(
@@ -772,22 +785,9 @@ pub(super) fn execute_get_value<'gc>(
 ) -> JsResult<'gc, ()> {
     // 1. If V is not a Reference Record, return V.
     let reference = if keep_reference {
-        let reference = vm.reference.as_mut().unwrap();
-        if is_property_reference(reference) && !reference.is_static_property_reference() {
-            if let Ok(referenced_name) =
-                Primitive::try_from(reference.referenced_name_value().bind(gc.nogc()))
-            {
-                let referenced_name = to_property_key_primitive(agent, referenced_name, gc.nogc());
-                reference.set_referenced_name_to_property_key(referenced_name);
-                reference.clone()
-            } else {
-                mutate_reference_property_key(agent, vm, gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc())
-            }
-        } else {
-            reference.clone().bind(gc.nogc())
-        }
+        handle_keep_reference(agent, vm, gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc())
     } else {
         vm.reference.take().unwrap()
     };
@@ -809,6 +809,28 @@ pub(super) fn execute_get_value<'gc>(
     };
     vm.result = Some(result.unbind());
     Ok(())
+}
+
+#[cold]
+fn handle_keep_reference<'gc>(
+    agent: &mut Agent,
+    vm: &mut Vm,
+    gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, Reference<'gc>> {
+    let reference = vm.reference.as_mut().unwrap();
+    if is_property_reference(reference) && !reference.is_static_property_reference() {
+        if let Ok(referenced_name) =
+            Primitive::try_from(reference.referenced_name_value().bind(gc.nogc()))
+        {
+            let referenced_name = to_property_key_primitive(agent, referenced_name, gc.nogc());
+            reference.set_referenced_name_to_property_key(referenced_name);
+            Ok(reference.clone().bind(gc.into_nogc()))
+        } else {
+            mutate_reference_property_key(agent, vm, gc)
+        }
+    } else {
+        Ok(reference.clone().bind(gc.into_nogc()))
+    }
 }
 
 pub(super) fn execute_typeof<'gc>(

@@ -714,7 +714,9 @@ impl GcAgent {
             .expect(error_message)
             .take()
             .expect(error_message);
-        while !self.realm_roots.is_empty() && self.realm_roots.last().unwrap().is_none() {
+        while let Some(r) = self.realm_roots.last()
+            && r.is_none()
+        {
             let _ = self.realm_roots.pop();
         }
     }
@@ -975,7 +977,10 @@ impl Agent {
     /// Get current Realm's global environment.
     pub fn current_global_env<'a>(&self, gc: NoGcScope<'a, '_>) -> GlobalEnvironment<'a> {
         let realm = self.current_realm(gc);
-        self[realm].global_env.unwrap().bind(gc)
+        let Some(e) = self[realm].global_env.bind(gc) else {
+            panic_corrupted_agent()
+        };
+        e
     }
 
     /// Get current Realm's global object.
@@ -991,12 +996,19 @@ impl Agent {
 
     /// Set the current executiono context's Realm.
     pub(crate) fn set_current_realm(&mut self, realm: Realm) {
-        self.execution_context_stack.last_mut().unwrap().realm = realm.unbind();
+        let Some(ctx) = self.execution_context_stack.last_mut() else {
+            panic_corrupted_agent()
+        };
+        ctx.realm = realm.unbind();
     }
 
     /// Internal method to get current Realm's identifier without binding.
+    #[inline]
     pub(crate) fn current_realm_id_internal(&self) -> Realm<'static> {
-        self.execution_context_stack.last().unwrap().realm
+        let Some(r) = self.execution_context_stack.last().map(|ctx| ctx.realm) else {
+            panic_corrupted_agent()
+        };
+        r
     }
 
     pub(crate) fn current_realm_record(&self) -> &RealmRecord<'static> {
@@ -1091,7 +1103,21 @@ impl Agent {
     }
 
     pub(crate) fn running_execution_context(&self) -> &ExecutionContext {
-        self.execution_context_stack.last().unwrap()
+        let Some(ctx) = self.execution_context_stack.last() else {
+            panic_corrupted_agent()
+        };
+        ctx
+    }
+
+    pub(crate) fn is_evaluating_strict_code(&self) -> bool {
+        let Some(strict) = self
+            .running_execution_context()
+            .ecmascript_code
+            .map(|e| e.is_strict_mode)
+        else {
+            panic_corrupted_agent()
+        };
+        strict
     }
 
     pub(crate) fn check_call_depth<'gc>(&mut self, gc: NoGcScope<'gc, '_>) -> JsResult<'gc, ()> {
@@ -1131,26 +1157,28 @@ impl Agent {
     }
 
     pub(crate) fn current_source_code<'a>(&self, gc: NoGcScope<'a, '_>) -> SourceCode<'a> {
-        self.execution_context_stack
+        let Some(s) = self
+            .execution_context_stack
             .last()
-            .unwrap()
-            .ecmascript_code
-            .as_ref()
-            .unwrap()
-            .source_code
-            .bind(gc)
+            .and_then(|s| s.ecmascript_code.as_ref())
+            .map(|e| e.source_code.bind(gc))
+        else {
+            panic_corrupted_agent()
+        };
+        s
     }
 
     /// Returns the running execution context's LexicalEnvironment.
     pub(crate) fn current_lexical_environment<'a>(&self, gc: NoGcScope<'a, '_>) -> Environment<'a> {
-        self.execution_context_stack
+        let Some(e) = self
+            .execution_context_stack
             .last()
-            .unwrap()
-            .ecmascript_code
-            .as_ref()
-            .unwrap()
-            .lexical_environment
-            .bind(gc)
+            .and_then(|s| s.ecmascript_code.as_ref())
+            .map(|e| e.lexical_environment.bind(gc))
+        else {
+            panic_corrupted_agent()
+        };
+        e
     }
 
     /// Returns the running execution context's VariableEnvironment.
@@ -1158,14 +1186,15 @@ impl Agent {
         &self,
         gc: NoGcScope<'a, '_>,
     ) -> Environment<'a> {
-        self.execution_context_stack
+        let Some(e) = self
+            .execution_context_stack
             .last()
-            .unwrap()
-            .ecmascript_code
-            .as_ref()
-            .unwrap()
-            .variable_environment
-            .bind(gc)
+            .and_then(|s| s.ecmascript_code.as_ref())
+            .map(|e| e.variable_environment.bind(gc))
+        else {
+            panic_corrupted_agent()
+        };
+        e
     }
 
     /// Returns the running execution context's PrivateEnvironment.
@@ -1173,47 +1202,57 @@ impl Agent {
         &self,
         gc: NoGcScope<'a, '_>,
     ) -> Option<PrivateEnvironment<'a>> {
-        self.execution_context_stack
+        let Some(e) = self
+            .execution_context_stack
             .last()
-            .unwrap()
-            .ecmascript_code
-            .as_ref()
-            .unwrap()
-            .private_environment
-            .bind(gc)
+            .and_then(|s| s.ecmascript_code.as_ref())
+            .map(|e| e.private_environment.bind(gc))
+        else {
+            panic_corrupted_agent()
+        };
+        e
     }
 
     /// Sets the running execution context's LexicalEnvironment.
     pub(crate) fn set_current_lexical_environment(&mut self, env: Environment) {
-        self.execution_context_stack
+        let Some(_) = self
+            .execution_context_stack
             .last_mut()
-            .unwrap()
-            .ecmascript_code
-            .as_mut()
-            .unwrap()
-            .lexical_environment = env.unbind();
+            .and_then(|s| s.ecmascript_code.as_mut())
+            .map(|e| {
+                e.lexical_environment = env.unbind();
+            })
+        else {
+            panic_corrupted_agent()
+        };
     }
 
     /// Sets the running execution context's VariableEnvironment.
     pub(crate) fn set_current_variable_environment(&mut self, env: Environment) {
-        self.execution_context_stack
+        let Some(_) = self
+            .execution_context_stack
             .last_mut()
-            .unwrap()
-            .ecmascript_code
-            .as_mut()
-            .unwrap()
-            .variable_environment = env.unbind();
+            .and_then(|s| s.ecmascript_code.as_mut())
+            .map(|e| {
+                e.variable_environment = env.unbind();
+            })
+        else {
+            panic_corrupted_agent()
+        };
     }
 
     /// Sets the running execution context's PrivateEnvironment.
     pub(crate) fn set_current_private_environment(&mut self, env: Option<PrivateEnvironment>) {
-        self.execution_context_stack
+        let Some(_) = self
+            .execution_context_stack
             .last_mut()
-            .unwrap()
-            .ecmascript_code
-            .as_mut()
-            .unwrap()
-            .private_environment = env.unbind();
+            .and_then(|s| s.ecmascript_code.as_mut())
+            .map(|e| {
+                e.private_environment = env.unbind();
+            })
+        else {
+            panic_corrupted_agent()
+        };
     }
 
     /// Allocates a range of PrivateName identifiers and returns the first in
@@ -1249,12 +1288,14 @@ impl Agent {
 
     /// Panics if no active function object exists.
     pub(crate) fn active_function_object<'a>(&self, gc: NoGcScope<'a, '_>) -> Function<'a> {
-        self.execution_context_stack
+        let Some(f) = self
+            .execution_context_stack
             .last()
-            .unwrap()
-            .function
-            .unwrap()
-            .bind(gc)
+            .and_then(|s| s.function.bind(gc))
+        else {
+            panic_corrupted_agent()
+        };
+        f
     }
 
     /// ### [9.4.1 GetActiveScriptOrModule ( )](https://tc39.es/ecma262/#sec-getactivescriptormodule)
@@ -1267,10 +1308,14 @@ impl Agent {
         &self,
         gc: NoGcScope<'a, '_>,
     ) -> Option<ScriptOrModule<'a>> {
-        self.execution_context_stack
-            .last()?
-            .script_or_module
-            .bind(gc)
+        let Some(s) = self
+            .execution_context_stack
+            .last()
+            .map(|s| s.script_or_module.bind(gc))
+        else {
+            panic_corrupted_agent()
+        };
+        s
     }
 
     /// Get access to the Host data, useful to share state between calls of built-in functions.
@@ -1354,12 +1399,11 @@ pub(crate) fn get_active_script_or_module<'a>(
     if agent.execution_context_stack.is_empty() {
         return None;
     }
-    let ec = agent
+    agent
         .execution_context_stack
         .iter()
         .rev()
-        .find(|context| context.script_or_module.is_some());
-    ec.map(|context| context.script_or_module.unwrap())
+        .find_map(|context| context.script_or_module)
 }
 
 /// ### Try [9.4.2 ResolveBinding ( name \[ , env \] )](https://tc39.es/ecma262/#sec-resolvebinding)
@@ -1384,11 +1428,7 @@ pub(crate) fn try_resolve_binding<'a>(
     // Implicit from env's type.
 
     // 3. Let strict be IsStrict(the syntactic production that is being evaluated).
-    let strict = agent
-        .running_execution_context()
-        .ecmascript_code
-        .unwrap()
-        .is_strict_mode;
+    let strict = agent.is_evaluating_strict_code();
 
     // 4. Return ? GetIdentifierReference(env, name, strict).
     try_get_identifier_reference(agent, env, name, cache, strict, gc)
@@ -1423,11 +1463,7 @@ pub(crate) fn resolve_binding<'a, 'b>(
     // Implicit from env's type.
 
     // 3. Let strict be IsStrict(the syntactic production that is being evaluated).
-    let strict = agent
-        .running_execution_context()
-        .ecmascript_code
-        .unwrap()
-        .is_strict_mode;
+    let strict = agent.is_evaluating_strict_code();
 
     // 4. Return ? GetIdentifierReference(env, name, strict).
     get_identifier_reference(
@@ -1557,4 +1593,10 @@ impl HeapMarkAndSweep for Agent {
             .for_each(|entry| unsafe { entry.as_mut().sweep_values(compactions) });
         global_symbol_registry.sweep_values(compactions);
     }
+}
+
+#[cold]
+#[inline(never)]
+fn panic_corrupted_agent() -> ! {
+    panic!("Agent is corrupted")
 }

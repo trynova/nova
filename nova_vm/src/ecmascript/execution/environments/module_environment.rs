@@ -8,7 +8,7 @@ use crate::{
     ecmascript::{
         execution::{
             Agent, JsResult,
-            agent::{ExceptionType, JsError},
+            agent::{ExceptionType, JsError, TryResult},
         },
         scripts_and_modules::module::module_semantics::abstract_module_records::{
             AbstractModule, AbstractModuleSlots,
@@ -201,6 +201,32 @@ impl<'e> ModuleEnvironment<'e> {
         env_rec
             .declarative_environment
             .set_mutable_binding(agent, name, value, true, gc)
+    }
+
+    pub(crate) fn try_get_binding_value(
+        self,
+        agent: &mut Agent,
+        name: String,
+        is_strict: bool,
+        gc: NoGcScope<'e, '_>,
+    ) -> TryResult<'e, Value<'e>> {
+        let Some(value) = self.get_binding_value(agent, name, is_strict, gc) else {
+            return throw_uninitialized_binding(agent, name, gc).into();
+        };
+        TryResult::Continue(value)
+    }
+
+    pub(crate) fn env_get_binding_value(
+        self,
+        agent: &mut Agent,
+        name: String,
+        is_strict: bool,
+        gc: NoGcScope<'e, '_>,
+    ) -> JsResult<'e, Value<'e>> {
+        let Some(value) = self.get_binding_value(agent, name, is_strict, gc) else {
+            return Err(throw_uninitialized_binding(agent, name, gc));
+        };
+        Ok(value)
     }
 
     /// ### [9.1.1.5.1 GetBindingValue ( N, S )](https://tc39.es/ecma262/#sec-module-environment-records)
