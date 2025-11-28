@@ -946,7 +946,7 @@ fn perform_promise_group<'gc>(
     let capacity = match iterator.get(agent) {
         Object::Array(array) => array.len(agent),
         #[cfg(feature = "set")]
-        Object::Map(map) => agent[map].size(),
+        Object::Map(map) => map.len(agent),
         #[cfg(feature = "set")]
         Object::Set(set) => set.get(agent).set_data.borrow().len() as u32,
         _ => 0,

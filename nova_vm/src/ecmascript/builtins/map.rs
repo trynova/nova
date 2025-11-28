@@ -2,11 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::ops::{Index, IndexMut};
-
 use crate::{
     Heap,
     ecmascript::{
+        builtins::map::data::{MapHeapDataMut, MapHeapDataRef},
         execution::{Agent, ProtoIntrinsics},
         types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
     },
@@ -15,10 +14,11 @@ use crate::{
         rootable::HeapRootData,
     },
     heap::{
-        CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
-        indexes::BaseIndex,
+        CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, PrimitiveHeap,
+        PrimitiveHeapIndexable, WorkQueues, indexes::BaseIndex,
     },
 };
+use soavec::SoAVec;
 
 use self::data::MapHeapData;
 
@@ -35,6 +35,45 @@ impl Map<'_> {
 
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
+    }
+
+    pub(crate) fn get<'agent>(
+        self,
+        agent: &'agent impl AsRef<SoAVec<MapHeapData<'static>>>,
+    ) -> MapHeapDataRef<'agent, 'static> {
+        agent
+            .as_ref()
+            .get(self.0.into_u32_index())
+            .expect("Invalid Map reference")
+    }
+
+    pub(crate) fn get_mut<'agent>(
+        self,
+        agent: &'agent mut impl AsMut<SoAVec<MapHeapData<'static>>>,
+        arena: &impl PrimitiveHeapIndexable,
+    ) -> MapHeapDataMut<'agent, 'static> {
+        let mut data = agent
+            .as_mut()
+            .get_mut(self.0.into_u32_index())
+            .expect("Invalid Map reference");
+        data.rehash_if_needed_mut(arena);
+        data
+    }
+
+    pub(crate) fn len(&self, agent: &mut Agent) -> u32 {
+        self.get(agent).map_data.borrow().len() as u32
+    }
+
+    pub(crate) fn clear(&self, agent: &mut Agent) {
+        let Heap {
+            bigints,
+            numbers,
+            strings,
+            maps,
+            ..
+        } = &mut agent.heap;
+        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+        self.get_mut(maps, &primitive_heap).clear();
     }
 }
 
@@ -96,12 +135,20 @@ impl<'a> InternalSlots<'a> for Map<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        self.get(agent).object_index.unbind()
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
+        let Heap {
+            bigints,
+            numbers,
+            strings,
+            maps,
+            ..
+        } = &mut agent.heap;
+        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
         assert!(
-            agent[self]
+            self.get_mut(maps, &primitive_heap)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()
@@ -127,38 +174,27 @@ impl HeapSweepWeakReference for Map<'static> {
     }
 }
 
-impl Index<Map<'_>> for Agent {
-    type Output = MapHeapData<'static>;
-
-    fn index(&self, index: Map) -> &Self::Output {
-        &self.heap.maps[index]
+impl AsRef<SoAVec<MapHeapData<'static>>> for Agent {
+    #[inline(always)]
+    fn as_ref(&self) -> &SoAVec<MapHeapData<'static>> {
+        &self.heap.maps
     }
 }
 
-impl IndexMut<Map<'_>> for Agent {
-    fn index_mut(&mut self, index: Map) -> &mut Self::Output {
-        &mut self.heap.maps[index]
-    }
-}
-
-impl Index<Map<'_>> for Vec<MapHeapData<'static>> {
-    type Output = MapHeapData<'static>;
-
-    fn index(&self, index: Map) -> &Self::Output {
-        self.get(index.get_index()).expect("Map out of bounds")
-    }
-}
-
-impl IndexMut<Map<'_>> for Vec<MapHeapData<'static>> {
-    fn index_mut(&mut self, index: Map) -> &mut Self::Output {
-        self.get_mut(index.get_index()).expect("Map out of bounds")
+impl AsMut<SoAVec<MapHeapData<'static>>> for Agent {
+    #[inline(always)]
+    fn as_mut(&mut self) -> &mut SoAVec<MapHeapData<'static>> {
+        &mut self.heap.maps
     }
 }
 
 impl<'a> CreateHeapData<MapHeapData<'a>, Map<'a>> for Heap {
     fn create(&mut self, data: MapHeapData<'a>) -> Map<'a> {
-        self.maps.push(data.unbind());
+        let i = self.maps.len();
+        self.maps
+            .push(data.unbind())
+            .expect("Failed to allocate Map");
         self.alloc_counter += core::mem::size_of::<MapHeapData<'static>>();
-        Map(BaseIndex::last(&self.maps))
+        Map(BaseIndex::from_u32_index(i))
     }
 }

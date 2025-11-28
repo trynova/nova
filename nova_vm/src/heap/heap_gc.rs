@@ -696,7 +696,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 let index = idx.get_index();
                 if bits.maps.set_bit(index, &bits.bits) {
                     // Did mark.
-                    maps.get(index).mark_values(&mut queues);
+                    maps.get(index as u32).mark_values(&mut queues);
                 }
             });
         }
@@ -1791,7 +1791,7 @@ fn sweep(
         }
         if !maps.is_empty() {
             s.spawn(|| {
-                sweep_heap_vector_values(maps, &compactions, &bits.maps, &bits.bits);
+                sweep_heap_soa_vector_values(maps, &compactions, &bits.maps, &bits.bits);
             });
         }
         if !map_iterators.is_empty() {

@@ -697,7 +697,7 @@ impl HeapBits {
         let generators = BitRange::from_bit_count_and_len(&mut bit_count, heap.generators.len());
         let global_environments =
             BitRange::from_bit_count_and_len(&mut bit_count, heap.environments.global.len());
-        let maps = BitRange::from_bit_count_and_len(&mut bit_count, heap.maps.len());
+        let maps = BitRange::from_bit_count_and_len(&mut bit_count, heap.maps.len() as usize);
         let map_iterators =
             BitRange::from_bit_count_and_len(&mut bit_count, heap.map_iterators.len());
         let module_environments =
@@ -1066,7 +1066,7 @@ impl<'a> WorkQueues<'a> {
             function_environments: Vec::with_capacity(heap.environments.function.len() / 4),
             generators: Vec::with_capacity(heap.generators.len() / 4),
             global_environments: Vec::with_capacity(heap.environments.global.len() / 4),
-            maps: Vec::with_capacity(heap.maps.len() / 4),
+            maps: Vec::with_capacity(heap.maps.len() as usize / 4),
             map_iterators: Vec::with_capacity(heap.map_iterators.len() / 4),
             module_environments: Vec::with_capacity(heap.environments.module.len() / 4),
             modules: Vec::with_capacity(heap.modules.len() / 4),
