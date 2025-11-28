@@ -406,13 +406,7 @@ pub(crate) fn perform_eval<'gc>(
         // 29. If result is a normal completion, then
         match result {
             Ok(_) => {
-                let source_code = agent
-                    .running_execution_context()
-                    .ecmascript_code
-                    .as_ref()
-                    .unwrap()
-                    .source_code
-                    .bind(gc.nogc());
+                let source_code = agent.current_source_code(gc.nogc());
                 let exe = Executable::compile_eval_body(agent, body, source_code, gc.nogc())
                     .scope(agent, gc.nogc());
                 // a. Set result to Completion(Evaluation of body).

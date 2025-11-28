@@ -905,10 +905,9 @@ pub(crate) fn ordinary_function_create<'gc>(
     let (source_code, outer_env_is_strict) = if let Some(source_code) = params.source_code {
         (source_code, false)
     } else {
-        let running_ecmascript_code = &agent.running_execution_context().ecmascript_code.unwrap();
         (
-            running_ecmascript_code.source_code.bind(gc),
-            running_ecmascript_code.is_strict_mode,
+            agent.current_source_code(gc),
+            agent.is_evaluating_strict_code(),
         )
     };
     // 7. If the source text matched by Body is strict mode code, let Strict be

@@ -1529,11 +1529,7 @@ pub(super) fn execute_direct_eval_call<'gc>(
             // iv. If IsStrict(this CallExpression) is true, let
             //     strictCaller be true. Otherwise let strictCaller
             //     be false.
-            let strict_caller = agent
-                .running_execution_context()
-                .ecmascript_code
-                .unwrap()
-                .is_strict_mode;
+            let strict_caller = agent.is_evaluating_strict_code();
             // v. Return ? PerformEval(evalArg, strictCaller, true).
             let eval_arg = eval_arg.unbind();
             with_vm_gc(
@@ -1754,11 +1750,7 @@ pub(super) fn execute_evaluate_property_access_with_expression_key(
 ) {
     let property_name_value = vm.result.take().unwrap().bind(gc);
     let base_value = vm.stack.pop().unwrap().bind(gc);
-    let strict = agent
-        .running_execution_context()
-        .ecmascript_code
-        .unwrap()
-        .is_strict_mode;
+    let strict = agent.is_evaluating_strict_code();
 
     vm.reference = Some(
         Reference::new_property_expression_reference(base_value, property_name_value, strict)
@@ -1776,11 +1768,7 @@ pub(super) fn execute_evaluate_property_access_with_identifier_key(
 ) {
     let property_key = executable.fetch_property_key(agent, instr.get_first_index(), gc);
     let base_value = vm.result.take().unwrap().bind(gc);
-    let strict = agent
-        .running_execution_context()
-        .ecmascript_code
-        .unwrap()
-        .is_strict_mode;
+    let strict = agent.is_evaluating_strict_code();
 
     vm.reference =
         Some(Reference::new_property_reference(base_value, property_key, strict).unbind());
@@ -1828,11 +1816,7 @@ pub(super) fn execute_make_super_property_reference_with_expression_key<'gc>(
     // 4. Let propertyNameValue be ? GetValue(propertyNameReference).
     let property_name_value = vm.result.take().unwrap().bind(gc);
     // 5. Let strict be IsStrict(this SuperProperty).
-    let strict = agent
-        .running_execution_context()
-        .ecmascript_code
-        .unwrap()
-        .is_strict_mode;
+    let strict = agent.is_evaluating_strict_code();
     // 6. NOTE: In most cases, ToPropertyKey will be performed on
     //    propertyNameValue immediately after this step. However,
     //    in the case of super[b] = c, it will not be performed
@@ -1886,11 +1870,7 @@ pub(super) fn execute_make_super_property_reference_with_identifier_key<'gc>(
     // 3. Let propertyKey be the StringValue of IdentifierName.
     let property_key = executable.fetch_property_key(agent, instr.get_first_index(), gc);
     // 4. Let strict be IsStrict(this SuperProperty).
-    let strict = agent
-        .running_execution_context()
-        .ecmascript_code
-        .unwrap()
-        .is_strict_mode;
+    let strict = agent.is_evaluating_strict_code();
     // 5. Return MakeSuperPropertyReference(actualThis, propertyKey, strict).
     // 1. Let env be GetThisEnvironment().
     // 2. Assert: env.HasSuperBinding() is true.
