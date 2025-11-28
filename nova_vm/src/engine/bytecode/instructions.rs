@@ -22,13 +22,19 @@ pub enum Instruction {
     // === HOT INSTRUCTIONS ===
     /// Load the result value and add it to the stack.
     Load,
+    /// Load the result value to the given stack slot.
+    LoadToIndex,
     /// Add the result value to the stack, without removing it as the result
     /// value.
     LoadCopy,
     /// Store the last value from the stack as the result value.
     Store,
+    /// Store a copy of a value from the stack by index as the result value.
+    StoreFromIndex,
     /// Store a constant as the result value.
     StoreConstant,
+    /// Pop a value from the stack without storing it anywhere.
+    PopStack,
     /// Jump to another instruction by setting the instruction pointer.
     Jump,
     /// Jump to another instruction by setting the instruction pointer
@@ -115,7 +121,7 @@ pub enum Instruction {
     /// Call IsConstructor() on the current result value and store the result
     /// as the result value.
     IsConstructor,
-    /// Jump to another intrsuction by setting the instruction pointer if the
+    /// Jump to another instruction by setting the instruction pointer if the
     /// current result is `true`.
     JumpIfTrue,
     /// Load the result value, if present, to the top of the stack, replacing
@@ -547,7 +553,9 @@ impl Instruction {
             | Self::ObjectDefineSetter
             | Self::PushExceptionJumpTarget
             | Self::ResolveBindingWithCache => 2,
-            Self::ArrayCreate
+            Self::LoadToIndex
+            | Self::StoreFromIndex
+            | Self::ArrayCreate
             | Self::BeginSimpleObjectBindingPattern
             | Self::BindingPatternBind
             | Self::BindingPatternBindRest
@@ -1209,6 +1217,7 @@ impl TryFrom<u8> for Instruction {
         const LESSTHAN: u8 = Instruction::LessThan.as_u8();
         const LESSTHANEQUALS: u8 = Instruction::LessThanEquals.as_u8();
         const LOAD: u8 = Instruction::Load.as_u8();
+        const LOADTOINDEX: u8 = Instruction::LoadToIndex.as_u8();
         const LOADCOPY: u8 = Instruction::LoadCopy.as_u8();
         const LOADCONSTANT: u8 = Instruction::LoadConstant.as_u8();
         const LOADSTORESWAP: u8 = Instruction::LoadStoreSwap.as_u8();
@@ -1216,6 +1225,7 @@ impl TryFrom<u8> for Instruction {
         const UPDATEEMPTY: u8 = Instruction::UpdateEmpty.as_u8();
         const SWAP: u8 = Instruction::Swap.as_u8();
         const EMPTY: u8 = Instruction::Empty.as_u8();
+        const POPSTACK: u8 = Instruction::PopStack.as_u8();
         const LOGICALNOT: u8 = Instruction::LogicalNot.as_u8();
         const OBJECTCREATE: u8 = Instruction::ObjectCreate.as_u8();
         const OBJECTCREATEWITHSHAPE: u8 = Instruction::ObjectCreateWithShape.as_u8();
@@ -1237,6 +1247,7 @@ impl TryFrom<u8> for Instruction {
         const STORE: u8 = Instruction::Store.as_u8();
         const STORECOPY: u8 = Instruction::StoreCopy.as_u8();
         const STORECONSTANT: u8 = Instruction::StoreConstant.as_u8();
+        const STOREFROMINDEX: u8 = Instruction::StoreFromIndex.as_u8();
         const STRINGCONCAT: u8 = Instruction::StringConcat.as_u8();
         const THROW: u8 = Instruction::Throw.as_u8();
         const THROWERROR: u8 = Instruction::ThrowError.as_u8();
@@ -1372,9 +1383,11 @@ impl TryFrom<u8> for Instruction {
             LOADCONSTANT => Ok(Instruction::LoadConstant),
             LOADSTORESWAP => Ok(Instruction::LoadStoreSwap),
             LOADREPLACE => Ok(Instruction::LoadReplace),
+            LOADTOINDEX => Ok(Instruction::LoadToIndex),
             UPDATEEMPTY => Ok(Instruction::UpdateEmpty),
             SWAP => Ok(Instruction::Swap),
             EMPTY => Ok(Instruction::Empty),
+            POPSTACK => Ok(Instruction::PopStack),
             LOGICALNOT => Ok(Instruction::LogicalNot),
             OBJECTCREATE => Ok(Instruction::ObjectCreate),
             OBJECTCREATEWITHSHAPE => Ok(Instruction::ObjectCreateWithShape),
@@ -1396,6 +1409,7 @@ impl TryFrom<u8> for Instruction {
             STORE => Ok(Instruction::Store),
             STORECOPY => Ok(Instruction::StoreCopy),
             STORECONSTANT => Ok(Instruction::StoreConstant),
+            STOREFROMINDEX => Ok(Instruction::StoreFromIndex),
             STRINGCONCAT => Ok(Instruction::StringConcat),
             THROW => Ok(Instruction::Throw),
             THROWERROR => Ok(Instruction::ThrowError),
