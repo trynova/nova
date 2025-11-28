@@ -1022,7 +1022,7 @@ impl StringPrototype {
         Ok(Value::Boolean(s.as_str(agent).is_some()))
     }
 
-    /// ### [22.1.3.11 String.prototype.lastIndexOf ( searchString \[ , position \] )]()
+    /// ### [22.1.3.11 String.prototype.lastIndexOf ( searchString \[ , position \] )](https://tc39.es/ecma262/#sec-string.prototype.lastindexof)
     ///
     /// > NOTE 1: If _searchString_ appears as a substring of the result of
     /// > converting this object to a String at one or more indices that are

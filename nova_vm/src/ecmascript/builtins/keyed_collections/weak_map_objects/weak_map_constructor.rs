@@ -36,7 +36,7 @@ impl BuiltinIntrinsicConstructor for WeakMapConstructor {
 }
 
 impl WeakMapConstructor {
-    /// ### [24.3.1.1 WeakMap ( \[ iterable \] )]()
+    /// ### [24.3.1.1 WeakMap ( \[ iterable \] )](https://tc39.es/ecma262/#sec-weakmap-iterable)
     ///
     /// > NOTE: If the parameter _iterable_ is present, it is expected to be an
     /// > object that implements a %Symbol.iterator% method that returns an

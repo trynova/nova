@@ -180,7 +180,7 @@ impl RegExpConstructor {
         reg_exp_initialize(agent, o.unbind(), p, f, gc).map(|o| o.into_value())
     }
 
-    /// ### [22.2.5.1 RegExp.escape ( S )]()
+    /// ### [22.2.5.1 RegExp.escape ( S )](https://tc39.es/ecma262/#sec-regexp.escape)
     ///
     /// This function returns a copy of S in which characters that are
     /// potentially special in a regular expression Pattern have been replaced

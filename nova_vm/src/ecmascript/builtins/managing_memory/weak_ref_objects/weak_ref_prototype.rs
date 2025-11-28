@@ -23,7 +23,7 @@ impl Builtin for WeakRefPrototypeDeref {
 }
 
 impl WeakRefPrototype {
-    /// ### [26.1.3.2 WeakRef.prototype.deref ( )]()
+    /// ### [26.1.3.2 WeakRef.prototype.deref ( )](https://tc39.es/ecma262/#sec-weak-ref.prototype.deref)
     fn deref<'gc>(
         agent: &mut Agent,
         this_value: Value,

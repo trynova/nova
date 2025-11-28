@@ -10,11 +10,14 @@ use rustc_span::{BytePos, Span};
 dylint_linting::declare_early_lint! {
     /// ### What it does
     ///
-    /// This lint disallows doc comments that contain the phrase "It performs the following steps when called".
+    /// This lint disallows doc comments that contain the phrase
+    /// "It performs the following steps when called", or any variation of it
+    /// like: "This method performs the following steps when called".
     ///
     /// ### Why is this bad?
     ///
-    /// This phrase is a leftover from copy-pasting the TC-39 specification and does not add value to the documentation.
+    /// This phrase is a leftover from copy-pasting the TC-39 specification and
+    /// does not add value to the documentation.
     ///
     /// ### Example
     ///
@@ -47,9 +50,12 @@ dylint_linting::declare_early_lint! {
 }
 
 impl EarlyLintPass for NoItPerformsTheFollowing {
+    // TODO: This should check for multiline comments too, probably using the
+    // `check_attributes` method instead because each doc comment line is it's
+    // own attribute.
     fn check_attribute(&mut self, cx: &EarlyContext<'_>, attr: &Attribute) {
         static RE: LazyLock<Regex> = LazyLock::new(|| {
-            RegexBuilder::new(r"It performs the following steps when called:?")
+            RegexBuilder::new(r"(This method|It) performs the following steps when called:?")
                 .case_insensitive(true)
                 .build()
                 .unwrap()

@@ -43,7 +43,7 @@ use crate::{
 
 use super::{RegExp, RegExpHeapData, data::RegExpLastIndex};
 
-/// ### [22.2.3.1 RegExpCreate ( P, F )]()
+/// ### [22.2.3.1 RegExpCreate ( P, F )](https://tc39.es/ecma262/#sec-regexpcreate)
 ///
 /// The abstract operation RegExpCreate takes arguments P (an ECMAScript
 /// language value) and F (a String or undefined) and returns either a normal
@@ -63,7 +63,7 @@ pub(crate) fn reg_exp_create<'a>(
     reg_exp_initialize(agent, obj.unbind(), p, f, gc)
 }
 
-/// ### [22.2.3.1 RegExpCreate ( P, F )]()
+/// ### [22.2.3.1 RegExpCreate ( P, F )](https://tc39.es/ecma262/#sec-regexpcreate)
 ///
 /// The abstract operation RegExpCreate takes arguments P (an ECMAScript
 /// language value) and F (a String or undefined) and returns either a normal
@@ -83,7 +83,7 @@ pub(crate) fn reg_exp_create_literal<'a>(
     agent.heap.create(RegExpHeapData::new(agent, p, f)).bind(gc)
 }
 
-/// ### [22.2.3.2 RegExpAlloc ( newTarget )]()
+/// ### [22.2.3.2 RegExpAlloc ( newTarget )](https://tc39.es/ecma262/#sec-regexpalloc)
 ///
 /// The abstract operation RegExpAlloc takes argument newTarget (a constructor)
 /// and returns either a normal completion containing an Object or a throw
@@ -106,7 +106,7 @@ pub(crate) fn reg_exp_alloc<'a>(
     Ok(obj)
 }
 
-/// ### [22.2.3.3 RegExpInitialize ( obj, pattern, flags )]()
+/// ### [22.2.3.3 RegExpInitialize ( obj, pattern, flags )](https://tc39.es/ecma262/#sec-regexpinitialize)
 ///
 /// The abstract operation RegExpInitialize takes arguments obj (an Object),
 /// pattern (an ECMAScript language value), and flags (an ECMAScript language
