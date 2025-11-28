@@ -189,6 +189,13 @@ expectations. You can do this with the following command:
 cargo build --profile dev-fast && cargo run --bin test262 --profile dev-fast -- -u
 ```
 
+Or you can use command via [just](https://github.com/casey/just).
+(Please see `justfile` if you want to know available commands )
+
+```sh
+just build-and-test262-update
+```
+
 This will build you a "dev-fast" version of Nova, and run the test262
 conformance using that executable. At the end of the run, it will record the
 results `expectations.json`.
