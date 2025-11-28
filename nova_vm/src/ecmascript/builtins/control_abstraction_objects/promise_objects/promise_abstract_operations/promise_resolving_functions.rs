@@ -29,7 +29,7 @@ pub(crate) enum PromiseResolvingFunctionType {
     Reject,
 }
 
-/// ### [27.2.1.3.1 Promise Reject Functions]()
+/// ### [27.2.1.3.1 Promise Reject Functions](https://tc39.es/ecma262/#sec-promise-reject-functions)
 ///
 /// A promise reject function is an anonymous built-in function that has
 /// \[\[Promise\]\] and \[\[AlreadyResolved\]\] internal slots.

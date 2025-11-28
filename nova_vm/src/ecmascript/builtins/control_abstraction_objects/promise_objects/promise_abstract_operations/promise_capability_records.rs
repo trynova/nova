@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! ## [27.2.1.1 PromiseCapability Records]()
+//! ### [27.2.1.1 PromiseCapability Records](https://tc39.es/ecma262/#sec-promisecapability-records)
 
 use crate::{
     ecmascript::{
@@ -49,6 +49,7 @@ pub struct PromiseCapability<'a> {
 
 impl<'a> PromiseCapability<'a> {
     ///### [27.2.1.5 NewPromiseCapability ( C )](https://tc39.es/ecma262/#sec-newpromisecapability)
+    ///
     /// NOTE: Our implementation doesn't take C as a parameter, since we don't
     /// yet support promise subclassing.
     pub fn new(agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Self {

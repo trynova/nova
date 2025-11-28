@@ -1229,7 +1229,7 @@ impl ArrayPrototype {
         Ok(Number::try_from(find_rec.0).unwrap().into_value())
     }
 
-    /// ### [23.1.3.13 Array.prototype.flat ( \[ depth \] )]()
+    /// ### [23.1.3.13 Array.prototype.flat ( \[ depth \] )](https://tc39.es/ecma262/#sec-array.prototype.flat)
     fn flat<'gc>(
         agent: &mut Agent,
         this_value: Value,

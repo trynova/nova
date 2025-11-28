@@ -155,7 +155,7 @@ impl HeapMarkAndSweep for ExecutionContext {
     }
 }
 
-/// ### [9.4.4 ResolveThisBinding ( )]()
+/// ### [9.4.4 ResolveThisBinding ( )](https://tc39.es/ecma262/#sec-resolvethisbinding)
 pub(crate) fn resolve_this_binding<'a>(
     agent: &mut Agent,
     gc: NoGcScope<'a, '_>,

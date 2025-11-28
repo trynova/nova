@@ -1247,7 +1247,7 @@ pub(crate) fn construct<'a>(
         .internal_construct(agent, arguments_list, new_target.unbind(), gc)
 }
 
-/// ### [7.3.20 Invoke ( V, P \[ , argumentsList \] )]()
+/// ### [7.3.20 Invoke ( V, P \[ , argumentsList \] )](https://tc39.es/ecma262/#sec-invoke)
 ///
 /// The abstract operation Invoke takes arguments V (an ECMAScript language
 /// value) and P (a property key) and optional argument argumentsList (a List
