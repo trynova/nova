@@ -22,7 +22,7 @@ use crate::{
         bytecode::{
             bytecode_compiler::finaliser_stack::{
                 compile_array_destructuring_exit, compile_if_statement_exit, compile_loop_exit,
-                compile_sync_iterator_exit,
+                compile_stack_variable_exit, compile_sync_iterator_exit,
             },
             executable::ArrowFunctionExpression,
         },
@@ -256,8 +256,16 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
 
     /// Add a lexical variable. These variables must not escape the scope via
     /// callback capture or exports.
-    pub(super) fn add_stack_variable(&mut self, symbol: oxc_semantic::SymbolId) {
-        self.add_instruction_with_constant(Instruction::LoadConstant, Value::Undefined);
+    pub(super) fn add_stack_variable(
+        &mut self,
+        symbol: oxc_semantic::SymbolId,
+        value_in_result_register: bool,
+    ) {
+        if value_in_result_register {
+            self.add_instruction(Instruction::Load);
+        } else {
+            self.add_instruction_with_constant(Instruction::LoadConstant, Value::Undefined);
+        }
         let idx = self.executable.push_stack_variable();
         self.stack_variables.push((symbol, idx));
         self.control_flow_stack
@@ -277,7 +285,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             // unreachable.
             return;
         }
-        self.add_instruction(Instruction::UpdateEmpty);
+        compile_stack_variable_exit(&mut self.executable);
     }
 
     /// Enter a private environment scope.
