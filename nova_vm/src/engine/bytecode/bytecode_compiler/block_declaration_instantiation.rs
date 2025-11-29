@@ -78,7 +78,7 @@ fn handle_block_lexically_scoped_declaration<'s>(
                         dn.to_property_key(),
                     );
                 } else {
-                    ctx.add_stack_variable(identifier.symbol_id(), false);
+                    ctx.push_stack_variable(identifier.symbol_id(), false);
                 }
             })
         }
@@ -98,7 +98,7 @@ fn handle_block_lexically_scoped_declaration<'s>(
                     dn.to_property_key(),
                 );
             } else {
-                ctx.add_stack_variable(identifier.symbol_id(), false);
+                ctx.push_stack_variable(identifier.symbol_id(), false);
             }
         }),
         LexicallyScopedDeclaration::Function(decl) => {
@@ -134,7 +134,7 @@ fn handle_block_lexically_scoped_declaration<'s>(
             } else {
                 // ii. Let fo be InstantiateFunctionObject of d with arguments env and privateEnv.
                 decl.compile(ctx);
-                ctx.add_stack_variable(identifier.symbol_id(), true);
+                ctx.push_stack_variable(identifier.symbol_id(), true);
             }
         }
         LexicallyScopedDeclaration::Class(decl) => {
@@ -153,7 +153,7 @@ fn handle_block_lexically_scoped_declaration<'s>(
                         dn.to_property_key(),
                     );
                 } else {
-                    ctx.add_stack_variable(identifier.symbol_id(), false);
+                    ctx.push_stack_variable(identifier.symbol_id(), false);
                 }
             });
         }

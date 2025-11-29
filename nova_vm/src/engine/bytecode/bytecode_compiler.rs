@@ -3257,6 +3257,7 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
         ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
         ctx.add_instruction(Instruction::Load);
         // 3. Repeat,
+        ctx.push_stack_loop_result();
         let jump_to_catch = ctx.enter_loop(label_set.cloned());
         let jump_over_continue = ctx.add_instruction_with_jump_slot(Instruction::Jump);
         let continue_label = ctx.get_jump_index_to_here();
@@ -3318,6 +3319,7 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
         // failure then result is currently empty and UpdateEmpty will pop V
         // into the result register.
         ctx.exit_loop(continue_label);
+        ctx.pop_stack_loop_result();
 
         if is_lexical {
             // Lexical binding loops have an extra declarative environment that
@@ -3669,8 +3671,7 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
         ctx: &mut CompileContext<'_, 's, '_, '_>,
     ) {
         // 1. Let V be undefined.
-        ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
-        ctx.add_instruction(Instruction::Load);
+        ctx.push_stack_loop_result();
         // 2. Repeat,
         let jump_to_catch = ctx.enter_loop(label_set.cloned());
         let jump_over_continue = ctx.add_instruction_with_jump_slot(Instruction::Jump);
@@ -3726,6 +3727,7 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
         // failure then result is currently empty and UpdateEmpty will pop V
         // into the result register.
         ctx.exit_loop(continue_label);
+        ctx.pop_stack_loop_result();
     }
 }
 

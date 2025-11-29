@@ -52,6 +52,8 @@ pub(super) enum ControlFlowStackEntry<'a> {
     PrivateScope,
     /// A variable was pushed onto the stack.
     StackVariable,
+    /// A loop result variable was pushed onto the stack.
+    StackLoopResult,
     /// A try-catch block was entered.
     CatchBlock,
     /// An if-statement was entered.
@@ -229,6 +231,7 @@ impl<'a> ControlFlowStackEntry<'a> {
             | ControlFlowStackEntry::VariableScope
             | ControlFlowStackEntry::PrivateScope
             | ControlFlowStackEntry::StackVariable
+            | ControlFlowStackEntry::StackLoopResult
             | ControlFlowStackEntry::CatchBlock
             | ControlFlowStackEntry::IfStatement
             | ControlFlowStackEntry::FinallyBlock
@@ -264,6 +267,7 @@ impl<'a> ControlFlowStackEntry<'a> {
             | ControlFlowStackEntry::VariableScope
             | ControlFlowStackEntry::PrivateScope
             | ControlFlowStackEntry::StackVariable
+            | ControlFlowStackEntry::StackLoopResult
             | ControlFlowStackEntry::FinallyBlock
             | ControlFlowStackEntry::IfStatement
             | ControlFlowStackEntry::CatchBlock { .. }
@@ -311,6 +315,7 @@ impl<'a> ControlFlowStackEntry<'a> {
             // try-finally-blocks, and iterator closes must be called on
             // return.
             ControlFlowStackEntry::StackVariable
+            | ControlFlowStackEntry::StackLoopResult
             | ControlFlowStackEntry::IfStatement
             | ControlFlowStackEntry::FinallyBlock
             | ControlFlowStackEntry::ArrayDestructuring
@@ -355,6 +360,7 @@ impl<'a> ControlFlowStackEntry<'a> {
             ControlFlowStackEntry::StackVariable => {
                 compile_stack_variable_exit(executable);
             }
+            ControlFlowStackEntry::StackLoopResult => {}
             ControlFlowStackEntry::IfStatement => {
                 if has_result {
                     // OPTIMISATION: if we statically know we have a result,
