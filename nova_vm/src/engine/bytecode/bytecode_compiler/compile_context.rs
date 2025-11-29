@@ -22,7 +22,7 @@ use crate::{
         bytecode::{
             bytecode_compiler::finaliser_stack::{
                 compile_array_destructuring_exit, compile_if_statement_exit, compile_loop_exit,
-                compile_stack_variable_exit, compile_sync_iterator_exit,
+                compile_sync_iterator_exit,
             },
             executable::ArrowFunctionExpression,
         },
@@ -256,7 +256,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
 
     /// Add a lexical variable. These variables must not escape the scope via
     /// callback capture or exports.
-    pub(super) fn add_stack_variable(
+    pub(super) fn push_stack_variable(
         &mut self,
         symbol: oxc_semantic::SymbolId,
         value_in_result_register: bool,
@@ -285,7 +285,32 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             // unreachable.
             return;
         }
-        compile_stack_variable_exit(&mut self.executable);
+        // compile_stack_variable_exit(&mut self.executable);
+    }
+
+    /// Add a loop result onto the stack. This is an unnameable variable on the
+    /// stack that gets updated on each loop iteration.
+    pub(super) fn push_stack_loop_result(&mut self) {
+        self.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+        self.add_instruction(Instruction::Load);
+        let _ = self.executable.push_stack_variable();
+        self.control_flow_stack
+            .push(ControlFlowStackEntry::StackLoopResult);
+    }
+
+    /// Pop a loop result from the stack.
+    pub(super) fn pop_stack_loop_result(&mut self) {
+        matches!(
+            self.control_flow_stack.pop(),
+            Some(ControlFlowStackEntry::StackLoopResult)
+        );
+        self.executable.pop_stack_variable();
+        if self.is_unreachable() {
+            // OPTIMISATION: We don't need to add exit handling if this line is
+            // unreachable.
+            return;
+        }
+        // compile_stack_variable_exit(&mut self.executable);
     }
 
     /// Enter a private environment scope.
