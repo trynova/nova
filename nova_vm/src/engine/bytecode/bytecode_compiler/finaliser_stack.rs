@@ -415,13 +415,9 @@ pub(super) fn compile_iterator_pop(executable: &mut ExecutableContext) {
     executable.add_instruction(Instruction::IteratorPop);
 }
 
-/// Helper method to compile if-statement exit handling.
-///
-/// If-statements have to perform `UpdateEmpty(V, undefined)` at the end of the
-/// statement.
+/// Helper method to compile stack variable exit handling.
 pub(super) fn compile_stack_variable_exit(executable: &mut ExecutableContext) {
-    executable.pop_stack_variable();
-    executable.add_instruction(Instruction::UpdateEmpty);
+    executable.add_instruction(Instruction::PopStack);
 }
 
 /// Helper method to compile if-statement exit handling.

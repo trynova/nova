@@ -529,13 +529,13 @@ impl Vm {
             Instruction::LoadCopy => {
                 vm.execute_load_copy();
             }
-            Instruction::LoadToIndex => {
+            Instruction::PutValueToIndex => {
                 vm.execute_load_to_index(instr.get_first_index());
             }
             Instruction::Store => {
                 vm.execute_store();
             }
-            Instruction::StoreFromIndex => {
+            Instruction::GetValueFromIndex => {
                 vm.execute_store_from_index(instr.get_first_index());
             }
             Instruction::StoreConstant => {
@@ -609,10 +609,10 @@ impl Vm {
         let _: () = match instr.kind {
             Instruction::Load
             | Instruction::LoadCopy
-            | Instruction::LoadToIndex
+            | Instruction::PutValueToIndex
             | Instruction::Store
             | Instruction::StoreConstant
-            | Instruction::StoreFromIndex
+            | Instruction::GetValueFromIndex
             | Instruction::PopStack
             | Instruction::Jump
             | Instruction::JumpIfNot

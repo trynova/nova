@@ -23,14 +23,14 @@ pub enum Instruction {
     /// Load the result value and add it to the stack.
     Load,
     /// Load the result value to the given stack slot.
-    LoadToIndex,
+    PutValueToIndex,
     /// Add the result value to the stack, without removing it as the result
     /// value.
     LoadCopy,
     /// Store the last value from the stack as the result value.
     Store,
     /// Store a copy of a value from the stack by index as the result value.
-    StoreFromIndex,
+    GetValueFromIndex,
     /// Store a constant as the result value.
     StoreConstant,
     /// Pop a value from the stack without storing it anywhere.
@@ -553,8 +553,8 @@ impl Instruction {
             | Self::ObjectDefineSetter
             | Self::PushExceptionJumpTarget
             | Self::ResolveBindingWithCache => 2,
-            Self::LoadToIndex
-            | Self::StoreFromIndex
+            Self::PutValueToIndex
+            | Self::GetValueFromIndex
             | Self::ArrayCreate
             | Self::BeginSimpleObjectBindingPattern
             | Self::BindingPatternBind
@@ -1217,7 +1217,7 @@ impl TryFrom<u8> for Instruction {
         const LESSTHAN: u8 = Instruction::LessThan.as_u8();
         const LESSTHANEQUALS: u8 = Instruction::LessThanEquals.as_u8();
         const LOAD: u8 = Instruction::Load.as_u8();
-        const LOADTOINDEX: u8 = Instruction::LoadToIndex.as_u8();
+        const LOADTOINDEX: u8 = Instruction::PutValueToIndex.as_u8();
         const LOADCOPY: u8 = Instruction::LoadCopy.as_u8();
         const LOADCONSTANT: u8 = Instruction::LoadConstant.as_u8();
         const LOADSTORESWAP: u8 = Instruction::LoadStoreSwap.as_u8();
@@ -1247,7 +1247,7 @@ impl TryFrom<u8> for Instruction {
         const STORE: u8 = Instruction::Store.as_u8();
         const STORECOPY: u8 = Instruction::StoreCopy.as_u8();
         const STORECONSTANT: u8 = Instruction::StoreConstant.as_u8();
-        const STOREFROMINDEX: u8 = Instruction::StoreFromIndex.as_u8();
+        const STOREFROMINDEX: u8 = Instruction::GetValueFromIndex.as_u8();
         const STRINGCONCAT: u8 = Instruction::StringConcat.as_u8();
         const THROW: u8 = Instruction::Throw.as_u8();
         const THROWERROR: u8 = Instruction::ThrowError.as_u8();
@@ -1383,7 +1383,7 @@ impl TryFrom<u8> for Instruction {
             LOADCONSTANT => Ok(Instruction::LoadConstant),
             LOADSTORESWAP => Ok(Instruction::LoadStoreSwap),
             LOADREPLACE => Ok(Instruction::LoadReplace),
-            LOADTOINDEX => Ok(Instruction::LoadToIndex),
+            LOADTOINDEX => Ok(Instruction::PutValueToIndex),
             UPDATEEMPTY => Ok(Instruction::UpdateEmpty),
             SWAP => Ok(Instruction::Swap),
             EMPTY => Ok(Instruction::Empty),
@@ -1409,7 +1409,7 @@ impl TryFrom<u8> for Instruction {
             STORE => Ok(Instruction::Store),
             STORECOPY => Ok(Instruction::StoreCopy),
             STORECONSTANT => Ok(Instruction::StoreConstant),
-            STOREFROMINDEX => Ok(Instruction::StoreFromIndex),
+            STOREFROMINDEX => Ok(Instruction::GetValueFromIndex),
             STRINGCONCAT => Ok(Instruction::StringConcat),
             THROW => Ok(Instruction::Throw),
             THROWERROR => Ok(Instruction::ThrowError),

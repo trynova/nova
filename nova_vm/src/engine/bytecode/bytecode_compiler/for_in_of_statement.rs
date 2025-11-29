@@ -3,10 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{CompileContext, CompileEvaluation, CompileLabelledEvaluation, Instruction, JumpIndex};
-use crate::{
-    ecmascript::types::{String, Value},
-    engine::bytecode::bytecode_compiler::compile_expression_output_get_value,
-};
+use crate::ecmascript::types::{String, Value};
 use oxc_ast::ast;
 use oxc_ecmascript::BoundNames;
 
@@ -54,7 +51,7 @@ fn for_in_of_head_evaluation<'s, 'gc>(
         ctx.exit_lexical_scope();
     }
     // 5. Let exprValue be ? GetValue(? exprRef).
-    compile_expression_output_get_value(expr, ctx, output);
+    output.get_value(ctx);
     // 6. If iterationKind is ENUMERATE, then
     match iteration_kind {
         IterationKind::Enumerate => {

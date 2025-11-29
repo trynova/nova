@@ -22,7 +22,7 @@ use crate::{
     },
     engine::{
         Instruction,
-        bytecode::bytecode_compiler::{CompileContext, ctx_variable_escapes_scope},
+        bytecode::bytecode_compiler::{CompileContext, variable_escapes_scope},
     },
 };
 
@@ -74,7 +74,7 @@ pub(crate) fn instantiation<'s>(
         } else {
             parameter_names.insert(identifier.name);
         }
-        ctx_variable_escapes_scope(ctx, identifier);
+        variable_escapes_scope(ctx, identifier);
     });
 
     // 8. Let hasParameterExpressions be ContainsExpression of formals.

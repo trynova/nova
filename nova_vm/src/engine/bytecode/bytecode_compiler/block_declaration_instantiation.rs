@@ -3,7 +3,6 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use oxc_ecmascript::BoundNames;
-use oxc_semantic::SymbolId;
 
 use crate::engine::bytecode::bytecode_compiler::variable_escapes_scope;
 
@@ -31,7 +30,7 @@ pub(super) fn instantiation<'s>(
     cb: impl FnOnce(&mut CompileContext<'_, 's, '_, '_>),
 ) {
     let mut did_enter_declarative_environment = false;
-    let mut local_lexical_names = vec![];
+    let mut local_lexical_names_count = 0;
     // 1. Let declarations be the LexicallyScopedDeclarations of code.
     // 2. Let privateEnv be the running execution context's PrivateEnvironment.
     // 3. For each element d of declarations, do
@@ -39,21 +38,17 @@ pub(super) fn instantiation<'s>(
         handle_block_lexically_scoped_declaration(
             ctx,
             &mut did_enter_declarative_environment,
-            &mut local_lexical_names,
+            &mut local_lexical_names_count,
             d,
         );
     });
 
-    let local_lexical_names_count = local_lexical_names.len();
-
-    if !local_lexical_names.is_empty() {
-        create_local_lexical_names(ctx, local_lexical_names);
-    }
-
     // 4. Return unused.
     cb(ctx);
 
-    teardown_local_lexical_names(ctx, local_lexical_names_count);
+    for _ in 0..local_lexical_names_count {
+        ctx.pop_stack_variable();
+    }
     if did_enter_declarative_environment {
         ctx.exit_lexical_scope();
     }
@@ -62,22 +57,20 @@ pub(super) fn instantiation<'s>(
 fn handle_block_lexically_scoped_declaration<'s>(
     ctx: &mut CompileContext<'_, 's, '_, '_>,
     did_enter_declarative_environment: &mut bool,
-    local_lexical_names: &mut Vec<SymbolId>,
+    local_lexical_names_count: &mut usize,
     d: LexicallyScopedDeclaration<'s>,
 ) {
-    let sc = ctx.get_source_code();
     match d {
         // a. For each element dn of the BoundNames of d, do
         LexicallyScopedDeclaration::Variable(decl) if decl.kind.is_const() => {
             // i. If IsConstantDeclaration of d is true, then
             decl.id.bound_names(&mut |identifier| {
-                let agent = ctx.get_agent();
-                let scoping = sc.get_scoping(agent);
-                if variable_escapes_scope(scoping, identifier) {
-                    if !*did_enter_declarative_environment {
-                        *did_enter_declarative_environment = true;
-                        ctx.enter_lexical_scope();
-                    }
+                if handle_lexical_variable(
+                    ctx,
+                    identifier,
+                    did_enter_declarative_environment,
+                    local_lexical_names_count,
+                ) {
                     let dn = ctx.create_string(&identifier.name);
                     // 1. Perform ! env.CreateImmutableBinding(dn, true).
                     ctx.add_instruction_with_identifier(
@@ -85,19 +78,18 @@ fn handle_block_lexically_scoped_declaration<'s>(
                         dn.to_property_key(),
                     );
                 } else {
-                    local_lexical_names.push(identifier.symbol_id());
+                    ctx.add_stack_variable(identifier.symbol_id(), false);
                 }
             })
         }
         // ii. Else,
         LexicallyScopedDeclaration::Variable(decl) => decl.id.bound_names(&mut |identifier| {
-            let agent = ctx.get_agent();
-            let scoping = sc.get_scoping(agent);
-            if variable_escapes_scope(scoping, identifier) {
-                if !*did_enter_declarative_environment {
-                    *did_enter_declarative_environment = true;
-                    ctx.enter_lexical_scope();
-                }
+            if handle_lexical_variable(
+                ctx,
+                identifier,
+                did_enter_declarative_environment,
+                local_lexical_names_count,
+            ) {
                 // 1. Perform ! env.CreateMutableBinding(dn, false).
                 // NOTE: This step is replaced in section B.3.2.6.
                 let dn = ctx.create_string(&identifier.name);
@@ -106,23 +98,24 @@ fn handle_block_lexically_scoped_declaration<'s>(
                     dn.to_property_key(),
                 );
             } else {
-                local_lexical_names.push(identifier.symbol_id());
+                ctx.add_stack_variable(identifier.symbol_id(), false);
             }
         }),
         LexicallyScopedDeclaration::Function(decl) => {
-            let agent = ctx.get_agent();
-            let scoping = sc.get_scoping(agent);
             // b. If d is either a FunctionDeclaration,
             // a GeneratorDeclaration, an AsyncFunctionDeclaration,
             // or an AsyncGeneratorDeclaration, then
             // i. Let fn be the sole element of the BoundNames of d.
-            let Some(r#fn) = &decl.id else { unreachable!() };
-            if variable_escapes_scope(scoping, r#fn) {
-                if !*did_enter_declarative_environment {
-                    *did_enter_declarative_environment = true;
-                    ctx.enter_lexical_scope();
-                }
-                let dn = ctx.create_string(&r#fn.name);
+            let Some(identifier) = &decl.id else {
+                unreachable!()
+            };
+            if handle_lexical_variable(
+                ctx,
+                identifier,
+                did_enter_declarative_environment,
+                local_lexical_names_count,
+            ) {
+                let dn = ctx.create_string(&identifier.name);
                 // 1. Perform ! env.CreateMutableBinding(dn, false).
                 // NOTE: This step is replaced in section B.3.2.6.
                 ctx.add_instruction_with_identifier(
@@ -139,18 +132,19 @@ fn handle_block_lexically_scoped_declaration<'s>(
                 ctx.add_instruction(Instruction::InitializeReferencedBinding);
                 // NOTE: This step is replaced in section B.3.2.6.
             } else {
-                local_lexical_names.push(r#fn.symbol_id());
+                // ii. Let fo be InstantiateFunctionObject of d with arguments env and privateEnv.
+                decl.compile(ctx);
+                ctx.add_stack_variable(identifier.symbol_id(), true);
             }
         }
         LexicallyScopedDeclaration::Class(decl) => {
             decl.bound_names(&mut |identifier| {
-                let agent = ctx.get_agent();
-                let scoping = sc.get_scoping(agent);
-                if variable_escapes_scope(scoping, identifier) {
-                    if !*did_enter_declarative_environment {
-                        *did_enter_declarative_environment = true;
-                        ctx.enter_lexical_scope();
-                    }
+                if handle_lexical_variable(
+                    ctx,
+                    identifier,
+                    did_enter_declarative_environment,
+                    local_lexical_names_count,
+                ) {
                     // 1. Perform ! env.CreateMutableBinding(dn, false).
                     // NOTE: This step is replaced in section B.3.2.6.
                     let dn = ctx.create_string(&identifier.name);
@@ -159,20 +153,19 @@ fn handle_block_lexically_scoped_declaration<'s>(
                         dn.to_property_key(),
                     );
                 } else {
-                    local_lexical_names.push(identifier.symbol_id());
+                    ctx.add_stack_variable(identifier.symbol_id(), false);
                 }
             });
         }
         LexicallyScopedDeclaration::DefaultExport => unreachable!(),
         #[cfg(feature = "typescript")]
         LexicallyScopedDeclaration::TSEnum(decl) => {
-            let agent = ctx.get_agent();
-            let scoping = sc.get_scoping(agent);
-            if variable_escapes_scope(scoping, identifier) {
-                if !*did_enter_declarative_environment {
-                    *did_enter_declarative_environment = true;
-                    ctx.enter_lexical_scope();
-                }
+            if handle_lexical_variable(
+                ctx,
+                identifier,
+                did_enter_declarative_environment,
+                local_lexical_names_count,
+            ) {
                 let dn = ctx.create_string(&decl.id.name);
                 // Create mutable binding for the enum
                 ctx.add_instruction_with_identifier(
@@ -180,25 +173,26 @@ fn handle_block_lexically_scoped_declaration<'s>(
                     dn.to_property_key(),
                 );
             } else {
-                local_lexical_names.push(identifier.symbol_id());
+                ctx.add_stack_variable(identifier.symbol_id(), false);
             }
         }
     }
 }
 
-fn create_local_lexical_names(
+fn handle_lexical_variable(
     ctx: &mut CompileContext,
-    local_lexical_names: Vec<SymbolId>,
-) -> usize {
-    let count = local_lexical_names.len();
-    for local_lexical_name in local_lexical_names {
-        ctx.add_stack_variable(local_lexical_name);
-    }
-    count
-}
-
-fn teardown_local_lexical_names(ctx: &mut CompileContext, local_lexical_names_count: usize) {
-    for _ in 0..local_lexical_names_count {
-        ctx.pop_stack_variable();
+    identifier: &oxc_ast::ast::BindingIdentifier,
+    did_enter_declarative_environment: &mut bool,
+    local_lexical_names_count: &mut usize,
+) -> bool {
+    if variable_escapes_scope(ctx, identifier) {
+        if !*did_enter_declarative_environment {
+            *did_enter_declarative_environment = true;
+            ctx.enter_lexical_scope();
+        }
+        true
+    } else {
+        *local_lexical_names_count += 1;
+        false
     }
 }

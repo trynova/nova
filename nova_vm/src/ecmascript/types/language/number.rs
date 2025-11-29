@@ -104,16 +104,6 @@ impl<'a> TryFrom<Value<'a>> for HeapNumber<'a> {
     }
 }
 
-impl<'a> IntoPrimitive<'a> for Number<'a> {
-    fn into_primitive(self) -> Primitive<'a> {
-        match self {
-            Number::Number(idx) => Primitive::Number(idx.unbind()),
-            Number::Integer(data) => Primitive::Integer(data),
-            Number::SmallF64(data) => Primitive::SmallF64(data),
-        }
-    }
-}
-
 impl<'a> IntoNumeric<'a> for Number<'a> {
     fn into_numeric(self) -> Numeric<'a> {
         match self {
@@ -235,6 +225,17 @@ impl TryFrom<f64> for Number<'static> {
             Ok(Number::SmallF64(value))
         } else {
             Err(())
+        }
+    }
+}
+
+impl<'a> From<Number<'a>> for Primitive<'a> {
+    #[inline]
+    fn from(value: Number<'a>) -> Self {
+        match value {
+            Number::Number(d) => Self::Number(d),
+            Number::Integer(d) => Self::Integer(d),
+            Number::SmallF64(d) => Self::SmallF64(d),
         }
     }
 }
