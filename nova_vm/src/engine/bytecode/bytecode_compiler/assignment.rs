@@ -186,7 +186,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
             // 2. let lval be ? GetValue(lref).
             lref.get_value_keep_reference(ctx);
             ctx.add_instruction(Instruction::Load);
-            let do_push_reference = !self.right.is_literal();
+            let do_push_reference = lref.has_reference() && !self.right.is_literal();
             if do_push_reference {
                 ctx.add_instruction(Instruction::PushReference);
             }
@@ -346,7 +346,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                     let (lref, needs_pop_reference) =
                         if let Some(binding) = element.binding.as_simple_assignment_target() {
                             let lref = binding.compile(ctx);
-                            if element.init.is_literal() {
+                            if !lref.has_reference() || element.init.is_literal() {
                                 (Some(lref), false)
                             } else {
                                 ctx.add_instruction(Instruction::PushReference);
@@ -588,6 +588,7 @@ fn compile_assignment_target_property<'s>(
             // reference: &source.identifier
             place.get_value_maybe_keep_reference(ctx, has_rest);
             if has_rest {
+                assert!(place.has_reference());
                 ctx.add_instruction(Instruction::PushReference);
             }
             // result: source.identifier
@@ -609,6 +610,7 @@ fn compile_assignment_target_property<'s>(
             // reference: &source.property
             place.get_value_maybe_keep_reference(ctx, has_rest);
             if has_rest {
+                assert!(place.has_reference());
                 ctx.add_instruction(Instruction::PushReference);
             }
             // result: source.property

@@ -246,6 +246,11 @@ pub(crate) enum ExpressionOutput<'gc> {
 }
 
 impl<'gc> ExpressionOutput<'gc> {
+    #[inline]
+    fn is_stack_variable(&self) -> bool {
+        matches!(self, ExpressionOutput::Place(PlaceOutput::Stack { .. }))
+    }
+
     fn to_expression_key(self) -> PlaceOutput<'gc> {
         match self {
             ExpressionOutput::Value => PlaceOutput::Member { name: None },
@@ -324,8 +329,9 @@ fn variable_escapes_scope(
     for reference in scoping.get_resolved_references(s) {
         let mut scope = nodes.get_node(reference.node_id()).scope_id();
         while scope != decl_scope {
-            if scoping.scope_flags(scope).contains(ScopeFlags::Function) {
-                // eprintln!("Variable {} DOES escape scope", identifier.name.as_str());
+            let flags = scoping.scope_flags(scope);
+            // TODO: check for with scope as well.
+            if flags.is_var() {
                 return true;
             }
             let Some(s) = scoping.scope_parent_id(scope) else {
@@ -334,10 +340,6 @@ fn variable_escapes_scope(
             scope = s;
         }
     }
-    // eprintln!(
-    //     "Variable {} does not escape scope",
-    //     identifier.name.as_str()
-    // );
     false
 }
 
@@ -531,7 +533,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Identi
             if let Some(s) = reference.symbol_id() {
                 // SymbolId means we might be a global, local, or a stack
                 // variable.
-                if let Some(i) = ctx.get_stack_index(s) {
+                if let Some(i) = ctx.get_variable_stack_index(s) {
                     // We're a stack variable
                     VariableKind::Stack(i)
                 } else {
@@ -568,7 +570,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Bindin
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         let kind = {
             let s = self.symbol_id();
-            if let Some(i) = ctx.get_stack_index(s) {
+            if let Some(i) = ctx.get_variable_stack_index(s) {
                 // We're a stack variable
                 VariableKind::Stack(i)
             } else {
@@ -674,7 +676,13 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::UnaryE
             // UnaryExpression : typeof UnaryExpression
             UnaryOperator::Typeof => {
                 // 1. Let val be ? Evaluation of UnaryExpression.
-                self.argument.compile(ctx);
+                let val = self.argument.compile(ctx);
+                if val.is_stack_variable() {
+                    // Stack variables would normally be references but as
+                    // they have no Reference (and are known to be resolvable),
+                    // we call GetValue directly.
+                    val.get_value(ctx);
+                }
                 // 3. Set val to ? GetValue(val).
                 ctx.add_instruction(Instruction::Typeof);
                 ExpressionOutput::Value
@@ -3072,7 +3080,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Variab
                         continue;
                     };
 
-                    let stack_index = ctx.get_stack_index(identifier.symbol_id());
+                    let stack_index = ctx.get_variable_stack_index(identifier.symbol_id());
 
                     // 1. Let bindingId be StringValue of BindingIdentifier.
                     // 2. Let lhs be ? ResolveBinding(bindingId).
