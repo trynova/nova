@@ -94,6 +94,7 @@ impl<'gc> PlaceOutput<'gc> {
 
     /// Returns true if the place has a Reference on the reference stack
     /// associated with it.
+    #[inline]
     fn has_reference(&self) -> bool {
         matches!(
             self,
@@ -251,6 +252,16 @@ impl<'gc> ExpressionOutput<'gc> {
         matches!(self, ExpressionOutput::Place(PlaceOutput::Stack { .. }))
     }
 
+    /// Returns true if the expression has a Reference on the reference stack
+    /// associated with it.
+    #[inline]
+    fn has_reference(&self) -> bool {
+        match self {
+            ExpressionOutput::Place(place) => place.has_reference(),
+            _ => false,
+        }
+    }
+
     fn to_expression_key(self) -> PlaceOutput<'gc> {
         match self {
             ExpressionOutput::Value => PlaceOutput::Member { name: None },
@@ -274,6 +285,20 @@ impl<'gc> ExpressionOutput<'gc> {
         match self {
             ExpressionOutput::Place(place) => {
                 place.get_value(ctx);
+                // After evaluating the GetValue we return an unknown Value.
+                ExpressionOutput::Value
+            }
+            _ => {
+                // No GetValue needed.
+                self
+            }
+        }
+    }
+
+    fn get_value_keep_reference(self, ctx: &mut CompileContext<'_, '_, 'gc, '_>) -> Self {
+        match self {
+            ExpressionOutput::Place(place) => {
+                place.get_value_keep_reference(ctx);
                 // After evaluating the GetValue we return an unknown Value.
                 ExpressionOutput::Value
             }
@@ -1414,22 +1439,16 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::CallEx
         // 1. Let ref be ? Evaluation of CallExpression.
         ctx.is_call_optional_chain_this = is_chain_expression(&self.callee);
         let is_super_call = matches!(self.callee, ast::Expression::Super(_));
-        let need_pop_reference = if is_super_call {
-            // Note: There is nothing to do with super calls here.
-            false
-        } else {
-            // 2. Let func be ? GetValue(ref).
-            compile_expression_get_value_keep_reference(&self.callee, ctx);
-            if is_reference(&self.callee) && !self.arguments.is_empty() {
-                // Optimization: If we know arguments is empty, we don't need to
-                // worry about arguments evaluation clobbering our function's this
-                // reference.
-                ctx.add_instruction(Instruction::PushReference);
-                true
-            } else {
-                false
-            }
-        };
+        let r#ref = self.callee.compile(ctx);
+        // Optimization: If we know arguments is empty, we don't need to
+        // worry about arguments evaluation clobbering our function's this
+        // reference.
+        let need_pop_reference = r#ref.has_reference() && !self.arguments.is_empty();
+        // 2. Let func be ? GetValue(ref).
+        let _func = r#ref.get_value_keep_reference(ctx);
+        if need_pop_reference {
+            ctx.add_instruction(Instruction::PushReference);
+        }
 
         if self.optional {
             // Optional Chains
