@@ -47,6 +47,7 @@ pub(super) fn execute_simple_array_binding<'a>(
                 continue;
             }
             Instruction::BindingPatternBind
+            | Instruction::BindingPatternBindToIndex
             | Instruction::BindingPatternGetValue
             | Instruction::BindingPatternSkip => {
                 let result = with_vm_gc(
@@ -175,6 +176,10 @@ pub(super) fn execute_simple_array_binding<'a>(
                     gc.reborrow(),
                 )
                 .unbind()?;
+            }
+            Instruction::BindingPatternBindToIndex | Instruction::BindingPatternBindRestToIndex => {
+                let stack_slot = instr.get_first_index();
+                vm.stack[stack_slot] = value.unbind();
             }
             Instruction::BindingPatternGetValue | Instruction::BindingPatternGetRestValue => {
                 execute_nested_simple_binding(
