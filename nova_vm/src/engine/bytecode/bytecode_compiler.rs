@@ -1908,10 +1908,11 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
         //  CallExpression : CallExpression TemplateLiteral
 
         // 1. Let tagRef be ? Evaluation of MemberExpression/CallExpression.
+        let tag_ref = self.tag.compile(ctx);
         // 2. Let tagFunc be ? GetValue(tagRef).
-        compile_expression_get_value_keep_reference(&self.tag, ctx);
+        let _tag_func = tag_ref.get_value_keep_reference(ctx);
         let need_pop_reference =
-            !self.quasi.is_no_substitution_template() && is_reference(&self.tag);
+            tag_ref.has_reference() && !self.quasi.is_no_substitution_template();
         if need_pop_reference {
             ctx.add_instruction(Instruction::PushReference);
         }
@@ -2281,21 +2282,6 @@ pub(super) fn compile_expression_get_value<'s, 'gc>(
     ctx: &mut CompileContext<'_, 's, 'gc, '_>,
 ) -> ExpressionOutput<'gc> {
     expr.compile(ctx).get_value(ctx)
-}
-
-pub(super) fn compile_expression_get_value_keep_reference<'s, 'gc>(
-    expr: &'s ast::Expression<'s>,
-    ctx: &mut CompileContext<'_, 's, 'gc, '_>,
-) {
-    let output = expr.compile(ctx);
-    match output {
-        ExpressionOutput::Place(place) => {
-            place.get_value_keep_reference(ctx);
-        }
-        _ => {
-            // No GetValue needed.
-        }
-    }
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Expression<'s> {
@@ -3326,10 +3312,8 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
         }
 
         // 1. Let V be undefined.
-        ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
-        ctx.add_instruction(Instruction::Load);
-        // 3. Repeat,
         ctx.push_stack_loop_result();
+        // 3. Repeat,
         let jump_to_catch = ctx.enter_loop(label_set.cloned());
         let jump_over_continue = ctx.add_instruction_with_jump_slot(Instruction::Jump);
         let continue_label = ctx.get_jump_index_to_here();
@@ -3841,7 +3825,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Statem
             Self::TryStatement(x) => x.compile(ctx),
             Self::BreakStatement(statement) => statement.compile(ctx),
             Self::ContinueStatement(statement) => statement.compile(ctx),
-            Self::DebuggerStatement(_) => todo!(),
+            Self::DebuggerStatement(_) => ctx.add_instruction(Instruction::Debug),
             Self::DoWhileStatement(statement) => statement.compile_labelled(None, ctx),
             Self::ForInStatement(statement) => statement.compile_labelled(None, ctx),
             Self::ForOfStatement(statement) => statement.compile_labelled(None, ctx),

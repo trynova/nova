@@ -22,7 +22,7 @@ use crate::{
         bytecode::{
             bytecode_compiler::finaliser_stack::{
                 compile_array_destructuring_exit, compile_if_statement_exit, compile_loop_exit,
-                compile_sync_iterator_exit,
+                compile_stack_variable_exit, compile_sync_iterator_exit,
             },
             executable::ArrowFunctionExpression,
         },
@@ -285,7 +285,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             // unreachable.
             return;
         }
-        // compile_stack_variable_exit(&mut self.executable);
+        compile_stack_variable_exit(&mut self.executable);
     }
 
     /// Add a loop result onto the stack. This is an unnameable variable on the
