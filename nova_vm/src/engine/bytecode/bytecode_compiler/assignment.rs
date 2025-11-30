@@ -588,7 +588,7 @@ fn compile_assignment_target_property<'s>(
             // reference: &source.identifier
             place.get_value_maybe_keep_reference(ctx, has_rest);
             if has_rest {
-                assert!(place.has_reference());
+                debug_assert!(place.has_reference());
                 ctx.add_instruction(Instruction::PushReference);
             }
             // result: source.identifier
@@ -610,7 +610,7 @@ fn compile_assignment_target_property<'s>(
             // reference: &source.property
             place.get_value_maybe_keep_reference(ctx, has_rest);
             if has_rest {
-                assert!(place.has_reference());
+                debug_assert!(place.has_reference());
                 ctx.add_instruction(Instruction::PushReference);
             }
             // result: source.property

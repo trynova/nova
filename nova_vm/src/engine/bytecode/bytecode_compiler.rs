@@ -2945,6 +2945,7 @@ fn complex_object_pattern<'s>(
         };
         place.get_value_maybe_keep_reference(ctx, object_pattern.rest.is_some());
         if object_pattern.rest.is_some() {
+            assert!(place.has_reference());
             ctx.add_instruction(Instruction::PushReference);
         }
 
@@ -2965,12 +2966,13 @@ fn complex_object_pattern<'s>(
             Instruction::CopyDataPropertiesIntoObject,
             object_pattern.properties.len(),
         );
+        let value = ExpressionOutput::Value;
 
-        identifier.compile(ctx);
+        let place = identifier.compile(ctx);
         if !has_environment {
-            ctx.add_instruction(Instruction::PutValue);
+            place.put_value(ctx, value);
         } else {
-            ctx.add_instruction(Instruction::InitializeReferencedBinding);
+            place.initialise_referenced_binding(ctx, value);
         }
     }
     ctx.lexical_binding_state = lexical_binding_state;
@@ -2987,19 +2989,20 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Bindin
             ast::BindingPatternKind::BindingIdentifier(identifier) => {
                 // 1. Let name be the StringValue of Identifier.
                 // 2. Return ? InitializeBoundName(name, value, environment).
-                identifier.compile(ctx);
+                let place = identifier.compile(ctx);
+                let value = ExpressionOutput::Value;
 
                 // ### 8.6.2.1 InitializeBoundName ( name, value, environment )
                 // 1. If environment is not undefined, then
                 if ctx.lexical_binding_state {
                     // a. Perform ! environment.InitializeBinding(name, value).
                     // b. Return unused.
-                    ctx.add_instruction(Instruction::InitializeReferencedBinding);
+                    place.initialise_referenced_binding(ctx, value);
                 } else {
                     // 2. Else,
                     // a. Let lhs be ? ResolveBinding(name).
                     // b. Return ? PutValue(lhs, value).
-                    ctx.add_instruction(Instruction::PutValue);
+                    place.put_value(ctx, value);
                 }
             }
             // ### BindingPattern : ObjectBindingPattern
@@ -3021,7 +3024,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Bindin
                     ast::BindingPatternKind::BindingIdentifier(binding_identifier) => {
                         // 1. Let bindingId be the StringValue of BindingIdentifier.
                         // 2. Let lhs be ? ResolveBinding(bindingId, environment).
-                        let binding_id = binding_identifier.compile(ctx).identifier().unwrap();
+                        let lhs = binding_identifier.compile(ctx);
                         // Note: v is already in the result register after
                         // IteratorStepValueOrUndefined above.
                         // 3. Let v be undefined.
@@ -3038,19 +3041,19 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Bindin
                             //    argument bindingId.
                             ctx.add_instruction_with_constant(
                                 Instruction::StoreConstant,
-                                binding_id,
+                                lhs.identifier().unwrap(),
                             );
                             ctx.name_identifier = Some(NamedEvaluationParameter::Result);
                         }
-                        let right_is_literal = pattern.right.is_literal();
-                        if !right_is_literal {
+                        let do_push_reference = lhs.has_reference() && !pattern.right.is_literal();
+                        if do_push_reference {
                             ctx.add_instruction(Instruction::PushReference);
                         }
                         // b. Else,
                         // i. Let defaultValue be ? Evaluation of Initializer.
                         // ii. Set v to ? GetValue(defaultValue).
-                        compile_expression_get_value(&pattern.right, ctx);
-                        if !right_is_literal {
+                        let v = compile_expression_get_value(&pattern.right, ctx);
+                        if do_push_reference {
                             ctx.add_instruction(Instruction::PopReference);
                         }
                         ctx.name_identifier = None;
@@ -3060,10 +3063,10 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Bindin
                         // 6. If environment is undefined,
                         if !ctx.lexical_binding_state {
                             // return ? PutValue(lhs, v).
-                            ctx.add_instruction(Instruction::PutValue);
+                            lhs.put_value(ctx, v);
                         } else {
                             // 7. Return ? InitializeReferencedBinding(lhs, v).
-                            ctx.add_instruction(Instruction::InitializeReferencedBinding);
+                            lhs.initialise_referenced_binding(ctx, v);
                         }
                     }
                     // ### BindingElement : BindingPattern Initializer
