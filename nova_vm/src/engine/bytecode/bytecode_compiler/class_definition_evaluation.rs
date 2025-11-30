@@ -42,17 +42,22 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
         // no user code is run between here and first enter.
         ctx.enter_lexical_scope();
 
+        let needs_binding = class_has_self_references(self, ctx);
+
         // 3. If classBinding is not undefined, then
         let mut has_class_name_on_stack = false;
         let mut class_identifier = None;
         if let Some(class_binding) = &self.id {
+            // if let Some(stack_index) = ctx.get_variable_stack_index(class_binding.symbol_id()) {}
             // a. Perform ! classEnv.CreateImmutableBinding(classBinding, true).
             let identifier = ctx.create_string(class_binding.name.as_str());
             class_identifier = Some(identifier);
-            ctx.add_instruction_with_identifier(
-                Instruction::CreateImmutableBinding,
-                identifier.to_property_key(),
-            );
+            if needs_binding {
+                ctx.add_instruction_with_identifier(
+                    Instruction::CreateImmutableBinding,
+                    identifier.to_property_key(),
+                );
+            }
         } else if let Some(anonymous_class_name) = anonymous_class_name {
             has_class_name_on_stack = true;
             match anonymous_class_name {
@@ -557,7 +562,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
         // 27. If classBinding is not undefined, then
         // Note: The classBinding needs to be initialized in classEnv, as any
         // class method calls access the classBinding through the classEnv.
-        if let Some(class_binding) = class_identifier {
+        if needs_binding && let Some(class_binding) = class_identifier {
             // a. Perform ! classEnv.InitializeBinding(classBinding, F).
             ctx.add_instruction(Instruction::StoreCopy);
             ctx.add_instruction_with_identifier(
@@ -687,6 +692,37 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
         ctx.add_instruction(Instruction::Store);
         // result: constructor
     }
+}
+
+fn class_has_self_references(class: &ast::Class, ctx: &CompileContext) -> bool {
+    let Some(class_binding) = &class.id else {
+        // An unnamed class cannot be self-referential.
+        return false;
+    };
+    let agent = ctx.get_agent();
+    let sc = ctx.get_source_code();
+    let scoping = sc.get_scoping(agent);
+    let nodes = sc.get_nodes(agent);
+    let s = class_binding.symbol_id();
+    let class_scope = class.scope_id();
+    for reference in scoping.get_resolved_references(s) {
+        let mut scope = nodes.get_node(reference.node_id()).scope_id();
+        if scope == class_scope {
+            // Reference to class from within the scope itself.
+            return true;
+        }
+        while let Some(s) = scoping.scope_parent_id(scope) {
+            if s == class_scope {
+                // Reference to class from within the scope itself.
+                return true;
+            }
+            scope = s;
+        }
+    }
+    // No references, or no references within the class scope itself. The class
+    // reference itself may escape the scope it was created in, but it is not
+    // self-referential.
+    false
 }
 
 #[derive(Debug)]

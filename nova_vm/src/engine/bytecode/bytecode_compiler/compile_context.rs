@@ -247,7 +247,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         self.add_instruction(Instruction::ExitDeclarativeEnvironment);
     }
 
-    pub(super) fn get_stack_index(&self, symbol: oxc_semantic::SymbolId) -> Option<u32> {
+    pub(super) fn get_variable_stack_index(&self, symbol: oxc_semantic::SymbolId) -> Option<u32> {
         self.stack_variables
             .iter()
             .find(|(s, _)| *s == symbol)
