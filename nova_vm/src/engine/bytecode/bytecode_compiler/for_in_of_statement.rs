@@ -3,7 +3,10 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{CompileContext, CompileEvaluation, CompileLabelledEvaluation, Instruction, JumpIndex};
-use crate::ecmascript::types::{String, Value};
+use crate::{
+    ecmascript::types::{String, Value},
+    engine::bytecode::bytecode_compiler::ExpressionOutput,
+};
 use oxc_ast::ast;
 use oxc_ecmascript::BoundNames;
 
@@ -194,12 +197,12 @@ fn for_in_of_body_evaluation<'s>(
                         else {
                             unreachable!()
                         };
-                        binding_identifier.compile(ctx);
+                        let lhs_ref = binding_identifier.compile(ctx);
                         // 2. If lhsRef is an abrupt completion, then
                         // a. Let status be lhsRef.
                         // 3. Else,
                         // a. Let status be Completion(PutValue(lhsRef.[[Value]], nextValue)).
-                        ctx.add_instruction(Instruction::PutValue);
+                        lhs_ref.put_value(ctx, ExpressionOutput::Value);
                     }
                     _ => lhs.to_assignment_target().compile(ctx),
                 }
