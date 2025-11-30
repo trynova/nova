@@ -2632,10 +2632,18 @@ fn simple_array_pattern<'s, I>(
         match &ele.kind {
             ast::BindingPatternKind::BindingIdentifier(identifier) => {
                 let identifier_string = ctx.create_string(identifier.name.as_str());
-                ctx.add_instruction_with_identifier(
-                    Instruction::BindingPatternBind,
-                    identifier_string.to_property_key(),
-                )
+                if let Some(stack_slot) = ctx.get_variable_stack_index(identifier.symbol_id()) {
+                    ctx.add_instruction_with_immediate_and_constant(
+                        Instruction::BindingPatternBindToIndex,
+                        stack_slot as usize,
+                        identifier_string,
+                    );
+                } else {
+                    ctx.add_instruction_with_identifier(
+                        Instruction::BindingPatternBind,
+                        identifier_string.to_property_key(),
+                    )
+                }
             }
             ast::BindingPatternKind::ObjectPattern(pattern) => {
                 ctx.add_instruction(Instruction::BindingPatternGetValue);
