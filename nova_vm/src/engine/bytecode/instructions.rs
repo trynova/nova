@@ -1019,7 +1019,10 @@ impl Instr {
             Instruction::ObjectDefineGetter => "get function() {}".to_string(),
             Instruction::ObjectDefineMethod => "function() {}".to_string(),
             Instruction::ObjectDefineSetter => "set function() {}".to_string(),
-            Instruction::ResolveBindingWithCache => "ResolveBindingWithCache {}".to_string(),
+            Instruction::ResolveBindingWithCache => {
+                let key = debug_print_identifier(agent, exe, arg0 as usize, gc);
+                format!("{key}, {arg1}")
+            }
             _ => unreachable!("{kind:?}"),
         }
     }
