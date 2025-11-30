@@ -799,6 +799,7 @@ impl Vm {
             }
             Instruction::BindingPatternBind
             | Instruction::BindingPatternBindNamed
+            | Instruction::BindingPatternBindToIndex
             | Instruction::BindingPatternBindRest
             | Instruction::BindingPatternSkip
             | Instruction::BindingPatternGetValue

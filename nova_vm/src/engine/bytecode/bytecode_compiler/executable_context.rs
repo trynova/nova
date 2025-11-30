@@ -355,6 +355,20 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
         self.add_index(immediate2)
     }
 
+    pub(super) fn add_instruction_with_immediate_and_constant(
+        &mut self,
+        instruction: Instruction,
+        immediate: usize,
+        constant: Value<'gc>,
+    ) {
+        debug_assert_eq!(instruction.argument_count(), 2);
+        debug_assert!(instruction.has_constant_index());
+        self.push_instruction(instruction);
+        self.add_index(immediate);
+        let constant = self.add_constant(constant);
+        self.add_index(constant)
+    }
+
     pub(super) fn add_instruction_with_function_expression(
         &mut self,
         instruction: Instruction,

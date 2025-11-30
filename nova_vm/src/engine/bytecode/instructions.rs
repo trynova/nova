@@ -385,6 +385,9 @@ pub enum Instruction {
     /// const { a: b } = x;
     /// ```
     BindingPatternBindNamed,
+    /// Bind an object property to a stack variable. The constant given as the
+    /// second argument is the stack slot.
+    BindingPatternBindToIndex,
     /// Bind all remaining values to given identifier
     ///
     /// ```js
@@ -537,6 +540,7 @@ impl Instruction {
             // Number of repetitions and lexical status
             Self::BeginSimpleArrayBindingPattern
             | Self::BindingPatternBindNamed
+            | Self::BindingPatternBindToIndex
             | Self::ClassDefineConstructor
             | Self::ClassDefinePrivateMethod
             | Self::ClassDefinePrivateProperty
@@ -615,6 +619,7 @@ impl Instruction {
         matches!(
             self,
             Self::BindingPatternBindNamed
+                | Self::BindingPatternBindToIndex
                 | Self::BindingPatternGetValueNamed
                 | Self::LoadConstant
                 | Self::StoreConstant
@@ -965,6 +970,13 @@ impl Instr {
                     debug_print_identifier(agent, exe, arg0 as usize, gc)
                 )
             }
+            Instruction::BindingPatternBindToIndex => {
+                format!(
+                    "{{ {}: stack[{}] }}",
+                    debug_print_constant(agent, exe, arg0 as usize, gc),
+                    arg1,
+                )
+            }
             Instruction::ClassDefineConstructor => {
                 if arg1 == 1 {
                     "constructor() { super() }".to_string()
@@ -1275,6 +1287,7 @@ impl TryFrom<u8> for Instruction {
             Instruction::BeginSimpleArrayBindingPattern.as_u8();
         const BINDINGPATTERNBIND: u8 = Instruction::BindingPatternBind.as_u8();
         const BINDINGPATTERNBINDNAMED: u8 = Instruction::BindingPatternBindNamed.as_u8();
+        const BINDINGPATTERNBINDTOINDEX: u8 = Instruction::BindingPatternBindToIndex.as_u8();
         const BINDINGPATTERNBINDREST: u8 = Instruction::BindingPatternBindRest.as_u8();
         const BINDINGPATTERNSKIP: u8 = Instruction::BindingPatternSkip.as_u8();
         const BINDINGPATTERNGETVALUE: u8 = Instruction::BindingPatternGetValue.as_u8();
@@ -1435,6 +1448,7 @@ impl TryFrom<u8> for Instruction {
             BEGINSIMPLEARRAYBINDINGPATTERN => Ok(Instruction::BeginSimpleArrayBindingPattern),
             BINDINGPATTERNBIND => Ok(Instruction::BindingPatternBind),
             BINDINGPATTERNBINDNAMED => Ok(Instruction::BindingPatternBindNamed),
+            BINDINGPATTERNBINDTOINDEX => Ok(Instruction::BindingPatternBindToIndex),
             BINDINGPATTERNBINDREST => Ok(Instruction::BindingPatternBindRest),
             BINDINGPATTERNSKIP => Ok(Instruction::BindingPatternSkip),
             BINDINGPATTERNGETVALUE => Ok(Instruction::BindingPatternGetValue),

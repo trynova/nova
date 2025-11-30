@@ -1079,6 +1079,19 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             .add_instruction_with_immediate_and_immediate(instruction, immediate1, immediate2);
     }
 
+    pub(super) fn add_instruction_with_immediate_and_constant(
+        &mut self,
+        instruction: Instruction,
+        immediate: usize,
+        constant: impl Into<Value<'gc>>,
+    ) {
+        self.executable.add_instruction_with_immediate_and_constant(
+            instruction,
+            immediate,
+            constant.into(),
+        );
+    }
+
     pub(super) fn add_instruction_with_function_expression(
         &mut self,
         instruction: Instruction,
