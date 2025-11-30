@@ -682,11 +682,20 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
             // 5. Perform ? InitializeBoundName(className, value, env).
             // => a. Perform ! environment.InitializeBinding(name, value).
             ctx.add_instruction(Instruction::StoreCopy);
-            ctx.add_instruction_with_identifier(
-                Instruction::ResolveBinding,
-                class_identifier.to_property_key(),
-            );
-            ctx.add_instruction(Instruction::InitializeReferencedBinding);
+            if let Some(stack_slot) =
+                ctx.get_variable_stack_index(self.id.as_ref().unwrap().symbol_id())
+            {
+                ctx.add_instruction_with_immediate(
+                    Instruction::PutValueToIndex,
+                    stack_slot as usize,
+                );
+            } else {
+                ctx.add_instruction_with_identifier(
+                    Instruction::ResolveBinding,
+                    class_identifier.to_property_key(),
+                );
+                ctx.add_instruction(Instruction::InitializeReferencedBinding);
+            }
         }
 
         ctx.add_instruction(Instruction::Store);
