@@ -28,7 +28,7 @@ use ahash::{AHashMap, AHashSet};
 use oxc_ast::ast::{self, MethodDefinitionKind};
 use oxc_ecmascript::{BoundNames, PrivateBoundIdentifiers, PropName};
 
-use super::{IndexType, is_anonymous_function_definition};
+use super::{ExpressionOutput, IndexType, is_anonymous_function_definition};
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<'s> {
     type Output = ();
@@ -1085,10 +1085,10 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Static
             // b. Let fo be InstantiateFunctionObject of f with arguments lexEnv and privateEnv.
             f.compile(ctx);
             // a. Let fn be the sole element of the BoundNames of f.
-            f.id.as_ref().unwrap().compile(ctx);
+            let f = f.id.as_ref().unwrap().compile(ctx);
             // c. Perform ! varEnv.SetMutableBinding(fn, fo, false).
             // TODO: This compilation is incorrect if !strict, when varEnv != lexEnv.
-            ctx.add_instruction(Instruction::PutValue);
+            f.put_value(ctx, ExpressionOutput::Value);
         }
 
         for statement in self.body.iter() {

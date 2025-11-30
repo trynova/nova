@@ -692,11 +692,11 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
             // result: binding / init
             // stack: []
         }
-        self.binding.compile(ctx);
+        let place = self.binding.compile(ctx);
         // result: binding / init
         // stack: []
         // reference: &binding
-        ctx.add_instruction(Instruction::PutValue);
+        place.put_value(ctx, ExpressionOutput::Value);
         // result: None
         // stack: []
         // reference: None

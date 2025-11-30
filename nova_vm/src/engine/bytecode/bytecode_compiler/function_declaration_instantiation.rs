@@ -26,7 +26,7 @@ use crate::{
     },
 };
 
-use super::{CompileEvaluation, complex_array_pattern, simple_array_pattern};
+use super::{CompileEvaluation, ExpressionOutput, complex_array_pattern, simple_array_pattern};
 
 /// ### [10.2.11 FunctionDeclarationInstantiation ( func, argumentsList )](https://tc39.es/ecma262/#sec-functiondeclarationinstantiation)
 ///
@@ -436,7 +436,7 @@ pub(crate) fn instantiation<'s>(
         // a. Let fn be the sole element of the BoundNames of f.
         // c. Perform ! varEnv.SetMutableBinding(fn, fo, false).
         // TODO: This compilation is incorrect if !strict, when varEnv != lexEnv.
-        f.id.as_ref().unwrap().compile(ctx);
-        ctx.add_instruction(Instruction::PutValue);
+        let f = f.id.as_ref().unwrap().compile(ctx);
+        f.put_value(ctx, ExpressionOutput::Value);
     }
 }
