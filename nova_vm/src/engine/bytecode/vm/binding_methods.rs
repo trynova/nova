@@ -298,6 +298,28 @@ pub(super) fn execute_simple_object_binding<'a>(
                 )
                 .unbind()?;
             }
+            Instruction::BindingPatternBindToIndex => {
+                let value = with_vm_gc(
+                    agent,
+                    vm,
+                    |agent, gc| {
+                        let key_value =
+                            executable.fetch_constant(agent, instr.get_second_index(), gc.nogc());
+                        // SAFETY: It should be impossible for binding pattern
+                        // names to be integer strings.
+                        let key_value = unsafe { PropertyKey::from_value_unchecked(key_value) };
+
+                        excluded_names.insert(agent, key_value);
+
+                        get(agent, object.get(agent), key_value.unbind(), gc)
+                    },
+                    gc.reborrow(),
+                )
+                .unbind()?
+                .bind(gc.nogc());
+                let stack_slot = instr.get_first_index();
+                vm.stack[stack_slot] = value.unbind();
+            }
             Instruction::BindingPatternGetValueNamed => {
                 let v = with_vm_gc(
                     agent,

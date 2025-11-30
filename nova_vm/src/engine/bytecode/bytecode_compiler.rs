@@ -2751,18 +2751,30 @@ fn simple_object_pattern<'s>(
 
     for ele in &pattern.properties {
         if ele.shorthand {
-            let ast::PropertyKey::StaticIdentifier(identifier) = &ele.key else {
+            debug_assert!(
+                matches!(&ele.key, ast::PropertyKey::StaticIdentifier(_))
+                    && matches!(
+                        &ele.value.kind,
+                        ast::BindingPatternKind::BindingIdentifier(_)
+                    )
+            );
+            let ast::BindingPatternKind::BindingIdentifier(identifier) = &ele.value.kind else {
                 unreachable!()
             };
-            assert!(matches!(
-                &ele.value.kind,
-                ast::BindingPatternKind::BindingIdentifier(_)
-            ));
+            let identifier = identifier.as_ref();
             let identifier_string = ctx.create_string(identifier.name.as_str());
-            ctx.add_instruction_with_identifier(
-                Instruction::BindingPatternBind,
-                identifier_string.to_property_key(),
-            );
+            if let Some(stack_slot) = ctx.get_variable_stack_index(identifier.symbol_id()) {
+                ctx.add_instruction_with_immediate_and_constant(
+                    Instruction::BindingPatternBindToIndex,
+                    stack_slot as usize,
+                    identifier_string,
+                );
+            } else {
+                ctx.add_instruction_with_identifier(
+                    Instruction::BindingPatternBind,
+                    identifier_string.to_property_key(),
+                );
+            }
         } else {
             let key_string = match &ele.key {
                 ast::PropertyKey::StaticIdentifier(identifier) => {
@@ -2825,11 +2837,19 @@ fn simple_object_pattern<'s>(
             match &ele.value.kind {
                 ast::BindingPatternKind::BindingIdentifier(identifier) => {
                     let value_identifier_string = ctx.create_string(identifier.name.as_str());
-                    ctx.add_instruction_with_identifier_and_constant(
-                        Instruction::BindingPatternBindNamed,
-                        value_identifier_string,
-                        key_string,
-                    )
+                    if let Some(stack_slot) = ctx.get_variable_stack_index(identifier.symbol_id()) {
+                        ctx.add_instruction_with_immediate_and_constant(
+                            Instruction::BindingPatternBindToIndex,
+                            stack_slot as usize,
+                            key_string,
+                        );
+                    } else {
+                        ctx.add_instruction_with_identifier_and_constant(
+                            Instruction::BindingPatternBindNamed,
+                            value_identifier_string,
+                            key_string,
+                        )
+                    }
                 }
                 ast::BindingPatternKind::ObjectPattern(pattern) => {
                     ctx.add_instruction_with_constant(
