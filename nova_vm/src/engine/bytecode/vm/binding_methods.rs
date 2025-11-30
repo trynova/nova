@@ -400,6 +400,28 @@ pub(super) fn execute_simple_object_binding<'a>(
                 .unbind()?;
                 break;
             }
+            Instruction::BindingPatternBindRestToIndex => {
+                let rest_obj = with_vm_gc(
+                    agent,
+                    vm,
+                    |agent, gc| {
+                        // 1. Let lhs be ? ResolveBinding(StringValue of BindingIdentifier, environment).
+                        // 2. Let restObj be OrdinaryObjectCreate(%Object.prototype%).
+                        // 3. Perform ? CopyDataProperties(restObj, value, excludedNames).
+                        copy_data_properties_into_object(
+                            agent,
+                            object.get(agent),
+                            excluded_names,
+                            gc,
+                        )
+                    },
+                    gc.reborrow(),
+                )
+                .unbind()?;
+                let stack_slot = instr.get_first_index();
+                vm.stack[stack_slot] = rest_obj.into_value().unbind();
+                break;
+            }
             Instruction::FinishBindingPattern => break,
             _ => unreachable!(),
         }

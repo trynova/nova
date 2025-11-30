@@ -388,13 +388,20 @@ pub enum Instruction {
     /// Bind an object property to a stack variable. The constant given as the
     /// second argument is the stack slot.
     BindingPatternBindToIndex,
-    /// Bind all remaining values to given identifier
+    /// Bind all remaining values to given identifier.
     ///
     /// ```js
     /// const { a, ...b } = x;
     /// const [a, ...b] = x;
     /// ```
     BindingPatternBindRest,
+    /// Bind all remaining values to a given stack index.
+    ///
+    /// ```js
+    /// const { a, ...b } = x;
+    /// const [a, ...b] = x;
+    /// ```
+    BindingPatternBindRestToIndex,
     /// Skip the next value in an array binding pattern.
     ///
     /// ```js
@@ -563,6 +570,7 @@ impl Instruction {
             | Self::BeginSimpleObjectBindingPattern
             | Self::BindingPatternBind
             | Self::BindingPatternBindRest
+            | Self::BindingPatternBindRestToIndex
             | Self::BindingPatternGetValueNamed
             | Self::ClassDefineDefaultConstructor
             | Self::ClassInitializePrivateValue
@@ -1289,6 +1297,8 @@ impl TryFrom<u8> for Instruction {
         const BINDINGPATTERNBINDNAMED: u8 = Instruction::BindingPatternBindNamed.as_u8();
         const BINDINGPATTERNBINDTOINDEX: u8 = Instruction::BindingPatternBindToIndex.as_u8();
         const BINDINGPATTERNBINDREST: u8 = Instruction::BindingPatternBindRest.as_u8();
+        const BINDINGPATTERNBINDRESTTOINDEX: u8 =
+            Instruction::BindingPatternBindRestToIndex.as_u8();
         const BINDINGPATTERNSKIP: u8 = Instruction::BindingPatternSkip.as_u8();
         const BINDINGPATTERNGETVALUE: u8 = Instruction::BindingPatternGetValue.as_u8();
         const BINDINGPATTERNGETVALUENAMED: u8 = Instruction::BindingPatternGetValueNamed.as_u8();
@@ -1450,6 +1460,7 @@ impl TryFrom<u8> for Instruction {
             BINDINGPATTERNBINDNAMED => Ok(Instruction::BindingPatternBindNamed),
             BINDINGPATTERNBINDTOINDEX => Ok(Instruction::BindingPatternBindToIndex),
             BINDINGPATTERNBINDREST => Ok(Instruction::BindingPatternBindRest),
+            BINDINGPATTERNBINDRESTTOINDEX => Ok(Instruction::BindingPatternBindRestToIndex),
             BINDINGPATTERNSKIP => Ok(Instruction::BindingPatternSkip),
             BINDINGPATTERNGETVALUE => Ok(Instruction::BindingPatternGetValue),
             BINDINGPATTERNGETVALUENAMED => Ok(Instruction::BindingPatternGetValueNamed),

@@ -801,6 +801,7 @@ impl Vm {
             | Instruction::BindingPatternBindNamed
             | Instruction::BindingPatternBindToIndex
             | Instruction::BindingPatternBindRest
+            | Instruction::BindingPatternBindRestToIndex
             | Instruction::BindingPatternSkip
             | Instruction::BindingPatternGetValue
             | Instruction::BindingPatternGetValueNamed

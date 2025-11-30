@@ -2658,11 +2658,18 @@ fn simple_array_pattern<'s, I>(
     if let Some(rest) = rest {
         match &rest.argument.kind {
             ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                let identifier_string = ctx.create_string(identifier.name.as_str());
-                ctx.add_instruction_with_identifier(
-                    Instruction::BindingPatternBindRest,
-                    identifier_string.to_property_key(),
-                );
+                if let Some(stack_slot) = ctx.get_variable_stack_index(identifier.symbol_id()) {
+                    ctx.add_instruction_with_immediate(
+                        Instruction::BindingPatternBindRestToIndex,
+                        stack_slot as usize,
+                    );
+                } else {
+                    let identifier_string = ctx.create_string(identifier.name.as_str());
+                    ctx.add_instruction_with_identifier(
+                        Instruction::BindingPatternBindRest,
+                        identifier_string.to_property_key(),
+                    );
+                }
             }
             ast::BindingPatternKind::ObjectPattern(pattern) => {
                 ctx.add_instruction(Instruction::BindingPatternGetRestValue);
@@ -2879,11 +2886,18 @@ fn simple_object_pattern<'s>(
     if let Some(rest) = &pattern.rest {
         match &rest.argument.kind {
             ast::BindingPatternKind::BindingIdentifier(identifier) => {
-                let identifier_string = ctx.create_string(identifier.name.as_str());
-                ctx.add_instruction_with_identifier(
-                    Instruction::BindingPatternBindRest,
-                    identifier_string.to_property_key(),
-                );
+                if let Some(stack_slot) = ctx.get_variable_stack_index(identifier.symbol_id()) {
+                    ctx.add_instruction_with_immediate(
+                        Instruction::BindingPatternBindRestToIndex,
+                        stack_slot as usize,
+                    );
+                } else {
+                    let identifier_string = ctx.create_string(identifier.name.as_str());
+                    ctx.add_instruction_with_identifier(
+                        Instruction::BindingPatternBindRest,
+                        identifier_string.to_property_key(),
+                    );
+                }
             }
             _ => unreachable!(),
         }
