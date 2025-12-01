@@ -289,12 +289,17 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
                     Declaration::TSImportEqualsDeclaration(_) => {
                         // TODO: implement when import equals declarations are supported
                     },
+                    #[cfg(feature = "typescript")]
+                    Declaration::TSGlobalDeclaration(_) => {
+                        // Global declarations don't introduce runtime bindings
+                    },
                     #[cfg(not(feature = "typescript"))]
                     Declaration::TSTypeAliasDeclaration(_) |
                     Declaration::TSInterfaceDeclaration(_) |
                     Declaration::TSEnumDeclaration(_) |
                     Declaration::TSModuleDeclaration(_) |
-                    Declaration::TSImportEqualsDeclaration(_) => unreachable!(),
+                    Declaration::TSImportEqualsDeclaration(_) |
+                    Declaration::TSGlobalDeclaration(_) => unreachable!(),
                 }
             },
             Statement::ExportDefaultDeclaration(decl) => {
@@ -343,6 +348,10 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
             Statement::TSTypeAliasDeclaration(_) => {
                 // Type aliases don't introduce lexically scoped declarations
             }
+            #[cfg(feature = "typescript")]
+            Statement::TSGlobalDeclaration(_) => {
+                // Global declarations don't introduce lexically scoped declarations
+            }
             #[cfg(not(feature = "typescript"))]
             Statement::TSEnumDeclaration(_)
             | Statement::TSExportAssignment(_)
@@ -350,7 +359,8 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
             | Statement::TSInterfaceDeclaration(_)
             | Statement::TSModuleDeclaration(_)
             | Statement::TSNamespaceExportDeclaration(_)
-            | Statement::TSTypeAliasDeclaration(_) => unreachable!(),
+            | Statement::TSTypeAliasDeclaration(_)
+            | Statement::TSGlobalDeclaration(_) => unreachable!(),
         }
         // 2. Return a new empty List.
     }
@@ -637,6 +647,10 @@ impl<'a> VarDeclaredNames<'a> for Statement<'a> {
             Statement::TSTypeAliasDeclaration(_) => {
                 // Type aliases don't introduce var-declared names
             }
+            #[cfg(feature = "typescript")]
+            Statement::TSGlobalDeclaration(_) => {
+                // Global declarations don't introduce var-declared names
+            }
             #[cfg(not(feature = "typescript"))]
             Statement::TSEnumDeclaration(_)
             | Statement::TSExportAssignment(_)
@@ -644,7 +658,8 @@ impl<'a> VarDeclaredNames<'a> for Statement<'a> {
             | Statement::TSInterfaceDeclaration(_)
             | Statement::TSModuleDeclaration(_)
             | Statement::TSNamespaceExportDeclaration(_)
-            | Statement::TSTypeAliasDeclaration(_) => unreachable!(),
+            | Statement::TSTypeAliasDeclaration(_)
+            | Statement::TSGlobalDeclaration(_) => unreachable!(),
         }
     }
 }
@@ -944,6 +959,10 @@ impl<'a> VarScopedDeclarations<'a> for Statement<'a> {
             Statement::TSTypeAliasDeclaration(_) => {
                 // Type aliases don't introduce var-declared names
             }
+            #[cfg(feature = "typescript")]
+            Statement::TSGlobalDeclaration(_) => {
+                // Global declarations don't introduce var-declared names
+            }
             #[cfg(not(feature = "typescript"))]
             Statement::TSEnumDeclaration(_)
             | Statement::TSExportAssignment(_)
@@ -951,7 +970,8 @@ impl<'a> VarScopedDeclarations<'a> for Statement<'a> {
             | Statement::TSInterfaceDeclaration(_)
             | Statement::TSModuleDeclaration(_)
             | Statement::TSNamespaceExportDeclaration(_)
-            | Statement::TSTypeAliasDeclaration(_) => unreachable!(),
+            | Statement::TSTypeAliasDeclaration(_)
+            | Statement::TSGlobalDeclaration(_) => unreachable!(),
         }
     }
 }
@@ -1070,12 +1090,17 @@ impl<'a> TopLevelLexicallyDeclaredNames<'a> for Statement<'a> {
                 // TODO: implement when namespace export declarations are supported
                 unreachable!()
             }
+            #[cfg(feature = "typescript")]
+            Statement::TSGlobalDeclaration(_) => {
+                // Global declarations don't introduce lexically declared names
+            }
             #[cfg(not(feature = "typescript"))]
             Statement::TSEnumDeclaration(_)
             | Statement::TSModuleDeclaration(_)
             | Statement::TSImportEqualsDeclaration(_)
             | Statement::TSExportAssignment(_)
-            | Statement::TSNamespaceExportDeclaration(_) => unreachable!(),
+            | Statement::TSNamespaceExportDeclaration(_)
+            | Statement::TSGlobalDeclaration(_) => unreachable!(),
         }
     }
 }
@@ -1192,7 +1217,8 @@ impl<'a> TopLevelLexicallyScopedDeclarations<'a> for Statement<'a> {
             Statement::ImportDeclaration(_)
             | Statement::ExportAllDeclaration(_)
             | Statement::ExportDefaultDeclaration(_)
-            | Statement::ExportNamedDeclaration(_) => unreachable!(),
+            | Statement::ExportNamedDeclaration(_)
+            | Statement::TSGlobalDeclaration(_) => unreachable!(),
         }
     }
 }
@@ -1303,12 +1329,17 @@ impl<'a> TopLevelVarDeclaredNames<'a> for Statement<'a> {
             Statement::TSNamespaceExportDeclaration(_) => {
                 // TODO: implement when namespace export declarations are supported
             }
+            #[cfg(feature = "typescript")]
+            Statement::TSGlobalDeclaration(_) => {
+                // Global declarations don't introduce var-declared names
+            }
             #[cfg(not(feature = "typescript"))]
             Statement::TSEnumDeclaration(_)
             | Statement::TSExportAssignment(_)
             | Statement::TSImportEqualsDeclaration(_)
             | Statement::TSModuleDeclaration(_)
-            | Statement::TSNamespaceExportDeclaration(_) => unreachable!(),
+            | Statement::TSNamespaceExportDeclaration(_)
+            | Statement::TSGlobalDeclaration(_) => unreachable!(),
         }
     }
 }
@@ -1362,8 +1393,9 @@ impl<'a> TopLevelVarDeclaredNames<'a> for LabeledStatement<'a> {
             #[cfg(feature = "typescript")]
             Statement::TSEnumDeclaration(_)
             | Statement::TSInterfaceDeclaration(_)
-            | Statement::TSTypeAliasDeclaration(_) => {
-                // TypeScript enums, interfaces, and type aliases don't introduce var-declared names
+            | Statement::TSTypeAliasDeclaration(_)
+            | Statement::TSGlobalDeclaration(_) => {
+                // TypeScript enums, interfaces, type aliases, and global declarations don't introduce var-declared names
             }
             #[cfg(feature = "typescript")]
             Statement::TSExportAssignment(_) => {
@@ -1384,6 +1416,7 @@ impl<'a> TopLevelVarDeclaredNames<'a> for LabeledStatement<'a> {
                 // TODO: implement when namespace export declarations are supported
                 unreachable!()
             }
+
             #[cfg(not(feature = "typescript"))]
             Statement::TSEnumDeclaration(_)
             | Statement::TSExportAssignment(_)
@@ -1391,7 +1424,8 @@ impl<'a> TopLevelVarDeclaredNames<'a> for LabeledStatement<'a> {
             | Statement::TSInterfaceDeclaration(_)
             | Statement::TSModuleDeclaration(_)
             | Statement::TSNamespaceExportDeclaration(_)
-            | Statement::TSTypeAliasDeclaration(_) => unreachable!(),
+            | Statement::TSTypeAliasDeclaration(_)
+            | Statement::TSGlobalDeclaration(_) => unreachable!(),
         }
     }
 }
@@ -1500,13 +1534,15 @@ impl<'a> TopLevelVarScopedDeclarations<'a> for Statement<'a> {
             | Statement::TSExportAssignment(_)
             | Statement::TSImportEqualsDeclaration(_)
             | Statement::TSModuleDeclaration(_)
-            | Statement::TSNamespaceExportDeclaration(_) => {}
+            | Statement::TSNamespaceExportDeclaration(_)
+            | Statement::TSGlobalDeclaration(_) => {}
             #[cfg(not(feature = "typescript"))]
             Statement::TSEnumDeclaration(_)
             | Statement::TSExportAssignment(_)
             | Statement::TSImportEqualsDeclaration(_)
             | Statement::TSModuleDeclaration(_)
-            | Statement::TSNamespaceExportDeclaration(_) => unreachable!(),
+            | Statement::TSNamespaceExportDeclaration(_)
+            | Statement::TSGlobalDeclaration(_) => unreachable!(),
         }
     }
 }

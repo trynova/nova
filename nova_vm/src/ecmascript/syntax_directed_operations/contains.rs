@@ -695,7 +695,8 @@ impl Contains for ast::ExportNamedDeclaration<'_> {
             ast::Declaration::FunctionDeclaration(f) => f.contains(symbol),
             ast::Declaration::ClassDeclaration(c) => c.contains(symbol),
             ast::Declaration::TSTypeAliasDeclaration(_)
-            | ast::Declaration::TSInterfaceDeclaration(_) => false,
+            | ast::Declaration::TSInterfaceDeclaration(_)
+            | ast::Declaration::TSGlobalDeclaration(_) => false,
             ast::Declaration::TSEnumDeclaration(e) => e.contains(symbol),
             ast::Declaration::TSModuleDeclaration(e) => e.contains(symbol),
             ast::Declaration::TSImportEqualsDeclaration(e) => e.contains(symbol),
@@ -740,7 +741,8 @@ impl Contains for ast::Statement<'_> {
             ast::Statement::FunctionDeclaration(st) => st.contains(symbol),
             ast::Statement::ClassDeclaration(st) => st.contains(symbol),
             ast::Statement::TSTypeAliasDeclaration(_)
-            | ast::Statement::TSInterfaceDeclaration(_) => false,
+            | ast::Statement::TSInterfaceDeclaration(_)
+            | ast::Statement::TSGlobalDeclaration(_) => false,
             ast::Statement::TSEnumDeclaration(st) => st.contains(symbol),
             ast::Statement::TSModuleDeclaration(st) => st.contains(symbol),
             ast::Statement::TSImportEqualsDeclaration(st) => st.contains(symbol),
