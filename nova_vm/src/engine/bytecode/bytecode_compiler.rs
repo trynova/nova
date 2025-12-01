@@ -351,12 +351,15 @@ fn variable_escapes_scope(
     let nodes = sc.get_nodes(agent);
     let s = identifier.symbol_id();
     let decl_scope = scoping.symbol_scope_id(s);
+    if scoping.scope_flags(decl_scope).contains_direct_eval() {
+        return true;
+    }
     for reference in scoping.get_resolved_references(s) {
         let mut scope = nodes.get_node(reference.node_id()).scope_id();
         while scope != decl_scope {
             let flags = scoping.scope_flags(scope);
             // TODO: check for with scope as well.
-            if flags.is_var() {
+            if flags.is_var() || flags.contains_direct_eval() {
                 return true;
             }
             let Some(s) = scoping.scope_parent_id(scope) else {
