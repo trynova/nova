@@ -131,10 +131,15 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
             ast::Declaration::TSImportEqualsDeclaration(_) => {
                 // TODO: implement when import equals declarations are supported
             }
+            #[cfg(feature = "typescript")]
+            ast::Declaration::TSGlobalDeclaration(_) => {
+                // Global declarations don't generate runtime code
+            }
             #[cfg(not(feature = "typescript"))]
             ast::Declaration::TSEnumDeclaration(_)
             | ast::Declaration::TSModuleDeclaration(_)
-            | ast::Declaration::TSImportEqualsDeclaration(_) => unreachable!(),
+            | ast::Declaration::TSImportEqualsDeclaration(_)
+            | ast::Declaration::TSGlobalDeclaration(_) => unreachable!(),
         }
     }
 }
