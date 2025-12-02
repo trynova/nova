@@ -596,16 +596,16 @@ impl TemporalInstantPrototype {
     fn to_zoned_date_time_iso<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        args: ArgumentsList,
-        mut gc: GcScope<'gc, '_>,
+        _args: ArgumentsList,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         // 1. Let instant be the this value.
         let value = this_value.bind(gc.nogc());
         // 2. Perform ? RequireInternalSlot(instant, [[InitializedTemporalInstant]]).
-        let instant = require_internal_slot_temporal_instant(agent, value.unbind(), gc.nogc())
+        let _instant = require_internal_slot_temporal_instant(agent, value.unbind(), gc.nogc())
             .bind(gc.nogc());
         // 3. Set timeZone to ? ToTemporalTimeZoneIdentifier(timeZone).
-        let time_zone = Some(TimeZone::utc());
+        let _time_zone = Some(TimeZone::utc());
         // 4. Return ! CreateTemporalZonedDateTime(instant.[[EpochNanoseconds]], timeZone, "iso8601").
         unimplemented!()
     }
