@@ -516,11 +516,11 @@ impl TemporalInstantPrototype {
     }
 
     /// ### [8.3.12 Temporal.Instant.prototype.toLocaleString ( [ locales [ , options ] ] )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.tolocalestring)
-    /// An ECMAScript implementation that includes the ECMA-402 Internationalization API 
-    /// must implement this method as specified in the ECMA-402 specification. 
+    /// An ECMAScript implementation that includes the ECMA-402 Internationalization API
+    /// must implement this method as specified in the ECMA-402 specification.
     /// If an ECMAScript implementation does not include the ECMA-402 API the following specification of this method is used.
     ///
-    /// The meanings of the optional parameters to this method are defined in the ECMA-402 specification; 
+    /// The meanings of the optional parameters to this method are defined in the ECMA-402 specification;
     /// implementations that do not include ECMA-402 support must not use those parameter positions for anything else.
     fn to_locale_string<'gc>(
         agent: &mut Agent,
@@ -531,10 +531,12 @@ impl TemporalInstantPrototype {
         // 1. Let instant be the this value.
         let value = this_value.bind(gc.nogc());
         // 2. Perform ? RequireInternalSlot(instant, [[InitializedTemporalInstant]]).
-        let instant = require_internal_slot_temporal_instant(agent, value, gc.nogc()).bind(gc.nogc());
+        let instant =
+            require_internal_slot_temporal_instant(agent, value, gc.nogc()).bind(gc.nogc());
         // 3. Return TemporalInstantToString(instant, undefined, AUTO).
         let options: ToStringRoundingOptions = ToStringRoundingOptions::default(); // defaults Precision to Auto
-        match instant.unbind()?
+        match instant
+            .unbind()?
             .inner_instant(agent)
             .to_ixdtf_string(Some(TimeZone::utc()), options)
         {
@@ -553,10 +555,12 @@ impl TemporalInstantPrototype {
         // 1. Let instant be the this value.
         let value = this_value.bind(gc.nogc());
         // 2. Perform ? RequireInternalSlot(instant, [[InitializedTemporalInstant]]).
-        let instant = require_internal_slot_temporal_instant(agent, value.unbind(), gc.nogc()).bind(gc.nogc());
+        let instant = require_internal_slot_temporal_instant(agent, value.unbind(), gc.nogc())
+            .bind(gc.nogc());
         // 3. Return TemporalInstantToString(instant, undefined, AUTO).
         let options: ToStringRoundingOptions = ToStringRoundingOptions::default();
-        match instant.unbind()?
+        match instant
+            .unbind()?
             .inner_instant(agent)
             .to_ixdtf_string(Some(TimeZone::utc()), options)
         {
@@ -598,7 +602,8 @@ impl TemporalInstantPrototype {
         // 1. Let instant be the this value.
         let value = this_value.bind(gc.nogc());
         // 2. Perform ? RequireInternalSlot(instant, [[InitializedTemporalInstant]]).
-        let instant = require_internal_slot_temporal_instant(agent, value.unbind(), gc.nogc()).bind(gc.nogc());
+        let instant = require_internal_slot_temporal_instant(agent, value.unbind(), gc.nogc())
+            .bind(gc.nogc());
         // 3. Set timeZone to ? ToTemporalTimeZoneIdentifier(timeZone).
         let time_zone = Some(TimeZone::utc());
         // 4. Return ! CreateTemporalZonedDateTime(instant.[[EpochNanoseconds]], timeZone, "iso8601").
