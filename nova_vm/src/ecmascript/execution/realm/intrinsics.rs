@@ -50,6 +50,10 @@ use crate::ecmascript::builtins::temporal::{
         instant_constructor::TemporalInstantConstructor,
         instant_prototype::TemporalInstantPrototype,
     },
+    plain_time::{
+        plain_time_constructor::TemporalPlainTimeConstructor,
+        plain_time_prototype::TemporalPlainTimePrototype,
+    },
 };
 
 #[cfg(feature = "regexp")]
@@ -337,6 +341,10 @@ impl Intrinsics {
         TemporalDurationPrototype::create_intrinsic(agent, realm, gc);
         #[cfg(feature = "temporal")]
         TemporalDurationConstructor::create_intrinsic(agent, realm, gc);
+        #[cfg(feature = "temporal")]
+        TemporalPlainTimePrototype::create_intrinsic(agent, realm, gc);
+        #[cfg(feature = "temporal")]
+        TemporalPlainTimeConstructor::create_intrinsic(agent, realm, gc);
         #[cfg(feature = "date")]
         DatePrototype::create_intrinsic(agent, realm);
         #[cfg(feature = "date")]
