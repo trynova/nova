@@ -10,7 +10,7 @@ use crate::{
     ecmascript::types::BUILTIN_STRING_MEMORY,
     engine::{
         Instruction, NamedEvaluationParameter,
-        bytecode::bytecode_compiler::is_anonymous_function_definition,
+        bytecode::bytecode_compiler::{ExpressionError, is_anonymous_function_definition},
     },
 };
 
@@ -98,18 +98,18 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
     for ast::ExportNamedDeclaration<'s>
 {
-    type Output = ();
+    type Output = Result<(), ExpressionError>;
     /// ### ExportDeclaration :
     /// ```text
     /// export NamedExports ;
     /// export VariableStatement
     /// export Declaration
     /// ```
-    fn compile(&'s self, ctx: &mut super::CompileContext<'_, 's, '_, '_>) {
+    fn compile(&'s self, ctx: &mut super::CompileContext<'_, 's, '_, '_>) -> Self::Output {
         let Some(decl) = &self.declaration else {
             // export NamedExports ;
             // 1. Return empty.
-            return;
+            return Ok(());
         };
         match decl {
             // export VariableStatement
@@ -117,10 +117,10 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
             ast::Declaration::VariableDeclaration(decl) => decl.compile(ctx),
             // ExportDeclaration : export Declaration
             // 1. Return ? Evaluation of Declaration.
-            ast::Declaration::FunctionDeclaration(decl) => decl.compile(ctx),
+            ast::Declaration::FunctionDeclaration(decl) => Ok(decl.compile(ctx)),
             ast::Declaration::ClassDeclaration(decl) => decl.compile(ctx),
             ast::Declaration::TSTypeAliasDeclaration(_)
-            | ast::Declaration::TSInterfaceDeclaration(_) => {}
+            | ast::Declaration::TSInterfaceDeclaration(_) => Ok(()),
             #[cfg(feature = "typescript")]
             ast::Declaration::TSEnumDeclaration(decl) => decl.compile(ctx),
             #[cfg(feature = "typescript")]
