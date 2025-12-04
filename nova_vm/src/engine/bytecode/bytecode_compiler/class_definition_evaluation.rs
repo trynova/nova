@@ -20,8 +20,7 @@ use crate::{
     },
     engine::{
         CompileContext, CompileEvaluation, FunctionExpression, Instruction,
-        NamedEvaluationParameter, SendableRef,
-        bytecode::bytecode_compiler::compile_expression_get_value,
+        NamedEvaluationParameter, SendableRef, bytecode::bytecode_compiler::ExpressionError,
     },
 };
 use ahash::{AHashMap, AHashSet};
@@ -31,9 +30,9 @@ use oxc_ecmascript::{BoundNames, PrivateBoundIdentifiers, PropName};
 use super::{ExpressionOutput, IndexType, is_anonymous_function_definition};
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<'s> {
-    type Output = ();
+    type Output = Result<(), ExpressionError>;
     /// ClassTail : ClassHeritage_opt { ClassBody_opt }
-    fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) {
+    fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         let anonymous_class_name = ctx.name_identifier.take();
 
         // 1. Let env be the LexicalEnvironment of the running execution context.
@@ -119,7 +118,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
                 // below should be performed in the parent environment. We do
                 // them in classEnv. Whether there's a difference I don't know.
                 // e. Let superclass be ? GetValue(? superclassRef).
-                compile_expression_get_value(super_class, ctx);
+                let _superclass = super_class.compile(ctx)?.get_value(ctx)?;
                 // f. If superclass is null, then
                 ctx.add_instruction(Instruction::LoadCopy);
                 ctx.add_instruction(Instruction::IsNull);
@@ -474,7 +473,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
                     } else {
                         swap_to_proto(ctx);
                     }
-                    define_method(method_definition, ctx);
+                    define_method(method_definition, ctx)?;
                     continue;
                 }
                 ast::ClassElement::PropertyDefinition(prop) => {
@@ -505,7 +504,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
                             computed_field_id,
                             prop.key.as_expression().unwrap(),
                             prop.value.as_ref(),
-                        )
+                        )?
                     }
                 }
                 #[cfg(feature = "typescript")]
@@ -587,18 +586,30 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
             for ele in instance_fields {
                 match ele {
                     PropertyInitializerField::Field((property_key, value)) => {
-                        compile_class_static_id_field(property_key, value, &mut constructor_ctx);
+                        if compile_class_static_id_field(property_key, value, &mut constructor_ctx)
+                            .is_err()
+                        {
+                            break;
+                        }
                     }
                     PropertyInitializerField::Computed((key_id, value)) => {
-                        compile_class_computed_field(key_id, value, &mut constructor_ctx);
+                        if compile_class_computed_field(key_id, value, &mut constructor_ctx)
+                            .is_err()
+                        {
+                            break;
+                        }
                     }
                     PropertyInitializerField::Private((description, private_identifier, value)) => {
-                        compile_class_private_field(
+                        if compile_class_private_field(
                             description,
                             private_identifier,
                             value,
                             &mut constructor_ctx,
-                        );
+                        )
+                        .is_err()
+                        {
+                            break;
+                        }
                     }
                     PropertyInitializerField::StaticBlock(_) => unreachable!(),
                 }
@@ -644,10 +655,10 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
                 // i. Assert: elementRecord is a ClassStaticBlockDefinition Record.
                 // ii. Let result be Completion(Call(elementRecord.[[BodyFunction]], F)).
                 PropertyInitializerField::Field((property_key, value)) => {
-                    compile_class_static_id_field(property_key, value, ctx);
+                    compile_class_static_id_field(property_key, value, ctx)?;
                 }
                 PropertyInitializerField::Computed((key_id, value)) => {
-                    compile_class_computed_field(key_id, value, ctx);
+                    compile_class_computed_field(key_id, value, ctx)?;
                 }
                 PropertyInitializerField::Private((description, private_identifier, value)) => {
                     // Note: Static private fields follow third after private
@@ -655,7 +666,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
                     let private_identifier = instance_private_field_count
                         + instance_private_method_count
                         + private_identifier;
-                    compile_class_private_field(description, private_identifier, value, ctx);
+                    compile_class_private_field(description, private_identifier, value, ctx)?;
                 }
             }
             // c. If result is an abrupt completion, then
@@ -700,6 +711,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
 
         ctx.add_instruction(Instruction::Store);
         // result: constructor
+        Ok(())
     }
 }
 
@@ -750,7 +762,7 @@ fn compile_computed_field_name<'s, 'gc>(
     next_computed_key_id: u32,
     key: &'s ast::Expression<'s>,
     value: Option<&'s ast::Expression<'s>>,
-) -> PropertyInitializerField<'s, 'gc> {
+) -> Result<PropertyInitializerField<'s, 'gc>, ExpressionError> {
     let computed_key_id = ctx.create_string_from_owned(format!("^{next_computed_key_id}"));
     ctx.add_instruction_with_identifier(
         Instruction::CreateImmutableBinding,
@@ -760,7 +772,7 @@ fn compile_computed_field_name<'s, 'gc>(
     // ### ComputedPropertyName : [ AssignmentExpression ]
     // 1. Let exprValue be ? Evaluation of AssignmentExpression.
     // 2. Let propName be ? GetValue(exprValue).
-    compile_expression_get_value(key, ctx);
+    key.compile(ctx)?.get_value(ctx)?;
 
     // TODO: To be fully compliant, we need to perform ToPropertyKey here as
     // otherwise we change the order of errors thrown.
@@ -770,7 +782,7 @@ fn compile_computed_field_name<'s, 'gc>(
         computed_key_id.to_property_key(),
     );
     ctx.add_instruction(Instruction::InitializeReferencedBinding);
-    PropertyInitializerField::Computed((computed_key_id, value))
+    Ok(PropertyInitializerField::Computed((computed_key_id, value)))
 }
 
 /// Creates an ECMAScript constructor for a class.
@@ -833,7 +845,7 @@ fn define_constructor_method(
 fn define_method<'s>(
     class_element: &'s ast::MethodDefinition<'s>,
     ctx: &mut CompileContext<'_, 's, '_, '_>,
-) {
+) -> Result<(), ExpressionError> {
     // 1. Let propKey be ? Evaluation of ClassElementName.
     if let Some(prop_name) = class_element.prop_name() {
         let prop_name = ctx.create_string(prop_name.0);
@@ -841,7 +853,7 @@ fn define_method<'s>(
     } else {
         // Computed method name.
         let key = class_element.key.as_expression().unwrap();
-        compile_expression_get_value(key, ctx);
+        key.compile(ctx)?.get_value(ctx)?;
 
         ctx.add_instruction(Instruction::Load);
     };
@@ -884,6 +896,7 @@ fn define_method<'s>(
         // enumerable: false,
         false.into(),
     );
+    Ok(())
 }
 
 fn define_private_method<'s>(
@@ -1088,7 +1101,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Static
             let f = f.id.as_ref().unwrap().compile(ctx);
             // c. Perform ! varEnv.SetMutableBinding(fn, fo, false).
             // TODO: This compilation is incorrect if !strict, when varEnv != lexEnv.
-            f.put_value(ctx, ExpressionOutput::Value);
+            f.put_value(ctx, ExpressionOutput::Value).unwrap();
         }
 
         for statement in self.body.iter() {
@@ -1103,7 +1116,7 @@ fn compile_class_static_id_field<'s>(
     identifier_name: &'s str,
     value: Option<&'s ast::Expression<'s>>,
     ctx: &mut CompileContext<'_, 's, '_, '_>,
-) {
+) -> Result<(), ExpressionError> {
     // stack: [constructor]
     // Load the key constant onto the stack.
     let identifier = ctx.create_string(identifier_name);
@@ -1112,7 +1125,7 @@ fn compile_class_static_id_field<'s>(
         if is_anonymous_function_definition(value) {
             ctx.name_identifier = Some(NamedEvaluationParameter::Stack);
         }
-        compile_expression_get_value(value, ctx);
+        value.compile(ctx)?.get_value(ctx)?;
     } else {
         // Same optimisation is unconditionally valid here.
         ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
@@ -1121,6 +1134,7 @@ fn compile_class_static_id_field<'s>(
     // result: value
     ctx.add_instruction(Instruction::ObjectDefineProperty);
     // stack: [constructor]
+    Ok(())
 }
 
 /// Compile a class computed field with an optional initializer.
@@ -1128,7 +1142,7 @@ fn compile_class_computed_field<'s, 'gc>(
     property_key_id: String<'gc>,
     value: Option<&'s ast::Expression<'s>>,
     ctx: &mut CompileContext<'_, 's, 'gc, '_>,
-) {
+) -> Result<(), ExpressionError> {
     // stack: [constructor]
     // Resolve the static computed key ID to the actual computed key value.
     ctx.add_instruction_with_identifier(
@@ -1143,7 +1157,7 @@ fn compile_class_computed_field<'s, 'gc>(
         if is_anonymous_function_definition(value) {
             ctx.name_identifier = Some(NamedEvaluationParameter::Stack);
         }
-        compile_expression_get_value(value, ctx);
+        value.compile(ctx)?.get_value(ctx)?;
     } else {
         // Otherwise, put `undefined` into the result register.
         ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
@@ -1152,6 +1166,7 @@ fn compile_class_computed_field<'s, 'gc>(
     // result: value
     ctx.add_instruction(Instruction::ObjectDefineProperty);
     // stack: [constructor]
+    Ok(())
 }
 
 /// Compile a class private field with an optional initializer.
@@ -1160,7 +1175,7 @@ fn compile_class_private_field<'s>(
     private_name_identifier: u32,
     value: Option<&'s ast::Expression<'s>>,
     ctx: &mut CompileContext<'_, 's, '_, '_>,
-) {
+) -> Result<(), ExpressionError> {
     // stack: [target]
     if let Some(value) = value {
         if is_anonymous_function_definition(value) {
@@ -1170,7 +1185,7 @@ fn compile_class_private_field<'s>(
             // stack: [target]
             // result: `#{description}`
         }
-        compile_expression_get_value(value, ctx);
+        value.compile(ctx)?.get_value(ctx)?;
     } else {
         ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
     }
@@ -1180,4 +1195,5 @@ fn compile_class_private_field<'s>(
         Instruction::ClassInitializePrivateValue,
         private_name_identifier as usize,
     );
+    Ok(())
 }

@@ -5,7 +5,7 @@
 use super::{CompileContext, CompileEvaluation, CompileLabelledEvaluation, Instruction, JumpIndex};
 use crate::{
     ecmascript::types::{String, Value},
-    engine::bytecode::bytecode_compiler::ExpressionOutput,
+    engine::bytecode::bytecode_compiler::{ExpressionError, ExpressionOutput},
 };
 use oxc_ast::ast;
 use oxc_ecmascript::BoundNames;
@@ -29,7 +29,7 @@ fn for_in_of_head_evaluation<'s, 'gc>(
     uninitialized_bound_names: Vec<String<'gc>>,
     expr: &'s ast::Expression<'s>,
     iteration_kind: IterationKind,
-) -> (JumpIndex, Option<JumpIndex>) {
+) -> Result<(JumpIndex, Option<JumpIndex>), ExpressionError> {
     // 1. Let oldEnv be the running execution context's LexicalEnvironment.
     // 2. If uninitializedBoundNames is not empty, then
     if !uninitialized_bound_names.is_empty() {
@@ -48,13 +48,13 @@ fn for_in_of_head_evaluation<'s, 'gc>(
         // d. Set the running execution context's LexicalEnvironment to newEnv.
     }
     // 3. Let exprRef be Completion(Evaluation of expr).
-    let output = expr.compile(ctx);
+    let output = expr.compile(ctx)?;
     // 4. Set the running execution context's LexicalEnvironment to oldEnv.
     if !uninitialized_bound_names.is_empty() {
         ctx.exit_lexical_scope();
     }
     // 5. Let exprValue be ? GetValue(? exprRef).
-    output.get_value(ctx);
+    output.get_value(ctx)?;
     // 6. If iterationKind is ENUMERATE, then
     match iteration_kind {
         IterationKind::Enumerate => {
@@ -79,19 +79,19 @@ fn for_in_of_head_evaluation<'s, 'gc>(
             // d. Let nextMethod be ! GetV(iterator, "next").
             // e. Return the Iterator Record { [[Iterator]]: iterator, [[NextMethod]]: nextMethod, [[Done]]: false }.
             // Note: iteratorKind is SYNC
-            (ctx.push_enumerator(), Some(return_break_completion_record))
+            Ok((ctx.push_enumerator(), Some(return_break_completion_record)))
         }
         // 7. Else,
         // a. Assert: iterationKind is either ITERATE or ASYNC-ITERATE.
         IterationKind::AsyncIterate => {
             // b. If iterationKind is ASYNC-ITERATE, let iteratorKind be ASYNC.
             // d. Return ? GetIterator(exprValue, iteratorKind).
-            (ctx.push_async_iterator(), None)
+            Ok((ctx.push_async_iterator(), None))
         }
         IterationKind::Iterate => {
             // c. Else, let iteratorKind be SYNC.
             // d. Return ? GetIterator(exprValue, iteratorKind).
-            (ctx.push_sync_iterator(), None)
+            Ok((ctx.push_sync_iterator(), None))
         }
     }
 }
@@ -182,7 +182,9 @@ fn for_in_of_body_evaluation<'s>(
                             let declaration = decl.declarations.first().unwrap();
                             declaration.id.compile(ctx);
                         }
-                        _ => lhs.as_assignment_target().unwrap().compile(ctx),
+                        _ => {
+                            lhs.as_assignment_target().unwrap().compile(ctx);
+                        }
                     }
                 }
             } else {
@@ -204,7 +206,9 @@ fn for_in_of_body_evaluation<'s>(
                         // a. Let status be Completion(PutValue(lhsRef.[[Value]], nextValue)).
                         lhs_ref.put_value(ctx, ExpressionOutput::Value);
                     }
-                    _ => lhs.to_assignment_target().compile(ctx),
+                    _ => {
+                        lhs.to_assignment_target().compile(ctx);
+                    }
                 }
             }
         }
@@ -427,13 +431,13 @@ fn get_for_statement_left_hand_side_kind<'gc>(
 impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
     for ast::ForInStatement<'s>
 {
-    type Output = ();
+    type Output = Result<(), ExpressionError>;
 
     fn compile_labelled(
         &'s self,
         label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,
         ctx: &mut CompileContext<'_, 's, '_, '_>,
-    ) {
+    ) -> Self::Output {
         let mut uninitialized_bound_names = vec![];
 
         let lhs_kind =
@@ -447,7 +451,7 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
             uninitialized_bound_names,
             &self.right,
             IterationKind::Enumerate,
-        );
+        )?;
         for_in_of_body_evaluation(
             ctx,
             &self.left,
@@ -458,20 +462,21 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
             jump_to_iterator_pop,
         );
         ctx.pop_iterator_stack();
-        ctx.set_jump_target_here(key_result.unwrap())
+        ctx.set_jump_target_here(key_result.unwrap());
+        Ok(())
     }
 }
 
 impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
     for ast::ForOfStatement<'s>
 {
-    type Output = ();
+    type Output = Result<(), ExpressionError>;
 
     fn compile_labelled(
         &'s self,
         label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,
         ctx: &mut CompileContext<'_, 's, '_, '_>,
-    ) {
+    ) -> Self::Output {
         let mut uninitialized_bound_names = vec![];
 
         let lhs_kind =
@@ -484,7 +489,7 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
         };
 
         let (jump_to_iterator_pop, key_result) =
-            for_in_of_head_evaluation(ctx, uninitialized_bound_names, &self.right, iteration_kind);
+            for_in_of_head_evaluation(ctx, uninitialized_bound_names, &self.right, iteration_kind)?;
         // ForIn/OfHeadEvaluation should never return a jump for ITERATE or
         // ASYNC-ITERATE.
         debug_assert!(key_result.is_none());
@@ -498,5 +503,6 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
             jump_to_iterator_pop,
         );
         ctx.pop_iterator_stack();
+        Ok(())
     }
 }
