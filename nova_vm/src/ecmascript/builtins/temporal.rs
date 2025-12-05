@@ -6,7 +6,6 @@ pub mod duration;
 pub mod error;
 pub mod instant;
 pub mod options;
-pub mod plain_time;
 
 use temporal_rs::{
     options::{DifferenceSettings, RoundingIncrement, RoundingMode, Unit, UnitGroup},
@@ -41,7 +40,6 @@ impl Temporal {
 
         let instant_constructor = intrinsics.temporal_instant();
         let duration_constructor = intrinsics.temporal_duration();
-        let plain_time_constructor = intrinsics.temporal_plain_time();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(4)
@@ -58,14 +56,6 @@ impl Temporal {
             // 1.2.2 Temporal.PlainDateTime ( . . . )
             // 1.2.3 Temporal.PlainDate ( . . . )
             // 1.2.4 Temporal.PlainTime ( . . . )
-            .with_property(|builder| {
-                builder
-                    .with_key(BUILTIN_STRING_MEMORY.PlainTime.into())
-                    .with_value(plain_time_constructor.into_value())
-                    .with_enumerable(false)
-                    .with_configurable(true)
-                    .build()
-            })
             // 1.2.5 Temporal.PlainYearMonth ( . . . )
             // 1.2.6 Temporal.PlainMonthDay ( . . . )
             // 1.2.7 Temporal.Duration ( . . . )

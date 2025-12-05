@@ -15,7 +15,7 @@ use crate::ecmascript::{Set, SetIterator};
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::{SharedArrayBuffer, SharedDataView, SharedVoidArray};
 #[cfg(feature = "temporal")]
-use crate::ecmascript::{TemporalInstant, TemporalPlainTime};
+use crate::ecmascript::{TemporalDuration, TemporalInstant};
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::{WeakMap, WeakRef, WeakSet};
 #[cfg(feature = "array-buffer")]
@@ -88,8 +88,6 @@ pub(crate) fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static
             instants,
             #[cfg(feature = "temporal")]
             durations,
-            #[cfg(feature = "temporal")]
-            plain_times,
             ecmascript_functions,
             elements,
             embedder_objects,
@@ -541,16 +539,6 @@ pub(crate) fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static
                 if bits.durations.set_bit(index, &bits.bits) {
                     // Did mark.
                     durations.get(index).mark_values(&mut queues);
-                }
-            });
-            let mut plain_time_marks: Box<[TemporalPlainTime]> =
-                queues.plain_times.drain(..).collect();
-            plain_time_marks.sort();
-            plain_time_marks.iter().for_each(|&idx| {
-                let index = idx.get_index();
-                if bits.plain_times.set_bit(index, &bits.bits) {
-                    // Did mark.
-                    plain_times.get(index).mark_values(&mut queues);
                 }
             });
         }
@@ -1264,8 +1252,6 @@ fn sweep(
         instants,
         #[cfg(feature = "temporal")]
         durations,
-        #[cfg(feature = "temporal")]
-        plain_times,
         ecmascript_functions,
         elements,
         embedder_objects,
@@ -1729,12 +1715,6 @@ fn sweep(
         if !durations.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(durations, &compactions, &bits.durations, &bits.bits);
-            });
-        }
-        #[cfg(feature = "temporal")]
-        if !plain_times.is_empty() {
-            s.spawn(|| {
-                sweep_heap_vector_values(plain_times, &compactions, &bits.plain_times, &bits.bits);
             });
         }
         if !declarative.is_empty() {
