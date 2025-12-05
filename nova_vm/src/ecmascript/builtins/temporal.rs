@@ -42,7 +42,7 @@ impl Temporal {
         let duration_constructor = intrinsics.temporal_duration();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
-            .with_property_capacity(4)
+            .with_property_capacity(3)
             .with_prototype(object_prototype)
             // 1.2.1 Temporal.Instant ( . . . )
             .with_property(|builder| {
