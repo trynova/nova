@@ -6,12 +6,9 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::get, type_conversion::to_integer_if_integral,
-        },
-        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
-        types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, Object, OrdinaryObject, String,
-            Value,
-        },
+        }, builtins::ordinary::ordinary_create_from_constructor, execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType}, types::{
+            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoFunction, Object, OrdinaryObject, String, Value
+        }
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
@@ -151,9 +148,7 @@ impl<'a> CreateHeapData<DurationHeapData<'a>, TemporalDuration<'a>> for Heap {
         TemporalDuration(BaseIndex::last(&self.durations))
     }
 }
-/// 7.5.19 CreateTemporalDuration ( years, months, weeks,
-/// days, hours, minutes, seconds,
-/// milliseconds, microseconds, nanoseconds [ , newTarget ] )
+/// [7.5.19 CreateTemporalDuration ( years, months, weeks, days, hours, minutes, seconds, milliseconds, microseconds, nanoseconds [ , newTarget ] )](https://tc39.es/proposal-temporal/#sec-temporal-createtemporalduration)
 /// The abstract operation CreateTemporalDuration takes arguments
 /// years (an integer), months (an integer),
 /// weeks (an integer), days (an integer),
@@ -165,22 +160,26 @@ impl<'a> CreateHeapData<DurationHeapData<'a>, TemporalDuration<'a>> for Heap {
 /// a Temporal.Duration or a throw completion.
 /// It creates a Temporal.Duration instance and fills
 /// the internal slots with valid values.
-/// It performs the following steps when called:
-pub(crate) fn _create_temporal_duration<'gc>(// years,
-    // months,
-    // weeks,
-    // days,
-    // hours,
-    // minutes,
-    // seconds,
-    // milliseconds,
-    // microseconds,
-    // nanoseconds: ,
-    // new_target: Option<Function>,
+pub(crate) fn create_temporal_duration<'gc>(// years,
+    agent: &mut Agent,
+    duration: temporal_rs::Duration,
+    new_target: Option<Function>,
+    gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, TemporalDuration<'gc>> {
     // 1. If IsValidDuration(years, months, weeks, days, hours, minutes, seconds, milliseconds, microseconds, nanoseconds) is false, throw a RangeError exception.
     // 2. If newTarget is not present, set newTarget to %Temporal.Duration%.
+    let new_target = new_target.unwrap_or_else(|| {
+        agent
+            .current_realm_record()
+            .intrinsics()
+            .temporal_duration()
+            .into_function()
+    });
     // 3. Let object be ? OrdinaryCreateFromConstructor(newTarget, "%Temporal.Duration.prototype%", « [[InitializedTemporalDuration]], [[Years]], [[Months]], [[Weeks]], [[Days]], [[Hours]], [[Minutes]], [[Seconds]], [[Milliseconds]], [[Microseconds]], [[Nanoseconds]] »).
+    let Object::Duration(object) = ordinary_create_from_constructor(agent, new_target, ProtoIntrinsics::TemporalInstant, gc)?
+    else {
+        unreachable!()
+    };
     // 4. Set object.[[Years]] to ℝ(𝔽(years)).
     // 5. Set object.[[Months]] to ℝ(𝔽(months)).
     // 6. Set object.[[Weeks]] to ℝ(𝔽(weeks)).
