@@ -1674,6 +1674,7 @@ impl WaitAsyncJob {
         self.0._has_timeout
     }
 
+    #[allow(unknown_lints, can_use_no_gc_scope)]
     pub(crate) fn run<'gc>(self, agent: &mut Agent, gc: GcScope) -> JsResult<'gc, ()> {
         let gc = gc.into_nogc();
         let promise = self.0.promise_to_resolve.take(agent).bind(gc);

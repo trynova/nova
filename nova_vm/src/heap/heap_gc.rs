@@ -1221,6 +1221,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
     ndt::gc_done!(|| ());
 }
 
+#[allow(unknown_lints, can_use_no_gc_scope)]
 fn sweep(
     agent: &mut Agent,
     bits: &HeapBits,
