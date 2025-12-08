@@ -20,7 +20,8 @@ dylint_linting::declare_late_lint! {
     ///
     /// ### Why is this bad?
     ///
-    /// TODO
+    /// You usually should use `NoGcScope` instead of `GcScope` if you don't
+    /// need the latter.
     ///
     /// ### Example
     ///
@@ -58,11 +59,11 @@ impl<'tcx> LateLintPass<'tcx> for CanUseNoGcScope {
         }
 
         // Skip trait definitions and methods
-
         let res = {
             let body_id = cx.tcx.hir_body_owner(body.id());
             is_trait_impl_item(cx, body_id) || is_trait_item(cx, body_id)
-        }; if res {
+        };
+        if res {
             return;
         }
 

@@ -1,3 +1,5 @@
+#![allow(dead_code, unused_variables)]
+
 use nova_vm::{
     ecmascript::{
         builtins::ArgumentsList,
