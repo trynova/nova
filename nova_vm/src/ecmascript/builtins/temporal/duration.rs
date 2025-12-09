@@ -2,8 +2,6 @@ pub(crate) mod data;
 pub mod duration_constructor;
 pub mod duration_prototype;
 
-use temporal_rs::Duration;
-
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -190,7 +188,7 @@ pub(crate) fn create_temporal_duration<'gc>(
     });
     // 3. Let object be ? OrdinaryCreateFromConstructor(newTarget, "%Temporal.Duration.prototype%", « [[InitializedTemporalDuration]], [[Years]], [[Months]], [[Weeks]], [[Days]], [[Hours]], [[Minutes]], [[Seconds]], [[Milliseconds]], [[Microseconds]], [[Nanoseconds]] »).
     let Object::Duration(object) =
-        ordinary_create_from_constructor(agent, new_target, ProtoIntrinsics::TemporalInstant, gc)?
+        ordinary_create_from_constructor(agent, new_target, ProtoIntrinsics::TemporalDuration, gc)?
     else {
         unreachable!()
     };
@@ -483,7 +481,7 @@ fn require_internal_slot_temporal_duration<'a>(
         Value::Duration(duration) => Ok(duration.bind(gc)),
         _ => Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
-            "Object is not a Temporal Instant",
+            "Object is not a Temporal Duration",
             gc,
         )),
     }

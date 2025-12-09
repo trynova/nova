@@ -1,5 +1,3 @@
-use std::{thread::scope, time::Duration};
-
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_integer_if_integral,
@@ -9,9 +7,7 @@ use crate::{
             temporal::{duration::create_temporal_duration, error::temporal_err_to_js_err},
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{
-            BUILTIN_STRING_MEMORY, BigInt, Function, IntoObject, IntoValue, Object, String, Value,
-        },
+        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
