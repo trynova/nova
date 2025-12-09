@@ -17,7 +17,10 @@ pub struct DurationHeapData<'a> {
 
 impl DurationHeapData<'_> {
     pub fn default() -> Self {
-        todo!()
+        Self {
+            object_index: None,
+            duration: temporal_rs::Duration::new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0).unwrap(),
+        }
     }
 }
 
