@@ -2,6 +2,8 @@ pub(crate) mod data;
 pub mod duration_constructor;
 pub mod duration_prototype;
 
+use temporal_rs::Duration;
+
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -37,9 +39,15 @@ impl TemporalDuration<'_> {
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
     }
-    // pub(crate) fn inner_duration(self, agent: &Agent) -> temporal_rs::Duration {
-    //     agent[self].duration
-    // }
+    pub(crate) fn _inner_duration(self, agent: &Agent) -> &temporal_rs::Duration {
+        &agent[self].duration
+    }
+    /// # Safety
+    ///
+    /// Should be only called once; reinitialising the value is not allowed.
+    unsafe fn set_duration(self, agent: &mut Agent, duration: temporal_rs::Duration) {
+        agent[self].duration = duration;
+    }
 }
 
 bindable_handle!(TemporalDuration);
@@ -196,8 +204,9 @@ pub(crate) fn create_temporal_duration<'gc>(
     // 11. Set object.[[Milliseconds]] to ℝ(𝔽(milliseconds)).
     // 12. Set object.[[Microseconds]] to ℝ(𝔽(microseconds)).
     // 13. Set object.[[Nanoseconds]] to ℝ(𝔽(nanoseconds)).
+    unsafe { object.set_duration(agent, duration) };
     // 14. Return object.
-    unimplemented!()
+    Ok(object)
 }
 
 /// Abstract Operations <--->
@@ -215,10 +224,11 @@ pub(crate) fn to_temporal_duration<'gc>(
 ) -> JsResult<'gc, temporal_rs::Duration> {
     let item = item.bind(gc.nogc());
     // 1. If item is an Object and item has an [[InitializedTemporalDuration]] internal slot, then
-    if let Ok(_obj) = require_internal_slot_temporal_duration(agent, item, gc.nogc()) {
-        unimplemented!();
+    if let Ok(obj) = require_internal_slot_temporal_duration(agent, item, gc.nogc()) {
         // a. Return ! CreateTemporalDuration(item.[[Years]], item.[[Months]], item.[[Weeks]], item.[[Days]], item.[[Hours]], item.[[Minutes]], item.[[Seconds]], item.[[Milliseconds]], item.[[Microseconds]], item.[[Nanoseconds]]).
+        return Ok(agent[obj].duration);
     }
+
     // 2. If item is not an Object, then
     if !item.is_object() {
         let Ok(item) = String::try_from(item) else {
@@ -465,18 +475,16 @@ pub(crate) fn _create_negated_temporal_duration<'gc>(
 
 #[inline(always)]
 fn require_internal_slot_temporal_duration<'a>(
-    _agent: &mut Agent,
-    _value: Value,
-    _gc: NoGcScope<'a, '_>,
+    agent: &mut Agent,
+    value: Value,
+    gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, TemporalDuration<'a>> {
-    unimplemented!()
-    // TODO:
-    // match value {
-    //     Value::Instant(instant) => Ok(instant.bind(gc)),
-    //     _ => Err(agent.throw_exception_with_static_message(
-    //         ExceptionType::TypeError,
-    //         "Object is not a Temporal Instant",
-    //         gc,
-    //     )),
-    // }
+    match value {
+        Value::Duration(duration) => Ok(duration.bind(gc)),
+        _ => Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Object is not a Temporal Instant",
+            gc,
+        )),
+    }
 }
