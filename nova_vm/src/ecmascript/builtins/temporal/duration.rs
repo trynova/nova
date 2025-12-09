@@ -6,9 +6,13 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::get, type_conversion::to_integer_if_integral,
-        }, builtins::ordinary::ordinary_create_from_constructor, execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType}, types::{
-            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoFunction, Object, OrdinaryObject, String, Value
-        }
+        },
+        builtins::ordinary::ordinary_create_from_constructor,
+        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
+        types::{
+            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoFunction, Object,
+            OrdinaryObject, String, Value,
+        },
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
@@ -160,7 +164,8 @@ impl<'a> CreateHeapData<DurationHeapData<'a>, TemporalDuration<'a>> for Heap {
 /// a Temporal.Duration or a throw completion.
 /// It creates a Temporal.Duration instance and fills
 /// the internal slots with valid values.
-pub(crate) fn create_temporal_duration<'gc>(// years,
+pub(crate) fn create_temporal_duration<'gc>(
+    // years,
     agent: &mut Agent,
     duration: temporal_rs::Duration,
     new_target: Option<Function>,
@@ -176,7 +181,8 @@ pub(crate) fn create_temporal_duration<'gc>(// years,
             .into_function()
     });
     // 3. Let object be ? OrdinaryCreateFromConstructor(newTarget, "%Temporal.Duration.prototype%", « [[InitializedTemporalDuration]], [[Years]], [[Months]], [[Weeks]], [[Days]], [[Hours]], [[Minutes]], [[Seconds]], [[Milliseconds]], [[Microseconds]], [[Nanoseconds]] »).
-    let Object::Duration(object) = ordinary_create_from_constructor(agent, new_target, ProtoIntrinsics::TemporalInstant, gc)?
+    let Object::Duration(object) =
+        ordinary_create_from_constructor(agent, new_target, ProtoIntrinsics::TemporalInstant, gc)?
     else {
         unreachable!()
     };
