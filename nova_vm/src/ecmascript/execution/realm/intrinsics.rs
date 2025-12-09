@@ -1052,12 +1052,12 @@ impl Intrinsics {
         IntrinsicObjectIndexes::Temporal.get_backing_object(self.object_index_base)
     }
 
-    /// %Temporal.Instant.Prototype%
+    /// %Temporal.Duration.Prototype%
     pub(crate) const fn temporal_duration_prototype(&self) -> OrdinaryObject<'static> {
         IntrinsicObjectIndexes::TemporalDurationPrototype.get_backing_object(self.object_index_base)
     }
 
-    /// %Temporal.Instant%
+    /// %Temporal.Duration%
     pub(crate) const fn temporal_duration(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::TemporalDuration
             .get_builtin_function(self.builtin_function_index_base)
