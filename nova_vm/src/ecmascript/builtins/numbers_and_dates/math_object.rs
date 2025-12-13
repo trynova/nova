@@ -314,9 +314,7 @@ impl Builtin for MathObjectF16round {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::f16round);
 }
 
-#[cfg(feature = "proposal-math-sum")]
 struct MathObjectSumPrecise;
-#[cfg(feature = "proposal-math-sum")]
 impl Builtin for MathObjectSumPrecise {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.sumPrecise;
 
@@ -1697,7 +1695,6 @@ impl MathObject {
     /// > Fast Robust Geometric Predicates by Jonathan Richard Shewchuk. A more
     /// > recent algorithm is given in "Fast exact summation using small and large superaccumulators",
     /// > code for which is available at https://gitlab.com/radfordneal/xsum.
-    #[cfg(feature = "proposal-math-sum")]
     fn sum_precise<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -1709,11 +1706,14 @@ impl MathObject {
                 operations_on_iterator_objects::{
                     IteratorRecord, get_iterator, iterator_close_with_error, iterator_step_value,
                 },
-                operations_on_objects::throw_not_callable,
+                operations_on_objects::{throw_not_callable, try_length_of_array_like},
                 testing_and_comparison::require_object_coercible,
             },
             execution::agent::ExceptionType,
+            types::Object,
         };
+        use std::ops::ControlFlow;
+        use xsum::{Xsum, XsumAuto, XsumLarge, XsumSmall, XsumVariant, constants::XSUM_THRESHOLD};
 
         let items = arguments.get(0).bind(gc.nogc());
 
@@ -1721,6 +1721,18 @@ impl MathObject {
         require_object_coercible(agent, items, gc.nogc())
             .unbind()?
             .bind(gc.nogc());
+
+        // If `items` is array-like, we get the length so we can size the xsum
+        // accumulator properly. If this length ends up being wrong, the
+        // algorithm's correctness won't be affected, but performance might be.
+        let len_estimate: Option<usize> = if let Ok(items) = Object::try_from(items) {
+            match try_length_of_array_like(agent, items, gc.nogc()) {
+                ControlFlow::Continue(len) => Some(len as usize),
+                ControlFlow::Break(_) => None,
+            }
+        } else {
+            None
+        };
 
         // 2. Let iteratorRecord be ? GetIterator(items, sync).
         let Some(IteratorRecord {
@@ -1738,11 +1750,19 @@ impl MathObject {
         let next_method = next_method.scope(agent, gc.nogc());
 
         // 3. Let state be minus-zero.
-        let mut state = -0.0f64;
         // 4. Let sum be 0.
-        let mut sum = 0.0f64;
+        // `sum` in the spec is a mathematical number with infinite precision,
+        // and this algorithm relies on that, so we can't implement it with f64
+        // addition. Instead we use xsum, which also handles `state`. We use the
+        // length estimate to choose the variant to use for better performance.
+        let mut sum = match len_estimate {
+            Some(XSUM_THRESHOLD..) => XsumVariant::Large(XsumLarge::new()),
+            Some(_) => XsumVariant::Small(XsumSmall::new()),
+            None => XsumVariant::Auto(XsumAuto::new()),
+        };
+
         // 5. Let count be 0.
-        let mut count = 0;
+        let mut count: usize = 0;
 
         // 6. Let next be not-started.
         // 7. Repeat, while next is not done,
@@ -1763,7 +1783,7 @@ impl MathObject {
             count += 1;
             // ii. If count ≥ 2**53, then
             // iii. NOTE: The above case is not expected to be reached in practice and is included only so that implementations may rely on inputs being "reasonably sized" without violating this specification.
-            if count >= 2i64.pow(53) {
+            if count >= 1 << 53 {
                 // 1. Let error be ThrowCompletion(a newly created RangeError object).
                 let error = agent.throw_exception_with_static_message(
                     ExceptionType::RangeError,
@@ -1781,43 +1801,26 @@ impl MathObject {
 
             // v. Let n be next.
             if let Ok(n) = Number::try_from(next) {
-                // vi. If state is not not-a-number, then
-                if !state.is_nan() {
-                    if n.is_nan(agent) {
-                        // 1. If n is NaN, then
-                        // a. Set state to not-a-number.
-                        state = f64::NAN;
-                    } else if n.is_pos_infinity(agent) {
-                        // 2. Else if n is +∞𝔽, then
-                        // a. If state is minus-infinity, set state to not-a-number.
-                        // b. Else, set state to plus-infinity.
-                        state = if state == f64::NEG_INFINITY {
-                            f64::NAN
-                        } else {
-                            f64::INFINITY
-                        };
-                    } else if n.is_neg_infinity(agent) {
-                        // 3. Else if n is -∞𝔽, then
-                        // a. If state is plus-infinity, set state to not-a-number.
-                        // b. Else, set state to minus-infinity.
-                        state = if state == f64::INFINITY {
-                            f64::NAN
-                        } else {
-                            f64::NEG_INFINITY
-                        };
-                    } else if !n.is_neg_zero(agent) && (state == -0.0 || state.is_finite()) {
-                        // 4. Else if n is not -0𝔽 and state is either minus-zero or finite, then
-                        // a. Set state to finite.
-                        state = 0.0;
-                        // b. Set sum to sum + ℝ(n).
-                        sum += n.into_f64(agent);
-                    }
-                }
+                // iv. If state is not not-a-number, then
+                //   1. If n is NaN, then
+                //     a. Set state to not-a-number.
+                //   2. Else if n is +∞𝔽, then
+                //     a. If state is minus-infinity, set state to not-a-number.
+                //     b. Else, set state to plus-infinity.
+                //   3. Else if n is -∞𝔽, then
+                //     a. If state is plus-infinity, set state to not-a-number.
+                //     b. Else, set state to minus-infinity.
+                //   4. Else if n is not -0𝔽 and state is either minus-zero or finite, then
+                //     a. Set state to finite.
+                //     b. Set sum to sum + ℝ(n).
+
+                // xsum handles all of this
+                sum.add(n.into_f64(agent));
             } else {
                 // iv. If next is not a Number, then
                 // 1. Let error be ThrowCompletion(a newly created TypeError object).
                 let error = agent.throw_exception_with_static_message(
-                    ExceptionType::RangeError,
+                    ExceptionType::TypeError,
                     "Iterator may only contain numbers",
                     gc.nogc(),
                 );
@@ -1835,12 +1838,8 @@ impl MathObject {
         // 9. If state is plus-infinity, return +∞𝔽.
         // 10. If state is minus-infinity, return -∞𝔽.
         // 11. If state is minus-zero, return -0𝔽.
-        if state.is_nan() || state.is_infinite() || state == -0.0 {
-            Ok(Value::from_f64(agent, state, gc.into_nogc()))
-        } else {
-            // 12. Return 𝔽(sum).
-            Ok(Value::from_f64(agent, sum, gc.into_nogc()))
-        }
+        // 12. Return 𝔽(sum).
+        Ok(Value::from_f64(agent, sum.sum(), gc.into_nogc()))
     }
 
     /// ### [1 Math.clamp ( value, min, max )](https://tc39.es/proposal-math-clamp/#sec-math.clamp)
@@ -1938,11 +1937,8 @@ impl MathObject {
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.math();
 
-        let mut property_capacity = 44;
+        let mut property_capacity = 45;
         if cfg!(feature = "proposal-float16array") {
-            property_capacity += 1;
-        }
-        if cfg!(feature = "proposal-math-sum") {
             property_capacity += 1;
         }
         if cfg!(feature = "proposal-math-clamp") {
@@ -2093,7 +2089,6 @@ impl MathObject {
         #[cfg(feature = "proposal-float16array")]
         let builder = builder.with_builtin_function_property::<MathObjectF16round>();
 
-        #[cfg(feature = "proposal-math-sum")]
         let builder = builder.with_builtin_function_property::<MathObjectSumPrecise>();
 
         #[cfg(feature = "proposal-math-clamp")]

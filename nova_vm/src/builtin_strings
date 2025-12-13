@@ -407,7 +407,7 @@ String Iterator
 #[cfg(feature = "array-buffer")]subarray
 #[cfg(feature = "annex-b-string")]substr
 substring
-#[cfg(feature = "proposal-math-sum")]sumPrecise
+sumPrecise
 #[cfg(feature = "annex-b-string")]sup
 symbol
 Symbol
