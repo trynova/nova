@@ -3793,6 +3793,7 @@ impl ArrayPrototype {
             // d. Set i to i + 1.
             i += 1;
         }
+        let local_a = scoped_a.get(agent).bind(gc.nogc());
         // 17. For each element E of items, do
         for e in items {
             // a. Let Pi be ! ToString(𝔽(i)).
@@ -3800,9 +3801,10 @@ impl ArrayPrototype {
             // b. Perform ! CreateDataPropertyOrThrow(A, Pi, E).
             unwrap_try(try_create_data_property_or_throw(
                 agent,
-                scoped_a.get(agent),
+                local_a,
                 pi,
-                e.get(agent).unbind(),
+                // SAFETY: not shared.
+                unsafe { e.take(agent) },
                 None,
                 gc.nogc(),
             ));
@@ -3833,9 +3835,9 @@ impl ArrayPrototype {
             // f. Set r to r + 1.
             r += 1;
         }
-        let a = scoped_a.get(agent);
         // 19. Return A.
-        Ok(a.into_value())
+        // SAFETY: not shared.
+        Ok(unsafe { scoped_a.take(agent) }.into_value())
     }
 
     /// ### [23.1.3.36 Array.prototype.toString ( )](https://tc39.es/ecma262/#sec-array.prototype.tostring)

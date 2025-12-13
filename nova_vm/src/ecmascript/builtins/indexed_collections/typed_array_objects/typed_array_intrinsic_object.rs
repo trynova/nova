@@ -301,8 +301,8 @@ impl TypedArrayIntrinsicObject {
             // f. Set k to k + 1.
             k += 1;
         }
-        let target_obj = scoped_target_obj.get(agent);
-        Ok(target_obj.into_value())
+        // SAFETY: not shared.
+        Ok(unsafe { scoped_target_obj.take(agent) }.into_value())
     }
 
     /// ### [23.2.2.2 %TypedArray%.of ( ...items )](https://tc39.es/ecma262/#sec-properties-of-the-%typedarray%-intrinsic-object)
