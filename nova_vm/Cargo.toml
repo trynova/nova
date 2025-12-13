@@ -39,6 +39,7 @@ sonic-rs = { workspace = true, optional = true }
 unicode-normalization = { workspace = true }
 usdt = { workspace = true }
 wtf8 = { workspace = true }
+xsum = { workspace = true }
 
 [features]
 default = [
@@ -80,15 +81,12 @@ annex-b-regexp = ["regexp"]
 # Enables all currently supported proposals
 proposals = [
     "proposal-float16array",
-    "proposal-math-sum",
     "proposal-math-clamp",
     "proposal-is-error",
     "proposal-atomics-microwait",
 ]
 # Enables the [Float16Array proposal](https://tc39.es/proposal-float16array/)
 proposal-float16array = ["array-buffer"]
-# Enables the [Math.sumPrecise proposal](https://tc39.es/proposal-math-sum/)
-proposal-math-sum = ["math"]
 # Enables the [Math.clamp proposal](https://tc39.es/proposal-math-clamp/)
 proposal-math-clamp = ["math"]
 # Enables the [Error.isError proposal](https://tc39.es/proposal-is-error/)
