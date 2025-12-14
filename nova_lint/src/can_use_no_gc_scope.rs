@@ -21,7 +21,8 @@ dylint_linting::declare_late_lint! {
     /// ### Why is this bad?
     ///
     /// You usually should use `NoGcScope` instead of `GcScope` if you don't
-    /// need the latter.
+    /// need the latter. The reason this is bad is that it forces the caller
+    /// to scope any heap references held past the call site unnecessarily.
     ///
     /// ### Example
     ///

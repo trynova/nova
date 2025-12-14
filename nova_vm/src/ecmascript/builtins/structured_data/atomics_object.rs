@@ -1674,6 +1674,10 @@ impl WaitAsyncJob {
         self.0._has_timeout
     }
 
+    // NOTE: The reason for using `GcScope` here even though we could've gotten
+    // away with `NoGcScope` is that this is essentially a trait impl method,
+    // but currently without the trait. The job trait will be added eventually
+    // and we can get rid of this lint exception.
     #[allow(unknown_lints, can_use_no_gc_scope)]
     pub(crate) fn run<'gc>(self, agent: &mut Agent, gc: GcScope) -> JsResult<'gc, ()> {
         let gc = gc.into_nogc();

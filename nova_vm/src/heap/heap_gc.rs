@@ -1221,6 +1221,8 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
     ndt::gc_done!(|| ());
 }
 
+// NOTE: This is the one true use of the `GcScope` which is why we allow a lint
+// exception here. For future reference see [this comment](https://github.com/trynova/nova/pull/913#discussion_r2616482397).
 #[allow(unknown_lints, can_use_no_gc_scope)]
 fn sweep(
     agent: &mut Agent,
