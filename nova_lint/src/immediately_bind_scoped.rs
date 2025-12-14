@@ -1,10 +1,11 @@
-use std::ops::ControlFlow;
+use std::{fmt::Display, ops::ControlFlow};
 
 use crate::{is_scoped_ty, method_call};
 use clippy_utils::{
     diagnostics::span_lint_and_help,
-    get_enclosing_block, get_parent_expr, path_to_local_id,
+    get_enclosing_block, get_parent_expr,
     paths::{PathNS, lookup_path_str},
+    res::MaybeResPath,
     ty::implements_trait,
     visitors::for_each_expr,
 };
@@ -16,11 +17,14 @@ use rustc_middle::ty::Ty;
 dylint_linting::declare_late_lint! {
     /// ### What it does
     ///
-    /// Makes sure that the user immediately binds `Scoped<Value>::get` results.
+    /// Makes sure that the user immediately binds `Scoped<Value>::get` and
+    /// `Scoped<Value>::take` results.
     ///
     /// ### Why is this bad?
     ///
-    /// TODO: Write an explanation of why this is bad.
+    /// To avoid odd bugs with the garbage collector when dealing with scoped
+    /// values, it is important that `Scoped<Value>::get` and
+    /// `Scoped<Value>::take` results are immediately bound.
     ///
     /// ### Example
     ///
@@ -48,13 +52,13 @@ dylint_linting::declare_late_lint! {
     /// `Value`s immediately.
     pub IMMEDIATELY_BIND_SCOPED,
     Deny,
-    "the result of `Scoped<Value>::get` should be immediately bound"
+    "the result of `Scoped<Value>::get` or `Scoped<Value>::take` should be immediately bound"
 }
 
 impl<'tcx> LateLintPass<'tcx> for ImmediatelyBindScoped {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expr: &'tcx Expr<'tcx>) {
-        // First we check if we have found a `Scoped<Value>::get` call
-        if is_scoped_get_method_call(cx, expr) {
+        // First we check if we have found a `Scoped<Value>::get` or `Scoped<Value>::take` call
+        if let Some(scoped_method) = is_scoped_get_or_take_method_call(cx, expr) {
             // Which is followed by a trait method call to `bind` in which case
             // it is all done properly and we can exit out of the lint.
             if let Some(parent) = get_parent_expr(cx, expr)
@@ -97,7 +101,7 @@ impl<'tcx> LateLintPass<'tcx> for ImmediatelyBindScoped {
                     // of the value, breaking when found and optionally marking
                     // it as valid.
                     if for_each_expr(cx, stmt_expr, |expr_in_stmt| {
-                        if path_to_local_id(expr_in_stmt, local_hir_id) {
+                        if expr_in_stmt.res_local_id() == Some(local_hir_id) {
                             if is_valid_use_of_unbound_value(cx, expr_in_stmt, local_hir_id) {
                                 found_valid_next_use = true;
                             }
@@ -117,7 +121,10 @@ impl<'tcx> LateLintPass<'tcx> for ImmediatelyBindScoped {
                         cx,
                         IMMEDIATELY_BIND_SCOPED,
                         expr.span,
-                        "the result of `Scoped<Value>::get` should be immediately bound",
+                        format!(
+                            "the result of `Scoped<Value>::{}` should be immediately bound",
+                            scoped_method
+                        ),
                         None,
                         "immediately bind the value",
                     );
@@ -142,7 +149,8 @@ fn get_assigned_local(cx: &LateContext<'_>, expr: &Expr) -> Option<HirId> {
     }
 }
 
-/// Check if a use of an unbound value is valid (binding or function argument)
+/// Check if a use of an unbound value is valid, this is either by being a
+/// binding or function argument, or in the return position of a function.
 fn is_valid_use_of_unbound_value(cx: &LateContext<'_>, expr: &Expr, hir_id: HirId) -> bool {
     // Check if we're in a method call and if so, check if it's a bind call
     if let Some(parent) = get_parent_expr(cx, expr)
@@ -157,12 +165,12 @@ fn is_valid_use_of_unbound_value(cx: &LateContext<'_>, expr: &Expr, hir_id: HirI
     }
 
     // If this is the local being used as a function argument, it's valid
-    if path_to_local_id(expr, hir_id) && is_in_argument_position(cx, expr) {
+    if expr.res_local_id() == Some(hir_id) && is_in_argument_position(cx, expr) {
         return true;
     }
 
     // If this is the self value of a method call, it's valid
-    if path_to_local_id(expr, hir_id) && is_in_self_position(cx, expr) {
+    if expr.res_local_id() == Some(hir_id) && is_in_self_position(cx, expr) {
         return true;
     }
 
@@ -174,16 +182,12 @@ fn is_in_self_position(cx: &LateContext<'_>, expr: &Expr) -> bool {
 
     // Walk up the parent chain to see if we're in a method call
     while let Some(parent) = get_parent_expr(cx, current_expr) {
-        match parent.kind {
-            // If we find a method call where our expression is in the receiver position
-            ExprKind::MethodCall(_, receiver, args, _) => {
-                if receiver.hir_id == current_expr.hir_id {
-                    return true;
-                }
+        // If we find a method call where our expression is in the receiver position
+        if let ExprKind::MethodCall(_, receiver, _, _) = parent.kind
+            && receiver.hir_id == current_expr.hir_id {
+                return true;
             }
-            // Continue walking up for other expression types
-            _ => {}
-        }
+            // Else continue walking up for other expression types
         current_expr = parent;
     }
 
@@ -220,16 +224,33 @@ fn is_in_argument_position(cx: &LateContext<'_>, expr: &Expr) -> bool {
     false
 }
 
-fn is_scoped_get_method_call(cx: &LateContext<'_>, expr: &Expr) -> bool {
+enum ScopedMethod {
+    Get,
+    Take,
+}
+
+impl Display for ScopedMethod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ScopedMethod::Get => write!(f, "get"),
+            ScopedMethod::Take => write!(f, "take"),
+        }
+    }
+}
+
+fn is_scoped_get_or_take_method_call(cx: &LateContext<'_>, expr: &Expr) -> Option<ScopedMethod> {
     if let Some((method, recv, _, _, _)) = method_call(expr)
-        && method == "get"
         && let typeck_results = cx.typeck_results()
         && let recv_ty = typeck_results.expr_ty(recv)
         && is_scoped_ty(cx, &recv_ty)
     {
-        true
+        match method {
+            "get" => Some(ScopedMethod::Get),
+            "take" => Some(ScopedMethod::Take),
+            _ => None,
+        }
     } else {
-        false
+        None
     }
 }
 

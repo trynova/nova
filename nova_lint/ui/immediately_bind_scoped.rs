@@ -3,8 +3,8 @@
 use nova_vm::{
     ecmascript::{execution::Agent, types::Value},
     engine::{
-        context::{Bindable, GcScope, NoGcScope},
         Scoped,
+        context::{Bindable, NoGcScope},
     },
 };
 
