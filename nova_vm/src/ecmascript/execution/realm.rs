@@ -453,7 +453,7 @@ pub(crate) fn set_default_global_bindings<'a>(
             .get_this_binding(agent)
             .into_value()
             .unbind();
-        define_property!(globalThis, value, None, None, None);
+        define_property!(globalThis, value, Some(true), Some(false), Some(true));
 
         // 19.1.2 Infinity
         let value = Number::from_f64(agent, f64::INFINITY, gc.nogc())
