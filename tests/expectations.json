@@ -6088,7 +6088,6 @@
   "built-ins/WeakMap/prototype/getOrInsertComputed/returns-value-if-key-is-present-symbol-key.js": "FAIL",
   "built-ins/WeakRef/proto-from-ctor-realm.js": "FAIL",
   "built-ins/WeakSet/proto-from-ctor-realm.js": "FAIL",
-  "built-ins/global/property-descriptor.js": "FAIL",
   "harness/assert-throws-same-realm.js": "FAIL",
   "harness/asyncHelpers-throwsAsync-same-realm.js": "FAIL",
   "harness/nativeFunctionMatcher.js": "FAIL",
