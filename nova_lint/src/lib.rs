@@ -9,7 +9,9 @@ extern crate rustc_ast_pretty;
 extern crate rustc_data_structures;
 extern crate rustc_errors;
 extern crate rustc_hir;
+extern crate rustc_hir_analysis;
 extern crate rustc_hir_pretty;
+extern crate rustc_hir_typeck;
 extern crate rustc_index;
 extern crate rustc_infer;
 extern crate rustc_lexer;
@@ -23,6 +25,7 @@ extern crate rustc_target;
 extern crate rustc_trait_selection;
 
 mod agent_comes_first;
+mod can_use_no_gc_scope;
 mod gc_scope_comes_last;
 mod gc_scope_is_only_passed_by_value;
 mod no_it_performs_the_following;
@@ -35,6 +38,7 @@ pub(crate) use utils::*;
 #[unsafe(no_mangle)]
 pub fn register_lints(sess: &rustc_session::Session, lint_store: &mut rustc_lint::LintStore) {
     agent_comes_first::register_lints(sess, lint_store);
+    can_use_no_gc_scope::register_lints(sess, lint_store);
     gc_scope_comes_last::register_lints(sess, lint_store);
     gc_scope_is_only_passed_by_value::register_lints(sess, lint_store);
     no_it_performs_the_following::register_lints(sess, lint_store);

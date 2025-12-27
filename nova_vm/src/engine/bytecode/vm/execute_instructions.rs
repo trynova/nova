@@ -82,10 +82,9 @@ pub(super) fn execute_array_create<'gc>(
     agent: &mut Agent,
     vm: &mut Vm,
     instr: Instr,
-    gc: GcScope<'gc, '_>,
+    gc: NoGcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let result =
-        array_create(agent, 0, instr.get_first_index(), None, gc.into_nogc())?.into_value();
+    let result = array_create(agent, 0, instr.get_first_index(), None, gc)?.into_value();
     vm.result = Some(result.unbind());
     Ok(())
 }
@@ -145,13 +144,13 @@ pub(super) fn execute_array_elision<'gc>(
 pub(super) fn execute_bitwise_not<'gc>(
     agent: &mut Agent,
     vm: &mut Vm,
-    gc: GcScope<'gc, '_>,
+    gc: NoGcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
     // 2. Let oldValue be ? ToNumeric(? GetValue(expr)).
     // Note: This step is a separate instruction.
     let old_value = Numeric::try_from(vm.result.take().unwrap())
         .unwrap()
-        .bind(gc.nogc());
+        .bind(gc);
 
     // 3. If oldValue is a Number, then
     if let Ok(old_value) = Number::try_from(old_value) {
@@ -250,9 +249,9 @@ fn execute_resolve_binding_with_cache_cold<'gc>(
 pub(super) fn execute_resolve_this_binding<'gc>(
     agent: &mut Agent,
     vm: &mut Vm,
-    gc: GcScope<'gc, '_>,
+    gc: NoGcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let this = resolve_this_binding(agent, gc.into_nogc())?.unbind();
+    let this = resolve_this_binding(agent, gc)?.unbind();
     vm.result = Some(this);
     Ok(())
 }
@@ -346,10 +345,10 @@ fn execute_to_numeric_cold<'gc>(
 pub(super) fn execute_to_object<'gc>(
     agent: &mut Agent,
     vm: &mut Vm,
-    gc: GcScope<'gc, '_>,
+    gc: NoGcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
     vm.result = Some(
-        to_object(agent, vm.result.unwrap(), gc.into_nogc())?
+        to_object(agent, vm.result.unwrap(), gc)?
             .into_value()
             .unbind(),
     );

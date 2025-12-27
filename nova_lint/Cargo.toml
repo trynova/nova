@@ -17,6 +17,10 @@ name = "agent_comes_first"
 path = "ui/agent_comes_first.rs"
 
 [[example]]
+name = "can_use_no_gc_scope"
+path = "ui/can_use_no_gc_scope.rs"
+
+[[example]]
 name = "gc_scope_comes_last"
 path = "ui/gc_scope_comes_last.rs"
 

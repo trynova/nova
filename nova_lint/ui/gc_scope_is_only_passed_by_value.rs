@@ -1,4 +1,10 @@
-#![allow(dead_code, unused_variables, clippy::disallowed_names)]
+#![allow(
+    dead_code,
+    unused_variables,
+    clippy::disallowed_names,
+    unknown_lints,
+    can_use_no_gc_scope
+)]
 
 type GcScope<'a, 'b> = nova_vm::engine::context::GcScope<'a, 'b>;
 type NoGcScope<'a, 'b> = nova_vm::engine::context::NoGcScope<'a, 'b>;
