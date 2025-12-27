@@ -365,23 +365,28 @@ pub(crate) fn is_less_than<'a, const LEFT_FIRST: bool>(
     let (px, py, gc) = match (Primitive::try_from(x.into()), Primitive::try_from(y.into())) {
         (Ok(px), Ok(py)) => {
             let gc = gc.into_nogc();
-            (px.bind(gc), py.bind(gc), gc)
+            let px = px.bind(gc);
+            let py = py.bind(gc);
+            (px, py, gc)
         }
         (Ok(px), Err(_)) => {
             let px = px.scope(agent, gc.nogc());
             let py = to_primitive(agent, y.into(), Some(PreferredType::Number), gc.reborrow())
                 .unbind()?;
             let gc = gc.into_nogc();
-            let px = px.get(agent);
-            (px.bind(gc), py.bind(gc), gc)
+            let px = px.get(agent).bind(gc);
+            let py = py.bind(gc);
+            (px, py, gc)
         }
         (Err(_), Ok(py)) => {
             let py = py.scope(agent, gc.nogc());
             let px = to_primitive(agent, x.into(), Some(PreferredType::Number), gc.reborrow())
                 .unbind()?;
             let gc = gc.into_nogc();
-            let py = py.get(agent);
-            (px.bind(gc), py.bind(gc), gc)
+            let px = px.bind(gc);
+            // SAFETY: not shared.
+            let py = unsafe { py.take(agent) }.bind(gc);
+            (px, py, gc)
         }
         (Err(_), Err(_)) => {
             if LEFT_FIRST {
@@ -392,17 +397,22 @@ pub(crate) fn is_less_than<'a, const LEFT_FIRST: bool>(
                 let y = y.scope(agent, gc.nogc());
                 let px = to_primitive(agent, x.into(), Some(PreferredType::Number), gc.reborrow())
                     .unbind()?
-                    .scope(agent, gc.nogc());
+                    .bind(gc.nogc());
+                let py = y.get(agent).bind(gc.nogc());
+                // SAFETY: not shared.
+                let px = unsafe { y.replace_self(agent, px.unbind()) };
                 let py = to_primitive(
                     agent,
-                    y.get(agent),
+                    py.unbind(),
                     Some(PreferredType::Number),
                     gc.reborrow(),
                 )
                 .unbind()?;
                 let gc = gc.into_nogc();
-                let px = px.get(agent);
-                (px.bind(gc), py.bind(gc), gc)
+                // SAFETY: not shared.
+                let px = unsafe { px.take(agent) }.bind(gc);
+                let py = py.bind(gc);
+                (px, py, gc)
             } else {
                 // 2. Else,
                 // a. NOTE: The order of evaluation needs to be reversed to preserve left to right evaluation.
@@ -412,17 +422,21 @@ pub(crate) fn is_less_than<'a, const LEFT_FIRST: bool>(
                 let x = x.scope(agent, gc.nogc());
                 let py = to_primitive(agent, y.into(), Some(PreferredType::Number), gc.reborrow())
                     .unbind()?
-                    .scope(agent, gc.nogc());
+                    .bind(gc.nogc());
+                let px = x.get(agent).bind(gc.nogc());
+                // SAFETY: not shared.
+                let py = unsafe { x.replace_self(agent, py.unbind()) };
                 let px = to_primitive(
                     agent,
-                    x.get(agent),
+                    px.unbind(),
                     Some(PreferredType::Number),
                     gc.reborrow(),
                 )
                 .unbind()?;
                 let gc = gc.into_nogc();
-                let py = py.get(agent);
-                (px.bind(gc), py.bind(gc), gc)
+                let px = px.bind(gc);
+                let py = unsafe { py.take(agent) }.bind(gc);
+                (px, py, gc)
             }
         }
     };

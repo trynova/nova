@@ -917,8 +917,8 @@ pub(crate) fn ordinary_get<'gc>(
     let object = object.bind(gc.nogc());
     let property_key = property_key.bind(gc.nogc());
     // Note: We scope here because it's likely we've already tried.
-    let scoped_object = object.scope(agent, gc.nogc());
     let scoped_property_key = property_key.scope(agent, gc.nogc());
+    let scoped_object = object.scope(agent, gc.nogc());
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
     let Some(descriptor) = object
         .unbind()
@@ -929,17 +929,16 @@ pub(crate) fn ordinary_get<'gc>(
         // 2. If desc is undefined, then
 
         // a. Let parent be ? O.[[GetPrototypeOf]]().
-        let object = scoped_object.get(agent).bind(gc.nogc());
+        // SAFETY: not shared.
+        let object = unsafe { scoped_object.take(agent) }.bind(gc.nogc());
         let (parent, property_key, receiver) =
             if let TryResult::Continue(parent) = object.try_get_prototype_of(agent, gc.nogc()) {
                 let Some(parent) = parent else {
                     return Ok(Value::Undefined);
                 };
-                (
-                    parent,
-                    scoped_property_key.get(agent).bind(gc.nogc()),
-                    receiver,
-                )
+                // SAFETY: not shared.
+                let property_key = unsafe { scoped_property_key.take(agent) }.bind(gc.nogc());
+                (parent, property_key, receiver)
             } else {
                 // Note: We should root property_key and receiver here.
                 let receiver = receiver.scope(agent, gc.nogc());
@@ -952,18 +951,17 @@ pub(crate) fn ordinary_get<'gc>(
                     return Ok(Value::Undefined);
                 };
                 let parent = parent.unbind().bind(gc.nogc());
-                let receiver = receiver.get(agent);
-                (
-                    parent,
-                    scoped_property_key.get(agent).bind(gc.nogc()),
-                    receiver,
-                )
+                // SAFETY: not shared.
+                let receiver = unsafe { receiver.take(agent) }.bind(gc.nogc());
+                // SAFETY: not shared.
+                let property_key = unsafe { scoped_property_key.take(agent) }.bind(gc.nogc());
+                (parent, property_key, receiver)
             };
 
         // c. Return ? parent.[[Get]](P, Receiver).
         return parent
             .unbind()
-            .internal_get(agent, property_key.unbind(), receiver, gc);
+            .internal_get(agent, property_key.unbind(), receiver.unbind(), gc);
     };
 
     // 3. If IsDataDescriptor(desc) is true, return desc.[[Value]].

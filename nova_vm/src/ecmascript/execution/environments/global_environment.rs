@@ -607,14 +607,17 @@ impl<'e> GlobalEnvironment<'e> {
                 .unbind()
                 .delete_binding(agent, scoped_name.get(agent), gc.reborrow())
                 .unbind()?;
-            let env = unsafe { env.take(agent) }.bind(gc.nogc());
+            let gc = gc.into_nogc();
+            // SAFETY: not shared.
+            let env = unsafe { env.take(agent) }.bind(gc);
             // b. If status is true and envRec.[[VarNames]] contains N, then
             if status {
-                let name = scoped_name.get(agent);
+                // SAFETY: not shared.
+                let name = unsafe { scoped_name.take(agent) }.bind(gc);
                 let env_rec = &mut agent[env];
                 if env_rec.var_names.contains(&name) {
                     // i. Remove N from envRec.[[VarNames]].
-                    env_rec.var_names.remove(&name);
+                    env_rec.var_names.remove(&name.unbind());
                 }
             }
             // c. Return status.
