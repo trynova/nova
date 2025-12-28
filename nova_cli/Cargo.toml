@@ -12,6 +12,14 @@ readme.workspace = true
 keywords.workspace = true
 categories = ["development-tools", "command-line-utilities"]
 
+[lib]
+name = "nova_cli"
+path = "src/lib/lib.rs"
+
+[[bin]]
+name = "nova_cli"
+path = "src/main.rs"
+
 [dependencies]
 clap = { workspace = true }
 cliclack = { workspace = true }
