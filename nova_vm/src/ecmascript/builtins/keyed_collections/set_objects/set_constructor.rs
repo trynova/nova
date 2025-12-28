@@ -18,7 +18,9 @@ use crate::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
-            array::ArrayHeap, ordinary::ordinary_create_from_constructor, set::Set,
+            array::ArrayHeap,
+            keyed_collections::map_objects::map_prototype::canonicalize_keyed_collection_key,
+            ordinary::ordinary_create_from_constructor, set::Set,
         },
         execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
         types::{
@@ -164,7 +166,7 @@ impl SetConstructor {
                     .values
                     .iter()
                     .for_each(|value| {
-                        let value = value.unwrap();
+                        let value = canonicalize_keyed_collection_key(numbers, value.unwrap());
                         let value_hash = hasher(value);
                         let next_index = values.len() as u32;
                         let entry = set_data.entry(
