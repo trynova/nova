@@ -198,7 +198,7 @@ impl<'s, 'gc> PlaceOutput<'s, 'gc> {
         ctx: &mut CompileContext<'_, '_, 'gc, '_>,
     ) -> Result<(), ExpressionError> {
         match self {
-            PlaceOutput::Stack { stack_slot, .. } => {
+            Self::Stack { stack_slot, .. } => {
                 // Variable is stored on the stack. Caching doesn't help here and
                 // we never have a reference to keep here.
                 ctx.add_instruction_with_immediate(
@@ -207,26 +207,26 @@ impl<'s, 'gc> PlaceOutput<'s, 'gc> {
                 );
                 Ok(())
             }
-            PlaceOutput::Global { name } => {
+            Self::Global { name } => {
                 // Variable is stored in the global environment. Caching helps with
                 // these accesses.
                 let cache = ctx.create_property_lookup_cache(name.to_property_key());
                 ctx.add_instruction_with_cache(Instruction::GetValueWithCacheKeepReference, cache);
                 Ok(())
             }
-            PlaceOutput::Member { name: Some(name) } => {
+            Self::Member { name: Some(name) } => {
                 // Property access. Caching helps with these.
                 let cache = ctx.create_property_lookup_cache(*name);
                 ctx.add_instruction_with_cache(Instruction::GetValueWithCacheKeepReference, cache);
                 Ok(())
             }
-            PlaceOutput::Member { .. } | PlaceOutput::Env { .. } => {
+            Self::Member { .. } | Self::Env { .. } => {
                 // Variable is stored in the environment or we don't know the
                 // property name at compile time. Caching doesn't help with these.
                 ctx.add_instruction(Instruction::GetValueKeepReference);
                 Ok(())
             }
-            PlaceOutput::TemporalDeadZone { name } => {
+            Self::TemporalDeadZone { name } => {
                 let message =
                     format!("can't access lexical declaration '{name}' before initialization");
                 let message = ctx.create_string_from_owned(message);
@@ -278,11 +278,41 @@ impl<'s, 'gc> PlaceOutput<'s, 'gc> {
                 ctx.add_instruction_with_cache(Instruction::PutValueWithCache, cache);
                 Ok(())
             }
-            PlaceOutput::Member { .. } | PlaceOutput::Env { .. } => {
+            Self::Member { .. } | Self::Env { .. } => {
                 ctx.add_instruction(Instruction::PutValue);
                 Ok(())
             }
-            PlaceOutput::TemporalDeadZone { name } => {
+            Self::TemporalDeadZone { name } => {
+                let message =
+                    format!("can't access lexical declaration '{name}' before initialization");
+                let message = ctx.create_string_from_owned(message);
+                ctx.add_instruction_with_constant(Instruction::StoreConstant, message);
+                ctx.add_instruction_with_immediate(
+                    Instruction::ThrowError,
+                    ExceptionType::ReferenceError as usize,
+                );
+                Err(ExpressionError::Error)
+            }
+        }
+    }
+
+    fn delete(
+        self,
+        ctx: &mut CompileContext<'_, '_, 'gc, '_>,
+    ) -> Result<ExpressionOutput<'static, 'static>, ExpressionError> {
+        match self {
+            Self::Stack { .. } => {
+                // Delete on a stack variable is only allowed for lexical
+                // declarations, as they always return `false`.
+                ctx.add_instruction_with_constant(Instruction::StoreConstant, false);
+                Ok(false.into())
+            }
+            Self::Global { .. } | Self::Member { .. } | Self::Env { .. } => {
+                ctx.add_instruction(Instruction::Delete);
+                // Can return `true` or `false`.
+                Ok(ExpressionOutput::Value)
+            }
+            Self::TemporalDeadZone { name } => {
                 let message =
                     format!("can't access lexical declaration '{name}' before initialization");
                 let message = ctx.create_string_from_owned(message);
@@ -385,6 +415,17 @@ impl<'s, 'gc> ExpressionOutput<'s, 'gc> {
             }
         }
     }
+
+    fn delete(self, ctx: &mut CompileContext<'_, '_, 'gc, '_>) -> Result<Self, ExpressionError> {
+        match self {
+            ExpressionOutput::Place(place) => place.delete(ctx),
+            _ => {
+                // 2. If ref is not a Reference Record, return true.
+                ctx.add_instruction_with_constant(Instruction::StoreConstant, true);
+                Ok(true.into())
+            }
+        }
+    }
 }
 
 impl<'s, 'gc> From<PlaceOutput<'s, 'gc>> for ExpressionOutput<'s, 'gc> {
@@ -431,18 +472,53 @@ fn variable_escapes_scope(
     if scoping.scope_flags(decl_scope).contains_direct_eval() {
         return true;
     }
+    let decl_id = scoping.symbol_declaration(s);
+    let is_lexical = match nodes.get_node(decl_id).kind() {
+        oxc_ast::AstKind::VariableDeclaration(d) => d.kind.is_lexical(),
+        oxc_ast::AstKind::VariableDeclarator(d) => d.kind.is_lexical(),
+        _ => false,
+    };
     for reference in scoping.get_resolved_references(s) {
-        let mut scope = nodes.get_node(reference.node_id()).scope_id();
-        while scope != decl_scope {
-            let flags = scoping.scope_flags(scope);
-            // TODO: check for with scope as well.
-            if flags.is_var() || flags.contains_direct_eval() {
+        let ref_id = reference.node_id();
+        if is_lexical && ref_id < decl_id {
+            // Reference to a lexical variable happens before the declaration.
+            // We consider this effectively a variable escape.
+            return true;
+        } else if !is_lexical
+            && nodes
+                .get_node(ref_id)
+                .kind()
+                .as_unary_expression()
+                .is_some_and(|expr| expr.operator.is_delete())
+        {
+            // Deleting non-lexical references has effects outside of the
+            // immediate scope and is thus considered escaping.
+            return true;
+        }
+        let mut scope = nodes.get_node(ref_id).scope_id();
+        if scope == decl_scope {
+            // Reference in same scope as declaration; this can be a
+            // self-referential declaration.
+            let mut node = ref_id;
+            while decl_id < node {
+                node = nodes.parent_id(node);
+            }
+            if decl_id == node {
+                // Self-referential declaration; we consider this an escape.
                 return true;
             }
-            let Some(s) = scoping.scope_parent_id(scope) else {
-                panic!("reference in a different scope?")
-            };
-            scope = s;
+        } else {
+            while scope != decl_scope {
+                let flags = scoping.scope_flags(scope);
+                // TODO: check for with scope as well.
+                if flags.is_var() || flags.contains_direct_eval() {
+                    return true;
+                }
+                let Some(s) = scoping.scope_parent_id(scope) else {
+                    panic!("reference in a different scope?")
+                };
+                scope = s;
+            }
         }
     }
     false
@@ -641,13 +717,35 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Identi
         let kind = if let Some(id) = self.reference_id.get() {
             let source_code = ctx.get_source_code();
             let scoping = source_code.get_scoping(ctx.get_agent());
+            let nodes = source_code.get_nodes(ctx.get_agent());
             let reference = scoping.get_reference(id);
             if let Some(s) = reference.symbol_id() {
                 // SymbolId means we might be a global, local, or a stack
                 // variable.
                 if let Some(i) = ctx.get_variable_stack_index(s) {
-                    // We're a stack variable
-                    VariableKind::Stack(i)
+                    // We're a stack variable.
+                    let r#ref = reference.node_id();
+                    let decl_id = scoping.symbol_declaration(s);
+                    if decl_id == r#ref {
+                        // This is the declaration of the identifier.
+                        VariableKind::Stack(i)
+                    } else {
+                        // We might be in the temporal dead-zone.
+                        if r#ref < decl_id {
+                            VariableKind::TemporalDeadZone
+                        } else {
+                            let mut node = r#ref;
+                            while decl_id < node {
+                                node = nodes.parent_id(node);
+                            }
+                            if decl_id == node {
+                                // Self-referential declaration.
+                                VariableKind::TemporalDeadZone
+                            } else {
+                                VariableKind::Stack(i)
+                            }
+                        }
+                    }
                 } else {
                     let scope_id = scoping.symbol_scope_id(s);
                     let scope_flags = scoping.scope_flags(scope_id);
@@ -818,14 +916,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::UnaryE
             // UnaryExpression : delete UnaryExpression
             UnaryOperator::Delete => {
                 // Let ref be ? Evaluation of UnaryExpression.
-                self.argument.compile(ctx)?;
-                // 2. If ref is not a Reference Record, return true.
-                if !is_reference(&self.argument) {
-                    ctx.add_instruction_with_constant(Instruction::StoreConstant, true);
-                    return Ok(ExpressionOutput::Value);
-                }
-                ctx.add_instruction(Instruction::Delete);
-                Ok(ExpressionOutput::Value)
+                self.argument.compile(ctx)?.delete(ctx)
             }
         }
     }
