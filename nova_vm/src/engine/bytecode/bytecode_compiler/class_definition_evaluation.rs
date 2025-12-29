@@ -726,6 +726,9 @@ fn class_has_self_references(class: &ast::Class, ctx: &CompileContext) -> bool {
     let nodes = sc.get_nodes(agent);
     let s = class_binding.symbol_id();
     let class_scope = class.scope_id();
+    if scoping.scope_flags(class_scope).contains_direct_eval() {
+        return true;
+    }
     for reference in scoping.get_resolved_references(s) {
         let mut scope = nodes.get_node(reference.node_id()).scope_id();
         if scope == class_scope {
