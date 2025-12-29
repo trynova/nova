@@ -967,7 +967,11 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     }
 
     pub(crate) fn finish(self) -> Executable<'gc> {
-        debug_assert!(self.control_flow_stack.is_empty());
+        debug_assert!(
+            self.control_flow_stack.is_empty(),
+            "Control flow stack contained: {:?}",
+            self.control_flow_stack
+        );
         self.executable.finish()
     }
 

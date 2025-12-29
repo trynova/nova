@@ -43,7 +43,7 @@ pub(crate) use compile_context::{
 use num_traits::Num;
 use oxc_ast::ast;
 use oxc_ecmascript::BoundNames;
-use oxc_semantic::{ScopeFlags, SymbolFlags};
+use oxc_semantic::{AstNodes, ScopeFlags, SymbolFlags};
 use oxc_syntax::operator::{BinaryOperator, UnaryOperator};
 use template_literals::get_template_object;
 use wtf8::{CodePoint, Wtf8Buf};
@@ -496,29 +496,16 @@ fn variable_escapes_scope(
             return true;
         }
         let mut scope = nodes.get_node(ref_id).scope_id();
-        if scope == decl_scope {
-            // Reference in same scope as declaration; this can be a
-            // self-referential declaration.
-            let mut node = ref_id;
-            while decl_id < node {
-                node = nodes.parent_id(node);
-            }
-            if decl_id == node {
-                // Self-referential declaration; we consider this an escape.
+        while scope != decl_scope {
+            let flags = scoping.scope_flags(scope);
+            // TODO: check for with scope as well.
+            if flags.is_var() || flags.contains_direct_eval() {
                 return true;
             }
-        } else {
-            while scope != decl_scope {
-                let flags = scoping.scope_flags(scope);
-                // TODO: check for with scope as well.
-                if flags.is_var() || flags.contains_direct_eval() {
-                    return true;
-                }
-                let Some(s) = scoping.scope_parent_id(scope) else {
-                    panic!("reference in a different scope?")
-                };
-                scope = s;
-            }
+            let Some(s) = scoping.scope_parent_id(scope) else {
+                panic!("reference in a different scope?")
+            };
+            scope = s;
         }
     }
     false
@@ -717,34 +704,43 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Identi
         let kind = if let Some(id) = self.reference_id.get() {
             let source_code = ctx.get_source_code();
             let scoping = source_code.get_scoping(ctx.get_agent());
-            let nodes = source_code.get_nodes(ctx.get_agent());
             let reference = scoping.get_reference(id);
             if let Some(s) = reference.symbol_id() {
                 // SymbolId means we might be a global, local, or a stack
                 // variable.
                 if let Some(i) = ctx.get_variable_stack_index(s) {
                     // We're a stack variable.
-                    let r#ref = reference.node_id();
+                    let nodes = source_code.get_nodes(ctx.get_agent());
+                    let ref_id = reference.node_id();
                     let decl_id = scoping.symbol_declaration(s);
-                    if decl_id == r#ref {
-                        // This is the declaration of the identifier.
-                        VariableKind::Stack(i)
-                    } else {
-                        // We might be in the temporal dead-zone.
-                        if r#ref < decl_id {
+                    if decl_id == ref_id {
+                        // Reference should never be the declaration itself.
+                        unreachable!();
+                    }
+                    // We might be in the temporal dead-zone.
+                    if ref_id < decl_id {
+                        // Reference before declaration: this is TDZ.
+                        VariableKind::TemporalDeadZone
+                    } else if nodes.get_node(decl_id).scope_id() == scoping.symbol_scope_id(s) {
+                        // If the node comes after the declaration and is in the
+                        // same scope, it's still possible for it to be in the
+                        // TDZ if it is itself within the declaration
+                        // expression. To detect this, we iterate parent nodes
+                        // until we find one that is equal to or before the
+                        // declaration. If we found the declaration this way,
+                        // then this is TDZ.
+                        let mut node = ref_id;
+                        while decl_id < node {
+                            node = nodes.parent_id(node);
+                        }
+                        if decl_id == node {
+                            // Self-referential declaration.
                             VariableKind::TemporalDeadZone
                         } else {
-                            let mut node = r#ref;
-                            while decl_id < node {
-                                node = nodes.parent_id(node);
-                            }
-                            if decl_id == node {
-                                // Self-referential declaration.
-                                VariableKind::TemporalDeadZone
-                            } else {
-                                VariableKind::Stack(i)
-                            }
+                            VariableKind::Stack(i)
                         }
+                    } else {
+                        VariableKind::Stack(i)
                     }
                 } else {
                     let scope_id = scoping.symbol_scope_id(s);
@@ -781,7 +777,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Bindin
         let kind = {
             let s = self.symbol_id();
             if let Some(i) = ctx.get_variable_stack_index(s) {
-                // We're a stack variable
+                // We're a stack variable declaration.
                 VariableKind::Stack(i)
             } else {
                 let source_code = ctx.get_source_code();
