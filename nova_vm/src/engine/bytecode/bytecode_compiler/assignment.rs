@@ -315,25 +315,85 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
 {
     type Output = Result<(), ExpressionError>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
-        let jump_to_iterator_pop = ctx.push_sync_iterator();
-        let jump_to_iterator_close_handler = ctx.enter_array_destructuring();
-        for element in &self.elements {
-            if let Some(element) = element {
-                // AssignmentElement : DestructuringAssignmentTarget Initializer (opt)
+        let sync_iterator = ctx.push_sync_iterator();
+        let array_destructuring = ctx.enter_array_destructuring();
+        let mut result = Ok(());
+        'args: {
+            for element in &self.elements {
+                if let Some(element) = element {
+                    // AssignmentElement : DestructuringAssignmentTarget Initializer (opt)
 
-                // 1. If DestructuringAssignmentTarget is neither an
-                //    ObjectLiteral nor an ArrayLiteral, then
-                if let ast::AssignmentTargetMaybeDefault::AssignmentTargetWithDefault(element) =
-                    element
-                {
-                    // a. Let lRef be ? Evaluation of DestructuringAssignmentTarget.
-                    if let Some(binding) = element.binding.as_simple_assignment_target() {
-                        let lref = binding.compile(ctx)?;
-                        let needs_push_reference =
-                            lref.has_reference() && !element.init.is_literal();
-                        if needs_push_reference {
-                            ctx.add_instruction(Instruction::PushReference);
+                    // 1. If DestructuringAssignmentTarget is neither an
+                    //    ObjectLiteral nor an ArrayLiteral, then
+                    if let ast::AssignmentTargetMaybeDefault::AssignmentTargetWithDefault(element) =
+                        element
+                    {
+                        // a. Let lRef be ? Evaluation of DestructuringAssignmentTarget.
+                        if let Some(binding) = element.binding.as_simple_assignment_target() {
+                            let lref = match binding.compile(ctx) {
+                                Ok(l) => l,
+                                Err(e) => {
+                                    result = Err(e);
+                                    break 'args;
+                                }
+                            };
+                            let needs_push_reference =
+                                lref.has_reference() && !element.init.is_literal();
+                            if needs_push_reference {
+                                ctx.add_instruction(Instruction::PushReference);
+                            }
+                            // 2. Let value be undefined.
+                            // 3. If iteratorRecord.[[Done]] is false, then
+                            // a. Let next be ? IteratorStepValue(iteratorRecord).
+                            ctx.add_instruction(Instruction::IteratorStepValueOrUndefined);
+                            // b. If next is not done, then
+                            // i. Set value to next.
+                            // 4. If Initializer is present and value is undefined, then
+                            //    ...
+                            compile_initializer(element, ctx);
+                            if needs_push_reference {
+                                ctx.add_instruction(Instruction::PopReference);
+                            }
+                            // 7. Return ? PutValue(lRef, v).
+                            if let Err(e) = lref.put_value(ctx, ExpressionOutput::Value) {
+                                result = Err(e);
+                                break 'args;
+                            }
+                        } else {
+                            // 2. Let value be undefined.
+                            // 3. If iteratorRecord.[[Done]] is false, then
+                            // a. Let next be ? IteratorStepValue(iteratorRecord).
+                            ctx.add_instruction(Instruction::IteratorStepValueOrUndefined);
+                            // b. If next is not done, then
+                            // i. Set value to next.
+                            // 4. If Initializer is present and value is undefined, then
+                            //    ...
+                            compile_initializer(element, ctx);
+                            // 5. Else,
+                            // a. Let v be value.
+                            // 6. If DestructuringAssignmentTarget is either an
+                            //    ObjectLiteral or an ArrayLiteral, then
+                            // a. Let nestedAssignmentPattern be the
+                            //    AssignmentPattern that is covered by
+                            //    DestructuringAssignmentTarget.
+                            let nested_assignment_pattern =
+                                element.binding.to_assignment_target_pattern();
+                            // b. Return ? DestructuringAssignmentEvaluation of
+                            //    nestedAssignmentPattern with argument v.
+                            if let Err(e) = nested_assignment_pattern.compile(ctx) {
+                                result = Err(e);
+                                break 'args;
+                            }
                         }
+                    } else if let Some(element) = element.as_simple_assignment_target() {
+                        // a. Let lRef be ? Evaluation of DestructuringAssignmentTarget.
+                        let lref = match element.compile(ctx) {
+                            Ok(l) => l,
+                            Err(e) => {
+                                result = Err(e);
+                                break 'args;
+                            }
+                        };
                         // 2. Let value be undefined.
                         // 3. If iteratorRecord.[[Done]] is false, then
                         // a. Let next be ? IteratorStepValue(iteratorRecord).
@@ -342,12 +402,13 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                         // i. Set value to next.
                         // 4. If Initializer is present and value is undefined, then
                         //    ...
-                        compile_initializer(element, ctx);
-                        if needs_push_reference {
-                            ctx.add_instruction(Instruction::PopReference);
-                        }
+                        // 5. Else,
+                        // a. Let v be value.
                         // 7. Return ? PutValue(lRef, v).
-                        lref.put_value(ctx, ExpressionOutput::Value)?;
+                        if let Err(e) = lref.put_value(ctx, ExpressionOutput::Value) {
+                            result = Err(e);
+                            break 'args;
+                        }
                     } else {
                         // 2. Let value be undefined.
                         // 3. If iteratorRecord.[[Done]] is false, then
@@ -357,86 +418,64 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                         // i. Set value to next.
                         // 4. If Initializer is present and value is undefined, then
                         //    ...
-                        compile_initializer(element, ctx);
                         // 5. Else,
                         // a. Let v be value.
-                        // 6. If DestructuringAssignmentTarget is either an
-                        //    ObjectLiteral or an ArrayLiteral, then
-                        // a. Let nestedAssignmentPattern be the
-                        //    AssignmentPattern that is covered by
-                        //    DestructuringAssignmentTarget.
-                        let nested_assignment_pattern =
-                            element.binding.to_assignment_target_pattern();
-                        // b. Return ? DestructuringAssignmentEvaluation of
-                        //    nestedAssignmentPattern with argument v.
-                        nested_assignment_pattern.compile(ctx)?;
+                        // 6. If DestructuringAssignmentTarget is either an ObjectLiteral or an ArrayLiteral, then
+                        // a. Let nestedAssignmentPattern be the AssignmentPattern that is covered by DestructuringAssignmentTarget.
+                        // b. Return ? DestructuringAssignmentEvaluation of nestedAssignmentPattern with argument v.
+                        let nested_assignment_pattern = element.to_assignment_target_pattern();
+                        if let Err(e) = nested_assignment_pattern.compile(ctx) {
+                            result = Err(e);
+                            break 'args;
+                        }
                     }
-                } else if let Some(element) = element.as_simple_assignment_target() {
-                    // a. Let lRef be ? Evaluation of DestructuringAssignmentTarget.
-                    let lref = element.compile(ctx)?;
-                    // 2. Let value be undefined.
-                    // 3. If iteratorRecord.[[Done]] is false, then
-                    // a. Let next be ? IteratorStepValue(iteratorRecord).
-                    ctx.add_instruction(Instruction::IteratorStepValueOrUndefined);
-                    // b. If next is not done, then
-                    // i. Set value to next.
-                    // 4. If Initializer is present and value is undefined, then
-                    //    ...
-                    // 5. Else,
-                    // a. Let v be value.
-                    // 7. Return ? PutValue(lRef, v).
-                    lref.put_value(ctx, ExpressionOutput::Value)?;
                 } else {
-                    // 2. Let value be undefined.
-                    // 3. If iteratorRecord.[[Done]] is false, then
-                    // a. Let next be ? IteratorStepValue(iteratorRecord).
+                    // Elision : ,
+                    // 1. If iteratorRecord.[[Done]] is false, then
+                    // a. Perform ? IteratorStep(iteratorRecord).
                     ctx.add_instruction(Instruction::IteratorStepValueOrUndefined);
-                    // b. If next is not done, then
-                    // i. Set value to next.
-                    // 4. If Initializer is present and value is undefined, then
-                    //    ...
-                    // 5. Else,
-                    // a. Let v be value.
-                    // 6. If DestructuringAssignmentTarget is either an ObjectLiteral or an ArrayLiteral, then
-                    // a. Let nestedAssignmentPattern be the AssignmentPattern that is covered by DestructuringAssignmentTarget.
-                    // b. Return ? DestructuringAssignmentEvaluation of nestedAssignmentPattern with argument v.
-                    let nested_assignment_pattern = element.to_assignment_target_pattern();
-                    nested_assignment_pattern.compile(ctx)?;
+                    // 2. Return unused.
                 }
-            } else {
-                // Elision : ,
-                // 1. If iteratorRecord.[[Done]] is false, then
-                // a. Perform ? IteratorStep(iteratorRecord).
-                ctx.add_instruction(Instruction::IteratorStepValueOrUndefined);
-                // 2. Return unused.
             }
-        }
-        if let Some(rest) = &self.rest {
-            if let Some(target) = rest.target.as_simple_assignment_target() {
-                // 1. If DestructuringAssignmentTarget is neither an
-                //    ObjectLiteral nor an ArrayLiteral, then
-                // a. Let lRef be ? Evaluation of
-                //    DestructuringAssignmentTarget.
-                let lref = target.compile(ctx)?;
-                ctx.add_instruction(Instruction::IteratorRestIntoArray);
-                // a. Return ? PutValue(lRef, A).
-                lref.put_value(ctx, ExpressionOutput::Value)?;
-            } else {
-                // 5. If DestructuringAssignmentTarget is neither an
-                //    ObjectLiteral nor an ArrayLiteral, then
-                ctx.add_instruction(Instruction::IteratorRestIntoArray);
-                // 6. Let nestedAssignmentPattern be the AssignmentPattern that
-                //    is covered by DestructuringAssignmentTarget.
-                let nested_assignment_pattern = rest.target.to_assignment_target_pattern();
-                // 7. Return ? DestructuringAssignmentEvaluation of
-                //    nestedAssignmentPattern with argument A.
-                nested_assignment_pattern.compile(ctx)?;
+            if let Some(rest) = &self.rest {
+                if let Some(target) = rest.target.as_simple_assignment_target() {
+                    // 1. If DestructuringAssignmentTarget is neither an
+                    //    ObjectLiteral nor an ArrayLiteral, then
+                    // a. Let lRef be ? Evaluation of
+                    //    DestructuringAssignmentTarget.
+                    let lref = match target.compile(ctx) {
+                        Ok(l) => l,
+                        Err(e) => {
+                            result = Err(e);
+                            break 'args;
+                        }
+                    };
+                    ctx.add_instruction(Instruction::IteratorRestIntoArray);
+                    // a. Return ? PutValue(lRef, A).
+                    if let Err(e) = lref.put_value(ctx, ExpressionOutput::Value) {
+                        result = Err(e);
+                        break 'args;
+                    }
+                } else {
+                    // 5. If DestructuringAssignmentTarget is neither an
+                    //    ObjectLiteral nor an ArrayLiteral, then
+                    ctx.add_instruction(Instruction::IteratorRestIntoArray);
+                    // 6. Let nestedAssignmentPattern be the AssignmentPattern that
+                    //    is covered by DestructuringAssignmentTarget.
+                    let nested_assignment_pattern = rest.target.to_assignment_target_pattern();
+                    // 7. Return ? DestructuringAssignmentEvaluation of
+                    //    nestedAssignmentPattern with argument A.
+                    if let Err(e) = nested_assignment_pattern.compile(ctx) {
+                        result = Err(e);
+                        break 'args;
+                    }
+                }
             }
         }
         // Note: An error during IteratorClose should not jump into
         // IteratorCloseWithError, hence we pop exception jump target here.
-        ctx.exit_array_destructuring();
-        ctx.pop_iterator_stack();
+        let jump_to_iterator_close_handler = array_destructuring.exit(ctx);
+        let jump_to_iterator_pop = sync_iterator.exit(ctx);
         let jump_over_catch = ctx.add_instruction_with_jump_slot(Instruction::Jump);
         // 3. If status is an abrupt completion, then
         {
@@ -451,7 +490,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
             ctx.add_instruction(Instruction::Throw);
         }
         ctx.set_jump_target_here(jump_over_catch);
-        Ok(())
+        result
     }
 }
 

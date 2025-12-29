@@ -4,8 +4,10 @@
 
 use super::{CompileContext, CompileEvaluation, CompileLabelledEvaluation, Instruction, JumpIndex};
 use crate::{
-    ecmascript::types::{String, Value},
-    engine::bytecode::bytecode_compiler::{ExpressionError, ExpressionOutput},
+    ecmascript::types::{Primitive, String, Value},
+    engine::bytecode::bytecode_compiler::{
+        ExpressionError, ExpressionOutput, compile_context::IteratorStackEntry,
+    },
 };
 use oxc_ast::ast;
 use oxc_ecmascript::BoundNames;
@@ -29,13 +31,13 @@ fn for_in_of_head_evaluation<'s, 'gc>(
     uninitialized_bound_names: Vec<String<'gc>>,
     expr: &'s ast::Expression<'s>,
     iteration_kind: IterationKind,
-) -> Result<(JumpIndex, Option<JumpIndex>), ExpressionError> {
+) -> Result<(IteratorStackEntry, Option<JumpIndex>), ExpressionError> {
     // 1. Let oldEnv be the running execution context's LexicalEnvironment.
     // 2. If uninitializedBoundNames is not empty, then
-    if !uninitialized_bound_names.is_empty() {
+    let new_env = if !uninitialized_bound_names.is_empty() {
         // a. Assert: uninitializedBoundNames has no duplicate entries.
         // b. Let newEnv be NewDeclarativeEnvironment(oldEnv).
-        ctx.enter_lexical_scope();
+        let new_env = ctx.enter_lexical_scope();
 
         // c. For each String name of uninitializedBoundNames, do
         for name in uninitialized_bound_names.iter() {
@@ -46,40 +48,56 @@ fn for_in_of_head_evaluation<'s, 'gc>(
             );
         }
         // d. Set the running execution context's LexicalEnvironment to newEnv.
-    }
+        Some(new_env)
+    } else {
+        None
+    };
     // 3. Let exprRef be Completion(Evaluation of expr).
-    let output = expr.compile(ctx)?;
+    let expr_ref = expr.compile(ctx);
     // 4. Set the running execution context's LexicalEnvironment to oldEnv.
-    if !uninitialized_bound_names.is_empty() {
-        ctx.exit_lexical_scope();
+    if let Some(new_env) = new_env {
+        new_env.exit(ctx);
     }
     // 5. Let exprValue be ? GetValue(? exprRef).
-    output.get_value(ctx)?;
+    let expr_value = expr_ref?.get_value(ctx)?;
     // 6. If iterationKind is ENUMERATE, then
     match iteration_kind {
         IterationKind::Enumerate => {
-            // a. If exprValue is either undefined or null, then
-            // Add a copy to stack.
-            ctx.add_instruction(Instruction::LoadCopy);
-            ctx.add_instruction(Instruction::IsNullOrUndefined);
-            let jump_over_undefined_or_null =
-                ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
-            // i. Return Completion Record { [[Type]]: BREAK, [[Value]]: EMPTY, [[Target]]: EMPTY }.
-            // Remove the copy added above.
-            ctx.add_instruction(Instruction::Store);
-            // And override with undefined.
-            ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
-            let return_break_completion_record =
-                ctx.add_instruction_with_jump_slot(Instruction::Jump);
-            ctx.set_jump_target_here(jump_over_undefined_or_null);
-            // Load back the copy from above.
-            ctx.add_instruction(Instruction::Store);
-            // b. Let obj be ! ToObject(exprValue).
-            // c. Let iterator be EnumerateObjectProperties(obj).
-            // d. Let nextMethod be ! GetV(iterator, "next").
-            // e. Return the Iterator Record { [[Iterator]]: iterator, [[NextMethod]]: nextMethod, [[Done]]: false }.
-            // Note: iteratorKind is SYNC
-            Ok((ctx.push_enumerator(), Some(return_break_completion_record)))
+            if matches!(
+                expr_value,
+                ExpressionOutput::Literal(Primitive::Undefined)
+                    | ExpressionOutput::Literal(Primitive::Null)
+            ) {
+                // a. If exprValue is either undefined or null, then
+                // i. Return Completion Record { [[Type]]: BREAK, [[Value]]: EMPTY, [[Target]]: EMPTY }.
+                ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+                let return_break_completion_record =
+                    ctx.add_instruction_with_jump_slot(Instruction::Jump);
+                Ok((ctx.push_enumerator(), Some(return_break_completion_record)))
+            } else {
+                // a. If exprValue is either undefined or null, then
+                // Add a copy to stack.
+                ctx.add_instruction(Instruction::LoadCopy);
+                ctx.add_instruction(Instruction::IsNullOrUndefined);
+                let jump_over_undefined_or_null =
+                    ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
+                // i. Return Completion Record { [[Type]]: BREAK, [[Value]]: EMPTY, [[Target]]: EMPTY }.
+                // Remove the copy added above.
+                ctx.add_instruction(Instruction::Store);
+                // And override with undefined.
+                ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+                let return_break_completion_record =
+                    ctx.add_instruction_with_jump_slot(Instruction::Jump);
+                ctx.set_jump_target_here(jump_over_undefined_or_null);
+                // Load back the copy from above.
+                ctx.add_instruction(Instruction::Store);
+                // b. Let obj be ! ToObject(exprValue).
+                // c. Let iterator be EnumerateObjectProperties(obj).
+                // d. Let nextMethod be ! GetV(iterator, "next").
+                // e. Return the Iterator Record { [[Iterator]]: iterator, [[NextMethod]]: nextMethod, [[Done]]: false }.
+                // Note: iteratorKind is SYNC
+                Ok((ctx.push_enumerator(), Some(return_break_completion_record)))
+            }
         }
         // 7. Else,
         // a. Assert: iterationKind is either ITERATE or ASYNC-ITERATE.
@@ -108,7 +126,7 @@ fn for_in_of_body_evaluation<'s>(
     // 1. If iteratorKind is not present, set iteratorKind to SYNC.
     // 2. Let oldEnv be the running execution context's LexicalEnvironment.
     // 3. Let V be undefined.
-    ctx.push_stack_loop_result();
+    let v = ctx.push_stack_loop_result();
     // 4. Let destructuring be IsDestructuring of lhs.
     let destructuring = if let ast::ForStatementLeft::VariableDeclaration(lhs) = lhs {
         assert_eq!(lhs.declarations.len(), 1);
@@ -154,13 +172,13 @@ fn for_in_of_body_evaluation<'s>(
     // errors thrown above do not close the iterator; the iterator must still
     // be popped!
 
-    let jump_to_iterator_error_handler = match iteration_kind {
+    let r#loop = match iteration_kind {
         IterationKind::Enumerate => ctx.enter_loop(label_set.cloned()),
         IterationKind::Iterate => ctx.enter_iterator(label_set.cloned()),
         IterationKind::AsyncIterate => ctx.enter_async_iterator(label_set.cloned()),
     };
 
-    let mut entered_declarative_environment = false;
+    let mut decl_env = None;
     // g. If lhsKind is either ASSIGNMENT or VAR-BINDING, then
     match lhs_kind {
         LeftHandSideKind::Assignment | LeftHandSideKind::VarBinding => {
@@ -226,12 +244,10 @@ fn for_in_of_body_evaluation<'s>(
                 // iv. Perform ForDeclarationBindingInstantiation of lhs with argument iterationEnv.
                 // v. Set the running execution context's LexicalEnvironment to iterationEnv.
                 lhs.bound_names(&mut |binding_identifier| {
-                    if !entered_declarative_environment {
+                    if decl_env.is_none() {
                         // Optimization: Only enter declarative environment if
                         // bound names exist.
-                        ctx.enter_lexical_scope();
-
-                        entered_declarative_environment = true;
+                        decl_env = Some(ctx.enter_lexical_scope());
                     }
                     let identifier = ctx.create_string(binding_identifier.name.as_str());
                     ctx.add_instruction_with_identifier(
@@ -264,9 +280,8 @@ fn for_in_of_body_evaluation<'s>(
                     // iv. Perform ForDeclarationBindingInstantiation of lhs with argument iterationEnv.
                     // v. Set the running execution context's LexicalEnvironment to iterationEnv.
                     // 1. Assert: lhs binds a single name.
-                    assert!(!entered_declarative_environment);
-                    ctx.enter_lexical_scope();
-                    entered_declarative_environment = true;
+                    assert!(decl_env.is_none());
+                    decl_env = Some(ctx.enter_lexical_scope());
 
                     // 2. Let lhsName be the sole element of the BoundNames of lhs.
                     let lhs_name = ctx.create_string(binding_identifier.name.as_str());
@@ -295,11 +310,11 @@ fn for_in_of_body_evaluation<'s>(
     // performance.
 
     // j. Let result be Completion(Evaluation of stmt).
-    stmt.compile(ctx);
+    let _result = stmt.compile(ctx);
 
     // k. Set the running execution context's LexicalEnvironment to oldEnv.
-    if entered_declarative_environment {
-        ctx.exit_lexical_scope();
+    if let Some(decl_env) = decl_env {
+        decl_env.exit(ctx);
     }
 
     let continue_target = ctx.get_jump_index_to_here();
@@ -317,7 +332,7 @@ fn for_in_of_body_evaluation<'s>(
     // need this as its handling would just rethrow immediately.
     {
         // ## Catch block
-        ctx.set_jump_target_here(jump_to_iterator_error_handler);
+        ctx.set_jump_target_here(r#loop.on_abrupt_exit());
         // 2. Set status to Completion(UpdateEmpty(result, V)).
         // Note: according to the specification, UpdateEmpty should be
         // performed only when an abrupt completion (throw here) happens in the
@@ -361,21 +376,15 @@ fn for_in_of_body_evaluation<'s>(
     }
 
     // l. If LoopContinues(result, labelSet) is false, then
-    match iteration_kind {
-        // i. If iterationKind is ENUMERATE, then
-        // 1. Return ? UpdateEmpty(result, V).
-        IterationKind::Enumerate => {
-            ctx.exit_loop(continue_target);
-        }
-        // ii. Else,
-        // 1. Assert: iterationKind is ITERATE.
-        // 2. Set status to Completion(UpdateEmpty(result, V)).
-        // 4. Return ? IteratorClose(iteratorRecord, status).
-        IterationKind::Iterate => ctx.exit_iterator(continue_target),
-        // 3. If iteratorKind is ASYNC, return ? AsyncIteratorClose(iteratorRecord, status).
-        IterationKind::AsyncIterate => ctx.exit_async_iterator(continue_target),
-    }
-    ctx.pop_stack_loop_result();
+    // i. If iterationKind is ENUMERATE, then
+    // 1. Return ? UpdateEmpty(result, V).
+    // ii. Else,
+    // 1. Assert: iterationKind is ITERATE.
+    // 2. Set status to Completion(UpdateEmpty(result, V)).
+    // 4. Return ? IteratorClose(iteratorRecord, status).
+    // 3. If iteratorKind is ASYNC, return ? AsyncIteratorClose(iteratorRecord, status).
+    r#loop.exit(ctx, continue_target);
+    v.exit(ctx);
 
     // On break
     let jump_over_return_v = if ctx.is_unreachable() {
@@ -446,7 +455,7 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
         // for-in loops have a path to  skip the entire ForIn/OfBodyEvaluation
         // and just return an empty Break result (which will break the closest
         // labelled statement and turn into undefined).
-        let (jump_to_iterator_pop, key_result) = for_in_of_head_evaluation(
+        let (iterator, key_result) = for_in_of_head_evaluation(
             ctx,
             uninitialized_bound_names,
             &self.right,
@@ -459,9 +468,9 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
             IterationKind::Enumerate,
             lhs_kind,
             label_set.as_deref(),
-            jump_to_iterator_pop,
+            iterator.on_abrupt_exit(),
         );
-        ctx.pop_iterator_stack();
+        iterator.exit(ctx);
         ctx.set_jump_target_here(key_result.unwrap());
         Ok(())
     }
@@ -488,7 +497,7 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
             IterationKind::Iterate
         };
 
-        let (jump_to_iterator_pop, key_result) =
+        let (iterator, key_result) =
             for_in_of_head_evaluation(ctx, uninitialized_bound_names, &self.right, iteration_kind)?;
         // ForIn/OfHeadEvaluation should never return a jump for ITERATE or
         // ASYNC-ITERATE.
@@ -500,9 +509,9 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
             iteration_kind,
             lhs_kind,
             label_set.as_deref(),
-            jump_to_iterator_pop,
+            iterator.on_abrupt_exit(),
         );
-        ctx.pop_iterator_stack();
+        iterator.exit(ctx);
         Ok(())
     }
 }

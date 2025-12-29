@@ -16,7 +16,7 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
         label_set: Option<&mut Vec<&'s oxc_ast::ast::LabelIdentifier<'s>>>,
         ctx: &mut CompileContext<'_, 's, '_, '_>,
     ) -> Self::Output {
-        ctx.enter_label(&self.label);
+        let st = ctx.enter_label(&self.label);
         let mut local_label_set: Vec<&'s oxc_ast::ast::LabelIdentifier<'s>>;
         let label_set = if let Some(label_set) = label_set {
             label_set.push(&self.label);
@@ -47,7 +47,7 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
                 Ok(())
             }
         };
-        ctx.exit_label();
+        st.exit(ctx);
         Ok(())
     }
 }

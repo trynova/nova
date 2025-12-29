@@ -4,7 +4,10 @@
 
 use oxc_ecmascript::BoundNames;
 
-use crate::engine::bytecode::bytecode_compiler::variable_escapes_scope;
+use crate::engine::bytecode::bytecode_compiler::{
+    compile_context::{LexicalScope, StackVariable},
+    variable_escapes_scope,
+};
 
 use super::{
     CompileContext, CompileEvaluation, Instruction, LexicallyScopedDeclaration,
@@ -29,35 +32,30 @@ pub(super) fn instantiation<'s>(
     code: &'s impl LexicallyScopedDeclarations<'s>,
     cb: impl FnOnce(&mut CompileContext<'_, 's, '_, '_>),
 ) {
-    let mut did_enter_declarative_environment = false;
-    let mut local_lexical_names_count = 0;
+    let mut decl_env = None;
+    let mut local_lexical_names = Vec::new();
     // 1. Let declarations be the LexicallyScopedDeclarations of code.
     // 2. Let privateEnv be the running execution context's PrivateEnvironment.
     // 3. For each element d of declarations, do
     code.lexically_scoped_declarations(&mut |d| {
-        handle_block_lexically_scoped_declaration(
-            ctx,
-            &mut did_enter_declarative_environment,
-            &mut local_lexical_names_count,
-            d,
-        );
+        handle_block_lexically_scoped_declaration(ctx, &mut decl_env, &mut local_lexical_names, d);
     });
 
     // 4. Return unused.
     cb(ctx);
 
-    for _ in 0..local_lexical_names_count {
-        ctx.pop_stack_variable();
+    for lex_name in local_lexical_names {
+        lex_name.exit(ctx);
     }
-    if did_enter_declarative_environment {
-        ctx.exit_lexical_scope();
+    if let Some(decl_env) = decl_env {
+        decl_env.exit(ctx);
     }
 }
 
 fn handle_block_lexically_scoped_declaration<'s>(
     ctx: &mut CompileContext<'_, 's, '_, '_>,
-    did_enter_declarative_environment: &mut bool,
-    local_lexical_names_count: &mut usize,
+    decl_env: &mut Option<LexicalScope>,
+    local_lexical_names: &mut Vec<StackVariable>,
     d: LexicallyScopedDeclaration<'s>,
 ) {
     match d {
@@ -65,31 +63,19 @@ fn handle_block_lexically_scoped_declaration<'s>(
         LexicallyScopedDeclaration::Variable(decl) if decl.kind.is_const() => {
             // i. If IsConstantDeclaration of d is true, then
             decl.id.bound_names(&mut |identifier| {
-                if handle_lexical_variable(
-                    ctx,
-                    identifier,
-                    did_enter_declarative_environment,
-                    local_lexical_names_count,
-                ) {
+                if handle_lexical_variable(ctx, identifier, decl_env, local_lexical_names, None) {
                     let dn = ctx.create_string(&identifier.name);
                     // 1. Perform ! env.CreateImmutableBinding(dn, true).
                     ctx.add_instruction_with_identifier(
                         Instruction::CreateImmutableBinding,
                         dn.to_property_key(),
                     );
-                } else {
-                    ctx.push_stack_variable(identifier.symbol_id(), false);
                 }
             })
         }
         // ii. Else,
         LexicallyScopedDeclaration::Variable(decl) => decl.id.bound_names(&mut |identifier| {
-            if handle_lexical_variable(
-                ctx,
-                identifier,
-                did_enter_declarative_environment,
-                local_lexical_names_count,
-            ) {
+            if handle_lexical_variable(ctx, identifier, decl_env, local_lexical_names, None) {
                 // 1. Perform ! env.CreateMutableBinding(dn, false).
                 // NOTE: This step is replaced in section B.3.2.6.
                 let dn = ctx.create_string(&identifier.name);
@@ -97,8 +83,6 @@ fn handle_block_lexically_scoped_declaration<'s>(
                     Instruction::CreateMutableBinding,
                     dn.to_property_key(),
                 );
-            } else {
-                ctx.push_stack_variable(identifier.symbol_id(), false);
             }
         }),
         LexicallyScopedDeclaration::Function(decl) => {
@@ -109,12 +93,7 @@ fn handle_block_lexically_scoped_declaration<'s>(
             let Some(identifier) = &decl.id else {
                 unreachable!()
             };
-            if handle_lexical_variable(
-                ctx,
-                identifier,
-                did_enter_declarative_environment,
-                local_lexical_names_count,
-            ) {
+            if handle_lexical_variable(ctx, identifier, decl_env, local_lexical_names, Some(decl)) {
                 let dn = ctx.create_string(&identifier.name);
                 // 1. Perform ! env.CreateMutableBinding(dn, false).
                 // NOTE: This step is replaced in section B.3.2.6.
@@ -131,20 +110,11 @@ fn handle_block_lexically_scoped_declaration<'s>(
                 );
                 ctx.add_instruction(Instruction::InitializeReferencedBinding);
                 // NOTE: This step is replaced in section B.3.2.6.
-            } else {
-                // ii. Let fo be InstantiateFunctionObject of d with arguments env and privateEnv.
-                decl.compile(ctx);
-                ctx.push_stack_variable(identifier.symbol_id(), true);
             }
         }
         LexicallyScopedDeclaration::Class(decl) => {
             decl.bound_names(&mut |identifier| {
-                if handle_lexical_variable(
-                    ctx,
-                    identifier,
-                    did_enter_declarative_environment,
-                    local_lexical_names_count,
-                ) {
+                if handle_lexical_variable(ctx, identifier, decl_env, local_lexical_names, None) {
                     // 1. Perform ! env.CreateMutableBinding(dn, false).
                     // NOTE: This step is replaced in section B.3.2.6.
                     let dn = ctx.create_string(&identifier.name);
@@ -152,47 +122,44 @@ fn handle_block_lexically_scoped_declaration<'s>(
                         Instruction::CreateMutableBinding,
                         dn.to_property_key(),
                     );
-                } else {
-                    ctx.push_stack_variable(identifier.symbol_id(), false);
                 }
             });
         }
         LexicallyScopedDeclaration::DefaultExport => unreachable!(),
         #[cfg(feature = "typescript")]
         LexicallyScopedDeclaration::TSEnum(decl) => {
-            if handle_lexical_variable(
-                ctx,
-                identifier,
-                did_enter_declarative_environment,
-                local_lexical_names_count,
-            ) {
+            if handle_lexical_variable(ctx, identifier, decl_env, local_lexical_names, None) {
                 let dn = ctx.create_string(&decl.id.name);
                 // Create mutable binding for the enum
                 ctx.add_instruction_with_identifier(
                     Instruction::CreateMutableBinding,
                     dn.to_property_key(),
                 );
-            } else {
-                ctx.add_stack_variable(identifier.symbol_id(), false);
             }
         }
     }
 }
 
-fn handle_lexical_variable(
-    ctx: &mut CompileContext,
+fn handle_lexical_variable<'s>(
+    ctx: &mut CompileContext<'_, 's, '_, '_>,
     identifier: &oxc_ast::ast::BindingIdentifier,
-    did_enter_declarative_environment: &mut bool,
-    local_lexical_names_count: &mut usize,
+    decl_env: &mut Option<LexicalScope>,
+    local_lexical_names: &mut Vec<StackVariable>,
+    f: Option<&'s oxc_ast::ast::Function<'s>>,
 ) -> bool {
     if variable_escapes_scope(ctx, identifier) {
-        if !*did_enter_declarative_environment {
-            *did_enter_declarative_environment = true;
-            ctx.enter_lexical_scope();
+        if decl_env.is_none() {
+            *decl_env = Some(ctx.enter_lexical_scope());
         }
         true
     } else {
-        *local_lexical_names_count += 1;
+        let var = if let Some(f) = f {
+            f.compile(ctx);
+            ctx.push_stack_variable(identifier.symbol_id(), true)
+        } else {
+            ctx.push_stack_variable(identifier.symbol_id(), false)
+        };
+        local_lexical_names.push(var);
         false
     }
 }

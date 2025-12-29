@@ -204,16 +204,21 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     }
 
     /// Enter a labelled statement.
-    pub(super) fn enter_label(&mut self, label: &'script LabelIdentifier<'script>) {
+    pub(super) fn enter_label(
+        &mut self,
+        label: &'script LabelIdentifier<'script>,
+    ) -> LabelledStatement {
         self.control_flow_stack
             .push(ControlFlowStackEntry::LabelledStatement {
                 label,
                 incoming_control_flows: None,
             });
+        LabelledStatement
     }
 
     /// Exit a labelled statement.
-    pub(super) fn exit_label(&mut self) {
+    pub(super) fn exit_label(&mut self, st: LabelledStatement) {
+        core::mem::forget(st);
         let Some(ControlFlowStackEntry::LabelledStatement {
             label: _,
             incoming_control_flows,
@@ -227,14 +232,16 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     }
 
     /// Enter a lexical scope.
-    pub(super) fn enter_lexical_scope(&mut self) {
+    pub(super) fn enter_lexical_scope(&mut self) -> LexicalScope {
         self.add_instruction(Instruction::EnterDeclarativeEnvironment);
         self.control_flow_stack
             .push(ControlFlowStackEntry::LexicalScope);
+        LexicalScope
     }
 
     /// Exit a lexical scope.
-    pub(super) fn exit_lexical_scope(&mut self) {
+    fn exit_lexical_scope(&mut self, scope: LexicalScope) {
+        core::mem::forget(scope);
         matches!(
             self.control_flow_stack.pop(),
             Some(ControlFlowStackEntry::LexicalScope)
@@ -260,7 +267,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         &mut self,
         symbol: oxc_semantic::SymbolId,
         value_in_result_register: bool,
-    ) {
+    ) -> StackVariable {
         if value_in_result_register {
             self.add_instruction(Instruction::Load);
         } else {
@@ -270,10 +277,12 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         self.stack_variables.push((symbol, idx));
         self.control_flow_stack
             .push(ControlFlowStackEntry::StackVariable);
+        StackVariable
     }
 
     /// Pop a lexical variable.
-    pub(super) fn pop_stack_variable(&mut self) {
+    fn pop_stack_variable(&mut self, var: StackVariable) {
+        core::mem::forget(var);
         matches!(
             self.control_flow_stack.pop(),
             Some(ControlFlowStackEntry::StackVariable)
@@ -290,16 +299,18 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
 
     /// Add a loop result onto the stack. This is an unnameable variable on the
     /// stack that gets updated on each loop iteration.
-    pub(super) fn push_stack_loop_result(&mut self) {
+    pub(super) fn push_stack_loop_result(&mut self) -> StackLoopResult {
         self.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
         self.add_instruction(Instruction::Load);
         let _ = self.executable.push_stack_variable();
         self.control_flow_stack
             .push(ControlFlowStackEntry::StackLoopResult);
+        StackLoopResult
     }
 
     /// Pop a loop result from the stack.
-    pub(super) fn pop_stack_loop_result(&mut self) {
+    fn pop_stack_loop_result(&mut self, l: StackLoopResult) {
+        core::mem::forget(l);
         matches!(
             self.control_flow_stack.pop(),
             Some(ControlFlowStackEntry::StackLoopResult)
@@ -314,17 +325,19 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     }
 
     /// Enter a private environment scope.
-    pub(super) fn enter_private_scope(&mut self, private_name_count: usize) {
+    pub(super) fn enter_private_scope(&mut self, private_name_count: usize) -> PrivateScope {
         self.add_instruction_with_immediate(
             Instruction::EnterPrivateEnvironment,
             private_name_count,
         );
         self.control_flow_stack
             .push(ControlFlowStackEntry::PrivateScope);
+        PrivateScope
     }
 
     /// Enter a private environment scope.
-    pub(super) fn exit_private_scope(&mut self) {
+    fn exit_private_scope(&mut self, scope: PrivateScope) {
+        core::mem::forget(scope);
         matches!(
             self.control_flow_stack.pop(),
             Some(ControlFlowStackEntry::PrivateScope)
@@ -338,16 +351,18 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     }
 
     /// Enter a class static initialiser.
-    pub(super) fn enter_class_static_block(&mut self) {
+    pub(super) fn enter_class_static_block(&mut self) -> ClassStaticBlock {
         self.add_instruction(Instruction::EnterClassStaticElementEnvironment);
         self.control_flow_stack
             .push(ControlFlowStackEntry::LexicalScope);
         self.control_flow_stack
             .push(ControlFlowStackEntry::VariableScope);
+        ClassStaticBlock
     }
 
     /// Exit a lexical scope.
-    pub(super) fn exit_class_static_block(&mut self) {
+    fn exit_class_static_block(&mut self, scope: ClassStaticBlock) {
+        core::mem::forget(scope);
         matches!(
             self.control_flow_stack.pop(),
             Some(ControlFlowStackEntry::VariableScope)
@@ -367,16 +382,17 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
 
     /// Enter a try-catch block.
     #[must_use]
-    pub(super) fn enter_try_catch_block(&mut self) -> JumpIndex {
+    pub(super) fn enter_try_catch_block(&mut self) -> TryCatchBlock {
         let jump_to_catch =
             self.add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget);
         self.control_flow_stack
             .push(ControlFlowStackEntry::CatchBlock);
-        jump_to_catch
+        TryCatchBlock(jump_to_catch)
     }
 
     /// Exit a try-catch block.
-    pub(super) fn exit_try_catch_block(&mut self) {
+    fn exit_try_catch_block(&mut self, block: TryCatchBlock) {
+        core::mem::forget(block);
         let Some(ControlFlowStackEntry::CatchBlock) = self.control_flow_stack.pop() else {
             unreachable!()
         };
@@ -389,7 +405,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     }
 
     /// Enter a try-finally block.
-    pub(super) fn enter_try_finally_block(&mut self) {
+    pub(super) fn enter_try_finally_block(&mut self) -> TryFinallyBlock {
         let jump_to_catch =
             self.add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget);
         self.control_flow_stack
@@ -397,14 +413,17 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
                 jump_to_catch,
                 incoming_control_flows: None,
             });
+        TryFinallyBlock
     }
 
     /// Exit a try-finally block.
-    pub(super) fn exit_try_finally_block(
+    fn exit_try_finally_block(
         &mut self,
+        b: TryFinallyBlock,
         block: &'script ast::BlockStatement<'script>,
         jump_over_catch_blocks: Option<JumpIndex>,
     ) {
+        core::mem::forget(b);
         let Some(ControlFlowStackEntry::TryFinallyBlock {
             jump_to_catch,
             incoming_control_flows,
@@ -438,9 +457,9 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             self.add_instruction(Instruction::PopExceptionJumpTarget);
 
             // Then we compile the finally-block.
-            self.enter_finally_block(false);
-            block.compile(self);
-            self.exit_finally_block();
+            let finally_block = self.enter_finally_block(false);
+            let _result = block.compile(self);
+            finally_block.exit(self);
             // And continue on our merry way!
         } else {
             // No preceding catch-block exists or the try-block's end is
@@ -453,9 +472,9 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
                 // We are reachable, so let's compile the normal finally-block
                 // version here.
                 self.add_instruction(Instruction::PopExceptionJumpTarget);
-                self.enter_finally_block(false);
-                block.compile(self);
-                self.exit_finally_block();
+                let finally_block = self.enter_finally_block(false);
+                let _result = block.compile(self);
+                finally_block.exit(self);
 
                 // We need to jump over the abrupt completion handling blocks,
                 // unless of course we're now unreachable here!
@@ -492,9 +511,9 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         self.set_jump_target_here(jump_to_catch);
 
         // Compile the finally-block...
-        self.enter_finally_block(true);
-        block.compile(self);
-        self.exit_finally_block();
+        let finally_block = self.enter_finally_block(true);
+        let _result = block.compile(self);
+        finally_block.exit(self);
         // ... and rethrow the error.
         let end_of_finally_block_is_unreachable = self.is_unreachable();
         if !end_of_finally_block_is_unreachable {
@@ -511,9 +530,9 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
                 self.add_instruction(Instruction::PopExceptionJumpTarget);
 
                 // Compile the finally-block...
-                self.enter_finally_block(false);
-                block.compile(self);
-                self.exit_finally_block();
+                let finally_block = self.enter_finally_block(false);
+                let _result = block.compile(self);
+                finally_block.exit(self);
 
                 // ... then send the break on to its real target.
                 if !end_of_finally_block_is_unreachable {
@@ -528,9 +547,9 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
                 self.add_instruction(Instruction::PopExceptionJumpTarget);
 
                 // Compile the finally-block...
-                self.enter_finally_block(false);
-                block.compile(self);
-                self.exit_finally_block();
+                let finally_block = self.enter_finally_block(false);
+                let _result = block.compile(self);
+                finally_block.exit(self);
 
                 // ... then send the continue on to its real target.
                 if !end_of_finally_block_is_unreachable {
@@ -545,9 +564,9 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
                 self.add_instruction(Instruction::PopExceptionJumpTarget);
 
                 // Compile the finally-block...
-                self.enter_finally_block(true);
-                block.compile(self);
-                self.exit_finally_block();
+                let finally_block = self.enter_finally_block(false);
+                let _result = block.compile(self);
+                finally_block.exit(self);
 
                 // ... then send the return on to its real target.
                 if !end_of_finally_block_is_unreachable {
@@ -561,9 +580,10 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
 
     /// Enter an if-statement; `UpdateEmpty(V, undefined)` must be performed at
     /// the end of the statement.
-    pub(super) fn enter_if_statement(&mut self) {
+    pub(super) fn enter_if_statement(&mut self) -> IfStatement {
         self.control_flow_stack
             .push(ControlFlowStackEntry::IfStatement);
+        IfStatement
     }
 
     /// Enter an if-statement; `UpdateEmpty(V, undefined)` must be performed at
@@ -571,7 +591,8 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     ///
     /// Note: if we statically know a result exists, then the UpdateEmpty work
     /// can be skipped. The `has_result` boolean parameter is used for this.
-    pub(super) fn exit_if_statement(&mut self, has_result: bool) {
+    fn exit_if_statement(&mut self, st: IfStatement, has_result: bool) {
+        core::mem::forget(st);
         let Some(ControlFlowStackEntry::IfStatement) = self.control_flow_stack.pop() else {
             unreachable!()
         };
@@ -584,7 +605,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     /// and must be stored onto the stack. When the block is exited, the result
     /// must be popped off the stack (and taken as the result of the
     /// fall-through case).
-    pub(super) fn enter_finally_block(&mut self, has_result: bool) {
+    pub(super) fn enter_finally_block(&mut self, has_result: bool) -> FinallyBlock {
         self.control_flow_stack
             .push(ControlFlowStackEntry::FinallyBlock);
         if has_result {
@@ -597,11 +618,12 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             self.add_instruction(Instruction::UpdateEmpty);
             self.add_instruction(Instruction::Load);
         }
+        FinallyBlock
     }
 
     /// Exit a finally block; a result value is present on the stack and must
     /// be returned into the result register in the fall-through case.
-    pub(super) fn exit_finally_block(&mut self) {
+    fn exit_finally_block(&mut self) {
         let Some(ControlFlowStackEntry::FinallyBlock) = self.control_flow_stack.pop() else {
             unreachable!()
         };
@@ -615,16 +637,16 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     pub(super) fn enter_loop(
         &mut self,
         label_set: Option<Vec<&'script LabelIdentifier<'script>>>,
-    ) -> JumpIndex {
+    ) -> Loop {
         self.control_flow_stack.push(ControlFlowStackEntry::Loop {
             label_set,
             incoming_control_flows: None,
         });
-        self.add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget)
+        Loop::Enumerator(self.add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget))
     }
 
     /// Exit a for, for-in, or while loop.
-    pub(super) fn exit_loop(&mut self, continue_target: JumpIndex) {
+    fn exit_loop(&mut self, continue_target: JumpIndex) {
         let Some(ControlFlowStackEntry::Loop {
             label_set: _,
             incoming_control_flows,
@@ -647,15 +669,17 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     pub(super) fn enter_switch(
         &mut self,
         label_set: Option<Vec<&'script LabelIdentifier<'script>>>,
-    ) {
+    ) -> SwitchBlock {
         self.control_flow_stack.push(ControlFlowStackEntry::Switch {
             label_set,
             incoming_control_flows: None,
         });
+        SwitchBlock
     }
 
     /// Exit a switch block.
-    pub(super) fn exit_switch(&mut self) {
+    fn exit_switch(&mut self, block: SwitchBlock) {
+        core::mem::forget(block);
         let Some(ControlFlowStackEntry::Switch {
             label_set: _,
             incoming_control_flows,
@@ -670,33 +694,40 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
 
     /// Get an enumerator and push it into the iterator stack, and set up a
     /// catch block to pop the iterator stack on thrown error.
-    pub(super) fn push_enumerator(&mut self) -> JumpIndex {
+    pub(super) fn push_enumerator(&mut self) -> IteratorStackEntry {
         self.control_flow_stack
             .push(ControlFlowStackEntry::IteratorStackEntry);
         self.add_instruction(Instruction::EnumerateObjectProperties);
-        self.add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget)
+        IteratorStackEntry(
+            self.add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget),
+        )
     }
 
     /// Get a sync iterator and push it into the iterator stack, and set up a
     /// catch block to pop the iterator stack on thrown error.
-    pub(super) fn push_sync_iterator(&mut self) -> JumpIndex {
+    pub(super) fn push_sync_iterator(&mut self) -> IteratorStackEntry {
         self.control_flow_stack
             .push(ControlFlowStackEntry::IteratorStackEntry);
         self.add_instruction(Instruction::GetIteratorSync);
-        self.add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget)
+        IteratorStackEntry(
+            self.add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget),
+        )
     }
 
     /// Get an async iterator and push it into the iterator stack, and set up a
     /// catch block to pop the iterator stack on thrown error.
-    pub(super) fn push_async_iterator(&mut self) -> JumpIndex {
+    pub(super) fn push_async_iterator(&mut self) -> IteratorStackEntry {
         self.control_flow_stack
             .push(ControlFlowStackEntry::IteratorStackEntry);
         self.add_instruction(Instruction::GetIteratorAsync);
-        self.add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget)
+        IteratorStackEntry(
+            self.add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget),
+        )
     }
 
     /// Pop the iterator stack and remove its catch handler.
-    pub(super) fn pop_iterator_stack(&mut self) {
+    fn pop_iterator_stack(&mut self, it: IteratorStackEntry) {
+        core::mem::forget(it);
         let Some(ControlFlowStackEntry::IteratorStackEntry) = self.control_flow_stack.pop() else {
             unreachable!()
         };
@@ -710,18 +741,20 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     pub(super) fn enter_iterator(
         &mut self,
         label_set: Option<Vec<&'script LabelIdentifier<'script>>>,
-    ) -> JumpIndex {
+    ) -> Loop {
         self.control_flow_stack
             .push(ControlFlowStackEntry::Iterator {
                 label_set,
                 incoming_control_flows: None,
             });
-        self.add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget)
+        Loop::SyncIterator(
+            self.add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget),
+        )
     }
 
     /// Exit a for-of loop or an array destructuring. For array destructuring,
     /// the continue target should be None.
-    pub(super) fn exit_iterator(&mut self, continue_target: JumpIndex) {
+    fn exit_iterator(&mut self, continue_target: JumpIndex) {
         let Some(ControlFlowStackEntry::Iterator {
             label_set: _,
             incoming_control_flows,
@@ -746,14 +779,17 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     /// Get an iterator for array destructuring and push it into the iterator
     /// stack, and set up a catch block to close the iterator on thrown error.
     #[must_use]
-    pub(super) fn enter_array_destructuring(&mut self) -> JumpIndex {
+    pub(super) fn enter_array_destructuring(&mut self) -> ArrayDestructuring {
         self.control_flow_stack
             .push(ControlFlowStackEntry::ArrayDestructuring);
-        self.add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget)
+        ArrayDestructuring(
+            self.add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget),
+        )
     }
 
     /// Exit array destructuring.
-    pub(super) fn exit_array_destructuring(&mut self) {
+    fn exit_array_destructuring(&mut self, d: ArrayDestructuring) {
+        core::mem::forget(d);
         let Some(ControlFlowStackEntry::ArrayDestructuring) = self.control_flow_stack.pop() else {
             unreachable!()
         };
@@ -767,17 +803,19 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     pub(super) fn enter_async_iterator(
         &mut self,
         label_set: Option<Vec<&'script LabelIdentifier<'script>>>,
-    ) -> JumpIndex {
+    ) -> Loop {
         self.control_flow_stack
             .push(ControlFlowStackEntry::AsyncIterator {
                 label_set,
                 incoming_control_flows: None,
             });
-        self.add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget)
+        Loop::AsyncIterator(
+            self.add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget),
+        )
     }
 
     /// Exit a for-await-of loop.
-    pub(super) fn exit_async_iterator(&mut self, continue_target: JumpIndex) {
+    fn exit_async_iterator(&mut self, continue_target: JumpIndex) {
         let Some(ControlFlowStackEntry::AsyncIterator {
             label_set: _,
             incoming_control_flows,
@@ -1169,6 +1207,320 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     pub(super) fn add_class_initializer(&mut self, has_constructor_parent: bool) {
         self.executable
             .add_class_initializer(has_constructor_parent);
+    }
+}
+
+#[must_use]
+pub(crate) struct LexicalScope;
+
+impl LexicalScope {
+    #[inline(always)]
+    pub(crate) fn exit(self, ctx: &mut CompileContext) {
+        ctx.exit_lexical_scope(self);
+    }
+}
+
+#[cfg(debug_assertions)]
+impl Drop for LexicalScope {
+    #[inline(always)]
+    fn drop(&mut self) {
+        use std::thread::panicking;
+
+        if !panicking() {
+            panic!("Unhandled LexicalScope: must call scope.exit()");
+        }
+    }
+}
+
+#[must_use]
+pub(crate) struct ClassStaticBlock;
+
+impl ClassStaticBlock {
+    #[inline(always)]
+    pub(crate) fn exit(self, ctx: &mut CompileContext) {
+        ctx.exit_class_static_block(self);
+    }
+}
+
+#[cfg(debug_assertions)]
+impl Drop for ClassStaticBlock {
+    #[inline(always)]
+    fn drop(&mut self) {
+        use std::thread::panicking;
+
+        if !panicking() {
+            panic!("Unhandled ClassStaticBlock: must call block.exit()");
+        }
+    }
+}
+
+pub(crate) struct StackVariable;
+impl StackVariable {
+    #[inline(always)]
+    pub(crate) fn exit(self, ctx: &mut CompileContext) {
+        ctx.pop_stack_variable(self);
+    }
+}
+
+#[cfg(debug_assertions)]
+impl Drop for StackVariable {
+    #[inline(always)]
+    fn drop(&mut self) {
+        use std::thread::panicking;
+
+        if !panicking() {
+            panic!("Unhandled StackVariable: must call var.exit()");
+        }
+    }
+}
+pub(crate) struct StackLoopResult;
+impl StackLoopResult {
+    #[inline(always)]
+    pub(crate) fn exit(self, ctx: &mut CompileContext) {
+        ctx.pop_stack_loop_result(self);
+    }
+}
+
+#[cfg(debug_assertions)]
+impl Drop for StackLoopResult {
+    #[inline(always)]
+    fn drop(&mut self) {
+        use std::thread::panicking;
+
+        if !panicking() {
+            panic!("Unhandled StackLoopResult: must call loop.exit()");
+        }
+    }
+}
+pub(crate) struct PrivateScope;
+impl PrivateScope {
+    #[inline(always)]
+    pub(crate) fn exit(self, ctx: &mut CompileContext) {
+        ctx.exit_private_scope(self);
+    }
+}
+
+#[cfg(debug_assertions)]
+impl Drop for PrivateScope {
+    #[inline(always)]
+    fn drop(&mut self) {
+        use std::thread::panicking;
+
+        if !panicking() {
+            panic!("Unhandled PrivateScope: must call scope.exit()");
+        }
+    }
+}
+pub(crate) struct TryCatchBlock(JumpIndex);
+impl TryCatchBlock {
+    #[inline(always)]
+    pub(crate) fn exit(self, ctx: &mut CompileContext) -> JumpIndex {
+        let throw_handler = self.0.clone();
+        ctx.exit_try_catch_block(self);
+        throw_handler
+    }
+}
+
+#[cfg(debug_assertions)]
+impl Drop for TryCatchBlock {
+    #[inline(always)]
+    fn drop(&mut self) {
+        use std::thread::panicking;
+
+        if !panicking() {
+            panic!("Unhandled TryCatchBlock: must call block.exit()");
+        }
+    }
+}
+pub(crate) struct TryFinallyBlock;
+impl TryFinallyBlock {
+    #[inline(always)]
+    pub(crate) fn exit<'s>(
+        self,
+        ctx: &mut CompileContext<'_, 's, '_, '_>,
+        block: &'s ast::BlockStatement<'s>,
+        jump_over_catch_blocks: Option<JumpIndex>,
+    ) {
+        ctx.exit_try_finally_block(self, block, jump_over_catch_blocks);
+    }
+}
+
+#[cfg(debug_assertions)]
+impl Drop for TryFinallyBlock {
+    #[inline(always)]
+    fn drop(&mut self) {
+        use std::thread::panicking;
+
+        if !panicking() {
+            panic!("Unhandled TryFinallyBlock: must call block.exit()");
+        }
+    }
+}
+pub(crate) struct IfStatement;
+impl IfStatement {
+    #[inline(always)]
+    pub(crate) fn exit(self, ctx: &mut CompileContext, has_result: bool) {
+        ctx.exit_if_statement(self, has_result);
+    }
+}
+
+#[cfg(debug_assertions)]
+impl Drop for IfStatement {
+    #[inline(always)]
+    fn drop(&mut self) {
+        use std::thread::panicking;
+
+        if !panicking() {
+            panic!("Unhandled IfStatement: must call st.exit()");
+        }
+    }
+}
+pub(crate) struct LabelledStatement;
+impl LabelledStatement {
+    #[inline(always)]
+    pub(crate) fn exit(self, ctx: &mut CompileContext) {
+        ctx.exit_label(self);
+    }
+}
+
+#[cfg(debug_assertions)]
+impl Drop for LabelledStatement {
+    #[inline(always)]
+    fn drop(&mut self) {
+        use std::thread::panicking;
+
+        if !panicking() {
+            panic!("Unhandled LabelledStatement: must call st.exit()");
+        }
+    }
+}
+pub(crate) struct FinallyBlock;
+impl FinallyBlock {
+    #[inline(always)]
+    pub(crate) fn exit(self, ctx: &mut CompileContext) {
+        core::mem::forget(self);
+        ctx.exit_finally_block();
+    }
+}
+
+#[cfg(debug_assertions)]
+impl Drop for FinallyBlock {
+    #[inline(always)]
+    fn drop(&mut self) {
+        use std::thread::panicking;
+
+        if !panicking() {
+            panic!("Unhandled FinallyBlock: must call block.exit()");
+        }
+    }
+}
+pub(crate) enum Loop {
+    Enumerator(JumpIndex),
+    SyncIterator(JumpIndex),
+    AsyncIterator(JumpIndex),
+}
+impl Loop {
+    #[inline(always)]
+    pub(crate) fn on_abrupt_exit(&self) -> JumpIndex {
+        match self {
+            Self::Enumerator(t) | Self::SyncIterator(t) | Self::AsyncIterator(t) => t.clone(),
+        }
+    }
+
+    #[inline(always)]
+    pub(crate) fn exit(self, ctx: &mut CompileContext, continue_target: JumpIndex) {
+        match self {
+            Self::Enumerator(_) => {
+                core::mem::forget(self);
+                ctx.exit_loop(continue_target)
+            }
+            Self::SyncIterator(_) => {
+                core::mem::forget(self);
+                ctx.exit_iterator(continue_target)
+            }
+            Self::AsyncIterator(_) => {
+                core::mem::forget(self);
+                ctx.exit_async_iterator(continue_target)
+            }
+        }
+    }
+}
+
+#[cfg(debug_assertions)]
+impl Drop for Loop {
+    #[inline(always)]
+    fn drop(&mut self) {
+        use std::thread::panicking;
+
+        if !panicking() {
+            panic!("Unhandled Loop: must call loop.exit()");
+        }
+    }
+}
+pub(crate) struct SwitchBlock;
+impl SwitchBlock {
+    #[inline(always)]
+    pub(crate) fn exit(self, ctx: &mut CompileContext) {
+        ctx.exit_switch(self);
+    }
+}
+
+#[cfg(debug_assertions)]
+impl Drop for SwitchBlock {
+    #[inline(always)]
+    fn drop(&mut self) {
+        use std::thread::panicking;
+
+        if !panicking() {
+            panic!("Unhandled SwitchBlock: must call block.exit()");
+        }
+    }
+}
+pub(crate) struct IteratorStackEntry(JumpIndex);
+impl IteratorStackEntry {
+    #[inline(always)]
+    pub(crate) fn on_abrupt_exit(&self) -> JumpIndex {
+        self.0.clone()
+    }
+
+    #[inline(always)]
+    pub(crate) fn exit(self, ctx: &mut CompileContext) -> JumpIndex {
+        let throw_handler = self.0.clone();
+        ctx.pop_iterator_stack(self);
+        throw_handler
+    }
+}
+
+#[cfg(debug_assertions)]
+impl Drop for IteratorStackEntry {
+    #[inline(always)]
+    fn drop(&mut self) {
+        use std::thread::panicking;
+
+        if !panicking() {
+            panic!("Unhandled IteratorStackEntry: must call entry.exit()");
+        }
+    }
+}
+pub(crate) struct ArrayDestructuring(JumpIndex);
+impl ArrayDestructuring {
+    #[inline(always)]
+    pub(crate) fn exit(self, ctx: &mut CompileContext) -> JumpIndex {
+        let throw_handler = self.0.clone();
+        ctx.exit_array_destructuring(self);
+        throw_handler
+    }
+}
+
+#[cfg(debug_assertions)]
+impl Drop for ArrayDestructuring {
+    #[inline(always)]
+    fn drop(&mut self) {
+        use std::thread::panicking;
+
+        if !panicking() {
+            panic!("Unhandled ArrayDestructuring: must call destr.exit()");
+        }
     }
 }
 

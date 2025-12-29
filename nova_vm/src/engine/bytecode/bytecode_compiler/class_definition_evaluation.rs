@@ -39,7 +39,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
         // 2. Let classEnv be NewDeclarativeEnvironment(env).
         // Note: The specification doesn't enter the declaration here, but
         // no user code is run between here and first enter.
-        ctx.enter_lexical_scope();
+        let class_env = ctx.enter_lexical_scope();
 
         let needs_binding = class_has_self_references(self, ctx);
 
@@ -118,7 +118,11 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
                 // below should be performed in the parent environment. We do
                 // them in classEnv. Whether there's a difference I don't know.
                 // e. Let superclass be ? GetValue(? superclassRef).
-                let _superclass = super_class.compile(ctx)?.get_value(ctx)?;
+                let superclass = super_class.compile(ctx).and_then(|sc| sc.get_value(ctx));
+                if let Err(err) = superclass {
+                    class_env.exit(ctx);
+                    return Err(err);
+                }
                 // f. If superclass is null, then
                 ctx.add_instruction(Instruction::LoadCopy);
                 ctx.add_instruction(Instruction::IsNull);
@@ -265,9 +269,8 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
         let mut static_private_field_count = 0;
         let mut static_private_method_count = 0;
         // OPTIMISATION: do not create a private environment if it is going to be empty.
-        let enter_private_environment = !private_bound_identifiers.is_empty();
         // 6. If ClassBody is present, then
-        if enter_private_environment {
+        let private_env = if !private_bound_identifiers.is_empty() {
             assert!(u32::try_from(private_bound_identifiers.len()).is_ok());
             // 4. Let outerPrivateEnvironment be the running execution context's PrivateEnvironment.
             // 5. Let classPrivateEnvironment be NewPrivateEnvironment(outerPrivateEnvironment).
@@ -320,8 +323,10 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
                     }
                 }
             }
-            ctx.enter_private_scope(private_name_lookup_map.len());
-        }
+            Some(ctx.enter_private_scope(private_name_lookup_map.len()))
+        } else {
+            None
+        };
 
         // Before calling CreateDefaultConstructor we need to smuggle the
         // className to the top of the stack.
@@ -473,7 +478,10 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
                     } else {
                         swap_to_proto(ctx);
                     }
-                    define_method(method_definition, ctx)?;
+                    if let Err(err) = define_method(method_definition, ctx) {
+                        class_env.exit(ctx);
+                        return Err(err);
+                    }
                     continue;
                 }
                 ast::ClassElement::PropertyDefinition(prop) => {
@@ -499,12 +507,18 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
                         // but the value must be computed later.
                         let computed_field_id = computed_field_initialiser_count;
                         computed_field_initialiser_count += 1;
-                        compile_computed_field_name(
+                        match compile_computed_field_name(
                             ctx,
                             computed_field_id,
                             prop.key.as_expression().unwrap(),
                             prop.value.as_ref(),
-                        )?
+                        ) {
+                            Ok(field) => field,
+                            Err(err) => {
+                                class_env.exit(ctx);
+                                return Err(err);
+                            }
+                        }
                     }
                 }
                 #[cfg(feature = "typescript")]
@@ -640,25 +654,27 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
         // Note: this has already been performed by the
         // ClassInitializePrivateElements instruction earlier.
         // 31. For each element elementRecord of staticElements, do
-        let has_static_elements = !static_elements.is_empty();
-        if has_static_elements {
-            ctx.enter_class_static_block();
-        }
+        let static_env = if !static_elements.is_empty() {
+            Some(ctx.enter_class_static_block())
+        } else {
+            None
+        };
         for element_record in static_elements {
-            match element_record {
+            let result = match element_record {
                 // a. If elementRecord is a ClassFieldDefinition Record, then
                 PropertyInitializerField::StaticBlock(static_block) => {
                     // i. Let result be Completion(DefineField(F, elementRecord)).
                     static_block.compile(ctx);
+                    Ok(())
                 }
                 // b. Else,
                 // i. Assert: elementRecord is a ClassStaticBlockDefinition Record.
                 // ii. Let result be Completion(Call(elementRecord.[[BodyFunction]], F)).
                 PropertyInitializerField::Field((property_key, value)) => {
-                    compile_class_static_id_field(property_key, value, ctx)?;
+                    compile_class_static_id_field(property_key, value, ctx)
                 }
                 PropertyInitializerField::Computed((key_id, value)) => {
-                    compile_class_computed_field(key_id, value, ctx)?;
+                    compile_class_computed_field(key_id, value, ctx)
                 }
                 PropertyInitializerField::Private((description, private_identifier, value)) => {
                     // Note: Static private fields follow third after private
@@ -666,23 +682,34 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
                     let private_identifier = instance_private_field_count
                         + instance_private_method_count
                         + private_identifier;
-                    compile_class_private_field(description, private_identifier, value, ctx)?;
+                    compile_class_private_field(description, private_identifier, value, ctx)
                 }
-            }
+            };
             // c. If result is an abrupt completion, then
-            //     i. Set the running execution context's PrivateEnvironment to outerPrivateEnvironment.
-            //     ii. Return ? result.
+            if let Err(result) = result {
+                // i. Set the running execution context's PrivateEnvironment to
+                //    outerPrivateEnvironment.
+                if let Some(static_env) = static_env {
+                    static_env.exit(ctx);
+                }
+                if let Some(private_env) = private_env {
+                    private_env.exit(ctx);
+                }
+                class_env.exit(ctx);
+                // ii. Return ? result.
+                return Err(result);
+            }
         }
-        if has_static_elements {
-            ctx.exit_class_static_block();
+        if let Some(static_env) = static_env {
+            static_env.exit(ctx);
+        }
+        // 32. Set the running execution context's PrivateEnvironment to outerPrivateEnvironment.
+        if let Some(private_env) = private_env {
+            private_env.exit(ctx);
         }
         // Note: We finally leave classEnv here. See step 26.
-        ctx.exit_lexical_scope();
-        // 32. Set the running execution context's PrivateEnvironment to outerPrivateEnvironment.
+        class_env.exit(ctx);
         // 33. Return F.
-        if enter_private_environment {
-            ctx.exit_private_scope();
-        }
 
         // 15.7.15 Runtime Semantics: BindingClassDeclarationEvaluation
         // ClassDeclaration: class BindingIdentifier ClassTail
@@ -1012,7 +1039,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Static
         let var_names = class_static_block_var_declared_names(self);
         let lex_declarations = class_static_block_lexically_scoped_declarations(self);
         // c. For each element n of varNames, do
-        ctx.enter_class_static_block();
+        let static_env = ctx.enter_class_static_block();
         for n in var_names {
             // i. If instantiatedVarNames does not contain n, then
             if instantiated_var_names.contains(&n) {
@@ -1110,7 +1137,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Static
         for statement in self.body.iter() {
             statement.compile(ctx);
         }
-        ctx.exit_class_static_block();
+        static_env.exit(ctx);
     }
 }
 
