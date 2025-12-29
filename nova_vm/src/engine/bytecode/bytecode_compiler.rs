@@ -480,11 +480,7 @@ fn variable_escapes_scope(
     };
     for reference in scoping.get_resolved_references(s) {
         let ref_id = reference.node_id();
-        if is_lexical && ref_id < decl_id {
-            // Reference to a lexical variable happens before the declaration.
-            // We consider this effectively a variable escape.
-            return true;
-        } else if !is_lexical
+        if !is_lexical
             && nodes
                 .get_node(ref_id)
                 .kind()
