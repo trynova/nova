@@ -2,11 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::ops::ControlFlow;
+
 use super::{CompileContext, CompileEvaluation, CompileLabelledEvaluation, Instruction, JumpIndex};
 use crate::{
     ecmascript::types::{Primitive, String, Value},
     engine::bytecode::bytecode_compiler::{
-        ExpressionError, ExpressionOutput, compile_context::IteratorStackEntry,
+        ExpressionError, StatementContinue, StatementResult, ValueOutput,
+        compile_context::IteratorStackEntry,
     },
 };
 use oxc_ast::ast;
@@ -65,8 +68,7 @@ fn for_in_of_head_evaluation<'s, 'gc>(
         IterationKind::Enumerate => {
             if matches!(
                 expr_value,
-                ExpressionOutput::Literal(Primitive::Undefined)
-                    | ExpressionOutput::Literal(Primitive::Null)
+                ValueOutput::Literal(Primitive::Undefined) | ValueOutput::Literal(Primitive::Null)
             ) {
                 // a. If exprValue is either undefined or null, then
                 // i. Return Completion Record { [[Type]]: BREAK, [[Value]]: EMPTY, [[Target]]: EMPTY }.
@@ -114,15 +116,15 @@ fn for_in_of_head_evaluation<'s, 'gc>(
     }
 }
 
-fn for_in_of_body_evaluation<'s>(
-    ctx: &mut CompileContext<'_, 's, '_, '_>,
+fn for_in_of_body_evaluation<'s, 'gc>(
+    ctx: &mut CompileContext<'_, 's, 'gc, '_>,
     lhs: &'s ast::ForStatementLeft<'s>,
     stmt: &'s ast::Statement<'s>,
     iteration_kind: IterationKind,
     lhs_kind: LeftHandSideKind,
     label_set: Option<&Vec<&'s ast::LabelIdentifier<'s>>>,
     jump_to_iterator_pop_on_error: JumpIndex,
-) {
+) -> StatementResult<'gc> {
     // 1. If iteratorKind is not present, set iteratorKind to SYNC.
     // 2. Let oldEnv be the running execution context's LexicalEnvironment.
     // 3. Let V be undefined.
@@ -220,7 +222,7 @@ fn for_in_of_body_evaluation<'s>(
                         // a. Let status be lhsRef.
                         // 3. Else,
                         // a. Let status be Completion(PutValue(lhsRef.[[Value]], nextValue)).
-                        lhs_ref.put_value(ctx, ExpressionOutput::Value)
+                        lhs_ref.put_value(ctx, ValueOutput::Value)
                     }
                     _ => lhs.to_assignment_target().compile(ctx),
                 }
@@ -308,9 +310,12 @@ fn for_in_of_body_evaluation<'s>(
     // performance.
 
     // j. Let result be Completion(Evaluation of stmt).
-    if status.is_ok() {
+    let result = if let Err(err) = status {
+        ControlFlow::Break(err.into())
+    } else {
         let _result = stmt.compile(ctx);
-    }
+        ControlFlow::Continue(StatementContinue::Value)
+    };
 
     // k. Set the running execution context's LexicalEnvironment to oldEnv.
     if let Some(decl_env) = decl_env {
@@ -400,6 +405,7 @@ fn for_in_of_body_evaluation<'s>(
     if let Some(jump_over_return_v) = jump_over_return_v {
         ctx.set_jump_target_here(jump_over_return_v);
     }
+    result
 }
 
 fn get_for_statement_left_hand_side_kind<'gc>(
@@ -440,12 +446,12 @@ fn get_for_statement_left_hand_side_kind<'gc>(
 impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
     for ast::ForInStatement<'s>
 {
-    type Output = Result<(), ExpressionError>;
+    type Output = StatementResult<'gc>;
 
     fn compile_labelled(
         &'s self,
         label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,
-        ctx: &mut CompileContext<'_, 's, '_, '_>,
+        ctx: &mut CompileContext<'_, 's, 'gc, '_>,
     ) -> Self::Output {
         let mut uninitialized_bound_names = vec![];
 
@@ -455,13 +461,16 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
         // for-in loops have a path to  skip the entire ForIn/OfBodyEvaluation
         // and just return an empty Break result (which will break the closest
         // labelled statement and turn into undefined).
-        let (iterator, key_result) = for_in_of_head_evaluation(
+        let (iterator, key_result) = match for_in_of_head_evaluation(
             ctx,
             uninitialized_bound_names,
             &self.right,
             IterationKind::Enumerate,
-        )?;
-        for_in_of_body_evaluation(
+        ) {
+            Ok(v) => v,
+            Err(e) => return ControlFlow::Break(e.into()),
+        };
+        let _result = for_in_of_body_evaluation(
             ctx,
             &self.left,
             &self.body,
@@ -472,19 +481,19 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
         );
         iterator.exit(ctx);
         ctx.set_jump_target_here(key_result.unwrap());
-        Ok(())
+        ControlFlow::Continue(StatementContinue::Value)
     }
 }
 
 impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
     for ast::ForOfStatement<'s>
 {
-    type Output = Result<(), ExpressionError>;
+    type Output = StatementResult<'gc>;
 
     fn compile_labelled(
         &'s self,
         label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,
-        ctx: &mut CompileContext<'_, 's, '_, '_>,
+        ctx: &mut CompileContext<'_, 's, 'gc, '_>,
     ) -> Self::Output {
         let mut uninitialized_bound_names = vec![];
 
@@ -497,12 +506,21 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
             IterationKind::Iterate
         };
 
-        let (iterator, key_result) =
-            for_in_of_head_evaluation(ctx, uninitialized_bound_names, &self.right, iteration_kind)?;
+        let (iterator, key_result) = match for_in_of_head_evaluation(
+            ctx,
+            uninitialized_bound_names,
+            &self.right,
+            iteration_kind,
+        ) {
+            Ok(v) => v,
+            Err(e) => {
+                return ControlFlow::Break(e.into());
+            }
+        };
         // ForIn/OfHeadEvaluation should never return a jump for ITERATE or
         // ASYNC-ITERATE.
         debug_assert!(key_result.is_none());
-        for_in_of_body_evaluation(
+        let result = for_in_of_body_evaluation(
             ctx,
             &self.left,
             &self.body,
@@ -512,6 +530,6 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
             iterator.on_abrupt_exit(),
         );
         iterator.exit(ctx);
-        Ok(())
+        result
     }
 }

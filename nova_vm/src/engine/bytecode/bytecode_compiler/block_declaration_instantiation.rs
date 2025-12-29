@@ -5,6 +5,7 @@
 use oxc_ecmascript::BoundNames;
 
 use crate::engine::bytecode::bytecode_compiler::{
+    StatementResult,
     compile_context::{LexicalScope, StackVariable},
     variable_escapes_scope,
 };
@@ -27,11 +28,11 @@ use super::{
 /// > Record is created and bindings for each block scoped variable, constant,
 /// > function, or class declared in the block are instantiated in the
 /// > Environment Record.
-pub(super) fn instantiation<'s>(
-    ctx: &mut CompileContext<'_, 's, '_, '_>,
+pub(super) fn instantiation<'s, 'gc>(
+    ctx: &mut CompileContext<'_, 's, 'gc, '_>,
     code: &'s impl LexicallyScopedDeclarations<'s>,
-    cb: impl FnOnce(&mut CompileContext<'_, 's, '_, '_>),
-) {
+    cb: impl FnOnce(&mut CompileContext<'_, 's, 'gc, '_>) -> StatementResult<'gc>,
+) -> StatementResult<'gc> {
     let mut decl_env = None;
     let mut local_lexical_names = Vec::new();
     // 1. Let declarations be the LexicallyScopedDeclarations of code.
@@ -42,7 +43,7 @@ pub(super) fn instantiation<'s>(
     });
 
     // 4. Return unused.
-    cb(ctx);
+    let result = cb(ctx);
 
     for lex_name in local_lexical_names {
         lex_name.exit(ctx);
@@ -50,6 +51,7 @@ pub(super) fn instantiation<'s>(
     if let Some(decl_env) = decl_env {
         decl_env.exit(ctx);
     }
+    result
 }
 
 fn handle_block_lexically_scoped_declaration<'s>(

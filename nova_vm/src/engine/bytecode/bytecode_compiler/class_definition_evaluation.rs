@@ -20,14 +20,15 @@ use crate::{
     },
     engine::{
         CompileContext, CompileEvaluation, FunctionExpression, Instruction,
-        NamedEvaluationParameter, SendableRef, bytecode::bytecode_compiler::ExpressionError,
+        NamedEvaluationParameter, SendableRef,
+        bytecode::bytecode_compiler::{ExpressionError, ValueOutput},
     },
 };
 use ahash::{AHashMap, AHashSet};
 use oxc_ast::ast::{self, MethodDefinitionKind};
 use oxc_ecmascript::{BoundNames, PrivateBoundIdentifiers, PropName};
 
-use super::{ExpressionOutput, IndexType, is_anonymous_function_definition};
+use super::{IndexType, is_anonymous_function_definition};
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<'s> {
     type Output = Result<(), ExpressionError>;
@@ -1131,11 +1132,14 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Static
             let f = f.id.as_ref().unwrap().compile(ctx);
             // c. Perform ! varEnv.SetMutableBinding(fn, fo, false).
             // TODO: This compilation is incorrect if !strict, when varEnv != lexEnv.
-            f.put_value(ctx, ExpressionOutput::Value).unwrap();
+            f.put_value(ctx, ValueOutput::Value).unwrap();
         }
 
         for statement in self.body.iter() {
-            statement.compile(ctx);
+            let result = statement.compile(ctx);
+            if result.is_break() {
+                break;
+            }
         }
         static_env.exit(ctx);
     }

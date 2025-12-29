@@ -15,7 +15,7 @@ mod labelled_statement;
 mod template_literals;
 mod with_statement;
 
-use std::convert::Infallible;
+use std::{convert::Infallible, ops::ControlFlow};
 
 use super::{FunctionExpression, Instruction, SendableRef, executable::ArrowFunctionExpression};
 use crate::ecmascript::{
@@ -23,7 +23,7 @@ use crate::ecmascript::{
         function_definitions::ContainsExpression,
         scope_analysis::{LexicallyScopedDeclaration, LexicallyScopedDeclarations},
     },
-    types::{BUILTIN_STRING_MEMORY, IntoValue, Number, String, Value},
+    types::{BUILTIN_STRING_MEMORY, BigInt, IntoValue, Number, String, Value},
 };
 #[cfg(feature = "typescript")]
 use crate::{ecmascript::builtins::ordinary::shape::ObjectShapeRecord, heap::CreateHeapData};
@@ -126,13 +126,13 @@ impl<'s, 'gc> PlaceOutput<'s, 'gc> {
         }
     }
 
-    fn initialise_referenced_binding(&self, ctx: &mut CompileContext, value: ExpressionOutput) {
+    fn initialise_referenced_binding(&self, ctx: &mut CompileContext, value: ValueOutput) {
         match self {
             PlaceOutput::Env { .. } | PlaceOutput::Global { .. } | PlaceOutput::Member { .. } => {
                 ctx.add_instruction(Instruction::InitializeReferencedBinding);
             }
             PlaceOutput::Stack { stack_slot, .. } => {
-                if value == ExpressionOutput::Literal(Primitive::Undefined) {
+                if value == ValueOutput::Literal(Primitive::Undefined) {
                     // Note: stack variables are initialised to undefined
                     // automatically.
                     return;
@@ -150,7 +150,10 @@ impl<'s, 'gc> PlaceOutput<'s, 'gc> {
         }
     }
 
-    fn get_value(&self, ctx: &mut CompileContext<'_, '_, 'gc, '_>) -> Result<(), ExpressionError> {
+    fn get_value(
+        &self,
+        ctx: &mut CompileContext<'_, '_, 'gc, '_>,
+    ) -> Result<ValueOutput<'static>, ExpressionError> {
         match self {
             PlaceOutput::Stack { stack_slot, .. } => {
                 // Variable is stored on the stack. Caching doesn't help here.
@@ -158,26 +161,26 @@ impl<'s, 'gc> PlaceOutput<'s, 'gc> {
                     Instruction::GetValueFromIndex,
                     *stack_slot as usize,
                 );
-                Ok(())
+                Ok(ValueOutput::Value)
             }
             PlaceOutput::Global { name } => {
                 // Variable is stored in the global environment. Caching helps with
                 // these accesses.
                 let cache = ctx.create_property_lookup_cache(name.to_property_key());
                 ctx.add_instruction_with_cache(Instruction::GetValueWithCache, cache);
-                Ok(())
+                Ok(ValueOutput::Value)
             }
             PlaceOutput::Member { name: Some(name) } => {
                 // Property access. Caching helps with these.
                 let cache = ctx.create_property_lookup_cache(*name);
                 ctx.add_instruction_with_cache(Instruction::GetValueWithCache, cache);
-                Ok(())
+                Ok(ValueOutput::Value)
             }
             PlaceOutput::Member { .. } | PlaceOutput::Env { .. } => {
                 // Variable is stored in the environment or we don't know the
                 // property name at compile time. Caching doesn't help with these.
                 ctx.add_instruction(Instruction::GetValue);
-                Ok(())
+                Ok(ValueOutput::Value)
             }
             PlaceOutput::TemporalDeadZone { name } => {
                 let message =
@@ -196,7 +199,7 @@ impl<'s, 'gc> PlaceOutput<'s, 'gc> {
     fn get_value_keep_reference(
         &self,
         ctx: &mut CompileContext<'_, '_, 'gc, '_>,
-    ) -> Result<(), ExpressionError> {
+    ) -> Result<ValueOutput<'static>, ExpressionError> {
         match self {
             Self::Stack { stack_slot, .. } => {
                 // Variable is stored on the stack. Caching doesn't help here and
@@ -205,26 +208,26 @@ impl<'s, 'gc> PlaceOutput<'s, 'gc> {
                     Instruction::GetValueFromIndex,
                     *stack_slot as usize,
                 );
-                Ok(())
+                Ok(ValueOutput::Value)
             }
             Self::Global { name } => {
                 // Variable is stored in the global environment. Caching helps with
                 // these accesses.
                 let cache = ctx.create_property_lookup_cache(name.to_property_key());
                 ctx.add_instruction_with_cache(Instruction::GetValueWithCacheKeepReference, cache);
-                Ok(())
+                Ok(ValueOutput::Value)
             }
             Self::Member { name: Some(name) } => {
                 // Property access. Caching helps with these.
                 let cache = ctx.create_property_lookup_cache(*name);
                 ctx.add_instruction_with_cache(Instruction::GetValueWithCacheKeepReference, cache);
-                Ok(())
+                Ok(ValueOutput::Value)
             }
             Self::Member { .. } | Self::Env { .. } => {
                 // Variable is stored in the environment or we don't know the
                 // property name at compile time. Caching doesn't help with these.
                 ctx.add_instruction(Instruction::GetValueKeepReference);
-                Ok(())
+                Ok(ValueOutput::Value)
             }
             Self::TemporalDeadZone { name } => {
                 let message =
@@ -245,7 +248,7 @@ impl<'s, 'gc> PlaceOutput<'s, 'gc> {
         &self,
         ctx: &mut CompileContext<'_, '_, 'gc, '_>,
         keep_reference: bool,
-    ) -> Result<(), ExpressionError> {
+    ) -> Result<ValueOutput<'static>, ExpressionError> {
         if keep_reference {
             self.get_value_keep_reference(ctx)
         } else {
@@ -256,7 +259,7 @@ impl<'s, 'gc> PlaceOutput<'s, 'gc> {
     fn put_value(
         &self,
         ctx: &mut CompileContext<'_, '_, 'gc, '_>,
-        _value: ExpressionOutput,
+        _value: ValueOutput,
     ) -> Result<(), ExpressionError> {
         // Note: _value is currently unused but may be used in the future to
         // perform optimisations.
@@ -299,7 +302,7 @@ impl<'s, 'gc> PlaceOutput<'s, 'gc> {
     fn delete(
         self,
         ctx: &mut CompileContext<'_, '_, 'gc, '_>,
-    ) -> Result<ExpressionOutput<'static, 'static>, ExpressionError> {
+    ) -> Result<ValueOutput<'static>, ExpressionError> {
         match self {
             Self::Stack { .. } => {
                 // Delete on a stack variable is only allowed for lexical
@@ -310,7 +313,7 @@ impl<'s, 'gc> PlaceOutput<'s, 'gc> {
             Self::Global { .. } | Self::Member { .. } | Self::Env { .. } => {
                 ctx.add_instruction(Instruction::Delete);
                 // Can return `true` or `false`.
-                Ok(ExpressionOutput::Value)
+                Ok(ValueOutput::Value)
             }
             Self::TemporalDeadZone { name } => {
                 let message =
@@ -335,41 +338,18 @@ impl<'gc> From<PropertyKey<'gc>> for PlaceOutput<'_, 'gc> {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum ExpressionOutput<'s, 'gc> {
+pub(crate) enum ValueOutput<'gc> {
     /// Expression evaluates to some unknown value.
     Value,
     /// Expression evaluates to a known literal value.
     Literal(Primitive<'gc>),
-    /// Expression evalutes to a place.
-    Place(PlaceOutput<'s, 'gc>),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum ExpressionError {
-    /// Expression evaluates to an abrupt throw.
-    Error,
-}
-
-impl<'s, 'gc> ExpressionOutput<'s, 'gc> {
-    #[inline]
-    fn is_stack_variable(&self) -> bool {
-        matches!(self, ExpressionOutput::Place(PlaceOutput::Stack { .. }))
-    }
-
-    /// Returns true if the expression has a Reference on the reference stack
-    /// associated with it.
-    #[inline]
-    fn has_reference(&self) -> bool {
+impl<'gc> ValueOutput<'gc> {
+    fn to_expression_key(self) -> PlaceOutput<'static, 'gc> {
         match self {
-            ExpressionOutput::Place(place) => place.has_reference(),
-            _ => false,
-        }
-    }
-
-    fn to_expression_key(self) -> PlaceOutput<'s, 'gc> {
-        match self {
-            ExpressionOutput::Value => PlaceOutput::Member { name: None },
-            ExpressionOutput::Literal(p) => match p {
+            Self::Value => PlaceOutput::Member { name: None },
+            Self::Literal(p) => match p {
                 Primitive::Undefined => BUILTIN_STRING_MEMORY.undefined.to_property_key().into(),
                 Primitive::Null => BUILTIN_STRING_MEMORY.null.to_property_key().into(),
                 Primitive::Boolean(true) => BUILTIN_STRING_MEMORY.r#true.to_property_key().into(),
@@ -379,51 +359,57 @@ impl<'s, 'gc> ExpressionOutput<'s, 'gc> {
                 // Other members don't benefit from caching anyway.
                 _ => PlaceOutput::Member { name: None },
             },
-            ExpressionOutput::Place(_) => {
-                unreachable!("GetValue should have been called on expression key")
-            }
         }
     }
+}
 
-    fn get_value(self, ctx: &mut CompileContext<'_, '_, 'gc, '_>) -> Result<Self, ExpressionError> {
-        match self {
-            ExpressionOutput::Place(place) => {
-                place.get_value(ctx)?;
-                // After evaluating the GetValue we return an unknown Value.
-                Ok(ExpressionOutput::Value)
-            }
-            _ => {
-                // No GetValue needed.
-                Ok(self)
-            }
-        }
+impl<'gc, T> From<T> for ValueOutput<'gc>
+where
+    T: 'gc + Into<Primitive<'gc>>,
+{
+    #[inline]
+    fn from(value: T) -> Self {
+        Self::Literal(value.into())
     }
+}
 
-    fn get_value_keep_reference(
-        self,
-        ctx: &mut CompileContext<'_, '_, 'gc, '_>,
-    ) -> Result<Self, ExpressionError> {
-        match self {
-            ExpressionOutput::Place(place) => {
-                place.get_value_keep_reference(ctx)?;
-                // After evaluating the GetValue we return an unknown Value.
-                Ok(ExpressionOutput::Value)
-            }
-            _ => {
-                // No GetValue needed.
-                Ok(self)
-            }
+fn combine_value_results<'gc>(
+    a: Result<ValueOutput<'gc>, ExpressionError>,
+    b: Result<ValueOutput<'gc>, ExpressionError>,
+) -> Result<ValueOutput<'gc>, ExpressionError> {
+    match (a, b) {
+        // If two branches unconditionally error, the combination
+        // unconditionally errors.
+        (Err(err), Err(_)) => Err(err),
+        // If two branches evaluate to the same literal, the combination
+        // unconditionally evaluates to that literal.
+        (Ok(ValueOutput::Literal(a)), Ok(ValueOutput::Literal(b))) if a == b => {
+            Ok(ValueOutput::Literal(a))
         }
+        // If one branch unconditionally errors and the other does not, the only
+        // possible value is the one from the successful one.
+        (Ok(v), Err(_)) | (Err(_), Ok(v)) => Ok(v),
+        // Otherwise we just end up in unknown value land.
+        _ => Ok(ValueOutput::Value),
     }
+}
 
-    fn delete(self, ctx: &mut CompileContext<'_, '_, 'gc, '_>) -> Result<Self, ExpressionError> {
-        match self {
-            ExpressionOutput::Place(place) => place.delete(ctx),
-            _ => {
-                // 2. If ref is not a Reference Record, return true.
-                ctx.add_instruction_with_constant(Instruction::StoreConstant, true);
-                Ok(true.into())
-            }
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum ExpressionOutput<'s, 'gc> {
+    /// Expression evaluates to some unknown value.
+    Value,
+    /// Expression evaluates to a known literal value.
+    Literal(Primitive<'gc>),
+    /// Expression evalutes to a place.
+    Place(PlaceOutput<'s, 'gc>),
+}
+
+impl<'gc> From<ValueOutput<'gc>> for ExpressionOutput<'static, 'gc> {
+    #[inline]
+    fn from(value: ValueOutput<'gc>) -> Self {
+        match value {
+            ValueOutput::Value => Self::Value,
+            ValueOutput::Literal(lit) => Self::Literal(lit),
         }
     }
 }
@@ -442,6 +428,144 @@ where
     #[inline]
     fn from(value: T) -> Self {
         Self::Literal(value.into())
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[must_use]
+pub(crate) enum ExpressionError {
+    /// Expression evaluates to an abrupt throw.
+    Error,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum StatementContinue<'gc> {
+    /// Statement evaluates to some unknown value.
+    Value,
+    /// Statement evaluates to a known literal value.
+    Literal(Primitive<'gc>),
+    /// Statement evaluates to EMPTY (coerces to undefined).
+    Empty,
+}
+
+impl<'gc> From<ValueOutput<'gc>> for StatementContinue<'gc> {
+    #[inline]
+    fn from(value: ValueOutput<'gc>) -> Self {
+        match value {
+            ValueOutput::Value => Self::Value,
+            ValueOutput::Literal(lit) => Self::Literal(lit),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[must_use]
+pub(crate) enum StatementBreak {
+    /// Statement evaluates to an abrupt throw.
+    Error,
+    /// Statement evaluates to an abrupt return.
+    Return,
+    /// Statement evaluates to an abrupt break.
+    Break,
+    /// Statement evaluates to an abrupt continue.
+    Continue,
+}
+
+impl From<ExpressionError> for StatementBreak {
+    #[inline]
+    fn from(value: ExpressionError) -> StatementBreak {
+        match value {
+            ExpressionError::Error => Self::Error,
+        }
+    }
+}
+
+pub(crate) type StatementResult<'gc> = ControlFlow<StatementBreak, StatementContinue<'gc>>;
+
+#[inline]
+pub(super) fn value_result_to_statement_result<'gc>(
+    result: Result<ValueOutput<'gc>, ExpressionError>,
+) -> StatementResult<'gc> {
+    match result {
+        Ok(v) => ControlFlow::Continue(v.into()),
+        Err(e) => ControlFlow::Break(e.into()),
+    }
+}
+
+impl<'gc> From<StatementContinue<'gc>> for StatementResult<'gc> {
+    #[inline]
+    fn from(value: StatementContinue<'gc>) -> StatementResult<'gc> {
+        Self::Continue(value)
+    }
+}
+
+impl From<StatementBreak> for StatementResult<'static> {
+    #[inline]
+    fn from(value: StatementBreak) -> StatementResult<'static> {
+        Self::Break(value)
+    }
+}
+
+impl<'s, 'gc> ExpressionOutput<'s, 'gc> {
+    #[inline]
+    fn is_stack_variable(&self) -> bool {
+        matches!(self, ExpressionOutput::Place(PlaceOutput::Stack { .. }))
+    }
+
+    /// Returns true if the expression has a Reference on the reference stack
+    /// associated with it.
+    #[inline]
+    fn has_reference(&self) -> bool {
+        match self {
+            ExpressionOutput::Place(place) => place.has_reference(),
+            _ => false,
+        }
+    }
+
+    fn get_value(
+        self,
+        ctx: &mut CompileContext<'_, '_, 'gc, '_>,
+    ) -> Result<ValueOutput<'gc>, ExpressionError> {
+        match self {
+            Self::Place(place) => {
+                place.get_value(ctx)?;
+                // After evaluating the GetValue we return an unknown Value.
+                Ok(ValueOutput::Value)
+            }
+            // No GetValue needed.
+            Self::Value => Ok(ValueOutput::Value),
+            Self::Literal(lit) => Ok(ValueOutput::Literal(lit)),
+        }
+    }
+
+    fn get_value_keep_reference(
+        self,
+        ctx: &mut CompileContext<'_, '_, 'gc, '_>,
+    ) -> Result<ValueOutput<'gc>, ExpressionError> {
+        match self {
+            Self::Place(place) => {
+                place.get_value_keep_reference(ctx)?;
+                // After evaluating the GetValue we return an unknown Value.
+                Ok(ValueOutput::Value)
+            }
+            // No GetValue needed.
+            Self::Value => Ok(ValueOutput::Value),
+            Self::Literal(lit) => Ok(ValueOutput::Literal(lit)),
+        }
+    }
+
+    fn delete(
+        self,
+        ctx: &mut CompileContext<'_, '_, 'gc, '_>,
+    ) -> Result<ValueOutput<'gc>, ExpressionError> {
+        match self {
+            ExpressionOutput::Place(place) => place.delete(ctx),
+            _ => {
+                // 2. If ref is not a Reference Record, return true.
+                ctx.add_instruction_with_constant(Instruction::StoreConstant, true);
+                Ok(true.into())
+            }
+        }
     }
 }
 
@@ -550,7 +674,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Boolea
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::BigIntLiteral<'s> {
-    type Output = ExpressionOutput<'s, 'gc>;
+    type Output = BigInt<'gc>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         // Drop out the trailing 'n' from BigInt literals.
         let raw_str = self
@@ -567,15 +691,15 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::BigInt
         };
         let constant = ctx.create_bigint(literal, radix);
         ctx.add_instruction_with_constant(Instruction::StoreConstant, constant);
-        constant.into()
+        constant
     }
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::NullLiteral {
-    type Output = ExpressionOutput<'s, 'gc>;
+    type Output = Primitive<'static>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Null);
-        Primitive::Null.into()
+        Primitive::Null
     }
 }
 
@@ -633,7 +757,7 @@ pub(crate) fn string_literal_to_wtf8<'a>(
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::StringLiteral<'s> {
-    type Output = ExpressionOutput<'s, 'gc>;
+    type Output = Primitive<'gc>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         let (agent, gc) = ctx.get_agent_and_gc();
         let constant = string_literal_to_wtf8(agent, self, gc);
@@ -814,7 +938,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Identi
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::UnaryExpression<'s> {
-    type Output = Result<ExpressionOutput<'s, 'gc>, ExpressionError>;
+    type Output = Result<ValueOutput<'gc>, ExpressionError>;
 
     /// # ['a 13.5 Unary Operators](https://tc39.es/ecma262/#sec-unary-operators)
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
@@ -834,7 +958,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::UnaryE
                 //    a. Assert: oldValue is a BigInt.
                 //    b. Return BigInt::unaryMinus(oldValue).
                 ctx.add_instruction(Instruction::UnaryMinus);
-                Ok(ExpressionOutput::Value)
+                Ok(ValueOutput::Value)
             }
             // 13.5.4 Unary + Operator
             // https://tc39.es/ecma262/#sec-unary-plus-operator
@@ -844,7 +968,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::UnaryE
                 // 2. Return ? ToNumber(? GetValue(expr)).
                 self.argument.compile(ctx)?.get_value(ctx)?;
                 ctx.add_instruction(Instruction::ToNumber);
-                Ok(ExpressionOutput::Value)
+                Ok(ValueOutput::Value)
             }
             // 13.5.6 Unary ! Operator
             // https://tc39.es/ecma262/#sec-logical-not-operator-runtime-semantics-evaluation
@@ -856,7 +980,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::UnaryE
                 // 3. If oldValue is true, return false.
                 // 4. Return true.
                 ctx.add_instruction(Instruction::LogicalNot);
-                Ok(ExpressionOutput::Value)
+                Ok(ValueOutput::Value)
             }
             // 13.5.7 Unary ~ Operator
             // https://tc39.es/ecma262/#sec-bitwise-not-operator-runtime-semantics-evaluation
@@ -873,7 +997,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::UnaryE
                 //    a. Assert: oldValue is a BigInt.
                 //    b. Return BigInt::bitwiseNOT(oldValue).
                 ctx.add_instruction(Instruction::BitwiseNot);
-                Ok(ExpressionOutput::Value)
+                Ok(ValueOutput::Value)
             }
             // 13.5.3 The typeof Operator
             // UnaryExpression : typeof UnaryExpression
@@ -888,7 +1012,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::UnaryE
                 }
                 // 3. Set val to ? GetValue(val).
                 ctx.add_instruction(Instruction::Typeof);
-                Ok(ExpressionOutput::Value)
+                Ok(ValueOutput::Value)
             }
             // 13.5.2 The void operator
             // UnaryExpression : void UnaryExpression
@@ -901,7 +1025,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::UnaryE
                 }
                 // 3. Return undefined.
                 ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
-                Ok(ExpressionOutput::Value)
+                Ok(ValueOutput::Value)
             }
             // 13.5.1 The delete operator
             // https://tc39.es/ecma262/#sec-delete-operator-runtime-semantics-evaluation
@@ -967,10 +1091,10 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Binary
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::LogicalExpression<'s> {
-    type Output = Result<ExpressionOutput<'s, 'gc>, ExpressionError>;
+    type Output = Result<ValueOutput<'gc>, ExpressionError>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         let lref = self.left.compile(ctx)?;
-        let _lval = lref.get_value(ctx)?;
+        let lval = lref.get_value(ctx)?;
 
         // We store the left value on the stack, because we'll need to restore
         // it later.
@@ -991,8 +1115,8 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Logica
         // at the top of the stack.
         ctx.add_instruction(Instruction::Store);
 
-        let rref = self.right.compile(ctx)?;
-        let _rval = rref.get_value(ctx)?;
+        let rref = self.right.compile(ctx);
+        let rval = rref.and_then(|r| r.get_value(ctx));
 
         let jump_to_end = ctx.add_instruction_with_jump_slot(Instruction::Jump);
 
@@ -1000,7 +1124,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Logica
         // Return the result of the left expression.
         ctx.add_instruction(Instruction::Store);
         ctx.set_jump_target_here(jump_to_end);
-        Ok(ExpressionOutput::Value)
+        combine_value_results(Ok(lval), rval)
     }
 }
 
@@ -1056,7 +1180,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Functi
 fn create_object_with_shape<'s, 'gc>(
     expr: &'s ast::ObjectExpression<'s>,
     ctx: &mut CompileContext<'_, 's, 'gc, '_>,
-) -> Result<ExpressionOutput<'s, 'gc>, ExpressionError> {
+) -> Result<ValueOutput<'gc>, ExpressionError> {
     let proto_prop = expr.properties.iter().find(|prop| {
         let ast::ObjectPropertyKind::ObjectProperty(prop) = prop else {
             unreachable!()
@@ -1113,11 +1237,11 @@ fn create_object_with_shape<'s, 'gc>(
         ctx.add_instruction(Instruction::Load);
     }
     ctx.add_instruction_with_shape(Instruction::ObjectCreateWithShape, shape);
-    Ok(ExpressionOutput::Value)
+    Ok(ValueOutput::Value)
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ObjectExpression<'s> {
-    type Output = Result<ExpressionOutput<'s, 'gc>, ExpressionError>;
+    type Output = Result<ValueOutput<'gc>, ExpressionError>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         if !self.properties.is_empty()
             && self.properties.iter().all(|prop| {
@@ -1280,18 +1404,18 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Object
         }
         // 3. Return obj
         ctx.add_instruction(Instruction::Store);
-        Ok(ExpressionOutput::Value)
+        Ok(ValueOutput::Value)
     }
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ArrayExpression<'s> {
-    type Output = Result<ExpressionOutput<'s, 'gc>, ExpressionError>;
+    type Output = Result<ValueOutput<'gc>, ExpressionError>;
 
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         let elements_min_count = self.elements.len();
         ctx.add_instruction_with_immediate(Instruction::ArrayCreate, elements_min_count);
         if self.elements.is_empty() {
-            return Ok(ExpressionOutput::Value);
+            return Ok(ValueOutput::Value);
         }
         ctx.add_instruction(Instruction::Load);
         let try_catch_block = if self
@@ -1369,7 +1493,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ArrayE
         if let Some(err) = err {
             Err(err)
         } else {
-            Ok(ExpressionOutput::Value)
+            Ok(ValueOutput::Value)
         }
     }
 }
@@ -1629,7 +1753,7 @@ fn compile_arguments<'s>(
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::CallExpression<'s> {
-    type Output = Result<ExpressionOutput<'s, 'gc>, ExpressionError>;
+    type Output = Result<ValueOutput<'gc>, ExpressionError>;
 
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         // Direct eval
@@ -1639,7 +1763,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::CallEx
         {
             let num_arguments = compile_arguments(&self.arguments, ctx)?;
             ctx.add_instruction_with_immediate(Instruction::DirectEvalCall, num_arguments);
-            return Ok(ExpressionOutput::Value);
+            return Ok(ValueOutput::Value);
         }
 
         // 1. Let ref be ? Evaluation of CallExpression.
@@ -1704,19 +1828,19 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::CallEx
             }
             ctx.add_instruction_with_immediate(Instruction::EvaluateCall, num_arguments);
         }
-        Ok(ExpressionOutput::Value)
+        Ok(ValueOutput::Value)
     }
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::NewExpression<'s> {
-    type Output = Result<ExpressionOutput<'s, 'gc>, ExpressionError>;
+    type Output = Result<ValueOutput<'gc>, ExpressionError>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         self.callee.compile(ctx)?.get_value(ctx)?;
         ctx.add_instruction(Instruction::Load);
 
         let num_arguments = compile_arguments(&self.arguments, ctx)?;
         ctx.add_instruction_with_immediate(Instruction::EvaluateNew, num_arguments);
-        Ok(ExpressionOutput::Value)
+        Ok(ValueOutput::Value)
     }
 }
 
@@ -1792,7 +1916,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
             ctx.optional_chains.replace(optional_chain);
         }
 
-        if let ExpressionOutput::Literal(literal) = output {
+        if let ValueOutput::Literal(literal) = output {
             let (agent, gc) = ctx.get_agent_and_gc();
             if let Some(identifier) = to_property_key_simple(agent, literal, gc) {
                 if self.object.is_super() {
@@ -1875,7 +1999,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::AwaitExpression<'s> {
-    type Output = Result<ExpressionOutput<'s, 'gc>, ExpressionError>;
+    type Output = Result<ValueOutput<'gc>, ExpressionError>;
 
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         // 1. Let exprRef be ? Evaluation of UnaryExpression.
@@ -1888,7 +2012,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::AwaitE
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ChainExpression<'s> {
-    type Output = Result<ExpressionOutput<'s, 'gc>, ExpressionError>;
+    type Output = Result<ValueOutput<'gc>, ExpressionError>;
 
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         // It's possible that we're compiling a ChainExpression inside a call
@@ -1902,55 +2026,73 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ChainE
         } else {
             false
         };
-        match &self.expression {
-            ast::ChainElement::CallExpression(expr) => {
-                expr.compile(ctx)?;
-            }
+        let result = match &self.expression {
+            ast::ChainElement::CallExpression(expr) => expr.compile(ctx),
             ast::ChainElement::ComputedMemberExpression(expr) => {
-                let place = expr.compile(ctx)?;
-                place.get_value_maybe_keep_reference(ctx, ctx.is_call_optional_chain_this)?;
+                let place = expr.compile(ctx);
+                let result = place.and_then(|p| {
+                    p.get_value_maybe_keep_reference(ctx, ctx.is_call_optional_chain_this)
+                });
                 ctx.is_call_optional_chain_this = false;
+                result
             }
             ast::ChainElement::StaticMemberExpression(expr) => {
-                let place = expr.compile(ctx)?;
-                place.get_value_maybe_keep_reference(ctx, ctx.is_call_optional_chain_this)?;
+                let place = expr.compile(ctx);
+                let result = place.and_then(|p| {
+                    p.get_value_maybe_keep_reference(ctx, ctx.is_call_optional_chain_this)
+                });
                 ctx.is_call_optional_chain_this = false;
+                result
             }
             ast::ChainElement::PrivateFieldExpression(expr) => {
-                let place = expr.compile(ctx)?;
-                place.get_value_maybe_keep_reference(ctx, ctx.is_call_optional_chain_this)?;
+                let place = expr.compile(ctx);
+                let result = place.and_then(|p| {
+                    p.get_value_maybe_keep_reference(ctx, ctx.is_call_optional_chain_this)
+                });
                 ctx.is_call_optional_chain_this = false;
+                result
             }
             #[cfg(feature = "typescript")]
-            ast::ChainElement::TSNonNullExpression(expr) => {
-                expr.expression.compile(ctx)?;
-            }
+            ast::ChainElement::TSNonNullExpression(expr) => expr.expression.compile(ctx),
             #[cfg(not(feature = "typescript"))]
             ast::ChainElement::TSNonNullExpression(_) => unreachable!(),
         };
         // If chain succeeded, we come here and should jump over the nullish
         // case handling.
         if installed_own_chains {
-            let jump_over_return_undefined = ctx.add_instruction_with_jump_slot(Instruction::Jump);
             let own_chains = ctx.optional_chains.take().unwrap();
-            for jump_to_return_undefined in own_chains {
-                ctx.set_jump_target_here(jump_to_return_undefined);
+            if !own_chains.is_empty() {
+                let jump_over_return_undefined =
+                    ctx.add_instruction_with_jump_slot(Instruction::Jump);
+                for jump_to_return_undefined in own_chains {
+                    ctx.set_jump_target_here(jump_to_return_undefined);
+                }
+                // All optional chains come here with a copy of their null or
+                // undefined baseValue on the stack. Pop it off.
+                ctx.add_instruction(Instruction::Store);
+                // Replace any possible null with undefined.
+                ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+                ctx.set_jump_target_here(jump_over_return_undefined);
+                // Note: because we have incoming jumps, it's possible for us to
+                // return any result.
+                Ok(ValueOutput::Value)
+            } else {
+                // If we have no incoming jumps, then the expression result
+                // rules.
+                result
             }
-            // All optional chains come here with a copy of their null or
-            // undefined baseValue on the stack. Pop it off.
-            ctx.add_instruction(Instruction::Store);
-            // Replace any possible null with undefined.
-            ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
-            ctx.set_jump_target_here(jump_over_return_undefined);
+        } else {
+            // If we're just a link in a chain, then our own result is our final
+            // word.
+            result
         }
-        Ok(ExpressionOutput::Value)
     }
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
     for ast::ConditionalExpression<'s>
 {
-    type Output = Result<ExpressionOutput<'s, 'gc>, ExpressionError>;
+    type Output = Result<ValueOutput<'gc>, ExpressionError>;
 
     /// # ['a 13.14 Conditional Operator ( ? : )](https://tc39.es/ecma262/#sec-conditional-operator)
     /// ### [13.14.1 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-conditional-operator-runtime-semantics-evaluation)
@@ -1973,16 +2115,12 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
         // b. Return ? GetValue(falseRef).
         let false_ref = self.alternate.compile(ctx).and_then(|c| c.get_value(ctx));
         ctx.set_jump_target_here(jump_over_second);
-        if true_ref.is_err() && false_ref.is_err() {
-            true_ref
-        } else {
-            Ok(ExpressionOutput::Value)
-        }
+        combine_value_results(true_ref, false_ref)
     }
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ImportExpression<'s> {
-    type Output = Result<ExpressionOutput<'s, 'gc>, ExpressionError>;
+    type Output = Result<ValueOutput<'gc>, ExpressionError>;
 
     /// ### [13.3.10.1 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-import-call-runtime-semantics-evaluation)
     ///
@@ -2003,21 +2141,22 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Import
         // Note: referrer cannot change dynamically, so we don't need to get it
         // right here and now; we'll defer that to after all the other steps.
         // 3. Let specifierRef be ? Evaluation of specifierExpression.
+        let specifier_ref = self.source.compile(ctx)?;
         // 4. Let specifier be ? GetValue(specifierRef).
-        compile_expression_get_value(&self.source, ctx)?;
+        let _specifier = specifier_ref.get_value(ctx)?;
         ctx.add_instruction(Instruction::Load);
         // 5. If optionsExpression is present, then
         if let Some(options) = &self.options {
             // a. Let optionsRef be ? Evaluation of optionsExpression.
             // b. Let options be ? GetValue(optionsRef).
-            compile_expression_get_value(options, ctx)?;
+            options.compile(ctx)?.get_value(ctx)?;
         }
         // 6. Else,
         // a. Let options be undefined.
         // Note: we don't store an undefined constant; the ImportCall
         // instruction can take care of that.
         ctx.add_instruction(Instruction::ImportCall);
-        Ok(ExpressionOutput::Value)
+        Ok(ValueOutput::Value)
     }
 }
 
@@ -2035,7 +2174,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::MetaPr
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::PrivateInExpression<'s> {
-    type Output = Result<ExpressionOutput<'s, 'gc>, ExpressionError>;
+    type Output = Result<ValueOutput<'gc>, ExpressionError>;
 
     /// ### [13.10.1 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-relational-operators-runtime-semantics-evaluation)
     /// ###  RelationalExpression : PrivateIdentifier in ShiftExpression
@@ -2056,7 +2195,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Privat
         // 8. If PrivateElementFind(rVal, privateName) is not empty, return true.
         // 9. Return false.
         ctx.add_instruction(Instruction::HasPrivateElement);
-        Ok(ExpressionOutput::Value)
+        Ok(ValueOutput::Value)
     }
 }
 #[cfg(feature = "regexp")]
@@ -2079,7 +2218,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::RegExp
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::SequenceExpression<'s> {
-    type Output = Result<ExpressionOutput<'s, 'gc>, ExpressionError>;
+    type Output = Result<ValueOutput<'gc>, ExpressionError>;
 
     /// ### [13.16.1 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-comma-operator-runtime-semantics-evaluation)
     ///
@@ -2117,7 +2256,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Super 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
     for ast::TaggedTemplateExpression<'s>
 {
-    type Output = Result<ExpressionOutput<'s, 'gc>, ExpressionError>;
+    type Output = Result<ValueOutput<'gc>, ExpressionError>;
     /// ### [13.3.11 Tagged Templates](https://tc39.es/ecma262/#sec-tagged-templates)
     ///
     /// > NOTE: A tagged template is a function call where the arguments of the
@@ -2186,12 +2325,12 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
             ctx.add_instruction(Instruction::PopReference);
         }
         ctx.add_instruction_with_immediate(Instruction::EvaluateCall, num_arguments);
-        Ok(ExpressionOutput::Value)
+        Ok(ValueOutput::Value)
     }
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::TemplateLiteral<'s> {
-    type Output = Result<ExpressionOutput<'s, 'gc>, ExpressionError>;
+    type Output = Result<ValueOutput<'gc>, ExpressionError>;
 
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         if let Some(quasi) = self.single_quasi() {
@@ -2222,7 +2361,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Templa
             }
             // 6. Return the string-concatenation of head, middle, and tail.
             ctx.add_instruction_with_immediate(Instruction::StringConcat, count);
-            Ok(ExpressionOutput::Value)
+            Ok(ValueOutput::Value)
         }
     }
 }
@@ -2445,12 +2584,12 @@ fn compile_delegate_yield_expression<'s>(
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::YieldExpression<'s> {
-    type Output = Result<ExpressionOutput<'s, 'gc>, ExpressionError>;
+    type Output = Result<ValueOutput<'gc>, ExpressionError>;
 
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         if self.delegate {
             compile_delegate_yield_expression(self, ctx)?;
-            return Ok(ExpressionOutput::Value);
+            return Ok(ValueOutput::Value);
         }
         let _value = if let Some(arg) = &self.argument {
             // YieldExpression : yield AssignmentExpression
@@ -2480,7 +2619,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::YieldE
         let jump_over_return = ctx.add_instruction_with_jump_slot(Instruction::Jump);
         ctx.compile_return(true);
         ctx.set_jump_target_here(jump_over_return);
-        Ok(ExpressionOutput::Value)
+        Ok(ValueOutput::Value)
     }
 }
 
@@ -2501,54 +2640,46 @@ fn compile_create_iterator_result_object(ctx: &mut CompileContext, done: bool) {
     ctx.add_instruction_with_shape(Instruction::ObjectCreateWithShape, shape);
 }
 
-#[inline]
-pub(super) fn compile_expression_get_value<'s, 'gc>(
-    expr: &'s ast::Expression<'s>,
-    ctx: &mut CompileContext<'_, 's, 'gc, '_>,
-) -> Result<ExpressionOutput<'s, 'gc>, ExpressionError> {
-    expr.compile(ctx)?.get_value(ctx)
-}
-
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Expression<'s> {
     type Output = Result<ExpressionOutput<'s, 'gc>, ExpressionError>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         match self {
-            ast::Expression::ArrayExpression(x) => x.compile(ctx),
+            ast::Expression::ArrayExpression(x) => x.compile(ctx).map(Into::into),
             ast::Expression::ArrowFunctionExpression(x) => {
                 x.compile(ctx);
                 Ok(ExpressionOutput::Value)
             }
-            ast::Expression::AssignmentExpression(x) => x.compile(ctx),
-            ast::Expression::AwaitExpression(x) => x.compile(ctx),
-            ast::Expression::BigIntLiteral(x) => Ok(x.compile(ctx)),
+            ast::Expression::AssignmentExpression(x) => x.compile(ctx).map(Into::into),
+            ast::Expression::AwaitExpression(x) => x.compile(ctx).map(Into::into),
+            ast::Expression::BigIntLiteral(x) => Ok(x.compile(ctx).into()),
             ast::Expression::BinaryExpression(x) => x.compile(ctx),
             ast::Expression::BooleanLiteral(x) => Ok(x.compile(ctx)),
-            ast::Expression::CallExpression(x) => x.compile(ctx),
-            ast::Expression::ChainExpression(x) => x.compile(ctx),
+            ast::Expression::CallExpression(x) => x.compile(ctx).map(Into::into),
+            ast::Expression::ChainExpression(x) => x.compile(ctx).map(Into::into),
             ast::Expression::ClassExpression(x) => {
                 x.compile(ctx)?;
                 Ok(ExpressionOutput::Value)
             }
             ast::Expression::ComputedMemberExpression(x) => x.compile(ctx).map(Into::into),
-            ast::Expression::ConditionalExpression(x) => x.compile(ctx),
+            ast::Expression::ConditionalExpression(x) => x.compile(ctx).map(Into::into),
             ast::Expression::FunctionExpression(x) => {
                 x.compile(ctx);
                 Ok(ExpressionOutput::Value)
             }
             ast::Expression::Identifier(x) => Ok(x.compile(ctx).into()),
-            ast::Expression::ImportExpression(x) => x.compile(ctx),
-            ast::Expression::LogicalExpression(x) => x.compile(ctx),
+            ast::Expression::ImportExpression(x) => x.compile(ctx).map(Into::into),
+            ast::Expression::LogicalExpression(x) => x.compile(ctx).map(Into::into),
             ast::Expression::MetaProperty(x) => {
                 x.compile(ctx);
                 Ok(ExpressionOutput::Value)
             }
-            ast::Expression::NewExpression(x) => x.compile(ctx),
+            ast::Expression::NewExpression(x) => x.compile(ctx).map(Into::into),
             ast::Expression::NullLiteral(x) => Ok(x.compile(ctx).into()),
             ast::Expression::NumericLiteral(x) => Ok(x.compile(ctx).into()),
-            ast::Expression::ObjectExpression(x) => x.compile(ctx),
+            ast::Expression::ObjectExpression(x) => x.compile(ctx).map(Into::into),
             ast::Expression::ParenthesizedExpression(x) => x.compile(ctx),
             ast::Expression::PrivateFieldExpression(x) => x.compile(ctx).map(Into::into),
-            ast::Expression::PrivateInExpression(x) => x.compile(ctx),
+            ast::Expression::PrivateInExpression(x) => x.compile(ctx).map(Into::into),
             #[cfg(feature = "regexp")]
             ast::Expression::RegExpLiteral(x) => {
                 x.compile(ctx);
@@ -2556,22 +2687,22 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Expres
             }
             #[cfg(not(feature = "regexp"))]
             ast::Expression::RegExpLiteral(_) => unreachable!(),
-            ast::Expression::SequenceExpression(x) => x.compile(ctx),
+            ast::Expression::SequenceExpression(x) => x.compile(ctx).map(Into::into),
             ast::Expression::StaticMemberExpression(x) => x.compile(ctx).map(Into::into),
-            ast::Expression::StringLiteral(x) => Ok(x.compile(ctx)),
+            ast::Expression::StringLiteral(x) => Ok(x.compile(ctx).into()),
             ast::Expression::Super(x) => {
                 x.compile(ctx);
                 Ok(ExpressionOutput::Value)
             }
-            ast::Expression::TaggedTemplateExpression(x) => x.compile(ctx),
-            ast::Expression::TemplateLiteral(x) => x.compile(ctx),
+            ast::Expression::TaggedTemplateExpression(x) => x.compile(ctx).map(Into::into),
+            ast::Expression::TemplateLiteral(x) => x.compile(ctx).map(Into::into),
             ast::Expression::ThisExpression(x) => {
                 x.compile(ctx);
                 Ok(ExpressionOutput::Value)
             }
-            ast::Expression::UnaryExpression(x) => x.compile(ctx),
-            ast::Expression::UpdateExpression(x) => x.compile(ctx),
-            ast::Expression::YieldExpression(x) => x.compile(ctx),
+            ast::Expression::UnaryExpression(x) => x.compile(ctx).map(Into::into),
+            ast::Expression::UpdateExpression(x) => x.compile(ctx).map(Into::into),
+            ast::Expression::YieldExpression(x) => x.compile(ctx).map(Into::into),
             ast::Expression::V8IntrinsicExpression(_) => todo!(),
             #[cfg(feature = "typescript")]
             ast::Expression::TSAsExpression(x) => x.expression.compile(ctx),
@@ -2597,7 +2728,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Expres
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::UpdateExpression<'s> {
-    type Output = Result<ExpressionOutput<'s, 'gc>, ExpressionError>;
+    type Output = Result<ValueOutput<'gc>, ExpressionError>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         let lref = match &self.argument {
             ast::SimpleAssignmentTarget::AssignmentTargetIdentifier(x) => x.compile(ctx),
@@ -2653,55 +2784,63 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Update
         if self.prefix {
             ctx.add_instruction(Instruction::LoadCopy);
         }
-        lref.put_value(ctx, ExpressionOutput::Value)?;
+        lref.put_value(ctx, ValueOutput::Value)?;
         ctx.add_instruction(Instruction::Store);
-        Ok(ExpressionOutput::Value)
+        Ok(ValueOutput::Value)
     }
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ExpressionStatement<'s> {
-    type Output = Result<ExpressionOutput<'s, 'gc>, ExpressionError>;
+    type Output = StatementResult<'gc>;
     /// # ['a 14.5.1 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-expression-statement-runtime-semantics-evaluation)
     /// `ExpressionStatement : Expression ;`
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         // 1. Let exprRef be ? Evaluation of Expression.
         // 2. Return ? GetValue(exprRef).
-        self.expression.compile(ctx)?.get_value(ctx)
+        value_result_to_statement_result(
+            self.expression.compile(ctx).and_then(|r| r.get_value(ctx)),
+        )
     }
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ReturnStatement<'s> {
-    type Output = Result<(), ExpressionError>;
+    type Output = StatementBreak;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         if let Some(expr) = &self.argument {
-            expr.compile(ctx)?.get_value(ctx)?;
+            if let Err(err) = expr.compile(ctx).and_then(|r| r.get_value(ctx)) {
+                return err.into();
+            }
         } else {
             ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
         }
         ctx.compile_return(self.argument.is_some());
-        Ok(())
+        StatementBreak::Return.into()
     }
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::IfStatement<'s> {
-    type Output = Result<(), ExpressionError>;
+    type Output = StatementResult<'gc>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         // 1. Let exprRef be ? Evaluation of Expression.
         // 2. Let exprValue be ToBoolean(? GetValue(exprRef)).
-        self.test.compile(ctx)?.get_value(ctx)?;
+        value_result_to_statement_result(self.test.compile(ctx).and_then(|r| r.get_value(ctx)))?;
         // 3. If exprValue is true, then
         let jump_to_else = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
         let st = ctx.enter_if_statement();
         // a. Let stmtCompletion be Completion(Evaluation of the first Statement).
-        let _stmt_completion = self.consequent.compile(ctx);
+        let consequent_stmt_completion = self.consequent.compile(ctx);
         st.exit(ctx, false);
         // 4. Else,
-        let jump_over_else = ctx.add_instruction_with_jump_slot(Instruction::Jump);
+        let jump_over_else = if consequent_stmt_completion.is_continue() {
+            Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
+        } else {
+            None
+        };
         if let Some(alternate) = &self.alternate {
             ctx.set_jump_target_here(jump_to_else);
             // a. Let stmtCompletion be Completion(Evaluation of the second Statement).
             let st = ctx.enter_if_statement();
-            alternate.compile(ctx);
+            let _stmt_completion = alternate.compile(ctx);
             st.exit(ctx, false);
         } else {
             ctx.set_jump_target_here(jump_to_else);
@@ -2710,8 +2849,10 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::IfStat
             ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
             // 5. Return ? UpdateEmpty(stmtCompletion, undefined).
         }
-        ctx.set_jump_target_here(jump_over_else);
-        Ok(())
+        if let Some(jump_over_else) = jump_over_else {
+            ctx.set_jump_target_here(jump_over_else);
+        }
+        ControlFlow::Continue(StatementContinue::Value)
     }
 }
 
@@ -3163,7 +3304,7 @@ fn complex_object_pattern<'s>(
                 Instruction::CopyDataPropertiesIntoObject,
                 object_pattern.properties.len(),
             );
-            let value = ExpressionOutput::Value;
+            let value = ValueOutput::Value;
 
             let place = identifier.compile(ctx);
             if !has_environment {
@@ -3192,7 +3333,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Bindin
                 // 1. Let name be the StringValue of Identifier.
                 // 2. Return ? InitializeBoundName(name, value, environment).
                 let place = identifier.compile(ctx);
-                let value = ExpressionOutput::Value;
+                let value = ValueOutput::Value;
 
                 // ### 8.6.2.1 InitializeBoundName ( name, value, environment )
                 // 1. If environment is not undefined, then
@@ -3260,7 +3401,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Bindin
                         // branch.
                         let v = default_value
                             .and_then(|dv| dv.get_value(ctx))
-                            .unwrap_or(ExpressionOutput::Value);
+                            .unwrap_or(ValueOutput::Value);
                         if do_push_reference {
                             ctx.add_instruction(Instruction::PopReference);
                         }
@@ -3301,7 +3442,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Bindin
                         // branch.
                         let _v = default_value
                             .and_then(|dv| dv.get_value(ctx))
-                            .unwrap_or(ExpressionOutput::Value);
+                            .unwrap_or(ValueOutput::Value);
                         ctx.add_instruction(Instruction::Load);
                         ctx.set_jump_target_here(jump_over_initializer);
                         ctx.add_instruction(Instruction::Store);
@@ -3449,23 +3590,25 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Variab
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::BlockStatement<'s> {
-    type Output = ();
+    type Output = StatementResult<'gc>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         if self.body.is_empty() {
             // Block : {}
             // 1. Return EMPTY.
-            return;
+            return ControlFlow::Continue(StatementContinue::Empty);
         }
         block_declaration_instantiation::instantiation(ctx, self, |ctx| {
+            let mut result = StatementContinue::Empty;
             for ele in &self.body {
-                ele.compile(ctx);
+                result = ele.compile(ctx)?;
             }
-        });
+            ControlFlow::Continue(result)
+        })
     }
 }
 
 impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast::ForStatement<'s> {
-    type Output = Result<(), ExpressionError>;
+    type Output = StatementResult<'gc>;
 
     fn compile_labelled(
         &'s self,
@@ -3530,7 +3673,7 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
                 // that we need to exit from once we exit the loop.
                 loop_env.exit(ctx);
             }
-            return Err(err);
+            return ControlFlow::Break(err.into());
         }
         // 2. Perform ? CreatePerIterationEnvironment(perIterationBindings).
         let create_per_iteration_env = !per_iteration_lets.is_empty();
@@ -3578,13 +3721,18 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
             Ok(None)
         };
 
-        if test_result.is_ok() {
+        let result = if let Err(err) = test_result.as_ref() {
+            ControlFlow::Break((*err).into())
+        } else {
             // b. Let result be Completion(Evaluation of stmt).
-            self.body.compile(ctx);
-            if !ctx.is_unreachable() {
+            let result = self.body.compile(ctx);
+            if result.is_continue() {
                 ctx.add_jump_instruction_to_index(Instruction::Jump, continue_label.clone());
             }
-        }
+            // We cannot know that the loop completes abruptly even if the body
+            // says so. Continues and so forth can exit the loop.
+            ControlFlow::Continue(StatementContinue::Value)
+        };
         // c. If LoopContinues(result, labelSet) is false,
         //    return ? UpdateEmpty(result, V).
         // d. If result.[[Value]] is not empty, set V to result.[[Value]].
@@ -3602,8 +3750,8 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
         }
 
         // iii. If ToBoolean(testValue) is false, return V.
-        if let Ok(Some(end_jump)) = test_result.as_ref() {
-            ctx.set_jump_target_here(end_jump.clone());
+        if let Ok(Some(end_jump)) = test_result {
+            ctx.set_jump_target_here(end_jump);
         }
         // Note: exit_loop performs UpdateEmpty; if we jumped here from test
         // failure then result is currently empty and UpdateEmpty will pop V
@@ -3618,7 +3766,7 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
         }
         // c. If LoopContinues(result, labelSet) is false,
         //    return ? UpdateEmpty(result, V).
-        test_result.map(|_| ())
+        result
     }
 }
 
@@ -3676,29 +3824,33 @@ fn create_per_iteration_environment<'gc>(
 impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
     for ast::SwitchStatement<'s>
 {
-    type Output = Result<(), ExpressionError>;
+    type Output = StatementResult<'gc>;
 
     fn compile_labelled(
         &'s self,
         label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,
-        ctx: &mut CompileContext<'_, 's, '_, '_>,
+        ctx: &mut CompileContext<'_, 's, 'gc, '_>,
     ) -> Self::Output {
         // 1. Let exprRef be ? Evaluation of Expression.
         // 2. Let switchValue be ? GetValue(exprRef).
-        self.discriminant.compile(ctx)?.get_value(ctx)?;
+        value_result_to_statement_result(
+            self.discriminant
+                .compile(ctx)
+                .and_then(|r| r.get_value(ctx)),
+        )?;
         ctx.add_instruction(Instruction::Load);
         if self.cases.is_empty() {
             // CaseBlock : { }
             // 1. Return undefined.
             ctx.add_instruction_with_constant(Instruction::LoadConstant, Value::Undefined);
-            return Ok(());
+            return ControlFlow::Continue(StatementContinue::Literal(Primitive::Undefined));
         }
         let switch = ctx.enter_switch(label_set.cloned());
         // 3. Let oldEnv be the running execution context's LexicalEnvironment.
         // 4. Let blockEnv be NewDeclarativeEnvironment(oldEnv).
         // 5. Perform BlockDeclarationInstantiation(CaseBlock, blockEnv).
         // 6. Set the running execution context's LexicalEnvironment to blockEnv.
-        block_declaration_instantiation::instantiation(ctx, self, |ctx| {
+        let r = block_declaration_instantiation::instantiation(ctx, self, |ctx| {
             // 7. Let R be Completion(CaseBlockEvaluation of CaseBlock with argument switchValue).
             let mut has_default = false;
             let mut jump_indexes = Vec::with_capacity(self.cases.len());
@@ -3741,12 +3893,13 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
             };
 
             let mut index = 0;
+            let mut prev_result = ControlFlow::Continue(StatementContinue::Empty);
             for (i, case) in self.cases.iter().enumerate() {
                 let fallthrough_jump = if i != 0 {
                     // OPTIMISATION: if previous case ended with a break or an
                     // otherwise terminal instruction, we don't need a fallthrough
                     // jump at the beginning of the next case.
-                    if ctx.is_unreachable() {
+                    if prev_result.is_break() {
                         None
                     } else {
                         Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
@@ -3777,9 +3930,16 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
                     ctx.set_jump_target_here(fallthrough_jump);
                 }
 
+                // Reset the previous result for every case.
+                prev_result = ControlFlow::Continue(StatementContinue::Empty);
+
                 // i. Let R be Completion(Evaluation of C).
                 for ele in &case.consequent {
-                    ele.compile(ctx);
+                    if prev_result.is_break() {
+                        // Stop looping over statements if we found a break.
+                        break;
+                    }
+                    prev_result = ele.compile(ctx);
                 }
                 // ii. If R.[[Value]] is not empty, set V to R.[[Value]].
                 // if !ctx.is_unreachable() {
@@ -3790,13 +3950,14 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
             if let Some(jump_to_end) = jump_to_end {
                 ctx.set_jump_target_here(jump_to_end);
             }
+            ControlFlow::Continue(StatementContinue::Value)
         });
 
         switch.exit(ctx);
         // iii. If R is an abrupt completion, return ? UpdateEmpty(R, V).
         // ctx.add_instruction(Instruction::UpdateEmpty);
         // 9. Return R.
-        Ok(())
+        r
     }
 }
 
@@ -3811,11 +3972,12 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ThrowS
                 Result::<Infallible, ExpressionError>::Err(ExpressionError::Error)
             })
             .unwrap_err()
+            .into()
     }
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::TryStatement<'s> {
-    type Output = ();
+    type Output = StatementResult<'gc>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         ctx.add_instruction(Instruction::Empty);
         let try_finally_block = self
@@ -3825,13 +3987,13 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::TrySta
         let try_catch_block = self.handler.is_some().then(|| ctx.enter_try_catch_block());
 
         // 1. Let B be Completion(Evaluation of Block).
-        self.block.compile(ctx);
+        let b = self.block.compile(ctx);
         // 2. If B is a throw completion,
         let jump_over_catch_blocks = if let Some(catch_clause) = &self.handler {
             let jump_to_catch = try_catch_block.unwrap().exit(ctx);
             // OPTIMISATION: If the end of the try-block is unreachable, we
             // don't need a jump over the catch blocks.
-            let jump_over_catch_blocks = if !ctx.is_unreachable() {
+            let jump_over_catch_blocks = if b.is_continue() {
                 Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
             } else {
                 None
@@ -3861,13 +4023,14 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::TrySta
             ctx.add_instruction_with_constant(Instruction::LoadConstant, Value::Undefined);
             ctx.add_instruction(Instruction::UpdateEmpty);
         }
+        ControlFlow::Continue(StatementContinue::Value)
     }
 }
 
-fn catch_clause_evaluation<'s>(
+fn catch_clause_evaluation<'s, 'gc>(
     catch_clause: &'s ast::CatchClause<'s>,
-    ctx: &mut CompileContext<'_, 's, '_, '_>,
-) -> Result<(), ExpressionError> {
+    ctx: &mut CompileContext<'_, 's, 'gc, '_>,
+) -> StatementResult<'gc> {
     // 14.15.2 Runtime Semantics: CatchClauseEvaluation
     let catch_env = if let Some(exception_param) = &catch_clause.param {
         // 1. Let oldEnv be the running execution context's LexicalEnvironment.
@@ -3898,7 +4061,7 @@ fn catch_clause_evaluation<'s>(
             //    oldEnv.
             catch_env.exit(ctx);
             // b. Return ? status.
-            return Err(status);
+            return ControlFlow::Break(status.into());
         }
         Some(catch_env)
     } else {
@@ -3911,13 +4074,13 @@ fn catch_clause_evaluation<'s>(
         catch_env.exit(ctx);
     }
     // 9. Return ? B.
-    Ok(b)
+    b
 }
 
 impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
     for ast::WhileStatement<'s>
 {
-    type Output = Result<(), ExpressionError>;
+    type Output = StatementResult<'gc>;
 
     fn compile_labelled(
         &'s self,
@@ -3951,12 +4114,17 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
         };
 
         // d. Let stmtResult be Completion(Evaluation of Statement).
-        if expr_result.is_ok() {
-            self.body.compile(ctx);
-            if !ctx.is_unreachable() {
+        let stmt_result = if let Err(err) = expr_result {
+            ControlFlow::Break(err.into())
+        } else {
+            let stmt_result = self.body.compile(ctx);
+            eprintln!("Inner statement result: {stmt_result:?}");
+            if stmt_result.is_continue() {
                 ctx.add_jump_instruction_to_index(Instruction::Jump, continue_label.clone());
             }
-        }
+            // We cannot know how the loop ends.
+            ControlFlow::Continue(StatementContinue::Value)
+        };
         {
             // ## Catch block
             ctx.set_jump_target_here(l.on_abrupt_exit());
@@ -3964,27 +4132,28 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
             // > c. If LoopContinues(result, labelSet) is false,
             // >    return ? UpdateEmpty(result, V).
             ctx.add_instruction(Instruction::UpdateEmpty);
+            ctx.add_instruction(Instruction::Debug);
             ctx.add_instruction(Instruction::Throw);
         }
         // f. If stmtResult.[[Value]] is not EMPTY, set V to
         //    stmtResult.[[Value]].
 
         // c. If ToBoolean(exprValue) is false, return V.
-        if let Ok(Some(end_jump)) = expr_result.as_ref() {
-            ctx.set_jump_target_here(end_jump.clone());
+        if let Ok(Some(end_jump)) = expr_result {
+            ctx.set_jump_target_here(end_jump);
         }
         // Note: exit_loop performs UpdateEmpty; if we jumped here from test
         // failure then result is currently empty and UpdateEmpty will pop V
         // into the result register.
         l.exit(ctx, continue_label);
-        expr_result.map(|_| ())
+        stmt_result
     }
 }
 
 impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
     for ast::DoWhileStatement<'s>
 {
-    type Output = Result<(), ExpressionError>;
+    type Output = StatementResult<'gc>;
 
     fn compile_labelled(
         &'s self,
@@ -4022,16 +4191,20 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
             expr_value.map(|_| Some(ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot)))
         };
 
-        if expr_result.is_ok() {
+        let stmt_result = if let Err(err) = expr_result {
+            ControlFlow::Break(err.into())
+        } else {
             ctx.set_jump_target_here(jump_over_continue);
             // a. Let stmtResult be Completion(Evaluation of Statement).
-            self.body.compile(ctx);
+            let stmt_result = self.body.compile(ctx);
             // b. If LoopContinues(stmtResult, labelSet) is false,
             //    return ? UpdateEmpty(stmtResult, V).
-            if !ctx.is_unreachable() {
+            if stmt_result.is_continue() {
                 ctx.add_jump_instruction_to_index(Instruction::Jump, continue_label.clone());
             }
-        }
+            // We cannot know how the loop ends.
+            ControlFlow::Continue(StatementContinue::Value)
+        };
 
         {
             // ## Catch block
@@ -4043,7 +4216,7 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
             ctx.add_instruction(Instruction::Throw);
         }
         // f. If ToBoolean(exprValue) is false, return V.
-        if let Ok(Some(jump_to_end)) = expr_result.as_ref() {
+        if let Ok(Some(jump_to_end)) = expr_result {
             ctx.set_jump_target_here(jump_to_end.clone());
         }
         // Note: exit_loop performs UpdateEmpty; if we jumped here from test
@@ -4051,7 +4224,7 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
         // into the result register.
         l.exit(ctx, continue_label);
         v.exit(ctx);
-        expr_result.map(|_| ())
+        stmt_result
     }
 }
 
@@ -4070,82 +4243,82 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Contin
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Statement<'s> {
-    type Output = ();
+    type Output = StatementResult<'gc>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         if ctx.is_unreachable() {
             // OPTIMISATION: If the previous statement was terminal, then later
             // statements cannot be executed and do not need to be compiled.
-            return;
+            return StatementBreak::Return.into();
         }
         match self {
-            Self::ExpressionStatement(x) => {
-                x.compile(ctx);
-            }
-            Self::ReturnStatement(x) => {
-                x.compile(ctx);
-                return;
-            }
-            Self::IfStatement(x) => {
-                x.compile(ctx);
-            }
+            Self::ExpressionStatement(x) => x.compile(ctx),
+            Self::ReturnStatement(x) => x.compile(ctx).into(),
+            Self::IfStatement(x) => x.compile(ctx),
             Self::VariableDeclaration(x) => {
-                x.compile(ctx);
+                if let Err(err) = x.compile(ctx) {
+                    ControlFlow::Break(err.into())
+                } else {
+                    // 6. Return EMPTY.
+                    ControlFlow::Continue(StatementContinue::Empty)
+                }
             }
             Self::FunctionDeclaration(_) => {
                 // Note: Function declaration statements are always hoisted.
                 // There is no work left to do here.
+                ControlFlow::Continue(StatementContinue::Empty)
             }
             Self::BlockStatement(x) => x.compile(ctx),
-            Self::EmptyStatement(_) => {}
-            Self::ForStatement(x) => {
-                x.compile_labelled(None, ctx);
-            }
-            Self::ThrowStatement(x) => {
-                x.compile(ctx);
-            }
+            Self::EmptyStatement(_) => ControlFlow::Continue(StatementContinue::Empty),
+            Self::ForStatement(x) => x.compile_labelled(None, ctx),
+            Self::ThrowStatement(x) => ControlFlow::Break(x.compile(ctx).into()),
             Self::TryStatement(x) => x.compile(ctx),
-            Self::BreakStatement(statement) => statement.compile(ctx),
-            Self::ContinueStatement(statement) => statement.compile(ctx),
-            Self::DebuggerStatement(_) => ctx.add_instruction(Instruction::Debug),
-            Self::DoWhileStatement(statement) => {
-                statement.compile_labelled(None, ctx);
+            Self::BreakStatement(statement) => {
+                statement.compile(ctx);
+                ControlFlow::Break(StatementBreak::Break)
             }
-            Self::ForInStatement(statement) => {
-                statement.compile_labelled(None, ctx);
+            Self::ContinueStatement(statement) => {
+                statement.compile(ctx);
+                ControlFlow::Break(StatementBreak::Continue)
             }
-            Self::ForOfStatement(statement) => {
-                statement.compile_labelled(None, ctx);
+            Self::DebuggerStatement(_) => {
+                ctx.add_instruction(Instruction::Debug);
+                ControlFlow::Continue(StatementContinue::Empty)
             }
-            Self::LabeledStatement(statement) => {
-                statement.compile_labelled(None, ctx);
-            }
-            Self::SwitchStatement(statement) => {
-                statement.compile_labelled(None, ctx);
-            }
-            Self::WhileStatement(statement) => {
-                statement.compile_labelled(None, ctx);
-            }
-            Self::WithStatement(st) => {
-                st.compile(ctx);
-            }
+            Self::DoWhileStatement(statement) => statement.compile_labelled(None, ctx),
+            Self::ForInStatement(statement) => statement.compile_labelled(None, ctx),
+            Self::ForOfStatement(statement) => statement.compile_labelled(None, ctx),
+            Self::LabeledStatement(statement) => statement.compile_labelled(None, ctx),
+            Self::SwitchStatement(statement) => statement.compile_labelled(None, ctx),
+            Self::WhileStatement(statement) => statement.compile_labelled(None, ctx),
+            Self::WithStatement(st) => st.compile(ctx),
             Self::ClassDeclaration(x) => {
                 // If this is a declare statement, it's a TypeScript ambient declaration
                 // and should not generate any runtime code, similar to type declarations
                 #[cfg(feature = "typescript")]
                 if x.declare {
-                    return;
+                    return ControlFlow::Continue(StatementContinue::Empty);
                 }
-                x.compile(ctx);
+                if let Err(err) = x.compile(ctx) {
+                    ControlFlow::Break(err.into())
+                } else {
+                    ControlFlow::Continue(StatementContinue::Value)
+                }
             }
             Self::ImportDeclaration(_) => {
                 // Note: Import declarations do not perform any runtime work.
+                ControlFlow::Continue(StatementContinue::Empty)
             }
-            Self::ExportAllDeclaration(x) => x.compile(ctx),
-            Self::ExportDefaultDeclaration(x) => {
+            Self::ExportAllDeclaration(x) => {
                 x.compile(ctx);
+                ControlFlow::Continue(StatementContinue::Empty)
+            }
+            Self::ExportDefaultDeclaration(x) => {
+                x.compile(ctx)?;
+                ControlFlow::Continue(StatementContinue::Empty)
             }
             Self::ExportNamedDeclaration(x) => {
-                x.compile(ctx);
+                x.compile(ctx)?;
+                ControlFlow::Continue(StatementContinue::Empty)
             }
             #[cfg(feature = "typescript")]
             Self::TSEnumDeclaration(x) => x.compile(ctx),

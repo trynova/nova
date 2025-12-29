@@ -991,7 +991,10 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         let iter = body.iter();
 
         for stmt in iter {
-            stmt.compile(self);
+            let result = stmt.compile(self);
+            if result.is_break() {
+                break;
+            }
         }
     }
 

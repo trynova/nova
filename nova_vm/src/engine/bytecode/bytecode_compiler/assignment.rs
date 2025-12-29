@@ -6,7 +6,7 @@ use oxc_ast::ast::{self, AssignmentOperator, LogicalOperator};
 
 use crate::engine::{
     Instruction,
-    bytecode::bytecode_compiler::{ExpressionError, ExpressionOutput, PlaceOutput},
+    bytecode::bytecode_compiler::{ExpressionError, PlaceOutput, ValueOutput},
 };
 
 use super::{
@@ -14,7 +14,7 @@ use super::{
 };
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::AssignmentExpression<'s> {
-    type Output = Result<ExpressionOutput<'s, 'gc>, ExpressionError>;
+    type Output = Result<ValueOutput<'gc>, ExpressionError>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         let mut do_named_evaluation = false;
         // 1. Let lref be ? Evaluation of LeftHandSideExpression.
@@ -171,7 +171,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
             if let Some(jump_over_else) = jump_over_else {
                 ctx.set_jump_target_here(jump_over_else);
             }
-            Ok(ExpressionOutput::Value)
+            Ok(ValueOutput::Value)
         } else {
             // 2. let lval be ? GetValue(lref).
             lref.get_value_keep_reference(ctx)?;
@@ -209,7 +209,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
             };
             ctx.add_instruction(op_text);
             ctx.add_instruction(Instruction::LoadCopy);
-            let r = ExpressionOutput::Value;
+            let r = ValueOutput::Value;
             if do_push_reference {
                 ctx.add_instruction(Instruction::PopReference);
             }
@@ -261,7 +261,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
             // result: value
             // stack: []
             // reference: &target
-            place.put_value(ctx, ExpressionOutput::Value)?;
+            place.put_value(ctx, ValueOutput::Value)?;
             // result: None
             // stack: []
             // reference: None
@@ -355,7 +355,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                                 ctx.add_instruction(Instruction::PopReference);
                             }
                             // 7. Return ? PutValue(lRef, v).
-                            if let Err(e) = lref.put_value(ctx, ExpressionOutput::Value) {
+                            if let Err(e) = lref.put_value(ctx, ValueOutput::Value) {
                                 result = Err(e);
                                 break 'args;
                             }
@@ -405,7 +405,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                         // 5. Else,
                         // a. Let v be value.
                         // 7. Return ? PutValue(lRef, v).
-                        if let Err(e) = lref.put_value(ctx, ExpressionOutput::Value) {
+                        if let Err(e) = lref.put_value(ctx, ValueOutput::Value) {
                             result = Err(e);
                             break 'args;
                         }
@@ -452,7 +452,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                     };
                     ctx.add_instruction(Instruction::IteratorRestIntoArray);
                     // a. Return ? PutValue(lRef, A).
-                    if let Err(e) = lref.put_value(ctx, ExpressionOutput::Value) {
+                    if let Err(e) = lref.put_value(ctx, ValueOutput::Value) {
                         result = Err(e);
                         break 'args;
                     }
@@ -722,7 +722,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
         // result: binding / init
         // stack: []
         // reference: &binding
-        place.put_value(ctx, ExpressionOutput::Value)?;
+        place.put_value(ctx, ValueOutput::Value)?;
         // result: None
         // stack: []
         // reference: None

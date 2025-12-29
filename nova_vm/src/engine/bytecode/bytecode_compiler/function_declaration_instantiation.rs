@@ -22,11 +22,11 @@ use crate::{
     },
     engine::{
         Instruction,
-        bytecode::bytecode_compiler::{CompileContext, variable_escapes_scope},
+        bytecode::bytecode_compiler::{CompileContext, ValueOutput, variable_escapes_scope},
     },
 };
 
-use super::{CompileEvaluation, ExpressionOutput, complex_array_pattern, simple_array_pattern};
+use super::{CompileEvaluation, complex_array_pattern, simple_array_pattern};
 
 /// ### [10.2.11 FunctionDeclarationInstantiation ( func, argumentsList )](https://tc39.es/ecma262/#sec-functiondeclarationinstantiation)
 ///
@@ -438,6 +438,6 @@ pub(crate) fn instantiation<'s>(
         // c. Perform ! varEnv.SetMutableBinding(fn, fo, false).
         // TODO: This compilation is incorrect if !strict, when varEnv != lexEnv.
         let f = f.id.as_ref().unwrap().compile(ctx);
-        f.put_value(ctx, ExpressionOutput::Value).unwrap();
+        f.put_value(ctx, ValueOutput::Value).unwrap();
     }
 }

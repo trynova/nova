@@ -2,19 +2,19 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::bytecode::bytecode_compiler::ExpressionError;
+use crate::engine::bytecode::bytecode_compiler::StatementResult;
 
 use super::{CompileContext, CompileEvaluation, CompileLabelledEvaluation};
 
 impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
     for oxc_ast::ast::LabeledStatement<'s>
 {
-    type Output = Result<(), ExpressionError>;
+    type Output = StatementResult<'gc>;
 
     fn compile_labelled(
         &'s self,
         label_set: Option<&mut Vec<&'s oxc_ast::ast::LabelIdentifier<'s>>>,
-        ctx: &mut CompileContext<'_, 's, '_, '_>,
+        ctx: &mut CompileContext<'_, 's, 'gc, '_>,
     ) -> Self::Output {
         let st = ctx.enter_label(&self.label);
         let mut local_label_set: Vec<&'s oxc_ast::ast::LabelIdentifier<'s>>;
@@ -33,10 +33,7 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
             oxc_ast::ast::Statement::LabeledStatement(st) => st.compile_labelled(label_set, ctx),
             oxc_ast::ast::Statement::SwitchStatement(st) => st.compile_labelled(label_set, ctx),
             oxc_ast::ast::Statement::WhileStatement(st) => st.compile_labelled(label_set, ctx),
-            _ => {
-                self.body.compile(ctx);
-                Ok(())
-            }
+            _ => self.body.compile(ctx),
         };
         st.exit(ctx);
         result
