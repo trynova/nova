@@ -30,18 +30,21 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Export
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
     for ast::ExportDefaultDeclaration<'s>
 {
-    type Output = ();
+    type Output = Result<(), ExpressionError>;
     /// ### ExportDeclaration :
     /// ```text
     /// export default HoistableDeclaration
     /// export default ClassDeclaration
     /// export default AssignmentExpression ;
     /// ```
-    fn compile(&'s self, ctx: &mut super::CompileContext<'_, 's, '_, '_>) {
+    fn compile(&'s self, ctx: &mut super::CompileContext<'_, 's, '_, '_>) -> Self::Output {
         match &self.declaration {
             //  ExportDeclaration : export default HoistableDeclaration
             // 1. Return ? Evaluation of HoistableDeclaration.
-            ast::ExportDefaultDeclarationKind::FunctionDeclaration(decl) => decl.compile(ctx),
+            ast::ExportDefaultDeclarationKind::FunctionDeclaration(decl) => {
+                decl.compile(ctx);
+                Ok(())
+            }
             // ExportDeclaration : export default ClassDeclaration
             ast::ExportDefaultDeclarationKind::ClassDeclaration(decl) => {
                 // 1. Let value be ? BindingClassDeclarationEvaluation of ClassDeclaration.
@@ -50,7 +53,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                     BUILTIN_STRING_MEMORY.default,
                 );
                 ctx.name_identifier = Some(NamedEvaluationParameter::Result);
-                decl.compile(ctx);
+                decl.compile(ctx)?;
                 // 2. Let className be the sole element of the BoundNames of ClassDeclaration.
                 // 3. If className is "*default*", then
                 // a. Let env be the running execution context's LexicalEnvironment.
@@ -61,6 +64,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                 );
                 ctx.add_instruction(Instruction::InitializeReferencedBinding);
                 // 4. Return empty.
+                Ok(())
             }
             ast::ExportDefaultDeclarationKind::TSInterfaceDeclaration(_) => unreachable!(),
             _ => {
@@ -80,7 +84,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                 // 2. Else,
                 // a. Let rhs be ? Evaluation of AssignmentExpression.
                 // b. Let value be ? GetValue(rhs).
-                compile_expression_get_value(expr, ctx);
+                compile_expression_get_value(expr, ctx)?;
 
                 // 3. Let env be the running execution context's LexicalEnvironment.
                 // 4. Perform ? InitializeBoundName("*default*", value, env).
@@ -90,6 +94,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                 );
                 ctx.add_instruction(Instruction::InitializeReferencedBinding);
                 // 5. Return empty.
+                Ok(())
             }
         }
     }

@@ -25,29 +25,20 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
             local_label_set = vec![&self.label];
             Some(&mut local_label_set)
         };
-        let _ = match &self.body {
-            oxc_ast::ast::Statement::DoWhileStatement(st) => {
-                st.compile_labelled(label_set, ctx);
-                Ok(())
-            }
+        let result = match &self.body {
+            oxc_ast::ast::Statement::DoWhileStatement(st) => st.compile_labelled(label_set, ctx),
             oxc_ast::ast::Statement::ForInStatement(st) => st.compile_labelled(label_set, ctx),
             oxc_ast::ast::Statement::ForOfStatement(st) => st.compile_labelled(label_set, ctx),
-            oxc_ast::ast::Statement::ForStatement(st) => {
-                st.compile_labelled(label_set, ctx);
-                Ok(())
-            }
+            oxc_ast::ast::Statement::ForStatement(st) => st.compile_labelled(label_set, ctx),
             oxc_ast::ast::Statement::LabeledStatement(st) => st.compile_labelled(label_set, ctx),
             oxc_ast::ast::Statement::SwitchStatement(st) => st.compile_labelled(label_set, ctx),
-            oxc_ast::ast::Statement::WhileStatement(st) => {
-                st.compile_labelled(label_set, ctx);
-                Ok(())
-            }
+            oxc_ast::ast::Statement::WhileStatement(st) => st.compile_labelled(label_set, ctx),
             _ => {
                 self.body.compile(ctx);
                 Ok(())
             }
         };
         st.exit(ctx);
-        Ok(())
+        result
     }
 }

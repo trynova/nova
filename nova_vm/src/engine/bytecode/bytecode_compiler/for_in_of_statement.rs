@@ -180,14 +180,14 @@ fn for_in_of_body_evaluation<'s>(
 
     let mut decl_env = None;
     // g. If lhsKind is either ASSIGNMENT or VAR-BINDING, then
-    match lhs_kind {
+    let status = match lhs_kind {
         LeftHandSideKind::Assignment | LeftHandSideKind::VarBinding => {
             // i. If destructuring is true, then
             if destructuring {
                 // 1. If lhsKind is ASSIGNMENT, then
                 if lhs_kind == LeftHandSideKind::Assignment {
                     // a. Let status be Completion(DestructuringAssignmentEvaluation of assignmentPattern with argument nextValue).
-                    assignment_pattern.unwrap().compile(ctx);
+                    assignment_pattern.unwrap().compile(ctx)
                 } else {
                     // 2. Else,
                     // a. Assert: lhsKind is VAR-BINDING.
@@ -198,11 +198,9 @@ fn for_in_of_body_evaluation<'s>(
                         ast::ForStatementLeft::VariableDeclaration(decl) => {
                             assert_eq!(decl.declarations.len(), 1);
                             let declaration = decl.declarations.first().unwrap();
-                            declaration.id.compile(ctx);
+                            declaration.id.compile(ctx)
                         }
-                        _ => {
-                            lhs.as_assignment_target().unwrap().compile(ctx);
-                        }
+                        _ => lhs.as_assignment_target().unwrap().compile(ctx),
                     }
                 }
             } else {
@@ -222,11 +220,9 @@ fn for_in_of_body_evaluation<'s>(
                         // a. Let status be lhsRef.
                         // 3. Else,
                         // a. Let status be Completion(PutValue(lhsRef.[[Value]], nextValue)).
-                        lhs_ref.put_value(ctx, ExpressionOutput::Value);
+                        lhs_ref.put_value(ctx, ExpressionOutput::Value)
                     }
-                    _ => {
-                        lhs.to_assignment_target().compile(ctx);
-                    }
+                    _ => lhs.to_assignment_target().compile(ctx),
                 }
             }
         }
@@ -271,8 +267,9 @@ fn for_in_of_body_evaluation<'s>(
                 assert_eq!(lhs.declarations.len(), 1);
                 let lhs = lhs.declarations.first().unwrap();
                 assert!(lhs.init.is_none());
-                lhs.id.compile(ctx);
+                let status = lhs.id.compile(ctx);
                 ctx.lexical_binding_state = lexical_binding_state;
+                status
             } else {
                 // vii. Else,
                 lhs.bound_names(&mut |binding_identifier| {
@@ -302,15 +299,18 @@ fn for_in_of_body_evaluation<'s>(
                     // 4. Let status be Completion(InitializeReferencedBinding(lhsRef, nextValue)).
                     ctx.add_instruction(Instruction::InitializeReferencedBinding)
                 });
+                Ok(())
             }
         }
-    }
+    };
     // i. If status is an abrupt completion, then ...
     // Note: we move the abrupt completion handling after the loop to improve
     // performance.
 
     // j. Let result be Completion(Evaluation of stmt).
-    let _result = stmt.compile(ctx);
+    if status.is_ok() {
+        let _result = stmt.compile(ctx);
+    }
 
     // k. Set the running execution context's LexicalEnvironment to oldEnv.
     if let Some(decl_env) = decl_env {

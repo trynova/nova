@@ -229,7 +229,8 @@ pub(crate) fn instantiation<'s>(
     //      iteratorRecord and env.
     if formals.has_parameter() {
         if has_parameter_expressions {
-            complex_array_pattern(
+            // Note: ignore errors here for safety.
+            let _ = complex_array_pattern(
                 ctx,
                 formals.items.iter().map(|param| Some(&param.pattern)),
                 formals.rest.as_deref(),
@@ -437,6 +438,6 @@ pub(crate) fn instantiation<'s>(
         // c. Perform ! varEnv.SetMutableBinding(fn, fo, false).
         // TODO: This compilation is incorrect if !strict, when varEnv != lexEnv.
         let f = f.id.as_ref().unwrap().compile(ctx);
-        f.put_value(ctx, ExpressionOutput::Value);
+        f.put_value(ctx, ExpressionOutput::Value).unwrap();
     }
 }

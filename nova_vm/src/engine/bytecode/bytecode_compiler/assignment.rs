@@ -45,7 +45,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
                 let rval = self.right.compile(ctx)?.get_value(ctx)?;
                 // 5. Perform ? DestructuringAssignmentEvaluation of assignmentPattern with argument rVal.
                 ctx.add_instruction(Instruction::LoadCopy);
-                self.left.to_assignment_target_pattern().compile(ctx);
+                self.left.to_assignment_target_pattern().compile(ctx)?;
                 // 6. Return rVal.
                 ctx.add_instruction(Instruction::Store);
                 return Ok(rval);
@@ -266,7 +266,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
             // stack: []
             // reference: None
         } else {
-            self.to_assignment_target_pattern().compile(ctx);
+            self.to_assignment_target_pattern().compile(ctx)?;
         }
         Ok(())
     }
@@ -549,7 +549,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
         for (index, property) in self.properties.iter().enumerate() {
             // result: source
             // stack: [source?]
-            compile_assignment_target_property(property, ctx, has_rest);
+            compile_assignment_target_property(property, ctx, has_rest)?;
             // result: None
             // stack: [source?]
             match index.cmp(&store_copy_cutoff) {
@@ -620,7 +620,7 @@ fn compile_assignment_target_property<'s>(
             // stack: [source?]
             // reference: None
             // reference stack: [&source.identifier?]
-            identifier.compile(ctx);
+            identifier.compile(ctx)?;
             // result: None
             // stack: [source?]
             // reference: None
@@ -642,7 +642,7 @@ fn compile_assignment_target_property<'s>(
             // stack: [source?]
             // reference: None
             // reference stack: [&source.property?]
-            property.binding.compile(ctx);
+            property.binding.compile(ctx)?;
             // result: None
             // stack: [source?]
             // reference: None
@@ -825,7 +825,7 @@ fn compile_initializer<'s>(
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
     for ast::AssignmentTargetMaybeDefault<'s>
 {
-    type Output = ();
+    type Output = Result<(), ExpressionError>;
     /// ## Register states
     ///
     /// ### Entry condition
@@ -843,7 +843,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
     /// reference: &source.property
     /// reference stack: []
     /// ```
-    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) {
+    fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) -> Self::Output {
         match self {
             ast::AssignmentTargetMaybeDefault::AssignmentTargetWithDefault(target) => {
                 // result: value
@@ -851,17 +851,18 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                 compile_initializer(target, ctx);
                 // result: value / init
                 // stack: []
-                target.binding.compile(ctx);
+                target.binding.compile(ctx)?;
                 // result: None
                 // stack: []
             }
             _ => {
                 // result: value
                 // stack: []
-                self.to_assignment_target().compile(ctx);
+                self.to_assignment_target().compile(ctx)?;
                 // result: None
                 // stack: []
             }
         }
+        Ok(())
     }
 }

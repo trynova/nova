@@ -915,16 +915,18 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::UnaryE
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::BinaryExpression<'s> {
-    type Output = ();
+    type Output = Result<ExpressionOutput<'s, 'gc>, ExpressionError>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         // 1. Let lref be ? Evaluation of leftOperand.
+        let lref = self.left.compile(ctx)?;
         // 2. Let lval be ? GetValue(lref).
-        compile_expression_get_value(&self.left, ctx);
+        let _lval = lref.get_value(ctx)?;
         ctx.add_instruction(Instruction::Load);
 
         // 3. Let rref be ? Evaluation of rightOperand.
+        let rref = self.right.compile(ctx)?;
         // 4. Let rval be ? GetValue(rref).
-        compile_expression_get_value(&self.right, ctx);
+        let _rval = rref.get_value(ctx)?;
 
         let op_text = match self.operator {
             BinaryOperator::LessThan => Instruction::LessThan,
@@ -960,13 +962,15 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Binary
         };
         // 5. Return ? ApplyStringOrNumericBinaryOperator(lval, opText, rval).
         ctx.add_instruction(op_text);
+        Ok(ExpressionOutput::Value)
     }
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::LogicalExpression<'s> {
-    type Output = ();
+    type Output = Result<ExpressionOutput<'s, 'gc>, ExpressionError>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
-        compile_expression_get_value(&self.left, ctx);
+        let lref = self.left.compile(ctx)?;
+        let _lval = lref.get_value(ctx)?;
 
         // We store the left value on the stack, because we'll need to restore
         // it later.
@@ -987,7 +991,8 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Logica
         // at the top of the stack.
         ctx.add_instruction(Instruction::Store);
 
-        compile_expression_get_value(&self.right, ctx);
+        let rref = self.right.compile(ctx)?;
+        let _rval = rref.get_value(ctx)?;
 
         let jump_to_end = ctx.add_instruction_with_jump_slot(Instruction::Jump);
 
@@ -995,6 +1000,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Logica
         // Return the result of the left expression.
         ctx.add_instruction(Instruction::Store);
         ctx.set_jump_target_here(jump_to_end);
+        Ok(ExpressionOutput::Value)
     }
 }
 
@@ -1047,10 +1053,10 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Functi
     }
 }
 
-fn create_object_with_shape<'s>(
+fn create_object_with_shape<'s, 'gc>(
     expr: &'s ast::ObjectExpression<'s>,
-    ctx: &mut CompileContext<'_, 's, '_, '_>,
-) {
+    ctx: &mut CompileContext<'_, 's, 'gc, '_>,
+) -> Result<ExpressionOutput<'s, 'gc>, ExpressionError> {
     let proto_prop = expr.properties.iter().find(|prop| {
         let ast::ObjectPropertyKind::ObjectProperty(prop) = prop else {
             unreachable!()
@@ -1102,11 +1108,12 @@ fn create_object_with_shape<'s>(
             ctx.add_instruction_with_constant(Instruction::StoreConstant, identifier);
             ctx.name_identifier = Some(NamedEvaluationParameter::Result);
         }
-        compile_expression_get_value(&prop.value, ctx);
+        prop.value.compile(ctx)?.get_value(ctx)?;
 
         ctx.add_instruction(Instruction::Load);
     }
     ctx.add_instruction_with_shape(Instruction::ObjectCreateWithShape, shape);
+    Ok(ExpressionOutput::Value)
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ObjectExpression<'s> {
@@ -1147,8 +1154,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Object
             // Check that there are no duplicates.
             if dedup_keys.len() == self.properties.len() {
                 // Can create Object Shape beforehand and calculate
-                create_object_with_shape(self, ctx);
-                return Ok(ExpressionOutput::Value);
+                return create_object_with_shape(self, ctx);
             }
         }
         // TODO: Consider preparing the properties onto the stack and creating
@@ -2515,10 +2521,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Expres
             ast::Expression::AssignmentExpression(x) => x.compile(ctx),
             ast::Expression::AwaitExpression(x) => x.compile(ctx),
             ast::Expression::BigIntLiteral(x) => Ok(x.compile(ctx)),
-            ast::Expression::BinaryExpression(x) => {
-                x.compile(ctx);
-                Ok(ExpressionOutput::Value)
-            }
+            ast::Expression::BinaryExpression(x) => x.compile(ctx),
             ast::Expression::BooleanLiteral(x) => Ok(x.compile(ctx)),
             ast::Expression::CallExpression(x) => x.compile(ctx),
             ast::Expression::ChainExpression(x) => x.compile(ctx),
@@ -2534,10 +2537,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Expres
             }
             ast::Expression::Identifier(x) => Ok(x.compile(ctx).into()),
             ast::Expression::ImportExpression(x) => x.compile(ctx),
-            ast::Expression::LogicalExpression(x) => {
-                x.compile(ctx);
-                Ok(ExpressionOutput::Value)
-            }
+            ast::Expression::LogicalExpression(x) => x.compile(ctx),
             ast::Expression::MetaProperty(x) => {
                 x.compile(ctx);
                 Ok(ExpressionOutput::Value)
@@ -2570,14 +2570,8 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Expres
                 Ok(ExpressionOutput::Value)
             }
             ast::Expression::UnaryExpression(x) => x.compile(ctx),
-            ast::Expression::UpdateExpression(x) => {
-                x.compile(ctx);
-                Ok(ExpressionOutput::Value)
-            }
-            ast::Expression::YieldExpression(x) => {
-                x.compile(ctx);
-                Ok(ExpressionOutput::Value)
-            }
+            ast::Expression::UpdateExpression(x) => x.compile(ctx),
+            ast::Expression::YieldExpression(x) => x.compile(ctx),
             ast::Expression::V8IntrinsicExpression(_) => todo!(),
             #[cfg(feature = "typescript")]
             ast::Expression::TSAsExpression(x) => x.expression.compile(ctx),
@@ -2677,23 +2671,24 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Expres
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ReturnStatement<'s> {
-    type Output = ();
+    type Output = Result<(), ExpressionError>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         if let Some(expr) = &self.argument {
-            compile_expression_get_value(expr, ctx);
+            expr.compile(ctx)?.get_value(ctx)?;
         } else {
             ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
         }
         ctx.compile_return(self.argument.is_some());
+        Ok(())
     }
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::IfStatement<'s> {
-    type Output = ();
+    type Output = Result<(), ExpressionError>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         // 1. Let exprRef be ? Evaluation of Expression.
         // 2. Let exprValue be ToBoolean(? GetValue(exprRef)).
-        compile_expression_get_value(&self.test, ctx);
+        self.test.compile(ctx)?.get_value(ctx)?;
         // 3. If exprValue is true, then
         let jump_to_else = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
         let st = ctx.enter_if_statement();
@@ -2716,11 +2711,12 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::IfStat
             // 5. Return ? UpdateEmpty(stmtCompletion, undefined).
         }
         ctx.set_jump_target_here(jump_over_else);
+        Ok(())
     }
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ArrayPattern<'s> {
-    type Output = ();
+    type Output = Result<(), ExpressionError>;
     /// ### [8.6.2 Runtime Semantics: BindingInitialization](https://tc39.es/ecma262/#sec-runtime-semantics-bindinginitialization)
     /// ### BindingPattern : ArrayBindingPattern
     fn compile(&'s self, ctx: &mut CompileContext<'_, 's, '_, '_>) -> Self::Output {
@@ -2739,7 +2735,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ArrayP
                 ctx.add_instruction(Instruction::Throw);
             }
             ctx.set_jump_target_here(jump_over_catch);
-            return;
+            return Ok(());
         }
 
         // 1. Let iteratorRecord be ? GetIterator(value, sync).
@@ -2747,7 +2743,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ArrayP
         // 2. Let result be Completion(IteratorBindingInitialization of
         //    ArrayBindingPattern with arguments iteratorRecord and
         //    environment).
-        if !self.contains_expression() {
+        let result = if !self.contains_expression() {
             simple_array_pattern(
                 ctx,
                 self.elements.iter().map(Option::as_ref),
@@ -2755,20 +2751,20 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ArrayP
                 self.elements.len(),
                 ctx.lexical_binding_state,
             );
+            Ok(())
         } else {
             complex_array_pattern(
                 ctx,
                 self.elements.iter().map(Option::as_ref),
                 self.rest.as_deref(),
                 ctx.lexical_binding_state,
-            );
-        }
+            )
+        };
         // 3. If iteratorRecord.[[Done]] is false, return
         //    ? IteratorClose(iteratorRecord, result).
         // Note: simple array binding handles IteratorClose at runtime, while
         // complex array binding injects it on its own. We don't need to do
         // anything special here.
-        // 4. Return ? result.
         let jump_to_catch = iterator.exit(ctx);
         let jump_over_catch_and_exit = ctx.add_instruction_with_jump_slot(Instruction::Jump);
         {
@@ -2780,6 +2776,8 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ArrayP
             ctx.add_instruction(Instruction::Throw);
         }
         ctx.set_jump_target_here(jump_over_catch_and_exit);
+        // 4. Return ? result.
+        result
     }
 }
 
@@ -2893,38 +2891,48 @@ fn complex_array_pattern<'s, I>(
     elements: I,
     rest: Option<&'s ast::BindingRestElement<'s>>,
     has_environment: bool,
-) where
+) -> Result<(), ExpressionError>
+where
     I: Iterator<Item = Option<&'s ast::BindingPattern<'s>>>,
 {
     let lexical_binding_state = ctx.lexical_binding_state;
     ctx.lexical_binding_state = has_environment;
-    for ele in elements {
-        ctx.add_instruction(Instruction::IteratorStepValueOrUndefined);
+    let result = 'iter: {
+        for ele in elements {
+            ctx.add_instruction(Instruction::IteratorStepValueOrUndefined);
 
-        let Some(ele) = ele else {
-            continue;
-        };
+            let Some(ele) = ele else {
+                continue;
+            };
 
-        ele.compile(ctx);
-    }
+            if let Err(err) = ele.compile(ctx) {
+                break 'iter Err(err);
+            }
+        }
 
-    if let Some(rest) = rest {
-        ctx.add_instruction(Instruction::IteratorRestIntoArray);
-        rest.argument.compile(ctx);
-    } else {
-        ctx.add_instruction(Instruction::IteratorClose);
-    }
+        if let Some(rest) = rest {
+            ctx.add_instruction(Instruction::IteratorRestIntoArray);
+            if let Err(err) = rest.argument.compile(ctx) {
+                break 'iter Err(err);
+            }
+        } else {
+            ctx.add_instruction(Instruction::IteratorClose);
+        }
+        Ok(())
+    };
     ctx.lexical_binding_state = lexical_binding_state;
+    result
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ObjectPattern<'s> {
-    type Output = ();
+    type Output = Result<(), ExpressionError>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         if !self.contains_expression() {
             simple_object_pattern(self, ctx, ctx.lexical_binding_state);
         } else {
-            complex_object_pattern(self, ctx, ctx.lexical_binding_state);
+            complex_object_pattern(self, ctx, ctx.lexical_binding_state)?;
         }
+        Ok(())
     }
 }
 
@@ -3101,66 +3109,75 @@ fn complex_object_pattern<'s>(
     // 8.6.2 Runtime Semantics: BindingInitialization
     // BindingPattern : ObjectBindingPattern
     // 1. Perform ? RequireObjectCoercible(value).
-    // NOTE: RequireObjectCoercible throws in the same cases as ToObject, and other operations
-    // later on (such as GetV) also perform ToObject, so we convert to an object early.
+    // NOTE: RequireObjectCoercible throws in the same cases as ToObject, and
+    // other operations later on (such as GetV) also perform ToObject, so we
+    // convert to an object early.
     ctx.add_instruction(Instruction::ToObject);
     ctx.add_instruction(Instruction::Load);
 
-    for property in &object_pattern.properties {
-        let place = match &property.key {
-            ast::PropertyKey::StaticIdentifier(identifier) => {
-                // Make a copy of the baseValue in the result register;
-                // EvaluatePropertyAccessWithIdentifierKey uses it.
-                ctx.add_instruction(Instruction::StoreCopy);
-                identifier.compile(ctx)
+    let result = 'iter: {
+        for property in &object_pattern.properties {
+            let place = match &property.key {
+                ast::PropertyKey::StaticIdentifier(identifier) => {
+                    // Make a copy of the baseValue in the result register;
+                    // EvaluatePropertyAccessWithIdentifierKey uses it.
+                    ctx.add_instruction(Instruction::StoreCopy);
+                    identifier.compile(ctx)
+                }
+                // Note: private field aren't valid in this context.
+                ast::PropertyKey::PrivateIdentifier(_) => unreachable!(),
+                _ => {
+                    // Make a copy of the baseValue on the stack;
+                    // EvaluatePropertyAccessWithExpressionKey pops the stack.
+                    ctx.add_instruction(Instruction::StoreCopy);
+                    ctx.add_instruction(Instruction::Load);
+                    let expr = property.key.to_expression();
+                    let output = expr.compile(ctx)?.get_value(ctx)?;
+                    ctx.add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                    output.to_expression_key()
+                }
+            };
+            place.get_value_maybe_keep_reference(ctx, object_pattern.rest.is_some())?;
+            if object_pattern.rest.is_some() {
+                assert!(place.has_reference());
+                ctx.add_instruction(Instruction::PushReference);
             }
-            // Note: private field aren't valid in this context.
-            ast::PropertyKey::PrivateIdentifier(_) => unreachable!(),
-            _ => {
-                // Make a copy of the baseValue on the stack;
-                // EvaluatePropertyAccessWithExpressionKey pops the stack.
-                ctx.add_instruction(Instruction::StoreCopy);
-                ctx.add_instruction(Instruction::Load);
-                let expr = property.key.to_expression();
-                let output = expr.compile(ctx)?.get_value(ctx)?;
-                ctx.add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-                output.to_expression_key()
-            }
-        };
-        place.get_value_maybe_keep_reference(ctx, object_pattern.rest.is_some())?;
-        if object_pattern.rest.is_some() {
-            assert!(place.has_reference());
-            ctx.add_instruction(Instruction::PushReference);
+
+            if let Err(err) = property.value.compile(ctx) {
+                break 'iter Err(err);
+            };
         }
 
-        property.value.compile(ctx);
-    }
+        // Don't keep the object on the stack.
+        ctx.add_instruction(Instruction::Store);
 
-    // Don't keep the object on the stack.
-    ctx.add_instruction(Instruction::Store);
+        if let Some(rest) = &object_pattern.rest {
+            let ast::BindingPatternKind::BindingIdentifier(identifier) = &rest.argument.kind else {
+                unreachable!()
+            };
 
-    if let Some(rest) = &object_pattern.rest {
-        let ast::BindingPatternKind::BindingIdentifier(identifier) = &rest.argument.kind else {
-            unreachable!()
-        };
+            // We have kept the references for all of the properties read in the
+            // reference stack, so we can now use them to exclude those
+            // properties from the rest object.
+            ctx.add_instruction_with_immediate(
+                Instruction::CopyDataPropertiesIntoObject,
+                object_pattern.properties.len(),
+            );
+            let value = ExpressionOutput::Value;
 
-        // We have kept the references for all of the properties read in the reference stack, so we
-        // can now use them to exclude those properties from the rest object.
-        ctx.add_instruction_with_immediate(
-            Instruction::CopyDataPropertiesIntoObject,
-            object_pattern.properties.len(),
-        );
-        let value = ExpressionOutput::Value;
-
-        let place = identifier.compile(ctx);
-        if !has_environment {
-            place.put_value(ctx, value)?;
-        } else {
-            place.initialise_referenced_binding(ctx, value);
+            let place = identifier.compile(ctx);
+            if !has_environment {
+                if let Err(err) = place.put_value(ctx, value) {
+                    break 'iter Err(err);
+                }
+            } else {
+                place.initialise_referenced_binding(ctx, value);
+            }
         }
-    }
+        Ok(())
+    };
     ctx.lexical_binding_state = lexical_binding_state;
-    Ok(())
+    result
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::BindingPattern<'s> {
@@ -3193,13 +3210,11 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Bindin
             }
             // ### BindingPattern : ObjectBindingPattern
             ast::BindingPatternKind::ObjectPattern(object_binding_pattern) => {
-                object_binding_pattern.compile(ctx);
-                Ok(())
+                object_binding_pattern.compile(ctx)
             }
             // ### BindingPattern : ArrayBindingPattern
             ast::BindingPatternKind::ArrayPattern(array_binding_pattern) => {
-                array_binding_pattern.compile(ctx);
-                Ok(())
+                array_binding_pattern.compile(ctx)
             }
             // ### SingleNameBinding : BindingIdentifier Initializer
             // ### BindingElement : BindingPattern Initializer
@@ -3239,8 +3254,12 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Bindin
                         }
                         // b. Else,
                         // i. Let defaultValue be ? Evaluation of Initializer.
+                        let default_value = pattern.right.compile(ctx);
                         // ii. Set v to ? GetValue(defaultValue).
-                        let v = compile_expression_get_value(&pattern.right, ctx)
+                        // Note: no early exit as this is not an unconditional
+                        // branch.
+                        let v = default_value
+                            .and_then(|dv| dv.get_value(ctx))
                             .unwrap_or(ExpressionOutput::Value);
                         if do_push_reference {
                             ctx.add_instruction(Instruction::PopReference);
@@ -3276,8 +3295,13 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Bindin
                         // 3. If Initializer is present and v is undefined, then
                         let jump_over_initializer = check_result_is_undefined(ctx);
                         // a. Let defaultValue be ? Evaluation of Initializer.
+                        let default_value = pattern.right.compile(ctx);
                         // b. Set v to ? GetValue(defaultValue).
-                        let _v = pattern.right.compile(ctx).and_then(|r| r.get_value(ctx));
+                        // Note: no early exit as this is not an unconditional
+                        // branch.
+                        let _v = default_value
+                            .and_then(|dv| dv.get_value(ctx))
+                            .unwrap_or(ExpressionOutput::Value);
                         ctx.add_instruction(Instruction::Load);
                         ctx.set_jump_target_here(jump_over_initializer);
                         ctx.add_instruction(Instruction::Store);
@@ -3321,43 +3345,39 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Variab
                         // 3. Return ? BindingInitialization of BidingPattern with arguments rval and undefined.
                         let lexical_binding_state = ctx.lexical_binding_state;
                         ctx.lexical_binding_state = false;
-                        decl.id.compile(ctx)?;
+                        let result = decl.id.compile(ctx);
                         ctx.lexical_binding_state = lexical_binding_state;
+                        result?;
                         continue;
                     };
 
-                    let stack_index = ctx.get_variable_stack_index(identifier.symbol_id());
-
                     // 1. Let bindingId be StringValue of BindingIdentifier.
                     // 2. Let lhs be ? ResolveBinding(bindingId).
-                    let identifier = identifier.compile(ctx).identifier().unwrap();
-                    let push_reference = stack_index.is_none() && !init.is_literal();
+                    let lhs = identifier.compile(ctx);
+
+                    let push_reference = lhs.has_reference() && !init.is_literal();
                     if push_reference {
                         ctx.add_instruction(Instruction::PushReference);
                     }
 
                     // 3. If IsAnonymousFunctionDefinition(Initializer) is true, then
-                    if is_anonymous_function_definition(init) {
-                        ctx.add_instruction_with_constant(Instruction::LoadConstant, identifier);
+                    if let Some(binding_id) = lhs.identifier()
+                        && is_anonymous_function_definition(init)
+                    {
+                        ctx.add_instruction_with_constant(Instruction::LoadConstant, binding_id);
                         // a. Let value be ? NamedEvaluation of Initializer with argument StackId.
                         ctx.name_identifier = Some(NamedEvaluationParameter::Stack);
                         // 4. Else,
-                        // a. Let rhs be ? Evaluation of Initializer.
-                        // b. Let value be ? GetValue(rhs).
                     }
-                    compile_expression_get_value(init, ctx);
+                    // a. Let rhs be ? Evaluation of Initializer.
+                    let rhs = init.compile(ctx)?;
+                    // b. Let value be ? GetValue(rhs).
+                    let value = rhs.get_value(ctx)?;
                     // 5. Perform ? PutValue(lhs, value).
                     if push_reference {
                         ctx.add_instruction(Instruction::PopReference);
                     }
-                    if let Some(stack_index) = stack_index {
-                        ctx.add_instruction_with_immediate(
-                            Instruction::PutValueToIndex,
-                            stack_index as usize,
-                        );
-                    } else {
-                        ctx.add_instruction(Instruction::PutValue);
-                    }
+                    lhs.put_value(ctx, value)?;
 
                     // 6. Return EMPTY.
                 }
@@ -3370,14 +3390,16 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Variab
 
                         //  LexicalBinding : BindingPattern Initializer
                         // 1. Let rhs be ? Evaluation of Initializer.
+                        let rhs = init.compile(ctx)?;
                         // 2. Let value be ? GetValue(rhs).
-                        compile_expression_get_value(init, ctx);
+                        let _value = rhs.get_value(ctx)?;
                         // 3. Let env be the running execution context's LexicalEnvironment.
                         // 4. Return ? BindingInitialization of BindingPattern with arguments value and env.
                         let lexical_binding_state = ctx.lexical_binding_state;
                         ctx.lexical_binding_state = true;
-                        decl.id.compile(ctx);
+                        let result = decl.id.compile(ctx);
                         ctx.lexical_binding_state = lexical_binding_state;
+                        result?;
                         continue;
                     };
 
@@ -3443,17 +3465,17 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::BlockS
 }
 
 impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast::ForStatement<'s> {
-    type Output = ();
+    type Output = Result<(), ExpressionError>;
 
     fn compile_labelled(
         &'s self,
         label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,
         ctx: &mut CompileContext<'a, 's, 'gc, 'scope>,
-    ) {
+    ) -> Self::Output {
         let mut per_iteration_lets: Vec<String<'_>> = vec![];
         let mut loop_env = None;
 
-        if let Some(init) = &self.init {
+        let result = if let Some(init) = &self.init {
             match init {
                 ast::ForStatementInit::VariableDeclaration(init) => {
                     if init.kind.is_lexical() {
@@ -3491,13 +3513,24 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
                         }
                         // 6. Set the running execution context's LexicalEnvironment to loopEnv.
                     }
-                    init.compile(ctx);
+                    init.compile(ctx)
                 }
                 _ => {
                     let expr = init.as_expression().unwrap();
-                    compile_expression_get_value(expr, ctx);
+                    expr.compile(ctx).and_then(|r| r.get_value(ctx)).map(|_| ())
                 }
             }
+        } else {
+            Ok(())
+        };
+
+        if let Err(err) = result {
+            if let Some(loop_env) = loop_env {
+                // Lexical binding loops have an extra declarative environment
+                // that we need to exit from once we exit the loop.
+                loop_env.exit(ctx);
+            }
+            return Err(err);
         }
         // 2. Perform ? CreatePerIterationEnvironment(perIterationBindings).
         let create_per_iteration_env = !per_iteration_lets.is_empty();
@@ -3524,28 +3557,33 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
         // f. If increment is not empty, then
         if let Some(update) = &self.update {
             // i. Let incRef be ? Evaluation of increment.
+            let inc_ref = update.compile(ctx);
             // ii. Perform ? GetValue(incRef).
-            compile_expression_get_value(update, ctx);
+            // Note: no early exit, as this path is not guaranteed to run.
+            let _ = inc_ref.and_then(|r| r.get_value(ctx));
         }
 
         ctx.set_jump_target_here(jump_over_continue);
 
         // a. If test is not empty, then
-        let end_jump = if let Some(test) = &self.test {
+        let test_result = if let Some(test) = &self.test {
             // i. Let testRef be ? Evaluation of test.
+            let test_ref = test.compile(ctx);
             // ii. Let testValue be ? GetValue(testRef).
-            compile_expression_get_value(test, ctx);
+            let test_value = test_ref.and_then(|r| r.get_value(ctx));
             // iii. If ToBoolean(testValue) is false, return V.
             // jump over consequent if test fails
-            Some(ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot))
+            test_value.map(|_| Some(ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot)))
         } else {
-            None
+            Ok(None)
         };
 
-        // b. Let result be Completion(Evaluation of stmt).
-        self.body.compile(ctx);
-        if !ctx.is_unreachable() {
-            ctx.add_jump_instruction_to_index(Instruction::Jump, continue_label.clone());
+        if test_result.is_ok() {
+            // b. Let result be Completion(Evaluation of stmt).
+            self.body.compile(ctx);
+            if !ctx.is_unreachable() {
+                ctx.add_jump_instruction_to_index(Instruction::Jump, continue_label.clone());
+            }
         }
         // c. If LoopContinues(result, labelSet) is false,
         //    return ? UpdateEmpty(result, V).
@@ -3564,8 +3602,8 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
         }
 
         // iii. If ToBoolean(testValue) is false, return V.
-        if let Some(end_jump) = end_jump {
-            ctx.set_jump_target_here(end_jump);
+        if let Ok(Some(end_jump)) = test_result.as_ref() {
+            ctx.set_jump_target_here(end_jump.clone());
         }
         // Note: exit_loop performs UpdateEmpty; if we jumped here from test
         // failure then result is currently empty and UpdateEmpty will pop V
@@ -3578,6 +3616,9 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
             // we need to exit from once we exit the loop.
             loop_env.exit(ctx);
         }
+        // c. If LoopContinues(result, labelSet) is false,
+        //    return ? UpdateEmpty(result, V).
+        test_result.map(|_| ())
     }
 }
 
@@ -3675,18 +3716,25 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
                 ctx.add_instruction(Instruction::StoreCopy);
                 ctx.add_instruction(Instruction::Load);
                 // 2. Let exprRef be ? Evaluation of the Expression of C.
+                let expr_ref = test.compile(ctx);
                 // 3. Let clauseSelector be ? GetValue(exprRef).
-                compile_expression_get_value(test, ctx);
-                // 4. Return IsStrictlyEqual(input, clauseSelector).
-                ctx.add_instruction(Instruction::IsStrictlyEqual);
-                // b. If found is true then [evaluate case]
-                jump_indexes.push(ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue));
+                let clause_selector = expr_ref.and_then(|r| r.get_value(ctx));
+                if clause_selector.is_ok() {
+                    // 4. Return IsStrictlyEqual(input, clauseSelector).
+                    ctx.add_instruction(Instruction::IsStrictlyEqual);
+                    // b. If found is true then [evaluate case]
+                    jump_indexes.push(Some(
+                        ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue),
+                    ));
+                } else {
+                    jump_indexes.push(None);
+                }
             }
 
             let jump_to_end = if has_default {
                 // 10. If foundInB is true, return V.
                 // 11. Let defaultR be Completion(Evaluation of DefaultClause).
-                jump_indexes.push(ctx.add_instruction_with_jump_slot(Instruction::Jump));
+                jump_indexes.push(Some(ctx.add_instruction_with_jump_slot(Instruction::Jump)));
                 None
             } else {
                 Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
@@ -3715,7 +3763,9 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
                     // Default case! The jump index is last in the Vec.
                     jump_indexes.last().unwrap()
                 };
-                ctx.set_jump_target_here(jump_index.clone());
+                if let Some(jump_index) = jump_index {
+                    ctx.set_jump_target_here(jump_index.clone());
+                }
 
                 // 1. Let V be undefined.
                 // Pop the switchValue from the stack.
@@ -3867,13 +3917,13 @@ fn catch_clause_evaluation<'s>(
 impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
     for ast::WhileStatement<'s>
 {
-    type Output = ();
+    type Output = Result<(), ExpressionError>;
 
     fn compile_labelled(
         &'s self,
         label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,
         ctx: &mut CompileContext<'_, 's, '_, '_>,
-    ) {
+    ) -> Self::Output {
         let l = ctx.enter_loop(label_set.cloned());
 
         // 1. Let V be undefined.
@@ -3889,21 +3939,23 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
 
         // a. Let exprRef be ? Evaluation of Expression.
         // OPTIMISATION: while(true) loops are pretty common, skip the test.
-        let end_jump = if !is_boolean_literal_true(&self.test) {
+        let expr_result = if !is_boolean_literal_true(&self.test) {
             // b. Let exprValue be ? GetValue(exprRef).
-            compile_expression_get_value(&self.test, ctx);
+            let expr_value = self.test.compile(ctx).and_then(|r| r.get_value(ctx));
 
             // c. If ToBoolean(exprValue) is false, return V.
             // jump over loop jump if test fails
-            Some(ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot))
+            expr_value.map(|_| Some(ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot)))
         } else {
-            None
+            Ok(None)
         };
 
         // d. Let stmtResult be Completion(Evaluation of Statement).
-        self.body.compile(ctx);
-        if !ctx.is_unreachable() {
-            ctx.add_jump_instruction_to_index(Instruction::Jump, continue_label.clone());
+        if expr_result.is_ok() {
+            self.body.compile(ctx);
+            if !ctx.is_unreachable() {
+                ctx.add_jump_instruction_to_index(Instruction::Jump, continue_label.clone());
+            }
         }
         {
             // ## Catch block
@@ -3918,26 +3970,27 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
         //    stmtResult.[[Value]].
 
         // c. If ToBoolean(exprValue) is false, return V.
-        if let Some(end_jump) = end_jump {
-            ctx.set_jump_target_here(end_jump);
+        if let Ok(Some(end_jump)) = expr_result.as_ref() {
+            ctx.set_jump_target_here(end_jump.clone());
         }
         // Note: exit_loop performs UpdateEmpty; if we jumped here from test
         // failure then result is currently empty and UpdateEmpty will pop V
         // into the result register.
         l.exit(ctx, continue_label);
+        expr_result.map(|_| ())
     }
 }
 
 impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
     for ast::DoWhileStatement<'s>
 {
-    type Output = ();
+    type Output = Result<(), ExpressionError>;
 
     fn compile_labelled(
         &'s self,
         label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,
         ctx: &mut CompileContext<'_, 's, '_, '_>,
-    ) {
+    ) -> Self::Output {
         // 1. Let V be undefined.
         let v = ctx.push_stack_loop_result();
         // 2. Repeat,
@@ -3949,33 +4002,35 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
         //    stmtResult.[[Value]].
         let continue_label = ctx.get_jump_index_to_here();
         ctx.add_instruction(Instruction::LoadReplace);
-        let jump_to_end = if is_boolean_literal_true(&self.test) {
+        let expr_result = if is_boolean_literal_true(&self.test) {
             // OPTIMISATION: do {} while(true) loops are still somewhat common,
             // skip the test.
             // f. If ToBoolean(exprValue) is false, return V.
-            None
+            Ok(None)
         } else if is_boolean_literal_false(&self.test) {
             // OPTIMISATION: do {} while(false) loops appear in tests; this is
             // a dumb optimisation: continue can never return to the beginning
             // of the loop.
             // f. If ToBoolean(exprValue) is false, return V.
-            Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
+            Ok(Some(ctx.add_instruction_with_jump_slot(Instruction::Jump)))
         } else {
             // d. Let exprRef be ? Evaluation of Expression.
             // e. Let exprValue be ? GetValue(exprRef).
-            compile_expression_get_value(&self.test, ctx);
+            let expr_value = self.test.compile(ctx).and_then(|r| r.get_value(ctx));
 
             // f. If ToBoolean(exprValue) is false, return V.
-            Some(ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot))
+            expr_value.map(|_| Some(ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot)))
         };
 
-        ctx.set_jump_target_here(jump_over_continue);
-        // a. Let stmtResult be Completion(Evaluation of Statement).
-        self.body.compile(ctx);
-        // b. If LoopContinues(stmtResult, labelSet) is false,
-        //    return ? UpdateEmpty(stmtResult, V).
-        if !ctx.is_unreachable() {
-            ctx.add_jump_instruction_to_index(Instruction::Jump, continue_label.clone());
+        if expr_result.is_ok() {
+            ctx.set_jump_target_here(jump_over_continue);
+            // a. Let stmtResult be Completion(Evaluation of Statement).
+            self.body.compile(ctx);
+            // b. If LoopContinues(stmtResult, labelSet) is false,
+            //    return ? UpdateEmpty(stmtResult, V).
+            if !ctx.is_unreachable() {
+                ctx.add_jump_instruction_to_index(Instruction::Jump, continue_label.clone());
+            }
         }
 
         {
@@ -3988,14 +4043,15 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
             ctx.add_instruction(Instruction::Throw);
         }
         // f. If ToBoolean(exprValue) is false, return V.
-        if let Some(jump_to_end) = jump_to_end {
-            ctx.set_jump_target_here(jump_to_end);
+        if let Ok(Some(jump_to_end)) = expr_result.as_ref() {
+            ctx.set_jump_target_here(jump_to_end.clone());
         }
         // Note: exit_loop performs UpdateEmpty; if we jumped here from test
         // failure then result is currently empty and UpdateEmpty will pop V
         // into the result register.
         l.exit(ctx, continue_label);
         v.exit(ctx);
+        expr_result.map(|_| ())
     }
 }
 
@@ -4029,7 +4085,9 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Statem
                 x.compile(ctx);
                 return;
             }
-            Self::IfStatement(x) => x.compile(ctx),
+            Self::IfStatement(x) => {
+                x.compile(ctx);
+            }
             Self::VariableDeclaration(x) => {
                 x.compile(ctx);
             }
@@ -4039,7 +4097,9 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Statem
             }
             Self::BlockStatement(x) => x.compile(ctx),
             Self::EmptyStatement(_) => {}
-            Self::ForStatement(x) => x.compile_labelled(None, ctx),
+            Self::ForStatement(x) => {
+                x.compile_labelled(None, ctx);
+            }
             Self::ThrowStatement(x) => {
                 x.compile(ctx);
             }
@@ -4047,7 +4107,9 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Statem
             Self::BreakStatement(statement) => statement.compile(ctx),
             Self::ContinueStatement(statement) => statement.compile(ctx),
             Self::DebuggerStatement(_) => ctx.add_instruction(Instruction::Debug),
-            Self::DoWhileStatement(statement) => statement.compile_labelled(None, ctx),
+            Self::DoWhileStatement(statement) => {
+                statement.compile_labelled(None, ctx);
+            }
             Self::ForInStatement(statement) => {
                 statement.compile_labelled(None, ctx);
             }
@@ -4063,7 +4125,9 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Statem
             Self::WhileStatement(statement) => {
                 statement.compile_labelled(None, ctx);
             }
-            Self::WithStatement(st) => st.compile(ctx),
+            Self::WithStatement(st) => {
+                st.compile(ctx);
+            }
             Self::ClassDeclaration(x) => {
                 // If this is a declare statement, it's a TypeScript ambient declaration
                 // and should not generate any runtime code, similar to type declarations
@@ -4077,7 +4141,9 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Statem
                 // Note: Import declarations do not perform any runtime work.
             }
             Self::ExportAllDeclaration(x) => x.compile(ctx),
-            Self::ExportDefaultDeclaration(x) => x.compile(ctx),
+            Self::ExportDefaultDeclaration(x) => {
+                x.compile(ctx);
+            }
             Self::ExportNamedDeclaration(x) => {
                 x.compile(ctx);
             }
