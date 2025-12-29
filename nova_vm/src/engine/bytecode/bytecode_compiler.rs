@@ -61,7 +61,7 @@ use wtf8::{CodePoint, Wtf8Buf};
 /// PutValue, while on the right hand side they're eventually used as an input
 /// to GetValue.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum PlaceOutput<'s, 'gc> {
+pub(crate) enum Place<'s, 'gc> {
     /// A variable on the stack. The variable data is stored on the VM stack
     /// instead of being in the environment. Stack-slot variables never produce
     /// references.
@@ -80,13 +80,11 @@ pub(crate) enum PlaceOutput<'s, 'gc> {
     TemporalDeadZone { name: &'s str },
 }
 
-impl<'s, 'gc> PlaceOutput<'s, 'gc> {
+impl<'s, 'gc> Place<'s, 'gc> {
     fn identifier(&self) -> Option<String<'gc>> {
         match self {
-            PlaceOutput::Stack { name, .. }
-            | PlaceOutput::Env { name }
-            | PlaceOutput::Global { name } => Some(*name),
-            PlaceOutput::Member { name } => name.and_then(|n| {
+            Place::Stack { name, .. } | Place::Env { name } | Place::Global { name } => Some(*name),
+            Place::Member { name } => name.and_then(|n| {
                 match n {
                     PropertyKey::SmallString(s) => Some(String::SmallString(s)),
                     PropertyKey::String(s) => Some(String::String(s)),
@@ -94,7 +92,7 @@ impl<'s, 'gc> PlaceOutput<'s, 'gc> {
                     _ => None,
                 }
             }),
-            PlaceOutput::TemporalDeadZone { .. } => unreachable!(),
+            Place::TemporalDeadZone { .. } => unreachable!(),
         }
     }
 
@@ -110,15 +108,15 @@ impl<'s, 'gc> PlaceOutput<'s, 'gc> {
 
     fn initialise_referenced_binding_to_undefined(&self, ctx: &mut CompileContext) {
         match self {
-            PlaceOutput::Env { .. } | PlaceOutput::Global { .. } | PlaceOutput::Member { .. } => {
+            Place::Env { .. } | Place::Global { .. } | Place::Member { .. } => {
                 ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
                 ctx.add_instruction(Instruction::InitializeReferencedBinding);
             }
-            PlaceOutput::Stack { .. } => {
+            Place::Stack { .. } => {
                 // Note: stack variables are initialised to undefined
                 // automatically.
             }
-            PlaceOutput::TemporalDeadZone { .. } => {
+            Place::TemporalDeadZone { .. } => {
                 // Stack variables being initialised should never resolve to
                 // TDZ.
                 unreachable!();
@@ -128,10 +126,10 @@ impl<'s, 'gc> PlaceOutput<'s, 'gc> {
 
     fn initialise_referenced_binding(&self, ctx: &mut CompileContext, value: ValueOutput) {
         match self {
-            PlaceOutput::Env { .. } | PlaceOutput::Global { .. } | PlaceOutput::Member { .. } => {
+            Place::Env { .. } | Place::Global { .. } | Place::Member { .. } => {
                 ctx.add_instruction(Instruction::InitializeReferencedBinding);
             }
-            PlaceOutput::Stack { stack_slot, .. } => {
+            Place::Stack { stack_slot, .. } => {
                 if value == ValueOutput::Literal(Primitive::Undefined) {
                     // Note: stack variables are initialised to undefined
                     // automatically.
@@ -142,7 +140,7 @@ impl<'s, 'gc> PlaceOutput<'s, 'gc> {
                     *stack_slot as usize,
                 );
             }
-            PlaceOutput::TemporalDeadZone { .. } => {
+            Place::TemporalDeadZone { .. } => {
                 // Stack variables being initialised should never resolve to
                 // TDZ.
                 unreachable!();
@@ -155,7 +153,7 @@ impl<'s, 'gc> PlaceOutput<'s, 'gc> {
         ctx: &mut CompileContext<'_, '_, 'gc, '_>,
     ) -> Result<ValueOutput<'static>, ExpressionError> {
         match self {
-            PlaceOutput::Stack { stack_slot, .. } => {
+            Place::Stack { stack_slot, .. } => {
                 // Variable is stored on the stack. Caching doesn't help here.
                 ctx.add_instruction_with_immediate(
                     Instruction::GetValueFromIndex,
@@ -163,26 +161,26 @@ impl<'s, 'gc> PlaceOutput<'s, 'gc> {
                 );
                 Ok(ValueOutput::Value)
             }
-            PlaceOutput::Global { name } => {
+            Place::Global { name } => {
                 // Variable is stored in the global environment. Caching helps with
                 // these accesses.
                 let cache = ctx.create_property_lookup_cache(name.to_property_key());
                 ctx.add_instruction_with_cache(Instruction::GetValueWithCache, cache);
                 Ok(ValueOutput::Value)
             }
-            PlaceOutput::Member { name: Some(name) } => {
+            Place::Member { name: Some(name) } => {
                 // Property access. Caching helps with these.
                 let cache = ctx.create_property_lookup_cache(*name);
                 ctx.add_instruction_with_cache(Instruction::GetValueWithCache, cache);
                 Ok(ValueOutput::Value)
             }
-            PlaceOutput::Member { .. } | PlaceOutput::Env { .. } => {
+            Place::Member { .. } | Place::Env { .. } => {
                 // Variable is stored in the environment or we don't know the
                 // property name at compile time. Caching doesn't help with these.
                 ctx.add_instruction(Instruction::GetValue);
                 Ok(ValueOutput::Value)
             }
-            PlaceOutput::TemporalDeadZone { name } => {
+            Place::TemporalDeadZone { name } => {
                 let message =
                     format!("can't access lexical declaration '{name}' before initialization");
                 let message = ctx.create_string_from_owned(message);
@@ -330,7 +328,7 @@ impl<'s, 'gc> PlaceOutput<'s, 'gc> {
     }
 }
 
-impl<'gc> From<PropertyKey<'gc>> for PlaceOutput<'_, 'gc> {
+impl<'gc> From<PropertyKey<'gc>> for Place<'_, 'gc> {
     #[inline]
     fn from(name: PropertyKey<'gc>) -> Self {
         Self::Member { name: Some(name) }
@@ -346,9 +344,9 @@ pub(crate) enum ValueOutput<'gc> {
 }
 
 impl<'gc> ValueOutput<'gc> {
-    fn to_expression_key(self) -> PlaceOutput<'static, 'gc> {
+    fn to_expression_key(self) -> Place<'static, 'gc> {
         match self {
-            Self::Value => PlaceOutput::Member { name: None },
+            Self::Value => Place::Member { name: None },
             Self::Literal(p) => match p {
                 Primitive::Undefined => BUILTIN_STRING_MEMORY.undefined.to_property_key().into(),
                 Primitive::Null => BUILTIN_STRING_MEMORY.null.to_property_key().into(),
@@ -357,7 +355,7 @@ impl<'gc> ValueOutput<'gc> {
                 Primitive::String(s) => PropertyKey::String(s).into(),
                 Primitive::SmallString(s) => PropertyKey::SmallString(s).into(),
                 // Other members don't benefit from caching anyway.
-                _ => PlaceOutput::Member { name: None },
+                _ => Place::Member { name: None },
             },
         }
     }
@@ -395,39 +393,27 @@ fn combine_value_results<'gc>(
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum ExpressionOutput<'s, 'gc> {
-    /// Expression evaluates to some unknown value.
-    Value,
-    /// Expression evaluates to a known literal value.
-    Literal(Primitive<'gc>),
+pub(crate) enum PlaceOrValue<'s, 'gc> {
+    /// Expression evaluates to a value.
+    Value(ValueOutput<'gc>),
     /// Expression evalutes to a place.
-    Place(PlaceOutput<'s, 'gc>),
+    Place(Place<'s, 'gc>),
 }
 
-impl<'gc> From<ValueOutput<'gc>> for ExpressionOutput<'static, 'gc> {
-    #[inline]
-    fn from(value: ValueOutput<'gc>) -> Self {
-        match value {
-            ValueOutput::Value => Self::Value,
-            ValueOutput::Literal(lit) => Self::Literal(lit),
-        }
-    }
-}
-
-impl<'s, 'gc> From<PlaceOutput<'s, 'gc>> for ExpressionOutput<'s, 'gc> {
-    #[inline]
-    fn from(value: PlaceOutput<'s, 'gc>) -> Self {
-        Self::Place(value)
-    }
-}
-
-impl<'gc, T> From<T> for ExpressionOutput<'_, 'gc>
+impl<'gc, T> From<T> for PlaceOrValue<'static, 'gc>
 where
-    T: 'gc + Into<Primitive<'gc>>,
+    T: 'gc + Into<ValueOutput<'gc>>,
 {
     #[inline]
     fn from(value: T) -> Self {
-        Self::Literal(value.into())
+        Self::Value(value.into())
+    }
+}
+
+impl<'s, 'gc> From<Place<'s, 'gc>> for PlaceOrValue<'s, 'gc> {
+    #[inline]
+    fn from(value: Place<'s, 'gc>) -> Self {
+        Self::Place(value)
     }
 }
 
@@ -506,10 +492,10 @@ impl From<StatementBreak> for StatementResult<'static> {
     }
 }
 
-impl<'s, 'gc> ExpressionOutput<'s, 'gc> {
+impl<'s, 'gc> PlaceOrValue<'s, 'gc> {
     #[inline]
     fn is_stack_variable(&self) -> bool {
-        matches!(self, ExpressionOutput::Place(PlaceOutput::Stack { .. }))
+        matches!(self, PlaceOrValue::Place(Place::Stack { .. }))
     }
 
     /// Returns true if the expression has a Reference on the reference stack
@@ -517,7 +503,7 @@ impl<'s, 'gc> ExpressionOutput<'s, 'gc> {
     #[inline]
     fn has_reference(&self) -> bool {
         match self {
-            ExpressionOutput::Place(place) => place.has_reference(),
+            PlaceOrValue::Place(place) => place.has_reference(),
             _ => false,
         }
     }
@@ -533,8 +519,7 @@ impl<'s, 'gc> ExpressionOutput<'s, 'gc> {
                 Ok(ValueOutput::Value)
             }
             // No GetValue needed.
-            Self::Value => Ok(ValueOutput::Value),
-            Self::Literal(lit) => Ok(ValueOutput::Literal(lit)),
+            Self::Value(value) => Ok(value),
         }
     }
 
@@ -549,8 +534,7 @@ impl<'s, 'gc> ExpressionOutput<'s, 'gc> {
                 Ok(ValueOutput::Value)
             }
             // No GetValue needed.
-            Self::Value => Ok(ValueOutput::Value),
-            Self::Literal(lit) => Ok(ValueOutput::Literal(lit)),
+            Self::Value(value) => Ok(value),
         }
     }
 
@@ -559,7 +543,7 @@ impl<'s, 'gc> ExpressionOutput<'s, 'gc> {
         ctx: &mut CompileContext<'_, '_, 'gc, '_>,
     ) -> Result<ValueOutput<'gc>, ExpressionError> {
         match self {
-            ExpressionOutput::Place(place) => place.delete(ctx),
+            PlaceOrValue::Place(place) => place.delete(ctx),
             _ => {
                 // 2. If ref is not a Reference Record, return true.
                 ctx.add_instruction_with_constant(Instruction::StoreConstant, true);
@@ -657,7 +641,7 @@ fn is_chain_expression(expression: &ast::Expression) -> bool {
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::NumericLiteral<'s> {
-    type Output = ExpressionOutput<'s, 'gc>;
+    type Output = Primitive<'gc>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         let constant = ctx.create_number(self.value);
         ctx.add_instruction_with_constant(Instruction::StoreConstant, constant);
@@ -666,7 +650,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Numeri
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::BooleanLiteral {
-    type Output = ExpressionOutput<'s, 'gc>;
+    type Output = Primitive<'gc>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         ctx.add_instruction_with_constant(Instruction::StoreConstant, self.value);
         self.value.into()
@@ -784,14 +768,14 @@ impl VariableKind {
         self,
         ctx: &mut CompileContext<'_, 's, 'gc, '_>,
         name: &'s str,
-    ) -> PlaceOutput<'s, 'gc> {
+    ) -> Place<'s, 'gc> {
         match self {
             VariableKind::Stack(stack_slot) => {
                 let name = ctx.create_string(name);
                 // variable on the stack
-                PlaceOutput::Stack { name, stack_slot }
+                Place::Stack { name, stack_slot }
             }
-            VariableKind::TemporalDeadZone => PlaceOutput::TemporalDeadZone { name },
+            VariableKind::TemporalDeadZone => Place::TemporalDeadZone { name },
             VariableKind::Local => {
                 let name = ctx.create_string(name);
                 // Local variable: property name caching is not useful here.
@@ -799,7 +783,7 @@ impl VariableKind {
                     Instruction::ResolveBinding,
                     name.to_property_key(),
                 );
-                PlaceOutput::Env { name }
+                Place::Env { name }
             }
             VariableKind::Global => {
                 let name = ctx.create_string(name);
@@ -810,14 +794,14 @@ impl VariableKind {
                     name,
                     cache,
                 );
-                PlaceOutput::Global { name }
+                Place::Global { name }
             }
         }
     }
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::IdentifierReference<'s> {
-    type Output = PlaceOutput<'s, 'gc>;
+    type Output = Place<'s, 'gc>;
     /// Compile a reference TO a variable. This is used to read or write to a
     /// variable.
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
@@ -891,7 +875,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Identi
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::BindingIdentifier<'s> {
-    type Output = PlaceOutput<'s, 'gc>;
+    type Output = Place<'s, 'gc>;
     /// Compile variable binding. This is used to create a variable.
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         let kind = {
@@ -923,7 +907,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Bindin
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::IdentifierName<'s> {
-    type Output = PlaceOutput<'s, 'gc>;
+    type Output = Place<'s, 'gc>;
 
     /// Property name in member expressions etc. Has nothing to do with `foo`
     /// in `let foo` unlike type documentation states.
@@ -1039,7 +1023,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::UnaryE
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::BinaryExpression<'s> {
-    type Output = Result<ExpressionOutput<'s, 'gc>, ExpressionError>;
+    type Output = Result<ValueOutput<'gc>, ExpressionError>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         // 1. Let lref be ? Evaluation of leftOperand.
         let lref = self.left.compile(ctx)?;
@@ -1086,7 +1070,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Binary
         };
         // 5. Return ? ApplyStringOrNumericBinaryOperator(lval, opText, rval).
         ctx.add_instruction(op_text);
-        Ok(ExpressionOutput::Value)
+        Ok(ValueOutput::Value)
     }
 }
 
@@ -1131,7 +1115,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Logica
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
     for ast::ParenthesizedExpression<'s>
 {
-    type Output = Result<ExpressionOutput<'s, 'gc>, ExpressionError>;
+    type Output = Result<PlaceOrValue<'s, 'gc>, ExpressionError>;
 
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         self.expression.compile(ctx)
@@ -1862,11 +1846,10 @@ fn compile_optional_base_reference<'s, 'gc>(
     object: &'s ast::Expression<'s>,
     is_optional: bool,
     ctx: &mut CompileContext<'_, 's, 'gc, '_>,
-) -> Result<ExpressionOutput<'s, 'gc>, ExpressionError> {
+) -> Result<ValueOutput<'gc>, ExpressionError> {
     // 1. Let baseReference be ? Evaluation of MemberExpression.
-    object.compile(ctx)?.get_value(ctx)?;
-
     // 2. Let baseValue be ? GetValue(baseReference).
+    let base_value = object.compile(ctx)?.get_value(ctx)?;
 
     if is_optional {
         // Optional Chains
@@ -1886,13 +1869,13 @@ fn compile_optional_base_reference<'s, 'gc>(
             .unwrap()
             .push(jump_over_property_access);
     }
-    Ok(ExpressionOutput::Value)
+    Ok(base_value)
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
     for ast::ComputedMemberExpression<'s>
 {
-    type Output = Result<PlaceOutput<'s, 'gc>, ExpressionError>;
+    type Output = Result<Place<'s, 'gc>, ExpressionError>;
 
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         compile_optional_base_reference(&self.object, self.optional, ctx)?;
@@ -1941,14 +1924,14 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
             // 4. Return ? EvaluatePropertyAccessWithExpressionKey(baseValue, Expression, strict).
             ctx.add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
         }
-        Ok(PlaceOutput::Member { name: None }.into())
+        Ok(Place::Member { name: None }.into())
     }
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
     for ast::StaticMemberExpression<'s>
 {
-    type Output = Result<PlaceOutput<'s, 'gc>, ExpressionError>;
+    type Output = Result<Place<'s, 'gc>, ExpressionError>;
 
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         compile_optional_base_reference(&self.object, self.optional, ctx)?;
@@ -1975,7 +1958,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
     for ast::PrivateFieldExpression<'s>
 {
-    type Output = Result<PlaceOutput<'static, 'static>, ExpressionError>;
+    type Output = Result<Place<'static, 'static>, ExpressionError>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         compile_optional_base_reference(&self.object, self.optional, ctx)?;
         // If we are in an optional chain then result will be on the top of the
@@ -1994,7 +1977,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
             Instruction::MakePrivateReference,
             identifier.to_property_key(),
         );
-        Ok(PlaceOutput::Member { name: None })
+        Ok(Place::Member { name: None })
     }
 }
 
@@ -2641,37 +2624,37 @@ fn compile_create_iterator_result_object(ctx: &mut CompileContext, done: bool) {
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Expression<'s> {
-    type Output = Result<ExpressionOutput<'s, 'gc>, ExpressionError>;
+    type Output = Result<PlaceOrValue<'s, 'gc>, ExpressionError>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         match self {
             ast::Expression::ArrayExpression(x) => x.compile(ctx).map(Into::into),
             ast::Expression::ArrowFunctionExpression(x) => {
                 x.compile(ctx);
-                Ok(ExpressionOutput::Value)
+                Ok(ValueOutput::Value.into())
             }
             ast::Expression::AssignmentExpression(x) => x.compile(ctx).map(Into::into),
             ast::Expression::AwaitExpression(x) => x.compile(ctx).map(Into::into),
             ast::Expression::BigIntLiteral(x) => Ok(x.compile(ctx).into()),
-            ast::Expression::BinaryExpression(x) => x.compile(ctx),
-            ast::Expression::BooleanLiteral(x) => Ok(x.compile(ctx)),
+            ast::Expression::BinaryExpression(x) => x.compile(ctx).map(Into::into),
+            ast::Expression::BooleanLiteral(x) => Ok(x.compile(ctx).into()),
             ast::Expression::CallExpression(x) => x.compile(ctx).map(Into::into),
             ast::Expression::ChainExpression(x) => x.compile(ctx).map(Into::into),
             ast::Expression::ClassExpression(x) => {
                 x.compile(ctx)?;
-                Ok(ExpressionOutput::Value)
+                Ok(ValueOutput::Value.into())
             }
             ast::Expression::ComputedMemberExpression(x) => x.compile(ctx).map(Into::into),
             ast::Expression::ConditionalExpression(x) => x.compile(ctx).map(Into::into),
             ast::Expression::FunctionExpression(x) => {
                 x.compile(ctx);
-                Ok(ExpressionOutput::Value)
+                Ok(ValueOutput::Value.into())
             }
             ast::Expression::Identifier(x) => Ok(x.compile(ctx).into()),
             ast::Expression::ImportExpression(x) => x.compile(ctx).map(Into::into),
             ast::Expression::LogicalExpression(x) => x.compile(ctx).map(Into::into),
             ast::Expression::MetaProperty(x) => {
                 x.compile(ctx);
-                Ok(ExpressionOutput::Value)
+                Ok(ValueOutput::Value.into())
             }
             ast::Expression::NewExpression(x) => x.compile(ctx).map(Into::into),
             ast::Expression::NullLiteral(x) => Ok(x.compile(ctx).into()),
@@ -2683,7 +2666,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Expres
             #[cfg(feature = "regexp")]
             ast::Expression::RegExpLiteral(x) => {
                 x.compile(ctx);
-                Ok(ExpressionOutput::Value)
+                Ok(ValueOutput::Value.into())
             }
             #[cfg(not(feature = "regexp"))]
             ast::Expression::RegExpLiteral(_) => unreachable!(),
@@ -2692,13 +2675,13 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Expres
             ast::Expression::StringLiteral(x) => Ok(x.compile(ctx).into()),
             ast::Expression::Super(x) => {
                 x.compile(ctx);
-                Ok(ExpressionOutput::Value)
+                Ok(ValueOutput::Value.into())
             }
             ast::Expression::TaggedTemplateExpression(x) => x.compile(ctx).map(Into::into),
             ast::Expression::TemplateLiteral(x) => x.compile(ctx).map(Into::into),
             ast::Expression::ThisExpression(x) => {
                 x.compile(ctx);
-                Ok(ExpressionOutput::Value)
+                Ok(ValueOutput::Value.into())
             }
             ast::Expression::UnaryExpression(x) => x.compile(ctx).map(Into::into),
             ast::Expression::UpdateExpression(x) => x.compile(ctx).map(Into::into),
@@ -2737,20 +2720,20 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Update
             ast::SimpleAssignmentTarget::StaticMemberExpression(x) => x.compile(ctx)?,
             #[cfg(feature = "typescript")]
             ast::SimpleAssignmentTarget::TSAsExpression(x) => match x.expression.compile(ctx) {
-                ExpressionOutput::Place(pk) => pk,
+                PlaceOrValue::Place(pk) => pk,
                 _ => unreachable!(),
             },
             #[cfg(feature = "typescript")]
             ast::SimpleAssignmentTarget::TSNonNullExpression(x) => {
                 match x.expression.compile(ctx) {
-                    ExpressionOutput::Place(pk) => Some(pk),
+                    PlaceOrValue::Place(pk) => Some(pk),
                     _ => unreachable!(),
                 }
             }
             #[cfg(feature = "typescript")]
             ast::SimpleAssignmentTarget::TSSatisfiesExpression(x) => {
                 match x.expression.compile(ctx) {
-                    ExpressionOutput::Place(pk) => Some(pk),
+                    PlaceOrValue::Place(pk) => Some(pk),
                     _ => unreachable!(),
                 }
             }
@@ -2762,7 +2745,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Update
 
             #[cfg(feature = "typescript")]
             ast::SimpleAssignmentTarget::TSTypeAssertion(x) => match x.expression.compile(ctx) {
-                Some(ExpressionOutput::Place(pk)) => Some(pk),
+                Some(PlaceOrValue::Place(pk)) => Some(pk),
                 _ => None,
             },
         };

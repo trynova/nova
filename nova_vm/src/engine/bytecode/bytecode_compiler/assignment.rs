@@ -6,7 +6,7 @@ use oxc_ast::ast::{self, AssignmentOperator, LogicalOperator};
 
 use crate::engine::{
     Instruction,
-    bytecode::bytecode_compiler::{ExpressionError, PlaceOutput, ValueOutput},
+    bytecode::bytecode_compiler::{ExpressionError, Place, ValueOutput},
 };
 
 use super::{
@@ -287,7 +287,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
     for ast::SimpleAssignmentTarget<'s>
 {
-    type Output = Result<PlaceOutput<'s, 'gc>, ExpressionError>;
+    type Output = Result<Place<'s, 'gc>, ExpressionError>;
 
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         match self {
@@ -607,7 +607,7 @@ fn compile_assignment_target_property<'s>(
                 Instruction::EvaluatePropertyAccessWithIdentifierKey,
                 key.to_property_key(),
             );
-            let place: PlaceOutput = key.to_property_key().into();
+            let place: Place = key.to_property_key().into();
             // result: None
             // stack: [source?]
             // reference: &source.identifier
@@ -731,7 +731,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::PropertyKey<'s> {
-    type Output = Result<PlaceOutput<'s, 'gc>, ExpressionError>;
+    type Output = Result<Place<'s, 'gc>, ExpressionError>;
     /// ## Register states
     ///
     /// ### Entry condition
