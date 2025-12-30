@@ -4187,7 +4187,6 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
             ControlFlow::Break(err.into())
         } else {
             let stmt_result = self.body.compile(ctx);
-            eprintln!("Inner statement result: {stmt_result:?}");
             if stmt_result.is_continue() {
                 ctx.add_jump_instruction_to_index(Instruction::Jump, continue_label.clone());
             }
