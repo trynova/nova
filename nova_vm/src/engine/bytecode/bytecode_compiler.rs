@@ -581,10 +581,15 @@ fn variable_escapes_scope(
         return true;
     }
     let decl_id = scoping.symbol_declaration(s);
-    let is_lexical = match nodes.get_node(decl_id).kind() {
-        oxc_ast::AstKind::VariableDeclaration(d) => d.kind.is_lexical(),
-        oxc_ast::AstKind::VariableDeclarator(d) => d.kind.is_lexical(),
-        _ => false,
+    let (is_lexical, is_class) = match nodes.get_node(decl_id).kind() {
+        oxc_ast::AstKind::VariableDeclaration(oxc_ast::ast::VariableDeclaration {
+            kind, ..
+        })
+        | oxc_ast::AstKind::VariableDeclarator(oxc_ast::ast::VariableDeclarator { kind, .. }) => {
+            (kind.is_lexical(), false)
+        }
+        oxc_ast::AstKind::Class(_) => (false, true),
+        _ => (false, false),
     };
     for reference in scoping.get_resolved_references(s) {
         let ref_id = reference.node_id();
@@ -610,6 +615,19 @@ fn variable_escapes_scope(
                 panic!("reference in a different scope?")
             };
             scope = s;
+        }
+        // Classes can refer to themselves both during their creation and in
+        // field declarations that escape creation time. We need to check for
+        // them.
+        if is_class {
+            let mut node = ref_id;
+            while decl_id < node {
+                node = nodes.parent_id(node);
+            }
+            if decl_id == node {
+                // Self-referential class declaration.
+                return true;
+            }
         }
     }
     false
