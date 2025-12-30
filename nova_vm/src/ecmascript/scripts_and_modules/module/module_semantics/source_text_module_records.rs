@@ -48,8 +48,8 @@ use crate::{
             contains::{Contains, ContainsSymbol},
             miscellaneous::instantiate_function_object,
             scope_analysis::{
-                LexicallyScopedDeclaration, VarScopedDeclaration,
-                module_lexically_scoped_declarations, module_var_scoped_declarations,
+                LexicallyScopedDeclaration, LexicallyScopedDeclarations, VarScopedDeclaration,
+                VarScopedDeclarations,
             },
         },
         types::{BUILTIN_STRING_MEMORY, IntoValue, OrdinaryObject, String, Value},
@@ -1291,126 +1291,92 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
         // 18. Let code be module.[[ECMAScriptCode]].
         let code = module.get_statements(agent, gc);
         // 19. Let varDeclarations be the VarScopedDeclarations of code.
-        let var_declarations = module_var_scoped_declarations(code);
-        // 20. Let declaredVarNames be a new empty List.
-        let mut declared_var_names = AHashSet::with_capacity(var_declarations.len());
         // 21. For each element d of varDeclarations, do
-        for d in var_declarations {
+        {
+            // 20. Let declaredVarNames be a new empty List.
+            let mut declared_var_names = AHashSet::new();
             // a. For each element dn of the BoundNames of d, do
-            match d {
-                VarScopedDeclaration::Variable(d) => {
-                    d.id.bound_names(&mut |dn: &oxc_ast::ast::BindingIdentifier| {
-                        // i. If declaredVarNames does not contain dn, then
-                        let dn = dn.name.as_str();
-                        if declared_var_names.insert(dn) {
-                            // 3. Append dn to declaredVarNames.
-                            let dn = String::from_str(agent, dn, gc);
-                            // 1. Perform ! env.CreateMutableBinding(dn, false).
-                            env.create_mutable_binding(agent, dn, false);
-                            // 2. Perform ! env.InitializeBinding(dn, undefined).
-                            env.initialize_binding(
-                                &mut agent.heap.environments,
-                                dn,
-                                Value::Undefined,
-                            );
-                        }
-                    })
+            let cb = &mut |dn: &oxc_ast::ast::BindingIdentifier<'a>| {
+                let dn = dn.name;
+                // i. If declaredVarNames does not contain dn, then
+                if declared_var_names.insert(dn) {
+                    // 3. Append dn to declaredVarNames.
+                    let dn = String::from_str(agent, &dn, gc);
+                    // 1. Perform ! env.CreateMutableBinding(dn, false).
+                    env.create_mutable_binding(agent, dn, false);
+                    // 2. Perform ! env.InitializeBinding(dn, undefined).
+                    env.initialize_binding(&mut agent.heap.environments, dn, Value::Undefined);
                 }
-                VarScopedDeclaration::Function(d) => {
-                    d.bound_names(&mut |dn: &oxc_ast::ast::BindingIdentifier| {
-                        // i. If declaredVarNames does not contain dn, then
-                        let dn = dn.name.as_str();
-                        if declared_var_names.insert(dn) {
-                            // 3. Append dn to declaredVarNames.
-                            let dn = String::from_str(agent, dn, gc);
-                            // 1. Perform ! env.CreateMutableBinding(dn, false).
-                            env.create_mutable_binding(agent, dn, false);
-                            // 2. Perform ! env.InitializeBinding(dn, undefined).
-                            env.initialize_binding(
-                                &mut agent.heap.environments,
-                                dn,
-                                Value::Undefined,
-                            );
-                        }
-                    })
-                }
-            }
+            };
+            code.var_scoped_declarations(&mut |d| match d {
+                VarScopedDeclaration::Variable(d) => d.id.bound_names(cb),
+                VarScopedDeclaration::Function(d) => d.bound_names(cb),
+            });
         }
         // 22. Let lexDeclarations be the LexicallyScopedDeclarations of code.
-        let lex_declarations = module_lexically_scoped_declarations(code);
         // 23. Let privateEnv be null.
         let private_env = None;
         // 24. For each element d of lexDeclarations, do
-        for d in lex_declarations {
+        {
             // a. For each element dn of the BoundNames of d, do
-            match d {
-                LexicallyScopedDeclaration::Variable(d) => {
-                    // i. If IsConstantDeclaration of d is true, then
-                    if d.kind.is_const() {
-                        d.id.bound_names(&mut |dn| {
-                            let dn = dn.name.as_str();
-                            let dn = String::from_str(agent, dn, gc);
-                            // 1. Perform ! env.CreateImmutableBinding(dn, true).
-                            env.create_immutable_binding(&mut agent.heap.environments, dn);
-                        });
-                    } else {
-                        // ii. Else,
-                        d.id.bound_names(&mut |dn| {
-                            let dn = dn.name.as_str();
-                            let dn = String::from_str(agent, dn, gc);
-                            // 1. Perform ! env.CreateMutableBinding(dn, false).
-                            env.create_mutable_binding(agent, dn, false);
-                        });
+            let cb = &mut |dn: &oxc_ast::ast::BindingIdentifier<'a>,
+                           d: &LexicallyScopedDeclaration<'a>| {
+                let dn_string = String::from_str(agent, dn.name.as_str(), gc);
+                // i. If IsConstantDeclaration of d is true, then
+                if d.is_const() {
+                    // 1. Perform ! env.CreateImmutableBinding(dn, true).
+                    env.create_immutable_binding(&mut agent.heap.environments, dn_string);
+                } else {
+                    // 1. Perform ! env.CreateMutableBinding(dn, false).
+                    env.create_mutable_binding(agent, dn_string, false);
+                }
+                // iii. If d is either a FunctionDeclaration, a
+                //      GeneratorDeclaration, an AsyncFunctionDeclaration,
+                //      or an AsyncGeneratorDeclaration, then
+                if let LexicallyScopedDeclaration::Function(d) = d {
+                    // 1. Let fo be InstantiateFunctionObject of d with arguments env and privateEnv.
+                    let fo = instantiate_function_object(agent, d, env.into(), private_env, gc);
+                    // 2. Perform ! env.InitializeBinding(dn, fo).
+                    env.initialize_binding(
+                        &mut agent.heap.environments,
+                        dn_string,
+                        fo.into_value(),
+                    );
+                }
+            };
+            let mut create_default_export = false;
+            code.lexically_scoped_declarations(&mut |d| {
+                match d {
+                    LexicallyScopedDeclaration::Variable(v) => {
+                        v.id.bound_names(&mut |dn| cb(dn, &d));
+                    }
+                    LexicallyScopedDeclaration::Function(f) => {
+                        f.bound_names(&mut |dn| cb(dn, &d));
+                    }
+                    LexicallyScopedDeclaration::Class(c) => {
+                        c.bound_names(&mut |dn| cb(dn, &d));
+                    }
+                    #[cfg(feature = "typescript")]
+                    LexicallyScopedDeclaration::TSEnum(e) => {
+                        e.id.bound_names(&mut |dn| cb(dn, &d));
+                    }
+                    LexicallyScopedDeclaration::DefaultExport => {
+                        // ExportDeclaration : export default AssignmentExpression ;
+                        // 1. Return « "*default*" ».
+                        // NOTE: It is not necessary to treat export default
+                        // AssignmentExpression as a constant declaration because
+                        // there is no syntax that permits assignment to the
+                        // internal bound name used to reference a module's default
+                        // object.
+                        // NOTE: We optimise references to constant declarations
+                        // separately, so we choose to use an immutable binding
+                        // here despite the spec suggesting a mutable one.
+                        create_default_export = true;
                     }
                 }
-                LexicallyScopedDeclaration::Function(d) => {
-                    // ii. Else,
-                    d.bound_names(&mut |dn| {
-                        let dn = dn.name.as_str();
-                        let dn = String::from_str(agent, dn, gc);
-                        // 1. Perform ! env.CreateMutableBinding(dn, false).
-                        env.create_mutable_binding(agent, dn, false);
-                        // iii. If d is either a FunctionDeclaration, a
-                        //      GeneratorDeclaration, an AsyncFunctionDeclaration,
-                        //      or an AsyncGeneratorDeclaration, then
-                        // 1. Let fo be InstantiateFunctionObject of d with arguments env and privateEnv.
-                        let fo = instantiate_function_object(agent, d, env.into(), private_env, gc);
-                        // 2. Perform ! env.InitializeBinding(dn, fo).
-                        env.initialize_binding(&mut agent.heap.environments, dn, fo.into_value());
-                    });
-                }
-                LexicallyScopedDeclaration::Class(d) => {
-                    // ii. Else,
-                    d.bound_names(&mut |dn| {
-                        let dn = dn.name.as_str();
-                        let dn = String::from_str(agent, dn, gc);
-                        // 1. Perform ! env.CreateMutableBinding(dn, false).
-                        env.create_mutable_binding(agent, dn, false);
-                    });
-                }
-                #[cfg(feature = "typescript")]
-                LexicallyScopedDeclaration::TSEnum(d) => {
-                    // ii. Else,
-                    d.id.bound_names(&mut |dn| {
-                        let dn = dn.name.as_str();
-                        let dn = String::from_str(agent, dn, gc);
-                        // 1. Perform ! env.CreateMutableBinding(dn, false).
-                        env.create_mutable_binding(agent, dn, false);
-                    });
-                }
-                LexicallyScopedDeclaration::DefaultExport => {
-                    // ExportDeclaration : export default AssignmentExpression ;
-                    // 1. Return « "*default*" ».
-                    // NOTE: It is not necessary to treat export default
-                    // AssignmentExpression as a constant declaration because
-                    // there is no syntax that permits assignment to the
-                    // internal bound name used to reference a module's default
-                    // object.
-                    // NOTE: We optimise references to constant declarations
-                    // separately, so we choose to use an immutable binding
-                    // here despite the spec suggesting a mutable one.
-                    env.create_immutable_binding(agent, BUILTIN_STRING_MEMORY._default_);
-                }
+            });
+            if create_default_export {
+                env.create_immutable_binding(agent, BUILTIN_STRING_MEMORY._default_);
             }
         }
         // 25. Remove moduleContext from the execution context stack.

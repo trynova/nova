@@ -54,6 +54,17 @@ pub(crate) enum LexicallyScopedDeclaration<'a> {
     DefaultExport,
 }
 
+impl LexicallyScopedDeclaration<'_> {
+    #[inline]
+    pub(crate) fn is_const(&self) -> bool {
+        if let Self::Variable(v) = self {
+            v.kind.is_const()
+        } else {
+            false
+        }
+    }
+}
+
 /// ### [8.2.5 Static Semantics: LexicallyScopedDeclarations](https://tc39.es/ecma262/#sec-static-semantics-lexicallyscopeddeclarations)
 ///
 /// The syntax-directed operation LexicallyScopedDeclarations takes no
@@ -119,22 +130,18 @@ pub(crate) fn script_lexically_scoped_declarations<'a>(
     lexically_scoped_declarations
 }
 
-pub(crate) fn module_lexically_scoped_declarations<'a>(
-    module: &'a [Statement<'a>],
-) -> Vec<LexicallyScopedDeclaration<'a>> {
-    let mut lexically_scoped_declarations = vec![];
-
-    //  ModuleItemList : ModuleItemList ModuleItem
-    // 1. Let declarations1 be LexicallyScopedDeclarations of ModuleItemList.
-    let f = &mut |decl| {
+impl<'a> LexicallyScopedDeclarations<'a> for [Statement<'a>] {
+    fn lexically_scoped_declarations<F: FnMut(LexicallyScopedDeclaration<'a>)>(
+        &'a self,
+        f: &mut F,
+    ) {
+        //  ModuleItemList : ModuleItemList ModuleItem
+        // 1. Let declarations1 be LexicallyScopedDeclarations of ModuleItemList.
         // 3. Return the list-concatenation of declarations[...]
-        lexically_scoped_declarations.push(decl);
-    };
-    for statement in module {
-        statement.lexically_scoped_declarations(f);
+        for statement in self {
+            statement.lexically_scoped_declarations(f);
+        }
     }
-
-    lexically_scoped_declarations
 }
 
 impl<'a> LexicallyScopedDeclarations<'a> for FunctionBody<'a> {
@@ -661,23 +668,18 @@ pub(crate) fn script_var_scoped_declarations<'a>(
     var_scoped_declarations
 }
 
-pub(crate) fn module_var_scoped_declarations<'a>(
-    body: &'a [Statement<'a>],
-) -> Vec<VarScopedDeclaration<'a>> {
-    let mut var_scoped_declarations = vec![];
-    // Module : [empty]
-    // 1. Return a new empty List.
-    // ModuleItemList : ModuleItemList ModuleItem
-    // 1. Let declarations1 be VarScopedDeclarations of ModuleItemList.
-    // 2. Let declarations2 be VarScopedDeclarations of ModuleItem.
-    // 3. Return the list-concatenation of declarations1 and declarations2.
-    let f = &mut |declarator| {
-        var_scoped_declarations.push(declarator);
-    };
-    for statement in body {
-        statement.var_scoped_declarations(f);
+impl<'a> VarScopedDeclarations<'a> for [Statement<'a>] {
+    fn var_scoped_declarations<F: FnMut(VarScopedDeclaration<'a>)>(&'a self, f: &mut F) {
+        // Module : [empty]
+        // 1. Return a new empty List.
+        // ModuleItemList : ModuleItemList ModuleItem
+        // 1. Let declarations1 be VarScopedDeclarations of ModuleItemList.
+        // 2. Let declarations2 be VarScopedDeclarations of ModuleItem.
+        // 3. Return the list-concatenation of declarations1 and declarations2.
+        for statement in self {
+            statement.var_scoped_declarations(f);
+        }
     }
-    var_scoped_declarations
 }
 
 impl<'a> VarScopedDeclarations<'a> for FunctionBody<'a> {
