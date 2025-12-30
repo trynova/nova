@@ -9,6 +9,7 @@ use core::{
 use std::borrow::Cow;
 
 use oxc_ast::ast::{FormalParameters, FunctionBody};
+use oxc_semantic::ScopeId;
 use oxc_span::Span;
 
 use crate::{
@@ -209,6 +210,17 @@ impl<'a> From<&'a oxc_ast::ast::ArrowFunctionExpression<'a>> for FunctionAstRef<
 }
 
 impl<'ast> FunctionAstRef<'ast> {
+    pub(crate) fn scope_id(&self) -> ScopeId {
+        match self {
+            FunctionAstRef::Function(f)
+            | FunctionAstRef::AsyncFunction(f)
+            | FunctionAstRef::Generator(f)
+            | FunctionAstRef::AsyncGenerator(f)
+            | FunctionAstRef::ClassConstructor(f) => f.scope_id(),
+            FunctionAstRef::Arrow(f) | FunctionAstRef::AsyncArrow(f) => f.scope_id(),
+        }
+    }
+
     /// \[\[FormalParameters]].
     #[inline]
     pub(crate) fn formal_parameters(&self) -> &'ast FormalParameters<'ast> {

@@ -5,6 +5,7 @@
 #[cfg(feature = "regexp")]
 use oxc_ast::ast::RegExpFlags;
 use oxc_ast::ast::{self, LabelIdentifier, Statement};
+use oxc_semantic::ScopeId;
 use wtf8::Wtf8Buf;
 
 #[cfg(feature = "regexp")]
@@ -151,6 +152,13 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     /// Get the SourceCode being compiled.
     pub(crate) fn get_source_code(&self) -> SourceCode<'gc> {
         self.source_code
+    }
+
+    /// Returns true if the given ScopeId contains direct eval.
+    pub(crate) fn scope_contains_direct_eval(&self, scope: ScopeId) -> bool {
+        let scoping = self.source_code.get_scoping(self.get_agent());
+        let flags = scoping.scope_flags(scope);
+        flags.contains_direct_eval()
     }
 
     /// Get exclusive access to the Agent through the context as mutable.

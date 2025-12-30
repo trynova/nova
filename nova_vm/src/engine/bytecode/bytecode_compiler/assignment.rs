@@ -147,19 +147,26 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
             }
             // a. Let rref be ? Evaluation of AssignmentExpression.
             // b. Let rval be ? GetValue(rref).
-            let rval = self.right.compile(ctx)?.get_value(ctx)?;
-            ctx.add_instruction(Instruction::LoadCopy);
-            if push_reference {
-                ctx.add_instruction(Instruction::PopReference);
-            }
+            let jump_over_else = 'rref: {
+                // Note: no early exits because this path is not unconditional.
+                let Ok(rval) = self.right.compile(ctx).and_then(|r| r.get_value(ctx)) else {
+                    break 'rref None;
+                };
+                ctx.add_instruction(Instruction::LoadCopy);
+                if push_reference {
+                    ctx.add_instruction(Instruction::PopReference);
+                }
 
-            // 7. Perform ? PutValue(lref, rval).
-            lref.put_value(ctx, rval)?;
-            let jump_over_else = if push_reference {
-                ctx.add_instruction(Instruction::Store);
-                Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
-            } else {
-                None
+                // 7. Perform ? PutValue(lref, rval).
+                let Ok(_) = lref.put_value(ctx, rval) else {
+                    break 'rref None;
+                };
+                if push_reference {
+                    ctx.add_instruction(Instruction::Store);
+                    Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
+                } else {
+                    None
+                }
             };
 
             // 4. ... return lval.

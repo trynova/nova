@@ -981,8 +981,8 @@ impl Instr {
             Instruction::BindingPatternBindToIndex => {
                 format!(
                     "{{ {}: stack[{}] }}",
-                    debug_print_constant(agent, exe, arg0 as usize, gc),
-                    arg1,
+                    debug_print_constant(agent, exe, arg1 as usize, gc),
+                    arg0,
                 )
             }
             Instruction::ClassDefineConstructor => {

@@ -65,7 +65,11 @@ pub(crate) enum Place<'s, 'gc> {
     /// A variable on the stack. The variable data is stored on the VM stack
     /// instead of being in the environment. Stack-slot variables never produce
     /// references.
-    Stack { name: String<'gc>, stack_slot: u32 },
+    Stack {
+        name: String<'gc>,
+        stack_slot: u32,
+        mutable: bool,
+    },
     /// A variable in the environment. The variable data is stored in the
     /// declarative environment's hash map and accessed through a reference.
     Env { name: String<'gc> },
@@ -262,12 +266,30 @@ impl<'s, 'gc> Place<'s, 'gc> {
         // Note: _value is currently unused but may be used in the future to
         // perform optimisations.
         match self {
-            Self::Stack { stack_slot, .. } => {
-                ctx.add_instruction_with_immediate(
-                    Instruction::PutValueToIndex,
-                    *stack_slot as usize,
-                );
-                Ok(())
+            Self::Stack {
+                stack_slot,
+                mutable,
+                name,
+            } => {
+                if !mutable {
+                    let message = format!(
+                        "can't mutate const declaration '{}' before initialization",
+                        name.as_str(ctx.get_agent()).unwrap()
+                    );
+                    let message = ctx.create_string_from_owned(message);
+                    ctx.add_instruction_with_constant(Instruction::StoreConstant, message);
+                    ctx.add_instruction_with_immediate(
+                        Instruction::ThrowError,
+                        ExceptionType::ReferenceError as usize,
+                    );
+                    Err(ExpressionError::Error)
+                } else {
+                    ctx.add_instruction_with_immediate(
+                        Instruction::PutValueToIndex,
+                        *stack_slot as usize,
+                    );
+                    Ok(())
+                }
             }
             Self::Global { name } => {
                 let cache = ctx.create_property_lookup_cache(name.to_property_key());
@@ -568,7 +590,7 @@ impl<'a, 's, 'gc, 'scope, T: CompileEvaluation<'a, 's, 'gc, 'scope>>
 }
 
 fn variable_escapes_scope(
-    ctx: &mut CompileContext,
+    ctx: &CompileContext,
     identifier: &oxc_ast::ast::BindingIdentifier,
 ) -> bool {
     let agent = ctx.get_agent();
@@ -576,6 +598,10 @@ fn variable_escapes_scope(
     let scoping = sc.get_scoping(agent);
     let nodes = sc.get_nodes(agent);
     let s = identifier.symbol_id();
+    if !scoping.symbol_redeclarations(s).is_empty() {
+        // Redeclarations are a pain to deal with.
+        return true;
+    }
     let decl_scope = scoping.symbol_scope_id(s);
     if scoping.scope_flags(decl_scope).contains_direct_eval() {
         return true;
@@ -762,7 +788,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::String
 
 enum VariableKind {
     /// Stored on the stack, not accessible by name at all.
-    Stack(u32),
+    Stack { stack_slot: u32, mutable: bool },
     /// Reference to a stack variable in the temporal dead zone of a lexical
     /// declaration. The referrer should throw an error in the bytecode and
     /// skip any further work.
@@ -780,10 +806,17 @@ impl VariableKind {
         name: &'s str,
     ) -> Place<'s, 'gc> {
         match self {
-            VariableKind::Stack(stack_slot) => {
+            VariableKind::Stack {
+                stack_slot,
+                mutable,
+            } => {
                 let name = ctx.create_string(name);
                 // variable on the stack
-                Place::Stack { name, stack_slot }
+                Place::Stack {
+                    name,
+                    stack_slot,
+                    mutable,
+                }
             }
             VariableKind::TemporalDeadZone => Place::TemporalDeadZone { name },
             VariableKind::Local => {
@@ -823,7 +856,8 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Identi
                 // SymbolId means we might be a global, local, or a stack
                 // variable.
                 let symbol_flags = scoping.symbol_flags(s);
-                if let Some(i) = ctx.get_variable_stack_index(s) {
+                let mutable = !symbol_flags.is_const_variable();
+                if let Some(stack_slot) = ctx.get_variable_stack_index(s) {
                     // We're a stack variable.
                     let nodes = source_code.get_nodes(ctx.get_agent());
                     let ref_id = reference.node_id();
@@ -855,10 +889,16 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Identi
                             // Self-referential declaration.
                             VariableKind::TemporalDeadZone
                         } else {
-                            VariableKind::Stack(i)
+                            VariableKind::Stack {
+                                stack_slot,
+                                mutable,
+                            }
                         }
                     } else {
-                        VariableKind::Stack(i)
+                        VariableKind::Stack {
+                            stack_slot,
+                            mutable,
+                        }
                     }
                 } else {
                     let scope_id = scoping.symbol_scope_id(s);
@@ -915,9 +955,13 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Bindin
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         let kind = {
             let s = self.symbol_id();
-            if let Some(i) = ctx.get_variable_stack_index(s) {
+            if let Some(stack_slot) = ctx.get_variable_stack_index(s) {
                 // We're a stack variable declaration.
-                VariableKind::Stack(i)
+                VariableKind::Stack {
+                    stack_slot,
+                    // Variable declarations can always mutate the stack slot.
+                    mutable: true,
+                }
             } else {
                 let source_code = ctx.get_source_code();
                 let scoping = source_code.get_scoping(ctx.get_agent());
@@ -1829,11 +1873,13 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::CallEx
         // If we're in an optional chain, we need to pluck it out while we're
         // compiling the parameters: They do not join our chain.
         let optional_chain = ctx.optional_chains.take();
-        let num_arguments = compile_arguments(&self.arguments, ctx)?;
+        let num_arguments = compile_arguments(&self.arguments, ctx);
         // After we're done with compiling parameters we go back into the chain.
         if let Some(optional_chain) = optional_chain {
             ctx.optional_chains.replace(optional_chain);
         }
+
+        let num_arguments = num_arguments?;
 
         if is_super_call {
             ctx.add_instruction_with_immediate(Instruction::EvaluateSuper, num_arguments);
@@ -1923,12 +1969,14 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
         let optional_chain = ctx.optional_chains.take();
         // 1. Let baseReference be ? Evaluation of expression.
         // 2. Let baseValue be ? GetValue(baseReference).
-        let output = self.expression.compile(ctx)?.get_value(ctx)?;
+        let output = self.expression.compile(ctx).and_then(|r| r.get_value(ctx));
         // After we're done with compiling the member expression we go back
         // into the chain.
         if let Some(optional_chain) = optional_chain {
             ctx.optional_chains.replace(optional_chain);
         }
+
+        let output = output?;
 
         if let ValueOutput::Literal(literal) = output {
             let (agent, gc) = ctx.get_agent_and_gc();

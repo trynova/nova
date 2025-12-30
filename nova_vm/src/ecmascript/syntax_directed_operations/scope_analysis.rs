@@ -30,23 +30,18 @@ pub(crate) fn script_lexically_declared_names<'a>(body: &'a [Statement<'a>]) -> 
     lexically_declared_names
 }
 
-pub(crate) fn function_body_lexically_declared_names<'a>(
-    body: &'a FunctionBody<'a>,
-) -> Vec<Atom<'a>> {
-    let mut lexically_declared_names = vec![];
-    // FunctionStatementList : [empty]
-    // 1. Return a new empty List.
-    // FunctionStatementList : StatementList
-    // 1. Return TopLevelLexicallyDeclaredNames of StatementList.
-    // ClassStaticBlockStatementList : [empty]
-    // 1. Return a new empty List.
-    // ClassStaticBlockStatementList : StatementList
-    // 1. Return the TopLevelLexicallyDeclaredNames of StatementList.
-    body.statements
-        .top_level_lexically_declared_names(&mut |identifier| {
-            lexically_declared_names.push(identifier.name);
-        });
-    lexically_declared_names
+impl<'a> LexicallyDeclaredNames<'a> for FunctionBody<'a> {
+    fn lexically_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&'a self, f: &mut F) {
+        // FunctionStatementList : [empty]
+        // 1. Return a new empty List.
+        // FunctionStatementList : StatementList
+        // 1. Return TopLevelLexicallyDeclaredNames of StatementList.
+        // ClassStaticBlockStatementList : [empty]
+        // 1. Return a new empty List.
+        // ClassStaticBlockStatementList : StatementList
+        // 1. Return the TopLevelLexicallyDeclaredNames of StatementList.
+        self.statements.top_level_lexically_declared_names(f);
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -146,18 +141,14 @@ pub(crate) fn module_lexically_scoped_declarations<'a>(
     lexically_scoped_declarations
 }
 
-pub(crate) fn function_body_lexically_scoped_decarations<'body>(
-    body: &'body FunctionBody<'body>,
-) -> Vec<LexicallyScopedDeclaration<'body>> {
-    let mut lexically_scoped_declarations = vec![];
-    //  FunctionStatementList : StatementList
-
-    // 1. Return the TopLevelLexicallyScopedDeclarations of StatementList.
-    body.statements
-        .top_level_lexically_scoped_declarations(&mut |decl| {
-            lexically_scoped_declarations.push(decl);
-        });
-    lexically_scoped_declarations
+impl<'a> LexicallyScopedDeclarations<'a> for FunctionBody<'a> {
+    fn lexically_scoped_declarations<F: FnMut(LexicallyScopedDeclaration<'a>)>(
+        &'a self,
+        f: &mut F,
+    ) {
+        // 1. Return the TopLevelLexicallyScopedDeclarations of StatementList.
+        self.statements.top_level_lexically_scoped_declarations(f);
+    }
 }
 
 impl<'a> LexicallyScopedDeclarations<'a> for oxc_allocator::Vec<'a, Statement<'a>> {
@@ -390,7 +381,7 @@ impl<'a> LexicallyScopedDeclarations<'a> for LabeledStatement<'a> {
 /// The syntax-directed operation VarDeclaredNames takes no arguments and
 /// returns a List of Strings.
 pub(crate) trait VarDeclaredNames<'a> {
-    fn var_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&self, f: &mut F);
+    fn var_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&'a self, f: &mut F);
 }
 
 pub(crate) fn script_var_declared_names<'a>(body: &'a [Statement<'a>]) -> Vec<Atom<'a>> {
@@ -407,23 +398,17 @@ pub(crate) fn script_var_declared_names<'a>(body: &'a [Statement<'a>]) -> Vec<At
     var_declared_names
 }
 
-pub(crate) fn function_body_var_declared_names<'a>(
-    function: &'a FunctionBody<'a>,
-) -> Vec<Atom<'a>> {
-    let mut var_declared_names = vec![];
-    // NOTE
-    // This section is extended by Annex B.3.5.
+impl<'a> VarDeclaredNames<'a> for oxc_ast::ast::FunctionBody<'a> {
+    fn var_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&'a self, f: &mut F) {
+        // NOTE
+        // This section is extended by Annex B.3.5.
 
-    // FunctionStatementList : [empty]
-    // 1. Return a new empty List.
-    // FunctionStatementList : StatementList
-    // 1. Return TopLevelVarDeclaredNames of StatementList.
-    function
-        .statements
-        .top_level_var_declared_names(&mut |identifier| {
-            var_declared_names.push(identifier.name);
-        });
-    var_declared_names
+        // FunctionStatementList : [empty]
+        // 1. Return a new empty List.
+        // FunctionStatementList : StatementList
+        // 1. Return TopLevelVarDeclaredNames of StatementList.
+        self.statements.top_level_var_declared_names(f);
+    }
 }
 
 pub(crate) fn class_static_block_var_declared_names<'a>(
@@ -443,7 +428,7 @@ pub(crate) fn class_static_block_var_declared_names<'a>(
 }
 
 impl<'a> VarDeclaredNames<'a> for oxc_allocator::Vec<'a, Statement<'a>> {
-    fn var_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&self, f: &mut F) {
+    fn var_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&'a self, f: &mut F) {
         // StatementList : StatementList StatementListItem
         // 1. Let names1 be VarDeclaredNames of StatementList.
         // 2. Let names2 be VarDeclaredNames of StatementListItem.
@@ -455,7 +440,7 @@ impl<'a> VarDeclaredNames<'a> for oxc_allocator::Vec<'a, Statement<'a>> {
 }
 
 impl<'a> VarDeclaredNames<'a> for Statement<'a> {
-    fn var_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&self, f: &mut F) {
+    fn var_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&'a self, f: &mut F) {
         match self {
             // Statement :
             // BreakStatement
@@ -705,24 +690,20 @@ pub(crate) fn module_var_scoped_declarations<'a>(
     var_scoped_declarations
 }
 
-pub(crate) fn function_body_var_scoped_declarations<'a>(
-    code: &'a FunctionBody<'a>,
-) -> Vec<VarScopedDeclaration<'a>> {
-    let mut var_scoped_declarations = vec![];
-    // FunctionStatementList : [empty]
-    // 1. Return a new empty List.
-    // FunctionStatementList : StatementList
-    // 1. Return the TopLevelVarScopedDeclarations of StatementList.
-    // ClassStaticBlockStatementList : [empty]
-    // 1. Return a new empty List.
-    // ClassStaticBlockStatementList : StatementList
-    // 1. Return the TopLevelVarScopedDeclarations of StatementList.
-    code.statements
-        .top_level_var_scoped_declarations(&mut |declarator| {
-            var_scoped_declarations.push(declarator);
-        });
-    var_scoped_declarations
+impl<'a> VarScopedDeclarations<'a> for FunctionBody<'a> {
+    fn var_scoped_declarations<F: FnMut(VarScopedDeclaration<'a>)>(&'a self, f: &mut F) {
+        // FunctionStatementList : [empty]
+        // 1. Return a new empty List.
+        // FunctionStatementList : StatementList
+        // 1. Return the TopLevelVarScopedDeclarations of StatementList.
+        // ClassStaticBlockStatementList : [empty]
+        // 1. Return a new empty List.
+        // ClassStaticBlockStatementList : StatementList
+        // 1. Return the TopLevelVarScopedDeclarations of StatementList.
+        self.statements.top_level_var_scoped_declarations(f);
+    }
 }
+
 // ConciseBody : ExpressionBody
 // 1. Return a new empty List.
 // AsyncConciseBody : ExpressionBody
@@ -990,6 +971,14 @@ impl<'a> VarScopedDeclarations<'a> for VariableDeclaration<'a> {
             f(VarScopedDeclaration::Variable(declarator));
         }
     }
+}
+
+/// ### [8.2.4 Static Semantics: LexicallyDeclaredNames](https://tc39.es/ecma262/#sec-static-semantics-lexicallydeclarednames)
+///
+/// The syntax-directed operation LexicallyDeclaredNames takes no arguments and
+/// returns a List of Strings.
+pub(crate) trait LexicallyDeclaredNames<'a> {
+    fn lexically_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&'a self, f: &mut F);
 }
 
 /// ### [8.2.8 Static Semantics: TopLevelLexicallyDeclaredNames](https://tc39.es/ecma262/#sec-static-semantics-toplevellexicallydeclarednames)
@@ -1499,6 +1488,10 @@ impl<'a> TopLevelVarScopedDeclarations<'a> for Statement<'a> {
                 self.var_scoped_declarations(f);
             }
             Statement::VariableDeclaration(decl) if decl.kind.is_var() => {
+                #[cfg(feature = "typescript")]
+                if decl.declare {
+                    return;
+                }
                 // VariableStatements:
                 // 2. Return VarScopedDeclarations of Statement.
                 decl.var_scoped_declarations(f);
