@@ -607,8 +607,7 @@ fn variable_escapes_scope(
         let mut scope = nodes.get_node(ref_id).scope_id();
         while scope != decl_scope {
             let flags = scoping.scope_flags(scope);
-            // TODO: check for with scope as well.
-            if flags.is_var() || flags.contains_direct_eval() {
+            if flags.is_var() || flags.contains_direct_eval() || flags.is_with() {
                 return true;
             }
             let Some(s) = scoping.scope_parent_id(scope) else {
