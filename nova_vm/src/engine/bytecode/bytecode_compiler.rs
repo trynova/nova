@@ -43,7 +43,7 @@ pub(crate) use compile_context::{
 use num_traits::Num;
 use oxc_ast::ast;
 use oxc_ecmascript::BoundNames;
-use oxc_semantic::{ScopeFlags, SymbolFlags};
+use oxc_semantic::{NodeId, ScopeFlags, SymbolFlags};
 use oxc_syntax::operator::{BinaryOperator, UnaryOperator};
 use template_literals::get_template_object;
 use wtf8::{CodePoint, Wtf8Buf};
@@ -581,16 +581,9 @@ fn variable_escapes_scope(
         return true;
     }
     let decl_id = scoping.symbol_declaration(s);
-    let (is_lexical, is_class) = match nodes.get_node(decl_id).kind() {
-        oxc_ast::AstKind::VariableDeclaration(oxc_ast::ast::VariableDeclaration {
-            kind, ..
-        })
-        | oxc_ast::AstKind::VariableDeclarator(oxc_ast::ast::VariableDeclarator { kind, .. }) => {
-            (kind.is_lexical(), false)
-        }
-        oxc_ast::AstKind::Class(_) => (false, true),
-        _ => (false, false),
-    };
+    let symbol_flags = scoping.symbol_flags(s);
+    let is_lexical = symbol_flags.intersects(SymbolFlags::BlockScopedVariable);
+    let is_class = symbol_flags.is_class();
     for reference in scoping.get_resolved_references(s) {
         let ref_id = reference.node_id();
         if !is_lexical
@@ -841,8 +834,10 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Identi
                     }
                     let is_lexical = symbol_flags.intersects(SymbolFlags::BlockScopedVariable);
                     // We might be in the temporal dead-zone.
-                    if is_lexical && ref_id < decl_id {
-                        // Reference before declaration: this is TDZ.
+                    if is_lexical && ref_id < decl_id
+                        || !is_lexical && is_parameter_tdz(nodes, decl_id, ref_id)
+                    {
+                        // Reference before initialization: this is TDZ.
                         VariableKind::TemporalDeadZone
                     } else if nodes.get_node(decl_id).scope_id() == scoping.symbol_scope_id(s) {
                         // If the node comes after the declaration and is in the
@@ -890,6 +885,28 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Identi
         };
         kind.compile(ctx, &self.name)
     }
+}
+
+/// Formal parameter lists also have a temporal dead-zone; when the list does
+/// not contain duplicates (which we consider always escaping), any reference to
+/// later parameters from earlier parameters' default expressions is in a TDZ.
+fn is_parameter_tdz(nodes: &oxc_semantic::AstNodes, decl_id: NodeId, ref_id: NodeId) -> bool {
+    let decl_parent_id = nodes.parent_id(decl_id);
+    let oxc_ast::AstKind::FormalParameters(_) = nodes.get_node(decl_parent_id).kind() else {
+        // If the declaration isn't a formal parameter, then this cannot be in
+        // TDZ.
+        return false;
+    };
+    // Reference points to a formal parameter: this means that we might be in
+    // its TDZ.
+    if ref_id < decl_id {
+        // If our reference is before the formal parameter then we definitely
+        // are in the TDZ.
+        return true;
+    }
+    // If our reference comes after the formal parameter we might still be in
+    // the TDZ but a followup check tests for that.
+    false
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::BindingIdentifier<'s> {

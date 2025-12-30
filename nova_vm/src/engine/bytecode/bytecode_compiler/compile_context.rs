@@ -964,8 +964,12 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             eprintln!();
         }
 
+        let mut stack_variables =
+            Vec::with_capacity(data.ast.formal_parameters().parameters_count());
+
         function_declaration_instantiation::instantiation(
             self,
+            &mut stack_variables,
             data.ast,
             data.is_strict,
             data.is_lexical,
@@ -985,6 +989,10 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             unsafe { core::mem::transmute(data.ast.ecmascript_code().statements.as_slice()) };
 
         self.compile_statements(body);
+
+        for stack_variable in stack_variables {
+            stack_variable.exit(self);
+        }
     }
 
     pub(crate) fn compile_statements(&mut self, body: &'script [Statement<'script>]) {

@@ -871,8 +871,7 @@ pub(super) fn execute_typeof<'gc>(
 }
 
 pub(super) fn execute_object_create(agent: &mut Agent, vm: &mut Vm, gc: NoGcScope) {
-    let object =
-        ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None, gc);
+    let object = ordinary_object_create_with_intrinsics(agent, ProtoIntrinsics::Object, None, gc);
     vm.stack.push(object.into_value().unbind());
 }
 
@@ -1107,7 +1106,7 @@ pub(super) fn execute_instantiate_ordinary_function_expression<'gc>(
         // internals slots, so it's created as an ordinary object.
         let prototype = ordinary_object_create_with_intrinsics(
             agent,
-            Some(ProtoIntrinsics::Object),
+            ProtoIntrinsics::Object,
             Some(if function_expression.r#async {
                 agent
                     .current_realm_record()

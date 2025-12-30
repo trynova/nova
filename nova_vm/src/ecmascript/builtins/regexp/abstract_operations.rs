@@ -21,7 +21,7 @@ use crate::{
             ArgumentsList, Array, array_create,
             ordinary::{
                 caches::PropertyLookupCache, ordinary_create_from_constructor,
-                ordinary_object_create_with_intrinsics,
+                ordinary_object_create_null,
             },
         },
         execution::{
@@ -690,9 +690,7 @@ pub(crate) fn reg_exp_builtin_exec<'a>(
     let groups = if has_group_name {
         // a. Let groups be OrdinaryObjectCreate(null).
         // b. Let hasGroups be true.
-        Some(ordinary_object_create_with_intrinsics(
-            agent, None, None, gc,
-        ))
+        Some(ordinary_object_create_null(agent, gc))
     } else {
         // 31. Else,
         // a. Let groups be undefined.

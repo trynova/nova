@@ -117,7 +117,7 @@ impl StringConstructor {
         // 1. Let S be MakeBasicObject(« [[Prototype]], [[Extensible]], [[StringData]] »).
         let s = PrimitiveObject::try_from(ordinary_object_create_with_intrinsics(
             agent,
-            Some(ProtoIntrinsics::String),
+            ProtoIntrinsics::String,
             prototype,
             gc.nogc(),
         ))

@@ -64,7 +64,9 @@ pub(super) fn execute_simple_array_binding<'a>(
                     r.unwrap_or(Value::Undefined)
                 })
             }
-            Instruction::BindingPatternBindRest | Instruction::BindingPatternGetRestValue => {
+            Instruction::BindingPatternBindRest
+            | Instruction::BindingPatternGetRestValue
+            | Instruction::BindingPatternBindRestToIndex => {
                 break_after_bind = true;
                 if iterator_is_done {
                     Ok(array_create(agent, 0, 0, None, gc.nogc())

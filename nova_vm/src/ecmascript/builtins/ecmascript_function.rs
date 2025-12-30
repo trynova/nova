@@ -1043,7 +1043,7 @@ pub(crate) fn make_constructor<'a>(
         // a. Set prototype to OrdinaryObjectCreate(%Object.prototype%).
         let prototype = OrdinaryObject::try_from(ordinary_object_create_with_intrinsics(
             agent,
-            Some(ProtoIntrinsics::Object),
+            ProtoIntrinsics::Object,
             None,
             gc,
         ))

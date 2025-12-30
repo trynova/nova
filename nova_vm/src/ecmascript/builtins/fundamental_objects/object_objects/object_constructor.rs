@@ -300,7 +300,7 @@ impl ObjectConstructor {
             // 2. If value is either undefined or null, return OrdinaryObjectCreate(%Object.prototype%).
             Ok(ordinary_object_create_with_intrinsics(
                 agent,
-                Some(ProtoIntrinsics::Object),
+                ProtoIntrinsics::Object,
                 None,
                 gc.into_nogc(),
             )
@@ -731,7 +731,7 @@ impl ObjectConstructor {
         // 2. Let obj be OrdinaryObjectCreate(%Object.prototype%).
         let obj = ordinary_object_create_with_intrinsics(
             agent,
-            Some(ProtoIntrinsics::Object),
+            ProtoIntrinsics::Object,
             None,
             gc.nogc(),
         );
