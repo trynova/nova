@@ -7505,7 +7505,7 @@
   "staging/sm/lexical-environment/block-scoped-functions-annex-b-same-name.js": "FAIL",
   "staging/sm/lexical-environment/block-scoped-functions-annex-b-with.js": "FAIL",
   "staging/sm/lexical-environment/block-scoped-functions-annex-b.js": "FAIL",
-  "staging/sm/lexical-environment/block-scoped-functions-deprecated-redecl.js": "FAIL",
+  "staging/sm/lexical-environment/block-scoped-functions-deprecated-redecl.js": "CRASH",
   "staging/sm/lexical-environment/unscopables-basics.js": "FAIL",
   "staging/sm/lexical-environment/unscopables-getters.js": "FAIL",
   "staging/sm/lexical-environment/unscopables-ignored.js": "FAIL",
