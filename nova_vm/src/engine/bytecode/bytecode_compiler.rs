@@ -830,6 +830,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Identi
             if let Some(s) = reference.symbol_id() {
                 // SymbolId means we might be a global, local, or a stack
                 // variable.
+                let symbol_flags = scoping.symbol_flags(s);
                 if let Some(i) = ctx.get_variable_stack_index(s) {
                     // We're a stack variable.
                     let nodes = source_code.get_nodes(ctx.get_agent());
@@ -839,8 +840,9 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Identi
                         // Reference should never be the declaration itself.
                         unreachable!();
                     }
+                    let is_lexical = symbol_flags.intersects(SymbolFlags::BlockScopedVariable);
                     // We might be in the temporal dead-zone.
-                    if ref_id < decl_id {
+                    if is_lexical && ref_id < decl_id {
                         // Reference before declaration: this is TDZ.
                         VariableKind::TemporalDeadZone
                     } else if nodes.get_node(decl_id).scope_id() == scoping.symbol_scope_id(s) {
@@ -867,7 +869,6 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Identi
                 } else {
                     let scope_id = scoping.symbol_scope_id(s);
                     let scope_flags = scoping.scope_flags(scope_id);
-                    let symbol_flags = scoping.symbol_flags(s);
                     // Functions declarations and variables defined at the top
                     // level scope end up in the globalThis; we want a property
                     // lookup cache for those.
