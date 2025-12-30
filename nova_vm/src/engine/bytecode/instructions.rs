@@ -22,13 +22,19 @@ pub enum Instruction {
     // === HOT INSTRUCTIONS ===
     /// Load the result value and add it to the stack.
     Load,
+    /// Load the result value to the given stack slot.
+    PutValueToIndex,
     /// Add the result value to the stack, without removing it as the result
     /// value.
     LoadCopy,
     /// Store the last value from the stack as the result value.
     Store,
+    /// Store a copy of a value from the stack by index as the result value.
+    GetValueFromIndex,
     /// Store a constant as the result value.
     StoreConstant,
+    /// Pop a value from the stack without storing it anywhere.
+    PopStack,
     /// Jump to another instruction by setting the instruction pointer.
     Jump,
     /// Jump to another instruction by setting the instruction pointer
@@ -115,7 +121,7 @@ pub enum Instruction {
     /// Call IsConstructor() on the current result value and store the result
     /// as the result value.
     IsConstructor,
-    /// Jump to another intrsuction by setting the instruction pointer if the
+    /// Jump to another instruction by setting the instruction pointer if the
     /// current result is `true`.
     JumpIfTrue,
     /// Load the result value, if present, to the top of the stack, replacing
@@ -379,13 +385,23 @@ pub enum Instruction {
     /// const { a: b } = x;
     /// ```
     BindingPatternBindNamed,
-    /// Bind all remaining values to given identifier
+    /// Bind an object property to a stack variable. The constant given as the
+    /// second argument is the stack slot.
+    BindingPatternBindToIndex,
+    /// Bind all remaining values to given identifier.
     ///
     /// ```js
     /// const { a, ...b } = x;
     /// const [a, ...b] = x;
     /// ```
     BindingPatternBindRest,
+    /// Bind all remaining values to a given stack index.
+    ///
+    /// ```js
+    /// const { a, ...b } = x;
+    /// const [a, ...b] = x;
+    /// ```
+    BindingPatternBindRestToIndex,
     /// Skip the next value in an array binding pattern.
     ///
     /// ```js
@@ -531,6 +547,7 @@ impl Instruction {
             // Number of repetitions and lexical status
             Self::BeginSimpleArrayBindingPattern
             | Self::BindingPatternBindNamed
+            | Self::BindingPatternBindToIndex
             | Self::ClassDefineConstructor
             | Self::ClassDefinePrivateMethod
             | Self::ClassDefinePrivateProperty
@@ -547,10 +564,13 @@ impl Instruction {
             | Self::ObjectDefineSetter
             | Self::PushExceptionJumpTarget
             | Self::ResolveBindingWithCache => 2,
-            Self::ArrayCreate
+            Self::PutValueToIndex
+            | Self::GetValueFromIndex
+            | Self::ArrayCreate
             | Self::BeginSimpleObjectBindingPattern
             | Self::BindingPatternBind
             | Self::BindingPatternBindRest
+            | Self::BindingPatternBindRestToIndex
             | Self::BindingPatternGetValueNamed
             | Self::ClassDefineDefaultConstructor
             | Self::ClassInitializePrivateValue
@@ -607,6 +627,7 @@ impl Instruction {
         matches!(
             self,
             Self::BindingPatternBindNamed
+                | Self::BindingPatternBindToIndex
                 | Self::BindingPatternGetValueNamed
                 | Self::LoadConstant
                 | Self::StoreConstant
@@ -957,6 +978,13 @@ impl Instr {
                     debug_print_identifier(agent, exe, arg0 as usize, gc)
                 )
             }
+            Instruction::BindingPatternBindToIndex => {
+                format!(
+                    "{{ {}: stack[{}] }}",
+                    debug_print_constant(agent, exe, arg1 as usize, gc),
+                    arg0,
+                )
+            }
             Instruction::ClassDefineConstructor => {
                 if arg1 == 1 {
                     "constructor() { super() }".to_string()
@@ -991,7 +1019,10 @@ impl Instr {
             Instruction::ObjectDefineGetter => "get function() {}".to_string(),
             Instruction::ObjectDefineMethod => "function() {}".to_string(),
             Instruction::ObjectDefineSetter => "set function() {}".to_string(),
-            Instruction::ResolveBindingWithCache => "ResolveBindingWithCache {}".to_string(),
+            Instruction::ResolveBindingWithCache => {
+                let key = debug_print_identifier(agent, exe, arg0 as usize, gc);
+                format!("{key}, {arg1}")
+            }
             _ => unreachable!("{kind:?}"),
         }
     }
@@ -1209,6 +1240,7 @@ impl TryFrom<u8> for Instruction {
         const LESSTHAN: u8 = Instruction::LessThan.as_u8();
         const LESSTHANEQUALS: u8 = Instruction::LessThanEquals.as_u8();
         const LOAD: u8 = Instruction::Load.as_u8();
+        const LOADTOINDEX: u8 = Instruction::PutValueToIndex.as_u8();
         const LOADCOPY: u8 = Instruction::LoadCopy.as_u8();
         const LOADCONSTANT: u8 = Instruction::LoadConstant.as_u8();
         const LOADSTORESWAP: u8 = Instruction::LoadStoreSwap.as_u8();
@@ -1216,6 +1248,7 @@ impl TryFrom<u8> for Instruction {
         const UPDATEEMPTY: u8 = Instruction::UpdateEmpty.as_u8();
         const SWAP: u8 = Instruction::Swap.as_u8();
         const EMPTY: u8 = Instruction::Empty.as_u8();
+        const POPSTACK: u8 = Instruction::PopStack.as_u8();
         const LOGICALNOT: u8 = Instruction::LogicalNot.as_u8();
         const OBJECTCREATE: u8 = Instruction::ObjectCreate.as_u8();
         const OBJECTCREATEWITHSHAPE: u8 = Instruction::ObjectCreateWithShape.as_u8();
@@ -1237,6 +1270,7 @@ impl TryFrom<u8> for Instruction {
         const STORE: u8 = Instruction::Store.as_u8();
         const STORECOPY: u8 = Instruction::StoreCopy.as_u8();
         const STORECONSTANT: u8 = Instruction::StoreConstant.as_u8();
+        const STOREFROMINDEX: u8 = Instruction::GetValueFromIndex.as_u8();
         const STRINGCONCAT: u8 = Instruction::StringConcat.as_u8();
         const THROW: u8 = Instruction::Throw.as_u8();
         const THROWERROR: u8 = Instruction::ThrowError.as_u8();
@@ -1264,7 +1298,10 @@ impl TryFrom<u8> for Instruction {
             Instruction::BeginSimpleArrayBindingPattern.as_u8();
         const BINDINGPATTERNBIND: u8 = Instruction::BindingPatternBind.as_u8();
         const BINDINGPATTERNBINDNAMED: u8 = Instruction::BindingPatternBindNamed.as_u8();
+        const BINDINGPATTERNBINDTOINDEX: u8 = Instruction::BindingPatternBindToIndex.as_u8();
         const BINDINGPATTERNBINDREST: u8 = Instruction::BindingPatternBindRest.as_u8();
+        const BINDINGPATTERNBINDRESTTOINDEX: u8 =
+            Instruction::BindingPatternBindRestToIndex.as_u8();
         const BINDINGPATTERNSKIP: u8 = Instruction::BindingPatternSkip.as_u8();
         const BINDINGPATTERNGETVALUE: u8 = Instruction::BindingPatternGetValue.as_u8();
         const BINDINGPATTERNGETVALUENAMED: u8 = Instruction::BindingPatternGetValueNamed.as_u8();
@@ -1372,9 +1409,11 @@ impl TryFrom<u8> for Instruction {
             LOADCONSTANT => Ok(Instruction::LoadConstant),
             LOADSTORESWAP => Ok(Instruction::LoadStoreSwap),
             LOADREPLACE => Ok(Instruction::LoadReplace),
+            LOADTOINDEX => Ok(Instruction::PutValueToIndex),
             UPDATEEMPTY => Ok(Instruction::UpdateEmpty),
             SWAP => Ok(Instruction::Swap),
             EMPTY => Ok(Instruction::Empty),
+            POPSTACK => Ok(Instruction::PopStack),
             LOGICALNOT => Ok(Instruction::LogicalNot),
             OBJECTCREATE => Ok(Instruction::ObjectCreate),
             OBJECTCREATEWITHSHAPE => Ok(Instruction::ObjectCreateWithShape),
@@ -1396,6 +1435,7 @@ impl TryFrom<u8> for Instruction {
             STORE => Ok(Instruction::Store),
             STORECOPY => Ok(Instruction::StoreCopy),
             STORECONSTANT => Ok(Instruction::StoreConstant),
+            STOREFROMINDEX => Ok(Instruction::GetValueFromIndex),
             STRINGCONCAT => Ok(Instruction::StringConcat),
             THROW => Ok(Instruction::Throw),
             THROWERROR => Ok(Instruction::ThrowError),
@@ -1421,7 +1461,9 @@ impl TryFrom<u8> for Instruction {
             BEGINSIMPLEARRAYBINDINGPATTERN => Ok(Instruction::BeginSimpleArrayBindingPattern),
             BINDINGPATTERNBIND => Ok(Instruction::BindingPatternBind),
             BINDINGPATTERNBINDNAMED => Ok(Instruction::BindingPatternBindNamed),
+            BINDINGPATTERNBINDTOINDEX => Ok(Instruction::BindingPatternBindToIndex),
             BINDINGPATTERNBINDREST => Ok(Instruction::BindingPatternBindRest),
+            BINDINGPATTERNBINDRESTTOINDEX => Ok(Instruction::BindingPatternBindRestToIndex),
             BINDINGPATTERNSKIP => Ok(Instruction::BindingPatternSkip),
             BINDINGPATTERNGETVALUE => Ok(Instruction::BindingPatternGetValue),
             BINDINGPATTERNGETVALUENAMED => Ok(Instruction::BindingPatternGetValueNamed),

@@ -10,7 +10,7 @@ use crate::{
         builtins::{
             ArgumentsList, ECMAScriptFunction, FunctionAstRef, OrdinaryFunctionCreateParams,
             ThisMode,
-            async_generator_objects::AsyncGeneratorState,
+            async_generator_objects::{AsyncGeneratorHeapData, AsyncGeneratorState},
             control_abstraction_objects::{
                 async_function_objects::await_reaction::AwaitReactionRecord,
                 generator_objects::GeneratorState,
@@ -22,9 +22,11 @@ use crate::{
                     promise_prototype::inner_promise_then,
                 },
             },
-            generator_objects::SuspendedGeneratorState,
+            generator_objects::{GeneratorHeapData, SuspendedGeneratorState},
             make_constructor,
-            ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
+            ordinary::{
+                ordinary_object_create_with_intrinsics, ordinary_populate_from_constructor,
+            },
             ordinary_function_create,
             promise::Promise,
             set_function_name,
@@ -34,7 +36,7 @@ use crate::{
         },
         scripts_and_modules::source_code::SourceCode,
         types::{
-            BUILTIN_STRING_MEMORY, IntoFunction, IntoObject, IntoValue, Object, PropertyDescriptor,
+            BUILTIN_STRING_MEMORY, IntoFunction, IntoObject, IntoValue, PropertyDescriptor,
             PropertyKey, Value,
         },
     },
@@ -150,7 +152,7 @@ pub(crate) fn instantiate_ordinary_function_object<'a>(
         // internals slots, so it's created as an ordinary object.
         let prototype = ordinary_object_create_with_intrinsics(
             agent,
-            Some(ProtoIntrinsics::Object),
+            ProtoIntrinsics::Object,
             Some(if function.r#async {
                 agent
                     .current_realm_record()
@@ -392,44 +394,34 @@ pub(crate) fn evaluate_generator_body<'gc>(
         }
         _ => unreachable!(),
     };
-    //}
-
-    // Note: after arguments preparation the execution context should hold all
-    // the argument values and the VM should be empty. Thus we can keep it here
-    // on the stack despite a potential GC call happening below in the
-    // OrdinaryCreateFromConstructor call.
-    debug_assert!(vm.is_gc_safe());
 
     // 2. Let G be ? OrdinaryCreateFromConstructor(functionObject,
     // "%GeneratorFunction.prototype.prototype%", « [[GeneratorState]],
     // [[GeneratorContext]], [[GeneratorBrand]] »).
     // 3. Set G.[[GeneratorBrand]] to empty.
-    let generator = ordinary_create_from_constructor(
+    // 4. Perform GeneratorStart(G, FunctionBody).
+    // 5. Return Completion Record { [[Type]]: return, [[Value]]: G, [[Target]]: empty }.
+    let g = agent
+        .heap
+        .create(GeneratorHeapData {
+            object_index: None,
+            generator_state: Some(GeneratorState::SuspendedStart(SuspendedGeneratorState {
+                vm,
+                // SAFETY: exe is not shared.
+                executable: unsafe { exe.take(agent) },
+                execution_context: agent.running_execution_context().clone(),
+            })),
+        })
+        .bind(gc.nogc());
+    ordinary_populate_from_constructor(
         agent,
+        g.into_object().unbind(),
         // SAFETY: not shared.
         unsafe { function_object.take(agent) }.into_function(),
         ProtoIntrinsics::Generator,
-        gc.reborrow(),
+        gc,
     )
-    .unbind()?;
-
-    let gc = gc.into_nogc();
-
-    let Object::Generator(generator) = generator.bind(gc) else {
-        unreachable!()
-    };
-
-    // 4. Perform GeneratorStart(G, FunctionBody).
-    agent[generator].generator_state =
-        Some(GeneratorState::SuspendedStart(SuspendedGeneratorState {
-            vm,
-            // SAFETY: exe is not shared.
-            executable: unsafe { exe.take(agent) },
-            execution_context: agent.running_execution_context().clone(),
-        }));
-
-    // 5. Return Completion Record { [[Type]]: return, [[Value]]: G, [[Target]]: empty }.
-    Ok(generator.into_value())
+    .map(Into::into)
 }
 
 /// ### [15.6.2 Runtime Semantics: EvaluateAsyncGeneratorBody](https://tc39.es/ecma262/#sec-runtime-semantics-evaluateasyncgeneratorbody)
@@ -476,42 +468,35 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
         }
         _ => unreachable!(),
     };
-    //}
-
-    // Note: after arguments preparation the execution context should hold all
-    // the argument values and the VM should be empty. Thus we can keep it here
-    // on the stack despite a potential GC call happening below in the
-    // OrdinaryCreateFromConstructor call.
-    debug_assert!(vm.is_gc_safe());
 
     // 2. Let generator be ? OrdinaryCreateFromConstructor(functionObject,
     //    "%AsyncGeneratorPrototype%", « [[AsyncGeneratorState]],
     //    [[AsyncGeneratorContext]], [[AsyncGeneratorQueue]],
     //    [[GeneratorBrand]] »).
-    let generator = ordinary_create_from_constructor(
-        agent,
-        // SAFETY: not shared.
-        unsafe { function_object.take(agent) }.into_function(),
-        ProtoIntrinsics::AsyncGenerator,
-        gc.reborrow(),
-    )
-    .unbind()?;
-    let gc = gc.into_nogc();
-
-    let Object::AsyncGenerator(generator) = generator.bind(gc) else {
-        unreachable!()
-    };
-
     // 3. Set generator.[[GeneratorBrand]] to empty.
     // 4. Set generator.[[AsyncGeneratorState]] to suspended-start.
     // 5. Perform AsyncGeneratorStart(generator, FunctionBody).
-    // SAFETY: exe is not shared.
-    agent[generator].executable = Some(unsafe { exe.take(agent) });
-    agent[generator].async_generator_state = Some(AsyncGeneratorState::SuspendedStart {
-        vm,
-        execution_context: agent.running_execution_context().clone(),
-        queue: VecDeque::new(),
-    });
     // 6. Return ReturnCompletion(generator).
-    Ok(generator.into_value())
+    let generator = agent
+        .heap
+        .create(AsyncGeneratorHeapData {
+            object_index: None,
+            // SAFETY: exe is not shared.
+            executable: Some(unsafe { exe.take(agent) }),
+            async_generator_state: Some(AsyncGeneratorState::SuspendedStart {
+                vm,
+                execution_context: agent.running_execution_context().clone(),
+                queue: VecDeque::new(),
+            }),
+        })
+        .bind(gc.nogc());
+    ordinary_populate_from_constructor(
+        agent,
+        generator.into_object().unbind(),
+        // SAFETY: not shared.
+        unsafe { function_object.take(agent) }.into_function(),
+        ProtoIntrinsics::AsyncGenerator,
+        gc,
+    )
+    .map(Into::into)
 }

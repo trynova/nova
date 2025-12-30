@@ -149,7 +149,7 @@ impl JSONObject {
             // a. Let root be OrdinaryObjectCreate(%Object.prototype%).
             let Object::Object(root) = ordinary_object_create_with_intrinsics(
                 agent,
-                Some(ProtoIntrinsics::Object),
+                ProtoIntrinsics::Object,
                 None,
                 gc.nogc(),
             ) else {
@@ -394,12 +394,9 @@ impl JSONObject {
         });
 
         // 10. Let wrapper be OrdinaryObjectCreate(%Object.prototype%).
-        let Object::Object(mut wrapper) = ordinary_object_create_with_intrinsics(
-            agent,
-            Some(ProtoIntrinsics::Object),
-            None,
-            gc.nogc(),
-        ) else {
+        let Object::Object(mut wrapper) =
+            ordinary_object_create_with_intrinsics(agent, ProtoIntrinsics::Object, None, gc.nogc())
+        else {
             unreachable!()
         };
         // SAFETY: value is not shared.
@@ -1289,12 +1286,9 @@ pub(crate) fn value_from_json<'gc>(
         }
         sonic_rs::JsonType::Object => {
             let json_object = json.as_object().unwrap();
-            let Object::Object(object) = ordinary_object_create_with_intrinsics(
-                agent,
-                Some(ProtoIntrinsics::Object),
-                None,
-                gc,
-            ) else {
+            let Object::Object(object) =
+                ordinary_object_create_with_intrinsics(agent, ProtoIntrinsics::Object, None, gc)
+            else {
                 unreachable!()
             };
             for (key, value) in json_object.iter() {

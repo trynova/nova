@@ -2,9 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::cell::Cell;
+
 use ahash::{AHashMap, AHashSet};
+use oxc_ast::ast::BindingIdentifier;
 use oxc_ecmascript::BoundNames;
-use oxc_span::Atom;
 
 use crate::{
     ecmascript::{
@@ -13,14 +15,18 @@ use crate::{
             contains::{Contains, ContainsSymbol},
             function_definitions::ContainsExpression,
             scope_analysis::{
-                LexicallyScopedDeclaration, VarScopedDeclaration,
-                function_body_lexically_declared_names, function_body_lexically_scoped_decarations,
-                function_body_var_declared_names, function_body_var_scoped_declarations,
+                LexicallyDeclaredNames, LexicallyScopedDeclaration, LexicallyScopedDeclarations,
+                VarDeclaredNames, VarScopedDeclaration, VarScopedDeclarations,
             },
         },
         types::{BUILTIN_STRING_MEMORY, Value},
     },
-    engine::{Instruction, bytecode::bytecode_compiler::CompileContext},
+    engine::{
+        Instruction,
+        bytecode::bytecode_compiler::{
+            CompileContext, ValueOutput, compile_context::StackVariable, variable_escapes_scope,
+        },
+    },
 };
 
 use super::{CompileEvaluation, complex_array_pattern, simple_array_pattern};
@@ -50,6 +56,7 @@ use super::{CompileEvaluation, complex_array_pattern, simple_array_pattern};
 /// > ECMAScript that predate ECMAScript 2015.
 pub(crate) fn instantiation<'s>(
     ctx: &mut CompileContext<'_, 's, '_, '_>,
+    stack_variables: &mut Vec<StackVariable>,
     func: FunctionAstRef<'s>,
     strict: bool,
     is_lexical: bool,
@@ -60,18 +67,6 @@ pub(crate) fn instantiation<'s>(
     // 3. Let strict be func.[[Strict]].
     // 4. Let formals be func.[[FormalParameters]].
     let formals = func.formal_parameters();
-    // 5. Let parameterNames be the BoundNames of formals.
-    // 6. If parameterNames has any duplicate entries, let hasDuplicates be
-    //    true. Otherwise, let hasDuplicates be false.
-    let mut parameter_names = AHashSet::with_capacity(formals.parameters_count());
-    let mut has_duplicates = false;
-    formals.bound_names(&mut |identifier| {
-        if parameter_names.contains(&identifier.name) {
-            has_duplicates = true;
-        } else {
-            parameter_names.insert(identifier.name);
-        }
-    });
 
     // 8. Let hasParameterExpressions be ContainsExpression of formals.
     let has_parameter_expressions = formals
@@ -83,42 +78,96 @@ pub(crate) fn instantiation<'s>(
     // NOTE: the keys of `functions` will be `functionNames`, its values will be
     // `functionsToInitialize`.
     let mut functions = AHashMap::new();
-    for d in function_body_var_scoped_declarations(body) {
-        // a. If d is neither a VariableDeclaration nor a ForBinding nor a BindingIdentifier, then
-        if let VarScopedDeclaration::Function(d) = d {
-            // Skip function declarations with declare modifier - they are TypeScript ambient declarations
-            #[cfg(feature = "typescript")]
-            if d.declare {
-                continue;
-            }
+    body.var_scoped_declarations(&mut |d| {
+        // a. If d is neither a VariableDeclaration nor a ForBinding nor a
+        //    BindingIdentifier, then
+        // i. Assert: d is either a FunctionDeclaration, a
+        //    GeneratorDeclaration, an AsyncFunctionDeclaration, or an
+        //    AsyncGeneratorDeclaration.
+        let VarScopedDeclaration::Function(d) = d else {
+            return;
+        };
+        // Skip function declarations with declare modifier - they are
+        // TypeScript ambient declarations
+        #[cfg(feature = "typescript")]
+        if d.declare {
+            return;
+        }
 
-            // i. Assert: d is either a FunctionDeclaration, a GeneratorDeclaration, an AsyncFunctionDeclaration, or an AsyncGeneratorDeclaration.
-            // ii. Let fn be the sole element of the BoundNames of d.
-            let f_name = d.id.as_ref().unwrap().name;
-            // iii. If functionNames does not contain fn, then
-            //   1. Insert fn as the first element of functionNames.
-            //   2. NOTE: If there are multiple function declarations for the same name, the last declaration is used.
-            //   3. Insert d as the first element of functionsToInitialize.
-            functions.insert(f_name, d);
+        // ii. Let fn be the sole element of the BoundNames of d.
+        let f_name = d.id.as_ref().unwrap().name;
+        // iii. If functionNames does not contain fn, then
+        //   1. Insert fn as the first element of functionNames.
+        //   2. NOTE: If there are multiple function declarations for the
+        //      same name, the last declaration is used.
+        //   3. Insert d as the first element of functionsToInitialize.
+        functions.insert(f_name, d);
+    });
+
+    // 15. Let argumentsObjectNeeded be true.
+    let mut arguments_object_needed = true;
+    // 16. If func.[[ThisMode]] is lexical, then
+    if arguments_object_needed && is_lexical {
+        // a. NOTE: Arrow functions never have an arguments object.
+        // b. Set argumentsObjectNeeded to false.
+        arguments_object_needed = false;
+    } else if arguments_object_needed {
+        // 17. Else if parameterNames contains "arguments", then
+        formals.bound_names(&mut |name| {
+            // a. Set argumentsObjectNeeded to false.
+            if arguments_object_needed && name.name.as_str() == "arguments" {
+                arguments_object_needed = false;
+            }
+        });
+    }
+    // 18. Else if hasParameterExpressions is false, then
+    if arguments_object_needed && !has_parameter_expressions {
+        // a. If functionNames contains "arguments" or
+        if functions.contains_key("arguments") {
+            // i. Set argumentsObjectNeeded to false.
+            arguments_object_needed = false;
+        } else {
+            // lexicalNames contains "arguments", then
+            body.lexically_declared_names(&mut |binding| {
+                if binding.name == "arguments" {
+                    // i. Set argumentsObjectNeeded to false.
+                    arguments_object_needed = false;
+                }
+            })
         }
     }
 
-    // 15. Let argumentsObjectNeeded be true.
-    // 16. If func.[[ThisMode]] is lexical, then
-    //   a. NOTE: Arrow functions never have an arguments object.
-    //   b. Set argumentsObjectNeeded to false.
-    // 17. Else if parameterNames contains "arguments", then
-    //   a. Set argumentsObjectNeeded to false.
-    // 18. Else if hasParameterExpressions is false, then
-    //   a. If functionNames contains "arguments" or lexicalNames contains "arguments", then
-    //     i. Set argumentsObjectNeeded to false.
-    let arguments_object_needed = !is_lexical
-        && !parameter_names.contains("arguments")
-        && (has_parameter_expressions
-            || (!functions.contains_key("arguments")
-                && !function_body_lexically_declared_names(body)
-                    .contains(&Atom::from("arguments"))))
-        && Contains::contains(&func, ContainsSymbol::Arguments);
+    // Note: after the easy checks we check a for optimisation. If the scope is not
+    // poisoned and the function contains no arguments references, then it's
+    // impossible for users to detect the arguments object being missing.
+    if arguments_object_needed {
+        arguments_object_needed = ctx.scope_contains_direct_eval(func.scope_id())
+            || Contains::contains(&func, ContainsSymbol::Arguments);
+    }
+
+    // 5. Let parameterNames be the BoundNames of formals.
+    // 6. If parameterNames has any duplicate entries, let hasDuplicates be
+    //    true. Otherwise, let hasDuplicates be false.
+    let mut parameter_names = AHashSet::with_capacity(formals.parameters_count());
+    let mut env_parameters = Vec::with_capacity(formals.parameters_count());
+    let mut stack_parameters = Vec::with_capacity(if arguments_object_needed {
+        0
+    } else {
+        formals.parameters_count()
+    });
+    let mut has_duplicates = false;
+    formals.bound_names(&mut |identifier| {
+        let added = parameter_names.insert(identifier.name);
+        if added {
+            if arguments_object_needed || variable_escapes_scope(ctx, identifier) {
+                env_parameters.push(identifier.name);
+            } else {
+                stack_parameters.push(identifier.symbol_id());
+            }
+        } else {
+            has_duplicates = true;
+        }
+    });
 
     // 19. If strict is true or hasParameterExpressions is false, then
     //   a. NOTE: Only a single Environment Record is needed for the parameters,
@@ -141,16 +190,18 @@ pub(crate) fn instantiation<'s>(
     }
 
     // 21. For each String paramName of parameterNames, do
-    // NOTE: The behavior should not depend on the order in which the parameter
-    // names are iterated, so it's fine for `parameter_names` to be a set.
-    for param_name in &parameter_names {
+    for param_name in &stack_parameters {
+        stack_variables.push(ctx.push_stack_variable(*param_name, false));
+    }
+    for param_name in &env_parameters {
         // a. Let alreadyDeclared be ! env.HasBinding(paramName).
         // b. NOTE: Early errors ensure that duplicate parameter names can only
         //    occur in non-strict functions that do not have parameter default
         //    values or rest parameters.
         // c. If alreadyDeclared is false, then
-        // NOTE: Since `parameter_names` is a set, `alreadyDeclared` here
-        // should always be false.
+        // NOTE: Addition into `stack_parameters` or `env_parameters` is
+        // guarded by AHashSet::insert returning `true`, so `alreadyDeclared` is
+        // always false.
 
         // i. Perform ! env.CreateMutableBinding(paramName, false).
         let param_name = ctx.create_string(param_name);
@@ -225,7 +276,8 @@ pub(crate) fn instantiation<'s>(
     //      iteratorRecord and env.
     if formals.has_parameter() {
         if has_parameter_expressions {
-            complex_array_pattern(
+            // Note: ignore errors here for safety.
+            let _ = complex_array_pattern(
                 ctx,
                 formals.items.iter().map(|param| Some(&param.pattern)),
                 formals.rest.as_deref(),
@@ -249,29 +301,33 @@ pub(crate) fn instantiation<'s>(
         // a. NOTE: Only a single Environment Record is needed for the
         //    parameters and top-level vars.
         // b. Let instantiatedVarNames be a copy of the List parameterBindings.
-        let mut instantiated_var_names = AHashSet::new();
+        let mut instantiated_var_names = parameter_names.clone();
         // c. For each element n of varNames, do
-        for n in function_body_var_declared_names(body) {
+        body.var_declared_names(&mut |d| {
+            let n = d.name;
             // i. If instantiatedVarNames does not contain n, then
-            if instantiated_var_names.contains(&n) || parameter_names.contains(&n) {
-                continue;
+            if !instantiated_var_names.insert(n) {
+                return;
             }
             // 1. Append n to instantiatedVarNames.
             let n_string = ctx.create_string(&n);
-            instantiated_var_names.insert(n);
-            // 2. Perform ! env.CreateMutableBinding(n, false).
-            ctx.add_instruction_with_identifier(
-                Instruction::CreateMutableBinding,
-                n_string.to_property_key(),
-            );
-            // 3. Perform ! env.InitializeBinding(n, undefined).
-            ctx.add_instruction_with_identifier(
-                Instruction::ResolveBinding,
-                n_string.to_property_key(),
-            );
-            ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
-            ctx.add_instruction(Instruction::InitializeReferencedBinding);
-        }
+            if variable_escapes_scope(ctx, d) {
+                // 2. Perform ! env.CreateMutableBinding(n, false).
+                ctx.add_instruction_with_identifier(
+                    Instruction::CreateMutableBinding,
+                    n_string.to_property_key(),
+                );
+                // 3. Perform ! env.InitializeBinding(n, undefined).
+                ctx.add_instruction_with_identifier(
+                    Instruction::ResolveBinding,
+                    n_string.to_property_key(),
+                );
+                ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+                ctx.add_instruction(Instruction::InitializeReferencedBinding);
+            } else {
+                stack_variables.push(ctx.push_stack_variable(d.symbol_id(), false));
+            }
+        });
 
         // d. Let varEnv be env.
         // 30. If strict is false, then
@@ -300,13 +356,13 @@ pub(crate) fn instantiation<'s>(
         // d. Let instantiatedVarNames be a new empty List.
         let mut instantiated_var_names = AHashSet::new();
         // e. For each element n of varNames, do
-        for n in function_body_var_declared_names(body) {
+        body.var_declared_names(&mut |d| {
+            let n = d.name;
             // i. If instantiatedVarNames does not contain n, then
-            if instantiated_var_names.contains(&n) {
-                continue;
+            if !instantiated_var_names.insert(n) {
+                return;
             }
             // 1. Append n to instantiatedVarNames.
-            instantiated_var_names.insert(n);
             // 3. If parameterBindings does not contain n, or if functionNames
             //    contains n, then
             let n_string = ctx.create_string(&n);
@@ -330,7 +386,7 @@ pub(crate) fn instantiation<'s>(
             //    initially has the same value as the corresponding initialized
             //    parameter.
             ctx.add_instruction_with_constant(Instruction::LoadConstant, n_string);
-        }
+        });
 
         // 30. If strict is false, then
         //   a. Let lexEnv be NewDeclarativeEnvironment(varEnv).
@@ -353,86 +409,79 @@ pub(crate) fn instantiation<'s>(
 
     // 33. Let lexDeclarations be the LexicallyScopedDeclarations of code.
     // 34. For each element d of lexDeclarations, do
-    for d in function_body_lexically_scoped_decarations(body) {
-        // a. NOTE: A lexically declared name cannot be the same as a
-        //    function/generator declaration, formal parameter, or a var name.
-        //    Lexically declared names are only instantiated here but not
-        //    initialized.
-        // b. For each element dn of the BoundNames of d, do
-        match d {
-            // i. If IsConstantDeclaration of d is true, then
-            LexicallyScopedDeclaration::Variable(decl) if decl.kind.is_const() => {
-                decl.id.bound_names(&mut |identifier| {
-                    let dn = ctx.create_string(&identifier.name);
-                    // 1. Perform ! lexEnv.CreateImmutableBinding(dn, true).
-                    ctx.add_instruction_with_identifier(
-                        Instruction::CreateImmutableBinding,
-                        dn.to_property_key(),
-                    );
-                })
-            }
-            // ii. Else,
-            //   1. Perform ! lexEnv.CreateMutableBinding(dn, false).
-            LexicallyScopedDeclaration::Variable(decl) => decl.id.bound_names(&mut |identifier| {
+    {
+        let is_constant_declaration = Cell::new(false);
+        let cb = &mut |identifier: &BindingIdentifier<'s>| {
+            if variable_escapes_scope(ctx, identifier) {
                 let dn = ctx.create_string(&identifier.name);
                 ctx.add_instruction_with_identifier(
-                    Instruction::CreateMutableBinding,
+                    // i. If IsConstantDeclaration of d is true, then
+                    if is_constant_declaration.get() {
+                        // 1. Perform ! lexEnv.CreateImmutableBinding(dn, true).
+                        Instruction::CreateImmutableBinding
+                    } else {
+                        // ii. Else,
+                        // 1. Perform ! lexEnv.CreateMutableBinding(dn, false).
+                        Instruction::CreateMutableBinding
+                    },
                     dn.to_property_key(),
                 );
-            }),
-            LexicallyScopedDeclaration::Function(decl) => {
-                // Skip function declarations with declare modifier - they are TypeScript ambient declarations
-                #[cfg(feature = "typescript")]
-                if decl.declare {
-                    continue;
+            } else {
+                stack_variables.push(ctx.push_stack_variable(identifier.symbol_id(), false));
+            }
+        };
+        let mut create_default_export = false;
+        body.lexically_scoped_declarations(&mut |d| {
+            // a. NOTE: A lexically declared name cannot be the same as a
+            //    function/generator declaration, formal parameter, or a var name.
+            //    Lexically declared names are only instantiated here but not
+            //    initialized.
+            // b. For each element dn of the BoundNames of d, do
+            match d {
+                LexicallyScopedDeclaration::Variable(decl) => {
+                    is_constant_declaration.set(decl.kind.is_const());
+                    decl.id.bound_names(cb);
+                    is_constant_declaration.set(false);
                 }
+                LexicallyScopedDeclaration::Function(decl) => {
+                    // Skip function declarations with declare modifier - they are TypeScript ambient declarations
+                    #[cfg(feature = "typescript")]
+                    if decl.declare {
+                        return;
+                    }
 
-                let dn = ctx.create_string(&decl.id.as_ref().unwrap().name);
-                ctx.add_instruction_with_identifier(
-                    Instruction::CreateMutableBinding,
-                    dn.to_property_key(),
-                );
+                    decl.bound_names(cb);
+                }
+                LexicallyScopedDeclaration::Class(decl) => {
+                    decl.bound_names(cb);
+                }
+                LexicallyScopedDeclaration::DefaultExport => {
+                    create_default_export = true;
+                }
+                #[cfg(feature = "typescript")]
+                LexicallyScopedDeclaration::TSEnum(decl) => {
+                    decl.id.bound_names(cb);
+                }
             }
-            LexicallyScopedDeclaration::Class(decl) => {
-                let dn = ctx.create_string(&decl.id.as_ref().unwrap().name);
-                ctx.add_instruction_with_identifier(
-                    Instruction::CreateMutableBinding,
-                    dn.to_property_key(),
-                );
-            }
-            LexicallyScopedDeclaration::DefaultExport => {
-                let dn = BUILTIN_STRING_MEMORY._default_;
-                ctx.add_instruction_with_identifier(
-                    Instruction::CreateMutableBinding,
-                    dn.to_property_key(),
-                );
-            }
-            #[cfg(feature = "typescript")]
-            LexicallyScopedDeclaration::TSEnum(decl) => {
-                let dn = ctx.create_string(&decl.id.name);
-                ctx.add_instruction_with_identifier(
-                    Instruction::CreateMutableBinding,
-                    dn.to_property_key(),
-                );
-            }
+        });
+        if create_default_export {
+            let dn = BUILTIN_STRING_MEMORY._default_;
+            ctx.add_instruction_with_identifier(
+                Instruction::CreateMutableBinding,
+                dn.to_property_key(),
+            );
         }
     }
 
     // 36. For each Parse Node f of functionsToInitialize, do
     for f in functions.values() {
-        // Skip function declarations with declare modifier - they are TypeScript ambient declarations
-        #[cfg(feature = "typescript")]
-        if f.declare {
-            continue;
-        }
-
         // b. Let fo be InstantiateFunctionObject of f with arguments lexEnv
         //    and privateEnv.
         f.compile(ctx);
         // a. Let fn be the sole element of the BoundNames of f.
         // c. Perform ! varEnv.SetMutableBinding(fn, fo, false).
         // TODO: This compilation is incorrect if !strict, when varEnv != lexEnv.
-        f.id.as_ref().unwrap().compile(ctx);
-        ctx.add_instruction(Instruction::PutValue);
+        let f = f.id.as_ref().unwrap().compile(ctx);
+        f.put_value(ctx, ValueOutput::Value).unwrap();
     }
 }

@@ -301,7 +301,6 @@ impl<'a> SourceCode<'a> {
     }
 
     /// Access the AstNodes information of the SourceCode.
-    #[expect(dead_code)]
     pub(crate) fn get_nodes(self, agent: &Agent) -> &AstNodes<'a> {
         &agent[self].nodes
     }

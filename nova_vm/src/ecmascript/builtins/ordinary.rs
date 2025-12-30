@@ -24,7 +24,7 @@ use crate::{
         },
         execution::{
             Realm,
-            agent::{TryError, TryResult, unwrap_try},
+            agent::{TryError, TryResult, try_result_into_js, unwrap_try},
         },
         types::{
             IntoValue, SetCachedProps, SetResult, TryGetResult, TryHasResult, handle_try_get_result,
@@ -1570,6 +1570,15 @@ pub(crate) fn ordinary_own_property_keys<'a>(
     keys_vec
 }
 
+pub(crate) fn ordinary_object_create_null<'a>(
+    agent: &mut Agent,
+    gc: NoGcScope<'a, '_>,
+) -> OrdinaryObject<'a> {
+    OrdinaryObject::create_object(agent, None, &[])
+        .expect("Should perform GC here")
+        .bind(gc)
+}
+
 /// ### [10.1.12 OrdinaryObjectCreate ( proto \[ , additionalInternalSlotsList \] )](https://tc39.es/ecma262/#sec-ordinaryobjectcreate)
 ///
 /// The abstract operation OrdinaryObjectCreate takes argument proto (an Object
@@ -1595,17 +1604,10 @@ pub(crate) fn ordinary_own_property_keys<'a>(
 /// `prototype` must be None.
 pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
     agent: &mut Agent,
-    proto_intrinsics: Option<ProtoIntrinsics>,
-    prototype: Option<Object>,
+    proto_intrinsics: ProtoIntrinsics,
+    prototype: Option<Object<'a>>,
     gc: NoGcScope<'a, '_>,
 ) -> Object<'a> {
-    let Some(proto_intrinsics) = proto_intrinsics else {
-        assert!(prototype.is_none());
-        return OrdinaryObject::create_object(agent, None, &[])
-            .expect("Should perform GC here")
-            .into();
-    };
-
     let object = match proto_intrinsics {
         ProtoIntrinsics::Array => agent.heap.create(ArrayHeapData::default()).into_object(),
         #[cfg(feature = "array-buffer")]
@@ -1812,19 +1814,10 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
         ProtoIntrinsics::WeakRef => agent.heap.create(WeakRefHeapData::default()).into_object(),
         #[cfg(feature = "weak-refs")]
         ProtoIntrinsics::WeakSet => agent.heap.create(WeakSetHeapData::default()).into_object(),
-    };
-
-    if let Some(prototype) = prototype {
-        if !prototype.is_proxy() && !prototype.is_module() {
-            prototype
-                .get_or_create_backing_object(agent)
-                .make_intrinsic(agent)
-                .expect("Should perform GC here");
-        }
-        object.internal_set_prototype(agent, Some(prototype));
     }
+    .bind(gc);
 
-    object.bind(gc)
+    ordinary_object_populate_with_intrinsics(agent, object, prototype)
 }
 
 /// ### [10.1.13 OrdinaryCreateFromConstructor ( constructor, intrinsicDefaultProto \[ , internalSlotsList \] )](https://tc39.es/ecma262/#sec-ordinarycreatefromconstructor)
@@ -1861,16 +1854,88 @@ pub(crate) fn ordinary_create_from_constructor<'a>(
         intrinsic_default_proto,
         gc.reborrow(),
     )
-    .unbind()?
-    .bind(gc.nogc());
+    .unbind()?;
+    let gc = gc.into_nogc();
+    let proto = proto.bind(gc.into_nogc());
     // 3. If internalSlotsList is present, let slotsList be internalSlotsList.
     // 4. Else, let slotsList be a new empty List.
     // 5. Return OrdinaryObjectCreate(proto, slotsList).
     Ok(ordinary_object_create_with_intrinsics(
         agent,
-        Some(intrinsic_default_proto),
-        proto.unbind(),
-        gc.into_nogc(),
+        intrinsic_default_proto,
+        proto,
+        gc,
+    ))
+}
+
+fn ordinary_object_populate_with_intrinsics<'a>(
+    agent: &mut Agent,
+    object: Object<'a>,
+    prototype: Option<Object<'a>>,
+) -> Object<'a> {
+    if let Some(prototype) = prototype {
+        if !prototype.is_proxy() && !prototype.is_module() {
+            prototype
+                .get_or_create_backing_object(agent)
+                .make_intrinsic(agent)
+                .expect("Should perform GC here");
+        }
+        object.internal_set_prototype(agent, Some(prototype));
+    }
+
+    object
+}
+
+pub(crate) fn ordinary_populate_from_constructor<'gc>(
+    agent: &mut Agent,
+    object: Object,
+    constructor: Function,
+    intrinsic_default_proto: ProtoIntrinsics,
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, Object<'gc>> {
+    let mut object = object.bind(gc.nogc());
+    let constructor = constructor.bind(gc.nogc());
+
+    // 1. Assert: intrinsicDefaultProto is this specification's name of an
+    // intrinsic object. The corresponding object must be an intrinsic that is
+    // intended to be used as the [[Prototype]] value of an object.
+
+    // 2. Let proto be ? GetPrototypeFromConstructor(constructor, intrinsicDefaultProto).
+    let proto = if let Some(proto) = try_result_into_js(try_get_prototype_from_constructor(
+        agent,
+        constructor,
+        intrinsic_default_proto,
+        gc.nogc(),
+    ))
+    .unbind()?
+    .bind(gc.nogc())
+    {
+        proto
+    } else {
+        // Couldn't get proto without calling into JS. This is a very rare case.
+        let scoped_object = object.scope(agent, gc.nogc());
+        let proto = get_prototype_from_constructor(
+            agent,
+            constructor.unbind(),
+            intrinsic_default_proto,
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        // SAFETY: not shared.
+        object = unsafe { scoped_object.take(agent) }.bind(gc.nogc());
+        proto
+    };
+    let object = object.unbind();
+    let proto = proto.unbind();
+    let gc = gc.into_nogc();
+    let object = object.bind(gc);
+    let proto = proto.bind(gc);
+    // 3. If internalSlotsList is present, let slotsList be internalSlotsList.
+    // 4. Else, let slotsList be a new empty List.
+    // 5. Return OrdinaryObjectCreate(proto, slotsList).
+    Ok(ordinary_object_populate_with_intrinsics(
+        agent, object, proto,
     ))
 }
 
@@ -2076,7 +2141,6 @@ fn get_intrinsic_constructor<'a>(
     }
 }
 
-#[cfg(feature = "array-buffer")]
 pub(crate) fn try_get_prototype_from_constructor<'a>(
     agent: &mut Agent,
     constructor: Function<'a>,

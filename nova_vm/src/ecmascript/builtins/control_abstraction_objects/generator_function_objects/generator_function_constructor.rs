@@ -78,7 +78,7 @@ impl GeneratorFunctionConstructor {
         //   a. Let prototype be OrdinaryObjectCreate(%GeneratorFunction.prototype.prototype%).
         let prototype = ordinary_object_create_with_intrinsics(
             agent,
-            Some(ProtoIntrinsics::Object),
+            ProtoIntrinsics::Object,
             Some(
                 agent
                     .current_realm_record()

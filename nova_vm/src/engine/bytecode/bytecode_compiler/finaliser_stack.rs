@@ -50,6 +50,10 @@ pub(super) enum ControlFlowStackEntry<'a> {
     VariableScope,
     /// A private environment was scoped.
     PrivateScope,
+    /// A variable was pushed onto the stack.
+    StackVariable,
+    /// A loop result variable was pushed onto the stack.
+    StackLoopResult,
     /// A try-catch block was entered.
     CatchBlock,
     /// An if-statement was entered.
@@ -226,6 +230,8 @@ impl<'a> ControlFlowStackEntry<'a> {
             ControlFlowStackEntry::LexicalScope
             | ControlFlowStackEntry::VariableScope
             | ControlFlowStackEntry::PrivateScope
+            | ControlFlowStackEntry::StackVariable
+            | ControlFlowStackEntry::StackLoopResult
             | ControlFlowStackEntry::CatchBlock
             | ControlFlowStackEntry::IfStatement
             | ControlFlowStackEntry::FinallyBlock
@@ -260,6 +266,8 @@ impl<'a> ControlFlowStackEntry<'a> {
             ControlFlowStackEntry::LexicalScope
             | ControlFlowStackEntry::VariableScope
             | ControlFlowStackEntry::PrivateScope
+            | ControlFlowStackEntry::StackVariable
+            | ControlFlowStackEntry::StackLoopResult
             | ControlFlowStackEntry::FinallyBlock
             | ControlFlowStackEntry::IfStatement
             | ControlFlowStackEntry::CatchBlock { .. }
@@ -306,7 +314,9 @@ impl<'a> ControlFlowStackEntry<'a> {
             // If-statements, finally-blocks results, user-controlled
             // try-finally-blocks, and iterator closes must be called on
             // return.
-            ControlFlowStackEntry::IfStatement
+            ControlFlowStackEntry::StackVariable
+            | ControlFlowStackEntry::StackLoopResult
+            | ControlFlowStackEntry::IfStatement
             | ControlFlowStackEntry::FinallyBlock
             | ControlFlowStackEntry::ArrayDestructuring
             | ControlFlowStackEntry::Iterator { .. }
@@ -347,6 +357,10 @@ impl<'a> ControlFlowStackEntry<'a> {
             ControlFlowStackEntry::PrivateScope => {
                 executable.add_instruction(Instruction::ExitPrivateEnvironment);
             }
+            ControlFlowStackEntry::StackVariable => {
+                compile_stack_variable_exit(executable);
+            }
+            ControlFlowStackEntry::StackLoopResult => {}
             ControlFlowStackEntry::IfStatement => {
                 if has_result {
                     // OPTIMISATION: if we statically know we have a result,
@@ -405,6 +419,11 @@ impl<'a> ControlFlowStackEntry<'a> {
 pub(super) fn compile_iterator_pop(executable: &mut ExecutableContext) {
     executable.add_instruction(Instruction::PopExceptionJumpTarget);
     executable.add_instruction(Instruction::IteratorPop);
+}
+
+/// Helper method to compile stack variable exit handling.
+pub(super) fn compile_stack_variable_exit(executable: &mut ExecutableContext) {
+    executable.add_instruction(Instruction::PopStack);
 }
 
 /// Helper method to compile if-statement exit handling.

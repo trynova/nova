@@ -172,6 +172,13 @@ impl Primitive<'_> {
     }
 }
 
+impl From<bool> for Primitive<'static> {
+    #[inline]
+    fn from(value: bool) -> Self {
+        Primitive::Boolean(value)
+    }
+}
+
 impl<'a> From<Primitive<'a>> for Value<'a> {
     fn from(primitive: Primitive<'a>) -> Self {
         match primitive {

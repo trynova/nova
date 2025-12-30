@@ -12,8 +12,7 @@ use core::{
 use std::borrow::Cow;
 
 use super::{
-    IntoPrimitive, IntoValue, Primitive, PropertyKey, SMALL_STRING_DISCRIMINANT,
-    STRING_DISCRIMINANT, Value,
+    IntoValue, Primitive, PropertyKey, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT, Value,
 };
 use crate::{
     SmallInteger, SmallString,
@@ -178,15 +177,6 @@ impl<'a> TryFrom<Value<'a>> for HeapString<'a> {
     }
 }
 
-impl<'a> IntoPrimitive<'a> for String<'a> {
-    fn into_primitive(self) -> Primitive<'a> {
-        match self {
-            String::String(idx) => Primitive::String(idx),
-            String::SmallString(data) => Primitive::SmallString(data),
-        }
-    }
-}
-
 impl<'a> From<HeapString<'a>> for String<'a> {
     fn from(value: HeapString<'a>) -> Self {
         String::String(value)
@@ -244,8 +234,17 @@ impl<'a> TryFrom<Primitive<'a>> for String<'a> {
 impl<'a> From<String<'a>> for Value<'a> {
     fn from(value: String<'a>) -> Self {
         match value {
-            String::String(x) => Value::String(x),
-            String::SmallString(x) => Value::SmallString(x),
+            String::String(x) => Self::String(x),
+            String::SmallString(x) => Self::SmallString(x),
+        }
+    }
+}
+
+impl<'a> From<String<'a>> for Primitive<'a> {
+    fn from(value: String<'a>) -> Self {
+        match value {
+            String::String(x) => Self::String(x),
+            String::SmallString(x) => Self::SmallString(x),
         }
     }
 }
