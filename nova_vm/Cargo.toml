@@ -53,7 +53,6 @@ default = [
     "regexp",
     "set",
     "annex-b",
-    "typescript"
 ]
 array-buffer = ["ecmascript_atomics"]
 atomics = ["array-buffer", "shared-array-buffer", "ecmascript_atomics", "ecmascript_futex"]
