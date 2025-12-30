@@ -269,6 +269,59 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             .map(|(_, i)| *i)
     }
 
+    /// Generate a StackValue (StackVariable currently stands in) from thin air
+    /// to mark an existing value on the stack.
+    pub(super) fn mark_stack_value(&mut self) -> StackVariable {
+        let _ = self.executable.push_stack_variable();
+        self.control_flow_stack
+            .push(ControlFlowStackEntry::StackVariable);
+        StackVariable
+    }
+
+    /// Pop a StackValue (StackVariable currently stands in) from the top of the
+    /// stack.
+    fn pop_stack_value(&mut self, var: StackVariable) {
+        core::mem::forget(var);
+        matches!(
+            self.control_flow_stack.pop(),
+            Some(ControlFlowStackEntry::StackVariable)
+        );
+        self.executable.pop_stack_variable();
+        if self.is_unreachable() {
+            // OPTIMISATION: We don't need to add exit handling if this line is
+            // unreachable.
+            return;
+        }
+        compile_stack_variable_exit(&mut self.executable);
+    }
+
+    /// Load the current result onto the stack as a StackValue (StackVariable
+    /// currently stands in).
+    pub(super) fn load_to_stack(&mut self) -> StackVariable {
+        self.add_instruction(Instruction::Load);
+        let _ = self.executable.push_stack_variable();
+        self.control_flow_stack
+            .push(ControlFlowStackEntry::StackVariable);
+        StackVariable
+    }
+
+    /// Store a StackValue (StackVariable currently stands in) as the result
+    /// value.
+    fn store_from_stack(&mut self, var: StackVariable) {
+        core::mem::forget(var);
+        matches!(
+            self.control_flow_stack.pop(),
+            Some(ControlFlowStackEntry::StackVariable)
+        );
+        self.executable.pop_stack_variable();
+        if self.is_unreachable() {
+            // OPTIMISATION: We don't need to add exit handling if this line is
+            // unreachable.
+            return;
+        }
+        self.executable.add_instruction(Instruction::Store);
+    }
+
     /// Add a lexical variable. These variables must not escape the scope via
     /// callback capture or exports.
     pub(super) fn push_stack_variable(
@@ -1269,6 +1322,17 @@ impl Drop for ClassStaticBlock {
 
 pub(crate) struct StackVariable;
 impl StackVariable {
+    /// Store a StackValue as the result value.
+    pub(crate) fn store(self, ctx: &mut CompileContext) {
+        ctx.store_from_stack(self);
+    }
+
+    /// Pop a StackValue from the stack.
+    pub(crate) fn pop(self, ctx: &mut CompileContext) {
+        ctx.pop_stack_value(self);
+    }
+
+    /// Pop a StackVariable from the stack.
     #[inline(always)]
     pub(crate) fn exit(self, ctx: &mut CompileContext) {
         ctx.pop_stack_variable(self);

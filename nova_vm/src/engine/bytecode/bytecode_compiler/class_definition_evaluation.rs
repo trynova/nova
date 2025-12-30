@@ -11,9 +11,8 @@ use crate::{
         syntax_directed_operations::{
             function_definitions::CompileFunctionBodyData,
             scope_analysis::{
-                LexicallyScopedDeclaration, VarScopedDeclaration,
-                class_static_block_lexically_scoped_declarations,
-                class_static_block_var_declared_names, class_static_block_var_scoped_declarations,
+                LexicallyScopedDeclaration, LexicallyScopedDeclarations, VarDeclaredNames,
+                VarScopedDeclaration, VarScopedDeclarations,
             },
         },
         types::{BUILTIN_STRING_MEMORY, String, Value},
@@ -21,7 +20,7 @@ use crate::{
     engine::{
         CompileContext, CompileEvaluation, FunctionExpression, Instruction,
         NamedEvaluationParameter, SendableRef,
-        bytecode::bytecode_compiler::{ExpressionError, ValueOutput},
+        bytecode::bytecode_compiler::{ExpressionError, ValueOutput, variable_escapes_scope},
     },
 };
 use ahash::{AHashMap, AHashSet};
@@ -388,8 +387,9 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
 
         // result: F
         // stack: [proto]
-        ctx.add_instruction(Instruction::Load);
+        let stack_proto = ctx.mark_stack_value();
         // stack: [constructor, proto]
+        let stack_constructor = ctx.load_to_stack();
 
         let has_instance_private_fields_or_methods =
             !instance_private_fields.is_empty() || !instance_private_methods.is_empty();
@@ -480,6 +480,11 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
                         swap_to_proto(ctx);
                     }
                     if let Err(err) = define_method(method_definition, ctx) {
+                        stack_constructor.exit(ctx);
+                        stack_proto.exit(ctx);
+                        if let Some(private_env) = private_env {
+                            private_env.exit(ctx);
+                        }
                         class_env.exit(ctx);
                         return Err(err);
                     }
@@ -516,6 +521,11 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
                         ) {
                             Ok(field) => field,
                             Err(err) => {
+                                stack_constructor.exit(ctx);
+                                stack_proto.exit(ctx);
+                                if let Some(private_env) = private_env {
+                                    private_env.exit(ctx);
+                                }
                                 class_env.exit(ctx);
                                 return Err(err);
                             }
@@ -562,7 +572,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
         }
         // Drop proto from stack: It is no longer needed.
         swap_to_proto(ctx);
-        ctx.add_instruction(Instruction::Store);
+        stack_proto.pop(ctx);
 
         // stack: [constructor]
 
@@ -693,6 +703,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
                 if let Some(static_env) = static_env {
                     static_env.exit(ctx);
                 }
+                stack_constructor.pop(ctx);
                 if let Some(private_env) = private_env {
                     private_env.exit(ctx);
                 }
@@ -704,41 +715,29 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
         if let Some(static_env) = static_env {
             static_env.exit(ctx);
         }
+        // result: constructor
+        stack_constructor.store(ctx);
+
         // 32. Set the running execution context's PrivateEnvironment to outerPrivateEnvironment.
         if let Some(private_env) = private_env {
             private_env.exit(ctx);
         }
+
         // Note: We finally leave classEnv here. See step 26.
         class_env.exit(ctx);
         // 33. Return F.
 
         // 15.7.15 Runtime Semantics: BindingClassDeclarationEvaluation
         // ClassDeclaration: class BindingIdentifier ClassTail
-        if self.is_declaration()
-            && let Some(class_identifier) = class_identifier
-        {
+        if self.is_declaration() && class_identifier.is_some() {
             // 4. Let env be the running execution context's LexicalEnvironment.
             // 5. Perform ? InitializeBoundName(className, value, env).
             // => a. Perform ! environment.InitializeBinding(name, value).
-            ctx.add_instruction(Instruction::StoreCopy);
-            if let Some(stack_slot) =
-                ctx.get_variable_stack_index(self.id.as_ref().unwrap().symbol_id())
-            {
-                ctx.add_instruction_with_immediate(
-                    Instruction::PutValueToIndex,
-                    stack_slot as usize,
-                );
-            } else {
-                ctx.add_instruction_with_identifier(
-                    Instruction::ResolveBinding,
-                    class_identifier.to_property_key(),
-                );
-                ctx.add_instruction(Instruction::InitializeReferencedBinding);
-            }
+            ctx.add_instruction(Instruction::LoadCopy);
+            let name = self.id.as_ref().unwrap().compile(ctx);
+            name.initialise_referenced_binding(ctx, ValueOutput::Value);
+            ctx.add_instruction(Instruction::Store);
         }
-
-        ctx.add_instruction(Instruction::Store);
-        // result: constructor
         Ok(())
     }
 }
@@ -1019,108 +1018,118 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Static
         // NOTE: the keys of `functions` will be `functionNames`, its values will be
         // `functionsToInitialize`.
         let mut functions = AHashMap::new();
-        for d in class_static_block_var_scoped_declarations(self) {
+        self.var_scoped_declarations(&mut |d| {
             // a. If d is neither a VariableDeclaration nor a ForBinding nor a BindingIdentifier, then
-            if let VarScopedDeclaration::Function(d) = d {
-                // i. Assert: d is either a FunctionDeclaration, a GeneratorDeclaration, an AsyncFunctionDeclaration, or an AsyncGeneratorDeclaration.
-                // ii. Let fn be the sole element of the BoundNames of d.
-                let f_name = d.id.as_ref().unwrap().name;
-                // iii. If functionNames does not contain fn, then
-                //   1. Insert fn as the first element of functionNames.
-                //   2. NOTE: If there are multiple function declarations for the same name, the last declaration is used.
-                //   3. Insert d as the first element of functionsToInitialize.
-                functions.insert(f_name, d);
-            }
-        }
+            let VarScopedDeclaration::Function(d) = d else {
+                return;
+            };
+            // i. Assert: d is either a FunctionDeclaration, a GeneratorDeclaration, an AsyncFunctionDeclaration, or an AsyncGeneratorDeclaration.
+            // ii. Let fn be the sole element of the BoundNames of d.
+            let f_name = d.id.as_ref().unwrap().name;
+            // iii. If functionNames does not contain fn, then
+            // 1. Insert fn as the first element of functionNames.
+            // 2. NOTE: If there are multiple function declarations for the same name, the last declaration is used.
+            // 3. Insert d as the first element of functionsToInitialize.
+            functions.insert(f_name, d);
+        });
 
         // 27. If hasParameterExpressions is false, then
         // a. NOTE: Only a single Environment Record is needed for the parameters and top-level vars.
         // b. Let instantiatedVarNames be a copy of the List parameterBindings.
         let mut instantiated_var_names = AHashSet::new();
-        let var_names = class_static_block_var_declared_names(self);
-        let lex_declarations = class_static_block_lexically_scoped_declarations(self);
-        // c. For each element n of varNames, do
+        ctx.add_instruction(Instruction::Debug);
         let static_env = ctx.enter_class_static_block();
-        for n in var_names {
+        ctx.add_instruction(Instruction::Debug);
+        let mut stack_variables = vec![];
+
+        // c. For each element n of varNames, do
+        self.var_declared_names(&mut |identifier| {
+            let n = identifier.name;
             // i. If instantiatedVarNames does not contain n, then
-            if instantiated_var_names.contains(&n) {
-                continue;
-            }
             // 1. Append n to instantiatedVarNames.
+            if !instantiated_var_names.insert(n) {
+                return;
+            }
             let n_string = ctx.create_string(&n);
-            instantiated_var_names.insert(n);
-            // 2. Perform ! env.CreateMutableBinding(n, false).
-            ctx.add_instruction_with_identifier(
-                Instruction::CreateMutableBinding,
-                n_string.to_property_key(),
-            );
-            // 3. Perform ! env.InitializeBinding(n, undefined).
-            ctx.add_instruction_with_identifier(
-                Instruction::ResolveBinding,
-                n_string.to_property_key(),
-            );
-            ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
-            ctx.add_instruction(Instruction::InitializeReferencedBinding);
-        }
+            if variable_escapes_scope(ctx, identifier) {
+                // 2. Perform ! env.CreateMutableBinding(n, false).
+                ctx.add_instruction_with_identifier(
+                    Instruction::CreateMutableBinding,
+                    n_string.to_property_key(),
+                );
+                // 3. Perform ! env.InitializeBinding(n, undefined).
+                ctx.add_instruction_with_identifier(
+                    Instruction::ResolveBinding,
+                    n_string.to_property_key(),
+                );
+                ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+                ctx.add_instruction(Instruction::InitializeReferencedBinding);
+            } else {
+                stack_variables.push(ctx.push_stack_variable(identifier.symbol_id(), false));
+            }
+        });
 
         // 34. For each element d of lexDeclarations, do
-        for d in lex_declarations {
+        {
             // a. NOTE: A lexically declared name cannot be the same as a function/generator declaration, formal parameter, or a var name. Lexically declared names are only instantiated here but not initialized.
             // b. For each element dn of the BoundNames of d, do
-            match d {
-                // i. If IsConstantDeclaration of d is true, then
-                LexicallyScopedDeclaration::Variable(decl) if decl.kind.is_const() => {
-                    {
-                        decl.id.bound_names(&mut |identifier| {
-                            let dn = ctx.create_string(&identifier.name);
+            // i. If IsConstantDeclaration of d is true, then
+            // 1. Perform ! lexEnv.CreateImmutableBinding(dn, true).
+            // ii. Else,
+            // 1. Perform ! lexEnv.CreateMutableBinding(dn, false).
+            let is_constant_declaration = Cell::new(false);
+            let cb = &mut |identifier: &ast::BindingIdentifier<'s>| {
+                if variable_escapes_scope(ctx, identifier) {
+                    let dn = ctx.create_string(&identifier.name);
+                    ctx.add_instruction_with_identifier(
+                        // i. If IsConstantDeclaration of d is true, then
+                        if is_constant_declaration.get() {
                             // 1. Perform ! lexEnv.CreateImmutableBinding(dn, true).
-                            ctx.add_instruction_with_identifier(
-                                Instruction::CreateImmutableBinding,
-                                dn.to_property_key(),
-                            );
-                        })
-                    }
+                            Instruction::CreateImmutableBinding
+                        } else {
+                            // ii. Else,
+                            // 1. Perform ! lexEnv.CreateMutableBinding(dn, false).
+                            Instruction::CreateMutableBinding
+                        },
+                        dn.to_property_key(),
+                    );
+                } else {
+                    stack_variables.push(ctx.push_stack_variable(identifier.symbol_id(), false));
                 }
-                // ii. Else,
-                //   1. Perform ! lexEnv.CreateMutableBinding(dn, false).
+            };
+            let mut create_default_export = false;
+            self.lexically_scoped_declarations(&mut |d| match d {
                 LexicallyScopedDeclaration::Variable(decl) => {
-                    decl.id.bound_names(&mut |identifier| {
-                        let dn = ctx.create_string(&identifier.name);
-                        ctx.add_instruction_with_identifier(
-                            Instruction::CreateMutableBinding,
-                            dn.to_property_key(),
-                        );
-                    })
+                    is_constant_declaration.set(decl.kind.is_const());
+                    decl.id.bound_names(cb);
+                    is_constant_declaration.set(false);
                 }
                 LexicallyScopedDeclaration::Function(decl) => {
-                    let dn = ctx.create_string(&decl.id.as_ref().unwrap().name);
-                    ctx.add_instruction_with_identifier(
-                        Instruction::CreateMutableBinding,
-                        dn.to_property_key(),
-                    );
+                    // Skip function declarations with declare modifier - they are TypeScript ambient declarations
+                    #[cfg(feature = "typescript")]
+                    if decl.declare {
+                        continue;
+                    }
+
+                    decl.bound_names(cb);
                 }
                 LexicallyScopedDeclaration::Class(decl) => {
-                    let dn = ctx.create_string(&decl.id.as_ref().unwrap().name);
-                    ctx.add_instruction_with_identifier(
-                        Instruction::CreateMutableBinding,
-                        dn.to_property_key(),
-                    );
+                    decl.bound_names(cb);
                 }
                 LexicallyScopedDeclaration::DefaultExport => {
-                    let dn = BUILTIN_STRING_MEMORY._default_;
-                    ctx.add_instruction_with_identifier(
-                        Instruction::CreateMutableBinding,
-                        dn.to_property_key(),
-                    );
+                    create_default_export = true;
                 }
                 #[cfg(feature = "typescript")]
                 LexicallyScopedDeclaration::TSEnum(decl) => {
-                    let dn = ctx.create_string(&decl.id.name);
-                    ctx.add_instruction_with_identifier(
-                        Instruction::CreateMutableBinding,
-                        dn.to_property_key(),
-                    );
+                    decl.bound_names(cb);
                 }
+            });
+            if create_default_export {
+                let dn = BUILTIN_STRING_MEMORY._default_;
+                ctx.add_instruction_with_identifier(
+                    Instruction::CreateMutableBinding,
+                    dn.to_property_key(),
+                );
             }
         }
 
@@ -1141,6 +1150,11 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Static
                 break;
             }
         }
+        ctx.add_instruction(Instruction::Debug);
+        for stack_variable in stack_variables {
+            stack_variable.exit(ctx);
+        }
+        ctx.add_instruction(Instruction::Debug);
         static_env.exit(ctx);
     }
 }

@@ -93,22 +93,18 @@ impl<'a> LexicallyScopedDeclarations<'a> for SwitchCase<'a> {
     }
 }
 
-pub(crate) fn class_static_block_lexically_scoped_declarations<'body>(
-    static_block: &'body StaticBlock<'body>,
-) -> Vec<LexicallyScopedDeclaration<'body>> {
-    let mut lexically_scoped_declarations = vec![];
-    // ClassStaticBlockStatementList : [empty]
-    // 1. Return a new empty List.
+impl<'a> LexicallyScopedDeclarations<'a> for StaticBlock<'a> {
+    fn lexically_scoped_declarations<F: FnMut(LexicallyScopedDeclaration<'a>)>(
+        &'a self,
+        f: &mut F,
+    ) {
+        // ClassStaticBlockStatementList : [empty]
+        // 1. Return a new empty List.
 
-    // ClassStaticBlockStatementList : StatementList
-    // 1. Return the TopLevelLexicallyScopedDeclarations of StatementList.
-    static_block
-        .body
-        .top_level_lexically_scoped_declarations(&mut |decl| {
-            lexically_scoped_declarations.push(decl);
-        });
-
-    lexically_scoped_declarations
+        // ClassStaticBlockStatementList : StatementList
+        // 1. Return the TopLevelLexicallyScopedDeclarations of StatementList.
+        self.body.top_level_lexically_scoped_declarations(f);
+    }
 }
 
 pub(crate) fn script_lexically_scoped_declarations<'a>(
@@ -411,20 +407,14 @@ impl<'a> VarDeclaredNames<'a> for oxc_ast::ast::FunctionBody<'a> {
     }
 }
 
-pub(crate) fn class_static_block_var_declared_names<'a>(
-    static_block: &'a StaticBlock<'a>,
-) -> Vec<Atom<'a>> {
-    let mut var_declared_names = vec![];
-    // ClassStaticBlockStatementList : [empty]
-    // 1. Return a new empty List.
-    // ClassStaticBlockStatementList : StatementList
-    // 1. Return the TopLevelVarDeclaredNames of StatementList.
-    static_block
-        .body
-        .top_level_var_declared_names(&mut |identifier| {
-            var_declared_names.push(identifier.name);
-        });
-    var_declared_names
+impl<'a> VarDeclaredNames<'a> for StaticBlock<'a> {
+    fn var_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&'a self, f: &mut F) {
+        // ClassStaticBlockStatementList : [empty]
+        // 1. Return a new empty List.
+        // ClassStaticBlockStatementList : StatementList
+        // 1. Return the TopLevelVarDeclaredNames of StatementList.
+        self.body.top_level_var_declared_names(f);
+    }
 }
 
 impl<'a> VarDeclaredNames<'a> for oxc_allocator::Vec<'a, Statement<'a>> {
@@ -701,28 +691,21 @@ impl<'a> VarScopedDeclarations<'a> for FunctionBody<'a> {
         // ClassStaticBlockStatementList : StatementList
         // 1. Return the TopLevelVarScopedDeclarations of StatementList.
         self.statements.top_level_var_scoped_declarations(f);
+        // ConciseBody : ExpressionBody
+        // 1. Return a new empty List.
+        // AsyncConciseBody : ExpressionBody
+        // 1. Return a new empty List.
     }
 }
 
-// ConciseBody : ExpressionBody
-// 1. Return a new empty List.
-// AsyncConciseBody : ExpressionBody
-// 1. Return a new empty List.
-
-pub(crate) fn class_static_block_var_scoped_declarations<'a>(
-    static_block: &'a StaticBlock<'a>,
-) -> Vec<VarScopedDeclaration<'a>> {
-    let mut var_scoped_declarations = vec![];
-    //  ClassStaticBlockStatementList : [empty]
-    //     1. Return a new empty List.
-    // ClassStaticBlockStatementList : StatementList
-    //     1. Return the TopLevelVarScopedDeclarations of StatementList.
-    static_block
-        .body
-        .top_level_var_scoped_declarations(&mut |declarator| {
-            var_scoped_declarations.push(declarator);
-        });
-    var_scoped_declarations
+impl<'a> VarScopedDeclarations<'a> for StaticBlock<'a> {
+    fn var_scoped_declarations<F: FnMut(VarScopedDeclaration<'a>)>(&'a self, f: &mut F) {
+        //  ClassStaticBlockStatementList : [empty]
+        //     1. Return a new empty List.
+        // ClassStaticBlockStatementList : StatementList
+        //     1. Return the TopLevelVarScopedDeclarations of StatementList.
+        self.body.top_level_var_scoped_declarations(f);
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
