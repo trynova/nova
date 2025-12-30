@@ -12,8 +12,7 @@ use core::{
 use std::borrow::Cow;
 
 use super::{
-    IntoValue, Primitive, PropertyKey, SMALL_STRING_DISCRIMINANT,
-    STRING_DISCRIMINANT, Value,
+    IntoValue, Primitive, PropertyKey, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT, Value,
 };
 use crate::{
     SmallInteger, SmallString,

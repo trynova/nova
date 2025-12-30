@@ -396,7 +396,7 @@ fn combine_value_results<'gc>(
 pub(crate) enum PlaceOrValue<'s, 'gc> {
     /// Expression evaluates to a value.
     Value(ValueOutput<'gc>),
-    /// Expression evalutes to a place.
+    /// Expression evaluates to a place.
     Place(Place<'s, 'gc>),
 }
 
