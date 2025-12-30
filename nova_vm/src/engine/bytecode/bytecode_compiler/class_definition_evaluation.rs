@@ -1108,7 +1108,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Static
                     // Skip function declarations with declare modifier - they are TypeScript ambient declarations
                     #[cfg(feature = "typescript")]
                     if decl.declare {
-                        continue;
+                        return;
                     }
 
                     decl.bound_names(cb);
@@ -1121,7 +1121,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Static
                 }
                 #[cfg(feature = "typescript")]
                 LexicallyScopedDeclaration::TSEnum(decl) => {
-                    decl.bound_names(cb);
+                    decl.id.bound_names(cb);
                 }
             });
             if create_default_export {

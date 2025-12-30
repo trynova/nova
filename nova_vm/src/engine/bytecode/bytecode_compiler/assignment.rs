@@ -6,11 +6,10 @@ use oxc_ast::ast::{self, AssignmentOperator, LogicalOperator};
 
 use crate::engine::{
     Instruction,
-    bytecode::bytecode_compiler::{ExpressionError, Place, ValueOutput},
-};
-
-use super::{
-    CompileContext, CompileEvaluation, NamedEvaluationParameter, is_anonymous_function_definition,
+    bytecode::bytecode_compiler::{
+        CompileContext, CompileEvaluation, ExpressionError, NamedEvaluationParameter, Place,
+        PlaceOrValue, ValueOutput, is_anonymous_function_definition,
+    },
 };
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::AssignmentExpression<'s> {
@@ -59,11 +58,29 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
                 expression.compile(ctx)?
             }
             #[cfg(feature = "typescript")]
-            ast::AssignmentTarget::TSNonNullExpression(x) => x.expression.compile(ctx)?,
+            ast::AssignmentTarget::TSNonNullExpression(x) => {
+                let PlaceOrValue::Place(place) = x.expression.compile(ctx)? else {
+                    unreachable!()
+                };
+                do_named_evaluation = self.span.start == x.span.start;
+                place
+            }
             #[cfg(feature = "typescript")]
-            ast::AssignmentTarget::TSAsExpression(x) => x.expression.compile(ctx)?,
+            ast::AssignmentTarget::TSAsExpression(x) => {
+                let PlaceOrValue::Place(place) = x.expression.compile(ctx)? else {
+                    unreachable!()
+                };
+                do_named_evaluation = self.span.start == x.span.start;
+                place
+            }
             #[cfg(feature = "typescript")]
-            ast::AssignmentTarget::TSSatisfiesExpression(x) => x.expression.compile(ctx)?,
+            ast::AssignmentTarget::TSSatisfiesExpression(x) => {
+                let PlaceOrValue::Place(place) = x.expression.compile(ctx)? else {
+                    unreachable!()
+                };
+                do_named_evaluation = self.span.start == x.span.start;
+                place
+            }
             #[cfg(not(feature = "typescript"))]
             ast::AssignmentTarget::TSAsExpression(_)
             | ast::AssignmentTarget::TSNonNullExpression(_)
@@ -303,11 +320,26 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
             ast::SimpleAssignmentTarget::StaticMemberExpression(t) => t.compile(ctx),
             ast::SimpleAssignmentTarget::PrivateFieldExpression(t) => t.compile(ctx),
             #[cfg(feature = "typescript")]
-            ast::SimpleAssignmentTarget::TSNonNullExpression(t) => t.expression.compile(ctx),
+            ast::SimpleAssignmentTarget::TSNonNullExpression(t) => {
+                t.expression.compile(ctx).map(|r| match r {
+                    PlaceOrValue::Place(p) => p,
+                    _ => unreachable!(),
+                })
+            }
             #[cfg(feature = "typescript")]
-            ast::SimpleAssignmentTarget::TSAsExpression(t) => t.expression.compile(ctx),
+            ast::SimpleAssignmentTarget::TSAsExpression(t) => {
+                t.expression.compile(ctx).map(|r| match r {
+                    PlaceOrValue::Place(p) => p,
+                    _ => unreachable!(),
+                })
+            }
             #[cfg(feature = "typescript")]
-            ast::SimpleAssignmentTarget::TSSatisfiesExpression(t) => t.expression.compile(ctx),
+            ast::SimpleAssignmentTarget::TSSatisfiesExpression(t) => {
+                t.expression.compile(ctx).map(|r| match r {
+                    PlaceOrValue::Place(p) => p,
+                    _ => unreachable!(),
+                })
+            }
             #[cfg(not(feature = "typescript"))]
             ast::SimpleAssignmentTarget::TSAsExpression(_)
             | ast::SimpleAssignmentTarget::TSNonNullExpression(_)

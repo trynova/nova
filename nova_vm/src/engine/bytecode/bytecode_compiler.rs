@@ -2115,7 +2115,16 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ChainE
                 result
             }
             #[cfg(feature = "typescript")]
-            ast::ChainElement::TSNonNullExpression(expr) => expr.expression.compile(ctx),
+            ast::ChainElement::TSNonNullExpression(expr) => {
+                let result = expr.expression.compile(ctx).and_then(|r| match r {
+                    PlaceOrValue::Value(r) => Ok(r),
+                    PlaceOrValue::Place(place) => {
+                        place.get_value_maybe_keep_reference(ctx, ctx.is_call_optional_chain_this)
+                    }
+                });
+                ctx.is_call_optional_chain_this = false;
+                result
+            }
             #[cfg(not(feature = "typescript"))]
             ast::ChainElement::TSNonNullExpression(_) => unreachable!(),
         };
@@ -2798,35 +2807,34 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Update
             ast::SimpleAssignmentTarget::PrivateFieldExpression(x) => x.compile(ctx)?,
             ast::SimpleAssignmentTarget::StaticMemberExpression(x) => x.compile(ctx)?,
             #[cfg(feature = "typescript")]
-            ast::SimpleAssignmentTarget::TSAsExpression(x) => match x.expression.compile(ctx) {
+            ast::SimpleAssignmentTarget::TSAsExpression(x) => match x.expression.compile(ctx)? {
                 PlaceOrValue::Place(pk) => pk,
                 _ => unreachable!(),
             },
             #[cfg(feature = "typescript")]
             ast::SimpleAssignmentTarget::TSNonNullExpression(x) => {
-                match x.expression.compile(ctx) {
-                    PlaceOrValue::Place(pk) => Some(pk),
+                match x.expression.compile(ctx)? {
+                    PlaceOrValue::Place(pk) => pk,
                     _ => unreachable!(),
                 }
             }
             #[cfg(feature = "typescript")]
             ast::SimpleAssignmentTarget::TSSatisfiesExpression(x) => {
-                match x.expression.compile(ctx) {
-                    PlaceOrValue::Place(pk) => Some(pk),
+                match x.expression.compile(ctx)? {
+                    PlaceOrValue::Place(pk) => pk,
                     _ => unreachable!(),
                 }
             }
+            #[cfg(feature = "typescript")]
+            ast::SimpleAssignmentTarget::TSTypeAssertion(x) => match x.expression.compile(ctx)? {
+                PlaceOrValue::Place(pk) => pk,
+                _ => unreachable!(),
+            },
             #[cfg(not(feature = "typescript"))]
             ast::SimpleAssignmentTarget::TSNonNullExpression(_)
             | ast::SimpleAssignmentTarget::TSSatisfiesExpression(_)
             | ast::SimpleAssignmentTarget::TSAsExpression(_)
             | ast::SimpleAssignmentTarget::TSTypeAssertion(_) => unreachable!(),
-
-            #[cfg(feature = "typescript")]
-            ast::SimpleAssignmentTarget::TSTypeAssertion(x) => match x.expression.compile(ctx) {
-                Some(PlaceOrValue::Place(pk)) => Some(pk),
-                _ => None,
-            },
         };
         lref.get_value_keep_reference(ctx)?;
         ctx.add_instruction(Instruction::ToNumeric);
@@ -3525,7 +3533,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Variab
         // and should not generate any runtime code, similar to type declarations
         #[cfg(feature = "typescript")]
         if self.declare {
-            return;
+            return Ok(());
         }
 
         match self.kind {
@@ -4382,12 +4390,15 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Statem
                 ControlFlow::Continue(StatementContinue::Empty)
             }
             #[cfg(feature = "typescript")]
-            Self::TSEnumDeclaration(x) => x.compile(ctx),
+            Self::TSEnumDeclaration(x) => {
+                x.compile(ctx);
+                ControlFlow::Continue(StatementContinue::Empty)
+            }
             #[cfg(feature = "typescript")]
             Self::TSTypeAliasDeclaration(_)
             | Self::TSInterfaceDeclaration(_)
             | Self::TSModuleDeclaration(_)
-            | Self::TSGlobalDeclaration(_) => {}
+            | Self::TSGlobalDeclaration(_) => ControlFlow::Continue(StatementContinue::Empty),
             #[cfg(not(feature = "typescript"))]
             Self::TSTypeAliasDeclaration(_)
             | Self::TSInterfaceDeclaration(_)
@@ -4625,7 +4636,7 @@ fn compile_enum_with_computed_members<'s>(
                 }
                 _ => {
                     is_numeric_enum = false;
-                    compile_expression_get_value(initializer, ctx);
+                    let _ = initializer.compile(ctx).and_then(|r| r.get_value(ctx));
                 }
             }
         } else {

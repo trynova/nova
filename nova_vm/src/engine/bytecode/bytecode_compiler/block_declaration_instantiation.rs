@@ -130,7 +130,7 @@ fn handle_block_lexically_scoped_declaration<'s>(
         LexicallyScopedDeclaration::DefaultExport => unreachable!(),
         #[cfg(feature = "typescript")]
         LexicallyScopedDeclaration::TSEnum(decl) => {
-            if handle_lexical_variable(ctx, identifier, decl_env, local_lexical_names, None) {
+            if handle_lexical_variable(ctx, &decl.id, decl_env, local_lexical_names, None) {
                 let dn = ctx.create_string(&decl.id.name);
                 // Create mutable binding for the enum
                 ctx.add_instruction_with_identifier(

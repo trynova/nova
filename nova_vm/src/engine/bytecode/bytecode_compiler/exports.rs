@@ -149,7 +149,10 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
             ast::Declaration::TSTypeAliasDeclaration(_)
             | ast::Declaration::TSInterfaceDeclaration(_) => ControlFlow::Continue(()),
             #[cfg(feature = "typescript")]
-            ast::Declaration::TSEnumDeclaration(decl) => decl.compile(ctx),
+            ast::Declaration::TSEnumDeclaration(decl) => {
+                decl.compile(ctx);
+                ControlFlow::Continue(())
+            }
             #[cfg(feature = "typescript")]
             ast::Declaration::TSModuleDeclaration(_) => {
                 // TODO: implement when module declarations are supported
@@ -163,6 +166,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
             #[cfg(feature = "typescript")]
             ast::Declaration::TSGlobalDeclaration(_) => {
                 // Global declarations don't generate runtime code
+                ControlFlow::Continue(())
             }
             #[cfg(not(feature = "typescript"))]
             ast::Declaration::TSEnumDeclaration(_)

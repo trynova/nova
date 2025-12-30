@@ -447,7 +447,7 @@ pub(crate) fn instantiation<'s>(
                     // Skip function declarations with declare modifier - they are TypeScript ambient declarations
                     #[cfg(feature = "typescript")]
                     if decl.declare {
-                        continue;
+                        return;
                     }
 
                     decl.bound_names(cb);
@@ -460,7 +460,7 @@ pub(crate) fn instantiation<'s>(
                 }
                 #[cfg(feature = "typescript")]
                 LexicallyScopedDeclaration::TSEnum(decl) => {
-                    decl.bound_names(cb);
+                    decl.id.bound_names(cb);
                 }
             }
         });
