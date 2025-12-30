@@ -3488,9 +3488,9 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Variab
                     if let Some(binding_id) = lhs.identifier()
                         && is_anonymous_function_definition(init)
                     {
-                        ctx.add_instruction_with_constant(Instruction::LoadConstant, binding_id);
+                        ctx.add_instruction_with_constant(Instruction::StoreConstant, binding_id);
                         // a. Let value be ? NamedEvaluation of Initializer with argument StackId.
-                        ctx.name_identifier = Some(NamedEvaluationParameter::Stack);
+                        ctx.name_identifier = Some(NamedEvaluationParameter::Result);
                         // 4. Else,
                     }
                     // a. Let rhs be ? Evaluation of Initializer.
@@ -3547,10 +3547,10 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Variab
                     if is_anonymous_function_definition(init) {
                         // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
                         ctx.add_instruction_with_constant(
-                            Instruction::LoadConstant,
+                            Instruction::StoreConstant,
                             lhs.identifier().unwrap(),
                         );
-                        ctx.name_identifier = Some(NamedEvaluationParameter::Stack);
+                        ctx.name_identifier = Some(NamedEvaluationParameter::Result);
                         // 4. Else,
                         // a. Let rhs be ? Evaluation of Initializer.
                     }
