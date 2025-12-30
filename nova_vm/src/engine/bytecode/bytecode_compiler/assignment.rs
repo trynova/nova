@@ -4,11 +4,13 @@
 
 use oxc_ast::ast::{self, AssignmentOperator, LogicalOperator};
 
+#[cfg(feature = "typescript")]
+use crate::engine::bytecode::bytecode_compiler::PlaceOrValue;
 use crate::engine::{
     Instruction,
     bytecode::bytecode_compiler::{
         CompileContext, CompileEvaluation, ExpressionError, NamedEvaluationParameter, Place,
-        PlaceOrValue, ValueOutput, is_anonymous_function_definition,
+        ValueOutput, is_anonymous_function_definition,
     },
 };
 
