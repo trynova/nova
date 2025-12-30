@@ -729,12 +729,8 @@ impl ObjectConstructor {
         // 1. Perform ? RequireObjectCoercible(iterable).
         require_object_coercible(agent, iterable, gc.nogc()).unbind()?;
         // 2. Let obj be OrdinaryObjectCreate(%Object.prototype%).
-        let obj = ordinary_object_create_with_intrinsics(
-            agent,
-            ProtoIntrinsics::Object,
-            None,
-            gc.nogc(),
-        );
+        let obj =
+            ordinary_object_create_with_intrinsics(agent, ProtoIntrinsics::Object, None, gc.nogc());
         // 3. Assert: obj is an extensible ordinary object with no own properties.
         let obj = OrdinaryObject::try_from(obj).unwrap();
         debug_assert!(obj.internal_extensible(agent) && obj.is_empty(agent));

@@ -316,12 +316,6 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             Some(ControlFlowStackEntry::StackLoopResult)
         );
         self.executable.pop_stack_variable();
-        if self.is_unreachable() {
-            // OPTIMISATION: We don't need to add exit handling if this line is
-            // unreachable.
-            return;
-        }
-        // compile_stack_variable_exit(&mut self.executable);
     }
 
     /// Enter a private environment scope.

@@ -30,9 +30,8 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::WithSt
         // 4. Let newEnv be NewObjectEnvironment(obj, true, oldEnv).
         // 5. Set the running execution context's LexicalEnvironment to newEnv.
         // 6. Let C be Completion(Evaluation of Statement).
-        let c = self.body.compile(ctx);
+        self.body.compile(ctx)
         // 7. Set the running execution context's LexicalEnvironment to oldEnv.
         // 8. Return ? UpdateEmpty(C, undefined).
-        c
     }
 }

@@ -1657,11 +1657,7 @@ fn compile_arguments<'s>(
                 .map(|e| e.map(|e| e.exit(ctx)))
                 .collect::<Vec<_>>()
         });
-    let jump_to_dynamic_unwind = if let Some(try_catch_block) = try_catch_block {
-        Some(try_catch_block.exit(ctx))
-    } else {
-        None
-    };
+    let jump_to_dynamic_unwind = try_catch_block.map(|b| b.exit(ctx));
 
     if let Some(mut jumps_to_static_unwind) = jumps_to_static_unwind {
         let jump_over_catch = ctx.add_instruction_with_jump_slot(Instruction::Jump);
@@ -1959,7 +1955,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
             // 4. Return ? EvaluatePropertyAccessWithExpressionKey(baseValue, Expression, strict).
             ctx.add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
         }
-        Ok(Place::Member { name: None }.into())
+        Ok(Place::Member { name: None })
     }
 }
 
@@ -2832,7 +2828,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Return
             ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
         }
         ctx.compile_return(self.argument.is_some());
-        StatementBreak::Return.into()
+        StatementBreak::Return
     }
 }
 
@@ -3990,7 +3986,6 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ThrowS
                 Result::<Infallible, ExpressionError>::Err(ExpressionError::Error)
             })
             .unwrap_err()
-            .into()
     }
 }
 
