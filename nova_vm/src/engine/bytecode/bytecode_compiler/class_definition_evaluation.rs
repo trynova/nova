@@ -1037,9 +1037,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Static
         // a. NOTE: Only a single Environment Record is needed for the parameters and top-level vars.
         // b. Let instantiatedVarNames be a copy of the List parameterBindings.
         let mut instantiated_var_names = AHashSet::new();
-        ctx.add_instruction(Instruction::Debug);
         let static_env = ctx.enter_lexical_scope();
-        ctx.add_instruction(Instruction::Debug);
         let mut stack_variables = vec![];
 
         // c. For each element n of varNames, do
@@ -1150,11 +1148,9 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Static
                 break;
             }
         }
-        ctx.add_instruction(Instruction::Debug);
         for stack_variable in stack_variables {
             stack_variable.exit(ctx);
         }
-        ctx.add_instruction(Instruction::Debug);
         static_env.exit(ctx);
     }
 }
