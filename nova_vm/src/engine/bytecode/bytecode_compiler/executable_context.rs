@@ -87,13 +87,15 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
         PropertyLookupCache::new(self.agent, identifier)
     }
 
-    pub(super) fn push_stack_variable(&mut self) -> u32 {
+    /// Push a Value onto the bytecode VM Stack.
+    pub(super) fn push_stack(&mut self) -> u32 {
         let curr = self.current_value_stack_depth;
         self.current_value_stack_depth += 1;
         curr
     }
 
-    pub(super) fn pop_stack_variable(&mut self) {
+    /// Pop a Value from the bytecode VM Stack.
+    pub(super) fn pop_stack(&mut self) {
         self.current_value_stack_depth -= 1;
     }
 

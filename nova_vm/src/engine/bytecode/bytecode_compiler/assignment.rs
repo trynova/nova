@@ -45,11 +45,11 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
                 // 4. Let rVal be ? GetValue(rRef).
                 let rval = self.right.compile(ctx)?.get_value(ctx)?;
                 // 5. Perform ? DestructuringAssignmentEvaluation of assignmentPattern with argument rVal.
-                ctx.add_instruction(Instruction::LoadCopy);
-                self.left.to_assignment_target_pattern().compile(ctx)?;
+                let rval_copy = ctx.load_copy_to_stack();
+                let result = self.left.to_assignment_target_pattern().compile(ctx);
                 // 6. Return rVal.
-                ctx.add_instruction(Instruction::Store);
-                return Ok(rval);
+                rval_copy.store(ctx);
+                return result.map(|_| rval);
             }
             ast::AssignmentTarget::PrivateFieldExpression(expression) => {
                 // 1. If LeftHandSideExpression is neither an ObjectLiteral nor an ArrayLiteral, then
@@ -107,16 +107,16 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
 
             let rval = self.right.compile(ctx)?.get_value(ctx)?;
 
-            ctx.add_instruction(Instruction::LoadCopy);
+            let rval_copy = ctx.load_copy_to_stack();
 
             if push_reference {
                 ctx.add_instruction(Instruction::PopReference);
             }
 
-            lref.put_value(ctx, rval)?;
+            let result = lref.put_value(ctx, rval);
             // ... Return rval.
-            ctx.add_instruction(Instruction::Store);
-            Ok(rval)
+            rval_copy.store(ctx);
+            result.map(|_| rval)
         } else if let Some(operator) = self.operator.to_logical_operator() {
             // 2. Let lval be ? GetValue(lref).
             lref.get_value_keep_reference(ctx)?;
@@ -124,20 +124,19 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
             if push_reference {
                 ctx.add_instruction(Instruction::PushReference);
             }
-            // We store the left value on the stack, because we'll need to
-            // restore it later.
-            ctx.add_instruction(Instruction::LoadCopy);
-
+            // We store the lval on the stack because we to branch based on its
+            // value to either return lval directly, or go into the
+            // `PutValue(lRef, rVal)` branch and return rval. For the lval
+            // return we need a copy of the value.
+            let lval_copy = ctx.load_copy_to_stack();
             match operator {
                 LogicalOperator::And => {
-                    // 3. Let lbool be ToBoolean(lval).
+                    // 3. If ToBoolean(lVal) is false, return lVal.
                     // Note: We do not directly call ToBoolean: JumpIfNot does.
-                    // 4. If lbool is false, return lval.
                 }
                 LogicalOperator::Or => {
-                    // 3. Let lbool be ToBoolean(lval).
+                    // 3. 3. If ToBoolean(lVal) is true, return lVal.
                     // Note: We do not directly call ToBoolean: JumpIfNot does.
-                    // 4. If lbool is true, return lval.
                     ctx.add_instruction(Instruction::LogicalNot);
                 }
                 LogicalOperator::Coalesce => {
@@ -145,58 +144,87 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
                     ctx.add_instruction(Instruction::IsNullOrUndefined);
                 }
             };
+            // Phi-split: we have two alternative execution paths after this.
+            let jump_to_return_lval = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
+            let (value_on_stack, jump_to_return_rval) = 'rval: {
+                // In this branch we're returning rval, so we discard lval from
+                // the top of the stack.
+                lval_copy.store(ctx);
 
-            let jump_to_else = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
-
-            // We're returning the right expression, so we discard the left
-            // value at the top of the stack.
-            ctx.add_instruction(Instruction::Store);
-
-            // 5. If IsAnonymousFunctionDefinition(AssignmentExpression)
-            // is true and IsIdentifierRef of LeftHandSideExpression is true,
-            // then
-            if do_named_evaluation && is_anonymous_function_definition(&self.right) {
-                // a. Let lhs be the StringValue of LeftHandSideExpression.
-                ctx.add_instruction_with_constant(
-                    Instruction::StoreConstant,
-                    lref.identifier().unwrap(),
-                );
-                // b. Let rval be ? NamedEvaluation of AssignmentExpression with argument lhs.
-                ctx.name_identifier = Some(NamedEvaluationParameter::Result);
-            }
-            // a. Let rref be ? Evaluation of AssignmentExpression.
-            // b. Let rval be ? GetValue(rref).
-            let jump_over_else = 'rref: {
+                // 5. If IsAnonymousFunctionDefinition(AssignmentExpression)
+                // is true and IsIdentifierRef of LeftHandSideExpression is true,
+                // then
+                if do_named_evaluation && is_anonymous_function_definition(&self.right) {
+                    // a. Let lhs be the StringValue of LeftHandSideExpression.
+                    ctx.add_instruction_with_constant(
+                        Instruction::StoreConstant,
+                        lref.identifier().unwrap(),
+                    );
+                    // b. Let rval be ? NamedEvaluation of AssignmentExpression
+                    // with argument lhs.
+                    ctx.name_identifier = Some(NamedEvaluationParameter::Result);
+                }
+                // a. Let rref be ? Evaluation of AssignmentExpression.
+                // b. Let rval be ? GetValue(rref).
                 // Note: no early exits because this path is not unconditional.
                 let Ok(rval) = self.right.compile(ctx).and_then(|r| r.get_value(ctx)) else {
-                    break 'rref None;
+                    // If we're here then the code will never get to the end of
+                    // the else branch. When we exit the 'rval block the only
+                    // possible path forward is the one where we jumped over the
+                    // 'rval block. In that case we have the lval still on the
+                    // stack: mark it.
+                    break 'rval (ctx.mark_stack_value(), None);
                 };
-                ctx.add_instruction(Instruction::LoadCopy);
+                // We need to return the rval after PutValue, so we need to copy
+                // it onto the stack.
+                let rval_copy = ctx.load_copy_to_stack();
+
                 if push_reference {
+                    // Pop lref off the reference stack.
                     ctx.add_instruction(Instruction::PopReference);
                 }
-
-                // 7. Perform ? PutValue(lref, rval).
+                // 6. Perform ? PutValue(lRef, rVal).
                 let Ok(_) = lref.put_value(ctx, rval) else {
-                    break 'rref None;
+                    // 'rval branch ends at unreachable, we can use rval_copy as
+                    // a stand-in for lval_copy.
+                    break 'rval (rval_copy, None);
                 };
                 if push_reference {
-                    ctx.add_instruction(Instruction::Store);
-                    Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
+                    // If lref was pushed onto the reference stack then the we
+                    // have to jump over the if-branch popping it as we already
+                    // popped it above. As we return from 'rval we're
+                    // unreachable in the else-branch and thus we again must be
+                    // generating code for the lval branch where we still have
+                    // lval_copy alive: mark it.
+                    rval_copy.store(ctx);
+                    (
+                        ctx.mark_stack_value(),
+                        Some(ctx.add_instruction_with_jump_slot(Instruction::Jump)),
+                    )
                 } else {
-                    None
+                    // If lref wasn't pushed onto the reference stack then we
+                    // can handle lval and rval stack store using the same
+                    // instruction, so we return rval_copy out of this block.
+                    (rval_copy, None)
                 }
             };
 
-            // 4. ... return lval.
-            ctx.set_jump_target_here(jump_to_else);
-            ctx.add_instruction(Instruction::Store);
+            // If jump_to_return_rval is None then this is a phi-join, both
+            // branches unify here. If that is not the case then this is where
+            // we jump in to return lval_copy.
+            ctx.set_jump_target_here(jump_to_return_lval);
+
+            // 3. ..., return lval.
+            value_on_stack.store(ctx);
             if push_reference {
+                // Pop lref off the reference stack.
                 ctx.add_instruction(Instruction::PopReference);
             }
-            if let Some(jump_over_else) = jump_over_else {
+            // Phi-join: after this both branches finally unify.
+            if let Some(jump_over_else) = jump_to_return_rval {
                 ctx.set_jump_target_here(jump_over_else);
             }
+            // 7. Return rVal.
             Ok(ValueOutput::Value)
         } else {
             // 2. let lval be ? GetValue(lref).
@@ -234,16 +262,16 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
                 _ => unreachable!(),
             };
             ctx.add_instruction(op_text);
-            ctx.add_instruction(Instruction::LoadCopy);
+            let r_copy = ctx.load_copy_to_stack();
             let r = ValueOutput::Value;
             if do_push_reference {
                 ctx.add_instruction(Instruction::PopReference);
             }
             // 8. Perform ? PutValue(lref, r).
-            lref.put_value(ctx, r)?;
+            let result = lref.put_value(ctx, r);
             // 9. Return r.
-            ctx.add_instruction(Instruction::Store);
-            Ok(r)
+            r_copy.store(ctx);
+            result.map(|_| r)
         }
     }
 }

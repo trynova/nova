@@ -480,8 +480,8 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
                         swap_to_proto(ctx);
                     }
                     if let Err(err) = define_method(method_definition, ctx) {
-                        stack_constructor.exit(ctx);
-                        stack_proto.exit(ctx);
+                        stack_constructor.pop(ctx);
+                        stack_proto.pop(ctx);
                         if let Some(private_env) = private_env {
                             private_env.exit(ctx);
                         }
@@ -521,8 +521,8 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
                         ) {
                             Ok(field) => field,
                             Err(err) => {
-                                stack_constructor.exit(ctx);
-                                stack_proto.exit(ctx);
+                                stack_constructor.pop(ctx);
+                                stack_proto.pop(ctx);
                                 if let Some(private_env) = private_env {
                                     private_env.exit(ctx);
                                 }
@@ -733,10 +733,10 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
             // 4. Let env be the running execution context's LexicalEnvironment.
             // 5. Perform ? InitializeBoundName(className, value, env).
             // => a. Perform ! environment.InitializeBinding(name, value).
-            ctx.add_instruction(Instruction::LoadCopy);
+            let value = ctx.load_copy_to_stack();
             let name = self.id.as_ref().unwrap().compile(ctx);
             name.initialise_referenced_binding(ctx, ValueOutput::Value);
-            ctx.add_instruction(Instruction::Store);
+            value.store(ctx);
         }
         Ok(())
     }

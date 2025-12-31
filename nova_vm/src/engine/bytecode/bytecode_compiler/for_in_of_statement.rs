@@ -79,20 +79,21 @@ fn for_in_of_head_evaluation<'s, 'gc>(
             } else {
                 // a. If exprValue is either undefined or null, then
                 // Add a copy to stack.
-                ctx.add_instruction(Instruction::LoadCopy);
+                let expr_value_copy = ctx.load_copy_to_stack();
                 ctx.add_instruction(Instruction::IsNullOrUndefined);
                 let jump_over_undefined_or_null =
                     ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
                 // i. Return Completion Record { [[Type]]: BREAK, [[Value]]: EMPTY, [[Target]]: EMPTY }.
                 // Remove the copy added above.
-                ctx.add_instruction(Instruction::Store);
+                expr_value_copy.store(ctx);
                 // And override with undefined.
                 ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
                 let return_break_completion_record =
                     ctx.add_instruction_with_jump_slot(Instruction::Jump);
                 ctx.set_jump_target_here(jump_over_undefined_or_null);
                 // Load back the copy from above.
-                ctx.add_instruction(Instruction::Store);
+                let expr_value_copy = ctx.mark_stack_value();
+                expr_value_copy.store(ctx);
                 // b. Let obj be ! ToObject(exprValue).
                 // c. Let iterator be EnumerateObjectProperties(obj).
                 // d. Let nextMethod be ! GetV(iterator, "next").

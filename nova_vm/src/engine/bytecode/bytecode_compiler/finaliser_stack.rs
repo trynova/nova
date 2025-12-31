@@ -51,7 +51,7 @@ pub(super) enum ControlFlowStackEntry<'a> {
     /// A private environment was scoped.
     PrivateScope,
     /// A variable was pushed onto the stack.
-    StackVariable,
+    StackValue,
     /// A loop result variable was pushed onto the stack.
     StackLoopResult,
     /// A try-catch block was entered.
@@ -230,7 +230,7 @@ impl<'a> ControlFlowStackEntry<'a> {
             ControlFlowStackEntry::LexicalScope
             | ControlFlowStackEntry::VariableScope
             | ControlFlowStackEntry::PrivateScope
-            | ControlFlowStackEntry::StackVariable
+            | ControlFlowStackEntry::StackValue
             | ControlFlowStackEntry::StackLoopResult
             | ControlFlowStackEntry::CatchBlock
             | ControlFlowStackEntry::IfStatement
@@ -266,7 +266,7 @@ impl<'a> ControlFlowStackEntry<'a> {
             ControlFlowStackEntry::LexicalScope
             | ControlFlowStackEntry::VariableScope
             | ControlFlowStackEntry::PrivateScope
-            | ControlFlowStackEntry::StackVariable
+            | ControlFlowStackEntry::StackValue
             | ControlFlowStackEntry::StackLoopResult
             | ControlFlowStackEntry::FinallyBlock
             | ControlFlowStackEntry::IfStatement
@@ -314,7 +314,7 @@ impl<'a> ControlFlowStackEntry<'a> {
             // If-statements, finally-blocks results, user-controlled
             // try-finally-blocks, and iterator closes must be called on
             // return.
-            ControlFlowStackEntry::StackVariable
+            ControlFlowStackEntry::StackValue
             | ControlFlowStackEntry::StackLoopResult
             | ControlFlowStackEntry::IfStatement
             | ControlFlowStackEntry::FinallyBlock
@@ -357,7 +357,7 @@ impl<'a> ControlFlowStackEntry<'a> {
             ControlFlowStackEntry::PrivateScope => {
                 executable.add_instruction(Instruction::ExitPrivateEnvironment);
             }
-            ControlFlowStackEntry::StackVariable => {
+            ControlFlowStackEntry::StackValue => {
                 compile_stack_variable_exit(executable);
             }
             ControlFlowStackEntry::StackLoopResult => {}

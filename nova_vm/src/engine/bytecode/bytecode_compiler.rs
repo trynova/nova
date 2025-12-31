@@ -1161,7 +1161,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Logica
 
         // We store the left value on the stack, because we'll need to restore
         // it later.
-        ctx.add_instruction(Instruction::LoadCopy);
+        let lval_copy = ctx.load_copy_to_stack();
 
         match self.operator {
             oxc_syntax::operator::LogicalOperator::Or => {
@@ -1176,7 +1176,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Logica
 
         // We're returning the right expression, so we discard the left value
         // at the top of the stack.
-        ctx.add_instruction(Instruction::Store);
+        lval_copy.pop(ctx);
 
         let rref = self.right.compile(ctx);
         let rval = rref.and_then(|r| r.get_value(ctx));
@@ -1185,7 +1185,8 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Logica
 
         ctx.set_jump_target_here(jump_to_return_left);
         // Return the result of the left expression.
-        ctx.add_instruction(Instruction::Store);
+        let lval_copy = ctx.mark_stack_value();
+        lval_copy.store(ctx);
         ctx.set_jump_target_here(jump_to_end);
         combine_value_results(Ok(lval), rval)
     }
@@ -1718,6 +1719,7 @@ fn compile_arguments<'s>(
         }
         if let Some(jump_to_dynamic_unwind) = jump_to_dynamic_unwind {
             ctx.set_jump_target_here(jump_to_dynamic_unwind);
+            let error = ctx.mark_stack_value();
             // When we enter the catch block with a dynamic number of
             // arguments, our stack situation looks like this:
             // result: error; stack: [num, ...args]
@@ -1735,11 +1737,11 @@ fn compile_arguments<'s>(
 
             let continue_stack_unwind = ctx.get_jump_index_to_here();
             // result: num; stack: [error, ...args]
-            ctx.add_instruction(Instruction::LoadCopy);
+            let num_copy = ctx.load_copy_to_stack();
             // result: num; stack: [num, error, ...args]
             let finish_stack_unwind = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
             // result: None; stack: [num, error, ...args]
-            ctx.add_instruction(Instruction::Store);
+            num_copy.store(ctx);
             // result: num; stack: [error, ...args]
             ctx.add_instruction(Instruction::Decrement);
             // result: num - 1; stack: [error, ...args]
@@ -1752,8 +1754,9 @@ fn compile_arguments<'s>(
             // === BREAK HERE - CONTROL FLOW NEVER PASSES THROUGH HERE ===
             ctx.set_jump_target_here(finish_stack_unwind);
             // result: None; stack: [num, error]
-            ctx.add_instruction(Instruction::Store);
-            ctx.add_instruction(Instruction::Store);
+            let num_copy = ctx.mark_stack_value();
+            num_copy.pop(ctx);
+            error.store(ctx);
             // result: error; stack: []
             ctx.add_instruction(Instruction::Throw);
         }
@@ -2838,11 +2841,13 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Update
         };
         lref.get_value_keep_reference(ctx)?;
         ctx.add_instruction(Instruction::ToNumeric);
-        if !self.prefix {
+        let value_on_stack = if !self.prefix {
             // The return value of postfix increment/decrement is the value
             // after ToNumeric.
-            ctx.add_instruction(Instruction::LoadCopy);
-        }
+            Some(ctx.load_copy_to_stack())
+        } else {
+            None
+        };
         match self.operator {
             oxc_syntax::operator::UpdateOperator::Increment => {
                 ctx.add_instruction(Instruction::Increment);
@@ -2851,12 +2856,10 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Update
                 ctx.add_instruction(Instruction::Decrement);
             }
         }
-        if self.prefix {
-            ctx.add_instruction(Instruction::LoadCopy);
-        }
-        lref.put_value(ctx, ValueOutput::Value)?;
-        ctx.add_instruction(Instruction::Store);
-        Ok(ValueOutput::Value)
+        let value_on_stack = value_on_stack.unwrap_or_else(|| ctx.load_copy_to_stack());
+        let result = lref.put_value(ctx, ValueOutput::Value);
+        value_on_stack.store(ctx);
+        result.map(|_| ValueOutput::Value)
     }
 }
 
