@@ -1276,8 +1276,26 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     }
 }
 
+trait Undroppable {
+    #[inline(always)]
+    fn on_drop() {
+        // In debug builds only, check if we're being dropped because of
+        // unwinding and if not, panic. We do not want to generate any panics in
+        // release builds because this is mostly a development time aid, not a
+        // runtime safety guarantee.
+        #[cfg(debug_assertions)]
+        if !std::thread::panicking() {
+            panic!(
+                "Unhandled {}: this type should be explicitly consumed, not dropped",
+                core::any::type_name::<Self>()
+            );
+        }
+    }
+}
+
 #[must_use]
 pub(crate) struct LexicalScope;
+impl Undroppable for LexicalScope {}
 
 impl LexicalScope {
     #[inline(always)]
@@ -1288,18 +1306,14 @@ impl LexicalScope {
 
 #[cfg(debug_assertions)]
 impl Drop for LexicalScope {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled LexicalScope: must call scope.exit()");
-        }
+        Self::on_drop();
     }
 }
 
 #[must_use]
 pub(crate) struct ClassStaticBlock;
+impl Undroppable for ClassStaticBlock {}
 
 impl ClassStaticBlock {
     #[inline(always)]
@@ -1310,17 +1324,14 @@ impl ClassStaticBlock {
 
 #[cfg(debug_assertions)]
 impl Drop for ClassStaticBlock {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled ClassStaticBlock: must call block.exit()");
-        }
+        Self::on_drop();
     }
 }
 
 pub(crate) struct StackVariable;
+impl Undroppable for StackVariable {}
+
 impl StackVariable {
     /// Store a StackValue as the result value.
     pub(crate) fn store(self, ctx: &mut CompileContext) {
@@ -1341,16 +1352,13 @@ impl StackVariable {
 
 #[cfg(debug_assertions)]
 impl Drop for StackVariable {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled StackVariable: must call var.exit()");
-        }
+        Self::on_drop();
     }
 }
 pub(crate) struct StackLoopResult;
+impl Undroppable for StackLoopResult {}
+
 impl StackLoopResult {
     #[inline(always)]
     pub(crate) fn exit(self, ctx: &mut CompileContext) {
@@ -1360,16 +1368,13 @@ impl StackLoopResult {
 
 #[cfg(debug_assertions)]
 impl Drop for StackLoopResult {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled StackLoopResult: must call loop.exit()");
-        }
+        Self::on_drop();
     }
 }
 pub(crate) struct PrivateScope;
+impl Undroppable for PrivateScope {}
+
 impl PrivateScope {
     #[inline(always)]
     pub(crate) fn exit(self, ctx: &mut CompileContext) {
@@ -1379,16 +1384,13 @@ impl PrivateScope {
 
 #[cfg(debug_assertions)]
 impl Drop for PrivateScope {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled PrivateScope: must call scope.exit()");
-        }
+        Self::on_drop();
     }
 }
 pub(crate) struct TryCatchBlock(JumpIndex);
+impl Undroppable for TryCatchBlock {}
+
 impl TryCatchBlock {
     #[inline(always)]
     pub(crate) fn exit(self, ctx: &mut CompileContext) -> JumpIndex {
@@ -1400,16 +1402,13 @@ impl TryCatchBlock {
 
 #[cfg(debug_assertions)]
 impl Drop for TryCatchBlock {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled TryCatchBlock: must call block.exit()");
-        }
+        Self::on_drop();
     }
 }
 pub(crate) struct TryFinallyBlock;
+impl Undroppable for TryFinallyBlock {}
+
 impl TryFinallyBlock {
     #[inline(always)]
     pub(crate) fn exit<'s>(
@@ -1424,16 +1423,13 @@ impl TryFinallyBlock {
 
 #[cfg(debug_assertions)]
 impl Drop for TryFinallyBlock {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled TryFinallyBlock: must call block.exit()");
-        }
+        Self::on_drop();
     }
 }
 pub(crate) struct IfStatement;
+impl Undroppable for IfStatement {}
+
 impl IfStatement {
     #[inline(always)]
     pub(crate) fn exit(self, ctx: &mut CompileContext, has_result: bool) {
@@ -1443,16 +1439,13 @@ impl IfStatement {
 
 #[cfg(debug_assertions)]
 impl Drop for IfStatement {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled IfStatement: must call st.exit()");
-        }
+        Self::on_drop();
     }
 }
 pub(crate) struct LabelledStatement;
+impl Undroppable for LabelledStatement {}
+
 impl LabelledStatement {
     #[inline(always)]
     pub(crate) fn exit(self, ctx: &mut CompileContext) {
@@ -1462,16 +1455,13 @@ impl LabelledStatement {
 
 #[cfg(debug_assertions)]
 impl Drop for LabelledStatement {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled LabelledStatement: must call st.exit()");
-        }
+        Self::on_drop();
     }
 }
 pub(crate) struct FinallyBlock;
+impl Undroppable for FinallyBlock {}
+
 impl FinallyBlock {
     #[inline(always)]
     pub(crate) fn exit(self, ctx: &mut CompileContext) {
@@ -1482,13 +1472,8 @@ impl FinallyBlock {
 
 #[cfg(debug_assertions)]
 impl Drop for FinallyBlock {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled FinallyBlock: must call block.exit()");
-        }
+        Self::on_drop();
     }
 }
 pub(crate) enum Loop {
@@ -1496,6 +1481,8 @@ pub(crate) enum Loop {
     SyncIterator(JumpIndex),
     AsyncIterator(JumpIndex),
 }
+impl Undroppable for Loop {}
+
 impl Loop {
     #[inline(always)]
     pub(crate) fn on_abrupt_exit(&self) -> JumpIndex {
@@ -1525,16 +1512,13 @@ impl Loop {
 
 #[cfg(debug_assertions)]
 impl Drop for Loop {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled Loop: must call loop.exit()");
-        }
+        Self::on_drop();
     }
 }
 pub(crate) struct SwitchBlock;
+impl Undroppable for SwitchBlock {}
+
 impl SwitchBlock {
     #[inline(always)]
     pub(crate) fn exit(self, ctx: &mut CompileContext) {
@@ -1544,16 +1528,13 @@ impl SwitchBlock {
 
 #[cfg(debug_assertions)]
 impl Drop for SwitchBlock {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled SwitchBlock: must call block.exit()");
-        }
+        Self::on_drop();
     }
 }
 pub(crate) struct IteratorStackEntry(JumpIndex);
+impl Undroppable for IteratorStackEntry {}
+
 impl IteratorStackEntry {
     #[inline(always)]
     pub(crate) fn on_abrupt_exit(&self) -> JumpIndex {
@@ -1570,16 +1551,13 @@ impl IteratorStackEntry {
 
 #[cfg(debug_assertions)]
 impl Drop for IteratorStackEntry {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled IteratorStackEntry: must call entry.exit()");
-        }
+        Self::on_drop();
     }
 }
 pub(crate) struct ArrayDestructuring(JumpIndex);
+impl Undroppable for ArrayDestructuring {}
+
 impl ArrayDestructuring {
     #[inline(always)]
     pub(crate) fn exit(self, ctx: &mut CompileContext) -> JumpIndex {
@@ -1591,13 +1569,8 @@ impl ArrayDestructuring {
 
 #[cfg(debug_assertions)]
 impl Drop for ArrayDestructuring {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled ArrayDestructuring: must call destr.exit()");
-        }
+        Self::on_drop();
     }
 }
 
