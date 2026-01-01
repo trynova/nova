@@ -18,13 +18,6 @@ mod with_statement;
 use std::{convert::Infallible, ops::ControlFlow};
 
 use super::{FunctionExpression, Instruction, SendableRef, executable::ArrowFunctionExpression};
-use crate::ecmascript::{
-    syntax_directed_operations::{
-        function_definitions::ContainsExpression,
-        scope_analysis::{LexicallyScopedDeclaration, LexicallyScopedDeclarations},
-    },
-    types::{BUILTIN_STRING_MEMORY, BigInt, IntoValue, Number, String, Value},
-};
 #[cfg(feature = "typescript")]
 use crate::{ecmascript::builtins::ordinary::shape::ObjectShapeRecord, heap::CreateHeapData};
 use crate::{
@@ -35,6 +28,16 @@ use crate::{
         types::{IntoObject, Primitive, PropertyKey},
     },
     engine::context::{Bindable, NoGcScope},
+};
+use crate::{
+    ecmascript::{
+        syntax_directed_operations::{
+            function_definitions::ContainsExpression,
+            scope_analysis::{LexicallyScopedDeclaration, LexicallyScopedDeclarations},
+        },
+        types::{BUILTIN_STRING_MEMORY, BigInt, IntoValue, Number, String, Value},
+    },
+    engine::bytecode::bytecode_compiler::compile_context::StackValue,
 };
 pub(crate) use compile_context::{
     CompileContext, CompileEvaluation, CompileLabelledEvaluation, GeneratorKind, IndexType,
@@ -1108,12 +1111,17 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Binary
         let lref = self.left.compile(ctx)?;
         // 2. Let lval be ? GetValue(lref).
         let _lval = lref.get_value(ctx)?;
-        ctx.add_instruction(Instruction::Load);
+        let lval_on_stack = ctx.load_to_stack();
 
         // 3. Let rref be ? Evaluation of rightOperand.
-        let rref = self.right.compile(ctx)?;
+        let rref = self.right.compile(ctx);
         // 4. Let rval be ? GetValue(rref).
-        let _rval = rref.get_value(ctx)?;
+        let rval = rref.and_then(|r| r.get_value(ctx));
+
+        if let Err(err) = rval {
+            lval_on_stack.forget(ctx);
+            return Err(err);
+        }
 
         let op_text = match self.operator {
             BinaryOperator::LessThan => Instruction::LessThan,
@@ -1148,6 +1156,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Binary
             BinaryOperator::BitwiseAnd => Instruction::ApplyBitwiseAndBinaryOperator,
         };
         // 5. Return ? ApplyStringOrNumericBinaryOperator(lval, opText, rval).
+        lval_on_stack.forget(ctx);
         ctx.add_instruction(op_text);
         Ok(ValueOutput::Value)
     }
@@ -1278,6 +1287,7 @@ fn create_object_with_shape<'s, 'gc>(
         )
     };
     let mut shape = ObjectShape::get_shape_for_prototype(ctx.get_agent_mut(), prototype);
+    let mut prop_values_on_stack: Vec<StackValue> = Vec::with_capacity(expr.properties.len());
     for prop in expr.properties.iter() {
         let ast::ObjectPropertyKind::ObjectProperty(prop) = prop else {
             unreachable!()
@@ -1296,9 +1306,18 @@ fn create_object_with_shape<'s, 'gc>(
             ctx.add_instruction_with_constant(Instruction::StoreConstant, identifier);
             ctx.name_identifier = Some(NamedEvaluationParameter::Result);
         }
-        prop.value.compile(ctx)?.get_value(ctx)?;
+        if let Err(err) = prop.value.compile(ctx).and_then(|r| r.get_value(ctx)) {
+            for prop_on_stack in prop_values_on_stack {
+                prop_on_stack.forget(ctx);
+            }
+            return Err(err);
+        }
 
-        ctx.add_instruction(Instruction::Load);
+        prop_values_on_stack.push(ctx.load_to_stack());
+    }
+    // ObjectCreateWithShape consumes the props from the stack.
+    for prop_on_stack in prop_values_on_stack {
+        prop_on_stack.forget(ctx);
     }
     ctx.add_instruction_with_shape(Instruction::ObjectCreateWithShape, shape);
     Ok(ValueOutput::Value)
@@ -1348,6 +1367,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Object
         // TODO: Consider preparing the properties onto the stack and creating
         // the object with a known size.
         ctx.add_instruction(Instruction::ObjectCreate);
+        let obj = ctx.mark_stack_value();
         for property in self.properties.iter() {
             match property {
                 ast::ObjectPropertyKind::ObjectProperty(prop) => {
@@ -1381,17 +1401,21 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Object
                             if is_reference(prop_key) {
                                 assert!(!is_proto_setter);
                             }
-                            prop_key.compile(ctx)?.get_value(ctx)?;
+                            if let Err(err) = prop_key.compile(ctx).and_then(|r| r.get_value(ctx)) {
+                                obj.forget(ctx);
+                                return Err(err);
+                            }
                         }
-                    }
-                    if !is_proto_setter {
-                        // Prototype setter doesn't need the key.
-                        ctx.add_instruction(Instruction::Load);
                     }
                     match prop.kind {
                         ast::PropertyKind::Init => {
                             if is_proto_setter {
-                                prop.value.compile(ctx)?.get_value(ctx)?;
+                                if let Err(err) =
+                                    prop.value.compile(ctx).and_then(|r| r.get_value(ctx))
+                                {
+                                    obj.forget(ctx);
+                                    return Err(err);
+                                }
                                 // 7. If isProtoSetter is true, then
                                 // a. If propValue is an Object or propValue is null, then
                                 //     i. Perform ! object.[[SetPrototypeOf]](propValue).
@@ -1406,6 +1430,9 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Object
                                 } else {
                                     None
                                 };
+                                // Note: not load_copy_to_stack as this is
+                                // immediately consumed
+                                ctx.add_instruction(Instruction::Load);
                                 ctx.add_instruction_with_function_expression_and_immediate(
                                     Instruction::ObjectDefineMethod,
                                     FunctionExpression {
@@ -1425,11 +1452,23 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Object
                                 if is_anonymous_function_definition(&prop.value) {
                                     ctx.name_identifier = Some(NamedEvaluationParameter::Stack);
                                 }
-                                prop.value.compile(ctx)?.get_value(ctx)?;
+                                let key_copy = ctx.load_copy_to_stack();
+                                let result = prop.value.compile(ctx).and_then(|r| r.get_value(ctx));
+                                // Note: key copy is either forgotten on stack
+                                // and gets cleaned up by try-catch if result is
+                                // Err, or is consumed by ObjectDefineProperty.
+                                key_copy.forget(ctx);
+                                if let Err(err) = result {
+                                    obj.forget(ctx);
+                                    return Err(err);
+                                }
                                 ctx.add_instruction(Instruction::ObjectDefineProperty);
                             }
                         }
                         ast::PropertyKind::Get | ast::PropertyKind::Set => {
+                            // Note: no load_copy_to_stack as this is
+                            // immediately consumed.
+                            ctx.add_instruction(Instruction::Load);
                             let is_get = prop.kind == ast::PropertyKind::Get;
                             let ast::Expression::FunctionExpression(function_expression) =
                                 &prop.value
@@ -1461,13 +1500,16 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Object
                     }
                 }
                 ast::ObjectPropertyKind::SpreadProperty(spread) => {
-                    spread.argument.compile(ctx)?.get_value(ctx)?;
+                    if let Err(err) = spread.argument.compile(ctx).and_then(|r| r.get_value(ctx)) {
+                        obj.forget(ctx);
+                        return Err(err);
+                    }
                     ctx.add_instruction(Instruction::CopyDataProperties);
                 }
             }
         }
         // 3. Return obj
-        ctx.add_instruction(Instruction::Store);
+        obj.store(ctx);
         Ok(ValueOutput::Value)
     }
 }
@@ -1481,7 +1523,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ArrayE
         if self.elements.is_empty() {
             return Ok(ValueOutput::Value);
         }
-        ctx.add_instruction(Instruction::Load);
+        let array_on_stack = ctx.load_to_stack();
         let try_catch_block = if self
             .elements
             .iter()
@@ -1553,7 +1595,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ArrayE
             // element.
             debug_assert!(jumps_to_pop_iterator.is_empty());
         }
-        ctx.add_instruction(Instruction::Store);
+        array_on_stack.store(ctx);
         if let Some(err) = err {
             Err(err)
         } else {
@@ -1818,19 +1860,22 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::CallEx
     type Output = Result<ValueOutput<'gc>, ExpressionError>;
 
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
-        // Direct eval
         if !self.optional
             && let ast::Expression::Identifier(ident) = &self.callee
             && ident.name == "eval"
         {
+            // Direct eval(...)
             let num_arguments = compile_arguments(&self.arguments, ctx)?;
             ctx.add_instruction_with_immediate(Instruction::DirectEvalCall, num_arguments);
             return Ok(ValueOutput::Value);
+        } else if matches!(self.callee, ast::Expression::Super(_)) {
+            // super(...)
+            let num_arguments = compile_arguments(&self.arguments, ctx)?;
+            ctx.add_instruction_with_immediate(Instruction::EvaluateSuper, num_arguments);
+            return Ok(ValueOutput::Value);
         }
-
         // 1. Let ref be ? Evaluation of CallExpression.
         ctx.is_call_optional_chain_this = is_chain_expression(&self.callee);
-        let is_super_call = matches!(self.callee, ast::Expression::Super(_));
         let r#ref = self.callee.compile(ctx)?;
         // Optimization: If we know arguments is empty, we don't need to
         // worry about arguments evaluation clobbering our function's this
@@ -1842,11 +1887,11 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::CallEx
             ctx.add_instruction(Instruction::PushReference);
         }
 
-        if self.optional {
+        let func_on_stack = if self.optional {
             // Optional Chains
 
             // Load copy of func to stack.
-            ctx.add_instruction(Instruction::LoadCopy);
+            let func_copy = ctx.load_copy_to_stack();
             // 3. If func is either undefined or null, then
             ctx.add_instruction(Instruction::IsNullOrUndefined);
             // a. Return undefined
@@ -1870,9 +1915,10 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::CallEx
             };
             // Register our jump slot to the chain nullish case handling.
             ctx.optional_chains.as_mut().unwrap().push(jump_over_call);
-        } else if !is_super_call {
-            ctx.add_instruction(Instruction::Load);
-        }
+            func_copy
+        } else {
+            ctx.load_to_stack()
+        };
         // If we're in an optional chain, we need to pluck it out while we're
         // compiling the parameters: They do not join our chain.
         let optional_chain = ctx.optional_chains.take();
@@ -1881,17 +1927,16 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::CallEx
         if let Some(optional_chain) = optional_chain {
             ctx.optional_chains.replace(optional_chain);
         }
+        // Note: func on stack is forgotten either by an error being thrown and
+        // gets cleaned up by a try-catch, or is consumed by EvaluateCall.
+        func_on_stack.forget(ctx);
 
         let num_arguments = num_arguments?;
 
-        if is_super_call {
-            ctx.add_instruction_with_immediate(Instruction::EvaluateSuper, num_arguments);
-        } else {
-            if need_pop_reference {
-                ctx.add_instruction(Instruction::PopReference);
-            }
-            ctx.add_instruction_with_immediate(Instruction::EvaluateCall, num_arguments);
+        if need_pop_reference {
+            ctx.add_instruction(Instruction::PopReference);
         }
+        ctx.add_instruction_with_immediate(Instruction::EvaluateCall, num_arguments);
         Ok(ValueOutput::Value)
     }
 }
@@ -1900,10 +1945,13 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::NewExp
     type Output = Result<ValueOutput<'gc>, ExpressionError>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         self.callee.compile(ctx)?.get_value(ctx)?;
-        ctx.add_instruction(Instruction::Load);
+        let func_on_stack = ctx.load_to_stack();
 
-        let num_arguments = compile_arguments(&self.arguments, ctx)?;
-        ctx.add_instruction_with_immediate(Instruction::EvaluateNew, num_arguments);
+        let num_arguments = compile_arguments(&self.arguments, ctx);
+        // Note: func on stack gets dropped by try-catch or consumed by
+        // EvaluateNew.
+        func_on_stack.forget(ctx);
+        ctx.add_instruction_with_immediate(Instruction::EvaluateNew, num_arguments?);
         Ok(ValueOutput::Value)
     }
 }
@@ -1958,14 +2006,29 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
     type Output = Result<Place<'s, 'gc>, ExpressionError>;
 
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
+        if self.object.is_super() {
+            // super[expression]
+            let output = self.expression.compile(ctx)?.get_value(ctx)?;
+            if let ValueOutput::Literal(literal) = output {
+                let (agent, gc) = ctx.get_agent_and_gc();
+                if let Some(identifier) = to_property_key_simple(agent, literal, gc) {
+                    ctx.add_instruction_with_identifier(
+                        Instruction::MakeSuperPropertyReferenceWithIdentifierKey,
+                        identifier,
+                    );
+                    return Ok(identifier.into());
+                }
+            }
+            ctx.add_instruction(Instruction::MakeSuperPropertyReferenceWithExpressionKey);
+            return Ok(Place::Member { name: None });
+        }
         compile_optional_base_reference(&self.object, self.optional, ctx)?;
         // If we do not have optional chaining present it means that base value
         // is currently in the result slot. We need to store it on the stack.
-        // NOTE: `super` keyword does not perform any work and has nothing to
-        // load here.
-        if !self.optional && !self.object.is_super() {
+        if !self.optional {
             ctx.add_instruction(Instruction::Load);
         }
+        let base_value_on_stack = ctx.mark_stack_value();
 
         // If we're in an optional chain, we need to pluck it out while we're
         // compiling the member expression: They do not join our chain.
@@ -1979,33 +2042,29 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
             ctx.optional_chains.replace(optional_chain);
         }
 
-        let output = output?;
+        let output = match output {
+            Ok(o) => o,
+            Err(err) => {
+                base_value_on_stack.forget(ctx);
+                return Err(err);
+            }
+        };
 
         if let ValueOutput::Literal(literal) = output {
             let (agent, gc) = ctx.get_agent_and_gc();
             if let Some(identifier) = to_property_key_simple(agent, literal, gc) {
-                if self.object.is_super() {
-                    ctx.add_instruction_with_identifier(
-                        Instruction::MakeSuperPropertyReferenceWithIdentifierKey,
-                        identifier,
-                    );
-                } else {
-                    ctx.add_instruction(Instruction::Store);
-                    // 4. Return ? EvaluatePropertyAccessWithExpressionKey(baseValue, Expression, strict).
-                    ctx.add_instruction_with_identifier(
-                        Instruction::EvaluatePropertyAccessWithIdentifierKey,
-                        identifier,
-                    );
-                }
+                base_value_on_stack.store(ctx);
+                // 4. Return ? EvaluatePropertyAccessWithExpressionKey(baseValue, Expression, strict).
+                ctx.add_instruction_with_identifier(
+                    Instruction::EvaluatePropertyAccessWithIdentifierKey,
+                    identifier,
+                );
                 return Ok(identifier.into());
             }
         }
-        if self.object.is_super() {
-            ctx.add_instruction(Instruction::MakeSuperPropertyReferenceWithExpressionKey);
-        } else {
-            // 4. Return ? EvaluatePropertyAccessWithExpressionKey(baseValue, Expression, strict).
-            ctx.add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-        }
+        // 4. Return ? EvaluatePropertyAccessWithExpressionKey(baseValue, Expression, strict).
+        base_value_on_stack.forget(ctx);
+        ctx.add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
         Ok(Place::Member { name: None })
     }
 }
@@ -2016,24 +2075,24 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
     type Output = Result<Place<'s, 'gc>, ExpressionError>;
 
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
-        compile_optional_base_reference(&self.object, self.optional, ctx)?;
-        // If we are in an optional chain then result will be on the top of the
-        // stack. We need to pop it into the register slot in that case.
-        if self.optional && !self.object.is_super() {
-            ctx.add_instruction(Instruction::Store);
-        }
-
-        // 4. Return EvaluatePropertyAccessWithIdentifierKey(baseValue, IdentifierName, strict).
         if self.object.is_super() {
+            // super.property
             let identifier = ctx.create_string(self.property.name.as_str());
             ctx.add_instruction_with_identifier(
                 Instruction::MakeSuperPropertyReferenceWithIdentifierKey,
                 identifier.to_property_key(),
             );
-            Ok(identifier.to_property_key().into())
-        } else {
-            Ok(self.property.compile(ctx))
+            return Ok(identifier.to_property_key().into());
         }
+        compile_optional_base_reference(&self.object, self.optional, ctx)?;
+        // If we are in an optional chain then result will be on the top of the
+        // stack. We need to pop it into the register slot in that case.
+        if self.optional {
+            ctx.add_instruction(Instruction::Store);
+        }
+
+        // 4. Return EvaluatePropertyAccessWithIdentifierKey(baseValue, IdentifierName, strict).
+        Ok(self.property.compile(ctx))
     }
 }
 
@@ -2218,12 +2277,17 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Import
         let specifier_ref = self.source.compile(ctx)?;
         // 4. Let specifier be ? GetValue(specifierRef).
         let _specifier = specifier_ref.get_value(ctx)?;
+        // Note: no load_to_stack as we ImportCall consumes it immediately
+        // if we don't have options.
         ctx.add_instruction(Instruction::Load);
         // 5. If optionsExpression is present, then
         if let Some(options) = &self.options {
+            let specifier_on_stack = ctx.mark_stack_value();
             // a. Let optionsRef be ? Evaluation of optionsExpression.
             // b. Let options be ? GetValue(optionsRef).
-            options.compile(ctx)?.get_value(ctx)?;
+            let options = options.compile(ctx).and_then(|r| r.get_value(ctx));
+            specifier_on_stack.forget(ctx);
+            options?;
         }
         // 6. Else,
         // a. Let options be undefined.
@@ -2352,7 +2416,8 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
             ctx.add_instruction(Instruction::PushReference);
         }
         // Load tagFunc to the stack.
-        ctx.add_instruction(Instruction::Load);
+        // TÄHÄN JÄIT
+        let tag_func_on_stack = ctx.load_to_stack();
 
         // 3. Let thisCall be this MemberExpression.
         // 4. Let tailCall be IsInTailPosition(thisCall).

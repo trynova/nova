@@ -228,15 +228,21 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
             Ok(ValueOutput::Value)
         } else {
             // 2. let lval be ? GetValue(lref).
-            lref.get_value_keep_reference(ctx)?;
-            ctx.add_instruction(Instruction::Load);
+            let _lval = lref.get_value_keep_reference(ctx)?;
+            let lval_copy = ctx.load_copy_to_stack();
             let do_push_reference = lref.has_reference() && !self.right.is_literal();
             if do_push_reference {
                 ctx.add_instruction(Instruction::PushReference);
             }
             // 3. Let rref be ? Evaluation of AssignmentExpression.
             // 4. Let rval be ? GetValue(rref).
-            let _rval = self.right.compile(ctx)?.get_value(ctx)?;
+            let _rval = match self.right.compile(ctx).and_then(|r| r.get_value(ctx)) {
+                Ok(r) => r,
+                Err(err) => {
+                    lval_copy.forget(ctx);
+                    return Err(err);
+                }
+            };
 
             // 5. Let assignmentOpText be the source text matched by AssignmentOperator.
             // 6. Let opText be the sequence of Unicode code points associated with assignmentOpText in the following table:
@@ -261,6 +267,8 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
                 ast::BinaryOperator::BitwiseAnd => Instruction::ApplyBitwiseAndBinaryOperator,
                 _ => unreachable!(),
             };
+            // Consumed by instruction.
+            lval_copy.forget(ctx);
             ctx.add_instruction(op_text);
             let r_copy = ctx.load_copy_to_stack();
             let r = ValueOutput::Value;
@@ -300,16 +308,27 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
         // stack: []
         if let Some(target) = self.as_simple_assignment_target() {
             let needs_load_store = target.is_member_expression();
-            if needs_load_store {
-                ctx.add_instruction(Instruction::Load);
+            let place = if needs_load_store {
+                let value_on_stack = ctx.load_to_stack();
                 // result: None
                 // stack: [value]
-            }
-            let place = target.compile(ctx)?;
+                match target.compile(ctx) {
+                    Ok(p) => {
+                        // result: None
+                        // stack: [value]
+                        // reference: &target
+                        value_on_stack.store(ctx);
+                        p
+                    }
+                    Err(err) => {
+                        value_on_stack.forget(ctx);
+                        return Err(err);
+                    }
+                }
+            } else {
+                target.compile(ctx)?
+            };
             if needs_load_store {
-                // result: None
-                // stack: [value]
-                // reference: &target
                 ctx.add_instruction(Instruction::Store);
             }
             // result: value
@@ -758,14 +777,14 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
         // this! When we enter here, self.binding property access result should
         // be in the result register.
         if let Some(init) = &self.init {
-            ctx.add_instruction(Instruction::LoadCopy);
+            let binding_copy = ctx.load_copy_to_stack();
             // result: binding
             // stack: [binding]
             ctx.add_instruction(Instruction::IsUndefined);
             // result: binding === undefined
             // stack: [binding]
             let jump_slot = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
-            ctx.add_instruction(Instruction::Store);
+            binding_copy.store(ctx);
             // result: binding
             // stack: []
             if is_anonymous_function_definition(init) {
@@ -773,17 +792,18 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                 ctx.add_instruction_with_constant(Instruction::StoreConstant, identifier_string);
                 ctx.name_identifier = Some(NamedEvaluationParameter::Result);
             }
-            init.compile(ctx)?.get_value(ctx)?;
+            // Ignore errors: this is not an unconditional path.
+            let _ = init.compile(ctx).and_then(|r| r.get_value(ctx));
             ctx.name_identifier = None;
             // result: init
             // stack: []
-            ctx.add_instruction(Instruction::Load);
+            let init_on_stack = ctx.load_to_stack();
             // result: None
             // stack: [init]
             ctx.set_jump_target_here(jump_slot);
             // result: None
             // stack: [binding / init]
-            ctx.add_instruction(Instruction::Store);
+            init_on_stack.store(ctx);
             // result: binding / init
             // stack: []
         }
@@ -831,11 +851,18 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Proper
             // Note: Private names are not allowed in this position.
             ast::PropertyKey::PrivateIdentifier(_) => unreachable!(),
             _ => {
-                ctx.add_instruction(Instruction::Load);
+                let source_on_stack = ctx.load_to_stack();
                 // result: None
                 // stack: [source]
                 let expr = self.to_expression();
-                let source = expr.compile(ctx)?.get_value(ctx)?;
+                let expr_result = expr.compile(ctx).and_then(|r| r.get_value(ctx));
+
+                // Source on stack is either forget on the stack and cleaned up
+                // by try-catch if expr is Err, or is consumed by below
+                // instruction.
+                source_on_stack.forget(ctx);
+
+                let expr_result = expr_result?;
 
                 // result: expr
                 // stack: [source]
@@ -843,7 +870,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Proper
                 // result: None
                 // stack: []
                 // reference: &source[expr]
-                Ok(source.to_expression_key())
+                Ok(expr_result.to_expression_key())
             }
         }
     }
@@ -855,14 +882,14 @@ fn compile_initializer<'s>(
 ) {
     // result: value
     // stack: []
-    ctx.add_instruction(Instruction::LoadCopy);
+    let value_copy = ctx.load_copy_to_stack();
     ctx.add_instruction(Instruction::IsUndefined);
     // result: value === undefined
     // stack: [value]
     let jump_slot = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
     // result: None
     // stack: [value]
-    ctx.add_instruction(Instruction::Store);
+    value_copy.store(ctx);
     // result: value
     // stack: []
     if is_anonymous_function_definition(&target.init)
@@ -880,13 +907,13 @@ fn compile_initializer<'s>(
     ctx.name_identifier = None;
     // result: init
     // stack: []
-    ctx.add_instruction(Instruction::Load);
+    let init_on_stack = ctx.load_to_stack();
     // result: None
     // stack: [init]
     ctx.set_jump_target_here(jump_slot);
     // result: None
     // stack: [value / init]
-    ctx.add_instruction(Instruction::Store);
+    init_on_stack.store(ctx);
     // result: value / init
     // stack: []
 }

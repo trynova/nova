@@ -280,18 +280,23 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
 
     /// Pop a StackValue from the top of the stack.
     fn pop_stack_value(&mut self, var: StackValue) {
-        core::mem::forget(var);
-        matches!(
-            self.control_flow_stack.pop(),
-            Some(ControlFlowStackEntry::StackValue)
-        );
-        self.executable.pop_stack();
+        self.forget_stack_value(var);
         if self.is_unreachable() {
             // OPTIMISATION: We don't need to add exit handling if this line is
             // unreachable.
             return;
         }
         compile_stack_variable_exit(&mut self.executable);
+    }
+
+    /// Forget a StackValue.
+    fn forget_stack_value(&mut self, var: StackValue) {
+        core::mem::forget(var);
+        matches!(
+            self.control_flow_stack.pop(),
+            Some(ControlFlowStackEntry::StackValue)
+        );
+        self.executable.pop_stack();
     }
 
     /// Load the current result onto the stack as a StackValue.
@@ -314,12 +319,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
 
     /// Store a StackValue as the result value.
     fn store_from_stack(&mut self, var: StackValue) {
-        core::mem::forget(var);
-        matches!(
-            self.control_flow_stack.pop(),
-            Some(ControlFlowStackEntry::StackValue)
-        );
-        self.executable.pop_stack();
+        self.forget_stack_value(var);
         if self.is_unreachable() {
             // OPTIMISATION: We don't need to add exit handling if this line is
             // unreachable.
@@ -1349,6 +1349,15 @@ impl StackValue {
     /// Pop a StackValue from the stack.
     pub(crate) fn pop(self, ctx: &mut CompileContext) {
         ctx.pop_stack_value(self);
+    }
+
+    /// Forget a StackValue. This should be used when an instruction consumes
+    /// from the stack or when a StackValue becomes lost on the stack due to a
+    /// bytecode branch becoming unreachable (eg. by a Throw instruction). In
+    /// unreachable cases a try-catch block should eventually drop the Value
+    /// from the stack automatically.
+    pub(crate) fn forget(self, ctx: &mut CompileContext) {
+        ctx.forget_stack_value(self);
     }
 }
 
