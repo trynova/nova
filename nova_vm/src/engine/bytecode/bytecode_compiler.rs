@@ -4159,12 +4159,10 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
         label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,
         ctx: &mut CompileContext<'_, 's, '_, '_>,
     ) -> Self::Output {
-        let l = ctx.enter_loop(label_set.cloned());
-
         // 1. Let V be undefined.
-        ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
-        ctx.add_instruction(Instruction::Load);
+        let v = ctx.push_stack_loop_result();
         // 2. Repeat
+        let l = ctx.enter_loop(label_set.cloned());
         let jump_over_continue = ctx.add_instruction_with_jump_slot(Instruction::Jump);
         let continue_label = ctx.get_jump_index_to_here();
         // f. If stmtResult.[[Value]] is not EMPTY, set V to
@@ -4203,7 +4201,6 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
             // > c. If LoopContinues(result, labelSet) is false,
             // >    return ? UpdateEmpty(result, V).
             ctx.add_instruction(Instruction::UpdateEmpty);
-            ctx.add_instruction(Instruction::Debug);
             ctx.add_instruction(Instruction::Throw);
         }
         // f. If stmtResult.[[Value]] is not EMPTY, set V to
@@ -4217,6 +4214,8 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
         // failure then result is currently empty and UpdateEmpty will pop V
         // into the result register.
         l.exit(ctx, continue_label);
+        v.exit(ctx);
+
         stmt_result
     }
 }
