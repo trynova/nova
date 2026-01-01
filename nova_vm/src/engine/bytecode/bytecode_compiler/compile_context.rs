@@ -269,24 +269,23 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             .map(|(_, i)| *i)
     }
 
-    /// Generate a StackValue (StackVariable currently stands in) from thin air
-    /// to mark an existing value on the stack.
-    pub(super) fn mark_stack_value(&mut self) -> StackVariable {
-        let _ = self.executable.push_stack_variable();
+    /// Generate a StackValue from thin air to mark an existing value on the
+    /// stack.
+    pub(super) fn mark_stack_value(&mut self) -> StackValue {
+        let _ = self.executable.push_stack();
         self.control_flow_stack
-            .push(ControlFlowStackEntry::StackVariable);
-        StackVariable
+            .push(ControlFlowStackEntry::StackValue);
+        StackValue
     }
 
-    /// Pop a StackValue (StackVariable currently stands in) from the top of the
-    /// stack.
-    fn pop_stack_value(&mut self, var: StackVariable) {
+    /// Pop a StackValue from the top of the stack.
+    fn pop_stack_value(&mut self, var: StackValue) {
         core::mem::forget(var);
         matches!(
             self.control_flow_stack.pop(),
-            Some(ControlFlowStackEntry::StackVariable)
+            Some(ControlFlowStackEntry::StackValue)
         );
-        self.executable.pop_stack_variable();
+        self.executable.pop_stack();
         if self.is_unreachable() {
             // OPTIMISATION: We don't need to add exit handling if this line is
             // unreachable.
@@ -295,25 +294,32 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         compile_stack_variable_exit(&mut self.executable);
     }
 
-    /// Load the current result onto the stack as a StackValue (StackVariable
-    /// currently stands in).
-    pub(super) fn load_to_stack(&mut self) -> StackVariable {
+    /// Load the current result onto the stack as a StackValue.
+    pub(super) fn load_to_stack(&mut self) -> StackValue {
         self.add_instruction(Instruction::Load);
-        let _ = self.executable.push_stack_variable();
+        let _ = self.executable.push_stack();
         self.control_flow_stack
-            .push(ControlFlowStackEntry::StackVariable);
-        StackVariable
+            .push(ControlFlowStackEntry::StackValue);
+        StackValue
     }
 
-    /// Store a StackValue (StackVariable currently stands in) as the result
-    /// value.
-    fn store_from_stack(&mut self, var: StackVariable) {
+    /// Load a copy of the current result onto the stack as a StackValue.
+    pub(super) fn load_copy_to_stack(&mut self) -> StackValue {
+        self.add_instruction(Instruction::LoadCopy);
+        let _ = self.executable.push_stack();
+        self.control_flow_stack
+            .push(ControlFlowStackEntry::StackValue);
+        StackValue
+    }
+
+    /// Store a StackValue as the result value.
+    fn store_from_stack(&mut self, var: StackValue) {
         core::mem::forget(var);
         matches!(
             self.control_flow_stack.pop(),
-            Some(ControlFlowStackEntry::StackVariable)
+            Some(ControlFlowStackEntry::StackValue)
         );
-        self.executable.pop_stack_variable();
+        self.executable.pop_stack();
         if self.is_unreachable() {
             // OPTIMISATION: We don't need to add exit handling if this line is
             // unreachable.
@@ -334,10 +340,10 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         } else {
             self.add_instruction_with_constant(Instruction::LoadConstant, Value::Undefined);
         }
-        let idx = self.executable.push_stack_variable();
+        let idx = self.executable.push_stack();
         self.stack_variables.push((symbol, idx));
         self.control_flow_stack
-            .push(ControlFlowStackEntry::StackVariable);
+            .push(ControlFlowStackEntry::StackValue);
         StackVariable
     }
 
@@ -346,10 +352,10 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         core::mem::forget(var);
         matches!(
             self.control_flow_stack.pop(),
-            Some(ControlFlowStackEntry::StackVariable)
+            Some(ControlFlowStackEntry::StackValue)
         );
         self.stack_variables.pop().unwrap();
-        self.executable.pop_stack_variable();
+        self.executable.pop_stack();
         if self.is_unreachable() {
             // OPTIMISATION: We don't need to add exit handling if this line is
             // unreachable.
@@ -363,7 +369,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     pub(super) fn push_stack_loop_result(&mut self) -> StackLoopResult {
         self.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
         self.add_instruction(Instruction::Load);
-        let _ = self.executable.push_stack_variable();
+        let _ = self.executable.push_stack();
         self.control_flow_stack
             .push(ControlFlowStackEntry::StackLoopResult);
         StackLoopResult
@@ -376,7 +382,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             self.control_flow_stack.pop(),
             Some(ControlFlowStackEntry::StackLoopResult)
         );
-        self.executable.pop_stack_variable();
+        self.executable.pop_stack();
     }
 
     /// Enter a private environment scope.
@@ -1276,8 +1282,26 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     }
 }
 
+trait Undroppable {
+    #[inline(always)]
+    fn on_drop() {
+        // In debug builds only, check if we're being dropped because of
+        // unwinding and if not, panic. We do not want to generate any panics in
+        // release builds because this is mostly a development time aid, not a
+        // runtime safety guarantee.
+        #[cfg(debug_assertions)]
+        if !std::thread::panicking() {
+            panic!(
+                "Unhandled {}: this type should be explicitly consumed, not dropped",
+                core::any::type_name::<Self>()
+            );
+        }
+    }
+}
+
 #[must_use]
 pub(crate) struct LexicalScope;
+impl Undroppable for LexicalScope {}
 
 impl LexicalScope {
     #[inline(always)]
@@ -1288,18 +1312,14 @@ impl LexicalScope {
 
 #[cfg(debug_assertions)]
 impl Drop for LexicalScope {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled LexicalScope: must call scope.exit()");
-        }
+        Self::on_drop();
     }
 }
 
 #[must_use]
 pub(crate) struct ClassStaticBlock;
+impl Undroppable for ClassStaticBlock {}
 
 impl ClassStaticBlock {
     #[inline(always)]
@@ -1310,18 +1330,17 @@ impl ClassStaticBlock {
 
 #[cfg(debug_assertions)]
 impl Drop for ClassStaticBlock {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled ClassStaticBlock: must call block.exit()");
-        }
+        Self::on_drop();
     }
 }
 
-pub(crate) struct StackVariable;
-impl StackVariable {
+/// A Value was pushed onto the VM stack. The Value must be popped from the
+/// stack under all possible execution paths.
+pub(crate) struct StackValue;
+impl Undroppable for StackValue {}
+
+impl StackValue {
     /// Store a StackValue as the result value.
     pub(crate) fn store(self, ctx: &mut CompileContext) {
         ctx.store_from_stack(self);
@@ -1331,7 +1350,19 @@ impl StackVariable {
     pub(crate) fn pop(self, ctx: &mut CompileContext) {
         ctx.pop_stack_value(self);
     }
+}
 
+#[cfg(debug_assertions)]
+impl Drop for StackValue {
+    fn drop(&mut self) {
+        Self::on_drop();
+    }
+}
+
+pub(crate) struct StackVariable;
+impl Undroppable for StackVariable {}
+
+impl StackVariable {
     /// Pop a StackVariable from the stack.
     #[inline(always)]
     pub(crate) fn exit(self, ctx: &mut CompileContext) {
@@ -1341,16 +1372,13 @@ impl StackVariable {
 
 #[cfg(debug_assertions)]
 impl Drop for StackVariable {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled StackVariable: must call var.exit()");
-        }
+        Self::on_drop();
     }
 }
 pub(crate) struct StackLoopResult;
+impl Undroppable for StackLoopResult {}
+
 impl StackLoopResult {
     #[inline(always)]
     pub(crate) fn exit(self, ctx: &mut CompileContext) {
@@ -1360,16 +1388,13 @@ impl StackLoopResult {
 
 #[cfg(debug_assertions)]
 impl Drop for StackLoopResult {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled StackLoopResult: must call loop.exit()");
-        }
+        Self::on_drop();
     }
 }
 pub(crate) struct PrivateScope;
+impl Undroppable for PrivateScope {}
+
 impl PrivateScope {
     #[inline(always)]
     pub(crate) fn exit(self, ctx: &mut CompileContext) {
@@ -1379,16 +1404,13 @@ impl PrivateScope {
 
 #[cfg(debug_assertions)]
 impl Drop for PrivateScope {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled PrivateScope: must call scope.exit()");
-        }
+        Self::on_drop();
     }
 }
 pub(crate) struct TryCatchBlock(JumpIndex);
+impl Undroppable for TryCatchBlock {}
+
 impl TryCatchBlock {
     #[inline(always)]
     pub(crate) fn exit(self, ctx: &mut CompileContext) -> JumpIndex {
@@ -1400,16 +1422,13 @@ impl TryCatchBlock {
 
 #[cfg(debug_assertions)]
 impl Drop for TryCatchBlock {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled TryCatchBlock: must call block.exit()");
-        }
+        Self::on_drop();
     }
 }
 pub(crate) struct TryFinallyBlock;
+impl Undroppable for TryFinallyBlock {}
+
 impl TryFinallyBlock {
     #[inline(always)]
     pub(crate) fn exit<'s>(
@@ -1424,16 +1443,13 @@ impl TryFinallyBlock {
 
 #[cfg(debug_assertions)]
 impl Drop for TryFinallyBlock {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled TryFinallyBlock: must call block.exit()");
-        }
+        Self::on_drop();
     }
 }
 pub(crate) struct IfStatement;
+impl Undroppable for IfStatement {}
+
 impl IfStatement {
     #[inline(always)]
     pub(crate) fn exit(self, ctx: &mut CompileContext, has_result: bool) {
@@ -1443,16 +1459,13 @@ impl IfStatement {
 
 #[cfg(debug_assertions)]
 impl Drop for IfStatement {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled IfStatement: must call st.exit()");
-        }
+        Self::on_drop();
     }
 }
 pub(crate) struct LabelledStatement;
+impl Undroppable for LabelledStatement {}
+
 impl LabelledStatement {
     #[inline(always)]
     pub(crate) fn exit(self, ctx: &mut CompileContext) {
@@ -1462,16 +1475,13 @@ impl LabelledStatement {
 
 #[cfg(debug_assertions)]
 impl Drop for LabelledStatement {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled LabelledStatement: must call st.exit()");
-        }
+        Self::on_drop();
     }
 }
 pub(crate) struct FinallyBlock;
+impl Undroppable for FinallyBlock {}
+
 impl FinallyBlock {
     #[inline(always)]
     pub(crate) fn exit(self, ctx: &mut CompileContext) {
@@ -1482,13 +1492,8 @@ impl FinallyBlock {
 
 #[cfg(debug_assertions)]
 impl Drop for FinallyBlock {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled FinallyBlock: must call block.exit()");
-        }
+        Self::on_drop();
     }
 }
 pub(crate) enum Loop {
@@ -1496,6 +1501,8 @@ pub(crate) enum Loop {
     SyncIterator(JumpIndex),
     AsyncIterator(JumpIndex),
 }
+impl Undroppable for Loop {}
+
 impl Loop {
     #[inline(always)]
     pub(crate) fn on_abrupt_exit(&self) -> JumpIndex {
@@ -1525,16 +1532,13 @@ impl Loop {
 
 #[cfg(debug_assertions)]
 impl Drop for Loop {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled Loop: must call loop.exit()");
-        }
+        Self::on_drop();
     }
 }
 pub(crate) struct SwitchBlock;
+impl Undroppable for SwitchBlock {}
+
 impl SwitchBlock {
     #[inline(always)]
     pub(crate) fn exit(self, ctx: &mut CompileContext) {
@@ -1544,16 +1548,13 @@ impl SwitchBlock {
 
 #[cfg(debug_assertions)]
 impl Drop for SwitchBlock {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled SwitchBlock: must call block.exit()");
-        }
+        Self::on_drop();
     }
 }
 pub(crate) struct IteratorStackEntry(JumpIndex);
+impl Undroppable for IteratorStackEntry {}
+
 impl IteratorStackEntry {
     #[inline(always)]
     pub(crate) fn on_abrupt_exit(&self) -> JumpIndex {
@@ -1570,16 +1571,13 @@ impl IteratorStackEntry {
 
 #[cfg(debug_assertions)]
 impl Drop for IteratorStackEntry {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled IteratorStackEntry: must call entry.exit()");
-        }
+        Self::on_drop();
     }
 }
 pub(crate) struct ArrayDestructuring(JumpIndex);
+impl Undroppable for ArrayDestructuring {}
+
 impl ArrayDestructuring {
     #[inline(always)]
     pub(crate) fn exit(self, ctx: &mut CompileContext) -> JumpIndex {
@@ -1591,13 +1589,8 @@ impl ArrayDestructuring {
 
 #[cfg(debug_assertions)]
 impl Drop for ArrayDestructuring {
-    #[inline(always)]
     fn drop(&mut self) {
-        use std::thread::panicking;
-
-        if !panicking() {
-            panic!("Unhandled ArrayDestructuring: must call destr.exit()");
-        }
+        Self::on_drop();
     }
 }
 
