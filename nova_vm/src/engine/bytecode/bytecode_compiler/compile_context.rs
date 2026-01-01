@@ -364,9 +364,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         let stack_slot = self.executable.push_stack();
         self.control_flow_stack
             .push(ControlFlowStackEntry::StackResultValue);
-        StackResultValue {
-            stack_slot: stack_slot,
-        }
+        StackResultValue { stack_slot }
     }
 
     fn pop_stack_result_value(&mut self, result: StackResultValue) {
