@@ -2435,8 +2435,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
             let (agent, gc) = ctx.get_agent_and_gc();
             let site_obj = get_template_object(agent, &self.quasi, gc);
             // 3. Return « siteObj ».
-            ctx.add_instruction_with_constant(Instruction::LoadConstant, site_obj);
-            arguments.push(ctx.mark_stack_value());
+            arguments.push(ctx.load_constant_to_stack(site_obj));
         } else {
             // TemplateLiteral : SubstitutionTemplate
 
@@ -2444,8 +2443,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
             // 2. Let siteObj be GetTemplateObject(templateLiteral).
             let (agent, gc) = ctx.get_agent_and_gc();
             let site_obj = get_template_object(agent, &self.quasi, gc);
-            ctx.add_instruction_with_constant(Instruction::LoadConstant, site_obj);
-            arguments.push(ctx.mark_stack_value());
+            arguments.push(ctx.load_constant_to_stack(site_obj));
             // 3. Let remaining be ? ArgumentListEvaluation of SubstitutionTemplate.
             // 4. Return the list-concatenation of « siteObj » and remaining.
 
@@ -3992,6 +3990,8 @@ fn create_per_iteration_environment<'gc>(
         for bn in per_iteration_lets {
             ctx.add_instruction_with_identifier(Instruction::ResolveBinding, bn.to_property_key());
             ctx.add_instruction(Instruction::GetValue);
+            // Note: no load_to_stack as the temporary increase in stack size
+            // cannot be seen by users.
             ctx.add_instruction(Instruction::Load);
         }
         // Note: here we do not use exit & enter lexical
