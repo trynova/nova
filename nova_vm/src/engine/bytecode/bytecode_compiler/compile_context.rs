@@ -1352,6 +1352,13 @@ impl StackValue {
     }
 }
 
+#[cfg(debug_assertions)]
+impl Drop for StackValue {
+    fn drop(&mut self) {
+        Self::on_drop();
+    }
+}
+
 pub(crate) struct StackVariable;
 impl Undroppable for StackVariable {}
 
