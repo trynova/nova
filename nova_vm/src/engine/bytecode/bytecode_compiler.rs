@@ -2282,6 +2282,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Import
         ctx.add_instruction(Instruction::Load);
         // 5. If optionsExpression is present, then
         if let Some(options) = &self.options {
+            // Mark the stack value so that options.compile sees it.
             let specifier_on_stack = ctx.mark_stack_value();
             // a. Let optionsRef be ? Evaluation of optionsExpression.
             // b. Let options be ? GetValue(optionsRef).
@@ -2412,11 +2413,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
         let _tag_func = tag_ref.get_value_keep_reference(ctx)?;
         let need_pop_reference =
             tag_ref.has_reference() && !self.quasi.is_no_substitution_template();
-        if need_pop_reference {
-            ctx.add_instruction(Instruction::PushReference);
-        }
         // Load tagFunc to the stack.
-        // TÄHÄN JÄIT
         let tag_func_on_stack = ctx.load_to_stack();
 
         // 3. Let thisCall be this MemberExpression.
@@ -2426,8 +2423,12 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
 
         // ### 13.3.8.1 Runtime Semantics: ArgumentListEvaluation
 
+        if need_pop_reference {
+            ctx.add_instruction(Instruction::PushReference);
+        }
+
         //  TemplateLiteral : NoSubstitutionTemplate
-        let mut num_arguments = 0;
+        let mut arguments = Vec::with_capacity(self.quasi.expressions.len());
         if self.quasi.is_no_substitution_template() {
             // 1. Let templateLiteral be this TemplateLiteral.
             // 2. Let siteObj be GetTemplateObject(templateLiteral).
@@ -2435,7 +2436,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
             let site_obj = get_template_object(agent, &self.quasi, gc);
             // 3. Return « siteObj ».
             ctx.add_instruction_with_constant(Instruction::LoadConstant, site_obj);
-            num_arguments += 1;
+            arguments.push(ctx.mark_stack_value());
         } else {
             // TemplateLiteral : SubstitutionTemplate
 
@@ -2444,7 +2445,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
             let (agent, gc) = ctx.get_agent_and_gc();
             let site_obj = get_template_object(agent, &self.quasi, gc);
             ctx.add_instruction_with_constant(Instruction::LoadConstant, site_obj);
-            num_arguments += 1;
+            arguments.push(ctx.mark_stack_value());
             // 3. Let remaining be ? ArgumentListEvaluation of SubstitutionTemplate.
             // 4. Return the list-concatenation of « siteObj » and remaining.
 
@@ -2452,10 +2453,15 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
             for expression in self.quasi.expressions.iter() {
                 // 1. Let firstSubRef be ? Evaluation of Expression.
                 // 2. Let firstSub be ? GetValue(firstSubRef).
-                expression.compile(ctx)?.get_value(ctx)?;
+                if let Err(err) = expression.compile(ctx).and_then(|r| r.get_value(ctx)) {
+                    for arg in arguments {
+                        arg.forget(ctx);
+                    }
+                    tag_func_on_stack.forget(ctx);
+                    return Err(err);
+                }
                 // 3. Let restSub be ? SubstitutionEvaluation of TemplateSpans.
-                ctx.add_instruction(Instruction::Load);
-                num_arguments += 1;
+                arguments.push(ctx.load_to_stack());
                 // 4. Assert: restSub is a possibly empty List.
                 // 5. Return the list-concatenation of « firstSub » and restSub.
             }
@@ -2463,6 +2469,12 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
         if need_pop_reference {
             ctx.add_instruction(Instruction::PopReference);
         }
+        let num_arguments = arguments.len();
+        // EvaluateCall consumes arguments and tagFunc.
+        for arg in arguments {
+            arg.forget(ctx);
+        }
+        tag_func_on_stack.forget(ctx);
         ctx.add_instruction_with_immediate(Instruction::EvaluateCall, num_arguments);
         Ok(ValueOutput::Value)
     }
@@ -2477,28 +2489,36 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Templa
             ctx.add_instruction_with_constant(Instruction::StoreConstant, constant);
             Ok(constant.into())
         } else {
-            let mut count = 0;
             let mut quasis = self.quasis.as_slice();
             let mut expressions = self.expressions.as_slice();
+            let mut parts = Vec::with_capacity(quasis.len());
             while let Some((head, rest)) = quasis.split_first() {
                 quasis = rest;
                 // 1. Let head be the TV of TemplateHead as defined in 12.9.6.
                 let head = ctx.create_string(head.value.cooked.as_ref().unwrap().as_str());
-                ctx.add_instruction_with_constant(Instruction::LoadConstant, head);
-                count += 1;
+                parts.push(ctx.load_constant_to_stack(head));
                 if let Some((expression, rest)) = expressions.split_first() {
                     expressions = rest;
                     // 2. Let subRef be ? Evaluation of Expression.
                     // 3. Let sub be ? GetValue(subRef).
-                    expression.compile(ctx)?.get_value(ctx)?;
+                    if let Err(err) = expression.compile(ctx).and_then(|r| r.get_value(ctx)) {
+                        for part in parts {
+                            part.forget(ctx);
+                        }
+                        return Err(err);
+                    }
                     // 4. Let middle be ? ToString(sub).
                     // Note: This is done by StringConcat.
-                    ctx.add_instruction(Instruction::Load);
-                    count += 1;
+                    parts.push(ctx.load_to_stack());
                 }
                 // 5. Let tail be ? Evaluation of TemplateSpans.
             }
             // 6. Return the string-concatenation of head, middle, and tail.
+            let count = parts.len();
+            // Note: StringConcat consumes the parts from stack.
+            for part in parts {
+                part.forget(ctx);
+            }
             ctx.add_instruction_with_immediate(Instruction::StringConcat, count);
             Ok(ValueOutput::Value)
         }
@@ -2774,6 +2794,8 @@ fn compile_create_iterator_result_object(ctx: &mut CompileContext, done: bool) {
         .expect("Should perform GC here")
         .get_child_shape(agent, BUILTIN_STRING_MEMORY.done.to_property_key())
         .expect("Should perform GC here");
+    // Note: no load_to_stack because ObjectCreateWithShape immediately consumes
+    // the stack.
     ctx.add_instruction(Instruction::Load);
     ctx.add_instruction_with_constant(Instruction::LoadConstant, done);
     ctx.add_instruction_with_shape(Instruction::ObjectCreateWithShape, shape);
@@ -3156,6 +3178,10 @@ fn simple_array_pattern<'s, I>(
 
 fn check_result_is_undefined(ctx: &mut CompileContext) -> JumpIndex {
     // Run the initializer if the result value is undefined.
+
+    // Note: no load_copy_to_stack because Store consumes the copy immediately.
+    // That only happens when we go to that branch, but it all shakes out much
+    // the same anyway.
     ctx.add_instruction(Instruction::LoadCopy);
     ctx.add_instruction(Instruction::IsUndefined);
     let jump_slot = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
@@ -3392,14 +3418,14 @@ fn complex_object_pattern<'s>(
     // other operations later on (such as GetV) also perform ToObject, so we
     // convert to an object early.
     ctx.add_instruction(Instruction::ToObject);
-    ctx.add_instruction(Instruction::Load);
+    let value_on_stack = ctx.load_to_stack();
 
     let result = 'iter: {
         for property in &object_pattern.properties {
             let place = match &property.key {
                 ast::PropertyKey::StaticIdentifier(identifier) => {
                     // Make a copy of the baseValue in the result register;
-                    // EvaluatePropertyAccessWithIdentifierKey uses it.
+                    // EvaluatePropertyAccessWithIdentifierKey consumes it.
                     ctx.add_instruction(Instruction::StoreCopy);
                     identifier.compile(ctx)
                 }
@@ -3407,16 +3433,27 @@ fn complex_object_pattern<'s>(
                 ast::PropertyKey::PrivateIdentifier(_) => unreachable!(),
                 _ => {
                     // Make a copy of the baseValue on the stack;
-                    // EvaluatePropertyAccessWithExpressionKey pops the stack.
+                    // EvaluatePropertyAccessWithExpressionKey consumes it.
                     ctx.add_instruction(Instruction::StoreCopy);
-                    ctx.add_instruction(Instruction::Load);
+                    let base_value_copy = ctx.load_to_stack();
                     let expr = property.key.to_expression();
-                    let output = expr.compile(ctx)?.get_value(ctx)?;
+                    let output = expr.compile(ctx).and_then(|r| r.get_value(ctx));
+                    base_value_copy.forget(ctx);
+                    let output = match output {
+                        Ok(r) => r,
+                        Err(err) => {
+                            break 'iter Err(err);
+                        }
+                    };
                     ctx.add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
                     output.to_expression_key()
                 }
             };
-            place.get_value_maybe_keep_reference(ctx, object_pattern.rest.is_some())?;
+            if let Err(err) =
+                place.get_value_maybe_keep_reference(ctx, object_pattern.rest.is_some())
+            {
+                break 'iter Err(err);
+            }
             if object_pattern.rest.is_some() {
                 assert!(place.has_reference());
                 ctx.add_instruction(Instruction::PushReference);
@@ -3426,35 +3463,42 @@ fn complex_object_pattern<'s>(
                 break 'iter Err(err);
             };
         }
-
-        // Don't keep the object on the stack.
-        ctx.add_instruction(Instruction::Store);
-
-        if let Some(rest) = &object_pattern.rest {
-            let ast::BindingPatternKind::BindingIdentifier(identifier) = &rest.argument.kind else {
-                unreachable!()
-            };
-
-            // We have kept the references for all of the properties read in the
-            // reference stack, so we can now use them to exclude those
-            // properties from the rest object.
-            ctx.add_instruction_with_immediate(
-                Instruction::CopyDataPropertiesIntoObject,
-                object_pattern.properties.len(),
-            );
-            let value = ValueOutput::Value;
-
-            let place = identifier.compile(ctx);
-            if !has_environment {
-                if let Err(err) = place.put_value(ctx, value) {
-                    break 'iter Err(err);
-                }
-            } else {
-                place.initialise_referenced_binding(ctx, value);
-            }
-        }
         Ok(())
     };
+
+    if let Err(err) = result {
+        value_on_stack.forget(ctx);
+        ctx.lexical_binding_state = lexical_binding_state;
+        return Err(err);
+    }
+
+    // Don't keep the object on the stack.
+    value_on_stack.store(ctx);
+
+    if let Some(rest) = &object_pattern.rest {
+        let ast::BindingPatternKind::BindingIdentifier(identifier) = &rest.argument.kind else {
+            unreachable!()
+        };
+
+        // We have kept the references for all of the properties read in the
+        // reference stack, so we can now use them to exclude those
+        // properties from the rest object.
+        ctx.add_instruction_with_immediate(
+            Instruction::CopyDataPropertiesIntoObject,
+            object_pattern.properties.len(),
+        );
+        let value = ValueOutput::Value;
+
+        let place = identifier.compile(ctx);
+        if !has_environment {
+            if let Err(err) = place.put_value(ctx, value) {
+                ctx.lexical_binding_state = lexical_binding_state;
+                return Err(err);
+            }
+        } else {
+            place.initialise_referenced_binding(ctx, value);
+        }
+    }
     ctx.lexical_binding_state = lexical_binding_state;
     result
 }
@@ -3535,18 +3579,24 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Bindin
                         // i. Let defaultValue be ? Evaluation of Initializer.
                         let default_value = pattern.right.compile(ctx);
                         // ii. Set v to ? GetValue(defaultValue).
-                        // Note: no early exit as this is not an unconditional
-                        // branch.
-                        let v = default_value
-                            .and_then(|dv| dv.get_value(ctx))
-                            .unwrap_or(ValueOutput::Value);
-                        if do_push_reference {
-                            ctx.add_instruction(Instruction::PopReference);
+                        if default_value.and_then(|dv| dv.get_value(ctx)).is_ok() {
+                            // If Initializer evaluation or GetValue call fails,
+                            // this code becomes unreachable.
+                            if do_push_reference {
+                                ctx.add_instruction(Instruction::PopReference);
+                            }
+                            ctx.name_identifier = None;
+                            // Note: no load_to_stack as Store consumes the
+                            // value immediately anyway.
+                            ctx.add_instruction(Instruction::Load);
                         }
-                        ctx.name_identifier = None;
-                        ctx.add_instruction(Instruction::Load);
                         ctx.set_jump_target_here(jump_over_initializer);
+                        // Note: here we either consume a copy of the lhs value
+                        // or the default value.
                         ctx.add_instruction(Instruction::Store);
+                        // v can either be read from lhs or be the default value
+                        // compilation.
+                        let v = ValueOutput::Value;
                         // 6. If environment is undefined,
                         if !ctx.lexical_binding_state {
                             // return ? PutValue(lhs, v).
@@ -3578,10 +3628,11 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Bindin
                         // b. Set v to ? GetValue(defaultValue).
                         // Note: no early exit as this is not an unconditional
                         // branch.
-                        let _v = default_value
-                            .and_then(|dv| dv.get_value(ctx))
-                            .unwrap_or(ValueOutput::Value);
-                        ctx.add_instruction(Instruction::Load);
+                        if default_value.and_then(|dv| dv.get_value(ctx)).is_ok() {
+                            // Note: if Initializer evaluation or GetValue
+                            // fails, this branch becomes unreachable.
+                            ctx.add_instruction(Instruction::Load);
+                        }
                         ctx.set_jump_target_here(jump_over_initializer);
                         ctx.add_instruction(Instruction::Store);
                         // 4. Return ? BindingInitialization of BindingPattern with
@@ -3822,7 +3873,7 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
         }
 
         // 1. Let V be undefined.
-        let v = ctx.push_stack_loop_result();
+        let v = ctx.push_stack_result_value(false);
         // 3. Repeat,
         let l = ctx.enter_loop(label_set.cloned());
         let jump_over_continue = ctx.add_instruction_with_jump_slot(Instruction::Jump);
@@ -3895,7 +3946,7 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
         // failure then result is currently empty and UpdateEmpty will pop V
         // into the result register.
         l.exit(ctx, continue_label);
-        v.exit(ctx);
+        v.forget(ctx);
 
         if let Some(loop_env) = loop_env {
             // Lexical binding loops have an extra declarative environment that
@@ -3976,13 +4027,13 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
                 .compile(ctx)
                 .and_then(|r| r.get_value(ctx)),
         )?;
-        ctx.add_instruction(Instruction::Load);
         if self.cases.is_empty() {
             // CaseBlock : { }
             // 1. Return undefined.
-            ctx.add_instruction_with_constant(Instruction::LoadConstant, Value::Undefined);
+            ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
             return ControlFlow::Continue(StatementContinue::Literal(Primitive::Undefined));
         }
+        let switch_value = ctx.push_stack_result_value(true);
         let switch = ctx.enter_switch(label_set.cloned());
         // 3. Let oldEnv be the running execution context's LexicalEnvironment.
         // 4. Let blockEnv be NewDeclarativeEnvironment(oldEnv).
@@ -3990,99 +4041,142 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
         // 6. Set the running execution context's LexicalEnvironment to blockEnv.
         let r = block_declaration_instantiation::instantiation(ctx, self, |ctx| {
             // 7. Let R be Completion(CaseBlockEvaluation of CaseBlock with argument switchValue).
-            let mut has_default = false;
-            let mut jump_indexes = Vec::with_capacity(self.cases.len());
+            let mut default_case_index = None;
+            let mut cases = Vec::with_capacity(self.cases.len());
+            let mut end_unreachable = false;
             for case in &self.cases {
                 let Some(test) = &case.test else {
-                    // Default case test does not care about the write order: After
-                    // all other cases have been tested, default will be entered if
-                    // no other was entered previously. The placement of the
-                    // default case only matters for fall-through behaviour.
-                    has_default = true;
+                    // Default case test does not care about the write order:
+                    // After all other cases have been tested, default will be
+                    // entered if no other was entered previously. The placement
+                    // of the default case only matters for fall-through
+                    // behaviour.
+                    default_case_index = Some(cases.len() as u32);
+                    cases.push((case, None));
                     continue;
                 };
-                // Duplicate the switchValue on the stack. One will remain, one is
-                // used by the IsStrictlyEqual
-                ctx.add_instruction(Instruction::StoreCopy);
-                ctx.add_instruction(Instruction::Load);
+                // We have switchValue somewhere on the stack, and we want to
+                // compare it to the test value. IsStrictlyEqual consumes one
+                // value from the top of the stack and compares that to the
+                // result value, so we need to make a copy of the switchValue
+                // and put it to the top of the stack before we compile the test
+                // expression and get its value into the result register.
+                switch_value.read(ctx);
+                let switch_value_copy_on_stack = ctx.load_to_stack();
                 // 2. Let exprRef be ? Evaluation of the Expression of C.
                 let expr_ref = test.compile(ctx);
                 // 3. Let clauseSelector be ? GetValue(exprRef).
                 let clause_selector = expr_ref.and_then(|r| r.get_value(ctx));
+                // The switchValue on the stack is consumed by IsStrictlyEqual
+                // or gets forgotten in an error case and is cleared up by a
+                // try-catch.
+                switch_value_copy_on_stack.forget(ctx);
                 if clause_selector.is_ok() {
                     // 4. Return IsStrictlyEqual(input, clauseSelector).
                     ctx.add_instruction(Instruction::IsStrictlyEqual);
                     // b. If found is true then [evaluate case]
-                    jump_indexes.push(Some(
-                        ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue),
-                    ));
+                    let jump_to_case_evaluation =
+                        ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue);
+                    cases.push((case, Some(jump_to_case_evaluation)));
                 } else {
-                    jump_indexes.push(None);
+                    // If the evaluation or GetValue of a test expression fails
+                    // unconditionally, any remaining test cases become
+                    // unreachable.
+                    if cases.is_empty() {
+                        // The very first case test fails: code after the switch
+                        // block is unreachable.
+                        return ControlFlow::Break(StatementBreak::Error);
+                    }
+
+                    end_unreachable = true;
+                    break;
                 }
             }
 
-            let jump_to_end = if has_default {
-                // 10. If foundInB is true, return V.
-                // 11. Let defaultR be Completion(Evaluation of DefaultClause).
-                jump_indexes.push(Some(ctx.add_instruction_with_jump_slot(Instruction::Jump)));
+            // Note: switchValue changes to be V now.
+            let v = &switch_value;
+
+            let jump_to_end = if end_unreachable {
                 None
             } else {
-                Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
+                // If end is not unreachable, we have to add an unconditional
+                // jump here. That either takes us to the default case or to the
+                // end of the switch block.
+                if let Some(default_case_index) = default_case_index {
+                    let jump_to_default_case =
+                        ctx.add_instruction_with_jump_slot(Instruction::Jump);
+                    // 10. If foundInB is true, return V.
+                    // 11. Let defaultR be Completion(Evaluation of DefaultClause).
+                    let previous_jump = cases[default_case_index as usize]
+                        .1
+                        .replace(jump_to_default_case);
+                    debug_assert!(previous_jump.is_none());
+                    None
+                } else {
+                    // If nothing matched and default case doesn't exist then we
+                    // need to set V to undefined here.
+                    ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+                    v.write(ctx);
+                    Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
+                }
             };
 
-            let mut index = 0;
-            let mut prev_result = ControlFlow::Continue(StatementContinue::Empty);
-            for (i, case) in self.cases.iter().enumerate() {
-                let fallthrough_jump = if i != 0 {
+            // === THIS LINE IS UNREACHABLE ===
+
+            // Either some case test before the end always fails, or we have a
+            // default case to jump to, or we jump to the end of the switch
+            // block. Hence, control flow never enters here normally.
+
+            let mut prev_result = ControlFlow::Break(StatementBreak::Break);
+            'cases: for (case, jump_index) in cases.into_iter() {
+                let fallthrough_jump = if prev_result.is_break() {
                     // OPTIMISATION: if previous case ended with a break or an
-                    // otherwise terminal instruction, we don't need a fallthrough
-                    // jump at the beginning of the next case.
-                    if prev_result.is_break() {
-                        None
-                    } else {
-                        Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
-                    }
-                } else {
+                    // otherwise terminal instruction, we don't need a
+                    // fallthrough jump at the beginning of the next case.
                     None
+                } else {
+                    Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
                 };
                 // Jump from IsStrictlyEqual comparison to here.
-                let jump_index = if case.test.is_some() {
-                    let jump_index = jump_indexes.get(index).unwrap();
-                    index += 1;
-                    jump_index
-                } else {
-                    // Default case! The jump index is last in the Vec.
-                    jump_indexes.last().unwrap()
+                let Some(jump_index) = jump_index else {
+                    // This can only happen if the default case is unreachable
+                    // due to some test always failing. In that case we do not
+                    // need to generate code for it.
+                    continue;
                 };
-                if let Some(jump_index) = jump_index {
-                    ctx.set_jump_target_here(jump_index.clone());
-                }
+                ctx.set_jump_target_here(jump_index.clone());
 
                 // 1. Let V be undefined.
-                // Pop the switchValue from the stack.
-                ctx.add_instruction(Instruction::Store);
-                // And override it with undefined
                 ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+                v.write(ctx);
 
                 if let Some(fallthrough_jump) = fallthrough_jump {
                     ctx.set_jump_target_here(fallthrough_jump);
                 }
 
-                // Reset the previous result for every case.
-                prev_result = ControlFlow::Continue(StatementContinue::Empty);
-
                 // i. Let R be Completion(Evaluation of C).
+                if case.consequent.is_empty() {
+                    // Empty consequents fall through to the next case.
+                    prev_result = ControlFlow::Continue(StatementContinue::Empty);
+                    continue 'cases;
+                }
+
+                v.read(ctx);
+                let v_copy = ctx.load_to_stack();
+
                 for ele in &case.consequent {
-                    if prev_result.is_break() {
-                        // Stop looping over statements if we found a break.
-                        break;
-                    }
                     prev_result = ele.compile(ctx);
+                    if prev_result.is_break() {
+                        // Continue to next case if the rest of the current case
+                        // becomes unreachable.
+                        v_copy.forget(ctx);
+                        continue 'cases;
+                    }
                 }
                 // ii. If R.[[Value]] is not empty, set V to R.[[Value]].
-                // if !ctx.is_unreachable() {
-                //     ctx.add_instruction(Instruction::LoadReplace);
-                // }
+                // iii. If R is an abrupt completion, return ? UpdateEmpty(R, V).
+                v_copy.update_empty(ctx);
+                v.write(ctx);
             }
 
             if let Some(jump_to_end) = jump_to_end {
@@ -4091,10 +4185,9 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
             ControlFlow::Continue(StatementContinue::Value)
         });
 
-        switch.exit(ctx);
-        // iii. If R is an abrupt completion, return ? UpdateEmpty(R, V).
-        // ctx.add_instruction(Instruction::UpdateEmpty);
         // 9. Return R.
+        switch.exit(ctx);
+        switch_value.update_empty(ctx);
         r
     }
 }
@@ -4225,7 +4318,7 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
         ctx: &mut CompileContext<'_, 's, '_, '_>,
     ) -> Self::Output {
         // 1. Let V be undefined.
-        let v = ctx.push_stack_loop_result();
+        let v = ctx.push_stack_result_value(false);
         // 2. Repeat
         let l = ctx.enter_loop(label_set.cloned());
         let jump_over_continue = ctx.add_instruction_with_jump_slot(Instruction::Jump);
@@ -4279,7 +4372,7 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
         // failure then result is currently empty and UpdateEmpty will pop V
         // into the result register.
         l.exit(ctx, continue_label);
-        v.exit(ctx);
+        v.forget(ctx);
 
         stmt_result
     }
@@ -4296,7 +4389,7 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
         ctx: &mut CompileContext<'_, 's, '_, '_>,
     ) -> Self::Output {
         // 1. Let V be undefined.
-        let v = ctx.push_stack_loop_result();
+        let v = ctx.push_stack_result_value(false);
         // 2. Repeat,
         let l = ctx.enter_loop(label_set.cloned());
         let jump_over_continue = ctx.add_instruction_with_jump_slot(Instruction::Jump);
@@ -4358,7 +4451,7 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
         // failure then result is currently empty and UpdateEmpty will pop V
         // into the result register.
         l.exit(ctx, continue_label);
-        v.exit(ctx);
+        v.forget(ctx);
         stmt_result
     }
 }

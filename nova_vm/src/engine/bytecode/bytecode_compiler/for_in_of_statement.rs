@@ -129,7 +129,7 @@ fn for_in_of_body_evaluation<'s, 'gc>(
     // 1. If iteratorKind is not present, set iteratorKind to SYNC.
     // 2. Let oldEnv be the running execution context's LexicalEnvironment.
     // 3. Let V be undefined.
-    let v = ctx.push_stack_loop_result();
+    let v = ctx.push_stack_result_value(false);
     // 4. Let destructuring be IsDestructuring of lhs.
     let destructuring = if let ast::ForStatementLeft::VariableDeclaration(lhs) = lhs {
         assert_eq!(lhs.declarations.len(), 1);
@@ -391,7 +391,7 @@ fn for_in_of_body_evaluation<'s, 'gc>(
     // 4. Return ? IteratorClose(iteratorRecord, status).
     // 3. If iteratorKind is ASYNC, return ? AsyncIteratorClose(iteratorRecord, status).
     r#loop.exit(ctx, continue_target);
-    v.exit(ctx);
+    v.forget(ctx);
 
     // On break
     let jump_over_return_v = if ctx.is_unreachable() {

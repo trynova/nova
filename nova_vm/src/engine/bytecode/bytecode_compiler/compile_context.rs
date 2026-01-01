@@ -250,10 +250,10 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     /// Exit a lexical scope.
     fn exit_lexical_scope(&mut self, scope: LexicalScope) {
         core::mem::forget(scope);
-        matches!(
+        debug_assert!(matches!(
             self.control_flow_stack.pop(),
             Some(ControlFlowStackEntry::LexicalScope)
-        );
+        ));
         if self.is_unreachable() {
             // OPTIMISATION: We don't need to add exit handling if this line is
             // unreachable.
@@ -278,30 +278,28 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         StackValue
     }
 
-    /// Pop a StackValue from the top of the stack.
-    fn pop_stack_value(&mut self, var: StackValue) {
-        self.forget_stack_value(var);
-        if self.is_unreachable() {
-            // OPTIMISATION: We don't need to add exit handling if this line is
-            // unreachable.
-            return;
-        }
-        compile_stack_variable_exit(&mut self.executable);
-    }
-
     /// Forget a StackValue.
-    fn forget_stack_value(&mut self, var: StackValue) {
+    fn pop_stack_value(&mut self, var: StackValue) {
         core::mem::forget(var);
-        matches!(
+        debug_assert!(matches!(
             self.control_flow_stack.pop(),
             Some(ControlFlowStackEntry::StackValue)
-        );
+        ));
         self.executable.pop_stack();
     }
 
     /// Load the current result onto the stack as a StackValue.
     pub(super) fn load_to_stack(&mut self) -> StackValue {
         self.add_instruction(Instruction::Load);
+        let _ = self.executable.push_stack();
+        self.control_flow_stack
+            .push(ControlFlowStackEntry::StackValue);
+        StackValue
+    }
+
+    /// Load a constant onto the stack as a StackValue.
+    pub(super) fn load_constant_to_stack(&mut self, constant: impl Into<Value<'gc>>) -> StackValue {
+        self.add_instruction_with_constant(Instruction::LoadConstant, constant);
         let _ = self.executable.push_stack();
         self.control_flow_stack
             .push(ControlFlowStackEntry::StackValue);
@@ -315,17 +313,6 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         self.control_flow_stack
             .push(ControlFlowStackEntry::StackValue);
         StackValue
-    }
-
-    /// Store a StackValue as the result value.
-    fn store_from_stack(&mut self, var: StackValue) {
-        self.forget_stack_value(var);
-        if self.is_unreachable() {
-            // OPTIMISATION: We don't need to add exit handling if this line is
-            // unreachable.
-            return;
-        }
-        self.executable.add_instruction(Instruction::Store);
     }
 
     /// Add a lexical variable. These variables must not escape the scope via
@@ -350,10 +337,10 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     /// Pop a lexical variable.
     fn pop_stack_variable(&mut self, var: StackVariable) {
         core::mem::forget(var);
-        matches!(
+        debug_assert!(matches!(
             self.control_flow_stack.pop(),
             Some(ControlFlowStackEntry::StackValue)
-        );
+        ));
         self.stack_variables.pop().unwrap();
         self.executable.pop_stack();
         if self.is_unreachable() {
@@ -364,23 +351,29 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         compile_stack_variable_exit(&mut self.executable);
     }
 
-    /// Add a loop result onto the stack. This is an unnameable variable on the
-    /// stack that gets updated on each loop iteration.
-    pub(super) fn push_stack_loop_result(&mut self) -> StackLoopResult {
-        self.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+    /// Add a result value onto the stack. This is an unnameable variable on the
+    /// stack.
+    pub(super) fn push_stack_result_value(
+        &mut self,
+        value_in_result_register: bool,
+    ) -> StackResultValue {
+        if !value_in_result_register {
+            self.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+        }
         self.add_instruction(Instruction::Load);
-        let _ = self.executable.push_stack();
+        let stack_slot = self.executable.push_stack();
         self.control_flow_stack
-            .push(ControlFlowStackEntry::StackLoopResult);
-        StackLoopResult
+            .push(ControlFlowStackEntry::StackResultValue);
+        StackResultValue {
+            stack_slot: stack_slot,
+        }
     }
 
-    /// Pop a loop result from the stack.
-    fn pop_stack_loop_result(&mut self, l: StackLoopResult) {
-        core::mem::forget(l);
+    fn pop_stack_result_value(&mut self, result: StackResultValue) {
+        core::mem::forget(result);
         matches!(
             self.control_flow_stack.pop(),
-            Some(ControlFlowStackEntry::StackLoopResult)
+            Some(ControlFlowStackEntry::StackResultValue)
         );
         self.executable.pop_stack();
     }
@@ -399,10 +392,10 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     /// Enter a private environment scope.
     fn exit_private_scope(&mut self, scope: PrivateScope) {
         core::mem::forget(scope);
-        matches!(
+        debug_assert!(matches!(
             self.control_flow_stack.pop(),
             Some(ControlFlowStackEntry::PrivateScope)
-        );
+        ));
         if self.is_unreachable() {
             // OPTIMISATION: We don't need to add exit handling if this line is
             // unreachable.
@@ -424,14 +417,14 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     /// Exit a lexical scope.
     fn exit_class_static_block(&mut self, scope: ClassStaticBlock) {
         core::mem::forget(scope);
-        matches!(
+        debug_assert!(matches!(
             self.control_flow_stack.pop(),
             Some(ControlFlowStackEntry::VariableScope)
-        );
-        matches!(
+        ));
+        debug_assert!(matches!(
             self.control_flow_stack.pop(),
             Some(ControlFlowStackEntry::LexicalScope)
-        );
+        ));
         if self.is_unreachable() {
             // OPTIMISATION: We don't need to add exit handling if this line is
             // unreachable.
@@ -1343,12 +1336,35 @@ impl Undroppable for StackValue {}
 impl StackValue {
     /// Store a StackValue as the result value.
     pub(crate) fn store(self, ctx: &mut CompileContext) {
-        ctx.store_from_stack(self);
+        ctx.pop_stack_value(self);
+        if ctx.is_unreachable() {
+            // OPTIMISATION: We don't need to add exit handling if this line is
+            // unreachable.
+            return;
+        }
+        ctx.executable.add_instruction(Instruction::Store);
     }
 
     /// Pop a StackValue from the stack.
     pub(crate) fn pop(self, ctx: &mut CompileContext) {
         ctx.pop_stack_value(self);
+        if ctx.is_unreachable() {
+            // OPTIMISATION: We don't need to add exit handling if this line is
+            // unreachable.
+            return;
+        }
+        ctx.executable.add_instruction(Instruction::PopStack);
+    }
+
+    /// Remove a StackValue from the stack using UpdateEmpty.
+    pub(crate) fn update_empty(self, ctx: &mut CompileContext) {
+        ctx.pop_stack_value(self);
+        if ctx.is_unreachable() {
+            // OPTIMISATION: We don't need to add exit handling if this line is
+            // unreachable.
+            return;
+        }
+        ctx.executable.add_instruction(Instruction::UpdateEmpty);
     }
 
     /// Forget a StackValue. This should be used when an instruction consumes
@@ -1357,7 +1373,7 @@ impl StackValue {
     /// unreachable cases a try-catch block should eventually drop the Value
     /// from the stack automatically.
     pub(crate) fn forget(self, ctx: &mut CompileContext) {
-        ctx.forget_stack_value(self);
+        ctx.pop_stack_value(self);
     }
 }
 
@@ -1385,22 +1401,73 @@ impl Drop for StackVariable {
         Self::on_drop();
     }
 }
-pub(crate) struct StackLoopResult;
-impl Undroppable for StackLoopResult {}
 
-impl StackLoopResult {
+pub(crate) struct StackResultValue {
+    stack_slot: u32,
+}
+impl Undroppable for StackResultValue {}
+
+impl StackResultValue {
+    /// Read the StackResultValue value into the result register.
+    pub(crate) fn read(&self, ctx: &mut CompileContext) {
+        ctx.add_instruction_with_immediate(
+            Instruction::GetValueFromIndex,
+            self.stack_slot as usize,
+        );
+    }
+
+    /// Write a value into the StackResultValue stack slot.
+    pub(crate) fn write(&self, ctx: &mut CompileContext) {
+        ctx.add_instruction_with_immediate(Instruction::PutValueToIndex, self.stack_slot as usize);
+    }
+
+    /// UpdateEmpty an StackResultValue from the stack into the result register.
     #[inline(always)]
-    pub(crate) fn exit(self, ctx: &mut CompileContext) {
-        ctx.pop_stack_loop_result(self);
+    pub(crate) fn update_empty(self, ctx: &mut CompileContext) {
+        ctx.pop_stack_result_value(self);
+        if ctx.is_unreachable() {
+            // OPTIMISATION: We don't need to add exit handling if this line is
+            // unreachable.
+            return;
+        }
+        ctx.executable.add_instruction(Instruction::UpdateEmpty);
+    }
+
+    /// Forget an StackResultValue. This is useful when someone else takes care of popping the stack.
+    #[inline(always)]
+    pub(crate) fn forget(self, ctx: &mut CompileContext) {
+        ctx.pop_stack_result_value(self);
     }
 }
 
 #[cfg(debug_assertions)]
-impl Drop for StackLoopResult {
+impl Drop for StackResultValue {
     fn drop(&mut self) {
         Self::on_drop();
     }
 }
+
+pub(crate) enum BlockEnvPrep {
+    Var(StackVariable),
+    Env(LexicalScope),
+}
+
+impl BlockEnvPrep {
+    #[inline(always)]
+    pub(crate) fn is_env(&self) -> bool {
+        matches!(self, BlockEnvPrep::Env(_))
+    }
+
+    /// Pop a BlockEnvPrep from the stack.
+    #[inline(always)]
+    pub(crate) fn exit(self, ctx: &mut CompileContext) {
+        match self {
+            BlockEnvPrep::Var(var) => var.exit(ctx),
+            BlockEnvPrep::Env(scope) => scope.exit(ctx),
+        }
+    }
+}
+
 pub(crate) struct PrivateScope;
 impl Undroppable for PrivateScope {}
 
