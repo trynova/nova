@@ -310,6 +310,7 @@ fn for_in_of_body_evaluation<'s, 'gc>(
     // Note: we move the abrupt completion handling after the loop to improve
     // performance.
 
+    ctx.add_instruction(Instruction::Debug);
     // j. Let result be Completion(Evaluation of stmt).
     let result = if let Err(err) = status {
         ControlFlow::Break(err.into())

@@ -1452,7 +1452,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Object
                                 if is_anonymous_function_definition(&prop.value) {
                                     ctx.name_identifier = Some(NamedEvaluationParameter::Stack);
                                 }
-                                let key_copy = ctx.load_copy_to_stack();
+                                let key_copy = ctx.load_to_stack();
                                 let result = prop.value.compile(ctx).and_then(|r| r.get_value(ctx));
                                 // Note: key copy is either forgotten on stack
                                 // and gets cleaned up by try-catch if result is

@@ -229,7 +229,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
         } else {
             // 2. let lval be ? GetValue(lref).
             let _lval = lref.get_value_keep_reference(ctx)?;
-            let lval_copy = ctx.load_copy_to_stack();
+            let lval_copy = ctx.load_to_stack();
             let do_push_reference = lref.has_reference() && !self.right.is_literal();
             if do_push_reference {
                 ctx.add_instruction(Instruction::PushReference);
@@ -328,9 +328,6 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
             } else {
                 target.compile(ctx)?
             };
-            if needs_load_store {
-                ctx.add_instruction(Instruction::Store);
-            }
             // result: value
             // stack: []
             // reference: &target
