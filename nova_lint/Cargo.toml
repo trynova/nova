@@ -25,6 +25,10 @@ name = "gc_scope_is_only_passed_by_value"
 path = "ui/gc_scope_is_only_passed_by_value.rs"
 
 [[example]]
+name = "immediately_bind_scoped"
+path = "ui/immediately_bind_scoped.rs"
+
+[[example]]
 name = "no_it_performs_the_following"
 path = "ui/no_it_performs_the_following.rs"
 
