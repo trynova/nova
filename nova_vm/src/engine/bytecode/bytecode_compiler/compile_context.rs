@@ -1288,6 +1288,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     }
 }
 
+#[cfg(debug_assertions)]
 trait Undroppable {
     #[inline(always)]
     fn on_drop() {
@@ -1307,6 +1308,7 @@ trait Undroppable {
 
 #[must_use]
 pub(crate) struct LexicalScope;
+#[cfg(debug_assertions)]
 impl Undroppable for LexicalScope {}
 
 impl LexicalScope {
@@ -1325,6 +1327,7 @@ impl Drop for LexicalScope {
 
 #[must_use]
 pub(crate) struct ClassStaticBlock;
+#[cfg(debug_assertions)]
 impl Undroppable for ClassStaticBlock {}
 
 impl ClassStaticBlock {
@@ -1344,6 +1347,7 @@ impl Drop for ClassStaticBlock {
 /// A Value was pushed onto the VM stack. The Value must be popped from the
 /// stack under all possible execution paths.
 pub(crate) struct StackValue;
+#[cfg(debug_assertions)]
 impl Undroppable for StackValue {}
 
 impl StackValue {
@@ -1398,6 +1402,7 @@ impl Drop for StackValue {
 }
 
 pub(crate) struct StackVariable;
+#[cfg(debug_assertions)]
 impl Undroppable for StackVariable {}
 
 impl StackVariable {
@@ -1418,6 +1423,7 @@ impl Drop for StackVariable {
 pub(crate) struct StackResultValue {
     stack_slot: u32,
 }
+#[cfg(debug_assertions)]
 impl Undroppable for StackResultValue {}
 
 impl StackResultValue {
@@ -1482,6 +1488,7 @@ impl BlockEnvPrep {
 }
 
 pub(crate) struct PrivateScope;
+#[cfg(debug_assertions)]
 impl Undroppable for PrivateScope {}
 
 impl PrivateScope {
@@ -1498,6 +1505,7 @@ impl Drop for PrivateScope {
     }
 }
 pub(crate) struct TryCatchBlock(JumpIndex);
+#[cfg(debug_assertions)]
 impl Undroppable for TryCatchBlock {}
 
 impl TryCatchBlock {
@@ -1516,6 +1524,7 @@ impl Drop for TryCatchBlock {
     }
 }
 pub(crate) struct TryFinallyBlock;
+#[cfg(debug_assertions)]
 impl Undroppable for TryFinallyBlock {}
 
 impl TryFinallyBlock {
@@ -1537,6 +1546,7 @@ impl Drop for TryFinallyBlock {
     }
 }
 pub(crate) struct IfStatement;
+#[cfg(debug_assertions)]
 impl Undroppable for IfStatement {}
 
 impl IfStatement {
@@ -1553,6 +1563,7 @@ impl Drop for IfStatement {
     }
 }
 pub(crate) struct LabelledStatement;
+#[cfg(debug_assertions)]
 impl Undroppable for LabelledStatement {}
 
 impl LabelledStatement {
@@ -1569,6 +1580,7 @@ impl Drop for LabelledStatement {
     }
 }
 pub(crate) struct FinallyBlock;
+#[cfg(debug_assertions)]
 impl Undroppable for FinallyBlock {}
 
 impl FinallyBlock {
@@ -1590,6 +1602,7 @@ pub(crate) enum Loop {
     SyncIterator(JumpIndex),
     AsyncIterator(JumpIndex),
 }
+#[cfg(debug_assertions)]
 impl Undroppable for Loop {}
 
 impl Loop {
@@ -1626,6 +1639,7 @@ impl Drop for Loop {
     }
 }
 pub(crate) struct SwitchBlock;
+#[cfg(debug_assertions)]
 impl Undroppable for SwitchBlock {}
 
 impl SwitchBlock {
@@ -1642,6 +1656,7 @@ impl Drop for SwitchBlock {
     }
 }
 pub(crate) struct IteratorStackEntry(JumpIndex);
+#[cfg(debug_assertions)]
 impl Undroppable for IteratorStackEntry {}
 
 impl IteratorStackEntry {
@@ -1665,6 +1680,7 @@ impl Drop for IteratorStackEntry {
     }
 }
 pub(crate) struct ArrayDestructuring(JumpIndex);
+#[cfg(debug_assertions)]
 impl Undroppable for ArrayDestructuring {}
 
 impl ArrayDestructuring {
