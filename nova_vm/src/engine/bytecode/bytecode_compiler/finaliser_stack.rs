@@ -52,8 +52,8 @@ pub(super) enum ControlFlowStackEntry<'a> {
     PrivateScope,
     /// A variable was pushed onto the stack.
     StackValue,
-    /// A loop result variable was pushed onto the stack.
-    StackLoopResult,
+    /// A result variable was pushed onto the stack.
+    StackResultValue,
     /// A try-catch block was entered.
     CatchBlock,
     /// An if-statement was entered.
@@ -231,7 +231,7 @@ impl<'a> ControlFlowStackEntry<'a> {
             | ControlFlowStackEntry::VariableScope
             | ControlFlowStackEntry::PrivateScope
             | ControlFlowStackEntry::StackValue
-            | ControlFlowStackEntry::StackLoopResult
+            | ControlFlowStackEntry::StackResultValue
             | ControlFlowStackEntry::CatchBlock
             | ControlFlowStackEntry::IfStatement
             | ControlFlowStackEntry::FinallyBlock
@@ -267,7 +267,7 @@ impl<'a> ControlFlowStackEntry<'a> {
             | ControlFlowStackEntry::VariableScope
             | ControlFlowStackEntry::PrivateScope
             | ControlFlowStackEntry::StackValue
-            | ControlFlowStackEntry::StackLoopResult
+            | ControlFlowStackEntry::StackResultValue
             | ControlFlowStackEntry::FinallyBlock
             | ControlFlowStackEntry::IfStatement
             | ControlFlowStackEntry::CatchBlock { .. }
@@ -315,7 +315,7 @@ impl<'a> ControlFlowStackEntry<'a> {
             // try-finally-blocks, and iterator closes must be called on
             // return.
             ControlFlowStackEntry::StackValue
-            | ControlFlowStackEntry::StackLoopResult
+            | ControlFlowStackEntry::StackResultValue
             | ControlFlowStackEntry::IfStatement
             | ControlFlowStackEntry::FinallyBlock
             | ControlFlowStackEntry::ArrayDestructuring
@@ -360,7 +360,7 @@ impl<'a> ControlFlowStackEntry<'a> {
             ControlFlowStackEntry::StackValue => {
                 compile_stack_variable_exit(executable);
             }
-            ControlFlowStackEntry::StackLoopResult => {}
+            ControlFlowStackEntry::StackResultValue => {}
             ControlFlowStackEntry::IfStatement => {
                 if has_result {
                     // OPTIMISATION: if we statically know we have a result,
@@ -394,7 +394,7 @@ impl<'a> ControlFlowStackEntry<'a> {
                 unreachable!()
             }
             ControlFlowStackEntry::Switch { .. } => {
-                // Switches don't need finalisation.
+                executable.add_instruction(Instruction::UpdateEmpty);
             }
             ControlFlowStackEntry::IteratorStackEntry => {
                 // Enumerator loops need to pop the iterator stack.

@@ -299,10 +299,12 @@ pub enum Instruction {
     /// Call `object[[SetPrototypeOf]](value)` on the object on the stack using
     /// the current result value as the parameter.
     ObjectSetPrototype,
-    /// Pop a jump target for uncaught exceptions
-    PopExceptionJumpTarget,
     /// Push a jump target for uncaught exceptions
     PushExceptionJumpTarget,
+    /// Pop a jump target for uncaught exceptions
+    PopExceptionJumpTarget,
+    /// Truncate the runtime stack to the given depth.
+    TruncateStack,
     /// Store ResolveBinding() in the reference register using a property
     /// lookup cache.
     ResolveBindingWithCache,
@@ -591,6 +593,7 @@ impl Instruction {
             | Self::MakePrivateReference
             | Self::MakeSuperPropertyReferenceWithIdentifierKey
             | Self::ObjectCreateWithShape
+            | Self::TruncateStack
             | Self::PutValueWithCache
             | Self::ResolveBinding
             | Self::StoreConstant
@@ -1277,6 +1280,7 @@ impl TryFrom<u8> for Instruction {
         const TONUMBER: u8 = Instruction::ToNumber.as_u8();
         const TONUMERIC: u8 = Instruction::ToNumeric.as_u8();
         const TOOBJECT: u8 = Instruction::ToObject.as_u8();
+        const TRUNCATESTACK: u8 = Instruction::TruncateStack.as_u8();
         const TYPEOF: u8 = Instruction::Typeof.as_u8();
         const UNARYMINUS: u8 = Instruction::UnaryMinus.as_u8();
         const YIELD: u8 = Instruction::Yield.as_u8();
@@ -1442,6 +1446,7 @@ impl TryFrom<u8> for Instruction {
             TONUMBER => Ok(Instruction::ToNumber),
             TONUMERIC => Ok(Instruction::ToNumeric),
             TOOBJECT => Ok(Instruction::ToObject),
+            TRUNCATESTACK => Ok(Instruction::TruncateStack),
             TYPEOF => Ok(Instruction::Typeof),
             UNARYMINUS => Ok(Instruction::UnaryMinus),
             YIELD => Ok(Instruction::Yield),

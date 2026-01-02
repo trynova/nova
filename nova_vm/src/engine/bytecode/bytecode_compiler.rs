@@ -18,13 +18,6 @@ mod with_statement;
 use std::{convert::Infallible, ops::ControlFlow};
 
 use super::{FunctionExpression, Instruction, SendableRef, executable::ArrowFunctionExpression};
-use crate::ecmascript::{
-    syntax_directed_operations::{
-        function_definitions::ContainsExpression,
-        scope_analysis::{LexicallyScopedDeclaration, LexicallyScopedDeclarations},
-    },
-    types::{BUILTIN_STRING_MEMORY, BigInt, IntoValue, Number, String, Value},
-};
 #[cfg(feature = "typescript")]
 use crate::{ecmascript::builtins::ordinary::shape::ObjectShapeRecord, heap::CreateHeapData};
 use crate::{
@@ -34,7 +27,20 @@ use crate::{
         execution::{Agent, agent::ExceptionType},
         types::{IntoObject, Primitive, PropertyKey},
     },
-    engine::context::{Bindable, NoGcScope},
+    engine::{
+        bytecode::bytecode_compiler::compile_context::{BlockEnvPrep, StackResultValue},
+        context::{Bindable, NoGcScope},
+    },
+};
+use crate::{
+    ecmascript::{
+        syntax_directed_operations::{
+            function_definitions::ContainsExpression,
+            scope_analysis::{LexicallyScopedDeclaration, LexicallyScopedDeclarations},
+        },
+        types::{BUILTIN_STRING_MEMORY, BigInt, IntoValue, Number, String, Value},
+    },
+    engine::bytecode::bytecode_compiler::compile_context::StackValue,
 };
 pub(crate) use compile_context::{
     CompileContext, CompileEvaluation, CompileLabelledEvaluation, GeneratorKind, IndexType,
@@ -272,15 +278,18 @@ impl<'s, 'gc> Place<'s, 'gc> {
                 name,
             } => {
                 if !mutable {
+                    // a. Assert: This is an attempt to change the value of an
+                    //    immutable binding. b. If S is true, throw a TypeError
+                    //    exception.
                     let message = format!(
-                        "can't mutate const declaration '{}' before initialization",
-                        name.as_str(ctx.get_agent()).unwrap()
+                        "invalid assignment to const '{}'",
+                        name.to_string_lossy(ctx.get_agent())
                     );
                     let message = ctx.create_string_from_owned(message);
                     ctx.add_instruction_with_constant(Instruction::StoreConstant, message);
                     ctx.add_instruction_with_immediate(
                         Instruction::ThrowError,
-                        ExceptionType::ReferenceError as usize,
+                        ExceptionType::TypeError as usize,
                     );
                     Err(ExpressionError::Error)
                 } else {
@@ -1108,12 +1117,17 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Binary
         let lref = self.left.compile(ctx)?;
         // 2. Let lval be ? GetValue(lref).
         let _lval = lref.get_value(ctx)?;
-        ctx.add_instruction(Instruction::Load);
+        let lval_on_stack = ctx.load_to_stack();
 
         // 3. Let rref be ? Evaluation of rightOperand.
-        let rref = self.right.compile(ctx)?;
+        let rref = self.right.compile(ctx);
         // 4. Let rval be ? GetValue(rref).
-        let _rval = rref.get_value(ctx)?;
+        let rval = rref.and_then(|r| r.get_value(ctx));
+
+        if let Err(err) = rval {
+            lval_on_stack.forget(ctx);
+            return Err(err);
+        }
 
         let op_text = match self.operator {
             BinaryOperator::LessThan => Instruction::LessThan,
@@ -1148,6 +1162,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Binary
             BinaryOperator::BitwiseAnd => Instruction::ApplyBitwiseAndBinaryOperator,
         };
         // 5. Return ? ApplyStringOrNumericBinaryOperator(lval, opText, rval).
+        lval_on_stack.forget(ctx);
         ctx.add_instruction(op_text);
         Ok(ValueOutput::Value)
     }
@@ -1278,6 +1293,7 @@ fn create_object_with_shape<'s, 'gc>(
         )
     };
     let mut shape = ObjectShape::get_shape_for_prototype(ctx.get_agent_mut(), prototype);
+    let mut prop_values_on_stack: Vec<StackValue> = Vec::with_capacity(expr.properties.len());
     for prop in expr.properties.iter() {
         let ast::ObjectPropertyKind::ObjectProperty(prop) = prop else {
             unreachable!()
@@ -1296,9 +1312,18 @@ fn create_object_with_shape<'s, 'gc>(
             ctx.add_instruction_with_constant(Instruction::StoreConstant, identifier);
             ctx.name_identifier = Some(NamedEvaluationParameter::Result);
         }
-        prop.value.compile(ctx)?.get_value(ctx)?;
+        if let Err(err) = prop.value.compile(ctx).and_then(|r| r.get_value(ctx)) {
+            for prop_on_stack in prop_values_on_stack {
+                prop_on_stack.forget(ctx);
+            }
+            return Err(err);
+        }
 
-        ctx.add_instruction(Instruction::Load);
+        prop_values_on_stack.push(ctx.load_to_stack());
+    }
+    // ObjectCreateWithShape consumes the props from the stack.
+    for prop_on_stack in prop_values_on_stack {
+        prop_on_stack.forget(ctx);
     }
     ctx.add_instruction_with_shape(Instruction::ObjectCreateWithShape, shape);
     Ok(ValueOutput::Value)
@@ -1348,6 +1373,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Object
         // TODO: Consider preparing the properties onto the stack and creating
         // the object with a known size.
         ctx.add_instruction(Instruction::ObjectCreate);
+        let obj = ctx.mark_stack_value();
         for property in self.properties.iter() {
             match property {
                 ast::ObjectPropertyKind::ObjectProperty(prop) => {
@@ -1381,17 +1407,21 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Object
                             if is_reference(prop_key) {
                                 assert!(!is_proto_setter);
                             }
-                            prop_key.compile(ctx)?.get_value(ctx)?;
+                            if let Err(err) = prop_key.compile(ctx).and_then(|r| r.get_value(ctx)) {
+                                obj.forget(ctx);
+                                return Err(err);
+                            }
                         }
-                    }
-                    if !is_proto_setter {
-                        // Prototype setter doesn't need the key.
-                        ctx.add_instruction(Instruction::Load);
                     }
                     match prop.kind {
                         ast::PropertyKind::Init => {
                             if is_proto_setter {
-                                prop.value.compile(ctx)?.get_value(ctx)?;
+                                if let Err(err) =
+                                    prop.value.compile(ctx).and_then(|r| r.get_value(ctx))
+                                {
+                                    obj.forget(ctx);
+                                    return Err(err);
+                                }
                                 // 7. If isProtoSetter is true, then
                                 // a. If propValue is an Object or propValue is null, then
                                 //     i. Perform ! object.[[SetPrototypeOf]](propValue).
@@ -1406,6 +1436,9 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Object
                                 } else {
                                     None
                                 };
+                                // Note: not load_copy_to_stack as this is
+                                // immediately consumed
+                                ctx.add_instruction(Instruction::Load);
                                 ctx.add_instruction_with_function_expression_and_immediate(
                                     Instruction::ObjectDefineMethod,
                                     FunctionExpression {
@@ -1425,11 +1458,23 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Object
                                 if is_anonymous_function_definition(&prop.value) {
                                     ctx.name_identifier = Some(NamedEvaluationParameter::Stack);
                                 }
-                                prop.value.compile(ctx)?.get_value(ctx)?;
+                                let key_copy = ctx.load_to_stack();
+                                let result = prop.value.compile(ctx).and_then(|r| r.get_value(ctx));
+                                // Note: key copy is either forgotten on stack
+                                // and gets cleaned up by try-catch if result is
+                                // Err, or is consumed by ObjectDefineProperty.
+                                key_copy.forget(ctx);
+                                if let Err(err) = result {
+                                    obj.forget(ctx);
+                                    return Err(err);
+                                }
                                 ctx.add_instruction(Instruction::ObjectDefineProperty);
                             }
                         }
                         ast::PropertyKind::Get | ast::PropertyKind::Set => {
+                            // Note: no load_copy_to_stack as this is
+                            // immediately consumed.
+                            ctx.add_instruction(Instruction::Load);
                             let is_get = prop.kind == ast::PropertyKind::Get;
                             let ast::Expression::FunctionExpression(function_expression) =
                                 &prop.value
@@ -1461,13 +1506,16 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Object
                     }
                 }
                 ast::ObjectPropertyKind::SpreadProperty(spread) => {
-                    spread.argument.compile(ctx)?.get_value(ctx)?;
+                    if let Err(err) = spread.argument.compile(ctx).and_then(|r| r.get_value(ctx)) {
+                        obj.forget(ctx);
+                        return Err(err);
+                    }
                     ctx.add_instruction(Instruction::CopyDataProperties);
                 }
             }
         }
         // 3. Return obj
-        ctx.add_instruction(Instruction::Store);
+        obj.store(ctx);
         Ok(ValueOutput::Value)
     }
 }
@@ -1481,7 +1529,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ArrayE
         if self.elements.is_empty() {
             return Ok(ValueOutput::Value);
         }
-        ctx.add_instruction(Instruction::Load);
+        let array_on_stack = ctx.load_to_stack();
         let try_catch_block = if self
             .elements
             .iter()
@@ -1553,7 +1601,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ArrayE
             // element.
             debug_assert!(jumps_to_pop_iterator.is_empty());
         }
-        ctx.add_instruction(Instruction::Store);
+        array_on_stack.store(ctx);
         if let Some(err) = err {
             Err(err)
         } else {
@@ -1562,275 +1610,148 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ArrayE
     }
 }
 
-fn compile_arguments<'s>(
-    arguments: &'s [ast::Argument<'s>],
+const MAX_STATIC_ARG_COUNT: usize = (IndexType::MAX - 1) as usize;
+fn prep_arguments<'s>(
     ctx: &mut CompileContext<'_, 's, '_, '_>,
-) -> Result<usize, ExpressionError> {
-    let mut static_unwind_try_catch_blocks = if arguments.len() == 1
-        && arguments.first().unwrap().is_expression()
-        || arguments
-            .iter()
-            .all(|arg| arg.as_expression().is_some_and(|expr| expr.is_literal()))
-    {
-        // If we have just one non-spread argument, or all parameters are
-        // literals (have no side-effects whatsoever) then we know the
-        // arguments compilation is infallible (or fails with no items pushed
-        // onto the stack), and we don't need a try-catch block here.
-        None
+    arguments: &'s [ast::Argument<'s>],
+) -> Option<StackResultValue> {
+    let total_arg_count = arguments.len();
+    let has_spread = arguments.iter().any(|arg| arg.is_spread());
+    let static_arg_count = if has_spread {
+        arguments.iter().filter(|arg| !arg.is_spread()).count()
     } else {
-        // We'll need at most IndexType::MAX unwind sites.
-        Some(Vec::with_capacity(
-            arguments.len().min(IndexType::MAX as usize),
-        ))
+        total_arg_count
     };
-    let mut try_catch_block = None;
-    let mut jump_to_iterator_pop = None;
-    // If the arguments don't contain the spread operator, then we can know the
-    // number of arguments at compile-time and we can pass it as an argument to
-    // the call instruction.
-    // Otherwise, the first time we find a spread operator, we need to start
-    // tracking the number of arguments in the compiled bytecode. We store this
-    // number in the result value, and we pass u16::MAX to the call instruction.
-    let mut known_num_arguments = Some(0 as IndexType);
+    if static_arg_count > MAX_STATIC_ARG_COUNT || has_spread {
+        Some(ctx.push_stack_result_value(Some(static_arg_count as u32)))
+    } else {
+        None
+    }
+}
 
-    let mut err = None;
+fn compile_arguments<'s>(
+    ctx: &mut CompileContext<'_, 's, '_, '_>,
+    arguments: &'s [ast::Argument<'s>],
+    dynamic_arg_count: &Option<StackResultValue>,
+) -> Result<usize, ExpressionError> {
+    let mut spread_iterator_throw_handlers = if dynamic_arg_count.is_some() {
+        Vec::with_capacity(1)
+    } else {
+        vec![]
+    };
+
+    let mut stack_values: Vec<StackValue> = Vec::with_capacity(arguments.len());
+
     for argument in arguments {
         // If known_num_arguments is None, the stack contains the number of
         // arguments, followed by the arguments.
         if let ast::Argument::SpreadElement(spread) = argument {
-            if let Some(num_arguments) = known_num_arguments.take() {
-                ctx.add_instruction_with_constant(Instruction::LoadConstant, num_arguments);
-                try_catch_block = Some(ctx.enter_try_catch_block());
+            // If the spread evaluation unconditionally fails, the spread
+            // iteration and the function call itself becomes unreachable.
+            if let Err(err) = spread.argument.compile(ctx).and_then(|s| s.get_value(ctx)) {
+                for v in stack_values {
+                    v.forget(ctx);
+                }
+                return Err(err);
             }
+            let dynamic_arg_count = dynamic_arg_count.as_ref().unwrap();
 
-            if let Err(e) = spread.argument.compile(ctx).and_then(|s| s.get_value(ctx)) {
-                err = Some(e);
-                break;
-            };
             let iterator = ctx.push_sync_iterator();
 
             let iteration_start = ctx.get_jump_index_to_here();
             let iteration_end = ctx.add_instruction_with_jump_slot(Instruction::IteratorStepValue);
-            // result: value; stack: [num, ...args]
-            ctx.add_instruction(Instruction::LoadStoreSwap);
-            // result: num; stack: [value, ...args]
-            ctx.add_instruction(Instruction::Increment);
-            // result: num + 1; stack: [value, ...args]
+            // result: value; stack: [...args, num]
+
+            // Note: no load_to_stack here as this Load gets performed between 0
+            // and N times and we cannot know the true stack depth.
+            // Unfortunately this means that stack depth tracking after an
+            // arguments spread is invalid...
             ctx.add_instruction(Instruction::Load);
-            // stack: [num + 1, value, ...args]
+            // result: EMPTY; stack: [value, ...args, num]
+            dynamic_arg_count.read(ctx);
+            // result: num; stack: [value, ...args, num]
+            ctx.add_instruction(Instruction::Increment);
+            // result: num + 1; stack: [value, ...args, num]
+            dynamic_arg_count.write(ctx);
+            // result: EMPTY; stack: [value, ...args, num + 1]
             ctx.add_jump_instruction_to_index(Instruction::Jump, iteration_start);
             ctx.set_jump_target_here(iteration_end);
-            jump_to_iterator_pop = Some(iterator.exit(ctx));
+            spread_iterator_throw_handlers.push(iterator.exit(ctx));
         } else {
             let expression = argument.to_expression();
 
-            if let Err(e) = expression.compile(ctx).and_then(|s| s.get_value(ctx)) {
-                err = Some(e);
-                break;
-            }
-            if let Some(num_arguments) = known_num_arguments.as_mut() {
-                ctx.add_instruction(Instruction::Load);
-                // stack: [value, ...args]
-
-                if *num_arguments < IndexType::MAX - 1 {
-                    // If we know the number of arguments statically and we need
-                    // unwinding, then we need to push something to the static
-                    // unwinding jumps here as we've loaded one extra value to
-                    // the stack.
-                    *num_arguments += 1;
-                    if let Some(jumps_to_static_unwind) = static_unwind_try_catch_blocks.as_mut() {
-                        // If the next argument is a literal, then we won't
-                        // need a catch handler for it.
-                        let next_index = *num_arguments as usize;
-                        if let Some(next_argument) = arguments.get(next_index) {
-                            // Next argument exists; we might need a catch
-                            // handler.
-                            if next_argument
-                                .as_expression()
-                                .is_some_and(|e| e.is_literal())
-                            {
-                                // Next argument is a literal: it doesn't need
-                                // catch but a subsequent arg might, and it
-                                // needs to know how many values we pushed onto
-                                // the stack. Hence, a None is pushed here.
-                                jumps_to_static_unwind.push(None);
-                            } else {
-                                // Next argument isn't a literal; needs catch.
-                                jumps_to_static_unwind.push(Some(ctx.enter_try_catch_block()));
-                            }
-                        }
-                    }
-                } else {
-                    // If we overflow, we switch to tracking the number on the
-                    // result value.
-                    debug_assert_eq!(*num_arguments, IndexType::MAX - 1);
-                    known_num_arguments = None;
-                    ctx.add_instruction_with_constant(
-                        Instruction::LoadConstant,
-                        Value::from(IndexType::MAX),
-                    );
-                    try_catch_block = Some(ctx.enter_try_catch_block());
-                    // stack: [num + 1, value, ...args]
+            // If a parameter evaluation unconditionally fails, the rest of the
+            // parameters and the call itself become unreachable.
+            if let Err(err) = expression.compile(ctx).and_then(|s| s.get_value(ctx)) {
+                for v in stack_values {
+                    v.forget(ctx);
                 }
-            } else {
-                // result: value; stack: [num, ...args]
-                ctx.add_instruction(Instruction::LoadStoreSwap);
-                // result: num; stack: [value, ...args]
-                ctx.add_instruction(Instruction::Increment);
-                // result: num + 1; stack: [value, ...args]
-                ctx.add_instruction(Instruction::Load);
-                // stack: [num + 1, value, ...args]
+                return Err(err);
             }
+            stack_values.push(ctx.load_to_stack());
+            // stack: [value, ...args]
         }
     }
 
-    let result = if let Some(num_arguments) = known_num_arguments {
-        assert_ne!(num_arguments, IndexType::MAX);
-        num_arguments as usize
-    } else {
-        // stack: [num, ...args]
-        ctx.add_instruction(Instruction::Store);
-        // result: num; stack: [...args]
+    let result = if let Some(num_arguments) = dynamic_arg_count.as_ref() {
+        // stack: [...args, num]
+        num_arguments.read(ctx);
+        // result: num; stack: [...args, num]
         IndexType::MAX as usize
+    } else {
+        debug_assert!(stack_values.len() < MAX_STATIC_ARG_COUNT);
+        stack_values.len()
     };
 
-    // Exit our try-catch blocks.
-    let jumps_to_static_unwind =
-        static_unwind_try_catch_blocks.map(|static_unwind_try_catch_blocks| {
-            static_unwind_try_catch_blocks
-                .into_iter()
-                .map(|e| e.map(|e| e.exit(ctx)))
-                .collect::<Vec<_>>()
-        });
-    let jump_to_dynamic_unwind = try_catch_block.map(|b| b.exit(ctx));
+    // All values pushed onto the stack either get forgotten and cleaned up in
+    // try-catch, or are consumed by EvaluateCall / EvaluateNew.
+    for v in stack_values {
+        v.forget(ctx);
+    }
 
-    if let Some(mut jumps_to_static_unwind) = jumps_to_static_unwind {
+    if !spread_iterator_throw_handlers.is_empty() {
+        // Create a spread iterator try-catch block.
         let jump_over_catch = ctx.add_instruction_with_jump_slot(Instruction::Jump);
-        // ## Catch block
-        if let Some(jump_to_iterator_pop) = jump_to_iterator_pop {
-            debug_assert!(jump_to_dynamic_unwind.is_some());
-            ctx.set_jump_target_here(jump_to_iterator_pop);
-            // Arguments spread threw an error: we need to pop the
-            // jump_to_dynamic_unwind exception handler, pop the iterator
-            // stack, and then continue into the jump_to_dynamic_unwind
-            // catch block.
-            ctx.add_instruction(Instruction::PopExceptionJumpTarget);
-            ctx.add_instruction(Instruction::IteratorPop);
+        for jump_to_throw_handler in spread_iterator_throw_handlers {
+            ctx.set_jump_target_here(jump_to_throw_handler);
         }
-        if let Some(jump_to_dynamic_unwind) = jump_to_dynamic_unwind {
-            ctx.set_jump_target_here(jump_to_dynamic_unwind);
-            let error = ctx.mark_stack_value();
-            // When we enter the catch block with a dynamic number of
-            // arguments, our stack situation looks like this:
-            // result: error; stack: [num, ...args]
-            // We need to remove our statically known exception jump targets
-            // and then pop off the dynamic number of arguments from the stack.
-            // Finally, we of course need to rethrow our error.
-            for e in jumps_to_static_unwind.iter() {
-                // Pop all the static exception targets.
-                if e.is_some() {
-                    ctx.add_instruction(Instruction::PopExceptionJumpTarget);
-                }
-            }
-            // result: error; stack: [num, ...args]
-            ctx.add_instruction(Instruction::LoadStoreSwap);
-
-            let continue_stack_unwind = ctx.get_jump_index_to_here();
-            // result: num; stack: [error, ...args]
-            let num_copy = ctx.load_copy_to_stack();
-            // result: num; stack: [num, error, ...args]
-            let finish_stack_unwind = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
-            // result: None; stack: [num, error, ...args]
-            num_copy.store(ctx);
-            // result: num; stack: [error, ...args]
-            ctx.add_instruction(Instruction::Decrement);
-            // result: num - 1; stack: [error, ...args]
-            ctx.add_instruction(Instruction::Swap);
-            // result: num - 1; stack: [args[0], error, ...args[1..]]
-            ctx.add_instruction(Instruction::UpdateEmpty);
-            // result: num - 1; stack: [error, ...args[1..]]
-            ctx.add_jump_instruction_to_index(Instruction::Jump, continue_stack_unwind);
-
-            // === BREAK HERE - CONTROL FLOW NEVER PASSES THROUGH HERE ===
-            ctx.set_jump_target_here(finish_stack_unwind);
-            // result: None; stack: [num, error]
-            let num_copy = ctx.mark_stack_value();
-            num_copy.pop(ctx);
-            error.store(ctx);
-            // result: error; stack: []
-            ctx.add_instruction(Instruction::Throw);
-        }
-        // Here is the static unwind logic: here we know exactly how many items
-        // we've pushed to the stack (and when we threw an error). Each static
-        // unwind jump target should thus drop one argument from stack and, if
-        // it is not the first one, pop the next exception target.
-        // result: error; stack: [...args]
-        let mut is_first = true;
-        while let Some(jump_to_static_unwind) = jumps_to_static_unwind.pop() {
-            if let Some(jump_to_static_unwind) = jump_to_static_unwind {
-                if !is_first {
-                    // Pop this jump target the stack if we're not the first one.
-                    // This is needed for fall-through cases.
-                    ctx.add_instruction(Instruction::PopExceptionJumpTarget);
-                }
-                is_first = false;
-                ctx.set_jump_target_here(jump_to_static_unwind);
-            }
-            // Note: it's possible that jump_to_static_unwind entries are None,
-            // meaning that the argument was infallible. In that case we're
-            // only interested in popping the value off the stack, but that
-            // also is only needed if a previous exception jump target already
-            // existed. eg. `foo(a, b, 1, 2, 3)` can only ever need to pop off
-            // `a`, whereas `foo(a, 1, 2, 3, b)` may only ever need to pop off
-            // `a, 1, 2, 3`, and `foo(a, 1, 2, b, 3, c)` may need to pop off
-            // either `a, 1, 2`, or `a, 1, 2, b, 3`.
-            if !is_first {
-                // result: error; stack: [args[0], ...args[1..]]
-                ctx.add_instruction(Instruction::UpdateEmpty);
-                // result: error; stack: [...args[1..]]
-            }
-        }
-        if is_first {
-            // If we made it through the static unwind bit without encountering
-            // a single JumpIndex, it means that all statically knowable
-            // parameters are infallible or fail on an empty stack: This means
-            // we don't need a rethrow as this location is unreachable.
-            debug_assert!(ctx.is_unreachable());
-        } else {
-            // Now it is finally time to rethrow our original error!
-            ctx.add_instruction(Instruction::Throw);
-        }
+        // Arguments spread threw an error: we need to pop the iterator stack
+        // and rethrow.
+        ctx.add_instruction(Instruction::IteratorPop);
+        ctx.add_instruction(Instruction::Throw);
         ctx.set_jump_target_here(jump_over_catch);
-    } else {
-        // If we have no need for a stack-unwind catch block, we should have no
-        // need for an iterator pop or dynamic unwind either.
-        debug_assert!(jump_to_iterator_pop.is_none());
-        debug_assert!(jump_to_dynamic_unwind.is_none());
     }
-    if let Some(err) = err {
-        Err(err)
-    } else {
-        Ok(result)
-    }
+    Ok(result)
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::CallExpression<'s> {
     type Output = Result<ValueOutput<'gc>, ExpressionError>;
 
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
-        // Direct eval
         if !self.optional
             && let ast::Expression::Identifier(ident) = &self.callee
             && ident.name == "eval"
         {
-            let num_arguments = compile_arguments(&self.arguments, ctx)?;
-            ctx.add_instruction_with_immediate(Instruction::DirectEvalCall, num_arguments);
+            // Direct eval(...)
+            let dynamic_arg_count = prep_arguments(ctx, &self.arguments);
+            let num_arguments = compile_arguments(ctx, &self.arguments, &dynamic_arg_count);
+            if let Some(v) = dynamic_arg_count {
+                v.forget(ctx);
+            }
+            ctx.add_instruction_with_immediate(Instruction::DirectEvalCall, num_arguments?);
+            return Ok(ValueOutput::Value);
+        } else if matches!(self.callee, ast::Expression::Super(_)) {
+            // super(...)
+            let dynamic_arg_count = prep_arguments(ctx, &self.arguments);
+            let num_arguments = compile_arguments(ctx, &self.arguments, &dynamic_arg_count);
+            if let Some(v) = dynamic_arg_count {
+                v.forget(ctx);
+            }
+            ctx.add_instruction_with_immediate(Instruction::EvaluateSuper, num_arguments?);
             return Ok(ValueOutput::Value);
         }
-
         // 1. Let ref be ? Evaluation of CallExpression.
         ctx.is_call_optional_chain_this = is_chain_expression(&self.callee);
-        let is_super_call = matches!(self.callee, ast::Expression::Super(_));
         let r#ref = self.callee.compile(ctx)?;
         // Optimization: If we know arguments is empty, we don't need to
         // worry about arguments evaluation clobbering our function's this
@@ -1842,11 +1763,11 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::CallEx
             ctx.add_instruction(Instruction::PushReference);
         }
 
-        if self.optional {
+        let func_on_stack = if self.optional {
             // Optional Chains
 
             // Load copy of func to stack.
-            ctx.add_instruction(Instruction::LoadCopy);
+            let func_copy = ctx.load_copy_to_stack();
             // 3. If func is either undefined or null, then
             ctx.add_instruction(Instruction::IsNullOrUndefined);
             // a. Return undefined
@@ -1870,28 +1791,33 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::CallEx
             };
             // Register our jump slot to the chain nullish case handling.
             ctx.optional_chains.as_mut().unwrap().push(jump_over_call);
-        } else if !is_super_call {
-            ctx.add_instruction(Instruction::Load);
-        }
+            func_copy
+        } else {
+            ctx.load_to_stack()
+        };
         // If we're in an optional chain, we need to pluck it out while we're
         // compiling the parameters: They do not join our chain.
         let optional_chain = ctx.optional_chains.take();
-        let num_arguments = compile_arguments(&self.arguments, ctx);
+        let dynamic_arg_count = prep_arguments(ctx, &self.arguments);
+        let result = compile_arguments(ctx, &self.arguments, &dynamic_arg_count);
         // After we're done with compiling parameters we go back into the chain.
         if let Some(optional_chain) = optional_chain {
             ctx.optional_chains.replace(optional_chain);
         }
 
-        let num_arguments = num_arguments?;
-
-        if is_super_call {
-            ctx.add_instruction_with_immediate(Instruction::EvaluateSuper, num_arguments);
-        } else {
-            if need_pop_reference {
-                ctx.add_instruction(Instruction::PopReference);
-            }
-            ctx.add_instruction_with_immediate(Instruction::EvaluateCall, num_arguments);
+        // Note: func on stack and the possible dynamic arg count are consumed
+        // by EvaluateCall.
+        if let Some(v) = dynamic_arg_count {
+            v.forget(ctx);
         }
+        func_on_stack.forget(ctx);
+
+        let num_arguments = result?;
+
+        if need_pop_reference {
+            ctx.add_instruction(Instruction::PopReference);
+        }
+        ctx.add_instruction_with_immediate(Instruction::EvaluateCall, num_arguments);
         Ok(ValueOutput::Value)
     }
 }
@@ -1900,10 +1826,19 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::NewExp
     type Output = Result<ValueOutput<'gc>, ExpressionError>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
         self.callee.compile(ctx)?.get_value(ctx)?;
-        ctx.add_instruction(Instruction::Load);
+        let func_on_stack = ctx.load_to_stack();
 
-        let num_arguments = compile_arguments(&self.arguments, ctx)?;
-        ctx.add_instruction_with_immediate(Instruction::EvaluateNew, num_arguments);
+        let dynamic_arg_count = prep_arguments(ctx, &self.arguments);
+        let num_arguments = compile_arguments(ctx, &self.arguments, &dynamic_arg_count);
+
+        // Note: func and possible dynamic arg count on stack are consumed by
+        // EvaluateNew.
+        if let Some(v) = dynamic_arg_count {
+            v.forget(ctx);
+        }
+        func_on_stack.forget(ctx);
+
+        ctx.add_instruction_with_immediate(Instruction::EvaluateNew, num_arguments?);
         Ok(ValueOutput::Value)
     }
 }
@@ -1958,14 +1893,29 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
     type Output = Result<Place<'s, 'gc>, ExpressionError>;
 
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
+        if self.object.is_super() {
+            // super[expression]
+            let output = self.expression.compile(ctx)?.get_value(ctx)?;
+            if let ValueOutput::Literal(literal) = output {
+                let (agent, gc) = ctx.get_agent_and_gc();
+                if let Some(identifier) = to_property_key_simple(agent, literal, gc) {
+                    ctx.add_instruction_with_identifier(
+                        Instruction::MakeSuperPropertyReferenceWithIdentifierKey,
+                        identifier,
+                    );
+                    return Ok(identifier.into());
+                }
+            }
+            ctx.add_instruction(Instruction::MakeSuperPropertyReferenceWithExpressionKey);
+            return Ok(Place::Member { name: None });
+        }
         compile_optional_base_reference(&self.object, self.optional, ctx)?;
         // If we do not have optional chaining present it means that base value
         // is currently in the result slot. We need to store it on the stack.
-        // NOTE: `super` keyword does not perform any work and has nothing to
-        // load here.
-        if !self.optional && !self.object.is_super() {
+        if !self.optional {
             ctx.add_instruction(Instruction::Load);
         }
+        let base_value_on_stack = ctx.mark_stack_value();
 
         // If we're in an optional chain, we need to pluck it out while we're
         // compiling the member expression: They do not join our chain.
@@ -1979,33 +1929,29 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
             ctx.optional_chains.replace(optional_chain);
         }
 
-        let output = output?;
+        let output = match output {
+            Ok(o) => o,
+            Err(err) => {
+                base_value_on_stack.forget(ctx);
+                return Err(err);
+            }
+        };
 
         if let ValueOutput::Literal(literal) = output {
             let (agent, gc) = ctx.get_agent_and_gc();
             if let Some(identifier) = to_property_key_simple(agent, literal, gc) {
-                if self.object.is_super() {
-                    ctx.add_instruction_with_identifier(
-                        Instruction::MakeSuperPropertyReferenceWithIdentifierKey,
-                        identifier,
-                    );
-                } else {
-                    ctx.add_instruction(Instruction::Store);
-                    // 4. Return ? EvaluatePropertyAccessWithExpressionKey(baseValue, Expression, strict).
-                    ctx.add_instruction_with_identifier(
-                        Instruction::EvaluatePropertyAccessWithIdentifierKey,
-                        identifier,
-                    );
-                }
+                base_value_on_stack.store(ctx);
+                // 4. Return ? EvaluatePropertyAccessWithExpressionKey(baseValue, Expression, strict).
+                ctx.add_instruction_with_identifier(
+                    Instruction::EvaluatePropertyAccessWithIdentifierKey,
+                    identifier,
+                );
                 return Ok(identifier.into());
             }
         }
-        if self.object.is_super() {
-            ctx.add_instruction(Instruction::MakeSuperPropertyReferenceWithExpressionKey);
-        } else {
-            // 4. Return ? EvaluatePropertyAccessWithExpressionKey(baseValue, Expression, strict).
-            ctx.add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
-        }
+        // 4. Return ? EvaluatePropertyAccessWithExpressionKey(baseValue, Expression, strict).
+        base_value_on_stack.forget(ctx);
+        ctx.add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
         Ok(Place::Member { name: None })
     }
 }
@@ -2016,24 +1962,24 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
     type Output = Result<Place<'s, 'gc>, ExpressionError>;
 
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
-        compile_optional_base_reference(&self.object, self.optional, ctx)?;
-        // If we are in an optional chain then result will be on the top of the
-        // stack. We need to pop it into the register slot in that case.
-        if self.optional && !self.object.is_super() {
-            ctx.add_instruction(Instruction::Store);
-        }
-
-        // 4. Return EvaluatePropertyAccessWithIdentifierKey(baseValue, IdentifierName, strict).
         if self.object.is_super() {
+            // super.property
             let identifier = ctx.create_string(self.property.name.as_str());
             ctx.add_instruction_with_identifier(
                 Instruction::MakeSuperPropertyReferenceWithIdentifierKey,
                 identifier.to_property_key(),
             );
-            Ok(identifier.to_property_key().into())
-        } else {
-            Ok(self.property.compile(ctx))
+            return Ok(identifier.to_property_key().into());
         }
+        compile_optional_base_reference(&self.object, self.optional, ctx)?;
+        // If we are in an optional chain then result will be on the top of the
+        // stack. We need to pop it into the register slot in that case.
+        if self.optional {
+            ctx.add_instruction(Instruction::Store);
+        }
+
+        // 4. Return EvaluatePropertyAccessWithIdentifierKey(baseValue, IdentifierName, strict).
+        Ok(self.property.compile(ctx))
     }
 }
 
@@ -2218,12 +2164,18 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Import
         let specifier_ref = self.source.compile(ctx)?;
         // 4. Let specifier be ? GetValue(specifierRef).
         let _specifier = specifier_ref.get_value(ctx)?;
+        // Note: no load_to_stack as we ImportCall consumes it immediately
+        // if we don't have options.
         ctx.add_instruction(Instruction::Load);
         // 5. If optionsExpression is present, then
         if let Some(options) = &self.options {
+            // Mark the stack value so that options.compile sees it.
+            let specifier_on_stack = ctx.mark_stack_value();
             // a. Let optionsRef be ? Evaluation of optionsExpression.
             // b. Let options be ? GetValue(optionsRef).
-            options.compile(ctx)?.get_value(ctx)?;
+            let options = options.compile(ctx).and_then(|r| r.get_value(ctx));
+            specifier_on_stack.forget(ctx);
+            options?;
         }
         // 6. Else,
         // a. Let options be undefined.
@@ -2348,11 +2300,8 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
         let _tag_func = tag_ref.get_value_keep_reference(ctx)?;
         let need_pop_reference =
             tag_ref.has_reference() && !self.quasi.is_no_substitution_template();
-        if need_pop_reference {
-            ctx.add_instruction(Instruction::PushReference);
-        }
         // Load tagFunc to the stack.
-        ctx.add_instruction(Instruction::Load);
+        let tag_func_on_stack = ctx.load_to_stack();
 
         // 3. Let thisCall be this MemberExpression.
         // 4. Let tailCall be IsInTailPosition(thisCall).
@@ -2361,16 +2310,19 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
 
         // ### 13.3.8.1 Runtime Semantics: ArgumentListEvaluation
 
+        if need_pop_reference {
+            ctx.add_instruction(Instruction::PushReference);
+        }
+
         //  TemplateLiteral : NoSubstitutionTemplate
-        let mut num_arguments = 0;
+        let mut arguments = Vec::with_capacity(self.quasi.expressions.len());
         if self.quasi.is_no_substitution_template() {
             // 1. Let templateLiteral be this TemplateLiteral.
             // 2. Let siteObj be GetTemplateObject(templateLiteral).
             let (agent, gc) = ctx.get_agent_and_gc();
             let site_obj = get_template_object(agent, &self.quasi, gc);
             // 3. Return « siteObj ».
-            ctx.add_instruction_with_constant(Instruction::LoadConstant, site_obj);
-            num_arguments += 1;
+            arguments.push(ctx.load_constant_to_stack(site_obj));
         } else {
             // TemplateLiteral : SubstitutionTemplate
 
@@ -2378,8 +2330,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
             // 2. Let siteObj be GetTemplateObject(templateLiteral).
             let (agent, gc) = ctx.get_agent_and_gc();
             let site_obj = get_template_object(agent, &self.quasi, gc);
-            ctx.add_instruction_with_constant(Instruction::LoadConstant, site_obj);
-            num_arguments += 1;
+            arguments.push(ctx.load_constant_to_stack(site_obj));
             // 3. Let remaining be ? ArgumentListEvaluation of SubstitutionTemplate.
             // 4. Return the list-concatenation of « siteObj » and remaining.
 
@@ -2387,10 +2338,15 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
             for expression in self.quasi.expressions.iter() {
                 // 1. Let firstSubRef be ? Evaluation of Expression.
                 // 2. Let firstSub be ? GetValue(firstSubRef).
-                expression.compile(ctx)?.get_value(ctx)?;
+                if let Err(err) = expression.compile(ctx).and_then(|r| r.get_value(ctx)) {
+                    for arg in arguments {
+                        arg.forget(ctx);
+                    }
+                    tag_func_on_stack.forget(ctx);
+                    return Err(err);
+                }
                 // 3. Let restSub be ? SubstitutionEvaluation of TemplateSpans.
-                ctx.add_instruction(Instruction::Load);
-                num_arguments += 1;
+                arguments.push(ctx.load_to_stack());
                 // 4. Assert: restSub is a possibly empty List.
                 // 5. Return the list-concatenation of « firstSub » and restSub.
             }
@@ -2398,6 +2354,12 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
         if need_pop_reference {
             ctx.add_instruction(Instruction::PopReference);
         }
+        let num_arguments = arguments.len();
+        // EvaluateCall consumes arguments and tagFunc.
+        for arg in arguments {
+            arg.forget(ctx);
+        }
+        tag_func_on_stack.forget(ctx);
         ctx.add_instruction_with_immediate(Instruction::EvaluateCall, num_arguments);
         Ok(ValueOutput::Value)
     }
@@ -2412,28 +2374,36 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Templa
             ctx.add_instruction_with_constant(Instruction::StoreConstant, constant);
             Ok(constant.into())
         } else {
-            let mut count = 0;
             let mut quasis = self.quasis.as_slice();
             let mut expressions = self.expressions.as_slice();
+            let mut parts = Vec::with_capacity(quasis.len());
             while let Some((head, rest)) = quasis.split_first() {
                 quasis = rest;
                 // 1. Let head be the TV of TemplateHead as defined in 12.9.6.
                 let head = ctx.create_string(head.value.cooked.as_ref().unwrap().as_str());
-                ctx.add_instruction_with_constant(Instruction::LoadConstant, head);
-                count += 1;
+                parts.push(ctx.load_constant_to_stack(head));
                 if let Some((expression, rest)) = expressions.split_first() {
                     expressions = rest;
                     // 2. Let subRef be ? Evaluation of Expression.
                     // 3. Let sub be ? GetValue(subRef).
-                    expression.compile(ctx)?.get_value(ctx)?;
+                    if let Err(err) = expression.compile(ctx).and_then(|r| r.get_value(ctx)) {
+                        for part in parts {
+                            part.forget(ctx);
+                        }
+                        return Err(err);
+                    }
                     // 4. Let middle be ? ToString(sub).
                     // Note: This is done by StringConcat.
-                    ctx.add_instruction(Instruction::Load);
-                    count += 1;
+                    parts.push(ctx.load_to_stack());
                 }
                 // 5. Let tail be ? Evaluation of TemplateSpans.
             }
             // 6. Return the string-concatenation of head, middle, and tail.
+            let count = parts.len();
+            // Note: StringConcat consumes the parts from stack.
+            for part in parts {
+                part.forget(ctx);
+            }
             ctx.add_instruction_with_immediate(Instruction::StringConcat, count);
             Ok(ValueOutput::Value)
         }
@@ -2709,6 +2679,8 @@ fn compile_create_iterator_result_object(ctx: &mut CompileContext, done: bool) {
         .expect("Should perform GC here")
         .get_child_shape(agent, BUILTIN_STRING_MEMORY.done.to_property_key())
         .expect("Should perform GC here");
+    // Note: no load_to_stack because ObjectCreateWithShape immediately consumes
+    // the stack.
     ctx.add_instruction(Instruction::Load);
     ctx.add_instruction_with_constant(Instruction::LoadConstant, done);
     ctx.add_instruction_with_shape(Instruction::ObjectCreateWithShape, shape);
@@ -3091,6 +3063,10 @@ fn simple_array_pattern<'s, I>(
 
 fn check_result_is_undefined(ctx: &mut CompileContext) -> JumpIndex {
     // Run the initializer if the result value is undefined.
+
+    // Note: no load_copy_to_stack because Store consumes the copy immediately.
+    // That only happens when we go to that branch, but it all shakes out much
+    // the same anyway.
     ctx.add_instruction(Instruction::LoadCopy);
     ctx.add_instruction(Instruction::IsUndefined);
     let jump_slot = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
@@ -3327,14 +3303,14 @@ fn complex_object_pattern<'s>(
     // other operations later on (such as GetV) also perform ToObject, so we
     // convert to an object early.
     ctx.add_instruction(Instruction::ToObject);
-    ctx.add_instruction(Instruction::Load);
+    let value_on_stack = ctx.load_to_stack();
 
     let result = 'iter: {
         for property in &object_pattern.properties {
             let place = match &property.key {
                 ast::PropertyKey::StaticIdentifier(identifier) => {
                     // Make a copy of the baseValue in the result register;
-                    // EvaluatePropertyAccessWithIdentifierKey uses it.
+                    // EvaluatePropertyAccessWithIdentifierKey consumes it.
                     ctx.add_instruction(Instruction::StoreCopy);
                     identifier.compile(ctx)
                 }
@@ -3342,16 +3318,27 @@ fn complex_object_pattern<'s>(
                 ast::PropertyKey::PrivateIdentifier(_) => unreachable!(),
                 _ => {
                     // Make a copy of the baseValue on the stack;
-                    // EvaluatePropertyAccessWithExpressionKey pops the stack.
+                    // EvaluatePropertyAccessWithExpressionKey consumes it.
                     ctx.add_instruction(Instruction::StoreCopy);
-                    ctx.add_instruction(Instruction::Load);
+                    let base_value_copy = ctx.load_to_stack();
                     let expr = property.key.to_expression();
-                    let output = expr.compile(ctx)?.get_value(ctx)?;
+                    let output = expr.compile(ctx).and_then(|r| r.get_value(ctx));
+                    base_value_copy.forget(ctx);
+                    let output = match output {
+                        Ok(r) => r,
+                        Err(err) => {
+                            break 'iter Err(err);
+                        }
+                    };
                     ctx.add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
                     output.to_expression_key()
                 }
             };
-            place.get_value_maybe_keep_reference(ctx, object_pattern.rest.is_some())?;
+            if let Err(err) =
+                place.get_value_maybe_keep_reference(ctx, object_pattern.rest.is_some())
+            {
+                break 'iter Err(err);
+            }
             if object_pattern.rest.is_some() {
                 assert!(place.has_reference());
                 ctx.add_instruction(Instruction::PushReference);
@@ -3361,35 +3348,42 @@ fn complex_object_pattern<'s>(
                 break 'iter Err(err);
             };
         }
-
-        // Don't keep the object on the stack.
-        ctx.add_instruction(Instruction::Store);
-
-        if let Some(rest) = &object_pattern.rest {
-            let ast::BindingPatternKind::BindingIdentifier(identifier) = &rest.argument.kind else {
-                unreachable!()
-            };
-
-            // We have kept the references for all of the properties read in the
-            // reference stack, so we can now use them to exclude those
-            // properties from the rest object.
-            ctx.add_instruction_with_immediate(
-                Instruction::CopyDataPropertiesIntoObject,
-                object_pattern.properties.len(),
-            );
-            let value = ValueOutput::Value;
-
-            let place = identifier.compile(ctx);
-            if !has_environment {
-                if let Err(err) = place.put_value(ctx, value) {
-                    break 'iter Err(err);
-                }
-            } else {
-                place.initialise_referenced_binding(ctx, value);
-            }
-        }
         Ok(())
     };
+
+    if let Err(err) = result {
+        value_on_stack.forget(ctx);
+        ctx.lexical_binding_state = lexical_binding_state;
+        return Err(err);
+    }
+
+    // Don't keep the object on the stack.
+    value_on_stack.store(ctx);
+
+    if let Some(rest) = &object_pattern.rest {
+        let ast::BindingPatternKind::BindingIdentifier(identifier) = &rest.argument.kind else {
+            unreachable!()
+        };
+
+        // We have kept the references for all of the properties read in the
+        // reference stack, so we can now use them to exclude those
+        // properties from the rest object.
+        ctx.add_instruction_with_immediate(
+            Instruction::CopyDataPropertiesIntoObject,
+            object_pattern.properties.len(),
+        );
+        let value = ValueOutput::Value;
+
+        let place = identifier.compile(ctx);
+        if !has_environment {
+            if let Err(err) = place.put_value(ctx, value) {
+                ctx.lexical_binding_state = lexical_binding_state;
+                return Err(err);
+            }
+        } else {
+            place.initialise_referenced_binding(ctx, value);
+        }
+    }
     ctx.lexical_binding_state = lexical_binding_state;
     result
 }
@@ -3470,18 +3464,24 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Bindin
                         // i. Let defaultValue be ? Evaluation of Initializer.
                         let default_value = pattern.right.compile(ctx);
                         // ii. Set v to ? GetValue(defaultValue).
-                        // Note: no early exit as this is not an unconditional
-                        // branch.
-                        let v = default_value
-                            .and_then(|dv| dv.get_value(ctx))
-                            .unwrap_or(ValueOutput::Value);
-                        if do_push_reference {
-                            ctx.add_instruction(Instruction::PopReference);
+                        if default_value.and_then(|dv| dv.get_value(ctx)).is_ok() {
+                            // If Initializer evaluation or GetValue call fails,
+                            // this code becomes unreachable.
+                            if do_push_reference {
+                                ctx.add_instruction(Instruction::PopReference);
+                            }
+                            ctx.name_identifier = None;
+                            // Note: no load_to_stack as Store consumes the
+                            // value immediately anyway.
+                            ctx.add_instruction(Instruction::Load);
                         }
-                        ctx.name_identifier = None;
-                        ctx.add_instruction(Instruction::Load);
                         ctx.set_jump_target_here(jump_over_initializer);
+                        // Note: here we either consume a copy of the lhs value
+                        // or the default value.
                         ctx.add_instruction(Instruction::Store);
+                        // v can either be read from lhs or be the default value
+                        // compilation.
+                        let v = ValueOutput::Value;
                         // 6. If environment is undefined,
                         if !ctx.lexical_binding_state {
                             // return ? PutValue(lhs, v).
@@ -3513,10 +3513,11 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Bindin
                         // b. Set v to ? GetValue(defaultValue).
                         // Note: no early exit as this is not an unconditional
                         // branch.
-                        let _v = default_value
-                            .and_then(|dv| dv.get_value(ctx))
-                            .unwrap_or(ValueOutput::Value);
-                        ctx.add_instruction(Instruction::Load);
+                        if default_value.and_then(|dv| dv.get_value(ctx)).is_ok() {
+                            // Note: if Initializer evaluation or GetValue
+                            // fails, this branch becomes unreachable.
+                            ctx.add_instruction(Instruction::Load);
+                        }
                         ctx.set_jump_target_here(jump_over_initializer);
                         ctx.add_instruction(Instruction::Store);
                         // 4. Return ? BindingInitialization of BindingPattern with
@@ -3688,8 +3689,8 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
         label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,
         ctx: &mut CompileContext<'a, 's, 'gc, 'scope>,
     ) -> Self::Output {
-        let mut per_iteration_lets: Vec<String<'_>> = vec![];
-        let mut loop_env = None;
+        let mut per_iteration_env_lets: Vec<String<'_>> = vec![];
+        let mut block_prep: Vec<BlockEnvPrep> = vec![];
 
         let result = if let Some(init) = &self.init {
             match init {
@@ -3697,7 +3698,6 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
                     if init.kind.is_lexical() {
                         // 1. Let oldEnv be the running execution context's LexicalEnvironment.
                         // 2. Let loopEnv be NewDeclarativeEnvironment(oldEnv).
-                        loop_env = Some(ctx.enter_lexical_scope());
                         // 3. Let isConst be IsConstantDeclaration of LexicalDeclaration.
                         let is_const = init.kind.is_const();
                         // 4. Let boundNames be the BoundNames of LexicalDeclaration.
@@ -3705,26 +3705,46 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
                         // a. If isConst is true, then
                         if is_const {
                             init.bound_names(&mut |dn| {
-                                // i. Perform ! loopEnv.CreateImmutableBinding(dn, true).
-                                let identifier = ctx.create_string(dn.name.as_str());
-                                ctx.add_instruction_with_identifier(
-                                    Instruction::CreateImmutableBinding,
-                                    identifier.to_property_key(),
-                                )
+                                if variable_escapes_scope(ctx, dn) {
+                                    if !block_prep.iter().any(|p| p.is_env()) {
+                                        block_prep
+                                            .push(BlockEnvPrep::Env(ctx.enter_lexical_scope()));
+                                    }
+                                    // i. Perform ! loopEnv.CreateImmutableBinding(dn, true).
+                                    let identifier = ctx.create_string(dn.name.as_str());
+                                    ctx.add_instruction_with_identifier(
+                                        Instruction::CreateImmutableBinding,
+                                        identifier.to_property_key(),
+                                    )
+                                } else {
+                                    block_prep.push(BlockEnvPrep::Var(
+                                        ctx.push_stack_variable(dn.symbol_id(), false),
+                                    ));
+                                }
                             });
                         } else {
                             // b. Else,
                             // i. Perform ! loopEnv.CreateMutableBinding(dn, false).
                             init.bound_names(&mut |dn| {
-                                let identifier = ctx.create_string(dn.name.as_str());
-                                // 9. If isConst is false, let perIterationLets
-                                // be boundNames; otherwise let perIterationLets
-                                // be a new empty List.
-                                per_iteration_lets.push(identifier);
-                                ctx.add_instruction_with_identifier(
-                                    Instruction::CreateMutableBinding,
-                                    identifier.to_property_key(),
-                                )
+                                if variable_escapes_scope(ctx, dn) {
+                                    if !block_prep.iter().any(|p| p.is_env()) {
+                                        block_prep
+                                            .push(BlockEnvPrep::Env(ctx.enter_lexical_scope()));
+                                    }
+                                    let identifier = ctx.create_string(dn.name.as_str());
+                                    // 9. If isConst is false, let perIterationLets
+                                    // be boundNames; otherwise let perIterationLets
+                                    // be a new empty List.
+                                    per_iteration_env_lets.push(identifier);
+                                    ctx.add_instruction_with_identifier(
+                                        Instruction::CreateMutableBinding,
+                                        identifier.to_property_key(),
+                                    )
+                                } else {
+                                    block_prep.push(BlockEnvPrep::Var(
+                                        ctx.push_stack_variable(dn.symbol_id(), false),
+                                    ));
+                                }
                             });
                         }
                         // 6. Set the running execution context's LexicalEnvironment to loopEnv.
@@ -3741,23 +3761,20 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
         };
 
         if let Err(err) = result {
-            if let Some(loop_env) = loop_env {
-                // Lexical binding loops have an extra declarative environment
-                // that we need to exit from once we exit the loop.
-                loop_env.exit(ctx);
+            for block_prep in block_prep.into_iter().rev() {
+                block_prep.exit(ctx);
             }
             return ControlFlow::Break(err.into());
         }
         // 2. Perform ? CreatePerIterationEnvironment(perIterationBindings).
-        let create_per_iteration_env = !per_iteration_lets.is_empty();
-
-        // 2. Perform ? CreatePerIterationEnvironment(perIterationBindings).
+        let create_per_iteration_env = !per_iteration_env_lets.is_empty();
         if create_per_iteration_env {
-            create_per_iteration_environment(ctx, &per_iteration_lets);
+            create_per_iteration_environment(ctx, &per_iteration_env_lets);
         }
 
         // 1. Let V be undefined.
-        let v = ctx.push_stack_loop_result();
+        ctx.add_instruction(Instruction::Empty);
+        let v = ctx.push_stack_result_value(Some(Value::Undefined));
         // 3. Repeat,
         let l = ctx.enter_loop(label_set.cloned());
         let jump_over_continue = ctx.add_instruction_with_jump_slot(Instruction::Jump);
@@ -3768,7 +3785,7 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
         ctx.add_instruction(Instruction::LoadReplace);
         // e. Perform ? CreatePerIterationEnvironment(perIterationBindings).
         if create_per_iteration_env {
-            create_per_iteration_environment(ctx, &per_iteration_lets);
+            create_per_iteration_environment(ctx, &per_iteration_env_lets);
         }
         // f. If increment is not empty, then
         if let Some(update) = &self.update {
@@ -3830,12 +3847,10 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
         // failure then result is currently empty and UpdateEmpty will pop V
         // into the result register.
         l.exit(ctx, continue_label);
-        v.exit(ctx);
+        v.forget(ctx);
 
-        if let Some(loop_env) = loop_env {
-            // Lexical binding loops have an extra declarative environment that
-            // we need to exit from once we exit the loop.
-            loop_env.exit(ctx);
+        for block_prep in block_prep.into_iter().rev() {
+            block_prep.exit(ctx);
         }
         // c. If LoopContinues(result, labelSet) is false,
         //    return ? UpdateEmpty(result, V).
@@ -3845,20 +3860,16 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
 
 fn create_per_iteration_environment<'gc>(
     ctx: &mut CompileContext<'_, '_, 'gc, '_>,
-    per_iteration_lets: &[String<'gc>],
+    per_iteration_env_lets: &[String<'gc>],
 ) {
-    if per_iteration_lets.len() == 1 {
-        // NOTE: Optimization for the usual case of a single let
-        // binding. We do not need to push and pop from the stack
-        // in this case but can use the result register directly.
-        // There are rather easy further optimizations available as
-        // well around creating a sibling environment directly,
-        // creating an initialized mutable binding directly, and
-        // importantly: The whole loop environment is unnecessary
-        // if the loop contains no closures (that capture the
-        // per-iteration lets).
+    if per_iteration_env_lets.len() == 1 {
+        // NOTE: If there's only env let then we do not need to push and pop
+        // from the stack in this case but can use the result register directly.
+        // There are rather easy further optimizations available as well around
+        // creating a sibling environment directly, creating an initialized
+        // mutable binding directly.
 
-        let binding = *per_iteration_lets.first().unwrap();
+        let binding = *per_iteration_env_lets.first().unwrap();
         // Get value of binding from lastIterationEnv.
         ctx.add_instruction_with_identifier(Instruction::ResolveBinding, binding.to_property_key());
         ctx.add_instruction(Instruction::GetValue);
@@ -3873,16 +3884,18 @@ fn create_per_iteration_environment<'gc>(
         ctx.add_instruction_with_identifier(Instruction::ResolveBinding, binding.to_property_key());
         ctx.add_instruction(Instruction::InitializeReferencedBinding);
     } else {
-        for bn in per_iteration_lets {
+        for bn in per_iteration_env_lets {
             ctx.add_instruction_with_identifier(Instruction::ResolveBinding, bn.to_property_key());
             ctx.add_instruction(Instruction::GetValue);
+            // Note: no load_to_stack as the temporary increase in stack size
+            // cannot be seen by users.
             ctx.add_instruction(Instruction::Load);
         }
         // Note: here we do not use exit & enter lexical
         // environment helpers as we'd just immediately exit again.
         ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
         ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
-        for bn in per_iteration_lets.iter().rev() {
+        for bn in per_iteration_env_lets.iter().rev() {
             ctx.add_instruction_with_identifier(
                 Instruction::CreateMutableBinding,
                 bn.to_property_key(),
@@ -3911,13 +3924,13 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
                 .compile(ctx)
                 .and_then(|r| r.get_value(ctx)),
         )?;
-        ctx.add_instruction(Instruction::Load);
         if self.cases.is_empty() {
             // CaseBlock : { }
             // 1. Return undefined.
-            ctx.add_instruction_with_constant(Instruction::LoadConstant, Value::Undefined);
+            ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
             return ControlFlow::Continue(StatementContinue::Literal(Primitive::Undefined));
         }
+        let switch_value = ctx.push_stack_result_value(Option::<Value>::None);
         let switch = ctx.enter_switch(label_set.cloned());
         // 3. Let oldEnv be the running execution context's LexicalEnvironment.
         // 4. Let blockEnv be NewDeclarativeEnvironment(oldEnv).
@@ -3925,99 +3938,142 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
         // 6. Set the running execution context's LexicalEnvironment to blockEnv.
         let r = block_declaration_instantiation::instantiation(ctx, self, |ctx| {
             // 7. Let R be Completion(CaseBlockEvaluation of CaseBlock with argument switchValue).
-            let mut has_default = false;
-            let mut jump_indexes = Vec::with_capacity(self.cases.len());
+            let mut default_case_index = None;
+            let mut cases = Vec::with_capacity(self.cases.len());
+            let mut end_unreachable = false;
             for case in &self.cases {
                 let Some(test) = &case.test else {
-                    // Default case test does not care about the write order: After
-                    // all other cases have been tested, default will be entered if
-                    // no other was entered previously. The placement of the
-                    // default case only matters for fall-through behaviour.
-                    has_default = true;
+                    // Default case test does not care about the write order:
+                    // After all other cases have been tested, default will be
+                    // entered if no other was entered previously. The placement
+                    // of the default case only matters for fall-through
+                    // behaviour.
+                    default_case_index = Some(cases.len() as u32);
+                    cases.push((case, None));
                     continue;
                 };
-                // Duplicate the switchValue on the stack. One will remain, one is
-                // used by the IsStrictlyEqual
-                ctx.add_instruction(Instruction::StoreCopy);
-                ctx.add_instruction(Instruction::Load);
+                // We have switchValue somewhere on the stack, and we want to
+                // compare it to the test value. IsStrictlyEqual consumes one
+                // value from the top of the stack and compares that to the
+                // result value, so we need to make a copy of the switchValue
+                // and put it to the top of the stack before we compile the test
+                // expression and get its value into the result register.
+                switch_value.read(ctx);
+                let switch_value_copy_on_stack = ctx.load_to_stack();
                 // 2. Let exprRef be ? Evaluation of the Expression of C.
                 let expr_ref = test.compile(ctx);
                 // 3. Let clauseSelector be ? GetValue(exprRef).
                 let clause_selector = expr_ref.and_then(|r| r.get_value(ctx));
+                // The switchValue on the stack is consumed by IsStrictlyEqual
+                // or gets forgotten in an error case and is cleared up by a
+                // try-catch.
+                switch_value_copy_on_stack.forget(ctx);
                 if clause_selector.is_ok() {
                     // 4. Return IsStrictlyEqual(input, clauseSelector).
                     ctx.add_instruction(Instruction::IsStrictlyEqual);
                     // b. If found is true then [evaluate case]
-                    jump_indexes.push(Some(
-                        ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue),
-                    ));
+                    let jump_to_case_evaluation =
+                        ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue);
+                    cases.push((case, Some(jump_to_case_evaluation)));
                 } else {
-                    jump_indexes.push(None);
+                    // If the evaluation or GetValue of a test expression fails
+                    // unconditionally, any remaining test cases become
+                    // unreachable.
+                    if cases.is_empty() {
+                        // The very first case test fails: code after the switch
+                        // block is unreachable.
+                        return ControlFlow::Break(StatementBreak::Error);
+                    }
+
+                    end_unreachable = true;
+                    break;
                 }
             }
 
-            let jump_to_end = if has_default {
-                // 10. If foundInB is true, return V.
-                // 11. Let defaultR be Completion(Evaluation of DefaultClause).
-                jump_indexes.push(Some(ctx.add_instruction_with_jump_slot(Instruction::Jump)));
+            // Note: switchValue changes to be V now.
+            let v = &switch_value;
+
+            let jump_to_end = if end_unreachable {
                 None
             } else {
-                Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
+                // If end is not unreachable, we have to add an unconditional
+                // jump here. That either takes us to the default case or to the
+                // end of the switch block.
+                if let Some(default_case_index) = default_case_index {
+                    let jump_to_default_case =
+                        ctx.add_instruction_with_jump_slot(Instruction::Jump);
+                    // 10. If foundInB is true, return V.
+                    // 11. Let defaultR be Completion(Evaluation of DefaultClause).
+                    let previous_jump = cases[default_case_index as usize]
+                        .1
+                        .replace(jump_to_default_case);
+                    debug_assert!(previous_jump.is_none());
+                    None
+                } else {
+                    // If nothing matched and default case doesn't exist then we
+                    // need to set V to undefined here.
+                    ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+                    v.write(ctx);
+                    Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
+                }
             };
 
-            let mut index = 0;
-            let mut prev_result = ControlFlow::Continue(StatementContinue::Empty);
-            for (i, case) in self.cases.iter().enumerate() {
-                let fallthrough_jump = if i != 0 {
+            // === THIS LINE IS UNREACHABLE ===
+
+            // Either some case test before the end always fails, or we have a
+            // default case to jump to, or we jump to the end of the switch
+            // block. Hence, control flow never enters here normally.
+
+            let mut prev_result = ControlFlow::Break(StatementBreak::Break);
+            'cases: for (case, jump_index) in cases.into_iter() {
+                let fallthrough_jump = if prev_result.is_break() {
                     // OPTIMISATION: if previous case ended with a break or an
-                    // otherwise terminal instruction, we don't need a fallthrough
-                    // jump at the beginning of the next case.
-                    if prev_result.is_break() {
-                        None
-                    } else {
-                        Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
-                    }
-                } else {
+                    // otherwise terminal instruction, we don't need a
+                    // fallthrough jump at the beginning of the next case.
                     None
+                } else {
+                    Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
                 };
                 // Jump from IsStrictlyEqual comparison to here.
-                let jump_index = if case.test.is_some() {
-                    let jump_index = jump_indexes.get(index).unwrap();
-                    index += 1;
-                    jump_index
-                } else {
-                    // Default case! The jump index is last in the Vec.
-                    jump_indexes.last().unwrap()
+                let Some(jump_index) = jump_index else {
+                    // This can only happen if the default case is unreachable
+                    // due to some test always failing. In that case we do not
+                    // need to generate code for it.
+                    continue;
                 };
-                if let Some(jump_index) = jump_index {
-                    ctx.set_jump_target_here(jump_index.clone());
-                }
+                ctx.set_jump_target_here(jump_index.clone());
 
                 // 1. Let V be undefined.
-                // Pop the switchValue from the stack.
-                ctx.add_instruction(Instruction::Store);
-                // And override it with undefined
                 ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+                v.write(ctx);
 
                 if let Some(fallthrough_jump) = fallthrough_jump {
                     ctx.set_jump_target_here(fallthrough_jump);
                 }
 
-                // Reset the previous result for every case.
-                prev_result = ControlFlow::Continue(StatementContinue::Empty);
-
                 // i. Let R be Completion(Evaluation of C).
+                if case.consequent.is_empty() {
+                    // Empty consequents fall through to the next case.
+                    prev_result = ControlFlow::Continue(StatementContinue::Empty);
+                    continue 'cases;
+                }
+
+                v.read(ctx);
+                let v_copy = ctx.load_to_stack();
+
                 for ele in &case.consequent {
-                    if prev_result.is_break() {
-                        // Stop looping over statements if we found a break.
-                        break;
-                    }
                     prev_result = ele.compile(ctx);
+                    if prev_result.is_break() {
+                        // Continue to next case if the rest of the current case
+                        // becomes unreachable.
+                        v_copy.forget(ctx);
+                        continue 'cases;
+                    }
                 }
                 // ii. If R.[[Value]] is not empty, set V to R.[[Value]].
-                // if !ctx.is_unreachable() {
-                //     ctx.add_instruction(Instruction::LoadReplace);
-                // }
+                // iii. If R is an abrupt completion, return ? UpdateEmpty(R, V).
+                v_copy.update_empty(ctx);
+                v.write(ctx);
             }
 
             if let Some(jump_to_end) = jump_to_end {
@@ -4026,10 +4082,9 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
             ControlFlow::Continue(StatementContinue::Value)
         });
 
-        switch.exit(ctx);
-        // iii. If R is an abrupt completion, return ? UpdateEmpty(R, V).
-        // ctx.add_instruction(Instruction::UpdateEmpty);
         // 9. Return R.
+        switch.exit(ctx);
+        switch_value.update_empty(ctx);
         r
     }
 }
@@ -4104,6 +4159,13 @@ fn catch_clause_evaluation<'s, 'gc>(
     ctx: &mut CompileContext<'_, 's, 'gc, '_>,
 ) -> StatementResult<'gc> {
     // 14.15.2 Runtime Semantics: CatchClauseEvaluation
+
+    // Before we can start evaluation, we want to reset the stack depth to what
+    // it should be here according to our tracking. It's possible that our error
+    // was thrown from within an expression that forgot some Values on the
+    // stack, and leaving those there would lead to stack variable misalignment.
+    ctx.reset_stack_depth();
+
     let catch_env = if let Some(exception_param) = &catch_clause.param {
         // 1. Let oldEnv be the running execution context's LexicalEnvironment.
         // 2. Let catchEnv be NewDeclarativeEnvironment(oldEnv).
@@ -4159,12 +4221,11 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
         label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,
         ctx: &mut CompileContext<'_, 's, '_, '_>,
     ) -> Self::Output {
-        let l = ctx.enter_loop(label_set.cloned());
-
         // 1. Let V be undefined.
-        ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
-        ctx.add_instruction(Instruction::Load);
+        ctx.add_instruction(Instruction::Empty);
+        let v = ctx.push_stack_result_value(Some(Value::Undefined));
         // 2. Repeat
+        let l = ctx.enter_loop(label_set.cloned());
         let jump_over_continue = ctx.add_instruction_with_jump_slot(Instruction::Jump);
         let continue_label = ctx.get_jump_index_to_here();
         // f. If stmtResult.[[Value]] is not EMPTY, set V to
@@ -4203,7 +4264,6 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
             // > c. If LoopContinues(result, labelSet) is false,
             // >    return ? UpdateEmpty(result, V).
             ctx.add_instruction(Instruction::UpdateEmpty);
-            ctx.add_instruction(Instruction::Debug);
             ctx.add_instruction(Instruction::Throw);
         }
         // f. If stmtResult.[[Value]] is not EMPTY, set V to
@@ -4217,6 +4277,8 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
         // failure then result is currently empty and UpdateEmpty will pop V
         // into the result register.
         l.exit(ctx, continue_label);
+        v.forget(ctx);
+
         stmt_result
     }
 }
@@ -4232,7 +4294,8 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
         ctx: &mut CompileContext<'_, 's, '_, '_>,
     ) -> Self::Output {
         // 1. Let V be undefined.
-        let v = ctx.push_stack_loop_result();
+        ctx.add_instruction(Instruction::Empty);
+        let v = ctx.push_stack_result_value(Some(Value::Undefined));
         // 2. Repeat,
         let l = ctx.enter_loop(label_set.cloned());
         let jump_over_continue = ctx.add_instruction_with_jump_slot(Instruction::Jump);
@@ -4294,7 +4357,7 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
         // failure then result is currently empty and UpdateEmpty will pop V
         // into the result register.
         l.exit(ctx, continue_label);
-        v.exit(ctx);
+        v.forget(ctx);
         stmt_result
     }
 }

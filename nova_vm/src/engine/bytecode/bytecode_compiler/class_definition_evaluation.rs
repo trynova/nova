@@ -20,7 +20,9 @@ use crate::{
     engine::{
         CompileContext, CompileEvaluation, FunctionExpression, Instruction,
         NamedEvaluationParameter, SendableRef,
-        bytecode::bytecode_compiler::{ExpressionError, ValueOutput, variable_escapes_scope},
+        bytecode::bytecode_compiler::{
+            ExpressionError, ValueOutput, compile_context::BlockEnvPrep, variable_escapes_scope,
+        },
     },
 };
 use ahash::{AHashMap, AHashSet};
@@ -1037,8 +1039,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Static
         // a. NOTE: Only a single Environment Record is needed for the parameters and top-level vars.
         // b. Let instantiatedVarNames be a copy of the List parameterBindings.
         let mut instantiated_var_names = AHashSet::new();
-        let static_env = ctx.enter_lexical_scope();
-        let mut stack_variables = vec![];
+        let mut block_prep: Vec<BlockEnvPrep> = vec![];
 
         // c. For each element n of varNames, do
         self.var_declared_names(&mut |identifier| {
@@ -1050,6 +1051,9 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Static
             }
             let n_string = ctx.create_string(&n);
             if variable_escapes_scope(ctx, identifier) {
+                if !block_prep.iter().any(|p| p.is_env()) {
+                    block_prep.push(BlockEnvPrep::Env(ctx.enter_lexical_scope()));
+                }
                 // 2. Perform ! env.CreateMutableBinding(n, false).
                 ctx.add_instruction_with_identifier(
                     Instruction::CreateMutableBinding,
@@ -1063,7 +1067,9 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Static
                 ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
                 ctx.add_instruction(Instruction::InitializeReferencedBinding);
             } else {
-                stack_variables.push(ctx.push_stack_variable(identifier.symbol_id(), false));
+                block_prep.push(BlockEnvPrep::Var(
+                    ctx.push_stack_variable(identifier.symbol_id(), false),
+                ));
             }
         });
 
@@ -1092,7 +1098,9 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Static
                         dn.to_property_key(),
                     );
                 } else {
-                    stack_variables.push(ctx.push_stack_variable(identifier.symbol_id(), false));
+                    block_prep.push(BlockEnvPrep::Var(
+                        ctx.push_stack_variable(identifier.symbol_id(), false),
+                    ));
                 }
             };
             let mut create_default_export = false;
@@ -1148,10 +1156,9 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Static
                 break;
             }
         }
-        for stack_variable in stack_variables {
-            stack_variable.exit(ctx);
+        for block_prep in block_prep.into_iter().rev() {
+            block_prep.exit(ctx);
         }
-        static_env.exit(ctx);
     }
 }
 
