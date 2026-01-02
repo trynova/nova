@@ -776,18 +776,17 @@ pub fn exit_with_parse_errors(errors: Vec<OxcDiagnostic>, source_path: &str, sou
     }))
     .unwrap();
 
-    eprintln!("Parse errors:");
-
     // SAFETY: This function never returns, so `source`'s lifetime must last for
     // the duration of the program.
     let source: &'static str = unsafe { std::mem::transmute(source) };
     let named_source = miette::NamedSource::new(source_path, source);
 
+    eprintln!("SyntaxError:");
+
     for error in errors {
         let report = error.with_source_code(named_source.clone());
-        eprint!("{report:?}");
+        eprintln!("{report:?}");
     }
-    eprintln!();
 
     std::process::exit(1);
 }
