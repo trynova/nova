@@ -9,7 +9,8 @@ use crate::{
     ecmascript::types::{Primitive, String, Value},
     engine::bytecode::bytecode_compiler::{
         ExpressionError, StatementContinue, StatementResult, ValueOutput,
-        compile_context::IteratorStackEntry,
+        compile_context::{BlockEnvPrep, IteratorStackEntry},
+        variable_escapes_scope,
     },
 };
 use oxc_ast::ast;
@@ -181,7 +182,7 @@ fn for_in_of_body_evaluation<'s, 'gc>(
         IterationKind::AsyncIterate => ctx.enter_async_iterator(label_set.cloned()),
     };
 
-    let mut decl_env = None;
+    let mut block_prep: Vec<BlockEnvPrep> = vec![];
     // g. If lhsKind is either ASSIGNMENT or VAR-BINDING, then
     let status = match lhs_kind {
         LeftHandSideKind::Assignment | LeftHandSideKind::VarBinding => {
@@ -243,20 +244,26 @@ fn for_in_of_body_evaluation<'s, 'gc>(
                 // iv. Perform ForDeclarationBindingInstantiation of lhs with argument iterationEnv.
                 // v. Set the running execution context's LexicalEnvironment to iterationEnv.
                 lhs.bound_names(&mut |binding_identifier| {
-                    if decl_env.is_none() {
-                        // Optimization: Only enter declarative environment if
-                        // bound names exist.
-                        decl_env = Some(ctx.enter_lexical_scope());
+                    if variable_escapes_scope(ctx, binding_identifier) {
+                        if !block_prep.iter().any(|p| p.is_env()) {
+                            // Optimization: Only enter declarative environment if
+                            // bound names exist.
+                            block_prep.push(BlockEnvPrep::Env(ctx.enter_lexical_scope()));
+                        }
+                        let identifier = ctx.create_string(binding_identifier.name.as_str());
+                        ctx.add_instruction_with_identifier(
+                            if lhs.kind.is_const() {
+                                Instruction::CreateImmutableBinding
+                            } else {
+                                Instruction::CreateMutableBinding
+                            },
+                            identifier.to_property_key(),
+                        );
+                    } else {
+                        block_prep.push(BlockEnvPrep::Var(
+                            ctx.push_stack_variable(binding_identifier.symbol_id(), false),
+                        ));
                     }
-                    let identifier = ctx.create_string(binding_identifier.name.as_str());
-                    ctx.add_instruction_with_identifier(
-                        if lhs.kind.is_const() {
-                            Instruction::CreateImmutableBinding
-                        } else {
-                            Instruction::CreateMutableBinding
-                        },
-                        identifier.to_property_key(),
-                    );
                 });
                 // 1. Let status be
                 //    Completion(ForDeclarationBindingInitialization of lhs
@@ -280,27 +287,32 @@ fn for_in_of_body_evaluation<'s, 'gc>(
                     // iv. Perform ForDeclarationBindingInstantiation of lhs with argument iterationEnv.
                     // v. Set the running execution context's LexicalEnvironment to iterationEnv.
                     // 1. Assert: lhs binds a single name.
-                    assert!(decl_env.is_none());
-                    decl_env = Some(ctx.enter_lexical_scope());
+                    debug_assert!(block_prep.is_empty());
 
-                    // 2. Let lhsName be the sole element of the BoundNames of lhs.
-                    let lhs_name = ctx.create_string(binding_identifier.name.as_str());
-                    ctx.add_instruction_with_identifier(
-                        if lhs.kind.is_const() {
-                            Instruction::CreateImmutableBinding
-                        } else {
-                            Instruction::CreateMutableBinding
-                        },
-                        lhs_name.to_property_key(),
-                    );
-
-                    // 3. Let lhsRef be ! ResolveBinding(lhsName).
-                    ctx.add_instruction_with_identifier(
-                        Instruction::ResolveBinding,
-                        lhs_name.to_property_key(),
-                    );
-                    // 4. Let status be Completion(InitializeReferencedBinding(lhsRef, nextValue)).
-                    ctx.add_instruction(Instruction::InitializeReferencedBinding)
+                    if variable_escapes_scope(ctx, binding_identifier) {
+                        block_prep.push(BlockEnvPrep::Env(ctx.enter_lexical_scope()));
+                        // 2. Let lhsName be the sole element of the BoundNames of lhs.
+                        let lhs_name = ctx.create_string(binding_identifier.name.as_str());
+                        ctx.add_instruction_with_identifier(
+                            if lhs.kind.is_const() {
+                                Instruction::CreateImmutableBinding
+                            } else {
+                                Instruction::CreateMutableBinding
+                            },
+                            lhs_name.to_property_key(),
+                        );
+                        // 3. Let lhsRef be ! ResolveBinding(lhsName).
+                        ctx.add_instruction_with_identifier(
+                            Instruction::ResolveBinding,
+                            lhs_name.to_property_key(),
+                        );
+                        // 4. Let status be Completion(InitializeReferencedBinding(lhsRef, nextValue)).
+                        ctx.add_instruction(Instruction::InitializeReferencedBinding)
+                    } else {
+                        block_prep.push(BlockEnvPrep::Var(
+                            ctx.push_stack_variable(binding_identifier.symbol_id(), true),
+                        ));
+                    }
                 });
                 Ok(())
             }
@@ -320,8 +332,8 @@ fn for_in_of_body_evaluation<'s, 'gc>(
     };
 
     // k. Set the running execution context's LexicalEnvironment to oldEnv.
-    if let Some(decl_env) = decl_env {
-        decl_env.exit(ctx);
+    for block_prep in block_prep.into_iter().rev() {
+        block_prep.exit(ctx);
     }
 
     let continue_target = ctx.get_jump_index_to_here();
@@ -419,8 +431,10 @@ fn get_for_statement_left_hand_side_kind<'gc>(
         ast::ForStatementLeft::VariableDeclaration(var_decl) => {
             if var_decl.kind.is_lexical() {
                 var_decl.bound_names(&mut |binding_identifier| {
-                    uninitialized_bound_names
-                        .push(ctx.create_string(binding_identifier.name.as_str()));
+                    if variable_escapes_scope(ctx, binding_identifier) {
+                        uninitialized_bound_names
+                            .push(ctx.create_string(binding_identifier.name.as_str()));
+                    }
                 });
                 LeftHandSideKind::LexicalBinding
             } else {
