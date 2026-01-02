@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::ops::{Index, IndexMut};
-
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_iterator_objects::create_iter_result_object,
@@ -20,7 +18,8 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        WorkQueues,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
@@ -29,14 +28,6 @@ use crate::{
 pub struct Generator<'a>(BaseIndex<'a, GeneratorHeapData<'static>>);
 
 impl Generator<'_> {
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
     ///### [27.5.3.3 GeneratorResume ( generator, value, generatorBrand )](https://tc39.es/ecma262/#sec-generatorresume)
     pub(crate) fn resume<'a>(
         self,
@@ -395,6 +386,16 @@ impl Generator<'_> {
 }
 
 bindable_handle!(Generator);
+
+impl HeapIndexHandle for Generator<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_index_u32(index))
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.get_index_u32()
+    }
+}
 
 impl<'a> From<Generator<'a>> for Object<'a> {
     fn from(value: Generator) -> Self {

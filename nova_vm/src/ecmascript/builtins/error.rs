@@ -4,8 +4,6 @@
 
 mod data;
 
-use core::ops::{Index, IndexMut};
-
 pub(crate) use data::ErrorHeapData;
 
 use crate::{
@@ -26,7 +24,8 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues, indexes::BaseIndex,
+        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
@@ -39,13 +38,15 @@ use super::ordinary::{
 #[repr(transparent)]
 pub struct Error<'a>(BaseIndex<'a, ErrorHeapData<'static>>);
 
-impl Error<'_> {
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
+impl Error<'_> {}
+
+impl HeapIndexHandle for Error<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_u32_index(index))
     }
 
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
+    fn get_index_u32(&self) -> u32 {
+        self.0.into_u32_index()
     }
 }
 

@@ -5,8 +5,6 @@
 mod data;
 mod radix;
 
-use core::ops::{Index, IndexMut};
-
 use super::{
     IntoNumeric, IntoPrimitive, IntoValue, Numeric, Primitive, String, Value,
     value::{FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT},
@@ -24,7 +22,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeap, WorkQueues,
-        indexes::BaseIndex,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
@@ -42,13 +40,13 @@ pub(crate) use radix::with_radix;
 pub struct HeapNumber<'a>(BaseIndex<'a, NumberHeapData>);
 bindable_handle!(HeapNumber);
 
-impl HeapNumber<'_> {
-    pub(crate) const fn _def() -> Self {
-        HeapNumber(BaseIndex::from_u32_index(0))
+impl HeapIndexHandle for HeapNumber<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_u32_index(index))
     }
 
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
+    fn get_index_u32(&self) -> u32 {
+        self.0.into_u32_index()
     }
 }
 

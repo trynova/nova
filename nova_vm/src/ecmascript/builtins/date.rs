@@ -4,8 +4,6 @@
 
 pub(crate) mod data;
 
-use core::ops::{Index, IndexMut};
-
 use data::DateValue;
 
 use crate::{
@@ -19,7 +17,8 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        WorkQueues,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
@@ -28,6 +27,16 @@ use self::data::DateHeapData;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Date<'a>(BaseIndex<'a, DateHeapData<'static>>);
+
+impl HeapIndexHandle for Date<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_u32_index(index))
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.into_u32_index()
+    }
+}
 
 impl Date<'_> {
     /// ### get [[DateValue]]
@@ -40,14 +49,6 @@ impl Date<'_> {
     #[inline]
     pub(crate) fn set_date_value(self, agent: &mut Agent, date: DateValue) {
         agent[self].date = date;
-    }
-
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
     }
 }
 

@@ -21,7 +21,8 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        WorkQueues,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
@@ -34,13 +35,17 @@ pub mod data;
 pub struct FinalizationRegistry<'a>(BaseIndex<'a, FinalizationRegistryRecord<'static>>);
 bindable_handle!(FinalizationRegistry);
 
-impl<'fr> FinalizationRegistry<'fr> {
-    pub(crate) const _DEF: Self = Self(BaseIndex::from_u32_index(u32::MAX - 1));
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
+impl HeapIndexHandle for FinalizationRegistry<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_u32_index(index))
     }
 
+    fn get_index_u32(&self) -> u32 {
+        self.0.into_u32_index()
+    }
+}
+
+impl<'fr> FinalizationRegistry<'fr> {
     pub(crate) fn get_cleanup_queue(self, agent: &mut Agent) -> (Function<'fr>, Vec<Value<'fr>>) {
         self.get_mut(agent).cleanup.get_cleanup_queue()
     }

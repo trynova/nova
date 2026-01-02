@@ -298,68 +298,67 @@ const fn value_discriminant(value: Value) -> u8 {
 pub(crate) const UNDEFINED_DISCRIMINANT: u8 = value_discriminant(Value::Undefined);
 pub(crate) const NULL_DISCRIMINANT: u8 = value_discriminant(Value::Null);
 pub(crate) const BOOLEAN_DISCRIMINANT: u8 = value_discriminant(Value::Boolean(true));
-pub(crate) const STRING_DISCRIMINANT: u8 = value_discriminant(Value::String(HeapString::_def()));
+pub(crate) const STRING_DISCRIMINANT: u8 = value_discriminant(Value::String(HeapString::_DEF));
 pub(crate) const SMALL_STRING_DISCRIMINANT: u8 =
     value_discriminant(Value::SmallString(SmallString::EMPTY));
-pub(crate) const SYMBOL_DISCRIMINANT: u8 = value_discriminant(Value::Symbol(Symbol::_def()));
-pub(crate) const NUMBER_DISCRIMINANT: u8 = value_discriminant(Value::Number(HeapNumber::_def()));
+pub(crate) const SYMBOL_DISCRIMINANT: u8 = value_discriminant(Value::Symbol(Symbol::_DEF));
+pub(crate) const NUMBER_DISCRIMINANT: u8 = value_discriminant(Value::Number(HeapNumber::_DEF));
 pub(crate) const INTEGER_DISCRIMINANT: u8 =
     value_discriminant(Value::Integer(SmallInteger::zero()));
-pub(crate) const FLOAT_DISCRIMINANT: u8 = value_discriminant(Value::SmallF64(SmallF64::_def()));
-pub(crate) const BIGINT_DISCRIMINANT: u8 = value_discriminant(Value::BigInt(HeapBigInt::_def()));
+pub(crate) const FLOAT_DISCRIMINANT: u8 = value_discriminant(Value::SmallF64(SmallF64::_DEF));
+pub(crate) const BIGINT_DISCRIMINANT: u8 = value_discriminant(Value::BigInt(HeapBigInt::_DEF));
 pub(crate) const SMALL_BIGINT_DISCRIMINANT: u8 =
     value_discriminant(Value::SmallBigInt(SmallBigInt::zero()));
-pub(crate) const OBJECT_DISCRIMINANT: u8 =
-    value_discriminant(Value::Object(OrdinaryObject::_def()));
-pub(crate) const ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Array(Array::_def()));
+pub(crate) const OBJECT_DISCRIMINANT: u8 = value_discriminant(Value::Object(OrdinaryObject::_DEF));
+pub(crate) const ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Array(Array::_DEF));
 #[cfg(feature = "date")]
-pub(crate) const DATE_DISCRIMINANT: u8 = value_discriminant(Value::Date(Date::_def()));
-pub(crate) const ERROR_DISCRIMINANT: u8 = value_discriminant(Value::Error(Error::_def()));
+pub(crate) const DATE_DISCRIMINANT: u8 = value_discriminant(Value::Date(Date::_DEF));
+pub(crate) const ERROR_DISCRIMINANT: u8 = value_discriminant(Value::Error(Error::_DEF));
 pub(crate) const BUILTIN_FUNCTION_DISCRIMINANT: u8 =
-    value_discriminant(Value::BuiltinFunction(BuiltinFunction::_def()));
+    value_discriminant(Value::BuiltinFunction(BuiltinFunction::_DEF));
 pub(crate) const ECMASCRIPT_FUNCTION_DISCRIMINANT: u8 =
-    value_discriminant(Value::ECMAScriptFunction(ECMAScriptFunction::_def()));
+    value_discriminant(Value::ECMAScriptFunction(ECMAScriptFunction::_DEF));
 pub(crate) const BOUND_FUNCTION_DISCRIMINANT: u8 =
-    value_discriminant(Value::BoundFunction(BoundFunction::_def()));
+    value_discriminant(Value::BoundFunction(BoundFunction::_DEF));
 #[cfg(feature = "regexp")]
-pub(crate) const REGEXP_DISCRIMINANT: u8 = value_discriminant(Value::RegExp(RegExp::_def()));
+pub(crate) const REGEXP_DISCRIMINANT: u8 = value_discriminant(Value::RegExp(RegExp::_DEF));
 
 pub(crate) const BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT: u8 = value_discriminant(
-    Value::BuiltinConstructorFunction(BuiltinConstructorFunction::_def()),
+    Value::BuiltinConstructorFunction(BuiltinConstructorFunction::_DEF),
 );
 pub(crate) const BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT: u8 = value_discriminant(
-    Value::BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction::_def()),
+    Value::BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction::_DEF),
 );
 pub(crate) const BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT: u8 = value_discriminant(
-    Value::BuiltinPromiseFinallyFunction(BuiltinPromiseFinallyFunction::_def()),
+    Value::BuiltinPromiseFinallyFunction(BuiltinPromiseFinallyFunction::_DEF),
 );
 pub(crate) const BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::BuiltinPromiseCollectorFunction);
 pub(crate) const BUILTIN_PROXY_REVOKER_FUNCTION: u8 =
     value_discriminant(Value::BuiltinProxyRevokerFunction);
 pub(crate) const PRIMITIVE_OBJECT_DISCRIMINANT: u8 =
-    value_discriminant(Value::PrimitiveObject(PrimitiveObject::_def()));
+    value_discriminant(Value::PrimitiveObject(PrimitiveObject::_DEF));
 pub(crate) const ARGUMENTS_DISCRIMINANT: u8 =
-    value_discriminant(Value::Arguments(OrdinaryObject::_def()));
+    value_discriminant(Value::Arguments(OrdinaryObject::_DEF));
 pub(crate) const FINALIZATION_REGISTRY_DISCRIMINANT: u8 =
     value_discriminant(Value::FinalizationRegistry(FinalizationRegistry::_DEF));
-pub(crate) const MAP_DISCRIMINANT: u8 = value_discriminant(Value::Map(Map::_def()));
-pub(crate) const PROMISE_DISCRIMINANT: u8 = value_discriminant(Value::Promise(Promise::_def()));
-pub(crate) const PROXY_DISCRIMINANT: u8 = value_discriminant(Value::Proxy(Proxy::_def()));
+pub(crate) const MAP_DISCRIMINANT: u8 = value_discriminant(Value::Map(Map::_DEF));
+pub(crate) const PROMISE_DISCRIMINANT: u8 = value_discriminant(Value::Promise(Promise::_DEF));
+pub(crate) const PROXY_DISCRIMINANT: u8 = value_discriminant(Value::Proxy(Proxy::_DEF));
 #[cfg(feature = "set")]
-pub(crate) const SET_DISCRIMINANT: u8 = value_discriminant(Value::Set(Set::_def()));
+pub(crate) const SET_DISCRIMINANT: u8 = value_discriminant(Value::Set(Set::_DEF));
 #[cfg(feature = "weak-refs")]
 pub(crate) const WEAK_MAP_DISCRIMINANT: u8 = value_discriminant(Value::WeakMap(WeakMap::_DEF));
 #[cfg(feature = "weak-refs")]
-pub(crate) const WEAK_REF_DISCRIMINANT: u8 = value_discriminant(Value::WeakRef(WeakRef::_def()));
+pub(crate) const WEAK_REF_DISCRIMINANT: u8 = value_discriminant(Value::WeakRef(WeakRef::_DEF));
 #[cfg(feature = "weak-refs")]
-pub(crate) const WEAK_SET_DISCRIMINANT: u8 = value_discriminant(Value::WeakSet(WeakSet::_def()));
+pub(crate) const WEAK_SET_DISCRIMINANT: u8 = value_discriminant(Value::WeakSet(WeakSet::_DEF));
 
 #[cfg(feature = "array-buffer")]
 pub(crate) const ARRAY_BUFFER_DISCRIMINANT: u8 =
-    value_discriminant(Value::ArrayBuffer(ArrayBuffer::_def()));
+    value_discriminant(Value::ArrayBuffer(ArrayBuffer::_DEF));
 #[cfg(feature = "array-buffer")]
-pub(crate) const DATA_VIEW_DISCRIMINANT: u8 = value_discriminant(Value::DataView(DataView::_def()));
+pub(crate) const DATA_VIEW_DISCRIMINANT: u8 = value_discriminant(Value::DataView(DataView::_DEF));
 #[cfg(feature = "array-buffer")]
 pub(crate) const INT_8_ARRAY_DISCRIMINANT: u8 =
     value_discriminant(Value::Int8Array(Int8Array::_DEF));
@@ -402,7 +401,7 @@ pub(crate) const SHARED_ARRAY_BUFFER_DISCRIMINANT: u8 =
     value_discriminant(Value::SharedArrayBuffer(SharedArrayBuffer::_DEF));
 #[cfg(feature = "shared-array-buffer")]
 pub(crate) const SHARED_DATA_VIEW_DISCRIMINANT: u8 =
-    value_discriminant(Value::SharedDataView(SharedDataView::_def()));
+    value_discriminant(Value::SharedDataView(SharedDataView::_DEF));
 #[cfg(feature = "shared-array-buffer")]
 pub(crate) const SHARED_INT_8_ARRAY_DISCRIMINANT: u8 =
     value_discriminant(Value::SharedInt8Array(SharedInt8Array::_DEF));
@@ -442,25 +441,24 @@ pub(crate) const SHARED_FLOAT_64_ARRAY_DISCRIMINANT: u8 =
     value_discriminant(Value::SharedFloat64Array(SharedFloat64Array::_DEF));
 
 pub(crate) const ASYNC_GENERATOR_DISCRIMINANT: u8 =
-    value_discriminant(Value::AsyncGenerator(AsyncGenerator::_def()));
+    value_discriminant(Value::AsyncGenerator(AsyncGenerator::_DEF));
 pub(crate) const ARRAY_ITERATOR_DISCRIMINANT: u8 =
-    value_discriminant(Value::ArrayIterator(ArrayIterator::_def()));
+    value_discriminant(Value::ArrayIterator(ArrayIterator::_DEF));
 #[cfg(feature = "set")]
 pub(crate) const SET_ITERATOR_DISCRIMINANT: u8 =
-    value_discriminant(Value::SetIterator(SetIterator::_def()));
+    value_discriminant(Value::SetIterator(SetIterator::_DEF));
 #[cfg(feature = "set")]
 pub(crate) const MAP_ITERATOR_DISCRIMINANT: u8 =
-    value_discriminant(Value::MapIterator(MapIterator::_def()));
+    value_discriminant(Value::MapIterator(MapIterator::_DEF));
 pub(crate) const STRING_ITERATOR_DISCRIMINANT: u8 =
-    value_discriminant(Value::StringIterator(StringIterator::_def()));
+    value_discriminant(Value::StringIterator(StringIterator::_DEF));
 #[cfg(feature = "regexp")]
 pub(crate) const REGEXP_STRING_ITERATOR_DISCRIMINANT: u8 =
-    value_discriminant(Value::RegExpStringIterator(RegExpStringIterator::_def()));
-pub(crate) const GENERATOR_DISCRIMINANT: u8 =
-    value_discriminant(Value::Generator(Generator::_def()));
-pub(crate) const MODULE_DISCRIMINANT: u8 = value_discriminant(Value::Module(Module::_def()));
+    value_discriminant(Value::RegExpStringIterator(RegExpStringIterator::_DEF));
+pub(crate) const GENERATOR_DISCRIMINANT: u8 = value_discriminant(Value::Generator(Generator::_DEF));
+pub(crate) const MODULE_DISCRIMINANT: u8 = value_discriminant(Value::Module(Module::_DEF));
 pub(crate) const EMBEDDER_OBJECT_DISCRIMINANT: u8 =
-    value_discriminant(Value::EmbedderObject(EmbedderObject::_def()));
+    value_discriminant(Value::EmbedderObject(EmbedderObject::_DEF));
 
 impl<'a> Value<'a> {
     /// Scope a stack-only Value. Stack-only Values are primitives that do not

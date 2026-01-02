@@ -22,13 +22,13 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        WorkQueues,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
 use abstract_operations::detach_array_buffer;
 pub(crate) use abstract_operations::*;
-use core::ops::{Index, IndexMut};
 pub use data::*;
 use ecmascript_atomics::Ordering;
 
@@ -214,17 +214,19 @@ impl ArrayBuffer<'_> {
         let target_data = target_data.buffer.get_data_block_mut();
         copy_data_block_bytes(target_data, 0, source_data, first, count);
     }
-
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
 }
 
 bindable_handle!(ArrayBuffer);
+
+impl HeapIndexHandle for ArrayBuffer<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_index_u32(index))
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.get_index_u32()
+    }
+}
 
 impl<'a> TryFrom<Value<'a>> for ArrayBuffer<'a> {
     type Error = ();

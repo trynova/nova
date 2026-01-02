@@ -31,11 +31,7 @@ use crate::{
     ndt,
 };
 use ahash::AHashSet;
-use core::{
-    any::Any,
-    marker::PhantomData,
-    ops::{Index, IndexMut},
-};
+use core::{any::Any, marker::PhantomData};
 use oxc_ast::ast;
 use oxc_diagnostics::OxcDiagnostic;
 use oxc_ecmascript::BoundNames;

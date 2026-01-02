@@ -16,7 +16,8 @@ use crate::{
     engine::context::{Bindable, GcScope, NoGcScope, bindable_handle},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WellKnownSymbolIndexes, WorkQueues, indexes::BaseIndex,
+        WellKnownSymbolIndexes, WorkQueues,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
@@ -42,16 +43,6 @@ impl<'a> StringIterator<'a> {
         *position >= len
     }
 
-    /// # Do not use this
-    /// This is only for Value discriminant creation.
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
     pub(crate) fn get_data(self, agent: &Agent) -> &StringIteratorHeapData<'a> {
         agent
             .heap
@@ -66,6 +57,16 @@ impl<'a> StringIterator<'a> {
             .string_iterators
             .get_mut(self.get_index())
             .expect("StringIterator use-after-free")
+    }
+}
+
+impl HeapIndexHandle for StringIterator<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_index_u32(index))
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.get_index_u32()
     }
 }
 

@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::ops::{Index, IndexMut};
-
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -25,7 +23,8 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        WorkQueues,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
@@ -36,14 +35,6 @@ use super::ArgumentsList;
 pub struct BoundFunction<'a>(BaseIndex<'a, BoundFunctionHeapData<'static>>);
 
 impl BoundFunction<'_> {
-    pub(crate) const fn _def() -> Self {
-        BoundFunction(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
     pub fn is_constructor(self, agent: &Agent) -> bool {
         // A bound function has the [[Construct]] method if the target function
         // does.
@@ -52,6 +43,16 @@ impl BoundFunction<'_> {
 }
 
 bindable_handle!(BoundFunction);
+
+impl HeapIndexHandle for BoundFunction<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_u32_index(index))
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.into_u32_index()
+    }
+}
 
 impl<'a> IntoValue<'a> for BoundFunction<'a> {
     fn into_value(self) -> Value<'a> {

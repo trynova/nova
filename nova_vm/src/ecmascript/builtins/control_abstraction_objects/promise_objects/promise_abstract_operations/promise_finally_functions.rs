@@ -18,7 +18,8 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        WorkQueues,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
@@ -60,6 +61,16 @@ pub(crate) type BuiltinPromiseFinallyFunctionIndex<'a> =
 pub struct BuiltinPromiseFinallyFunction<'a>(pub(crate) BuiltinPromiseFinallyFunctionIndex<'a>);
 bindable_handle!(BuiltinPromiseFinallyFunction);
 
+impl HeapIndexHandle for BuiltinPromiseFinallyFunction<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_u32_index(index))
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.into_u32_index()
+    }
+}
+
 impl<'f> BuiltinPromiseFinallyFunction<'f> {
     pub(crate) fn create_finally_functions(
         agent: &mut Agent,
@@ -91,14 +102,6 @@ impl<'f> BuiltinPromiseFinallyFunction<'f> {
             .promise_finally_functions
             .get_mut(self.get_index())
             .expect("Promise.prototype.finally handler not found")
-    }
-
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
     }
 }
 

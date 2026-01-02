@@ -2,7 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::ops::{Index, IndexMut};
 use std::{marker::PhantomData, ops::ControlFlow};
 
 use crate::{
@@ -32,6 +31,7 @@ use crate::{
     heap::{
         CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference,
         WellKnownSymbolIndexes, WorkQueues,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
@@ -46,7 +46,8 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct Module<'a>(u32, PhantomData<&'a ()>);
+pub struct Module<'a>(BaseIndex<'a, ModuleHeapData<'static>>);
+bindable_handle!(Module);
 
 impl<'a> From<Module<'a>> for Object<'a> {
     fn from(value: Module<'a>) -> Self {
@@ -54,31 +55,15 @@ impl<'a> From<Module<'a>> for Object<'a> {
     }
 }
 
-impl Module<'_> {
-    pub(crate) const fn _def() -> Self {
-        Self::from_u32(0)
+impl HeapIndexHandle for Module<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_index_u32(index))
     }
 
-    pub(crate) const fn get_index(self) -> usize {
-        self.0 as usize
-    }
-
-    /// Creates a module identififer from a usize.
-    ///
-    /// ## Panics
-    /// If the given index is greater than `u32::MAX`.
-    pub(crate) const fn from_index(value: usize) -> Self {
-        assert!(value <= u32::MAX as usize);
-        Self(value as u32, PhantomData)
-    }
-
-    /// Creates a module identififer from a u32.
-    pub(crate) const fn from_u32(value: u32) -> Self {
-        Self(value, PhantomData)
+    fn get_index_u32(&self) -> u32 {
+        self.0.get_index_u32()
     }
 }
-
-bindable_handle!(Module);
 
 impl<'a> InternalSlots<'a> for Module<'a> {
     #[inline(always)]

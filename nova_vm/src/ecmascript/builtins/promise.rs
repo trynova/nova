@@ -2,7 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::ops::{Index, IndexMut};
 use std::convert::Infallible;
 
 use data::PromiseState;
@@ -18,7 +17,8 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        WorkQueues,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
@@ -32,15 +32,17 @@ pub mod data;
 #[repr(transparent)]
 pub struct Promise<'a>(BaseIndex<'a, PromiseHeapData<'static>>);
 
+impl HeapIndexHandle for Promise<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_u32_index(index))
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.into_u32_index()
+    }
+}
+
 impl<'a> Promise<'a> {
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
     /// Create a new resolved Promise.
     pub(crate) fn new_resolved(agent: &mut Agent, value: Value<'a>) -> Self {
         agent.heap.create(PromiseHeapData {

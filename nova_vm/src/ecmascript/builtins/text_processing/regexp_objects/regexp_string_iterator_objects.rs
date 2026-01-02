@@ -21,7 +21,8 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        WorkQueues,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
@@ -98,14 +99,6 @@ impl<'r> RegExpStringIterator<'r> {
         self.get_mut(agent).done = true;
     }
 
-    pub(crate) const fn _def() -> RegExpStringIterator<'static> {
-        RegExpStringIterator(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
     fn get(self, agent: &Agent) -> &RegExpStringIteratorRecord<'r> {
         agent
             .heap
@@ -120,6 +113,16 @@ impl<'r> RegExpStringIterator<'r> {
             .regexp_string_iterators
             .get_mut(self.get_index())
             .expect("Couldn't find RegExp String Iterator")
+    }
+}
+
+impl HeapIndexHandle for RegExpStringIterator<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_index_u32(index))
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.get_index_u32()
     }
 }
 

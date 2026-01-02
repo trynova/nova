@@ -66,7 +66,8 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        WorkQueues,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
@@ -79,18 +80,10 @@ pub struct GenericTypedArray<'a, T: Viewable>(
 );
 
 impl<'ta, T: Viewable> GenericTypedArray<'ta, T> {
-    /// Constant to be used only for creating a build-time Self.
-    pub(crate) const _DEF: Self = Self(BaseIndex::ZERO, PhantomData);
-
     /// Convert self into a VoidArray, losing type information.
     #[inline(always)]
     const fn into_void_array(self) -> VoidArray<'ta> {
         GenericTypedArray(self.0, PhantomData)
-    }
-
-    #[inline(always)]
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
     }
 
     fn check_not_void_array() {
@@ -538,6 +531,16 @@ impl<T: Viewable> Rootable for GenericTypedArray<'_, T> {
             }
             unreachable!()
         }
+    }
+}
+
+impl<T: Viewable> HeapIndexHandle for GenericTypedArray<'_, T> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_index_u32(index), PhantomData)
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.get_index_u32()
     }
 }
 

@@ -21,7 +21,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeap, WorkQueues,
-        indexes::BaseIndex,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 use core::ops::{Index, IndexMut, Neg};
@@ -43,14 +43,22 @@ pub(crate) enum BigIntMathematicalValue {
 }
 
 impl<'a> HeapBigInt<'a> {
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
     pub(crate) fn get_index(self) -> usize {
         self.0.into_index()
     }
+}
 
+impl HeapIndexHandle for HeapBigInt<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_u32_index(index))
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.into_u32_index()
+    }
+}
+
+impl<'a> HeapBigInt<'a> {
     pub(crate) fn mathematical_value(
         self,
         agent: &Agent,

@@ -27,11 +27,7 @@ use crate::{
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
-use core::{
-    marker::PhantomData,
-    num::NonZeroU32,
-    ops::{Index, IndexMut},
-};
+use core::{marker::PhantomData, num::NonZeroU32};
 pub(crate) use intrinsics::Intrinsics;
 pub(crate) use intrinsics::ProtoIntrinsics;
 

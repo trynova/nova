@@ -18,7 +18,8 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        WorkQueues,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
@@ -138,14 +139,6 @@ impl<'gc> DataView<'gc> {
         }
     }
 
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
     #[inline(always)]
     fn get<'a>(self, agent: &'a Agent) -> &'a DataViewRecord<'gc> {
         self.get_direct(&agent.heap.data_views)
@@ -177,6 +170,16 @@ impl<'gc> DataView<'gc> {
                     .expect("Invalid DataView reference"),
             )
         }
+    }
+}
+
+impl HeapIndexHandle for DataView<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_index_u32(index))
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.get_index_u32()
     }
 }
 
@@ -291,14 +294,6 @@ impl<'gc> SharedDataView<'gc> {
         }
     }
 
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
     #[inline(always)]
     fn get<'a>(self, agent: &'a Agent) -> &'a SharedDataViewRecord<'gc> {
         self.get_direct(&agent.heap.shared_data_views)
@@ -336,6 +331,16 @@ impl<'gc> SharedDataView<'gc> {
                     .expect("Invalid DataView reference"),
             )
         }
+    }
+}
+
+impl HeapIndexHandle for SharedDataView<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_index_u32(index))
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.get_index_u32()
     }
 }
 

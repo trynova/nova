@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::ops::{Index, IndexMut};
-
 use crate::{
     SmallInteger,
     ecmascript::{
@@ -33,7 +31,8 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        IntrinsicPrimitiveObjectIndexes, WorkQueues, indexes::BaseIndex,
+        IntrinsicPrimitiveObjectIndexes, WorkQueues,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 use small_string::SmallString;
@@ -46,6 +45,16 @@ use super::ordinary::{
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct PrimitiveObject<'a>(BaseIndex<'a, PrimitiveObjectRecord<'static>>);
+
+impl HeapIndexHandle for PrimitiveObject<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_u32_index(index))
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.into_u32_index()
+    }
+}
 
 impl IntrinsicPrimitiveObjectIndexes {
     pub(crate) const fn get_primitive_object<'a>(
@@ -87,14 +96,6 @@ impl<'a> TryFrom<Value<'a>> for PrimitiveObject<'a> {
 }
 
 impl PrimitiveObject<'_> {
-    pub(crate) const fn _def() -> Self {
-        PrimitiveObject(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
     pub fn is_bigint_object(self, agent: &Agent) -> bool {
         matches!(
             agent[self].data,

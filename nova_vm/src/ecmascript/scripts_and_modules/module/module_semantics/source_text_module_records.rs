@@ -166,10 +166,6 @@ impl<'m> SourceTextModule<'m> {
         self.get(agent).source_code.bind(gc)
     }
 
-    pub(crate) const fn _def() -> Self {
-        Self(0, PhantomData)
-    }
-
     fn get<'a>(
         self,
         agent: &'a impl AsRef<SourceTextModuleHeap>,

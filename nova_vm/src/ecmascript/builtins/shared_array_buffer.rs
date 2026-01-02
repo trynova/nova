@@ -19,7 +19,8 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        WorkQueues,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
@@ -48,7 +49,6 @@ impl<'sab> SharedArrayBuffer<'sab> {
     }
 
     /// Constant to be used only for creating a build-time Self.
-    pub(crate) const _DEF: Self = Self(BaseIndex::ZERO);
 
     pub(crate) fn as_slice(self, agent: &Agent) -> RacySlice<'_, u8> {
         self.get_data_block(agent).as_racy_slice()
@@ -97,11 +97,6 @@ impl<'sab> SharedArrayBuffer<'sab> {
                 data_block,
             })
             .bind(gc)
-    }
-
-    #[inline(always)]
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
     }
 
     fn get(self, agent: &Agent) -> &SharedArrayBufferRecord<'sab> {
@@ -163,6 +158,16 @@ impl<'sab> SharedArrayBuffer<'sab> {
         let data = self.get_mut(agent);
         debug_assert!(data.data_block.is_dangling());
         data.data_block = data_block;
+    }
+}
+
+impl HeapIndexHandle for SharedArrayBuffer<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_index_u32(index))
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.get_index_u32()
     }
 }
 

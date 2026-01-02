@@ -215,10 +215,6 @@ impl<'a> PromiseGroup<'a> {
         obj.into_value().unbind()
     }
 
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
     pub fn get(self, agent: &Agent) -> &PromiseGroupRecord<'a> {
         agent
             .heap
@@ -244,8 +240,6 @@ impl<'a> PromiseGroup<'a> {
             }
         }
     }
-
-    pub(crate) const _DEF: Self = { Self(BaseIndex::from_u32_index(0)) };
 }
 
 impl AsRef<[PromiseGroupRecord<'static>]> for Agent {

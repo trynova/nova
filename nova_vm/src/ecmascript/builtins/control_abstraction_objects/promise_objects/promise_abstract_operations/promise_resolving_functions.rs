@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::ops::{Index, IndexMut};
-
 use crate::{
     ecmascript::{
         builtins::{
@@ -19,7 +17,8 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        WorkQueues,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
@@ -49,15 +48,17 @@ pub(crate) type BuiltinPromiseResolvingFunctionIndex<'a> =
 #[repr(transparent)]
 pub struct BuiltinPromiseResolvingFunction<'a>(pub(crate) BuiltinPromiseResolvingFunctionIndex<'a>);
 
-impl BuiltinPromiseResolvingFunction<'_> {
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
+impl HeapIndexHandle for BuiltinPromiseResolvingFunction<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_u32_index(index))
     }
 
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
+    fn get_index_u32(&self) -> u32 {
+        self.0.into_u32_index()
     }
 }
+
+impl BuiltinPromiseResolvingFunction<'_> {}
 
 bindable_handle!(BuiltinPromiseResolvingFunction);
 

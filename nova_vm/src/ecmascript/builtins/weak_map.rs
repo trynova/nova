@@ -14,7 +14,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
-        indexes::BaseIndex,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
@@ -42,12 +42,6 @@ impl<'m> WeakMap<'m> {
 
     pub(crate) fn set(self, agent: &mut Agent, key: WeakKey<'m>, value: Value<'m>) {
         self.get_mut(agent).set(key, value)
-    }
-
-    pub(crate) const _DEF: Self = Self(BaseIndex::from_u32_index(u32::MAX - 1));
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
     }
 
     #[inline(always)]
@@ -84,6 +78,16 @@ impl<'m> WeakMap<'m> {
                     .expect("Invalid WeakMap reference"),
             )
         }
+    }
+}
+
+impl HeapIndexHandle for WeakMap<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_index_u32(index))
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.get_index_u32()
     }
 }
 

@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::ops::{Index, IndexMut};
-
 use crate::{
     ecmascript::{
         builtins::{
@@ -149,11 +147,7 @@ pub struct PromiseReactionRecord<'a> {
 #[repr(transparent)]
 pub struct PromiseReaction<'a>(BaseIndex<'a, PromiseReactionRecord<'static>>);
 
-impl PromiseReaction<'_> {
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-}
+impl PromiseReaction<'_> {}
 
 bindable_handle!(PromiseReaction);
 

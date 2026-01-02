@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::ops::{Index, IndexMut};
-
 use oxc_span::Span;
 
 use crate::{
@@ -29,7 +27,8 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues, indexes::BaseIndex,
+        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
     ndt,
 };
@@ -40,15 +39,17 @@ use super::ArgumentsList;
 #[repr(transparent)]
 pub struct BuiltinConstructorFunction<'a>(BaseIndex<'a, BuiltinConstructorRecord<'static>>);
 
+impl HeapIndexHandle for BuiltinConstructorFunction<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_u32_index(index))
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.into_u32_index()
+    }
+}
+
 impl BuiltinConstructorFunction<'_> {
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
     pub const fn is_constructor(self) -> bool {
         true
     }

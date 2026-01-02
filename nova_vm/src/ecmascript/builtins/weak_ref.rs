@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::ops::{Index, IndexMut};
-
 use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics, WeakKey},
@@ -15,7 +13,8 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        WorkQueues,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
@@ -26,16 +25,9 @@ pub mod data;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct WeakRef<'a>(BaseIndex<'a, WeakRefHeapData<'static>>);
+bindable_handle!(WeakRef);
 
 impl<'a> WeakRef<'a> {
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
     pub(crate) fn set_target(self, agent: &mut Agent, target: WeakKey) {
         agent[self].weak_ref_target = Some(target.unbind());
         // Note: WeakRefTarget is set only from the constructor, and it also
@@ -54,7 +46,15 @@ impl<'a> WeakRef<'a> {
     }
 }
 
-bindable_handle!(WeakRef);
+impl HeapIndexHandle for WeakRef<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_index_u32(index))
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.get_index_u32()
+    }
+}
 
 impl<'a> From<WeakRef<'a>> for Object<'a> {
     fn from(value: WeakRef<'a>) -> Self {

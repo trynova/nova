@@ -5,7 +5,6 @@
 mod async_generator_abstract_operations;
 mod async_generator_prototype;
 
-use core::ops::{Index, IndexMut};
 use std::collections::VecDeque;
 
 use async_generator_abstract_operations::{
@@ -34,16 +33,9 @@ use super::promise_objects::promise_abstract_operations::promise_reaction_record
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct AsyncGenerator<'a>(BaseIndex<'a, AsyncGeneratorHeapData<'static>>);
+bindable_handle!(AsyncGenerator);
 
 impl AsyncGenerator<'_> {
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
     pub(crate) fn get_executable<'gc>(
         self,
         agent: &Agent,
@@ -319,7 +311,15 @@ impl AsyncGenerator<'_> {
     }
 }
 
-bindable_handle!(AsyncGenerator);
+impl HeapIndexHandle for AsyncGenerator<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_index_u32(index))
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.get_index_u32()
+    }
+}
 
 impl<'a> From<AsyncGenerator<'a>> for Object<'a> {
     fn from(value: AsyncGenerator) -> Self {

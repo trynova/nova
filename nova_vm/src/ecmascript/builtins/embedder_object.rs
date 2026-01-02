@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::ops::{Index, IndexMut};
-
 use crate::{
     ecmascript::{
         execution::Agent,
@@ -14,7 +12,8 @@ use crate::{
         rootable::HeapRootData,
     },
     heap::{
-        CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, indexes::BaseIndex,
+        CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
@@ -26,21 +25,23 @@ pub mod data;
 #[repr(transparent)]
 pub struct EmbedderObject<'a>(BaseIndex<'a, EmbedderObjectHeapData>);
 
-impl EmbedderObject<'_> {
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-}
+impl EmbedderObject<'_> {}
 
 bindable_handle!(EmbedderObject);
 
 impl<'a> From<EmbedderObject<'a>> for Object<'a> {
     fn from(value: EmbedderObject<'a>) -> Self {
         Object::EmbedderObject(value)
+    }
+}
+
+impl HeapIndexHandle for EmbedderObject<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_index_u32(index))
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.get_index_u32()
     }
 }
 

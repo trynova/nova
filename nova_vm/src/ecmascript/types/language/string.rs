@@ -5,10 +5,7 @@
 include!(concat!(env!("OUT_DIR"), "/builtin_strings.rs"));
 mod data;
 
-use core::{
-    hash::Hash,
-    ops::{Index, IndexMut},
-};
+use core::hash::Hash;
 use std::borrow::Cow;
 
 use super::{
@@ -24,7 +21,8 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        PrimitiveHeap, PropertyKeyHeap, WorkQueues, indexes::BaseIndex,
+        PrimitiveHeap, PropertyKeyHeap, WorkQueues,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
@@ -51,20 +49,22 @@ impl HeapString<'_> {
         agent[self].len()
     }
 
-    pub(crate) const fn _def() -> Self {
-        HeapString(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
     pub fn to_string_lossy(self, agent: &Agent) -> Cow<'_, str> {
         agent[self].to_string_lossy()
     }
 
     pub fn as_str(self, agent: &Agent) -> Option<&str> {
         agent[self].as_str()
+    }
+}
+
+impl HeapIndexHandle for HeapString<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_u32_index(index))
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.into_u32_index()
     }
 }
 

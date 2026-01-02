@@ -4,8 +4,6 @@
 
 mod data;
 
-use core::ops::{Index, IndexMut};
-
 pub use data::SymbolHeapData;
 
 use crate::{
@@ -17,7 +15,7 @@ use crate::{
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         LAST_WELL_KNOWN_SYMBOL_INDEX, PropertyKeyHeap, WellKnownSymbolIndexes, WorkQueues,
-        indexes::BaseIndex,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
@@ -40,14 +38,6 @@ enum SymbolRootReprInner {
 pub struct SymbolRootRepr(SymbolRootReprInner);
 
 impl<'a> Symbol<'a> {
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
     /// Return the name for functions created using NamedEvaluation with a
     /// Symbol property key.
     ///
@@ -71,9 +61,8 @@ impl<'a> Symbol<'a> {
             let description = descriptor.to_string_lossy(agent);
             String::from_string(agent, format!("[{description}]"), gc)
         } else {
-            // b. If description is undefined, set name to the
-            //    empty String.
-            String::EMPTY_STRING
+            // b. If description is undefined, set name to the empty String.
+            String::EMPTY_STRING.bind(gc)
         }
     }
 
@@ -96,6 +85,16 @@ impl<'a> Symbol<'a> {
 }
 
 bindable_handle!(Symbol);
+
+impl HeapIndexHandle for Symbol<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_u32_index(index))
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.into_u32_index()
+    }
+}
 
 impl From<WellKnownSymbolIndexes> for Symbol<'static> {
     fn from(value: WellKnownSymbolIndexes) -> Self {

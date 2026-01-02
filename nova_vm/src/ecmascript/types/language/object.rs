@@ -141,7 +141,7 @@ use crate::{
             ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementStorageUninit,
             ElementsVector, PropertyStorageMut, PropertyStorageRef,
         },
-        indexes::BaseIndex,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
@@ -293,8 +293,17 @@ impl Object<'_> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct OrdinaryObject<'a>(BaseIndex<'a, ObjectRecord<'static>>);
-
 bindable_handle!(OrdinaryObject);
+
+impl HeapIndexHandle for OrdinaryObject<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_u32_index(index))
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.into_u32_index()
+    }
+}
 
 impl<'a> OrdinaryObject<'a> {
     /// Allocate a a new blank OrdinaryObject and return its reference.
@@ -304,14 +313,6 @@ impl<'a> OrdinaryObject<'a> {
     pub(crate) fn new_uninitialised(agent: &mut Agent) -> Self {
         agent.heap.objects.push(ObjectRecord::BLANK);
         OrdinaryObject(BaseIndex::last(&agent.heap.objects))
-    }
-
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
     }
 
     #[inline(always)]

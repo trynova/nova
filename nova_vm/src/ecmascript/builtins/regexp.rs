@@ -5,8 +5,6 @@
 pub(crate) mod abstract_operations;
 pub(crate) mod data;
 
-use core::ops::{Index, IndexMut};
-
 use crate::{
     ecmascript::{
         execution::{
@@ -25,7 +23,8 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues, indexes::BaseIndex,
+        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 pub(crate) use abstract_operations::*;
@@ -42,6 +41,16 @@ use super::ordinary::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct RegExp<'a>(BaseIndex<'a, RegExpHeapData<'static>>);
+
+impl HeapIndexHandle for RegExp<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_u32_index(index))
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.into_u32_index()
+    }
+}
 
 impl<'a> RegExp<'a> {
     /// Fast-path for RegExp object debug stringifying; this does not take into
@@ -112,14 +121,6 @@ impl<'a> RegExp<'a> {
         } else {
             None
         }
-    }
-
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
     }
 }
 

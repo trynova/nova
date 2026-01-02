@@ -2,10 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::{
-    ops::{Index, IndexMut},
-    ptr::NonNull,
-};
+use core::ptr::NonNull;
 use std::borrow::Cow;
 
 use oxc_ast::ast::{FormalParameters, FunctionBody};
@@ -47,7 +44,8 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        WorkQueues,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
     ndt,
 };
@@ -55,6 +53,16 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct ECMAScriptFunction<'a>(BaseIndex<'a, ECMAScriptFunctionHeapData<'static>>);
+
+impl HeapIndexHandle for ECMAScriptFunction<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_u32_index(index))
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.into_u32_index()
+    }
+}
 
 impl<'a> TryFrom<Value<'a>> for ECMAScriptFunction<'a> {
     type Error = ();
@@ -335,14 +343,6 @@ pub(crate) struct OrdinaryFunctionCreateParams<'ast, 'gc> {
 }
 
 impl<'a> ECMAScriptFunction<'a> {
-    pub(crate) const fn _def() -> Self {
-        ECMAScriptFunction(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
     /// Returns true if this function executes in strict mode.
     pub fn is_strict(self, agent: &Agent) -> bool {
         agent[self].ecmascript_function.strict

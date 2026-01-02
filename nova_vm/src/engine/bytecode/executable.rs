@@ -4,7 +4,6 @@
 
 use core::{
     num::NonZeroU32,
-    ops::{Index, IndexMut},
 };
 use std::marker::PhantomData;
 

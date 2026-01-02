@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::ops::{Index, IndexMut};
-
 use crate::{
     Heap,
     ecmascript::{
@@ -16,7 +14,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
-        indexes::BaseIndex,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
@@ -31,14 +29,6 @@ pub mod data;
 pub struct WeakSet<'a>(BaseIndex<'a, WeakSetHeapData<'static>>);
 
 impl WeakSet<'_> {
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
     /// Returns true if the function is equal to %WeakSet.prototype.add%.
     pub(crate) fn is_weak_set_prototype_add(agent: &Agent, function: Function) -> bool {
         let Function::BuiltinFunction(function) = function else {
@@ -65,6 +55,16 @@ impl WeakSet<'_> {
 }
 
 bindable_handle!(WeakSet);
+
+impl HeapIndexHandle for WeakSet<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_index_u32(index))
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.get_index_u32()
+    }
+}
 
 impl<'a> From<WeakSet<'a>> for Object<'a> {
     fn from(value: WeakSet<'a>) -> Self {

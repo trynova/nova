@@ -40,7 +40,7 @@ use crate::{
         element_array::{
             ElementArrays, ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementsVector,
         },
-        indexes::BaseIndex,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
@@ -57,6 +57,16 @@ use super::ordinary::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Array<'a>(BaseIndex<'a, ArrayHeapData<'static>>);
+
+impl HeapIndexHandle for Array<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_u32_index(index))
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.into_u32_index()
+    }
+}
 
 pub(crate) static ARRAY_INDEX_RANGE: RangeInclusive<i64> = 0..=(i64::pow(2, 32) - 2);
 
@@ -126,12 +136,6 @@ impl<'a> Array<'a> {
         elems.reserve(elements, elems.len().saturating_add(additional))
     }
 
-    /// # Do not use this
-    /// This is only for Value discriminant creation.
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
     pub(crate) fn get<'agent>(
         self,
         agent: &'agent impl AsRef<SoAVec<ArrayHeapData<'static>>>,
@@ -181,10 +185,6 @@ impl<'a> Array<'a> {
     #[inline]
     pub fn from_slice(agent: &mut Agent, elements: &[Value], gc: NoGcScope<'a, '_>) -> Self {
         create_array_from_list(agent, elements, gc)
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
     }
 
     pub fn len(self, agent: &Agent) -> u32 {

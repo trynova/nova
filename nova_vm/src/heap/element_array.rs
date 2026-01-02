@@ -18,7 +18,6 @@ use crate::{
 };
 use core::{
     mem::MaybeUninit,
-    ops::{Index, IndexMut},
 };
 use std::collections::{TryReserveError, hash_map::Entry};
 

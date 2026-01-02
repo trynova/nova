@@ -89,60 +89,7 @@ impl<T: ?Sized> Hash for BaseIndex<'_, T> {
 
 impl<T: ?Sized> BaseIndex<'_, T> {
     /// First valid BaseIndex.
-    pub(crate) const ZERO: Self = Self::from_u32_index(0);
-
-    #[inline(always)]
-    pub(crate) const fn into_index(self) -> usize {
-        self.0.get() as usize - 1
-    }
-
-    #[inline(always)]
-    pub(crate) const fn into_u32_index(self) -> u32 {
-        self.0.get() - 1
-    }
-
-    #[inline(always)]
-    pub(crate) const fn into_u32(self) -> u32 {
-        self.0.get()
-    }
-
-    #[inline(always)]
-    pub(crate) const fn from_index(value: usize) -> Self {
-        let value = value as u32;
-        assert!(value != u32::MAX);
-        // SAFETY: Number is not max value and will not overflow to zero.
-        // This check is done manually to allow const context.
-        Self(
-            unsafe { NonZeroU32::new_unchecked(value.wrapping_add(1)) },
-            PhantomData,
-            PhantomData,
-        )
-    }
-
-    #[inline(always)]
-    pub(crate) const fn from_u32_index(value: u32) -> Self {
-        assert!(value != u32::MAX);
-        // SAFETY: Number is not max value and will not overflow to zero.
-        // This check is done manually to allow const context.
-        Self(
-            unsafe { NonZeroU32::new_unchecked(value + 1) },
-            PhantomData,
-            PhantomData,
-        )
-    }
-
-    #[inline(always)]
-    pub(crate) const fn from_usize(value: usize) -> Self {
-        let value = value as u32;
-        assert!(value != 0);
-        // SAFETY: Number is not zero.
-        // This check is done manually to allow const context.
-        Self(
-            unsafe { NonZeroU32::new_unchecked(value) },
-            PhantomData,
-            PhantomData,
-        )
-    }
+    pub(crate) const ZERO: Self = Self::from_index_u32(0);
 
     #[inline(always)]
     pub(crate) fn last(vec: &[T]) -> Self
@@ -222,6 +169,9 @@ impl PropertyKeyIndex<'_> {
 /// Trait for working with index-based heap handles. The handles are internally
 /// limited to 32 bit unsigned values.
 pub(crate) trait HeapIndexHandle: Sized {
+    /// Constant-time value used for discriminant checking only.
+    const _DEF: Self = Self::from_index_u32(u32::MAX - 1);
+
     /// Convert an index into a heap handle.
     fn from_index(index: usize) -> Self {
         Self::from_index_u32(
@@ -238,6 +188,25 @@ pub(crate) trait HeapIndexHandle: Sized {
 
     /// Get the handle's stored 32-bit index.
     fn get_index_u32(&self) -> u32;
+}
+
+impl<T: ?Sized> HeapIndexHandle for BaseIndex<'_, T> {
+    #[inline(always)]
+    fn from_index_u32(index: u32) -> Self {
+        assert!(index != u32::MAX);
+        // SAFETY: Number is not max value and will not overflow to zero.
+        // This check is done manually to allow const context.
+        Self(
+            unsafe { NonZeroU32::new_unchecked(index + 1) },
+            PhantomData,
+            PhantomData,
+        )
+    }
+
+    #[inline(always)]
+    fn get_index_u32(&self) -> u32 {
+        self.0.get() - 1
+    }
 }
 
 pub(crate) trait HeapAccess<T: ?Sized>: HeapIndexHandle {

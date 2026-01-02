@@ -4,7 +4,7 @@
 
 use core::{
     marker::PhantomData,
-    ops::{Deref, Index, IndexMut},
+    ops::{Deref, Index},
 };
 use std::{borrow::Cow, hint::unreachable_unchecked, ptr::NonNull};
 
@@ -24,7 +24,8 @@ use crate::{
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, ObjectEntry,
-        ObjectEntryPropertyDescriptor, WorkQueues, indexes::BaseIndex,
+        ObjectEntryPropertyDescriptor, WorkQueues,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
     ndt,
 };
@@ -457,14 +458,6 @@ impl BuiltinFunction<'_> {
         BuiltinFunction(BaseIndex::last(&agent.heap.builtin_functions))
     }
 
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
     pub fn is_constructor(self, agent: &Agent) -> bool {
         // A builtin function has the [[Construct]] method if its behaviour is
         // a constructor behaviour.
@@ -473,6 +466,16 @@ impl BuiltinFunction<'_> {
 }
 
 bindable_handle!(BuiltinFunction);
+
+impl HeapIndexHandle for BuiltinFunction<'_> {
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_u32_index(index))
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.into_u32_index()
+    }
+}
 
 impl IntrinsicFunctionIndexes {
     pub(crate) const fn get_builtin_function<'a>(
