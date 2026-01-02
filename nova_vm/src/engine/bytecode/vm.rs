@@ -857,7 +857,7 @@ impl Vm {
                 panic!("Expected the number of function arguments to be an integer")
             };
             let arg_count = usize::try_from(integer.into_i64()).unwrap();
-            debug_assert!(self.stack.len() >= arg_count + 1);
+            debug_assert!(self.stack.len() > arg_count);
             let args = self.stack.split_off(self.stack.len() - arg_count);
             let integer_copy = self.stack.pop().unwrap();
             debug_assert_eq!(Value::Integer(integer), integer_copy);

@@ -1735,14 +1735,18 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::CallEx
             // Direct eval(...)
             let dynamic_arg_count = prep_arguments(ctx, &self.arguments);
             let num_arguments = compile_arguments(ctx, &self.arguments, &dynamic_arg_count);
-            dynamic_arg_count.map(|v| v.forget(ctx));
+            if let Some(v) = dynamic_arg_count {
+                v.forget(ctx);
+            }
             ctx.add_instruction_with_immediate(Instruction::DirectEvalCall, num_arguments?);
             return Ok(ValueOutput::Value);
         } else if matches!(self.callee, ast::Expression::Super(_)) {
             // super(...)
             let dynamic_arg_count = prep_arguments(ctx, &self.arguments);
             let num_arguments = compile_arguments(ctx, &self.arguments, &dynamic_arg_count);
-            dynamic_arg_count.map(|v| v.forget(ctx));
+            if let Some(v) = dynamic_arg_count {
+                v.forget(ctx);
+            }
             ctx.add_instruction_with_immediate(Instruction::EvaluateSuper, num_arguments?);
             return Ok(ValueOutput::Value);
         }
@@ -1803,7 +1807,9 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::CallEx
 
         // Note: func on stack and the possible dynamic arg count are consumed
         // by EvaluateCall.
-        dynamic_arg_count.map(|v| v.forget(ctx));
+        if let Some(v) = dynamic_arg_count {
+            v.forget(ctx);
+        }
         func_on_stack.forget(ctx);
 
         let num_arguments = result?;
@@ -1827,7 +1833,9 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::NewExp
 
         // Note: func and possible dynamic arg count on stack are consumed by
         // EvaluateNew.
-        dynamic_arg_count.map(|v| v.forget(ctx));
+        if let Some(v) = dynamic_arg_count {
+            v.forget(ctx);
+        }
         func_on_stack.forget(ctx);
 
         ctx.add_instruction_with_immediate(Instruction::EvaluateNew, num_arguments?);
