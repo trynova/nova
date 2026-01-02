@@ -1614,47 +1614,29 @@ fn compile_arguments<'s>(
     arguments: &'s [ast::Argument<'s>],
     ctx: &mut CompileContext<'_, 's, '_, '_>,
 ) -> Result<usize, ExpressionError> {
-    let mut static_unwind_try_catch_blocks = if arguments.len() == 1
-        && arguments.first().unwrap().is_expression()
-        || arguments
-            .iter()
-            .all(|arg| arg.as_expression().is_some_and(|expr| expr.is_literal()))
-    {
-        // If we have just one non-spread argument, or all parameters are
-        // literals (have no side-effects whatsoever) then we know the
-        // arguments compilation is infallible (or fails with no items pushed
-        // onto the stack), and we don't need a try-catch block here.
-        None
-    } else {
-        // We'll need at most IndexType::MAX unwind sites.
-        Some(Vec::with_capacity(
-            arguments.len().min(IndexType::MAX as usize),
-        ))
-    };
-    let mut try_catch_block = None;
-    let mut jump_to_iterator_pop = None;
+    let mut spread_iterator_throw_handler = None;
     // If the arguments don't contain the spread operator, then we can know the
     // number of arguments at compile-time and we can pass it as an argument to
-    // the call instruction.
-    // Otherwise, the first time we find a spread operator, we need to start
-    // tracking the number of arguments in the compiled bytecode. We store this
-    // number in the result value, and we pass u16::MAX to the call instruction.
+    // the call instruction. Otherwise, the first time we find a spread
+    // operator, we need to start tracking the number of arguments in the
+    // compiled bytecode. We store this number in the result value, and we pass
+    // u16::MAX to the call instruction.
     let mut known_num_arguments = Some(0 as IndexType);
 
-    let mut err = None;
     for argument in arguments {
         // If known_num_arguments is None, the stack contains the number of
         // arguments, followed by the arguments.
         if let ast::Argument::SpreadElement(spread) = argument {
             if let Some(num_arguments) = known_num_arguments.take() {
                 ctx.add_instruction_with_constant(Instruction::LoadConstant, num_arguments);
-                try_catch_block = Some(ctx.enter_try_catch_block());
             }
 
-            if let Err(e) = spread.argument.compile(ctx).and_then(|s| s.get_value(ctx)) {
-                err = Some(e);
-                break;
-            };
+            // If the spread evaluation unconditionally fails, the spread
+            // iteration and the function call itself becomes unreachable.
+            spread
+                .argument
+                .compile(ctx)
+                .and_then(|s| s.get_value(ctx))?;
             let iterator = ctx.push_sync_iterator();
 
             let iteration_start = ctx.get_jump_index_to_here();
@@ -1668,14 +1650,13 @@ fn compile_arguments<'s>(
             // stack: [num + 1, value, ...args]
             ctx.add_jump_instruction_to_index(Instruction::Jump, iteration_start);
             ctx.set_jump_target_here(iteration_end);
-            jump_to_iterator_pop = Some(iterator.exit(ctx));
+            spread_iterator_throw_handler = Some(iterator.exit(ctx));
         } else {
             let expression = argument.to_expression();
 
-            if let Err(e) = expression.compile(ctx).and_then(|s| s.get_value(ctx)) {
-                err = Some(e);
-                break;
-            }
+            // If a parameter evaluation unconditionally fails, the rest of the
+            // parameters and the call itself become unreachable.
+            expression.compile(ctx).and_then(|s| s.get_value(ctx))?;
             if let Some(num_arguments) = known_num_arguments.as_mut() {
                 ctx.add_instruction(Instruction::Load);
                 // stack: [value, ...args]
@@ -1686,28 +1667,6 @@ fn compile_arguments<'s>(
                     // unwinding jumps here as we've loaded one extra value to
                     // the stack.
                     *num_arguments += 1;
-                    if let Some(jumps_to_static_unwind) = static_unwind_try_catch_blocks.as_mut() {
-                        // If the next argument is a literal, then we won't
-                        // need a catch handler for it.
-                        let next_index = *num_arguments as usize;
-                        if let Some(next_argument) = arguments.get(next_index) {
-                            // Next argument exists; we might need a catch
-                            // handler.
-                            if next_argument
-                                .as_expression()
-                                .is_some_and(|e| e.is_literal())
-                            {
-                                // Next argument is a literal: it doesn't need
-                                // catch but a subsequent arg might, and it
-                                // needs to know how many values we pushed onto
-                                // the stack. Hence, a None is pushed here.
-                                jumps_to_static_unwind.push(None);
-                            } else {
-                                // Next argument isn't a literal; needs catch.
-                                jumps_to_static_unwind.push(Some(ctx.enter_try_catch_block()));
-                            }
-                        }
-                    }
                 } else {
                     // If we overflow, we switch to tracking the number on the
                     // result value.
@@ -1717,7 +1676,6 @@ fn compile_arguments<'s>(
                         Instruction::LoadConstant,
                         Value::from(IndexType::MAX),
                     );
-                    try_catch_block = Some(ctx.enter_try_catch_block());
                     // stack: [num + 1, value, ...args]
                 }
             } else {
@@ -1742,124 +1700,17 @@ fn compile_arguments<'s>(
         IndexType::MAX as usize
     };
 
-    // Exit our try-catch blocks.
-    let jumps_to_static_unwind =
-        static_unwind_try_catch_blocks.map(|static_unwind_try_catch_blocks| {
-            static_unwind_try_catch_blocks
-                .into_iter()
-                .map(|e| e.map(|e| e.exit(ctx)))
-                .collect::<Vec<_>>()
-        });
-    let jump_to_dynamic_unwind = try_catch_block.map(|b| b.exit(ctx));
-
-    if let Some(mut jumps_to_static_unwind) = jumps_to_static_unwind {
+    if let Some(jump_to_iterator_pop) = spread_iterator_throw_handler {
+        // Exit a spread iterator try-catch block.
         let jump_over_catch = ctx.add_instruction_with_jump_slot(Instruction::Jump);
-        // ## Catch block
-        if let Some(jump_to_iterator_pop) = jump_to_iterator_pop {
-            debug_assert!(jump_to_dynamic_unwind.is_some());
-            ctx.set_jump_target_here(jump_to_iterator_pop);
-            // Arguments spread threw an error: we need to pop the
-            // jump_to_dynamic_unwind exception handler, pop the iterator
-            // stack, and then continue into the jump_to_dynamic_unwind
-            // catch block.
-            ctx.add_instruction(Instruction::PopExceptionJumpTarget);
-            ctx.add_instruction(Instruction::IteratorPop);
-        }
-        if let Some(jump_to_dynamic_unwind) = jump_to_dynamic_unwind {
-            ctx.set_jump_target_here(jump_to_dynamic_unwind);
-            let error = ctx.mark_stack_value();
-            // When we enter the catch block with a dynamic number of
-            // arguments, our stack situation looks like this:
-            // result: error; stack: [num, ...args]
-            // We need to remove our statically known exception jump targets
-            // and then pop off the dynamic number of arguments from the stack.
-            // Finally, we of course need to rethrow our error.
-            for e in jumps_to_static_unwind.iter() {
-                // Pop all the static exception targets.
-                if e.is_some() {
-                    ctx.add_instruction(Instruction::PopExceptionJumpTarget);
-                }
-            }
-            // result: error; stack: [num, ...args]
-            ctx.add_instruction(Instruction::LoadStoreSwap);
-
-            let continue_stack_unwind = ctx.get_jump_index_to_here();
-            // result: num; stack: [error, ...args]
-            let num_copy = ctx.load_copy_to_stack();
-            // result: num; stack: [num, error, ...args]
-            let finish_stack_unwind = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
-            // result: None; stack: [num, error, ...args]
-            num_copy.store(ctx);
-            // result: num; stack: [error, ...args]
-            ctx.add_instruction(Instruction::Decrement);
-            // result: num - 1; stack: [error, ...args]
-            ctx.add_instruction(Instruction::Swap);
-            // result: num - 1; stack: [args[0], error, ...args[1..]]
-            ctx.add_instruction(Instruction::UpdateEmpty);
-            // result: num - 1; stack: [error, ...args[1..]]
-            ctx.add_jump_instruction_to_index(Instruction::Jump, continue_stack_unwind);
-
-            // === BREAK HERE - CONTROL FLOW NEVER PASSES THROUGH HERE ===
-            ctx.set_jump_target_here(finish_stack_unwind);
-            // result: None; stack: [num, error]
-            let num_copy = ctx.mark_stack_value();
-            num_copy.pop(ctx);
-            error.store(ctx);
-            // result: error; stack: []
-            ctx.add_instruction(Instruction::Throw);
-        }
-        // Here is the static unwind logic: here we know exactly how many items
-        // we've pushed to the stack (and when we threw an error). Each static
-        // unwind jump target should thus drop one argument from stack and, if
-        // it is not the first one, pop the next exception target.
-        // result: error; stack: [...args]
-        let mut is_first = true;
-        while let Some(jump_to_static_unwind) = jumps_to_static_unwind.pop() {
-            if let Some(jump_to_static_unwind) = jump_to_static_unwind {
-                if !is_first {
-                    // Pop this jump target the stack if we're not the first one.
-                    // This is needed for fall-through cases.
-                    ctx.add_instruction(Instruction::PopExceptionJumpTarget);
-                }
-                is_first = false;
-                ctx.set_jump_target_here(jump_to_static_unwind);
-            }
-            // Note: it's possible that jump_to_static_unwind entries are None,
-            // meaning that the argument was infallible. In that case we're
-            // only interested in popping the value off the stack, but that
-            // also is only needed if a previous exception jump target already
-            // existed. eg. `foo(a, b, 1, 2, 3)` can only ever need to pop off
-            // `a`, whereas `foo(a, 1, 2, 3, b)` may only ever need to pop off
-            // `a, 1, 2, 3`, and `foo(a, 1, 2, b, 3, c)` may need to pop off
-            // either `a, 1, 2`, or `a, 1, 2, b, 3`.
-            if !is_first {
-                // result: error; stack: [args[0], ...args[1..]]
-                ctx.add_instruction(Instruction::UpdateEmpty);
-                // result: error; stack: [...args[1..]]
-            }
-        }
-        if is_first {
-            // If we made it through the static unwind bit without encountering
-            // a single JumpIndex, it means that all statically knowable
-            // parameters are infallible or fail on an empty stack: This means
-            // we don't need a rethrow as this location is unreachable.
-            debug_assert!(ctx.is_unreachable());
-        } else {
-            // Now it is finally time to rethrow our original error!
-            ctx.add_instruction(Instruction::Throw);
-        }
+        ctx.set_jump_target_here(jump_to_iterator_pop);
+        // Arguments spread threw an error: we need to pop the iterator stack
+        // and rethrow.
+        ctx.add_instruction(Instruction::IteratorPop);
+        ctx.add_instruction(Instruction::Throw);
         ctx.set_jump_target_here(jump_over_catch);
-    } else {
-        // If we have no need for a stack-unwind catch block, we should have no
-        // need for an iterator pop or dynamic unwind either.
-        debug_assert!(jump_to_iterator_pop.is_none());
-        debug_assert!(jump_to_dynamic_unwind.is_none());
     }
-    if let Some(err) = err {
-        Err(err)
-    } else {
-        Ok(result)
-    }
+    Ok(result)
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::CallExpression<'s> {
