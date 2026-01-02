@@ -179,9 +179,10 @@ impl From<bool> for Primitive<'static> {
     }
 }
 
-impl<'a> From<Primitive<'a>> for Value<'a> {
-    fn from(primitive: Primitive<'a>) -> Self {
-        match primitive {
+impl<'a, T: Into<Primitive<'a>>> From<T> for Value<'a> {
+    fn from(value: T) -> Self {
+        let value: Primitive = value.into();
+        match value {
             Primitive::Undefined => Value::Undefined,
             Primitive::Null => Value::Null,
             Primitive::Boolean(data) => Value::Boolean(data),

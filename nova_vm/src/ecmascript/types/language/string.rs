@@ -185,27 +185,12 @@ impl<'a> TryFrom<Primitive<'a>> for String<'a> {
     }
 }
 
-impl<'a> From<String<'a>> for Value<'a> {
-    fn from(value: String<'a>) -> Self {
-        match value {
-            String::String(x) => Self::String(x),
-            String::SmallString(x) => Self::SmallString(x),
-        }
-    }
-}
-
 impl<'a> From<String<'a>> for Primitive<'a> {
     fn from(value: String<'a>) -> Self {
         match value {
             String::String(x) => Self::String(x),
             String::SmallString(x) => Self::SmallString(x),
         }
-    }
-}
-
-impl From<SmallString> for Value<'static> {
-    fn from(value: SmallString) -> Self {
-        Value::SmallString(value)
     }
 }
 

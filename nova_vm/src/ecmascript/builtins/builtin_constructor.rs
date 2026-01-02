@@ -56,12 +56,6 @@ impl BuiltinConstructorFunction<'_> {
 
 bindable_handle!(BuiltinConstructorFunction);
 
-impl<'a> From<BuiltinConstructorFunction<'a>> for Object<'a> {
-    fn from(value: BuiltinConstructorFunction) -> Self {
-        Self::BuiltinConstructorFunction(value.unbind())
-    }
-}
-
 impl<'a> From<BuiltinConstructorFunction<'a>> for Function<'a> {
     fn from(value: BuiltinConstructorFunction<'a>) -> Self {
         Self::BuiltinConstructorFunction(value)

@@ -496,12 +496,6 @@ impl IntrinsicConstructorIndexes {
     }
 }
 
-impl<'a> From<BuiltinFunction<'a>> for Object<'a> {
-    fn from(value: BuiltinFunction) -> Self {
-        Object::BuiltinFunction(value.unbind())
-    }
-}
-
 impl<'a> From<BuiltinFunction<'a>> for Function<'a> {
     fn from(value: BuiltinFunction<'a>) -> Self {
         Function::BuiltinFunction(value)

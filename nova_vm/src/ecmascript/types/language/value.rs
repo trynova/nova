@@ -850,12 +850,6 @@ impl<'a> Value<'a> {
     }
 }
 
-impl From<bool> for Value<'_> {
-    fn from(value: bool) -> Self {
-        Value::Boolean(value)
-    }
-}
-
 bindable_handle!(Value);
 
 impl<'a, T> From<Option<T>> for Value<'a>
@@ -882,16 +876,6 @@ impl TryFrom<f64> for Value<'static> {
     type Error = ();
     fn try_from(value: f64) -> Result<Self, ()> {
         Number::try_from(value).map(|v| v.into())
-    }
-}
-
-impl<'a> From<Number<'a>> for Value<'a> {
-    fn from(value: Number<'a>) -> Self {
-        match value {
-            Number::Number(idx) => Value::Number(idx.unbind()),
-            Number::Integer(data) => Value::Integer(data),
-            Number::SmallF64(data) => Value::SmallF64(data),
-        }
     }
 }
 

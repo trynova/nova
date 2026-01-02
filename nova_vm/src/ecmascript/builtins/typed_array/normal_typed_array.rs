@@ -687,14 +687,6 @@ impl<'a> TypedArray<'a> {
     }
 }
 
-impl<'a> From<TypedArray<'a>> for Object<'a> {
-    #[inline(always)]
-    fn from(value: TypedArray<'a>) -> Self {
-        let value: AnyTypedArray = value.into();
-        value.into_object()
-    }
-}
-
 impl<'a> From<TypedArray<'a>> for AnyTypedArray<'a> {
     #[inline(always)]
     fn from(value: TypedArray<'a>) -> Self {

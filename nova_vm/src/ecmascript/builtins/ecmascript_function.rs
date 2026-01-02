@@ -92,12 +92,6 @@ impl<'a> TryFrom<Function<'a>> for ECMAScriptFunction<'a> {
     }
 }
 
-impl<'a> From<ECMAScriptFunction<'a>> for Object<'a> {
-    fn from(value: ECMAScriptFunction<'a>) -> Self {
-        Object::ECMAScriptFunction(value)
-    }
-}
-
 impl<'a> From<ECMAScriptFunction<'a>> for Function<'a> {
     fn from(val: ECMAScriptFunction<'a>) -> Self {
         Function::ECMAScriptFunction(val)

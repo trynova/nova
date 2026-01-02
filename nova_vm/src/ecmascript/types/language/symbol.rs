@@ -109,12 +109,6 @@ impl WellKnownSymbolIndexes {
     }
 }
 
-impl<'a> From<Symbol<'a>> for Value<'a> {
-    fn from(symbol: Symbol<'a>) -> Self {
-        Value::Symbol(symbol.unbind())
-    }
-}
-
 impl<'a> From<Symbol<'a>> for Primitive<'a> {
     fn from(value: Symbol<'a>) -> Self {
         value.into_primitive()

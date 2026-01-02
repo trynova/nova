@@ -130,12 +130,6 @@ impl From<SmallBigInt> for BigInt<'static> {
     }
 }
 
-impl<'a> From<HeapBigInt<'a>> for Value<'a> {
-    fn from(value: HeapBigInt<'a>) -> Self {
-        Self::BigInt(value)
-    }
-}
-
 impl From<SmallBigInt> for Value<'static> {
     fn from(value: SmallBigInt) -> Self {
         Self::SmallBigInt(value)
@@ -775,15 +769,6 @@ impl<'a> TryFrom<Numeric<'a>> for BigInt<'a> {
             Numeric::BigInt(x) => Ok(BigInt::BigInt(x)),
             Numeric::SmallBigInt(x) => Ok(BigInt::SmallBigInt(x)),
             _ => Err(()),
-        }
-    }
-}
-
-impl<'a> From<BigInt<'a>> for Value<'a> {
-    fn from(value: BigInt<'a>) -> Self {
-        match value {
-            BigInt::BigInt(x) => Value::BigInt(x.unbind()),
-            BigInt::SmallBigInt(x) => Value::SmallBigInt(x),
         }
     }
 }

@@ -85,6 +85,24 @@ impl core::fmt::Debug for Function<'_> {
     }
 }
 
+impl<'a, T: Into<Function<'a>>> From<T> for Object<'a> {
+    fn from(value: T) -> Self {
+        let value: Function = value.into();
+        match value {
+            Function::BoundFunction(f) => Self::BoundFunction(f),
+            Function::BuiltinFunction(f) => Self::BuiltinFunction(f),
+            Function::ECMAScriptFunction(f) => Self::ECMAScriptFunction(f),
+            Function::BuiltinConstructorFunction(f) => Self::BuiltinConstructorFunction(f),
+            Function::BuiltinPromiseResolvingFunction(f) => {
+                Self::BuiltinPromiseResolvingFunction(f)
+            }
+            Function::BuiltinPromiseFinallyFunction(f) => Self::BuiltinPromiseFinallyFunction(f),
+            Function::BuiltinPromiseCollectorFunction => Self::BuiltinPromiseCollectorFunction,
+            Function::BuiltinProxyRevokerFunction => Self::BuiltinProxyRevokerFunction,
+        }
+    }
+}
+
 impl<'a> From<BoundFunction<'a>> for Function<'a> {
     fn from(value: BoundFunction<'a>) -> Self {
         Function::BoundFunction(value)
@@ -123,25 +141,6 @@ impl<'a> TryFrom<Value<'a>> for Function<'a> {
             Value::BuiltinPromiseCollectorFunction => Ok(Self::BuiltinPromiseCollectorFunction),
             Value::BuiltinProxyRevokerFunction => Ok(Self::BuiltinProxyRevokerFunction),
             _ => Err(()),
-        }
-    }
-}
-
-impl<'a> From<Function<'a>> for Object<'a> {
-    fn from(value: Function<'a>) -> Self {
-        match value {
-            Function::BoundFunction(d) => Self::BoundFunction(d),
-            Function::BuiltinFunction(d) => Self::BuiltinFunction(d),
-            Function::ECMAScriptFunction(d) => Self::ECMAScriptFunction(d),
-            Function::BuiltinConstructorFunction(data) => Self::BuiltinConstructorFunction(data),
-            Function::BuiltinPromiseResolvingFunction(data) => {
-                Self::BuiltinPromiseResolvingFunction(data)
-            }
-            Function::BuiltinPromiseFinallyFunction(data) => {
-                Self::BuiltinPromiseFinallyFunction(data)
-            }
-            Function::BuiltinPromiseCollectorFunction => Self::BuiltinPromiseCollectorFunction,
-            Function::BuiltinProxyRevokerFunction => Self::BuiltinProxyRevokerFunction,
         }
     }
 }

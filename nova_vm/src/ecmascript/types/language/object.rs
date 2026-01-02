@@ -744,14 +744,10 @@ impl<'a> InternalSlots<'a> for OrdinaryObject<'a> {
     }
 }
 
-impl<'a> From<BoundFunction<'a>> for Object<'a> {
-    fn from(value: BoundFunction) -> Self {
-        Object::BoundFunction(value.unbind())
-    }
-}
-
-impl<'a> From<Object<'a>> for Value<'a> {
-    fn from(value: Object<'a>) -> Self {
+impl<'a, T: Into<Object<'a>>> From<T> for Value<'a> {
+    #[inline]
+    fn from(value: T) -> Self {
+        let value: Object = value.into();
         match value {
             Object::Object(data) => Self::Object(data),
             Object::BoundFunction(data) => Self::BoundFunction(data),

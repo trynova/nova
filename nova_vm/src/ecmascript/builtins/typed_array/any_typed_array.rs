@@ -916,10 +916,10 @@ impl<'a> TypedArrayAbstractOperations<'a> for AnyTypedArray<'a> {
     }
 }
 
-impl<'a> From<AnyTypedArray<'a>> for Object<'a> {
+impl<'a, T: Into<AnyTypedArray<'a>>> From<T> for Object<'a> {
     #[inline(always)]
-    fn from(value: AnyTypedArray<'a>) -> Self {
-        match value {
+    fn from(value: T) -> Self {
+        match value.into() {
             AnyTypedArray::Int8Array(ta) => Self::Int8Array(ta),
             AnyTypedArray::Uint8Array(ta) => Self::Uint8Array(ta),
             AnyTypedArray::Uint8ClampedArray(ta) => Self::Uint8ClampedArray(ta),

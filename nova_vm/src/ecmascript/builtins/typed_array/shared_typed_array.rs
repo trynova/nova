@@ -958,14 +958,6 @@ macro_rules! for_shared_typed_array {
 #[cfg(feature = "shared-array-buffer")]
 pub(crate) use for_shared_typed_array;
 
-impl<'a> From<SharedTypedArray<'a>> for Object<'a> {
-    #[inline(always)]
-    fn from(value: SharedTypedArray<'a>) -> Self {
-        let value: AnyTypedArray = value.into();
-        value.into_object()
-    }
-}
-
 impl<'a> From<SharedTypedArray<'a>> for AnyTypedArray<'a> {
     #[inline(always)]
     fn from(value: SharedTypedArray<'a>) -> Self {

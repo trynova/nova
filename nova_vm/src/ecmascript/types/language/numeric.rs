@@ -94,18 +94,6 @@ impl Numeric<'_> {
 
 bindable_handle!(Numeric);
 
-impl<'a> From<Numeric<'a>> for Value<'a> {
-    fn from(num: Numeric<'a>) -> Self {
-        match num {
-            Numeric::Number(data) => Value::Number(data.unbind()),
-            Numeric::Integer(data) => Value::Integer(data),
-            Numeric::SmallF64(data) => Value::SmallF64(data),
-            Numeric::BigInt(data) => Value::BigInt(data.unbind()),
-            Numeric::SmallBigInt(data) => Value::SmallBigInt(data),
-        }
-    }
-}
-
 impl<'a> From<Numeric<'a>> for Primitive<'a> {
     fn from(value: Numeric<'a>) -> Self {
         value.into_primitive()

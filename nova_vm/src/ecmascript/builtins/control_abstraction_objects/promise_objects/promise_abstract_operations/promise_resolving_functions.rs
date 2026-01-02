@@ -67,12 +67,6 @@ impl<'a> From<BuiltinPromiseResolvingFunction<'a>> for Function<'a> {
     }
 }
 
-impl<'a> From<BuiltinPromiseResolvingFunction<'a>> for Object<'a> {
-    fn from(value: BuiltinPromiseResolvingFunction) -> Self {
-        Self::BuiltinPromiseResolvingFunction(value.unbind())
-    }
-}
-
 impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseResolvingFunction<'a> {
     fn get_name(self, _: &Agent) -> &String<'a> {
         &String::EMPTY_STRING
