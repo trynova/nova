@@ -355,12 +355,13 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     /// stack.
     pub(super) fn push_stack_result_value(
         &mut self,
-        value_in_result_register: bool,
+        value: Option<impl Into<Value<'gc>>>,
     ) -> StackResultValue {
-        if !value_in_result_register {
-            self.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+        if let Some(value) = value {
+            self.add_instruction_with_constant(Instruction::LoadConstant, value.into());
+        } else {
+            self.add_instruction(Instruction::Load);
         }
-        self.add_instruction(Instruction::Load);
         let stack_slot = self.executable.push_stack();
         self.control_flow_stack
             .push(ControlFlowStackEntry::StackResultValue);

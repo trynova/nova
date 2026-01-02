@@ -28,7 +28,7 @@ use crate::{
         types::{IntoObject, Primitive, PropertyKey},
     },
     engine::{
-        bytecode::bytecode_compiler::compile_context::BlockEnvPrep,
+        bytecode::bytecode_compiler::compile_context::{BlockEnvPrep, StackResultValue},
         context::{Bindable, NoGcScope},
     },
 };
@@ -1610,100 +1610,111 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ArrayE
     }
 }
 
-fn compile_arguments<'s>(
-    arguments: &'s [ast::Argument<'s>],
+const MAX_STATIC_ARG_COUNT: usize = (IndexType::MAX - 1) as usize;
+fn prep_arguments<'s>(
     ctx: &mut CompileContext<'_, 's, '_, '_>,
+    arguments: &'s [ast::Argument<'s>],
+) -> Option<StackResultValue> {
+    let total_arg_count = arguments.len();
+    let has_spread = arguments.iter().any(|arg| arg.is_spread());
+    let static_arg_count = if has_spread {
+        arguments.iter().filter(|arg| !arg.is_spread()).count()
+    } else {
+        total_arg_count
+    };
+    if static_arg_count > MAX_STATIC_ARG_COUNT || has_spread {
+        Some(ctx.push_stack_result_value(Some(static_arg_count as u32)))
+    } else {
+        None
+    }
+}
+
+fn compile_arguments<'s>(
+    ctx: &mut CompileContext<'_, 's, '_, '_>,
+    arguments: &'s [ast::Argument<'s>],
+    dynamic_arg_count: &Option<StackResultValue>,
 ) -> Result<usize, ExpressionError> {
-    let mut spread_iterator_throw_handler = None;
-    // If the arguments don't contain the spread operator, then we can know the
-    // number of arguments at compile-time and we can pass it as an argument to
-    // the call instruction. Otherwise, the first time we find a spread
-    // operator, we need to start tracking the number of arguments in the
-    // compiled bytecode. We store this number in the result value, and we pass
-    // u16::MAX to the call instruction.
-    let mut known_num_arguments = Some(0 as IndexType);
+    let mut spread_iterator_throw_handlers = if dynamic_arg_count.is_some() {
+        Vec::with_capacity(1)
+    } else {
+        vec![]
+    };
+
+    let mut stack_values: Vec<StackValue> = Vec::with_capacity(arguments.len());
 
     for argument in arguments {
         // If known_num_arguments is None, the stack contains the number of
         // arguments, followed by the arguments.
         if let ast::Argument::SpreadElement(spread) = argument {
-            if let Some(num_arguments) = known_num_arguments.take() {
-                ctx.add_instruction_with_constant(Instruction::LoadConstant, num_arguments);
-            }
-
             // If the spread evaluation unconditionally fails, the spread
             // iteration and the function call itself becomes unreachable.
-            spread
-                .argument
-                .compile(ctx)
-                .and_then(|s| s.get_value(ctx))?;
+            if let Err(err) = spread.argument.compile(ctx).and_then(|s| s.get_value(ctx)) {
+                for v in stack_values {
+                    v.forget(ctx);
+                }
+                return Err(err);
+            }
+            let dynamic_arg_count = dynamic_arg_count.as_ref().unwrap();
+
             let iterator = ctx.push_sync_iterator();
 
             let iteration_start = ctx.get_jump_index_to_here();
             let iteration_end = ctx.add_instruction_with_jump_slot(Instruction::IteratorStepValue);
-            // result: value; stack: [num, ...args]
-            ctx.add_instruction(Instruction::LoadStoreSwap);
-            // result: num; stack: [value, ...args]
-            ctx.add_instruction(Instruction::Increment);
-            // result: num + 1; stack: [value, ...args]
+            // result: value; stack: [...args, num]
+
+            // Note: no load_to_stack here as this Load gets performed between 0
+            // and N times and we cannot know the true stack depth.
+            // Unfortunately this means that stack depth tracking after an
+            // arguments spread is invalid...
             ctx.add_instruction(Instruction::Load);
-            // stack: [num + 1, value, ...args]
+            // result: EMPTY; stack: [value, ...args, num]
+            dynamic_arg_count.read(ctx);
+            // result: num; stack: [value, ...args, num]
+            ctx.add_instruction(Instruction::Increment);
+            // result: num + 1; stack: [value, ...args, num]
+            dynamic_arg_count.write(ctx);
+            // result: EMPTY; stack: [value, ...args, num + 1]
             ctx.add_jump_instruction_to_index(Instruction::Jump, iteration_start);
             ctx.set_jump_target_here(iteration_end);
-            spread_iterator_throw_handler = Some(iterator.exit(ctx));
+            spread_iterator_throw_handlers.push(iterator.exit(ctx));
         } else {
             let expression = argument.to_expression();
 
             // If a parameter evaluation unconditionally fails, the rest of the
             // parameters and the call itself become unreachable.
-            expression.compile(ctx).and_then(|s| s.get_value(ctx))?;
-            if let Some(num_arguments) = known_num_arguments.as_mut() {
-                ctx.add_instruction(Instruction::Load);
-                // stack: [value, ...args]
-
-                if *num_arguments < IndexType::MAX - 1 {
-                    // If we know the number of arguments statically and we need
-                    // unwinding, then we need to push something to the static
-                    // unwinding jumps here as we've loaded one extra value to
-                    // the stack.
-                    *num_arguments += 1;
-                } else {
-                    // If we overflow, we switch to tracking the number on the
-                    // result value.
-                    debug_assert_eq!(*num_arguments, IndexType::MAX - 1);
-                    known_num_arguments = None;
-                    ctx.add_instruction_with_constant(
-                        Instruction::LoadConstant,
-                        Value::from(IndexType::MAX),
-                    );
-                    // stack: [num + 1, value, ...args]
+            if let Err(err) = expression.compile(ctx).and_then(|s| s.get_value(ctx)) {
+                for v in stack_values {
+                    v.forget(ctx);
                 }
-            } else {
-                // result: value; stack: [num, ...args]
-                ctx.add_instruction(Instruction::LoadStoreSwap);
-                // result: num; stack: [value, ...args]
-                ctx.add_instruction(Instruction::Increment);
-                // result: num + 1; stack: [value, ...args]
-                ctx.add_instruction(Instruction::Load);
-                // stack: [num + 1, value, ...args]
+                return Err(err);
             }
+            stack_values.push(ctx.load_to_stack());
+            // stack: [value, ...args]
         }
     }
 
-    let result = if let Some(num_arguments) = known_num_arguments {
-        assert_ne!(num_arguments, IndexType::MAX);
-        num_arguments as usize
-    } else {
-        // stack: [num, ...args]
-        ctx.add_instruction(Instruction::Store);
-        // result: num; stack: [...args]
+    let result = if let Some(num_arguments) = dynamic_arg_count.as_ref() {
+        // stack: [...args, num]
+        num_arguments.read(ctx);
+        // result: num; stack: [...args, num]
         IndexType::MAX as usize
+    } else {
+        debug_assert!(stack_values.len() < MAX_STATIC_ARG_COUNT);
+        stack_values.len()
     };
 
-    if let Some(jump_to_iterator_pop) = spread_iterator_throw_handler {
-        // Exit a spread iterator try-catch block.
+    // All values pushed onto the stack either get forgotten and cleaned up in
+    // try-catch, or are consumed by EvaluateCall / EvaluateNew.
+    for v in stack_values {
+        v.forget(ctx);
+    }
+
+    if !spread_iterator_throw_handlers.is_empty() {
+        // Create a spread iterator try-catch block.
         let jump_over_catch = ctx.add_instruction_with_jump_slot(Instruction::Jump);
-        ctx.set_jump_target_here(jump_to_iterator_pop);
+        for jump_to_throw_handler in spread_iterator_throw_handlers {
+            ctx.set_jump_target_here(jump_to_throw_handler);
+        }
         // Arguments spread threw an error: we need to pop the iterator stack
         // and rethrow.
         ctx.add_instruction(Instruction::IteratorPop);
@@ -1722,13 +1733,17 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::CallEx
             && ident.name == "eval"
         {
             // Direct eval(...)
-            let num_arguments = compile_arguments(&self.arguments, ctx)?;
-            ctx.add_instruction_with_immediate(Instruction::DirectEvalCall, num_arguments);
+            let dynamic_arg_count = prep_arguments(ctx, &self.arguments);
+            let num_arguments = compile_arguments(ctx, &self.arguments, &dynamic_arg_count);
+            dynamic_arg_count.map(|v| v.forget(ctx));
+            ctx.add_instruction_with_immediate(Instruction::DirectEvalCall, num_arguments?);
             return Ok(ValueOutput::Value);
         } else if matches!(self.callee, ast::Expression::Super(_)) {
             // super(...)
-            let num_arguments = compile_arguments(&self.arguments, ctx)?;
-            ctx.add_instruction_with_immediate(Instruction::EvaluateSuper, num_arguments);
+            let dynamic_arg_count = prep_arguments(ctx, &self.arguments);
+            let num_arguments = compile_arguments(ctx, &self.arguments, &dynamic_arg_count);
+            dynamic_arg_count.map(|v| v.forget(ctx));
+            ctx.add_instruction_with_immediate(Instruction::EvaluateSuper, num_arguments?);
             return Ok(ValueOutput::Value);
         }
         // 1. Let ref be ? Evaluation of CallExpression.
@@ -1779,16 +1794,19 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::CallEx
         // If we're in an optional chain, we need to pluck it out while we're
         // compiling the parameters: They do not join our chain.
         let optional_chain = ctx.optional_chains.take();
-        let num_arguments = compile_arguments(&self.arguments, ctx);
+        let dynamic_arg_count = prep_arguments(ctx, &self.arguments);
+        let result = compile_arguments(ctx, &self.arguments, &dynamic_arg_count);
         // After we're done with compiling parameters we go back into the chain.
         if let Some(optional_chain) = optional_chain {
             ctx.optional_chains.replace(optional_chain);
         }
-        // Note: func on stack is forgotten either by an error being thrown and
-        // gets cleaned up by a try-catch, or is consumed by EvaluateCall.
+
+        // Note: func on stack and the possible dynamic arg count are consumed
+        // by EvaluateCall.
+        dynamic_arg_count.map(|v| v.forget(ctx));
         func_on_stack.forget(ctx);
 
-        let num_arguments = num_arguments?;
+        let num_arguments = result?;
 
         if need_pop_reference {
             ctx.add_instruction(Instruction::PopReference);
@@ -1804,10 +1822,14 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::NewExp
         self.callee.compile(ctx)?.get_value(ctx)?;
         let func_on_stack = ctx.load_to_stack();
 
-        let num_arguments = compile_arguments(&self.arguments, ctx);
-        // Note: func on stack gets dropped by try-catch or consumed by
+        let dynamic_arg_count = prep_arguments(ctx, &self.arguments);
+        let num_arguments = compile_arguments(ctx, &self.arguments, &dynamic_arg_count);
+
+        // Note: func and possible dynamic arg count on stack are consumed by
         // EvaluateNew.
+        dynamic_arg_count.map(|v| v.forget(ctx));
         func_on_stack.forget(ctx);
+
         ctx.add_instruction_with_immediate(Instruction::EvaluateNew, num_arguments?);
         Ok(ValueOutput::Value)
     }
@@ -3743,7 +3765,8 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
         }
 
         // 1. Let V be undefined.
-        let v = ctx.push_stack_result_value(false);
+        ctx.add_instruction(Instruction::Empty);
+        let v = ctx.push_stack_result_value(Some(Value::Undefined));
         // 3. Repeat,
         let l = ctx.enter_loop(label_set.cloned());
         let jump_over_continue = ctx.add_instruction_with_jump_slot(Instruction::Jump);
@@ -3899,7 +3922,7 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
             ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
             return ControlFlow::Continue(StatementContinue::Literal(Primitive::Undefined));
         }
-        let switch_value = ctx.push_stack_result_value(true);
+        let switch_value = ctx.push_stack_result_value(Option::<Value>::None);
         let switch = ctx.enter_switch(label_set.cloned());
         // 3. Let oldEnv be the running execution context's LexicalEnvironment.
         // 4. Let blockEnv be NewDeclarativeEnvironment(oldEnv).
@@ -4191,7 +4214,8 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
         ctx: &mut CompileContext<'_, 's, '_, '_>,
     ) -> Self::Output {
         // 1. Let V be undefined.
-        let v = ctx.push_stack_result_value(false);
+        ctx.add_instruction(Instruction::Empty);
+        let v = ctx.push_stack_result_value(Some(Value::Undefined));
         // 2. Repeat
         let l = ctx.enter_loop(label_set.cloned());
         let jump_over_continue = ctx.add_instruction_with_jump_slot(Instruction::Jump);
@@ -4262,7 +4286,8 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope>
         ctx: &mut CompileContext<'_, 's, '_, '_>,
     ) -> Self::Output {
         // 1. Let V be undefined.
-        let v = ctx.push_stack_result_value(false);
+        ctx.add_instruction(Instruction::Empty);
+        let v = ctx.push_stack_result_value(Some(Value::Undefined));
         // 2. Repeat,
         let l = ctx.enter_loop(label_set.cloned());
         let jump_over_continue = ctx.add_instruction_with_jump_slot(Instruction::Jump);

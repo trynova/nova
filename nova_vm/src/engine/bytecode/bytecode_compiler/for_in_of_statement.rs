@@ -130,7 +130,7 @@ fn for_in_of_body_evaluation<'s, 'gc>(
     // 1. If iteratorKind is not present, set iteratorKind to SYNC.
     // 2. Let oldEnv be the running execution context's LexicalEnvironment.
     // 3. Let V be undefined.
-    let v = ctx.push_stack_result_value(false);
+    let v = ctx.push_stack_result_value(Some(Value::Undefined));
     // 4. Let destructuring be IsDestructuring of lhs.
     let destructuring = if let ast::ForStatementLeft::VariableDeclaration(lhs) = lhs {
         assert_eq!(lhs.declarations.len(), 1);

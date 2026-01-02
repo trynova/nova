@@ -843,18 +843,26 @@ impl Vm {
 
     fn get_call_args<'gc>(&mut self, instr: Instr, _gc: NoGcScope<'gc, '_>) -> Vec<Value<'gc>> {
         let instr_arg0 = instr.get_first_arg();
-        let arg_count = if instr_arg0 != IndexType::MAX {
-            instr_arg0 as usize
+        if instr_arg0 != IndexType::MAX {
+            // Static number of arguments less than IndexType::MAX.
+            let arg_count = instr_arg0 as usize;
+            debug_assert!(self.stack.len() >= arg_count);
+            self.stack.split_off(self.stack.len() - arg_count)
         } else {
-            // We parse the result as a SmallInteger.
+            // Dynamic number of arguments, or exactly IndexType::MAX or more
+            // arguments. In this case the number of arguments is stored in the
+            // result register for us. Additionally, an extra accumulator value
+            // is stored on the stack before the arguments.
             let Value::Integer(integer) = self.result.take().unwrap() else {
                 panic!("Expected the number of function arguments to be an integer")
             };
-            usize::try_from(integer.into_i64()).unwrap()
-        };
-
-        assert!(self.stack.len() >= arg_count);
-        self.stack.split_off(self.stack.len() - arg_count)
+            let arg_count = usize::try_from(integer.into_i64()).unwrap();
+            debug_assert!(self.stack.len() >= arg_count + 1);
+            let args = self.stack.split_off(self.stack.len() - arg_count);
+            let integer_copy = self.stack.pop().unwrap();
+            debug_assert_eq!(Value::Integer(integer), integer_copy);
+            args
+        }
     }
 
     /// Pop the active (top-most) iterator from the iterator stack.
