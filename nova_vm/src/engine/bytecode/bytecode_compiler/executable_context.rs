@@ -99,6 +99,11 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
         self.current_value_stack_depth -= 1;
     }
 
+    #[inline(always)]
+    pub(super) fn stack_depth(&self) -> usize {
+        self.current_value_stack_depth as usize
+    }
+
     pub(super) fn create_bigint(&mut self, literal: &str, radix: u32) -> BigInt<'gc> {
         if let Ok(result) = i64::from_str_radix(literal, radix) {
             BigInt::from_i64(self.agent, result).bind(self.gc)

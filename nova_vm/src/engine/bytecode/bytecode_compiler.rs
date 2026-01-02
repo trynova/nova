@@ -4262,6 +4262,13 @@ fn catch_clause_evaluation<'s, 'gc>(
     ctx: &mut CompileContext<'_, 's, 'gc, '_>,
 ) -> StatementResult<'gc> {
     // 14.15.2 Runtime Semantics: CatchClauseEvaluation
+
+    // Before we can start evaluation, we want to reset the stack depth to what
+    // it should be here according to our tracking. It's possible that our error
+    // was thrown from within an expression that forgot some Values on the
+    // stack, and leaving those there would lead to stack variable misalignment.
+    ctx.reset_stack_depth();
+
     let catch_env = if let Some(exception_param) = &catch_clause.param {
         // 1. Let oldEnv be the running execution context's LexicalEnvironment.
         // 2. Let catchEnv be NewDeclarativeEnvironment(oldEnv).

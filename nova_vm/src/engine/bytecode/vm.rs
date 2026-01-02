@@ -748,6 +748,7 @@ impl Vm {
             Instruction::PushExceptionJumpTarget => {
                 execute_push_exception_jump_target(agent, vm, instr, gc.into_nogc())
             }
+            Instruction::TruncateStack => vm.stack.truncate(instr.get_first_arg() as usize),
             Instruction::ResolveBindingWithCache => {
                 execute_resolve_binding_with_cache(agent, vm, executable, instr, gc)?
             }

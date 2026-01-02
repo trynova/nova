@@ -369,11 +369,24 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
 
     fn pop_stack_result_value(&mut self, result: StackResultValue) {
         core::mem::forget(result);
-        matches!(
+        debug_assert!(matches!(
             self.control_flow_stack.pop(),
             Some(ControlFlowStackEntry::StackResultValue)
-        );
+        ));
         self.executable.pop_stack();
+    }
+
+    /// Reset the runtime stack to the depth that CompileContext thinks it should be.
+    ///
+    /// This should be performed when a thrown error is caught by a catch block
+    /// and control flow returns to user-provided code that indirectly relies on
+    /// the stack depth matching CompileContext's tracking. This particularly
+    /// happens with StackVariables.
+    pub(crate) fn reset_stack_depth(&mut self) {
+        self.executable.add_instruction_with_immediate(
+            Instruction::TruncateStack,
+            self.executable.stack_depth(),
+        );
     }
 
     /// Enter a private environment scope.
