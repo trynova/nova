@@ -46,31 +46,28 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
             //  ExportDeclaration : export default HoistableDeclaration
             // 1. Return ? Evaluation of HoistableDeclaration.
             ast::ExportDefaultDeclarationKind::FunctionDeclaration(decl) => {
+                if decl.id.is_none() {
+                    ctx.add_instruction_with_constant(
+                        Instruction::StoreConstant,
+                        BUILTIN_STRING_MEMORY.default,
+                    );
+                    ctx.name_identifier = Some(NamedEvaluationParameter::Result);
+                }
                 decl.compile(ctx);
-                ControlFlow::Continue(())
             }
             // ExportDeclaration : export default ClassDeclaration
             ast::ExportDefaultDeclarationKind::ClassDeclaration(decl) => {
                 // 1. Let value be ? BindingClassDeclarationEvaluation of ClassDeclaration.
-                ctx.add_instruction_with_constant(
-                    Instruction::StoreConstant,
-                    BUILTIN_STRING_MEMORY.default,
-                );
-                ctx.name_identifier = Some(NamedEvaluationParameter::Result);
+                if decl.id.is_none() {
+                    ctx.add_instruction_with_constant(
+                        Instruction::StoreConstant,
+                        BUILTIN_STRING_MEMORY.default,
+                    );
+                    ctx.name_identifier = Some(NamedEvaluationParameter::Result);
+                }
                 if let Err(err) = decl.compile(ctx) {
                     return ControlFlow::Break(err.into());
                 };
-                // 2. Let className be the sole element of the BoundNames of ClassDeclaration.
-                // 3. If className is "*default*", then
-                // a. Let env be the running execution context's LexicalEnvironment.
-                // b. Perform ? InitializeBoundName("*default*", value, env).
-                ctx.add_instruction_with_identifier(
-                    Instruction::ResolveBinding,
-                    BUILTIN_STRING_MEMORY._default_.to_property_key(),
-                );
-                ctx.add_instruction(Instruction::InitializeReferencedBinding);
-                // 4. Return empty.
-                ControlFlow::Continue(())
             }
             ast::ExportDefaultDeclarationKind::TSInterfaceDeclaration(_) => unreachable!(),
             _ => {
@@ -91,18 +88,14 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                 // a. Let rhs be ? Evaluation of AssignmentExpression.
                 // b. Let value be ? GetValue(rhs).
                 value_result_to_statement_result(expr.compile(ctx).and_then(|r| r.get_value(ctx)))?;
-
-                // 3. Let env be the running execution context's LexicalEnvironment.
-                // 4. Perform ? InitializeBoundName("*default*", value, env).
-                ctx.add_instruction_with_identifier(
-                    Instruction::ResolveBinding,
-                    BUILTIN_STRING_MEMORY._default_.to_property_key(),
-                );
-                ctx.add_instruction(Instruction::InitializeReferencedBinding);
-                // 5. Return empty.
-                ControlFlow::Continue(())
             }
         }
+        ctx.add_instruction_with_identifier(
+            Instruction::ResolveBinding,
+            BUILTIN_STRING_MEMORY._default_.to_property_key(),
+        );
+        ctx.add_instruction(Instruction::InitializeReferencedBinding);
+        ControlFlow::Continue(())
     }
 }
 

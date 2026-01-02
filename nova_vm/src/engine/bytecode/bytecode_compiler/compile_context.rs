@@ -250,10 +250,8 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     /// Exit a lexical scope.
     fn exit_lexical_scope(&mut self, scope: LexicalScope) {
         core::mem::forget(scope);
-        debug_assert!(matches!(
-            self.control_flow_stack.pop(),
-            Some(ControlFlowStackEntry::LexicalScope)
-        ));
+        let entry = self.control_flow_stack.pop();
+        debug_assert!(matches!(entry, Some(ControlFlowStackEntry::LexicalScope)));
         if self.is_unreachable() {
             // OPTIMISATION: We don't need to add exit handling if this line is
             // unreachable.
@@ -281,10 +279,8 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     /// Forget a StackValue.
     fn pop_stack_value(&mut self, var: StackValue) {
         core::mem::forget(var);
-        debug_assert!(matches!(
-            self.control_flow_stack.pop(),
-            Some(ControlFlowStackEntry::StackValue)
-        ));
+        let entry = self.control_flow_stack.pop();
+        debug_assert!(matches!(entry, Some(ControlFlowStackEntry::StackValue)));
         self.executable.pop_stack();
     }
 
@@ -337,10 +333,8 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     /// Pop a lexical variable.
     fn pop_stack_variable(&mut self, var: StackVariable) {
         core::mem::forget(var);
-        debug_assert!(matches!(
-            self.control_flow_stack.pop(),
-            Some(ControlFlowStackEntry::StackValue)
-        ));
+        let entry = self.control_flow_stack.pop();
+        debug_assert!(matches!(entry, Some(ControlFlowStackEntry::StackValue)));
         self.stack_variables.pop().unwrap();
         self.executable.pop_stack();
         if self.is_unreachable() {
@@ -370,8 +364,9 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
 
     fn pop_stack_result_value(&mut self, result: StackResultValue) {
         core::mem::forget(result);
+        let entry = self.control_flow_stack.pop();
         debug_assert!(matches!(
-            self.control_flow_stack.pop(),
+            entry,
             Some(ControlFlowStackEntry::StackResultValue)
         ));
         self.executable.pop_stack();
@@ -404,10 +399,8 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     /// Enter a private environment scope.
     fn exit_private_scope(&mut self, scope: PrivateScope) {
         core::mem::forget(scope);
-        debug_assert!(matches!(
-            self.control_flow_stack.pop(),
-            Some(ControlFlowStackEntry::PrivateScope)
-        ));
+        let entry = self.control_flow_stack.pop();
+        debug_assert!(matches!(entry, Some(ControlFlowStackEntry::PrivateScope)));
         if self.is_unreachable() {
             // OPTIMISATION: We don't need to add exit handling if this line is
             // unreachable.
@@ -429,14 +422,10 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     /// Exit a lexical scope.
     fn exit_class_static_block(&mut self, scope: ClassStaticBlock) {
         core::mem::forget(scope);
-        debug_assert!(matches!(
-            self.control_flow_stack.pop(),
-            Some(ControlFlowStackEntry::VariableScope)
-        ));
-        debug_assert!(matches!(
-            self.control_flow_stack.pop(),
-            Some(ControlFlowStackEntry::LexicalScope)
-        ));
+        let entry = self.control_flow_stack.pop();
+        debug_assert!(matches!(entry, Some(ControlFlowStackEntry::VariableScope)));
+        let entry = self.control_flow_stack.pop();
+        debug_assert!(matches!(entry, Some(ControlFlowStackEntry::LexicalScope)));
         if self.is_unreachable() {
             // OPTIMISATION: We don't need to add exit handling if this line is
             // unreachable.
@@ -1288,6 +1277,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     }
 }
 
+#[cfg(debug_assertions)]
 trait Undroppable {
     #[inline(always)]
     fn on_drop() {
@@ -1307,6 +1297,7 @@ trait Undroppable {
 
 #[must_use]
 pub(crate) struct LexicalScope;
+#[cfg(debug_assertions)]
 impl Undroppable for LexicalScope {}
 
 impl LexicalScope {
@@ -1325,6 +1316,7 @@ impl Drop for LexicalScope {
 
 #[must_use]
 pub(crate) struct ClassStaticBlock;
+#[cfg(debug_assertions)]
 impl Undroppable for ClassStaticBlock {}
 
 impl ClassStaticBlock {
@@ -1344,6 +1336,7 @@ impl Drop for ClassStaticBlock {
 /// A Value was pushed onto the VM stack. The Value must be popped from the
 /// stack under all possible execution paths.
 pub(crate) struct StackValue;
+#[cfg(debug_assertions)]
 impl Undroppable for StackValue {}
 
 impl StackValue {
@@ -1398,6 +1391,7 @@ impl Drop for StackValue {
 }
 
 pub(crate) struct StackVariable;
+#[cfg(debug_assertions)]
 impl Undroppable for StackVariable {}
 
 impl StackVariable {
@@ -1418,6 +1412,7 @@ impl Drop for StackVariable {
 pub(crate) struct StackResultValue {
     stack_slot: u32,
 }
+#[cfg(debug_assertions)]
 impl Undroppable for StackResultValue {}
 
 impl StackResultValue {
@@ -1482,6 +1477,7 @@ impl BlockEnvPrep {
 }
 
 pub(crate) struct PrivateScope;
+#[cfg(debug_assertions)]
 impl Undroppable for PrivateScope {}
 
 impl PrivateScope {
@@ -1498,6 +1494,7 @@ impl Drop for PrivateScope {
     }
 }
 pub(crate) struct TryCatchBlock(JumpIndex);
+#[cfg(debug_assertions)]
 impl Undroppable for TryCatchBlock {}
 
 impl TryCatchBlock {
@@ -1516,6 +1513,7 @@ impl Drop for TryCatchBlock {
     }
 }
 pub(crate) struct TryFinallyBlock;
+#[cfg(debug_assertions)]
 impl Undroppable for TryFinallyBlock {}
 
 impl TryFinallyBlock {
@@ -1537,6 +1535,7 @@ impl Drop for TryFinallyBlock {
     }
 }
 pub(crate) struct IfStatement;
+#[cfg(debug_assertions)]
 impl Undroppable for IfStatement {}
 
 impl IfStatement {
@@ -1553,6 +1552,7 @@ impl Drop for IfStatement {
     }
 }
 pub(crate) struct LabelledStatement;
+#[cfg(debug_assertions)]
 impl Undroppable for LabelledStatement {}
 
 impl LabelledStatement {
@@ -1569,6 +1569,7 @@ impl Drop for LabelledStatement {
     }
 }
 pub(crate) struct FinallyBlock;
+#[cfg(debug_assertions)]
 impl Undroppable for FinallyBlock {}
 
 impl FinallyBlock {
@@ -1590,6 +1591,7 @@ pub(crate) enum Loop {
     SyncIterator(JumpIndex),
     AsyncIterator(JumpIndex),
 }
+#[cfg(debug_assertions)]
 impl Undroppable for Loop {}
 
 impl Loop {
@@ -1626,6 +1628,7 @@ impl Drop for Loop {
     }
 }
 pub(crate) struct SwitchBlock;
+#[cfg(debug_assertions)]
 impl Undroppable for SwitchBlock {}
 
 impl SwitchBlock {
@@ -1642,6 +1645,7 @@ impl Drop for SwitchBlock {
     }
 }
 pub(crate) struct IteratorStackEntry(JumpIndex);
+#[cfg(debug_assertions)]
 impl Undroppable for IteratorStackEntry {}
 
 impl IteratorStackEntry {
@@ -1665,6 +1669,7 @@ impl Drop for IteratorStackEntry {
     }
 }
 pub(crate) struct ArrayDestructuring(JumpIndex);
+#[cfg(debug_assertions)]
 impl Undroppable for ArrayDestructuring {}
 
 impl ArrayDestructuring {
