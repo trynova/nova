@@ -52,7 +52,7 @@ pub(super) fn instantiation<'s, 'gc>(
 
 fn handle_block_lexically_scoped_declaration<'s>(
     ctx: &mut CompileContext<'_, 's, '_, '_>,
-    block_prop: &mut Vec<BlockEnvPrep>,
+    block_prep: &mut Vec<BlockEnvPrep>,
     d: LexicallyScopedDeclaration<'s>,
 ) {
     match d {
@@ -60,7 +60,7 @@ fn handle_block_lexically_scoped_declaration<'s>(
         LexicallyScopedDeclaration::Variable(decl) if decl.kind.is_const() => {
             // i. If IsConstantDeclaration of d is true, then
             decl.id.bound_names(&mut |identifier| {
-                if handle_lexical_variable(ctx, identifier, block_prop, None) {
+                if handle_lexical_variable(ctx, identifier, block_prep, None) {
                     let dn = ctx.create_string(&identifier.name);
                     // 1. Perform ! env.CreateImmutableBinding(dn, true).
                     ctx.add_instruction_with_identifier(
@@ -72,7 +72,7 @@ fn handle_block_lexically_scoped_declaration<'s>(
         }
         // ii. Else,
         LexicallyScopedDeclaration::Variable(decl) => decl.id.bound_names(&mut |identifier| {
-            if handle_lexical_variable(ctx, identifier, block_prop, None) {
+            if handle_lexical_variable(ctx, identifier, block_prep, None) {
                 // 1. Perform ! env.CreateMutableBinding(dn, false).
                 // NOTE: This step is replaced in section B.3.2.6.
                 let dn = ctx.create_string(&identifier.name);
@@ -90,7 +90,7 @@ fn handle_block_lexically_scoped_declaration<'s>(
             let Some(identifier) = &decl.id else {
                 unreachable!()
             };
-            if handle_lexical_variable(ctx, identifier, block_prop, Some(decl)) {
+            if handle_lexical_variable(ctx, identifier, block_prep, Some(decl)) {
                 let dn = ctx.create_string(&identifier.name);
                 // 1. Perform ! env.CreateMutableBinding(dn, false).
                 // NOTE: This step is replaced in section B.3.2.6.
@@ -111,7 +111,7 @@ fn handle_block_lexically_scoped_declaration<'s>(
         }
         LexicallyScopedDeclaration::Class(decl) => {
             decl.bound_names(&mut |identifier| {
-                if handle_lexical_variable(ctx, identifier, block_prop, None) {
+                if handle_lexical_variable(ctx, identifier, block_prep, None) {
                     // 1. Perform ! env.CreateMutableBinding(dn, false).
                     // NOTE: This step is replaced in section B.3.2.6.
                     let dn = ctx.create_string(&identifier.name);
@@ -125,7 +125,7 @@ fn handle_block_lexically_scoped_declaration<'s>(
         LexicallyScopedDeclaration::DefaultExport => unreachable!(),
         #[cfg(feature = "typescript")]
         LexicallyScopedDeclaration::TSEnum(decl) => {
-            if handle_lexical_variable(ctx, &decl.id, decl_env, block_prop, None) {
+            if handle_lexical_variable(ctx, &decl.id, block_prep, None) {
                 let dn = ctx.create_string(&decl.id.name);
                 // Create mutable binding for the enum
                 ctx.add_instruction_with_identifier(
@@ -140,12 +140,12 @@ fn handle_block_lexically_scoped_declaration<'s>(
 fn handle_lexical_variable<'s>(
     ctx: &mut CompileContext<'_, 's, '_, '_>,
     identifier: &oxc_ast::ast::BindingIdentifier,
-    block_prop: &mut Vec<BlockEnvPrep>,
+    block_prep: &mut Vec<BlockEnvPrep>,
     f: Option<&'s oxc_ast::ast::Function<'s>>,
 ) -> bool {
     if variable_escapes_scope(ctx, identifier) {
-        if !block_prop.iter().any(|p| p.is_env()) {
-            block_prop.push(BlockEnvPrep::Env(ctx.enter_lexical_scope()));
+        if !block_prep.iter().any(|p| p.is_env()) {
+            block_prep.push(BlockEnvPrep::Env(ctx.enter_lexical_scope()));
         }
         true
     } else {
@@ -155,7 +155,7 @@ fn handle_lexical_variable<'s>(
         } else {
             ctx.push_stack_variable(identifier.symbol_id(), false)
         };
-        block_prop.push(BlockEnvPrep::Var(var));
+        block_prep.push(BlockEnvPrep::Var(var));
         false
     }
 }
