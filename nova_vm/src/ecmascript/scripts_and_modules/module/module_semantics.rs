@@ -149,11 +149,10 @@ impl<'r> ModuleRequest<'r> {
     pub(super) fn new_dynamic(
         agent: &mut Agent,
         specifier: String,
-        attributes: Vec<ImportAttributeRecord>,
+        attributes: Box<[ImportAttributeRecord]>,
         gc: NoGcScope<'r, '_>,
     ) -> Self {
         let mut state = AHasher::default();
-        let attributes = attributes.into_boxed_slice();
         specifier.to_string_lossy(agent).hash(&mut state);
         for attribute in attributes.iter() {
             attribute.key.to_string_lossy(agent).hash(&mut state);
@@ -217,15 +216,14 @@ pub struct ImportAttributeRecord<'a> {
     /// a String
     ///
     /// The attribute key
-    key: String<'a>,
+    pub(crate) key: String<'a>,
     /// ### \[\[Value]]
     ///
     /// a String
     ///
     /// The attribute value
-    value: String<'a>,
+    pub(crate) value: String<'a>,
 }
-
 bindable_handle!(ImportAttributeRecord);
 
 /// ### \[\[LoadedModules]]
@@ -533,6 +531,28 @@ pub fn finish_loading_imported_module<'a>(
         continue_dynamic_import(agent, payload.promise_capability.clone(), result, gc);
     }
     // 4. Return unused.
+}
+
+/// ### [16.2.1.12 AllImportAttributesSupported ( attributes )](https://tc39.es/ecma262/#sec-AllImportAttributesSupported)
+///
+/// The abstract operation AllImportAttributesSupported takes argument
+/// _attributes_ (a List of ImportAttribute Records) and returns a Boolean.
+pub(crate) fn all_import_attributes_supported(
+    agent: &Agent,
+    attributes: &[ImportAttributeRecord],
+) -> bool {
+    // 1. Let supported be HostGetSupportedImportAttributes().
+    let supported = agent.host_hooks.get_supported_import_attributes();
+    // 2. For each ImportAttribute Record attribute of attributes, do
+    for attribute in attributes {
+        let key = attribute.key.to_string_lossy(agent);
+        // a. If supported does not contain attribute.[[Key]], return false.
+        if !supported.contains(&key.as_ref()) {
+            return false;
+        }
+    }
+    // 3. Return true.
+    true
 }
 
 /// ### [16.2.1.13 GetModuleNamespace ( module )](https://tc39.es/ecma262/#sec-getmodulenamespace)

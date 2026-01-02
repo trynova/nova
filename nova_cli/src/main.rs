@@ -282,7 +282,11 @@ impl HostHooks for CliHostHooks {
             m.into()
         })
         .map_err(|err| {
-            agent.throw_exception(ExceptionType::Error, err.first().unwrap().to_string(), gc)
+            agent.throw_exception(
+                ExceptionType::SyntaxError,
+                err.first().unwrap().to_string(),
+                gc,
+            )
         });
         finish_loading_imported_module(agent, referrer, module_request, payload, result, gc);
     }

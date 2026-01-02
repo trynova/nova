@@ -1270,7 +1270,7 @@ fn number_binary_operator<'a>(
 
 /// ### [13.5.3 The typeof operator](https://tc39.es/ecma262/#sec-typeof-operator)
 #[inline]
-fn typeof_operator(agent: &Agent, val: Value, gc: NoGcScope) -> String<'static> {
+pub(crate) fn typeof_operator(agent: &Agent, val: Value, gc: NoGcScope) -> String<'static> {
     match val {
         // 4. If val is undefined, return "undefined".
         Value::Undefined => BUILTIN_STRING_MEMORY.undefined,

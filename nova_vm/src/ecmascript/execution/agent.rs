@@ -506,6 +506,33 @@ pub trait HostHooks: core::fmt::Debug {
         unimplemented!();
     }
 
+    /// ### [16.2.1.12.1 HostGetSupportedImportAttributes ( )](https://tc39.es/ecma262/#sec-hostgetsupportedimportattributes)
+    ///
+    /// The host-defined abstract operation HostGetSupportedImportAttributes
+    /// takes no arguments and returns a List of Strings. It allows host
+    /// environments to specify which import attributes they support. Only
+    /// attributes with supported keys will be provided to the host.
+    ///
+    /// An implementation of HostGetSupportedImportAttributes must conform to
+    /// the following requirements:
+    ///
+    /// * It must return a List of Strings, each indicating a supported
+    ///   attribute.
+    /// * Each time this operation is called, it must return the same List with
+    ///   the same contents in the same order.
+    ///
+    /// The default implementation of HostGetSupportedImportAttributes is to
+    /// return a new empty List.
+    ///
+    /// > Note: The purpose of requiring the host to specify its supported
+    /// > import attributes, rather than passing all attributes to the host and
+    /// > letting it then choose which ones it wants to handle, is to ensure
+    /// > that unsupported attributes are handled in a consistent way across
+    /// > different hosts.
+    fn get_supported_import_attributes(&self) -> &[&'static str] {
+        &[]
+    }
+
     /// ### [13.3.12.1.1 HostGetImportMetaProperties ( moduleRecord )](https://tc39.es/ecma262/#sec-hostgetimportmetaproperties)
     ///
     /// The host-defined abstract operation HostGetImportMetaProperties takes
