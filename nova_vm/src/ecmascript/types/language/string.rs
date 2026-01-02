@@ -113,12 +113,6 @@ pub enum StringRootRepr {
     HeapRef(HeapRootRef) = 0x80,
 }
 
-impl<'a> IntoValue<'a> for HeapString<'a> {
-    fn into_value(self) -> Value<'a> {
-        Value::String(self.unbind())
-    }
-}
-
 impl<'a> TryFrom<Value<'a>> for HeapString<'a> {
     type Error = ();
 

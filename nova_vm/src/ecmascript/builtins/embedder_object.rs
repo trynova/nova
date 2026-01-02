@@ -35,6 +35,17 @@ impl<'a> From<EmbedderObject<'a>> for Object<'a> {
     }
 }
 
+impl<'a> TryFrom<Value<'a>> for EmbedderObject<'a> {
+    type Error = ();
+
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Value::EmbedderObject(data) => Ok(data),
+            _ => Err(()),
+        }
+    }
+}
+
 impl HeapIndexHandle for EmbedderObject<'_> {
     fn from_index_u32(index: u32) -> Self {
         Self(BaseIndex::from_index_u32(index))

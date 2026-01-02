@@ -132,6 +132,17 @@ impl<'a> From<RegExpStringIterator<'a>> for Object<'a> {
     }
 }
 
+impl<'a> TryFrom<Value<'a>> for RegExpStringIterator<'a> {
+    type Error = ();
+
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Value::RegExpStringIterator(data) => Ok(data),
+            _ => Err(()),
+        }
+    }
+}
+
 impl Rootable for RegExpStringIterator<'_> {
     type RootRepr = HeapRootRef;
 

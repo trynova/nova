@@ -131,6 +131,17 @@ impl<'a> From<Promise<'a>> for Object<'a> {
     }
 }
 
+impl<'a> TryFrom<Value<'a>> for Promise<'a> {
+    type Error = ();
+
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Value::Promise(data) => Ok(data),
+            _ => Err(()),
+        }
+    }
+}
+
 impl<'a> InternalSlots<'a> for Promise<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Promise;
 

@@ -72,6 +72,17 @@ impl<'a> From<WeakSet<'a>> for Object<'a> {
     }
 }
 
+impl<'a> TryFrom<Value<'a>> for WeakSet<'a> {
+    type Error = ();
+
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Value::WeakSet(data) => Ok(data),
+            _ => Err(()),
+        }
+    }
+}
+
 impl<'a> InternalSlots<'a> for WeakSet<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::WeakSet;
 

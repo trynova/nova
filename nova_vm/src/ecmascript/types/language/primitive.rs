@@ -120,12 +120,12 @@ pub(crate) enum HeapPrimitive<'a> {
     BigInt(HeapBigInt<'a>) = BIGINT_DISCRIMINANT,
 }
 
-impl<'a> IntoValue<'a> for HeapPrimitive<'a> {
-    fn into_value(self) -> Value<'a> {
-        match self {
-            HeapPrimitive::String(data) => Value::String(data),
-            HeapPrimitive::Number(data) => Value::Number(data),
-            HeapPrimitive::BigInt(data) => Value::BigInt(data),
+impl<'a> From<HeapPrimitive<'a>> for Primitive<'a> {
+    fn from(value: HeapPrimitive<'a>) -> Self {
+        match value {
+            HeapPrimitive::String(data) => Self::String(data),
+            HeapPrimitive::Number(data) => Self::Number(data),
+            HeapPrimitive::BigInt(data) => Self::BigInt(data),
         }
     }
 }

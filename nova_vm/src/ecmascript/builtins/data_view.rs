@@ -361,6 +361,17 @@ impl<'a> TryFrom<Object<'a>> for DataView<'a> {
     }
 }
 
+impl<'a> TryFrom<Value<'a>> for DataView<'a> {
+    type Error = ();
+
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Value::DataView(data) => Ok(data),
+            _ => Err(()),
+        }
+    }
+}
+
 impl<'a> InternalSlots<'a> for DataView<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::DataView;
 
@@ -419,6 +430,18 @@ impl<'a> TryFrom<Object<'a>> for SharedDataView<'a> {
     fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
         match value {
             Object::SharedDataView(data) => Ok(data),
+            _ => Err(()),
+        }
+    }
+}
+
+#[cfg(feature = "shared-array-buffer")]
+impl<'a> TryFrom<Value<'a>> for SharedDataView<'a> {
+    type Error = ();
+
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Value::SharedDataView(data) => Ok(data),
             _ => Err(()),
         }
     }

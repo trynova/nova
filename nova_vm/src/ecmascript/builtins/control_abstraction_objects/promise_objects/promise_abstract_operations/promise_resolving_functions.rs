@@ -68,6 +68,17 @@ impl<'a> From<BuiltinPromiseResolvingFunction<'a>> for Function<'a> {
     }
 }
 
+impl<'a> TryFrom<Value<'a>> for BuiltinPromiseResolvingFunction<'a> {
+    type Error = ();
+
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Value::BuiltinPromiseResolvingFunction(data) => Ok(data),
+            _ => Err(()),
+        }
+    }
+}
+
 impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseResolvingFunction<'a> {
     fn get_name(self, _: &Agent) -> &String<'a> {
         &String::EMPTY_STRING

@@ -54,9 +54,14 @@ impl HeapIndexHandle for BoundFunction<'_> {
     }
 }
 
-impl<'a> IntoValue<'a> for BoundFunction<'a> {
-    fn into_value(self) -> Value<'a> {
-        Value::BoundFunction(self.unbind())
+impl<'a> TryFrom<Value<'a>> for BoundFunction<'a> {
+    type Error = ();
+
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Value::BoundFunction(data) => Ok(data),
+            _ => Err(()),
+        }
     }
 }
 

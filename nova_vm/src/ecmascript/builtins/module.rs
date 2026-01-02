@@ -55,6 +55,17 @@ impl<'a> From<Module<'a>> for Object<'a> {
     }
 }
 
+impl<'a> TryFrom<Value<'a>> for Module<'a> {
+    type Error = ();
+
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Value::Module(data) => Ok(data),
+            _ => Err(()),
+        }
+    }
+}
+
 impl HeapIndexHandle for Module<'_> {
     fn from_index_u32(index: u32) -> Self {
         Self(BaseIndex::from_index_u32(index))

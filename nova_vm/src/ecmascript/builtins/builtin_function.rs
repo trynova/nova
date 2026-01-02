@@ -516,6 +516,17 @@ impl<'a> TryFrom<Function<'a>> for BuiltinFunction<'a> {
     }
 }
 
+impl<'a> TryFrom<Value<'a>> for BuiltinFunction<'a> {
+    type Error = ();
+
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Value::BuiltinFunction(data) => Ok(data),
+            _ => Err(()),
+        }
+    }
+}
+
 impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
     fn get_name(self, agent: &Agent) -> &String<'a> {
         agent[self]
