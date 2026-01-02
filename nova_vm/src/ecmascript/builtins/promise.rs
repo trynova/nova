@@ -111,12 +111,6 @@ impl<'a> Promise<'a> {
 
 bindable_handle!(Promise);
 
-impl<'a> From<Promise<'a>> for Value<'a> {
-    fn from(value: Promise<'a>) -> Self {
-        Value::Promise(value)
-    }
-}
-
 impl<'a> From<Promise<'a>> for JsResult<'a, Value<'a>> {
     fn from(value: Promise<'a>) -> Self {
         Ok(value.into_value())

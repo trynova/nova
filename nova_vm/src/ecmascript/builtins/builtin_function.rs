@@ -496,12 +496,6 @@ impl IntrinsicConstructorIndexes {
     }
 }
 
-impl<'a> From<BuiltinFunction<'a>> for Value<'a> {
-    fn from(value: BuiltinFunction<'a>) -> Self {
-        Value::BuiltinFunction(value)
-    }
-}
-
 impl<'a> From<BuiltinFunction<'a>> for Object<'a> {
     fn from(value: BuiltinFunction) -> Self {
         Object::BuiltinFunction(value.unbind())
@@ -522,36 +516,6 @@ impl<'a> TryFrom<Function<'a>> for BuiltinFunction<'a> {
             Function::BuiltinFunction(f) => Ok(f),
             _ => Err(()),
         }
-    }
-}
-
-impl Index<BuiltinFunction<'_>> for Agent {
-    type Output = BuiltinFunctionHeapData<'static>;
-
-    fn index(&self, index: BuiltinFunction) -> &Self::Output {
-        &self.heap.builtin_functions[index]
-    }
-}
-
-impl IndexMut<BuiltinFunction<'_>> for Agent {
-    fn index_mut(&mut self, index: BuiltinFunction) -> &mut Self::Output {
-        &mut self.heap.builtin_functions[index]
-    }
-}
-
-impl Index<BuiltinFunction<'_>> for Vec<BuiltinFunctionHeapData<'static>> {
-    type Output = BuiltinFunctionHeapData<'static>;
-
-    fn index(&self, index: BuiltinFunction) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("BuiltinFunction out of bounds")
-    }
-}
-
-impl IndexMut<BuiltinFunction<'_>> for Vec<BuiltinFunctionHeapData<'static>> {
-    fn index_mut(&mut self, index: BuiltinFunction) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("BuiltinFunction out of bounds")
     }
 }
 

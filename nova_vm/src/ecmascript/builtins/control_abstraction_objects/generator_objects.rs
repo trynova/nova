@@ -396,12 +396,6 @@ impl Generator<'_> {
 
 bindable_handle!(Generator);
 
-impl<'a> From<Generator<'a>> for Value<'a> {
-    fn from(value: Generator<'a>) -> Self {
-        Value::Generator(value)
-    }
-}
-
 impl<'a> From<Generator<'a>> for Object<'a> {
     fn from(value: Generator) -> Self {
         Object::Generator(value.unbind())
@@ -440,36 +434,6 @@ impl<'a> CreateHeapData<GeneratorHeapData<'a>, Generator<'a>> for Heap {
         self.generators.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<GeneratorHeapData<'static>>();
         Generator(BaseIndex::last(&self.generators))
-    }
-}
-
-impl Index<Generator<'_>> for Agent {
-    type Output = GeneratorHeapData<'static>;
-
-    fn index(&self, index: Generator) -> &Self::Output {
-        &self.heap.generators[index]
-    }
-}
-
-impl IndexMut<Generator<'_>> for Agent {
-    fn index_mut(&mut self, index: Generator) -> &mut Self::Output {
-        &mut self.heap.generators[index]
-    }
-}
-
-impl Index<Generator<'_>> for Vec<GeneratorHeapData<'static>> {
-    type Output = GeneratorHeapData<'static>;
-
-    fn index(&self, index: Generator) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("Generator out of bounds")
-    }
-}
-
-impl IndexMut<Generator<'_>> for Vec<GeneratorHeapData<'static>> {
-    fn index_mut(&mut self, index: Generator) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("Generator out of bounds")
     }
 }
 

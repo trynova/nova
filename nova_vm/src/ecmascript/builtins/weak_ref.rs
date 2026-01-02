@@ -56,12 +56,6 @@ impl<'a> WeakRef<'a> {
 
 bindable_handle!(WeakRef);
 
-impl<'a> From<WeakRef<'a>> for Value<'a> {
-    fn from(value: WeakRef<'a>) -> Self {
-        Value::WeakRef(value)
-    }
-}
-
 impl<'a> From<WeakRef<'a>> for Object<'a> {
     fn from(value: WeakRef<'a>) -> Self {
         Object::WeakRef(value)

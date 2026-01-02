@@ -339,12 +339,6 @@ impl<'a> From<Array<'a>> for Object<'a> {
     }
 }
 
-impl<'a> From<Array<'a>> for Value<'a> {
-    fn from(value: Array<'a>) -> Self {
-        Self::Array(value)
-    }
-}
-
 impl<'a> TryFrom<Value<'a>> for Array<'a> {
     type Error = ();
 

@@ -82,12 +82,6 @@ impl Proxy<'_> {
 
 bindable_handle!(Proxy);
 
-impl<'a> From<Proxy<'a>> for Value<'a> {
-    fn from(value: Proxy<'a>) -> Self {
-        Value::Proxy(value)
-    }
-}
-
 impl<'a> From<Proxy<'a>> for Object<'a> {
     fn from(value: Proxy<'a>) -> Self {
         Object::Proxy(value)

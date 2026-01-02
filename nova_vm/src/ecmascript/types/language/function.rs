@@ -146,27 +146,6 @@ impl<'a> From<Function<'a>> for Object<'a> {
     }
 }
 
-impl<'a> From<Function<'a>> for Value<'a> {
-    fn from(value: Function<'a>) -> Self {
-        match value {
-            Function::BoundFunction(d) => Self::BoundFunction(d.unbind()),
-            Function::BuiltinFunction(d) => Self::BuiltinFunction(d.unbind()),
-            Function::ECMAScriptFunction(d) => Self::ECMAScriptFunction(d.unbind()),
-            Function::BuiltinConstructorFunction(data) => {
-                Self::BuiltinConstructorFunction(data.unbind())
-            }
-            Function::BuiltinPromiseResolvingFunction(data) => {
-                Self::BuiltinPromiseResolvingFunction(data.unbind())
-            }
-            Function::BuiltinPromiseFinallyFunction(data) => {
-                Self::BuiltinPromiseFinallyFunction(data.unbind())
-            }
-            Function::BuiltinPromiseCollectorFunction => Self::BuiltinPromiseCollectorFunction,
-            Function::BuiltinProxyRevokerFunction => Self::BuiltinProxyRevokerFunction,
-        }
-    }
-}
-
 impl Function<'_> {
     pub fn is_constructor(self, agent: &Agent) -> bool {
         match self {

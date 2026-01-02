@@ -53,12 +53,6 @@ impl Date<'_> {
 
 bindable_handle!(Date);
 
-impl<'a> From<Date<'a>> for Value<'a> {
-    fn from(value: Date<'a>) -> Self {
-        Value::Date(value)
-    }
-}
-
 impl<'a> From<Date<'a>> for Object<'a> {
     fn from(value: Date<'a>) -> Self {
         Object::Date(value)

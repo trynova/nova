@@ -321,12 +321,6 @@ impl AsyncGenerator<'_> {
 
 bindable_handle!(AsyncGenerator);
 
-impl<'a> From<AsyncGenerator<'a>> for Value<'a> {
-    fn from(value: AsyncGenerator<'a>) -> Self {
-        Value::AsyncGenerator(value)
-    }
-}
-
 impl<'a> From<AsyncGenerator<'a>> for Object<'a> {
     fn from(value: AsyncGenerator) -> Self {
         Object::AsyncGenerator(value.unbind())
@@ -382,36 +376,6 @@ impl<'a> CreateHeapData<AsyncGeneratorHeapData<'a>, AsyncGenerator<'a>> for Heap
         self.async_generators.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<AsyncGeneratorHeapData<'static>>();
         AsyncGenerator(BaseIndex::last(&self.async_generators))
-    }
-}
-
-impl Index<AsyncGenerator<'_>> for Agent {
-    type Output = AsyncGeneratorHeapData<'static>;
-
-    fn index(&self, index: AsyncGenerator) -> &Self::Output {
-        &self.heap.async_generators[index]
-    }
-}
-
-impl IndexMut<AsyncGenerator<'_>> for Agent {
-    fn index_mut(&mut self, index: AsyncGenerator) -> &mut Self::Output {
-        &mut self.heap.async_generators[index]
-    }
-}
-
-impl Index<AsyncGenerator<'_>> for Vec<AsyncGeneratorHeapData<'static>> {
-    type Output = AsyncGeneratorHeapData<'static>;
-
-    fn index(&self, index: AsyncGenerator) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("AsyncGenerator out of bounds")
-    }
-}
-
-impl IndexMut<AsyncGenerator<'_>> for Vec<AsyncGeneratorHeapData<'static>> {
-    fn index_mut(&mut self, index: AsyncGenerator) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("AsyncGenerator out of bounds")
     }
 }
 

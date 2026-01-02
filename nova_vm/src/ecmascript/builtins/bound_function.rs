@@ -256,36 +256,6 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
     }
 }
 
-impl<'a> Index<BoundFunction<'a>> for Agent {
-    type Output = BoundFunctionHeapData<'static>;
-
-    fn index(&self, index: BoundFunction<'a>) -> &Self::Output {
-        &self.heap.bound_functions[index]
-    }
-}
-
-impl<'a> IndexMut<BoundFunction<'a>> for Agent {
-    fn index_mut(&mut self, index: BoundFunction<'a>) -> &mut Self::Output {
-        &mut self.heap.bound_functions[index]
-    }
-}
-
-impl<'a> Index<BoundFunction<'a>> for Vec<BoundFunctionHeapData<'static>> {
-    type Output = BoundFunctionHeapData<'static>;
-
-    fn index(&self, index: BoundFunction<'a>) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("BoundFunction out of bounds")
-    }
-}
-
-impl<'a> IndexMut<BoundFunction<'a>> for Vec<BoundFunctionHeapData<'static>> {
-    fn index_mut(&mut self, index: BoundFunction<'a>) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("BoundFunction out of bounds")
-    }
-}
-
 impl<'a> CreateHeapData<BoundFunctionHeapData<'a>, BoundFunction<'a>> for Heap {
     fn create(&mut self, data: BoundFunctionHeapData<'a>) -> BoundFunction<'a> {
         self.bound_functions.push(data.unbind());

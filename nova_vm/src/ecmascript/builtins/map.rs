@@ -91,12 +91,6 @@ impl<'gc> Map<'gc> {
 
 bindable_handle!(Map);
 
-impl<'a> From<Map<'a>> for Value<'a> {
-    fn from(value: Map<'a>) -> Self {
-        Value::Map(value)
-    }
-}
-
 impl<'a> From<Map<'a>> for Object<'a> {
     fn from(value: Map<'a>) -> Self {
         Object::Map(value)

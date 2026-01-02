@@ -56,12 +56,6 @@ impl<'a> From<MapIterator<'a>> for Object<'a> {
     }
 }
 
-impl<'a> From<MapIterator<'a>> for Value<'a> {
-    fn from(value: MapIterator<'a>) -> Self {
-        Self::MapIterator(value)
-    }
-}
-
 impl<'a> TryFrom<Value<'a>> for MapIterator<'a> {
     type Error = ();
 

@@ -75,12 +75,6 @@ impl<'a> From<StringIterator<'a>> for Object<'a> {
     }
 }
 
-impl<'a> From<StringIterator<'a>> for Value<'a> {
-    fn from(iter: StringIterator<'a>) -> Self {
-        Value::StringIterator(iter)
-    }
-}
-
 impl<'a> TryFrom<Value<'a>> for StringIterator<'a> {
     type Error = ();
 

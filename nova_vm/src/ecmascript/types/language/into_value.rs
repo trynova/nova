@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::types::Object;
+
 use super::Value;
 
 pub trait IntoValue<'a>
@@ -18,5 +20,13 @@ where
     #[inline]
     fn into_value(self) -> Value<'a> {
         self.into()
+    }
+}
+
+impl<'a, T: Into<Object<'a>>> From<T> for Value<'a> {
+    #[inline]
+    fn from(value: T) -> Self {
+        let value: Object = value.into();
+        value.into()
     }
 }

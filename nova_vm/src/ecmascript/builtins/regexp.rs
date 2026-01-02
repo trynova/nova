@@ -125,12 +125,6 @@ impl<'a> RegExp<'a> {
 
 bindable_handle!(RegExp);
 
-impl<'a> From<RegExp<'a>> for Value<'a> {
-    fn from(value: RegExp<'a>) -> Self {
-        Self::RegExp(value)
-    }
-}
-
 impl<'a> From<RegExp<'a>> for Object<'a> {
     fn from(value: RegExp) -> Self {
         Self::RegExp(value.unbind())

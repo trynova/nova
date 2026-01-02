@@ -38,12 +38,6 @@ impl EmbedderObject<'_> {
 
 bindable_handle!(EmbedderObject);
 
-impl<'a> From<EmbedderObject<'a>> for Value<'a> {
-    fn from(value: EmbedderObject<'a>) -> Self {
-        Value::EmbedderObject(value.unbind())
-    }
-}
-
 impl<'a> From<EmbedderObject<'a>> for Object<'a> {
     fn from(value: EmbedderObject<'a>) -> Self {
         Object::EmbedderObject(value)

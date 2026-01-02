@@ -66,12 +66,6 @@ impl WeakSet<'_> {
 
 bindable_handle!(WeakSet);
 
-impl<'a> From<WeakSet<'a>> for Value<'a> {
-    fn from(value: WeakSet<'a>) -> Self {
-        Value::WeakSet(value)
-    }
-}
-
 impl<'a> From<WeakSet<'a>> for Object<'a> {
     fn from(value: WeakSet<'a>) -> Self {
         Object::WeakSet(value)

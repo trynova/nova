@@ -73,12 +73,6 @@ impl<'gc> Set<'gc> {
 
 bindable_handle!(Set);
 
-impl<'a> From<Set<'a>> for Value<'a> {
-    fn from(value: Set<'a>) -> Self {
-        Value::Set(value)
-    }
-}
-
 impl<'a> From<Set<'a>> for Object<'a> {
     fn from(value: Set<'a>) -> Self {
         Object::Set(value)

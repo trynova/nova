@@ -48,12 +48,6 @@ pub mod data;
 #[repr(transparent)]
 pub struct Module<'a>(u32, PhantomData<&'a ()>);
 
-impl<'a> From<Module<'a>> for Value<'a> {
-    fn from(value: Module<'a>) -> Self {
-        Value::Module(value)
-    }
-}
-
 impl<'a> From<Module<'a>> for Object<'a> {
     fn from(value: Module<'a>) -> Self {
         Object::Module(value)

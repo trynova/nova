@@ -339,12 +339,6 @@ impl<'gc> SharedDataView<'gc> {
     }
 }
 
-impl<'a> From<DataView<'a>> for Value<'a> {
-    fn from(value: DataView<'a>) -> Self {
-        Value::DataView(value)
-    }
-}
-
 impl<'a> From<DataView<'a>> for Object<'a> {
     fn from(value: DataView<'a>) -> Self {
         Object::DataView(value)
@@ -403,13 +397,6 @@ impl Rootable for DataView<'_> {
             HeapRootData::DataView(object) => Some(object),
             _ => None,
         }
-    }
-}
-
-#[cfg(feature = "shared-array-buffer")]
-impl<'a> From<SharedDataView<'a>> for Value<'a> {
-    fn from(value: SharedDataView<'a>) -> Self {
-        Value::SharedDataView(value)
     }
 }
 
@@ -639,17 +626,6 @@ impl<'a> From<SharedDataView<'a>> for AnyDataView<'a> {
     #[inline(always)]
     fn from(value: SharedDataView<'a>) -> Self {
         Self::SharedDataView(value)
-    }
-}
-
-impl<'a> From<AnyDataView<'a>> for Value<'a> {
-    #[inline(always)]
-    fn from(value: AnyDataView<'a>) -> Self {
-        match value {
-            AnyDataView::DataView(dv) => Self::DataView(dv),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyDataView::SharedDataView(sdv) => Self::SharedDataView(sdv),
-        }
     }
 }
 

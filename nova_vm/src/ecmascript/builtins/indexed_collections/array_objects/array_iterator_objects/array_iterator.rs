@@ -56,12 +56,6 @@ impl<'a> From<ArrayIterator<'a>> for Object<'a> {
     }
 }
 
-impl<'a> From<ArrayIterator<'a>> for Value<'a> {
-    fn from(value: ArrayIterator<'a>) -> Self {
-        Self::ArrayIterator(value)
-    }
-}
-
 impl<'a> TryFrom<Value<'a>> for ArrayIterator<'a> {
     type Error = ();
 

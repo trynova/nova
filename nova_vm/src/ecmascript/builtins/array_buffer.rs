@@ -243,42 +243,6 @@ impl<'a> From<ArrayBuffer<'a>> for Object<'a> {
     }
 }
 
-impl<'a> From<ArrayBuffer<'a>> for Value<'a> {
-    fn from(value: ArrayBuffer<'a>) -> Self {
-        Self::ArrayBuffer(value)
-    }
-}
-
-impl Index<ArrayBuffer<'_>> for Agent {
-    type Output = ArrayBufferHeapData<'static>;
-
-    fn index(&self, index: ArrayBuffer) -> &Self::Output {
-        &self.heap.array_buffers[index]
-    }
-}
-
-impl IndexMut<ArrayBuffer<'_>> for Agent {
-    fn index_mut(&mut self, index: ArrayBuffer) -> &mut Self::Output {
-        &mut self.heap.array_buffers[index]
-    }
-}
-
-impl Index<ArrayBuffer<'_>> for Vec<ArrayBufferHeapData<'static>> {
-    type Output = ArrayBufferHeapData<'static>;
-
-    fn index(&self, index: ArrayBuffer) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("ArrayBuffer out of bounds")
-    }
-}
-
-impl IndexMut<ArrayBuffer<'_>> for Vec<ArrayBufferHeapData<'static>> {
-    fn index_mut(&mut self, index: ArrayBuffer) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("ArrayBuffer out of bounds")
-    }
-}
-
 impl<'a> InternalSlots<'a> for ArrayBuffer<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::ArrayBuffer;
 
@@ -416,17 +380,6 @@ impl<'a> From<SharedArrayBuffer<'a>> for AnyArrayBuffer<'a> {
     #[inline(always)]
     fn from(value: SharedArrayBuffer<'a>) -> Self {
         Self::SharedArrayBuffer(value)
-    }
-}
-
-impl<'a> From<AnyArrayBuffer<'a>> for Value<'a> {
-    #[inline(always)]
-    fn from(value: AnyArrayBuffer<'a>) -> Self {
-        match value {
-            AnyArrayBuffer::ArrayBuffer(dv) => Self::ArrayBuffer(dv),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyArrayBuffer::SharedArrayBuffer(sdv) => Self::SharedArrayBuffer(sdv),
-        }
     }
 }
 

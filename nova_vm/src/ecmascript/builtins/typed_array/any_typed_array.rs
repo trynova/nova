@@ -916,51 +916,6 @@ impl<'a> TypedArrayAbstractOperations<'a> for AnyTypedArray<'a> {
     }
 }
 
-impl<'a> From<AnyTypedArray<'a>> for Value<'a> {
-    #[inline(always)]
-    fn from(value: AnyTypedArray<'a>) -> Self {
-        match value {
-            AnyTypedArray::Int8Array(ta) => Self::Int8Array(ta),
-            AnyTypedArray::Uint8Array(ta) => Self::Uint8Array(ta),
-            AnyTypedArray::Uint8ClampedArray(ta) => Self::Uint8ClampedArray(ta),
-            AnyTypedArray::Int16Array(ta) => Self::Int16Array(ta),
-            AnyTypedArray::Uint16Array(ta) => Self::Uint16Array(ta),
-            AnyTypedArray::Int32Array(ta) => Self::Int32Array(ta),
-            AnyTypedArray::Uint32Array(ta) => Self::Uint32Array(ta),
-            AnyTypedArray::BigInt64Array(ta) => Self::BigInt64Array(ta),
-            AnyTypedArray::BigUint64Array(ta) => Self::BigUint64Array(ta),
-            #[cfg(feature = "proposal-float16array")]
-            AnyTypedArray::Float16Array(sta) => Self::Float16Array(sta),
-            AnyTypedArray::Float32Array(ta) => Self::Float32Array(ta),
-            AnyTypedArray::Float64Array(ta) => Self::Float64Array(ta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedInt8Array(sta) => Self::SharedInt8Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedUint8Array(sta) => Self::SharedUint8Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedUint8ClampedArray(sta) => Self::SharedUint8ClampedArray(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedInt16Array(sta) => Self::SharedInt16Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedUint16Array(sta) => Self::SharedUint16Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedInt32Array(sta) => Self::SharedInt32Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedUint32Array(sta) => Self::SharedUint32Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedBigInt64Array(sta) => Self::SharedBigInt64Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedBigUint64Array(sta) => Self::SharedBigUint64Array(sta),
-            #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
-            AnyTypedArray::SharedFloat16Array(sta) => Self::SharedFloat16Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedFloat32Array(sta) => Self::SharedFloat32Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedFloat64Array(sta) => Self::SharedFloat64Array(sta),
-        }
-    }
-}
-
 impl<'a> From<AnyTypedArray<'a>> for Object<'a> {
     #[inline(always)]
     fn from(value: AnyTypedArray<'a>) -> Self {

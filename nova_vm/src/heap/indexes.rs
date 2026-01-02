@@ -12,6 +12,7 @@ use core::{
     ops::{Index, IndexMut},
 };
 use core::{marker::PhantomData, mem::size_of, num::NonZeroU32};
+use std::any::type_name;
 
 /// A struct containing a non-zero index into an array or
 /// vector of `T`s. Due to the non-zero value, the offset
@@ -216,4 +217,40 @@ impl PropertyKeyIndex<'_> {
         assert!(!vec.is_empty());
         Self::from_usize(vec.len())
     }
+}
+
+/// Trait for working with index-based heap handles. The handles are internally
+/// limited to 32 bit unsigned values.
+pub(crate) trait HeapIndexHandle: Sized {
+    /// Convert an index into a heap handle.
+    fn from_index(index: usize) -> Self {
+        Self::from_index_u32(
+            u32::try_from(index).expect(&format!("{} index out of bounds", type_name::<Self>())),
+        )
+    }
+    /// Convert a 32-bit index into a heap handle.
+    fn from_index_u32(index: u32) -> Self;
+
+    /// Get the handle's stored index.
+    fn get_index(&self) -> usize {
+        self.get_index_u32() as usize
+    }
+
+    /// Get the handle's stored 32-bit index.
+    fn get_index_u32(&self) -> u32;
+}
+
+pub(crate) trait HeapAccess<T: ?Sized>: HeapIndexHandle {
+    type OutputRef<'a>
+    where
+        Self: 'a;
+    type OutputMut<'a>
+    where
+        Self: 'a;
+
+    /// Access heap data beloning to a handle.
+    fn get<'a>(self, source: &'a T) -> Self::OutputRef<'a>;
+
+    /// Access heap data beloning to a handle as mutable.
+    fn get_mut<'a>(self, source: &'a mut T) -> Self::OutputMut<'a>;
 }

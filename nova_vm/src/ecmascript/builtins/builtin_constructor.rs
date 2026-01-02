@@ -56,12 +56,6 @@ impl BuiltinConstructorFunction<'_> {
 
 bindable_handle!(BuiltinConstructorFunction);
 
-impl<'a> From<BuiltinConstructorFunction<'a>> for Value<'a> {
-    fn from(value: BuiltinConstructorFunction<'a>) -> Self {
-        Value::BuiltinConstructorFunction(value)
-    }
-}
-
 impl<'a> From<BuiltinConstructorFunction<'a>> for Object<'a> {
     fn from(value: BuiltinConstructorFunction) -> Self {
         Self::BuiltinConstructorFunction(value.unbind())
@@ -104,36 +98,6 @@ impl<'a> TryFrom<Function<'a>> for BuiltinConstructorFunction<'a> {
             Function::BuiltinConstructorFunction(data) => Ok(data),
             _ => Err(()),
         }
-    }
-}
-
-impl Index<BuiltinConstructorFunction<'_>> for Agent {
-    type Output = BuiltinConstructorRecord<'static>;
-
-    fn index(&self, index: BuiltinConstructorFunction) -> &Self::Output {
-        &self.heap.builtin_constructors[index]
-    }
-}
-
-impl IndexMut<BuiltinConstructorFunction<'_>> for Agent {
-    fn index_mut(&mut self, index: BuiltinConstructorFunction) -> &mut Self::Output {
-        &mut self.heap.builtin_constructors[index]
-    }
-}
-
-impl Index<BuiltinConstructorFunction<'_>> for Vec<BuiltinConstructorRecord<'static>> {
-    type Output = BuiltinConstructorRecord<'static>;
-
-    fn index(&self, index: BuiltinConstructorFunction) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("BuiltinConstructorFunction out of bounds")
-    }
-}
-
-impl IndexMut<BuiltinConstructorFunction<'_>> for Vec<BuiltinConstructorRecord<'static>> {
-    fn index_mut(&mut self, index: BuiltinConstructorFunction) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("BuiltinConstructorFunction out of bounds")
     }
 }
 

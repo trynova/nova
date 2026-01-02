@@ -51,12 +51,6 @@ impl Error<'_> {
 
 bindable_handle!(Error);
 
-impl<'a> From<Error<'a>> for Value<'a> {
-    fn from(value: Error<'a>) -> Self {
-        Value::Error(value)
-    }
-}
-
 impl<'a> From<Error<'a>> for Object<'a> {
     fn from(value: Error) -> Self {
         Object::Error(value.unbind())

@@ -681,12 +681,6 @@ impl<'a> From<OrdinaryObject<'a>> for Object<'a> {
     }
 }
 
-impl<'a> From<OrdinaryObject<'a>> for Value<'a> {
-    fn from(value: OrdinaryObject<'a>) -> Self {
-        Self::Object(value)
-    }
-}
-
 impl<'a> TryFrom<Value<'a>> for OrdinaryObject<'a> {
     type Error = ();
 

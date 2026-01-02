@@ -56,12 +56,6 @@ impl<'a> From<SetIterator<'a>> for Object<'a> {
     }
 }
 
-impl<'a> From<SetIterator<'a>> for Value<'a> {
-    fn from(value: SetIterator<'a>) -> Self {
-        Self::SetIterator(value)
-    }
-}
-
 impl<'a> TryFrom<Value<'a>> for SetIterator<'a> {
     type Error = ();
 

@@ -687,13 +687,6 @@ impl<'a> TypedArray<'a> {
     }
 }
 
-impl<'a> From<TypedArray<'a>> for Value<'a> {
-    #[inline(always)]
-    fn from(value: TypedArray<'a>) -> Self {
-        value.into_object().into_value()
-    }
-}
-
 impl<'a> From<TypedArray<'a>> for Object<'a> {
     #[inline(always)]
     fn from(value: TypedArray<'a>) -> Self {
@@ -852,14 +845,6 @@ impl<'a, T: Viewable> From<GenericTypedArray<'a, T>> for Object<'a> {
     #[inline(always)]
     fn from(value: GenericTypedArray<'a, T>) -> Self {
         let value: AnyTypedArray = value.into();
-        value.into()
-    }
-}
-
-impl<'a, T: Viewable> From<GenericTypedArray<'a, T>> for Value<'a> {
-    #[inline(always)]
-    fn from(value: GenericTypedArray<'a, T>) -> Self {
-        let value: Object = value.into();
         value.into()
     }
 }

@@ -87,12 +87,6 @@ impl<'m> WeakMap<'m> {
     }
 }
 
-impl<'a> From<WeakMap<'a>> for Value<'a> {
-    fn from(value: WeakMap<'a>) -> Self {
-        Value::WeakMap(value)
-    }
-}
-
 impl<'a> From<WeakMap<'a>> for Object<'a> {
     fn from(value: WeakMap<'a>) -> Self {
         Object::WeakMap(value)

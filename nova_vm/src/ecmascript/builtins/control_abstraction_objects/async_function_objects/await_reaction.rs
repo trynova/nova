@@ -147,36 +147,6 @@ impl AwaitReaction<'_> {
     }
 }
 
-impl Index<AwaitReaction<'_>> for Agent {
-    type Output = AwaitReactionRecord<'static>;
-
-    fn index(&self, index: AwaitReaction) -> &Self::Output {
-        &self.heap.await_reactions[index]
-    }
-}
-
-impl IndexMut<AwaitReaction<'_>> for Agent {
-    fn index_mut(&mut self, index: AwaitReaction) -> &mut Self::Output {
-        &mut self.heap.await_reactions[index]
-    }
-}
-
-impl Index<AwaitReaction<'_>> for Vec<AwaitReactionRecord<'static>> {
-    type Output = AwaitReactionRecord<'static>;
-
-    fn index(&self, index: AwaitReaction) -> &Self::Output {
-        self.get(index.into_index())
-            .expect("AwaitReactionIdentifier out of bounds")
-    }
-}
-
-impl IndexMut<AwaitReaction<'_>> for Vec<AwaitReactionRecord<'static>> {
-    fn index_mut(&mut self, index: AwaitReaction) -> &mut Self::Output {
-        self.get_mut(index.into_index())
-            .expect("AwaitReactionIdentifier out of bounds")
-    }
-}
-
 impl Rootable for AwaitReaction<'_> {
     type RootRepr = HeapRootRef;
 

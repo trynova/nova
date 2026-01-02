@@ -166,12 +166,6 @@ impl<'sab> SharedArrayBuffer<'sab> {
     }
 }
 
-impl<'a> From<SharedArrayBuffer<'a>> for Value<'a> {
-    fn from(value: SharedArrayBuffer<'a>) -> Self {
-        Value::SharedArrayBuffer(value)
-    }
-}
-
 impl<'a> From<SharedArrayBuffer<'a>> for Object<'a> {
     fn from(value: SharedArrayBuffer<'a>) -> Self {
         Object::SharedArrayBuffer(value)

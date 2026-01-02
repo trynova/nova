@@ -129,12 +129,6 @@ impl<'a> From<RegExpStringIterator<'a>> for Object<'a> {
     }
 }
 
-impl<'a> From<RegExpStringIterator<'a>> for Value<'a> {
-    fn from(value: RegExpStringIterator<'a>) -> Self {
-        Self::RegExpStringIterator(value)
-    }
-}
-
 impl Rootable for RegExpStringIterator<'_> {
     type RootRepr = HeapRootRef;
 

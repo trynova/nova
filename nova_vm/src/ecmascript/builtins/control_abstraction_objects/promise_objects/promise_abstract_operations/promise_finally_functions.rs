@@ -114,12 +114,6 @@ impl<'a> From<BuiltinPromiseFinallyFunction<'a>> for Object<'a> {
     }
 }
 
-impl<'a> From<BuiltinPromiseFinallyFunction<'a>> for Value<'a> {
-    fn from(value: BuiltinPromiseFinallyFunction<'a>) -> Self {
-        Self::BuiltinPromiseFinallyFunction(value)
-    }
-}
-
 impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseFinallyFunction<'a> {
     fn get_name(self, _: &Agent) -> &String<'a> {
         &String::EMPTY_STRING

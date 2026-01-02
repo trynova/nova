@@ -164,12 +164,6 @@ impl<'fr> FinalizationRegistry<'fr> {
     }
 }
 
-impl<'a> From<FinalizationRegistry<'a>> for Value<'a> {
-    fn from(value: FinalizationRegistry<'a>) -> Self {
-        Value::FinalizationRegistry(value)
-    }
-}
-
 impl<'a> From<FinalizationRegistry<'a>> for Object<'a> {
     fn from(value: FinalizationRegistry<'a>) -> Self {
         Object::FinalizationRegistry(value)
