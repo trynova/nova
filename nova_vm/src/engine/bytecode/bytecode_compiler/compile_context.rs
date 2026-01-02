@@ -250,10 +250,8 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     /// Exit a lexical scope.
     fn exit_lexical_scope(&mut self, scope: LexicalScope) {
         core::mem::forget(scope);
-        debug_assert!(matches!(
-            self.control_flow_stack.pop(),
-            Some(ControlFlowStackEntry::LexicalScope)
-        ));
+        let entry = self.control_flow_stack.pop();
+        debug_assert!(matches!(entry, Some(ControlFlowStackEntry::LexicalScope)));
         if self.is_unreachable() {
             // OPTIMISATION: We don't need to add exit handling if this line is
             // unreachable.
@@ -281,10 +279,8 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     /// Forget a StackValue.
     fn pop_stack_value(&mut self, var: StackValue) {
         core::mem::forget(var);
-        debug_assert!(matches!(
-            self.control_flow_stack.pop(),
-            Some(ControlFlowStackEntry::StackValue)
-        ));
+        let entry = self.control_flow_stack.pop();
+        debug_assert!(matches!(entry, Some(ControlFlowStackEntry::StackValue)));
         self.executable.pop_stack();
     }
 
@@ -337,10 +333,8 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     /// Pop a lexical variable.
     fn pop_stack_variable(&mut self, var: StackVariable) {
         core::mem::forget(var);
-        debug_assert!(matches!(
-            self.control_flow_stack.pop(),
-            Some(ControlFlowStackEntry::StackValue)
-        ));
+        let entry = self.control_flow_stack.pop();
+        debug_assert!(matches!(entry, Some(ControlFlowStackEntry::StackValue)));
         self.stack_variables.pop().unwrap();
         self.executable.pop_stack();
         if self.is_unreachable() {
@@ -370,8 +364,9 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
 
     fn pop_stack_result_value(&mut self, result: StackResultValue) {
         core::mem::forget(result);
+        let entry = self.control_flow_stack.pop();
         debug_assert!(matches!(
-            self.control_flow_stack.pop(),
+            entry,
             Some(ControlFlowStackEntry::StackResultValue)
         ));
         self.executable.pop_stack();
@@ -404,10 +399,8 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     /// Enter a private environment scope.
     fn exit_private_scope(&mut self, scope: PrivateScope) {
         core::mem::forget(scope);
-        debug_assert!(matches!(
-            self.control_flow_stack.pop(),
-            Some(ControlFlowStackEntry::PrivateScope)
-        ));
+        let entry = self.control_flow_stack.pop();
+        debug_assert!(matches!(entry, Some(ControlFlowStackEntry::PrivateScope)));
         if self.is_unreachable() {
             // OPTIMISATION: We don't need to add exit handling if this line is
             // unreachable.
@@ -429,14 +422,10 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     /// Exit a lexical scope.
     fn exit_class_static_block(&mut self, scope: ClassStaticBlock) {
         core::mem::forget(scope);
-        debug_assert!(matches!(
-            self.control_flow_stack.pop(),
-            Some(ControlFlowStackEntry::VariableScope)
-        ));
-        debug_assert!(matches!(
-            self.control_flow_stack.pop(),
-            Some(ControlFlowStackEntry::LexicalScope)
-        ));
+        let entry = self.control_flow_stack.pop();
+        debug_assert!(matches!(entry, Some(ControlFlowStackEntry::VariableScope)));
+        let entry = self.control_flow_stack.pop();
+        debug_assert!(matches!(entry, Some(ControlFlowStackEntry::LexicalScope)));
         if self.is_unreachable() {
             // OPTIMISATION: We don't need to add exit handling if this line is
             // unreachable.
