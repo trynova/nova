@@ -6340,7 +6340,6 @@
   "language/expressions/dynamic-import/syntax/valid/nested-with-expression-script-code-valid.js": "FAIL",
   "language/expressions/dynamic-import/syntax/valid/top-level-import-source-script-code-valid.js": "FAIL",
   "language/expressions/dynamic-import/syntax/valid/top-level-script-code-valid.js": "FAIL",
-  "language/expressions/dynamic-import/update-to-dynamic-import.js": "FAIL",
   "language/expressions/dynamic-import/usage/nested-arrow-assignment-expression-eval-script-code-host-resolves-module-code.js": "FAIL",
   "language/expressions/dynamic-import/usage/nested-arrow-import-then-eval-script-code-host-resolves-module-code.js": "FAIL",
   "language/expressions/dynamic-import/usage/nested-async-arrow-function-await-eval-script-code-host-resolves-module-code.js": "FAIL",
