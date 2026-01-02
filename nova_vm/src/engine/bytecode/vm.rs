@@ -658,10 +658,10 @@ impl Vm {
             | Instruction::ApplyBitwiseAndBinaryOperator => {
                 execute_apply_binary_operator(agent, vm, instr.kind, gc)?
             }
-            Instruction::ArrayCreate => execute_array_create(agent, vm, instr, gc)?,
+            Instruction::ArrayCreate => execute_array_create(agent, vm, instr, gc.into_nogc())?,
             Instruction::ArrayPush => execute_array_push(agent, vm, gc)?,
             Instruction::ArrayElision => execute_array_elision(agent, vm, gc)?,
-            Instruction::BitwiseNot => execute_bitwise_not(agent, vm, gc)?,
+            Instruction::BitwiseNot => execute_bitwise_not(agent, vm, gc.into_nogc())?,
             Instruction::CreateUnmappedArgumentsObject => {
                 execute_create_unmapped_arguments_object(agent, vm, gc.into_nogc())?
             }
@@ -752,13 +752,15 @@ impl Vm {
             Instruction::ResolveBindingWithCache => {
                 execute_resolve_binding_with_cache(agent, vm, executable, instr, gc)?
             }
-            Instruction::ResolveThisBinding => execute_resolve_this_binding(agent, vm, gc)?,
+            Instruction::ResolveThisBinding => {
+                execute_resolve_this_binding(agent, vm, gc.into_nogc())?
+            }
             Instruction::StoreCopy => vm.execute_store_copy(),
             Instruction::StringConcat => execute_string_concat(agent, vm, instr, gc)?,
             Instruction::Throw => vm.execute_throw(gc.into_nogc())?,
             Instruction::ThrowError => execute_throw_error(agent, vm, instr, gc.into_nogc())?,
             Instruction::ToNumber => execute_to_number(agent, vm, gc)?,
-            Instruction::ToObject => execute_to_object(agent, vm, gc)?,
+            Instruction::ToObject => execute_to_object(agent, vm, gc.into_nogc())?,
             Instruction::Typeof => execute_typeof(agent, vm, gc)?,
             Instruction::UnaryMinus => execute_unary_minus(agent, vm, gc.into_nogc()),
             Instruction::InitializeVariableEnvironment => {
