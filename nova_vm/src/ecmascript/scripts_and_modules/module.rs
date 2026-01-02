@@ -259,7 +259,7 @@ fn reject_import_not_object_or_undefined<'gc>(
     let error = agent.throw_exception(ExceptionType::TypeError, message, gc);
     promise_capability.reject(agent, error.value(), gc);
     // ii. Return promiseCapability.[[Promise]].
-    return promise_capability.promise;
+    promise_capability.promise
 }
 
 #[cold]
@@ -278,7 +278,7 @@ fn reject_unsupported_import_attribute<'gc>(
     let error = agent.throw_exception(ExceptionType::TypeError, message, gc);
     promise_capability.reject(agent, error.value(), gc);
     // ii. Return promiseCapability.[[Promise]].
-    return promise_capability.promise;
+    promise_capability.promise
 }
 
 #[cold]
@@ -296,7 +296,7 @@ fn reject_unsupported_import_attributes<'gc>(
     );
     promise_capability.reject(agent, error.value(), gc);
     // ii. Return promiseCapability.[[Promise]].
-    return promise_capability.promise;
+    promise_capability.promise
 }
 
 /// ### [13.3.10.3 ContinueDynamicImport ( promiseCapability, moduleCompletion )](https://tc39.es/ecma262/#sec-ContinueDynamicImport)
