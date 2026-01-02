@@ -352,7 +352,7 @@ impl<'e> FunctionEnvironment<'e> {
             // b. If S is true, throw a TypeError exception.
             if is_strict {
                 let error_message = format!(
-                    "Cannot assign to immutable identifier '{}' in strict mode.",
+                    "invalid assignment to const '{}'",
                     name.to_string_lossy(agent)
                 );
                 return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc));

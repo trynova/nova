@@ -27,7 +27,10 @@ use crate::{
         execution::{Agent, agent::ExceptionType},
         types::{IntoObject, Primitive, PropertyKey},
     },
-    engine::context::{Bindable, NoGcScope},
+    engine::{
+        bytecode::bytecode_compiler::compile_context::BlockEnvPrep,
+        context::{Bindable, NoGcScope},
+    },
 };
 use crate::{
     ecmascript::{
@@ -275,15 +278,18 @@ impl<'s, 'gc> Place<'s, 'gc> {
                 name,
             } => {
                 if !mutable {
+                    // a. Assert: This is an attempt to change the value of an
+                    //    immutable binding. b. If S is true, throw a TypeError
+                    //    exception.
                     let message = format!(
-                        "can't mutate const declaration '{}' before initialization",
-                        name.as_str(ctx.get_agent()).unwrap()
+                        "invalid assignment to const '{}'",
+                        name.to_string_lossy(ctx.get_agent())
                     );
                     let message = ctx.create_string_from_owned(message);
                     ctx.add_instruction_with_constant(Instruction::StoreConstant, message);
                     ctx.add_instruction_with_immediate(
                         Instruction::ThrowError,
-                        ExceptionType::ReferenceError as usize,
+                        ExceptionType::TypeError as usize,
                     );
                     Err(ExpressionError::Error)
                 } else {
@@ -3802,8 +3808,8 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
         label_set: Option<&mut Vec<&'s ast::LabelIdentifier<'s>>>,
         ctx: &mut CompileContext<'a, 's, 'gc, 'scope>,
     ) -> Self::Output {
-        let mut per_iteration_lets: Vec<String<'_>> = vec![];
-        let mut loop_env = None;
+        let mut per_iteration_env_lets: Vec<String<'_>> = vec![];
+        let mut block_prep: Vec<BlockEnvPrep> = vec![];
 
         let result = if let Some(init) = &self.init {
             match init {
@@ -3811,7 +3817,6 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
                     if init.kind.is_lexical() {
                         // 1. Let oldEnv be the running execution context's LexicalEnvironment.
                         // 2. Let loopEnv be NewDeclarativeEnvironment(oldEnv).
-                        loop_env = Some(ctx.enter_lexical_scope());
                         // 3. Let isConst be IsConstantDeclaration of LexicalDeclaration.
                         let is_const = init.kind.is_const();
                         // 4. Let boundNames be the BoundNames of LexicalDeclaration.
@@ -3819,26 +3824,46 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
                         // a. If isConst is true, then
                         if is_const {
                             init.bound_names(&mut |dn| {
-                                // i. Perform ! loopEnv.CreateImmutableBinding(dn, true).
-                                let identifier = ctx.create_string(dn.name.as_str());
-                                ctx.add_instruction_with_identifier(
-                                    Instruction::CreateImmutableBinding,
-                                    identifier.to_property_key(),
-                                )
+                                if variable_escapes_scope(ctx, dn) {
+                                    if !block_prep.iter().any(|p| p.is_env()) {
+                                        block_prep
+                                            .push(BlockEnvPrep::Env(ctx.enter_lexical_scope()));
+                                    }
+                                    // i. Perform ! loopEnv.CreateImmutableBinding(dn, true).
+                                    let identifier = ctx.create_string(dn.name.as_str());
+                                    ctx.add_instruction_with_identifier(
+                                        Instruction::CreateImmutableBinding,
+                                        identifier.to_property_key(),
+                                    )
+                                } else {
+                                    block_prep.push(BlockEnvPrep::Var(
+                                        ctx.push_stack_variable(dn.symbol_id(), false),
+                                    ));
+                                }
                             });
                         } else {
                             // b. Else,
                             // i. Perform ! loopEnv.CreateMutableBinding(dn, false).
                             init.bound_names(&mut |dn| {
-                                let identifier = ctx.create_string(dn.name.as_str());
-                                // 9. If isConst is false, let perIterationLets
-                                // be boundNames; otherwise let perIterationLets
-                                // be a new empty List.
-                                per_iteration_lets.push(identifier);
-                                ctx.add_instruction_with_identifier(
-                                    Instruction::CreateMutableBinding,
-                                    identifier.to_property_key(),
-                                )
+                                if variable_escapes_scope(ctx, dn) {
+                                    if !block_prep.iter().any(|p| p.is_env()) {
+                                        block_prep
+                                            .push(BlockEnvPrep::Env(ctx.enter_lexical_scope()));
+                                    }
+                                    let identifier = ctx.create_string(dn.name.as_str());
+                                    // 9. If isConst is false, let perIterationLets
+                                    // be boundNames; otherwise let perIterationLets
+                                    // be a new empty List.
+                                    per_iteration_env_lets.push(identifier);
+                                    ctx.add_instruction_with_identifier(
+                                        Instruction::CreateMutableBinding,
+                                        identifier.to_property_key(),
+                                    )
+                                } else {
+                                    block_prep.push(BlockEnvPrep::Var(
+                                        ctx.push_stack_variable(dn.symbol_id(), false),
+                                    ));
+                                }
                             });
                         }
                         // 6. Set the running execution context's LexicalEnvironment to loopEnv.
@@ -3855,19 +3880,15 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
         };
 
         if let Err(err) = result {
-            if let Some(loop_env) = loop_env {
-                // Lexical binding loops have an extra declarative environment
-                // that we need to exit from once we exit the loop.
-                loop_env.exit(ctx);
+            for block_prep in block_prep.into_iter().rev() {
+                block_prep.exit(ctx);
             }
             return ControlFlow::Break(err.into());
         }
         // 2. Perform ? CreatePerIterationEnvironment(perIterationBindings).
-        let create_per_iteration_env = !per_iteration_lets.is_empty();
-
-        // 2. Perform ? CreatePerIterationEnvironment(perIterationBindings).
+        let create_per_iteration_env = !per_iteration_env_lets.is_empty();
         if create_per_iteration_env {
-            create_per_iteration_environment(ctx, &per_iteration_lets);
+            create_per_iteration_environment(ctx, &per_iteration_env_lets);
         }
 
         // 1. Let V be undefined.
@@ -3882,7 +3903,7 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
         ctx.add_instruction(Instruction::LoadReplace);
         // e. Perform ? CreatePerIterationEnvironment(perIterationBindings).
         if create_per_iteration_env {
-            create_per_iteration_environment(ctx, &per_iteration_lets);
+            create_per_iteration_environment(ctx, &per_iteration_env_lets);
         }
         // f. If increment is not empty, then
         if let Some(update) = &self.update {
@@ -3946,10 +3967,8 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
         l.exit(ctx, continue_label);
         v.forget(ctx);
 
-        if let Some(loop_env) = loop_env {
-            // Lexical binding loops have an extra declarative environment that
-            // we need to exit from once we exit the loop.
-            loop_env.exit(ctx);
+        for block_prep in block_prep.into_iter().rev() {
+            block_prep.exit(ctx);
         }
         // c. If LoopContinues(result, labelSet) is false,
         //    return ? UpdateEmpty(result, V).
@@ -3959,20 +3978,16 @@ impl<'a, 's, 'gc, 'scope> CompileLabelledEvaluation<'a, 's, 'gc, 'scope> for ast
 
 fn create_per_iteration_environment<'gc>(
     ctx: &mut CompileContext<'_, '_, 'gc, '_>,
-    per_iteration_lets: &[String<'gc>],
+    per_iteration_env_lets: &[String<'gc>],
 ) {
-    if per_iteration_lets.len() == 1 {
-        // NOTE: Optimization for the usual case of a single let
-        // binding. We do not need to push and pop from the stack
-        // in this case but can use the result register directly.
-        // There are rather easy further optimizations available as
-        // well around creating a sibling environment directly,
-        // creating an initialized mutable binding directly, and
-        // importantly: The whole loop environment is unnecessary
-        // if the loop contains no closures (that capture the
-        // per-iteration lets).
+    if per_iteration_env_lets.len() == 1 {
+        // NOTE: If there's only env let then we do not need to push and pop
+        // from the stack in this case but can use the result register directly.
+        // There are rather easy further optimizations available as well around
+        // creating a sibling environment directly, creating an initialized
+        // mutable binding directly.
 
-        let binding = *per_iteration_lets.first().unwrap();
+        let binding = *per_iteration_env_lets.first().unwrap();
         // Get value of binding from lastIterationEnv.
         ctx.add_instruction_with_identifier(Instruction::ResolveBinding, binding.to_property_key());
         ctx.add_instruction(Instruction::GetValue);
@@ -3987,7 +4002,7 @@ fn create_per_iteration_environment<'gc>(
         ctx.add_instruction_with_identifier(Instruction::ResolveBinding, binding.to_property_key());
         ctx.add_instruction(Instruction::InitializeReferencedBinding);
     } else {
-        for bn in per_iteration_lets {
+        for bn in per_iteration_env_lets {
             ctx.add_instruction_with_identifier(Instruction::ResolveBinding, bn.to_property_key());
             ctx.add_instruction(Instruction::GetValue);
             // Note: no load_to_stack as the temporary increase in stack size
@@ -3998,7 +4013,7 @@ fn create_per_iteration_environment<'gc>(
         // environment helpers as we'd just immediately exit again.
         ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
         ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
-        for bn in per_iteration_lets.iter().rev() {
+        for bn in per_iteration_env_lets.iter().rev() {
             ctx.add_instruction_with_identifier(
                 Instruction::CreateMutableBinding,
                 bn.to_property_key(),

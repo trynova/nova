@@ -108,8 +108,8 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         agent: &'agent mut Agent,
         source_code: SourceCode<'gc>,
         gc: NoGcScope<'gc, 'scope>,
-    ) -> CompileContext<'agent, 'script, 'gc, 'scope> {
-        CompileContext {
+    ) -> Self {
+        Self {
             executable: ExecutableContext::new(agent, gc),
             source_code,
             name_identifier: None,
