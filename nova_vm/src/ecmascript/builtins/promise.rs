@@ -159,35 +159,6 @@ impl<'a> CreateHeapData<PromiseHeapData<'a>, Promise<'a>> for Heap {
 
 bindable_handle!(PromiseHeapData);
 
-impl Index<Promise<'_>> for Agent {
-    type Output = PromiseHeapData<'static>;
-
-    fn index(&self, index: Promise) -> &Self::Output {
-        &self.heap.promises[index]
-    }
-}
-
-impl IndexMut<Promise<'_>> for Agent {
-    fn index_mut(&mut self, index: Promise) -> &mut Self::Output {
-        &mut self.heap.promises[index]
-    }
-}
-
-impl Index<Promise<'_>> for Vec<PromiseHeapData<'static>> {
-    type Output = PromiseHeapData<'static>;
-
-    fn index(&self, index: Promise) -> &Self::Output {
-        self.get(index.get_index()).expect("Promise out of bounds")
-    }
-}
-
-impl IndexMut<Promise<'_>> for Vec<PromiseHeapData<'static>> {
-    fn index_mut(&mut self, index: Promise) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("Promise out of bounds")
-    }
-}
-
 impl Rootable for Promise<'_> {
     type RootRepr = HeapRootRef;
 

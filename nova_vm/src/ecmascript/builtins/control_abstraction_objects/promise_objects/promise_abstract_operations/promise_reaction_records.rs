@@ -155,36 +155,6 @@ impl PromiseReaction<'_> {
     }
 }
 
-impl Index<PromiseReaction<'_>> for Agent {
-    type Output = PromiseReactionRecord<'static>;
-
-    fn index(&self, index: PromiseReaction) -> &Self::Output {
-        &self.heap.promise_reaction_records[index]
-    }
-}
-
-impl IndexMut<PromiseReaction<'_>> for Agent {
-    fn index_mut(&mut self, index: PromiseReaction) -> &mut Self::Output {
-        &mut self.heap.promise_reaction_records[index]
-    }
-}
-
-impl Index<PromiseReaction<'_>> for Vec<PromiseReactionRecord<'static>> {
-    type Output = PromiseReactionRecord<'static>;
-
-    fn index(&self, index: PromiseReaction) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("PromiseReaction out of bounds")
-    }
-}
-
-impl IndexMut<PromiseReaction<'_>> for Vec<PromiseReactionRecord<'static>> {
-    fn index_mut(&mut self, index: PromiseReaction) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("PromiseReaction out of bounds")
-    }
-}
-
 bindable_handle!(PromiseReaction);
 
 impl HeapMarkAndSweep for PromiseReaction<'static> {

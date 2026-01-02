@@ -143,43 +143,6 @@ impl<'a> TryFrom<Primitive<'a>> for Symbol<'a> {
     }
 }
 
-impl Index<Symbol<'_>> for Agent {
-    type Output = SymbolHeapData<'static>;
-
-    fn index(&self, index: Symbol<'_>) -> &Self::Output {
-        &self.heap.symbols[index]
-    }
-}
-
-impl IndexMut<Symbol<'_>> for Agent {
-    fn index_mut(&mut self, index: Symbol<'_>) -> &mut Self::Output {
-        &mut self.heap.symbols[index]
-    }
-}
-
-impl Index<Symbol<'_>> for PropertyKeyHeap<'_> {
-    type Output = SymbolHeapData<'static>;
-
-    fn index(&self, index: Symbol<'_>) -> &Self::Output {
-        &self.symbols[index]
-    }
-}
-
-impl Index<Symbol<'_>> for Vec<SymbolHeapData<'static>> {
-    type Output = SymbolHeapData<'static>;
-
-    fn index(&self, index: Symbol<'_>) -> &Self::Output {
-        self.get(index.get_index()).expect("Symbol out of bounds")
-    }
-}
-
-impl IndexMut<Symbol<'_>> for Vec<SymbolHeapData<'static>> {
-    fn index_mut(&mut self, index: Symbol<'_>) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("Symbol out of bounds")
-    }
-}
-
 impl HeapMarkAndSweep for Symbol<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.symbols.push(*self);

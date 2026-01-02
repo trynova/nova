@@ -54,35 +54,6 @@ impl<'a> From<Module<'a>> for Object<'a> {
     }
 }
 
-impl Index<Module<'_>> for Agent {
-    type Output = ModuleHeapData<'static>;
-
-    fn index(&self, index: Module) -> &Self::Output {
-        &self.heap.modules[index]
-    }
-}
-
-impl IndexMut<Module<'_>> for Agent {
-    fn index_mut(&mut self, index: Module) -> &mut Self::Output {
-        &mut self.heap.modules[index]
-    }
-}
-
-impl Index<Module<'_>> for Vec<ModuleHeapData<'static>> {
-    type Output = ModuleHeapData<'static>;
-
-    fn index(&self, index: Module) -> &Self::Output {
-        self.get(index.get_index()).expect("Module out of bounds")
-    }
-}
-
-impl IndexMut<Module<'_>> for Vec<ModuleHeapData<'static>> {
-    fn index_mut(&mut self, index: Module) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("Module out of bounds")
-    }
-}
-
 impl Module<'_> {
     pub(crate) const fn _def() -> Self {
         Self::from_u32(0)

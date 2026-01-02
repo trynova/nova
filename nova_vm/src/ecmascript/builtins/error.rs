@@ -489,32 +489,3 @@ impl<'a> CreateHeapData<ErrorHeapData<'a>, Error<'a>> for Heap {
         Error(BaseIndex::last(&self.errors))
     }
 }
-
-impl Index<Error<'_>> for Agent {
-    type Output = ErrorHeapData<'static>;
-
-    fn index(&self, index: Error) -> &Self::Output {
-        &self.heap.errors[index]
-    }
-}
-
-impl IndexMut<Error<'_>> for Agent {
-    fn index_mut(&mut self, index: Error) -> &mut Self::Output {
-        &mut self.heap.errors[index]
-    }
-}
-
-impl Index<Error<'_>> for Vec<ErrorHeapData<'static>> {
-    type Output = ErrorHeapData<'static>;
-
-    fn index(&self, index: Error) -> &Self::Output {
-        self.get(index.get_index()).expect("Error out of bounds")
-    }
-}
-
-impl IndexMut<Error<'_>> for Vec<ErrorHeapData<'static>> {
-    fn index_mut(&mut self, index: Error) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("Error out of bounds")
-    }
-}

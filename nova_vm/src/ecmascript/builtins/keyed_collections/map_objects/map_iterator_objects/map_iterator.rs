@@ -98,36 +98,6 @@ impl<'a> InternalSlots<'a> for MapIterator<'a> {
 
 impl<'a> InternalMethods<'a> for MapIterator<'a> {}
 
-impl Index<MapIterator<'_>> for Agent {
-    type Output = MapIteratorHeapData<'static>;
-
-    fn index(&self, index: MapIterator) -> &Self::Output {
-        &self.heap.map_iterators[index]
-    }
-}
-
-impl IndexMut<MapIterator<'_>> for Agent {
-    fn index_mut(&mut self, index: MapIterator) -> &mut Self::Output {
-        &mut self.heap.map_iterators[index]
-    }
-}
-
-impl Index<MapIterator<'_>> for Vec<MapIteratorHeapData<'static>> {
-    type Output = MapIteratorHeapData<'static>;
-
-    fn index(&self, index: MapIterator) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("MapIterator out of bounds")
-    }
-}
-
-impl IndexMut<MapIterator<'_>> for Vec<MapIteratorHeapData<'static>> {
-    fn index_mut(&mut self, index: MapIterator) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("MapIterator out of bounds")
-    }
-}
-
 impl TryFrom<HeapRootData> for MapIterator<'_> {
     type Error = ();
 

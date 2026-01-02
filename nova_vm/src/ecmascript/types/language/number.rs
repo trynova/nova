@@ -1438,48 +1438,6 @@ impl_value_from_n!(i16);
 impl_value_from_n!(u32);
 impl_value_from_n!(i32);
 
-impl Index<HeapNumber<'_>> for PrimitiveHeap<'_> {
-    type Output = f64;
-
-    fn index(&self, index: HeapNumber<'_>) -> &Self::Output {
-        &self.numbers[index]
-    }
-}
-
-impl Index<HeapNumber<'_>> for Agent {
-    type Output = f64;
-
-    fn index(&self, index: HeapNumber<'_>) -> &Self::Output {
-        &self.heap.numbers[index]
-    }
-}
-
-impl IndexMut<HeapNumber<'_>> for Agent {
-    fn index_mut(&mut self, index: HeapNumber<'_>) -> &mut Self::Output {
-        &mut self.heap.numbers[index]
-    }
-}
-
-impl Index<HeapNumber<'_>> for Vec<NumberHeapData> {
-    type Output = f64;
-
-    fn index(&self, index: HeapNumber<'_>) -> &Self::Output {
-        &self
-            .get(index.get_index())
-            .expect("HeapNumber out of bounds")
-            .data
-    }
-}
-
-impl IndexMut<HeapNumber<'_>> for Vec<NumberHeapData> {
-    fn index_mut(&mut self, index: HeapNumber<'_>) -> &mut Self::Output {
-        &mut self
-            .get_mut(index.get_index())
-            .expect("HeapNumber out of bounds")
-            .data
-    }
-}
-
 impl<'a> CreateHeapData<f64, Number<'a>> for Heap {
     fn create(&mut self, data: f64) -> Number<'a> {
         // NOTE: This function cannot currently be implemented

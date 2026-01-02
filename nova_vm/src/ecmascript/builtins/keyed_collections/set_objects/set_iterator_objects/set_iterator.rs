@@ -98,36 +98,6 @@ impl<'a> InternalSlots<'a> for SetIterator<'a> {
 
 impl<'a> InternalMethods<'a> for SetIterator<'a> {}
 
-impl Index<SetIterator<'_>> for Agent {
-    type Output = SetIteratorHeapData<'static>;
-
-    fn index(&self, index: SetIterator) -> &Self::Output {
-        &self.heap.set_iterators[index]
-    }
-}
-
-impl IndexMut<SetIterator<'_>> for Agent {
-    fn index_mut(&mut self, index: SetIterator) -> &mut Self::Output {
-        &mut self.heap.set_iterators[index]
-    }
-}
-
-impl Index<SetIterator<'_>> for Vec<SetIteratorHeapData<'static>> {
-    type Output = SetIteratorHeapData<'static>;
-
-    fn index(&self, index: SetIterator) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("SetIterator out of bounds")
-    }
-}
-
-impl IndexMut<SetIterator<'_>> for Vec<SetIteratorHeapData<'static>> {
-    fn index_mut(&mut self, index: SetIterator) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("SetIterator out of bounds")
-    }
-}
-
 impl TryFrom<HeapRootData> for SetIterator<'_> {
     type Error = ();
 

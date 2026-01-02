@@ -335,17 +335,6 @@ impl Debug for SourceCodeHeapData<'_> {
     }
 }
 
-impl Index<SourceCode<'_>> for Agent {
-    type Output = SourceCodeHeapData<'static>;
-
-    fn index(&self, index: SourceCode) -> &Self::Output {
-        self.heap
-            .source_codes
-            .get(index.get_index())
-            .expect("SourceCode out of bounds")
-    }
-}
-
 bindable_handle!(SourceCode);
 
 impl Rootable for SourceCode<'_> {

@@ -1923,35 +1923,6 @@ pub(crate) fn proxy_create<'a>(
     Ok(p)
 }
 
-impl Index<Proxy<'_>> for Agent {
-    type Output = ProxyHeapData<'static>;
-
-    fn index(&self, index: Proxy) -> &Self::Output {
-        &self.heap.proxies[index]
-    }
-}
-
-impl IndexMut<Proxy<'_>> for Agent {
-    fn index_mut(&mut self, index: Proxy) -> &mut Self::Output {
-        &mut self.heap.proxies[index]
-    }
-}
-
-impl Index<Proxy<'_>> for Vec<ProxyHeapData<'static>> {
-    type Output = ProxyHeapData<'static>;
-
-    fn index(&self, index: Proxy) -> &Self::Output {
-        self.get(index.get_index()).expect("Proxy out of bounds")
-    }
-}
-
-impl IndexMut<Proxy<'_>> for Vec<ProxyHeapData<'static>> {
-    fn index_mut(&mut self, index: Proxy) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("Proxy out of bounds")
-    }
-}
-
 impl TryFrom<HeapRootData> for Proxy<'_> {
     type Error = ();
 

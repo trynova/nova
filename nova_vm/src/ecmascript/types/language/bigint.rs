@@ -823,43 +823,6 @@ impl_value_from_n!(i16);
 impl_value_from_n!(u32);
 impl_value_from_n!(i32);
 
-impl Index<HeapBigInt<'_>> for PrimitiveHeap<'_> {
-    type Output = BigIntHeapData;
-
-    fn index(&self, index: HeapBigInt<'_>) -> &Self::Output {
-        &self.bigints[index]
-    }
-}
-
-impl Index<HeapBigInt<'_>> for Agent {
-    type Output = BigIntHeapData;
-
-    fn index(&self, index: HeapBigInt<'_>) -> &Self::Output {
-        &self.heap.bigints[index]
-    }
-}
-
-impl IndexMut<HeapBigInt<'_>> for Agent {
-    fn index_mut(&mut self, index: HeapBigInt<'_>) -> &mut Self::Output {
-        &mut self.heap.bigints[index]
-    }
-}
-
-impl Index<HeapBigInt<'_>> for Vec<BigIntHeapData> {
-    type Output = BigIntHeapData;
-
-    fn index(&self, index: HeapBigInt<'_>) -> &Self::Output {
-        self.get(index.get_index()).expect("BigInt out of bounds")
-    }
-}
-
-impl IndexMut<HeapBigInt<'_>> for Vec<BigIntHeapData> {
-    fn index_mut(&mut self, index: HeapBigInt<'_>) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("BigInt out of bounds")
-    }
-}
-
 impl<'a> CreateHeapData<BigIntHeapData, BigInt<'a>> for Heap {
     fn create(&mut self, data: BigIntHeapData) -> BigInt<'a> {
         self.bigints.push(data);

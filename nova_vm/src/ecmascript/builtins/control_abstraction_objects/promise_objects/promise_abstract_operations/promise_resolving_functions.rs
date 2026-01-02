@@ -117,38 +117,6 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseResolvingFunction<'a> 
     }
 }
 
-impl Index<BuiltinPromiseResolvingFunction<'_>> for Agent {
-    type Output = PromiseResolvingFunctionHeapData<'static>;
-
-    fn index(&self, index: BuiltinPromiseResolvingFunction) -> &Self::Output {
-        &self.heap.promise_resolving_functions[index]
-    }
-}
-
-impl IndexMut<BuiltinPromiseResolvingFunction<'_>> for Agent {
-    fn index_mut(&mut self, index: BuiltinPromiseResolvingFunction) -> &mut Self::Output {
-        &mut self.heap.promise_resolving_functions[index]
-    }
-}
-
-impl Index<BuiltinPromiseResolvingFunction<'_>> for Vec<PromiseResolvingFunctionHeapData<'static>> {
-    type Output = PromiseResolvingFunctionHeapData<'static>;
-
-    fn index(&self, index: BuiltinPromiseResolvingFunction) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("BuiltinPromiseRejectFunction out of bounds")
-    }
-}
-
-impl IndexMut<BuiltinPromiseResolvingFunction<'_>>
-    for Vec<PromiseResolvingFunctionHeapData<'static>>
-{
-    fn index_mut(&mut self, index: BuiltinPromiseResolvingFunction) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("BuiltinPromiseRejectFunction out of bounds")
-    }
-}
-
 impl Rootable for BuiltinPromiseResolvingFunction<'_> {
     type RootRepr = HeapRootRef;
 

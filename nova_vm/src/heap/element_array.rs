@@ -1600,34 +1600,6 @@ pub(crate) struct ElementArrays {
     pub(crate) e2pow32: ElementArray2Pow32,
 }
 
-impl Index<&ElementsVector<'_>> for ElementArrays {
-    type Output = [Option<Value<'static>>];
-
-    fn index(&self, index: &ElementsVector) -> &Self::Output {
-        self.get_values(index)
-    }
-}
-
-impl IndexMut<&ElementsVector<'_>> for ElementArrays {
-    fn index_mut(&mut self, index: &ElementsVector) -> &mut Self::Output {
-        self.get_values_mut(index)
-    }
-}
-
-impl Index<&ElementsVector<'_>> for Agent {
-    type Output = [Option<Value<'static>>];
-
-    fn index(&self, index: &ElementsVector) -> &Self::Output {
-        &self.heap.elements[index]
-    }
-}
-
-impl IndexMut<&ElementsVector<'_>> for Agent {
-    fn index_mut(&mut self, index: &ElementsVector) -> &mut Self::Output {
-        &mut self.heap.elements[index]
-    }
-}
-
 impl ElementArrays {
     fn push_values(
         &mut self,

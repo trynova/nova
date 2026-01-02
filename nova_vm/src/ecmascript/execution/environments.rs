@@ -153,36 +153,6 @@ macro_rules! create_environment_index {
                 }
             }
         }
-
-        impl core::ops::Index<$index<'_>> for Agent {
-            type Output = $record;
-
-            fn index(&self, index: $index) -> &Self::Output {
-                &self.heap.environments.$entry[index]
-            }
-        }
-
-        impl core::ops::IndexMut<$index<'_>> for Agent {
-            fn index_mut(&mut self, index: $index) -> &mut Self::Output {
-                &mut self.heap.environments.$entry[index]
-            }
-        }
-
-        impl core::ops::Index<$index<'_>> for Vec<$record> {
-            type Output = $record;
-
-            fn index(&self, index: $index) -> &Self::Output {
-                self.get(index.into_index())
-                    .expect("Environment out of bounds")
-            }
-        }
-
-        impl core::ops::IndexMut<$index<'_>> for Vec<$record> {
-            fn index_mut(&mut self, index: $index) -> &mut Self::Output {
-                self.get_mut(index.into_index())
-                    .expect("Environment out of bounds")
-            }
-        }
     };
 }
 

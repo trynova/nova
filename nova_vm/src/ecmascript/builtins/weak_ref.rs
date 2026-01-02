@@ -82,35 +82,6 @@ impl<'a> InternalSlots<'a> for WeakRef<'a> {
 
 impl<'a> InternalMethods<'a> for WeakRef<'a> {}
 
-impl Index<WeakRef<'_>> for Agent {
-    type Output = WeakRefHeapData<'static>;
-
-    fn index(&self, index: WeakRef) -> &Self::Output {
-        &self.heap.weak_refs[index]
-    }
-}
-
-impl IndexMut<WeakRef<'_>> for Agent {
-    fn index_mut(&mut self, index: WeakRef) -> &mut Self::Output {
-        &mut self.heap.weak_refs[index]
-    }
-}
-
-impl Index<WeakRef<'_>> for Vec<WeakRefHeapData<'static>> {
-    type Output = WeakRefHeapData<'static>;
-
-    fn index(&self, index: WeakRef) -> &Self::Output {
-        self.get(index.get_index()).expect("WeakRef out of bounds")
-    }
-}
-
-impl IndexMut<WeakRef<'_>> for Vec<WeakRefHeapData<'static>> {
-    fn index_mut(&mut self, index: WeakRef) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("WeakRef out of bounds")
-    }
-}
-
 impl TryFrom<HeapRootData> for WeakRef<'_> {
     type Error = ();
 

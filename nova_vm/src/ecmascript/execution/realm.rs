@@ -128,36 +128,6 @@ impl<'r> Realm<'r> {
     }
 }
 
-impl Index<Realm<'_>> for Agent {
-    type Output = RealmRecord<'static>;
-
-    fn index(&self, index: Realm) -> &Self::Output {
-        &self.heap.realms[index]
-    }
-}
-
-impl IndexMut<Realm<'_>> for Agent {
-    fn index_mut(&mut self, index: Realm) -> &mut Self::Output {
-        &mut self.heap.realms[index]
-    }
-}
-
-impl Index<Realm<'_>> for Vec<RealmRecord<'static>> {
-    type Output = RealmRecord<'static>;
-
-    fn index(&self, index: Realm) -> &Self::Output {
-        self.get(index.into_index())
-            .expect("RealmIdentifier out of bounds")
-    }
-}
-
-impl IndexMut<Realm<'_>> for Vec<RealmRecord<'static>> {
-    fn index_mut(&mut self, index: Realm) -> &mut Self::Output {
-        self.get_mut(index.into_index())
-            .expect("RealmIdentifier out of bounds")
-    }
-}
-
 bindable_handle!(Realm);
 
 impl Rootable for Realm<'_> {

@@ -340,36 +340,6 @@ pub(crate) struct OrdinaryFunctionCreateParams<'ast, 'gc> {
     pub private_env: Option<PrivateEnvironment<'gc>>,
 }
 
-impl Index<ECMAScriptFunction<'_>> for Agent {
-    type Output = ECMAScriptFunctionHeapData<'static>;
-
-    fn index(&self, index: ECMAScriptFunction) -> &Self::Output {
-        &self.heap.ecmascript_functions[index]
-    }
-}
-
-impl IndexMut<ECMAScriptFunction<'_>> for Agent {
-    fn index_mut(&mut self, index: ECMAScriptFunction) -> &mut Self::Output {
-        &mut self.heap.ecmascript_functions[index]
-    }
-}
-
-impl Index<ECMAScriptFunction<'_>> for Vec<ECMAScriptFunctionHeapData<'static>> {
-    type Output = ECMAScriptFunctionHeapData<'static>;
-
-    fn index(&self, index: ECMAScriptFunction) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("ECMAScriptFunction out of bounds")
-    }
-}
-
-impl IndexMut<ECMAScriptFunction<'_>> for Vec<ECMAScriptFunctionHeapData<'static>> {
-    fn index_mut(&mut self, index: ECMAScriptFunction) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("ECMAScriptFunction out of bounds")
-    }
-}
-
 impl<'a> ECMAScriptFunction<'a> {
     pub(crate) const fn _def() -> Self {
         ECMAScriptFunction(BaseIndex::from_u32_index(0))

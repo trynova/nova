@@ -86,36 +86,6 @@ impl<'a> TryFrom<Value<'a>> for PrimitiveObject<'a> {
     }
 }
 
-impl Index<PrimitiveObject<'_>> for Agent {
-    type Output = PrimitiveObjectRecord<'static>;
-
-    fn index(&self, index: PrimitiveObject) -> &Self::Output {
-        &self.heap.primitive_objects[index]
-    }
-}
-
-impl IndexMut<PrimitiveObject<'_>> for Agent {
-    fn index_mut(&mut self, index: PrimitiveObject) -> &mut Self::Output {
-        &mut self.heap.primitive_objects[index]
-    }
-}
-
-impl Index<PrimitiveObject<'_>> for Vec<PrimitiveObjectRecord<'static>> {
-    type Output = PrimitiveObjectRecord<'static>;
-
-    fn index(&self, index: PrimitiveObject) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("PrimitiveObject out of bounds")
-    }
-}
-
-impl IndexMut<PrimitiveObject<'_>> for Vec<PrimitiveObjectRecord<'static>> {
-    fn index_mut(&mut self, index: PrimitiveObject) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("PrimitiveObject out of bounds")
-    }
-}
-
 impl PrimitiveObject<'_> {
     pub(crate) const fn _def() -> Self {
         PrimitiveObject(BaseIndex::from_u32_index(0))

@@ -96,34 +96,6 @@ impl<'a> InternalSlots<'a> for Date<'a> {
 
 impl<'a> InternalMethods<'a> for Date<'a> {}
 
-impl Index<Date<'_>> for Agent {
-    type Output = DateHeapData<'static>;
-
-    fn index(&self, index: Date) -> &Self::Output {
-        &self.heap.dates[index]
-    }
-}
-
-impl IndexMut<Date<'_>> for Agent {
-    fn index_mut(&mut self, index: Date) -> &mut Self::Output {
-        &mut self.heap.dates[index]
-    }
-}
-
-impl Index<Date<'_>> for Vec<DateHeapData<'static>> {
-    type Output = DateHeapData<'static>;
-
-    fn index(&self, index: Date) -> &Self::Output {
-        self.get(index.get_index()).expect("Date out of bounds")
-    }
-}
-
-impl IndexMut<Date<'_>> for Vec<DateHeapData<'static>> {
-    fn index_mut(&mut self, index: Date) -> &mut Self::Output {
-        self.get_mut(index.get_index()).expect("Date out of bounds")
-    }
-}
-
 impl Rootable for Date<'_> {
     type RootRepr = HeapRootRef;
 

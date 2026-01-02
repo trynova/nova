@@ -68,52 +68,6 @@ impl HeapString<'_> {
     }
 }
 
-impl Index<HeapString<'_>> for PrimitiveHeap<'_> {
-    type Output = StringRecord;
-
-    fn index(&self, index: HeapString<'_>) -> &Self::Output {
-        &self.strings[index]
-    }
-}
-
-impl Index<HeapString<'_>> for PropertyKeyHeap<'_> {
-    type Output = StringRecord;
-
-    fn index(&self, index: HeapString<'_>) -> &Self::Output {
-        &self.strings[index]
-    }
-}
-
-impl Index<HeapString<'_>> for Agent {
-    type Output = StringRecord;
-
-    fn index(&self, index: HeapString<'_>) -> &Self::Output {
-        &self.heap.strings[index]
-    }
-}
-
-impl IndexMut<HeapString<'_>> for Agent {
-    fn index_mut(&mut self, index: HeapString<'_>) -> &mut Self::Output {
-        &mut self.heap.strings[index]
-    }
-}
-
-impl Index<HeapString<'_>> for Vec<StringRecord> {
-    type Output = StringRecord;
-
-    fn index(&self, index: HeapString<'_>) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("HeapString out of bounds")
-    }
-}
-
-impl IndexMut<HeapString<'_>> for Vec<StringRecord> {
-    fn index_mut(&mut self, index: HeapString<'_>) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("HeapString out of bounds")
-    }
-}
-
 /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
 ///
 /// The String type is the set of all ordered sequences of zero or more 16-bit

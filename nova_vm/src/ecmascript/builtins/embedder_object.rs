@@ -76,36 +76,6 @@ impl<'a> InternalSlots<'a> for EmbedderObject<'a> {
 
 impl<'a> InternalMethods<'a> for EmbedderObject<'a> {}
 
-impl Index<EmbedderObject<'_>> for Agent {
-    type Output = EmbedderObjectHeapData;
-
-    fn index(&self, index: EmbedderObject) -> &Self::Output {
-        &self.heap.embedder_objects[index]
-    }
-}
-
-impl IndexMut<EmbedderObject<'_>> for Agent {
-    fn index_mut(&mut self, index: EmbedderObject) -> &mut Self::Output {
-        &mut self.heap.embedder_objects[index]
-    }
-}
-
-impl Index<EmbedderObject<'_>> for Vec<EmbedderObjectHeapData> {
-    type Output = EmbedderObjectHeapData;
-
-    fn index(&self, index: EmbedderObject) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("EmbedderObject out of bounds")
-    }
-}
-
-impl IndexMut<EmbedderObject<'_>> for Vec<EmbedderObjectHeapData> {
-    fn index_mut(&mut self, index: EmbedderObject) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("EmbedderObject out of bounds")
-    }
-}
-
 impl TryFrom<HeapRootData> for EmbedderObject<'_> {
     type Error = ();
 

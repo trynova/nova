@@ -444,35 +444,6 @@ impl HeapSweepWeakReference for RegExp<'static> {
     }
 }
 
-impl Index<RegExp<'_>> for Agent {
-    type Output = RegExpHeapData<'static>;
-
-    fn index(&self, index: RegExp) -> &Self::Output {
-        &self.heap.regexps[index]
-    }
-}
-
-impl IndexMut<RegExp<'_>> for Agent {
-    fn index_mut(&mut self, index: RegExp) -> &mut Self::Output {
-        &mut self.heap.regexps[index]
-    }
-}
-
-impl Index<RegExp<'_>> for Vec<RegExpHeapData<'static>> {
-    type Output = RegExpHeapData<'static>;
-
-    fn index(&self, index: RegExp) -> &Self::Output {
-        self.get(index.get_index()).expect("RegExp out of bounds")
-    }
-}
-
-impl IndexMut<RegExp<'_>> for Vec<RegExpHeapData<'static>> {
-    fn index_mut(&mut self, index: RegExp) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("RegExp out of bounds")
-    }
-}
-
 impl TryFrom<HeapRootData> for RegExp<'_> {
     type Error = ();
 

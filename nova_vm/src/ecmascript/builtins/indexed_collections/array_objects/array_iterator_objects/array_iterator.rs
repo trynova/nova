@@ -98,36 +98,6 @@ impl<'a> InternalSlots<'a> for ArrayIterator<'a> {
 
 impl<'a> InternalMethods<'a> for ArrayIterator<'a> {}
 
-impl Index<ArrayIterator<'_>> for Agent {
-    type Output = ArrayIteratorHeapData<'static>;
-
-    fn index(&self, index: ArrayIterator) -> &Self::Output {
-        &self.heap.array_iterators[index]
-    }
-}
-
-impl IndexMut<ArrayIterator<'_>> for Agent {
-    fn index_mut(&mut self, index: ArrayIterator) -> &mut Self::Output {
-        &mut self.heap.array_iterators[index]
-    }
-}
-
-impl Index<ArrayIterator<'_>> for Vec<ArrayIteratorHeapData<'static>> {
-    type Output = ArrayIteratorHeapData<'static>;
-
-    fn index(&self, index: ArrayIterator) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("ArrayIterator out of bounds")
-    }
-}
-
-impl IndexMut<ArrayIterator<'_>> for Vec<ArrayIteratorHeapData<'static>> {
-    fn index_mut(&mut self, index: ArrayIterator) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("ArrayIterator out of bounds")
-    }
-}
-
 impl TryFrom<HeapRootData> for ArrayIterator<'_> {
     type Error = ();
 

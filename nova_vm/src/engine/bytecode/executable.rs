@@ -444,26 +444,6 @@ impl Scoped<'_, Executable<'static>> {
     }
 }
 
-impl Index<Executable<'_>> for Agent {
-    type Output = ExecutableHeapData<'static>;
-
-    fn index(&self, index: Executable) -> &Self::Output {
-        self.heap
-            .executables
-            .get(index.get_index())
-            .expect("Executable out of bounds")
-    }
-}
-
-impl IndexMut<Executable<'_>> for Agent {
-    fn index_mut(&mut self, index: Executable) -> &mut Self::Output {
-        self.heap
-            .executables
-            .get_mut(index.get_index())
-            .expect("Executable out of bounds")
-    }
-}
-
 bindable_handle!(Executable);
 
 impl Rootable for Executable<'_> {

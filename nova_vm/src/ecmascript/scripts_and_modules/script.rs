@@ -142,36 +142,6 @@ impl Script<'_> {
     }
 }
 
-impl Index<Script<'_>> for Agent {
-    type Output = ScriptRecord<'static>;
-
-    fn index(&self, index: Script) -> &Self::Output {
-        &self.heap.scripts[index]
-    }
-}
-
-impl IndexMut<Script<'_>> for Agent {
-    fn index_mut(&mut self, index: Script) -> &mut Self::Output {
-        &mut self.heap.scripts[index]
-    }
-}
-
-impl Index<Script<'_>> for Vec<ScriptRecord<'static>> {
-    type Output = ScriptRecord<'static>;
-
-    fn index(&self, index: Script) -> &Self::Output {
-        self.get(index.into_index())
-            .expect("ScriptIdentifier out of bounds")
-    }
-}
-
-impl IndexMut<Script<'_>> for Vec<ScriptRecord<'static>> {
-    fn index_mut(&mut self, index: Script) -> &mut Self::Output {
-        self.get_mut(index.into_index())
-            .expect("ScriptIdentifier out of bounds")
-    }
-}
-
 impl HeapMarkAndSweep for Script<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.scripts.push(*self);

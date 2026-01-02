@@ -92,35 +92,6 @@ impl<'a> InternalSlots<'a> for WeakSet<'a> {
 
 impl<'a> InternalMethods<'a> for WeakSet<'a> {}
 
-impl Index<WeakSet<'_>> for Agent {
-    type Output = WeakSetHeapData<'static>;
-
-    fn index(&self, index: WeakSet) -> &Self::Output {
-        &self.heap.weak_sets[index]
-    }
-}
-
-impl IndexMut<WeakSet<'_>> for Agent {
-    fn index_mut(&mut self, index: WeakSet) -> &mut Self::Output {
-        &mut self.heap.weak_sets[index]
-    }
-}
-
-impl Index<WeakSet<'_>> for Vec<WeakSetHeapData<'static>> {
-    type Output = WeakSetHeapData<'static>;
-
-    fn index(&self, index: WeakSet) -> &Self::Output {
-        self.get(index.get_index()).expect("WeakSet out of bounds")
-    }
-}
-
-impl IndexMut<WeakSet<'_>> for Vec<WeakSetHeapData<'static>> {
-    fn index_mut(&mut self, index: WeakSet) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("WeakSet out of bounds")
-    }
-}
-
 impl TryFrom<HeapRootData> for WeakSet<'_> {
     type Error = ();
 
