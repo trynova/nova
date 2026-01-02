@@ -575,6 +575,8 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         // it after performing the finally-work.
         self.set_jump_target_here(jump_to_catch);
 
+        self.reset_stack_depth();
+
         // Compile the finally-block...
         let finally_block = self.enter_finally_block(true);
         let _result = block.compile(self);
@@ -673,16 +675,14 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
     pub(super) fn enter_finally_block(&mut self, has_result: bool) -> FinallyBlock {
         self.control_flow_stack
             .push(ControlFlowStackEntry::FinallyBlock);
-        if has_result {
-            // We can load our result onto the stack directly.
-            self.add_instruction(Instruction::Load);
-        } else {
+        if !has_result {
             // Our result might be empty currently; loading directly would
             // crash.
             self.add_instruction_with_constant(Instruction::LoadConstant, Value::Undefined);
             self.add_instruction(Instruction::UpdateEmpty);
-            self.add_instruction(Instruction::Load);
         }
+        self.add_instruction(Instruction::Load);
+        let _ = self.executable.push_stack();
         FinallyBlock
     }
 
@@ -692,6 +692,7 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
         let Some(ControlFlowStackEntry::FinallyBlock) = self.control_flow_stack.pop() else {
             unreachable!()
         };
+        self.executable.pop_stack();
         if !self.is_unreachable() {
             self.add_instruction(Instruction::Store);
         }
