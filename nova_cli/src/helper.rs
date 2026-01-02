@@ -781,10 +781,11 @@ pub fn exit_with_parse_errors(errors: Vec<OxcDiagnostic>, source_path: &str, sou
     let source: &'static str = unsafe { std::mem::transmute(source) };
     let named_source = miette::NamedSource::new(source_path, source);
 
+    eprintln!("SyntaxError:");
+
     for error in errors {
-        let message = error.message.clone();
         let report = error.with_source_code(named_source.clone());
-        eprintln!("{report:?}\nSyntaxError: {}", message);
+        eprintln!("{report:?}");
     }
 
     std::process::exit(1);

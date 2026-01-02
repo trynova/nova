@@ -338,7 +338,7 @@ impl BaseTest262Runner {
             }
         } else if let Some(negative) = negative {
             let expected_stderr_prefix: Cow<str> = match negative.phase {
-                test_metadata::TestFailurePhase::Parse => "Parse errors:".into(),
+                test_metadata::TestFailurePhase::Parse => "SyntaxError:".into(),
                 test_metadata::TestFailurePhase::Runtime => {
                     format!("Uncaught exception: {}", negative.error_type).into()
                 }
