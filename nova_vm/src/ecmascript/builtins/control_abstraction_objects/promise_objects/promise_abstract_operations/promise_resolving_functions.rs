@@ -9,11 +9,13 @@ use crate::{
             promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
         },
         execution::{Agent, JsResult},
-        types::{Function, FunctionInternalProperties, Object, OrdinaryObject, String, Value},
+        types::{
+            FunctionInternalProperties, OrdinaryObject, String, Value,
+            function_handle,
+        },
     },
     engine::{
         context::{Bindable, GcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
@@ -41,43 +43,14 @@ pub struct PromiseResolvingFunctionHeapData<'a> {
     pub(crate) resolve_type: PromiseResolvingFunctionType,
 }
 
-pub(crate) type BuiltinPromiseResolvingFunctionIndex<'a> =
-    BaseIndex<'a, PromiseResolvingFunctionHeapData<'static>>;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct BuiltinPromiseResolvingFunction<'a>(pub(crate) BuiltinPromiseResolvingFunctionIndex<'a>);
-
-impl HeapIndexHandle for BuiltinPromiseResolvingFunction<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_u32_index(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.into_u32_index()
-    }
-}
+pub struct BuiltinPromiseResolvingFunction<'a>(
+    BaseIndex<'a, PromiseResolvingFunctionHeapData<'static>>,
+);
+function_handle!(BuiltinPromiseResolvingFunction);
 
 impl BuiltinPromiseResolvingFunction<'_> {}
-
-bindable_handle!(BuiltinPromiseResolvingFunction);
-
-impl<'a> From<BuiltinPromiseResolvingFunction<'a>> for Function<'a> {
-    fn from(value: BuiltinPromiseResolvingFunction<'a>) -> Self {
-        Self::BuiltinPromiseResolvingFunction(value)
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for BuiltinPromiseResolvingFunction<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::BuiltinPromiseResolvingFunction(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
 
 impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseResolvingFunction<'a> {
     fn get_name(self, _: &Agent) -> &String<'a> {
@@ -120,31 +93,6 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseResolvingFunction<'a> 
             }
         };
         Ok(Value::Undefined)
-    }
-}
-
-impl Rootable for BuiltinPromiseResolvingFunction<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::BuiltinPromiseResolvingFunction(
-            value.unbind(),
-        ))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::BuiltinPromiseResolvingFunction(d) => Some(d),
-            _ => None,
-        }
     }
 }
 

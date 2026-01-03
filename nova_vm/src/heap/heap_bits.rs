@@ -1440,7 +1440,7 @@ impl CompactionList {
 
     /// Shift a strongly held reference index.
     pub(crate) fn shift_index<T: ?Sized>(&self, index: &mut BaseIndex<T>) {
-        *index = BaseIndex::from_u32_index(self.shift_strong_u32_index(index.into_u32_index()));
+        *index = BaseIndex::from_index_u32(self.shift_strong_u32_index(index.into_u32_index()));
     }
 
     /// Shift a strongly held bare NonZeroU32 reference index.
@@ -1466,7 +1466,7 @@ impl CompactionList {
     ) -> Option<BaseIndex<'a, T>> {
         let base_index = index.into_u32_index();
         let base_index = self.shift_weak_u32_index(base_index)?;
-        Some(BaseIndex::from_u32_index(base_index))
+        Some(BaseIndex::from_index_u32(base_index))
     }
 
     /// Shift a weakly held non-zero reference index. Returns a new index if

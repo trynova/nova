@@ -13,14 +13,13 @@ use crate::{
             agent::{ExceptionType, TryResult, unwrap_try},
         },
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, SetResult, String, TryGetResult,
-            TryHasResult, Value,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, Object, OrdinaryObject,
+            PropertyDescriptor, PropertyKey, SetResult, String, TryGetResult, TryHasResult, Value,
+            object_handle,
         },
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
+        context::{Bindable, GcScope, NoGcScope},
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
@@ -37,48 +36,7 @@ use super::ordinary::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Error<'a>(BaseIndex<'a, ErrorHeapData<'static>>);
-
-impl Error<'_> {}
-
-impl HeapIndexHandle for Error<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_u32_index(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.into_u32_index()
-    }
-}
-
-bindable_handle!(Error);
-
-impl<'a> From<Error<'a>> for Object<'a> {
-    fn from(value: Error) -> Self {
-        Object::Error(value.unbind())
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for Error<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, ()> {
-        match value {
-            Value::Error(idx) => Ok(idx),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for Error<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, ()> {
-        match value {
-            Object::Error(idx) => Ok(idx),
-            _ => Err(()),
-        }
-    }
-}
+object_handle!(Error);
 
 impl<'a> InternalSlots<'a> for Error<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Error;
@@ -102,7 +60,7 @@ impl<'a> InternalSlots<'a> for Error<'a> {
         let message_entry = agent[self].message.map(|message| ObjectEntry {
             key: PropertyKey::from(BUILTIN_STRING_MEMORY.message),
             value: ObjectEntryPropertyDescriptor::Data {
-                value: message.into_value(),
+                value: message.into(),
                 writable: true,
                 enumerable: false,
                 configurable: true,
@@ -168,7 +126,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
             Some(backing_object) => TryResult::Continue(
                 ordinary_get_own_property(
                     agent,
-                    self.into_object(),
+                    self.into(),
                     backing_object,
                     property_key,
                     cache,
@@ -179,7 +137,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
             None => {
                 let property_value =
                     if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
-                        agent[self].message.map(|message| message.into_value())
+                        agent[self].message.map(|message| message.into())
                     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
                         agent[self].cause
                     } else {
@@ -210,21 +168,14 @@ impl<'a> InternalMethods<'a> for Error<'a> {
             && property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
             && agent[error].message.is_some()
         {
-            TryHasResult::Custom(0, error.into_object()).into()
+            TryHasResult::Custom(0, error.into()).into()
         } else if backing_object.is_none()
             && property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause)
             && agent[error].cause.is_some()
         {
-            TryHasResult::Custom(1, error.into_object()).into()
+            TryHasResult::Custom(1, error.into()).into()
         } else {
-            ordinary_try_has_property(
-                agent,
-                error.into_object(),
-                backing_object,
-                property_key,
-                cache,
-                gc,
-            )
+            ordinary_try_has_property(agent, error.into(), backing_object, property_key, cache, gc)
         }
     }
 
@@ -238,7 +189,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         match self.get_backing_object(agent) {
             Some(backing_object) => ordinary_has_property(
                 agent,
-                self.into_object(),
+                self.into(),
                 backing_object,
                 property_key.unbind(),
                 gc,
@@ -275,7 +226,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         let property_value = if backing_object.is_none()
             && property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
         {
-            agent[self].message.map(|message| message.into_value())
+            agent[self].message.map(|message| message.into())
         } else if backing_object.is_none()
             && property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause)
         {
@@ -288,7 +239,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         }
         ordinary_try_get(
             agent,
-            self.into_object(),
+            self.into(),
             backing_object,
             property_key,
             receiver,
@@ -312,7 +263,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
             None => {
                 let property_value =
                     if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
-                        agent[self].message.map(|message| message.into_value())
+                        agent[self].message.map(|message| message.into())
                     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
                         agent[self].cause
                     } else {
@@ -369,7 +320,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         if self.get_backing_object(agent).is_some() {
             ordinary_set(
                 agent,
-                self.into_object(),
+                self.into(),
                 property_key.unbind(),
                 value,
                 receiver,
@@ -387,7 +338,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
             self.create_backing_object(agent);
             ordinary_set(
                 agent,
-                self.into_object(),
+                self.into(),
                 property_key.unbind(),
                 value,
                 receiver,
@@ -405,7 +356,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         match self.get_backing_object(agent) {
             Some(backing_object) => TryResult::Continue(ordinary_delete(
                 agent,
-                self.into_object(),
+                self.into(),
                 backing_object,
                 property_key,
                 gc,
@@ -440,29 +391,6 @@ impl<'a> InternalMethods<'a> for Error<'a> {
                 }
                 TryResult::Continue(property_keys)
             }
-        }
-    }
-}
-
-impl Rootable for Error<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::Error(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::Error(object) => Some(object),
-            _ => None,
         }
     }
 }

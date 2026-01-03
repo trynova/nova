@@ -20,7 +20,7 @@ use crate::{
             Agent, JsResult, Realm,
             agent::{ExceptionType, JsError, unwrap_try},
         },
-        types::{IntoValue, Value},
+        types::Value,
     },
     engine::{
         ExecutionResult, Scoped, SuspendedVm,
@@ -140,7 +140,7 @@ fn async_generator_complete_step(
         create_iter_result_object(agent, value, done, gc).expect("Should perform GC here")
     };
     // d. Perform ! Call(promiseCapability.[[Resolve]], undefined, « iteratorResult »).
-    unwrap_try(promise_capability.try_resolve(agent, iterator_result.into_value(), gc));
+    unwrap_try(promise_capability.try_resolve(agent, iterator_result.into(), gc));
     // 8. Return unused.
 }
 

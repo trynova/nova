@@ -13,11 +13,12 @@ use crate::{
             Agent, FinalizationRegistryCleanupJob, ProtoIntrinsics, Realm, WeakKey,
             agent::{InnerJob, Job},
         },
-        types::{Function, InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
+        types::{
+            Function, InternalMethods, InternalSlots, OrdinaryObject, Value, object_handle,
+        },
     },
     engine::{
-        context::{Bindable, bindable_handle},
-        rootable::HeapRootData,
+        context::{Bindable},
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
@@ -33,17 +34,7 @@ pub mod data;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct FinalizationRegistry<'a>(BaseIndex<'a, FinalizationRegistryRecord<'static>>);
-bindable_handle!(FinalizationRegistry);
-
-impl HeapIndexHandle for FinalizationRegistry<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_u32_index(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.into_u32_index()
-    }
-}
+object_handle!(FinalizationRegistry);
 
 impl<'fr> FinalizationRegistry<'fr> {
     pub(crate) fn get_cleanup_queue(self, agent: &mut Agent) -> (Function<'fr>, Vec<Value<'fr>>) {
@@ -78,7 +69,7 @@ impl<'fr> FinalizationRegistry<'fr> {
             .filter_map(|(i, record)| {
                 let i = i as u32;
                 if record.needs_cleanup() {
-                    Some(FinalizationRegistry(BaseIndex::from_u32_index(i)))
+                    Some(FinalizationRegistry(BaseIndex::from_index_u32(i)))
                 } else {
                     None
                 }
@@ -169,51 +160,6 @@ impl<'fr> FinalizationRegistry<'fr> {
     }
 }
 
-impl<'a> From<FinalizationRegistry<'a>> for Object<'a> {
-    fn from(value: FinalizationRegistry<'a>) -> Self {
-        Object::FinalizationRegistry(value)
-    }
-}
-
-impl From<FinalizationRegistry<'_>> for HeapRootData {
-    fn from(value: FinalizationRegistry<'_>) -> Self {
-        HeapRootData::FinalizationRegistry(value.unbind())
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for FinalizationRegistry<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::FinalizationRegistry(fr) => Ok(fr),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for FinalizationRegistry<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Object::FinalizationRegistry(fr) => Ok(fr),
-            _ => Err(()),
-        }
-    }
-}
-
-impl TryFrom<HeapRootData> for FinalizationRegistry<'_> {
-    type Error = ();
-
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        match value {
-            HeapRootData::FinalizationRegistry(fr) => Ok(fr),
-            _ => Err(()),
-        }
-    }
-}
-
 impl<'fr> InternalSlots<'fr> for FinalizationRegistry<'fr> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::FinalizationRegistry;
 
@@ -241,7 +187,7 @@ impl<'a> CreateHeapData<FinalizationRegistryRecord<'a>, FinalizationRegistry<'a>
             .push(data.unbind())
             .expect("Failed to allocate FinalizationRegistry");
         self.alloc_counter += core::mem::size_of::<FinalizationRegistryRecord<'static>>();
-        FinalizationRegistry(BaseIndex::from_u32_index(i))
+        FinalizationRegistry(BaseIndex::from_index_u32(i))
     }
 }
 

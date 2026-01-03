@@ -15,7 +15,7 @@ use crate::{
             Agent, JsResult,
             agent::{ExceptionType, PromiseRejectionTrackerOperation, TryError, TryResult},
         },
-        types::{BUILTIN_STRING_MEMORY, Function, IntoValue, Object, TryGetResult, Value},
+        types::{BUILTIN_STRING_MEMORY, Function,  Object, TryGetResult, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
@@ -161,7 +161,7 @@ impl<'a> PromiseCapability<'a> {
         promise.set_already_resolved(agent);
 
         // 7. If SameValue(resolution, promise) is true, then
-        if resolution == promise.into_value() {
+        if resolution == promise.into() {
             // a. Let selfResolutionError be a newly created TypeError object.
             // b. Perform RejectPromise(promise, selfResolutionError).
             let exception = agent
@@ -217,7 +217,7 @@ impl<'a> PromiseCapability<'a> {
                 promise: promise.get(agent),
                 must_be_unresolved,
             }
-            .internal_fulfill(agent, resolution.into_value().unbind(), gc.nogc());
+            .internal_fulfill(agent, resolution.into().unbind(), gc.nogc());
             // b. Return undefined.
             return;
         };
@@ -262,7 +262,7 @@ impl<'a> PromiseCapability<'a> {
         };
 
         // 7. If SameValue(resolution, promise) is true, then
-        if resolution == self.promise.into_value() {
+        if resolution == self.promise.into() {
             // a. Let selfResolutionError be a newly created TypeError object.
             // b. Perform RejectPromise(promise, selfResolutionError).
             let exception = agent
@@ -306,7 +306,7 @@ impl<'a> PromiseCapability<'a> {
         // TODO: Callable proxies
         let Ok(then_action) = Function::try_from(then_action) else {
             // a. Perform FulfillPromise(promise, resolution).
-            self.internal_fulfill(agent, resolution.into_value(), gc);
+            self.internal_fulfill(agent, resolution.into(), gc);
             // b. Return undefined.
             return TryResult::Continue(());
         };

@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 mod data;
-pub mod into_function;
+pub mod function_internal_properties;
 
 use super::{
     InternalMethods, InternalSlots, Object, OrdinaryObject, PropertyKey, SetCachedProps, SetResult,
@@ -38,8 +38,7 @@ use crate::{
 };
 
 pub(crate) use data::*;
-pub(crate) use into_function::FunctionInternalProperties;
-pub use into_function::IntoFunction;
+pub(crate) use function_internal_properties::FunctionInternalProperties;
 
 /// ### [20.2.4 Function Instances](https://tc39.es/ecma262/#sec-function-instances)
 ///
@@ -64,6 +63,49 @@ pub enum Function<'a> {
 }
 bindable_handle!(Function);
 
+impl Function<'_> {
+    pub fn call<'gc>(
+        self,
+        agent: &mut Agent,
+        this_argument: Value,
+        args: &mut [Value],
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        self.internal_call(
+            agent,
+            this_argument,
+            ArgumentsList::from_mut_slice(args),
+            gc,
+        )
+    }
+
+    pub fn is_constructor(self, agent: &Agent) -> bool {
+        match self {
+            Function::BoundFunction(f) => f.is_constructor(agent),
+            Function::BuiltinFunction(f) => f.is_constructor(agent),
+            Function::ECMAScriptFunction(f) => f.is_constructor(agent),
+            Function::BuiltinPromiseResolvingFunction(_) => false,
+            Function::BuiltinPromiseFinallyFunction(_) => false,
+            Function::BuiltinConstructorFunction(_) => true,
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+        }
+    }
+
+    /// Returns the name of the function.
+    pub fn name<'a>(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> String<'a> {
+        match self {
+            Function::BoundFunction(f) => f.get_name(agent).bind(gc),
+            Function::BuiltinFunction(f) => f.get_name(agent).bind(gc),
+            Function::ECMAScriptFunction(f) => f.get_name(agent).bind(gc),
+            Function::BuiltinConstructorFunction(f) => f.get_name(agent).bind(gc),
+            Function::BuiltinPromiseResolvingFunction(f) => f.get_name(agent).bind(gc),
+            Function::BuiltinPromiseFinallyFunction(f) => f.get_name(agent).bind(gc),
+            _ => todo!(),
+        }
+    }
+}
+
 impl core::fmt::Debug for Function<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -85,9 +127,8 @@ impl core::fmt::Debug for Function<'_> {
     }
 }
 
-impl<'a, T: Into<Function<'a>>> From<T> for Object<'a> {
-    fn from(value: T) -> Self {
-        let value: Function = value.into();
+impl<'a> From<Function<'a>> for Object<'a> {
+    fn from(value: Function<'a>) -> Self {
         match value {
             Function::BoundFunction(f) => Self::BoundFunction(f),
             Function::BuiltinFunction(f) => Self::BuiltinFunction(f),
@@ -100,12 +141,6 @@ impl<'a, T: Into<Function<'a>>> From<T> for Object<'a> {
             Function::BuiltinPromiseCollectorFunction => Self::BuiltinPromiseCollectorFunction,
             Function::BuiltinProxyRevokerFunction => Self::BuiltinProxyRevokerFunction,
         }
-    }
-}
-
-impl<'a> From<BoundFunction<'a>> for Function<'a> {
-    fn from(value: BoundFunction<'a>) -> Self {
-        Function::BoundFunction(value)
     }
 }
 
@@ -141,34 +176,6 @@ impl<'a> TryFrom<Value<'a>> for Function<'a> {
             Value::BuiltinPromiseCollectorFunction => Ok(Self::BuiltinPromiseCollectorFunction),
             Value::BuiltinProxyRevokerFunction => Ok(Self::BuiltinProxyRevokerFunction),
             _ => Err(()),
-        }
-    }
-}
-
-impl Function<'_> {
-    pub fn is_constructor(self, agent: &Agent) -> bool {
-        match self {
-            Function::BoundFunction(f) => f.is_constructor(agent),
-            Function::BuiltinFunction(f) => f.is_constructor(agent),
-            Function::ECMAScriptFunction(f) => f.is_constructor(agent),
-            Function::BuiltinPromiseResolvingFunction(_) => false,
-            Function::BuiltinPromiseFinallyFunction(_) => false,
-            Function::BuiltinConstructorFunction(_) => true,
-            Function::BuiltinPromiseCollectorFunction => todo!(),
-            Function::BuiltinProxyRevokerFunction => todo!(),
-        }
-    }
-
-    /// Returns the name of the function.
-    pub fn name<'a>(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> String<'a> {
-        match self {
-            Function::BoundFunction(f) => f.get_name(agent).bind(gc),
-            Function::BuiltinFunction(f) => f.get_name(agent).bind(gc),
-            Function::ECMAScriptFunction(f) => f.get_name(agent).bind(gc),
-            Function::BuiltinConstructorFunction(f) => f.get_name(agent).bind(gc),
-            Function::BuiltinPromiseResolvingFunction(f) => f.get_name(agent).bind(gc),
-            Function::BuiltinPromiseFinallyFunction(f) => f.get_name(agent).bind(gc),
-            _ => todo!(),
         }
     }
 }
@@ -664,23 +671,6 @@ impl HeapMarkAndSweep for Function<'static> {
     }
 }
 
-impl Function<'_> {
-    pub fn call<'gc>(
-        self,
-        agent: &mut Agent,
-        this_argument: Value,
-        args: &mut [Value],
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        self.internal_call(
-            agent,
-            this_argument,
-            ArgumentsList::from_mut_slice(args),
-            gc,
-        )
-    }
-}
-
 impl Rootable for Function<'_> {
     type RootRepr = HeapRootRef;
 
@@ -744,3 +734,29 @@ impl Rootable for Function<'_> {
         }
     }
 }
+
+macro_rules! function_handle {
+    ($name: ident) => {
+        crate::ecmascript::types::object_handle!($name);
+
+        impl<'a> From<$name<'a>> for crate::ecmascript::types::Function<'a> {
+            fn from(value: $name<'a>) -> Self {
+                Self::$name(value)
+            }
+        }
+
+        impl<'a> TryFrom<crate::ecmascript::types::Function<'a>> for $name<'a> {
+            type Error = ();
+
+            fn try_from(
+                value: crate::ecmascript::types::Function<'a>,
+            ) -> Result<Self, Self::Error> {
+                match value {
+                    crate::ecmascript::types::Function::$name(data) => Ok(data),
+                    _ => Err(()),
+                }
+            }
+        }
+    };
+}
+pub(crate) use function_handle;

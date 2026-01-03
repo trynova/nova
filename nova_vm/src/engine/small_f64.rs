@@ -17,6 +17,8 @@ impl core::fmt::Debug for SmallF64 {
 }
 
 impl SmallF64 {
+    pub(crate) const _DEF: Self = Self { data: [0; 7] };
+
     #[inline]
     pub fn into_f64(self) -> f64 {
         self.into()

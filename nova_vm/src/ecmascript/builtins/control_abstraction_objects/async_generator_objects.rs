@@ -16,15 +16,14 @@ pub(crate) use async_generator_prototype::AsyncGeneratorPrototype;
 use crate::{
     ecmascript::{
         builtins::control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
-        execution::{agent::JsError, Agent, ExecutionContext, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
+        execution::{Agent, ExecutionContext, ProtoIntrinsics, agent::JsError},
+        types::{InternalMethods, InternalSlots, OrdinaryObject, Value, object_handle},
     },
     engine::{
-        context::{bindable_handle, Bindable, GcScope, NoGcScope}, rootable::{HeapRootData, HeapRootRef, Rootable, Scopable}, Executable, SuspendedVm
+        Executable, SuspendedVm, context::{Bindable, GcScope, NoGcScope, bindable_handle}, rootable::{Scopable}
     },
     heap::{
-        indexes::BaseIndex,
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, indexes::{BaseIndex, HeapIndexHandle}
     },
 };
 
@@ -33,7 +32,7 @@ use super::promise_objects::promise_abstract_operations::promise_reaction_record
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct AsyncGenerator<'a>(BaseIndex<'a, AsyncGeneratorHeapData<'static>>);
-bindable_handle!(AsyncGenerator);
+object_handle!(AsyncGenerator);
 
 impl AsyncGenerator<'_> {
     pub(crate) fn get_executable<'gc>(
@@ -311,46 +310,6 @@ impl AsyncGenerator<'_> {
     }
 }
 
-impl HeapIndexHandle for AsyncGenerator<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_index_u32(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.get_index_u32()
-    }
-}
-
-impl<'a> From<AsyncGenerator<'a>> for Object<'a> {
-    fn from(value: AsyncGenerator) -> Self {
-        Object::AsyncGenerator(value.unbind())
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for AsyncGenerator<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        if let Value::AsyncGenerator(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for AsyncGenerator<'a> {
-    type Error = ();
-
-    fn try_from(value: Object) -> Result<Self, Self::Error> {
-        if let Object::AsyncGenerator(value) = value {
-            Ok(value.unbind())
-        } else {
-            Err(())
-        }
-    }
-}
-
 impl<'a> InternalSlots<'a> for AsyncGenerator<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::AsyncGenerator;
 
@@ -482,29 +441,6 @@ pub(crate) enum AsyncGeneratorRequestCompletion<'a> {
 }
 
 bindable_handle!(AsyncGeneratorRequestCompletion);
-
-impl Rootable for AsyncGenerator<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::AsyncGenerator(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::AsyncGenerator(object) => Some(object),
-            _ => None,
-        }
-    }
-}
 
 impl HeapMarkAndSweep for AsyncGenerator<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

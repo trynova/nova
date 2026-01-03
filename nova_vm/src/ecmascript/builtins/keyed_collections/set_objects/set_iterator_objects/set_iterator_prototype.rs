@@ -14,7 +14,7 @@ use crate::{
             indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, String, Value},
+        types::{BUILTIN_STRING_MEMORY, String, Value},
     },
     engine::context::{Bindable, GcScope},
     heap::WellKnownSymbolIndexes,
@@ -54,7 +54,7 @@ impl SetIteratorPrototype {
         // NOTE: We set `set` to None when the generator in the spec text has returned.
         let Some(set) = agent[iterator].set else {
             return create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
-                .map(|o| o.into_value());
+                .map(|o| o.into());
         };
 
         // b. Let entries be set.[[SetData]].
@@ -77,7 +77,7 @@ impl SetIteratorPrototype {
                     // 1. If kind is KEY+VALUE, then
                     //   a. Let result be CreateArrayFromList(« e, e »).
                     //   b. Perform ? GeneratorYield(CreateIteratorResultObject(result, false)).
-                    create_array_from_list(agent, &[e.unbind(), e.unbind()], gc).into_value()
+                    create_array_from_list(agent, &[e.unbind(), e.unbind()], gc).into()
                 }
                 CollectionIteratorKind::Value => {
                     // 2. Else,
@@ -88,15 +88,14 @@ impl SetIteratorPrototype {
             };
 
             return create_iter_result_object(agent, result.unbind(), false, gc.into_nogc())
-                .map(|o| o.into_value());
+                .map(|o| o.into());
         }
 
         debug_assert_eq!(agent[iterator].next_index, set.get(agent).values.len());
 
         // e. Return undefined.
         agent[iterator].set = None;
-        create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
-            .map(|o| o.into_value())
+        create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc()).map(|o| o.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -111,7 +110,7 @@ impl SetIteratorPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.Set_Iterator.into_value())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.Set_Iterator.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()

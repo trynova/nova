@@ -39,7 +39,7 @@ use crate::{
             Agent, JsResult, Realm,
             agent::{ExceptionType, try_result_into_js},
         },
-        types::{BUILTIN_STRING_MEMORY, IntoValue, Number, Primitive, PropertyKey, String, Value},
+        types::{BUILTIN_STRING_MEMORY, Number, Primitive, PropertyKey, String, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
@@ -451,7 +451,7 @@ impl StringPrototype {
         } else {
             // 8. Return the substring of S from k to k + 1.
             let ch = s.char_code_at(agent, usize::try_from(k).unwrap());
-            Ok(SmallString::from_code_point(ch).into_value())
+            Ok(SmallString::from_code_point(ch).into())
         }
     }
 
@@ -488,11 +488,11 @@ impl StringPrototype {
         let size = s.utf16_len(agent);
         // 5. If position < 0 or position ≥ size, return the empty String.
         if position < 0 || position >= i64::try_from(size).unwrap() {
-            Ok(String::EMPTY_STRING.into_value())
+            Ok(String::EMPTY_STRING.into())
         } else {
             // 6. Return the substring of S from position to position + 1.
             let ch = s.char_code_at(agent, usize::try_from(position).unwrap());
-            Ok(SmallString::from_code_point(ch).into_value())
+            Ok(SmallString::from_code_point(ch).into())
         }
     }
 
@@ -647,7 +647,7 @@ impl StringPrototype {
                     .into_iter()
                     .map(|arg| arg.get(agent).bind(nogc))
                     .collect::<Vec<_>>();
-                return Ok(String::concat(agent, &string_args, nogc).into_value());
+                return Ok(String::concat(agent, &string_args, nogc).into());
             }
         };
         // 3. Let R be S.
@@ -685,7 +685,7 @@ impl StringPrototype {
         //     a. Let nextString be ? ToString(next).
         //     b. Set R to the string-concatenation of R and nextString.
         // 5. Return R.
-        Ok(String::concat(agent, &strings, nogc).into_value())
+        Ok(String::concat(agent, &strings, nogc).into())
     }
 
     /// ### [22.1.3.7 String.prototype.endsWith ( searchString \[ , endPosition \] )](https://tc39.es/ecma262/#sec-string.prototype.endswith)
@@ -998,9 +998,9 @@ impl StringPrototype {
         {
             let u8_pos = utf8_start + rel_u8_pos;
             let result = s.utf16_index(agent, u8_pos);
-            Ok(Number::try_from(result).unwrap().into_value())
+            Ok(Number::try_from(result).unwrap().into())
         } else {
-            Ok(Number::from(-1).into_value())
+            Ok(Number::from(-1).into())
         }
     }
 
@@ -1129,9 +1129,9 @@ impl StringPrototype {
         // 12. Return 𝔽(result).
         if let Some(utf8_idx) = utf8_result {
             let result = s.utf16_index(agent, utf8_idx);
-            Ok(Number::try_from(result).unwrap().into_value())
+            Ok(Number::try_from(result).unwrap().into())
         } else {
-            Ok(Number::from(-1).into_value())
+            Ok(Number::from(-1).into())
         }
     }
 
@@ -1322,10 +1322,10 @@ impl StringPrototype {
         // 5. Return ? Invoke(rx, %Symbol.match%, « S »).
         invoke(
             agent,
-            rx.unbind().into_value(),
+            rx.unbind().into(),
             WellKnownSymbolIndexes::Match.to_property_key(),
             Some(ArgumentsList::from_mut_value(&mut unsafe {
-                s.take(agent).into_value()
+                s.take(agent).into()
             })),
             gc,
         )
@@ -1364,7 +1364,7 @@ impl StringPrototype {
         // 2. If regexp is an Object, then
         if let Ok(mut regexp) = Object::try_from(regexp) {
             // a. Let isRegExp be ? IsRegExp(regexp).
-            let is_reg_exp = is_reg_exp(agent, regexp.unbind().into_value(), gc.reborrow())
+            let is_reg_exp = is_reg_exp(agent, regexp.unbind().into(), gc.reborrow())
                 .unbind()?
                 .bind(gc.nogc());
 
@@ -1448,9 +1448,9 @@ impl StringPrototype {
         // 5. Return ? Invoke(rx, %Symbol.matchAll%, « S »).
         invoke(
             agent,
-            rx.into_value().unbind(),
+            rx.into().unbind(),
             WellKnownSymbolIndexes::MatchAll.to_property_key(),
-            Some(ArgumentsList::from_mut_value(&mut s.into_value().unbind())),
+            Some(ArgumentsList::from_mut_value(&mut s.into().unbind())),
             gc,
         )
     }
@@ -1526,8 +1526,8 @@ impl StringPrototype {
         //    Unicode Standard, Normalization Forms.
         match unicode_normalize(&s.to_string_lossy(agent), f) {
             // 7. Return ns.
-            None => Ok(s.into_value().unbind()),
-            Some(ns) => Ok(Value::from_string(agent, ns, gc.into_nogc()).into_value()),
+            None => Ok(s.into().unbind()),
+            Some(ns) => Ok(Value::from_string(agent, ns, gc.into_nogc()).into()),
         }
     }
 
@@ -1652,7 +1652,7 @@ impl StringPrototype {
         }
 
         if n == 1 {
-            return Ok(s.into_value().unbind());
+            return Ok(s.into().unbind());
         }
 
         // 6. Return the String value that is made from n copies of S appended together.
@@ -1733,7 +1733,7 @@ impl StringPrototype {
                 position
             } else {
                 // 9. If position is not-found, return s.
-                return Ok(s.get(agent).into_value());
+                return Ok(s.get(agent).into());
             };
 
             // Let replacement be ? ToString(? Call(replaceValue, undefined, « searchString, 𝔽(position), string »)).
@@ -1742,9 +1742,9 @@ impl StringPrototype {
                 functional_replace.unbind(),
                 Value::Undefined,
                 Some(ArgumentsList::from_mut_slice(&mut [
-                    search_string.unbind().into_value(),
-                    Number::from(position as u32).into_value(),
-                    s.get(agent).into_value().unbind(),
+                    search_string.unbind().into(),
+                    Number::from(position as u32).into(),
+                    s.get(agent).into().unbind(),
                 ])),
                 gc.reborrow(),
             )
@@ -1768,9 +1768,7 @@ impl StringPrototype {
                 result.to_string_lossy(agent),
                 following
             );
-            return Ok(
-                String::from_string(agent, concatenated_result, gc.into_nogc()).into_value(),
-            );
+            return Ok(String::from_string(agent, concatenated_result, gc.into_nogc()).into());
         }
 
         let search_string_root = search_string.scope(agent, gc.nogc());
@@ -1786,7 +1784,7 @@ impl StringPrototype {
             &replace_string.to_string_lossy(agent),
             1,
         );
-        Ok(String::from_string(agent, result, gc.into_nogc()).into_value())
+        Ok(String::from_string(agent, result, gc.into_nogc()).into())
     }
 
     /// ### [22.1.3.20 String.prototype.replaceAll ( searchValue, replaceValue )](https://tc39.es/ecma262/#sec-string.prototype.replaceall)
@@ -1811,7 +1809,7 @@ impl StringPrototype {
         #[cfg(feature = "regexp")]
         if let Ok(mut search_value) = Object::try_from(search_value) {
             // a. Let isRegExp be ? IsRegExp(searchValue).
-            let is_reg_exp = is_reg_exp(agent, search_value.unbind().into_value(), gc.reborrow())
+            let is_reg_exp = is_reg_exp(agent, search_value.unbind().into(), gc.reborrow())
                 .unbind()?
                 .bind(gc.nogc());
 
@@ -1916,7 +1914,7 @@ impl StringPrototype {
 
             // If none has found, return s.
             if match_positions.is_empty() {
-                return Ok(s.get(agent).into_value());
+                return Ok(s.get(agent).into());
             }
 
             // 12. Let endOfLastMatch be 0.
@@ -1934,9 +1932,9 @@ impl StringPrototype {
                     functional_replace.get(agent),
                     Value::Undefined,
                     Some(ArgumentsList::from_mut_slice(&mut [
-                        search_string_root.get(agent).into_value(),
-                        Number::from(p as u32).into_value(),
-                        s.get(agent).into_value(),
+                        search_string_root.get(agent).into(),
+                        Number::from(p as u32).into(),
+                        s.get(agent).into(),
                     ])),
                     gc.reborrow(),
                 )
@@ -1963,7 +1961,7 @@ impl StringPrototype {
             }
 
             // 16. Return result.
-            return Ok(String::from_string(agent, result, gc.into_nogc()).into_value());
+            return Ok(String::from_string(agent, result, gc.into_nogc()).into());
         }
 
         // 6. If functionalReplace is false, Set replaceValue to ? ToString(replaceValue).
@@ -1977,7 +1975,7 @@ impl StringPrototype {
             search_string.to_string_lossy(agent).deref(),
             &replace_string.to_string_lossy(agent),
         );
-        Ok(String::from_string(agent, result, gc.into_nogc()).into_value())
+        Ok(String::from_string(agent, result, gc.into_nogc()).into())
     }
 
     /// ### [22.1.3.21 String.prototype.search ( regexp )](https://tc39.es/ecma262/#sec-string.prototype.search)
@@ -2037,11 +2035,9 @@ impl StringPrototype {
         // 5. Return ? Invoke(rx, %Symbol.search%, « string »).
         invoke(
             agent,
-            rx.into_value().unbind(),
+            rx.into().unbind(),
             WellKnownSymbolIndexes::Search.to_property_key(),
-            Some(ArgumentsList::from_mut_value(
-                &mut string.into_value().unbind(),
-            )),
+            Some(ArgumentsList::from_mut_value(&mut string.into().unbind())),
             gc,
         )
     }
@@ -2123,7 +2119,7 @@ impl StringPrototype {
         // 13. Return the substring of S from from to to.
         let substring = match (from, to) {
             (None, _) => "",
-            (Some(0), None) => return Ok(s.into_value()),
+            (Some(0), None) => return Ok(s.into()),
             (Some(from_idx), None) => {
                 let u8_from = s.utf8_index(agent, from_idx).unwrap();
                 &s.to_string_lossy(agent)[u8_from..]
@@ -2138,7 +2134,7 @@ impl StringPrototype {
         // SAFETY: The memory for `substring` (and for the WTF-8 representation
         // of `s`) won't be moved or deallocated before this function returns.
         let substring: &'static str = unsafe { core::mem::transmute(substring) };
-        Ok(String::from_str(agent, substring, gc).into_value())
+        Ok(String::from_str(agent, substring, gc).into())
     }
 
     /// ### [22.1.3.23 String.prototype.split ( separator, limit )](https://tc39.es/ecma262/#sec-string.prototype.split)
@@ -2195,7 +2191,7 @@ impl StringPrototype {
                 return call_function(
                     agent,
                     splitter.unbind(),
-                    scoped_separator.get(agent).into_value(),
+                    scoped_separator.get(agent).into(),
                     Some(ArgumentsList::from_mut_slice(&mut [
                         o.get(agent),
                         limit.get(agent),
@@ -2232,12 +2228,12 @@ impl StringPrototype {
 
         // 6. If lim is zero, return an empty array
         if lim == 0 {
-            return Ok(create_array_from_list(agent, &[], gc).into_value());
+            return Ok(create_array_from_list(agent, &[], gc).into());
         }
 
         // 7. If separator is undefined, return an array with the whole string
         if separator.is_undefined() {
-            return Ok(create_array_from_list(agent, &[s.into_value()], gc).into_value());
+            return Ok(create_array_from_list(agent, &[s.into()], gc).into());
         }
 
         // 8. Let separatorLength be the length of R.
@@ -2252,7 +2248,7 @@ impl StringPrototype {
                 .enumerate()
                 .skip(1) // Rust's split inserts an empty string in the beginning.
                 .take_while(|(i, _)| *i <= lim as usize)
-                .map(|(_, part)| SmallString::try_from(part).unwrap().into_value())
+                .map(|(_, part)| SmallString::try_from(part).unwrap().into())
                 .collect();
 
             // Remove the latest empty string if it's needed
@@ -2261,14 +2257,14 @@ impl StringPrototype {
             }
 
             let results = Array::from_slice(agent, results.as_slice(), gc);
-            return Ok(results.into_value());
+            return Ok(results.into());
         }
 
         // 10. If S is the empty String, return CreateArrayFromList(« S »).
         let s = scoped_s.get(agent).bind(gc);
         if s.is_empty_string() {
-            let list: [Value; 1] = [s.into_value().unbind()];
-            return Ok(create_array_from_list(agent, &list, gc).into_value());
+            let list: [Value; 1] = [s.into().unbind()];
+            return Ok(create_array_from_list(agent, &list, gc).into());
         }
 
         // 11-17. Normal split
@@ -2285,7 +2281,7 @@ impl StringPrototype {
         }
 
         let results = Array::from_slice(agent, results.as_slice(), gc);
-        Ok(results.into_value())
+        Ok(results.into())
     }
 
     /// ### [22.1.3.24 String.prototype.startsWith ( searchString \[ , position \] )](https://tc39.es/ecma262/#sec-string.prototype.startswith)
@@ -2472,7 +2468,7 @@ impl StringPrototype {
                 .map(|int_end| int_end.into_i64() >= s.len(agent) as i64)
                 .unwrap_or(true)
         {
-            return Ok(s.into_value().unbind());
+            return Ok(s.into().unbind());
         }
 
         let len = s.utf16_len(agent);
@@ -2505,7 +2501,7 @@ impl StringPrototype {
         // SAFETY: The memory for `substring` (and for the WTF-8 representation
         // of `s`) won't be moved or deallocated before this function returns.
         let substring: &'static str = unsafe { core::mem::transmute(substring) };
-        Ok(String::from_str(agent, substring, gc.into_nogc()).into_value())
+        Ok(String::from_str(agent, substring, gc.into_nogc()).into())
     }
 
     /// ### [22.1.3.26 String.prototype.toLocaleLowerCase ( \[ reserved1 \[ , reserved2 \] \] )](https://tc39.es/ecma262/#sec-string.prototype.tolocalelowercase)
@@ -2529,7 +2525,7 @@ impl StringPrototype {
         // 5. Let L be [CodePointsToString](https://tc39.es/ecma262/#sec-codepointstostring)(lowerText).
         // 6. Return L.
         let lower_case_string: std::string::String = s.to_string_lossy(agent).to_lowercase();
-        Ok(String::from_string(agent, lower_case_string, gc.into_nogc()).into_value())
+        Ok(String::from_string(agent, lower_case_string, gc.into_nogc()).into())
     }
 
     /// ### [22.1.3.27 String.prototype.toLocaleUpperCase ( \[ reserved1 \[ , reserved2 \] \] )](https://tc39.es/ecma262/#sec-string.prototype.tolocaleuppercase)
@@ -2553,7 +2549,7 @@ impl StringPrototype {
         // 5. Let L be [CodePointsToString](https://tc39.es/ecma262/#sec-codepointstostring)(upperText).
         // 6. Return L.
         let upper_case_string = s.to_string_lossy(agent).to_uppercase();
-        Ok(String::from_string(agent, upper_case_string, gc.into_nogc()).into_value())
+        Ok(String::from_string(agent, upper_case_string, gc.into_nogc()).into())
     }
 
     /// ### [22.1.3.28 String.prototype.toLowerCase ( )](https://tc39.es/ecma262/#sec-string.prototype.tolowercase)
@@ -2583,7 +2579,7 @@ impl StringPrototype {
         // 5. Let L be [CodePointsToString](https://tc39.es/ecma262/#sec-codepointstostring)(lowerText).
         // 6. Return L.
         let lower_case_string = s.to_string_lossy(agent).to_lowercase();
-        Ok(String::from_string(agent, lower_case_string, gc.into_nogc()).into_value())
+        Ok(String::from_string(agent, lower_case_string, gc.into_nogc()).into())
     }
 
     /// ### [22.1.3.30 String.prototype.toUpperCase ( )](https://tc39.es/ecma262/#sec-string.prototype.touppercase)
@@ -2613,7 +2609,7 @@ impl StringPrototype {
         // 5. Let L be [CodePointsToString](https://tc39.es/ecma262/#sec-codepointstostring)(upperText).
         // 6. Return L.
         let upper_case_string = s.to_string_lossy(agent).to_uppercase();
-        Ok(String::from_string(agent, upper_case_string, gc.into_nogc()).into_value())
+        Ok(String::from_string(agent, upper_case_string, gc.into_nogc()).into())
     }
 
     /// ### [22.1.3.31 String.prototype.toWellFormed ( )](https://tc39.es/ecma262/#sec-string.prototype.towellformed)
@@ -2650,10 +2646,10 @@ impl StringPrototype {
 
         match s.to_string_lossy(agent) {
             // String is already well-formed UTF-8.
-            std::borrow::Cow::Borrowed(_) => Ok(s.into_value().unbind()),
+            std::borrow::Cow::Borrowed(_) => Ok(s.into().unbind()),
             std::borrow::Cow::Owned(string) => {
                 // String was ill-formed UTF-8 and a well-formed copy was created.
-                Ok(String::from_string(agent, string, gc.into_nogc()).into_value())
+                Ok(String::from_string(agent, string, gc.into_nogc()).into())
             }
         }
     }
@@ -2711,10 +2707,10 @@ impl StringPrototype {
 
         if t == s_str {
             // No need to allocate a String if the string was not trimmed
-            Ok(s.into_value())
+            Ok(s.into())
         } else {
             let t = String::from_string(agent, t.to_string(), gc);
-            Ok(t.into_value())
+            Ok(t.into())
         }
     }
 
@@ -2768,7 +2764,7 @@ impl StringPrototype {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         // 1. Return ? ThisStringValue(this value).
-        this_string_value(agent, this_value, gc.into_nogc()).map(|string| string.into_value())
+        this_string_value(agent, this_value, gc.into_nogc()).map(|string| string.into())
     }
 
     /// ### [22.1.3.36 String.prototype \[ %Symbol.iterator% \] ( )](https://tc39.es/ecma262/#sec-string.prototype-%symbol.iterator%)
@@ -2793,7 +2789,7 @@ impl StringPrototype {
             .bind(gc.nogc());
         // d. Return undefined.
         // 4. Return CreateIteratorFromClosure(closure, "%StringIteratorPrototype%", %StringIteratorPrototype%).
-        Ok(StringIterator::create(agent, s.unbind(), gc.into_nogc()).into_value())
+        Ok(StringIterator::create(agent, s.unbind(), gc.into_nogc()).into())
     }
 
     /// ### [B.2.2.1 String.prototype.substr ( start, length )](https://tc39.es/ecma262/#sec-string.prototype.substr)
@@ -2871,7 +2867,7 @@ impl StringPrototype {
             s_str[int_start as usize..int_end as usize].to_string(),
             gc,
         )
-        .into_value())
+        .into())
     }
 
     /// ### [B.2.2.2 String.prototype.anchor ( name )](https://tc39.es/ecma262/#sec-string.prototype.anchor)
@@ -3137,7 +3133,7 @@ impl StringPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.trimLeft.to_property_key())
-                    .with_value(prototype_trim_start.into_value())
+                    .with_value(prototype_trim_start.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()
@@ -3145,7 +3141,7 @@ impl StringPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.trimRight.to_property_key())
-                    .with_value(prototype_trim_end.into_value())
+                    .with_value(prototype_trim_end.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()
@@ -3333,7 +3329,7 @@ fn string_pad<'gc>(
         buf.push_wtf8(s.as_wtf8(agent));
     }
 
-    Ok(String::from_wtf8_buf(agent, buf, gc).into_value())
+    Ok(String::from_wtf8_buf(agent, buf, gc).into())
 }
 
 /// ### [22.1.3.17.3 ToZeroPaddedDecimalString ( n, minLength )](https://tc39.es/ecma262/#sec-tozeropaddeddecimalstring)

@@ -18,7 +18,7 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Array, Behaviour, Builtin, BuiltinGetter, BuiltinSetter},
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoObject, IntoValue, Object, PropertyKey, String, Value},
+        types::{BUILTIN_STRING_MEMORY, Object, PropertyKey, String, Value},
     },
     engine::{
         ScopableCollection,
@@ -211,12 +211,7 @@ impl IteratorPrototype {
 
             // e. If ToBoolean(result) is false, return ? IteratorClose(iterated, NormalCompletion(false)).
             if !to_boolean(agent, result) {
-                return iterator_close_with_value(
-                    agent,
-                    iterator.get(agent),
-                    false.into_value(),
-                    gc,
-                );
+                return iterator_close_with_value(agent, iterator.get(agent), false.into(), gc);
             }
 
             // f. Set counter to counter + 1.
@@ -668,12 +663,7 @@ impl IteratorPrototype {
 
             // e. If ToBoolean(result) is true, return ? IteratorClose(iterated, NormalCompletion(true)).
             if to_boolean(agent, result) {
-                return iterator_close_with_value(
-                    agent,
-                    iterator.get(agent),
-                    true.into_value(),
-                    gc,
-                );
+                return iterator_close_with_value(agent, iterator.get(agent), true.into(), gc);
             }
 
             // f. Set counter to counter + 1.
@@ -734,7 +724,7 @@ impl IteratorPrototype {
             let Some(value) = value else {
                 let gc = gc.into_nogc();
                 let items = items.take(agent).bind(gc);
-                return Ok(Array::from_slice(agent, &items, gc).into_value());
+                return Ok(Array::from_slice(agent, &items, gc).into());
             };
 
             // c. Append value to items.
@@ -749,7 +739,7 @@ impl IteratorPrototype {
         _gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         // 1. Return "Iterator".
-        Ok(BUILTIN_STRING_MEMORY.Iterator.into_value())
+        Ok(BUILTIN_STRING_MEMORY.Iterator.into())
     }
 
     fn set_to_string_tag<'gc>(
@@ -769,7 +759,7 @@ impl IteratorPrototype {
                 .current_realm_record()
                 .intrinsics()
                 .iterator_prototype()
-                .into_object(),
+                .into(),
             // %Symbol.toStringTag%,
             WellKnownSymbolIndexes::ToStringTag.to_property_key(),
             // v

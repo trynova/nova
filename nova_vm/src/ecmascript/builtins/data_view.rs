@@ -14,7 +14,7 @@ use crate::{
     },
     engine::{
         context::{Bindable, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
+        rootable::HeapRootData,
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
@@ -40,7 +40,7 @@ pub mod data;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct DataView<'a>(BaseIndex<'a, DataViewRecord<'static>>);
-bindable_handle!(DataView);
+data_view_handle!(DataView);
 
 impl<'gc> DataView<'gc> {
     /// \[\[ByteLength]]
@@ -173,22 +173,12 @@ impl<'gc> DataView<'gc> {
     }
 }
 
-impl HeapIndexHandle for DataView<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_index_u32(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.get_index_u32()
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 #[cfg(feature = "shared-array-buffer")]
 pub struct SharedDataView<'a>(BaseIndex<'a, SharedDataViewRecord<'static>>);
 #[cfg(feature = "shared-array-buffer")]
-bindable_handle!(SharedDataView);
+data_view_handle!(SharedDataView);
 
 #[cfg(feature = "shared-array-buffer")]
 impl<'gc> SharedDataView<'gc> {
@@ -334,44 +324,6 @@ impl<'gc> SharedDataView<'gc> {
     }
 }
 
-impl HeapIndexHandle for SharedDataView<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_index_u32(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.get_index_u32()
-    }
-}
-
-impl<'a> From<DataView<'a>> for Object<'a> {
-    fn from(value: DataView<'a>) -> Self {
-        Object::DataView(value)
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for DataView<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Object::DataView(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for DataView<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::DataView(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
 impl<'a> InternalSlots<'a> for DataView<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::DataView;
 
@@ -392,60 +344,6 @@ impl<'a> InternalSlots<'a> for DataView<'a> {
 }
 
 impl<'a> InternalMethods<'a> for DataView<'a> {}
-
-impl Rootable for DataView<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::DataView(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::DataView(object) => Some(object),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "shared-array-buffer")]
-impl<'a> From<SharedDataView<'a>> for Object<'a> {
-    fn from(value: SharedDataView<'a>) -> Self {
-        Object::SharedDataView(value)
-    }
-}
-
-#[cfg(feature = "shared-array-buffer")]
-impl<'a> TryFrom<Object<'a>> for SharedDataView<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Object::SharedDataView(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
-#[cfg(feature = "shared-array-buffer")]
-impl<'a> TryFrom<Value<'a>> for SharedDataView<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::SharedDataView(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
 
 #[cfg(feature = "shared-array-buffer")]
 impl<'a> InternalSlots<'a> for SharedDataView<'a> {
@@ -469,30 +367,6 @@ impl<'a> InternalSlots<'a> for SharedDataView<'a> {
 
 #[cfg(feature = "shared-array-buffer")]
 impl<'a> InternalMethods<'a> for SharedDataView<'a> {}
-
-#[cfg(feature = "shared-array-buffer")]
-impl Rootable for SharedDataView<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::SharedDataView(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::SharedDataView(object) => Some(object),
-            _ => None,
-        }
-    }
-}
 
 impl<'a> CreateHeapData<DataViewRecord<'a>, DataView<'a>> for Heap {
     fn create(&mut self, data: DataViewRecord<'a>) -> DataView<'a> {
@@ -642,24 +516,44 @@ impl<'gc> AnyDataView<'gc> {
     }
 }
 
-impl<'a> From<DataView<'a>> for AnyDataView<'a> {
-    #[inline(always)]
-    fn from(value: DataView<'a>) -> Self {
-        Self::DataView(value)
-    }
-}
-
-#[cfg(feature = "shared-array-buffer")]
-impl<'a> From<SharedDataView<'a>> for AnyDataView<'a> {
-    #[inline(always)]
-    fn from(value: SharedDataView<'a>) -> Self {
-        Self::SharedDataView(value)
-    }
-}
-
 impl<'a> From<AnyDataView<'a>> for Object<'a> {
     #[inline(always)]
     fn from(value: AnyDataView<'a>) -> Self {
+        match value {
+            AnyDataView::DataView(dv) => Self::DataView(dv),
+            #[cfg(feature = "shared-array-buffer")]
+            AnyDataView::SharedDataView(sdv) => Self::SharedDataView(sdv),
+        }
+    }
+}
+
+impl<'a> From<AnyDataView<'a>> for Value<'a> {
+    #[inline(always)]
+    fn from(value: AnyDataView<'a>) -> Self {
+        match value {
+            AnyDataView::DataView(dv) => Self::DataView(dv),
+            #[cfg(feature = "shared-array-buffer")]
+            AnyDataView::SharedDataView(sdv) => Self::SharedDataView(sdv),
+        }
+    }
+}
+
+impl<'a> TryFrom<Object<'a>> for AnyDataView<'a> {
+    type Error = ();
+
+    #[inline]
+    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Object::DataView(dv) => Ok(Self::DataView(dv)),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedDataView(sdv) => Ok(Self::SharedDataView(sdv)),
+            _ => Err(()),
+        }
+    }
+}
+
+impl From<AnyDataView<'_>> for HeapRootData {
+    fn from(value: AnyDataView<'_>) -> Self {
         match value {
             AnyDataView::DataView(dv) => Self::DataView(dv),
             #[cfg(feature = "shared-array-buffer")]
@@ -682,20 +576,6 @@ impl<'a> TryFrom<Value<'a>> for AnyDataView<'a> {
     }
 }
 
-impl<'a> TryFrom<Object<'a>> for AnyDataView<'a> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Object::DataView(dv) => Ok(Self::DataView(dv)),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedDataView(sdv) => Ok(Self::SharedDataView(sdv)),
-            _ => Err(()),
-        }
-    }
-}
-
 impl TryFrom<HeapRootData> for AnyDataView<'_> {
     type Error = ();
 
@@ -709,3 +589,29 @@ impl TryFrom<HeapRootData> for AnyDataView<'_> {
         }
     }
 }
+
+macro_rules! data_view_handle {
+    ($name: ident) => {
+        crate::ecmascript::types::object_handle!($name);
+
+        impl<'a> From<$name<'a>> for crate::ecmascript::builtins::data_view::AnyDataView<'a> {
+            fn from(value: $name<'a>) -> Self {
+                Self::$name(value)
+            }
+        }
+
+        impl<'a> TryFrom<crate::ecmascript::builtins::data_view::AnyDataView<'a>> for $name<'a> {
+            type Error = ();
+
+            fn try_from(
+                value: crate::ecmascript::builtins::data_view::AnyDataView<'a>,
+            ) -> Result<Self, Self::Error> {
+                match value {
+                    crate::ecmascript::builtins::data_view::AnyDataView::$name(data) => Ok(data),
+                    _ => Err(()),
+                }
+            }
+        }
+    };
+}
+use data_view_handle;

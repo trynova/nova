@@ -12,7 +12,7 @@ use crate::{
             primitive_objects::{PrimitiveObject, PrimitiveObjectData},
         },
         execution::{Agent, JsResult, ProtoIntrinsics, Realm},
-        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
+        types::{BUILTIN_STRING_MEMORY, Function, Object, String, Value},
     },
     engine::context::{Bindable, GcScope},
     heap::IntrinsicConstructorIndexes,
@@ -53,7 +53,7 @@ impl BooleanConstructor {
         )?)
         .unwrap();
         agent[o].data = PrimitiveObjectData::Boolean(b);
-        Ok(o.into_value())
+        Ok(o.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -62,7 +62,7 @@ impl BooleanConstructor {
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<BooleanConstructor>(agent, realm)
             .with_property_capacity(1)
-            .with_prototype_property(boolean_prototype.unbind().into_object())
+            .with_prototype_property(boolean_prototype.unbind().into())
             .build();
     }
 }

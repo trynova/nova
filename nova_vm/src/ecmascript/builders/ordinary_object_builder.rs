@@ -9,10 +9,7 @@ use crate::{
             ordinary::shape::ObjectShapeRecord,
         },
         execution::{Agent, Realm},
-        types::{
-            BUILTIN_STRING_MEMORY, IntoFunction, IntoObject, IntoValue, Object, ObjectRecord,
-            OrdinaryObject, PropertyKey, Value,
-        },
+        types::{BUILTIN_STRING_MEMORY, Object, ObjectRecord, OrdinaryObject, PropertyKey, Value},
     },
     engine::context::Bindable,
     heap::{
@@ -30,7 +27,7 @@ use super::{
 pub struct NoPrototype;
 
 #[derive(Clone, Copy)]
-pub struct CreatorPrototype<T: IntoObject<'static>>(T);
+pub struct CreatorPrototype<T: Into<Object<'static>>>(T);
 
 #[derive(Default, Clone, Copy)]
 pub struct NoProperties;
@@ -100,7 +97,7 @@ impl<P, Pr> OrdinaryObjectBuilder<'_, P, Pr> {
 
 impl<'agent, Pr> OrdinaryObjectBuilder<'agent, NoPrototype, Pr> {
     #[must_use]
-    pub fn with_prototype<T: IntoObject<'static>>(
+    pub fn with_prototype<T: Into<Object<'static>>>(
         self,
         prototype: T,
     ) -> OrdinaryObjectBuilder<'agent, CreatorPrototype<T>, Pr> {
@@ -175,7 +172,7 @@ impl<P> OrdinaryObjectBuilder<'_, P, CreatorProperties> {
         let property = PropertyBuilder::new(self.agent)
             .with_enumerable(false)
             .with_key(BUILTIN_STRING_MEMORY.constructor.into())
-            .with_value(constructor.into_value())
+            .with_value(constructor.into())
             .build();
         self.properties.0.push(property);
         OrdinaryObjectBuilder {
@@ -193,7 +190,7 @@ impl<P> OrdinaryObjectBuilder<'_, P, CreatorProperties> {
         let (value, key) = {
             let mut builder = BuiltinFunctionBuilder::new::<T>(self.agent, self.realm);
             let name = T::KEY.unwrap_or_else(|| PropertyKey::from(builder.get_name()));
-            (builder.build().into_value(), name)
+            (builder.build().into(), name)
         };
         let builder = PropertyBuilder::new(self.agent)
             .with_key(key)
@@ -221,7 +218,7 @@ impl<P> OrdinaryObjectBuilder<'_, P, CreatorProperties> {
             let mut builder =
                 BuiltinFunctionBuilder::new_intrinsic_function::<T>(self.agent, self.realm);
             let name = T::KEY.unwrap_or_else(|| PropertyKey::from(builder.get_name()));
-            (builder.build().into_value(), name)
+            (builder.build().into(), name)
         };
         let builder = PropertyBuilder::new(self.agent)
             .with_key(key)
@@ -247,7 +244,7 @@ impl<P> OrdinaryObjectBuilder<'_, P, CreatorProperties> {
     pub(crate) fn with_builtin_function_getter_property<T: BuiltinGetter>(mut self) -> Self {
         let getter_function = BuiltinFunctionBuilder::new_getter::<T>(self.agent, self.realm)
             .build()
-            .into_function();
+            .into();
         let property = PropertyBuilder::new(self.agent)
             .with_key(T::KEY.unwrap())
             .with_getter_function(getter_function)
@@ -270,10 +267,10 @@ impl<P> OrdinaryObjectBuilder<'_, P, CreatorProperties> {
     ) -> Self {
         let getter_function = BuiltinFunctionBuilder::new_getter::<T>(self.agent, self.realm)
             .build()
-            .into_function();
+            .into();
         let setter_function = BuiltinFunctionBuilder::new_setter::<T>(self.agent, self.realm)
             .build()
-            .into_function();
+            .into();
         let property = PropertyBuilder::new(self.agent)
             .with_key(T::KEY.unwrap())
             .with_getter_and_setter_functions(getter_function, setter_function)
@@ -299,12 +296,12 @@ impl OrdinaryObjectBuilder<'_, NoPrototype, NoProperties> {
     }
 }
 
-impl<T: IntoObject<'static>> OrdinaryObjectBuilder<'_, CreatorPrototype<T>, NoProperties> {
+impl<T: Into<Object<'static>>> OrdinaryObjectBuilder<'_, CreatorPrototype<T>, NoProperties> {
     pub fn build(self) -> OrdinaryObject<'static> {
         create_intrinsic_backing_object(
             self.agent,
             self.this,
-            Some(self.prototype.0.into_object()),
+            Some(self.prototype.0.into()),
             vec![],
             self.extensible,
         );
@@ -325,12 +322,12 @@ impl OrdinaryObjectBuilder<'_, NoPrototype, CreatorProperties> {
     }
 }
 
-impl<T: IntoObject<'static>> OrdinaryObjectBuilder<'_, CreatorPrototype<T>, CreatorProperties> {
+impl<T: Into<Object<'static>>> OrdinaryObjectBuilder<'_, CreatorPrototype<T>, CreatorProperties> {
     pub fn build(self) -> OrdinaryObject<'static> {
         create_intrinsic_backing_object(
             self.agent,
             self.this,
-            Some(self.prototype.0.into_object()),
+            Some(self.prototype.0.into()),
             self.properties.0,
             self.extensible,
         );

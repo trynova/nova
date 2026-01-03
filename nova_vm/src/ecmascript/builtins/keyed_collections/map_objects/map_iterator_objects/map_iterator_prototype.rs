@@ -14,7 +14,7 @@ use crate::{
             indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, String, Value},
+        types::{BUILTIN_STRING_MEMORY,  String, Value},
     },
     engine::context::{Bindable, GcScope},
     heap::WellKnownSymbolIndexes,
@@ -54,7 +54,7 @@ impl MapIteratorPrototype {
         // NOTE: We set `map` to None when the generator in the spec text has returned.
         let Some(map) = agent[iterator].map else {
             return create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
-                .map(|o| o.into_value());
+                .map(|o| o.into());
         };
 
         // a. Let entries be map.[[MapData]].
@@ -94,13 +94,13 @@ impl MapIteratorPrototype {
                         continue;
                     };
                     let value = map.get(agent).values[index].unwrap();
-                    create_array_from_list(agent, &[key, value], gc).into_value()
+                    create_array_from_list(agent, &[key, value], gc).into()
                 }
             };
 
             // 4. Perform ? GeneratorYield(CreateIteratorResultObject(result, false)).
             return create_iter_result_object(agent, result, false, gc.into_nogc())
-                .map(|o| o.into_value());
+                .map(|o| o.into());
         }
 
         debug_assert_eq!(agent[iterator].next_index, map.get(agent).keys.len());
@@ -108,7 +108,7 @@ impl MapIteratorPrototype {
         // e. Return undefined.
         agent[iterator].map = None;
         create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
-            .map(|o| o.into_value())
+            .map(|o| o.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -123,7 +123,7 @@ impl MapIteratorPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.Map_Iterator.into_value())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.Map_Iterator.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()

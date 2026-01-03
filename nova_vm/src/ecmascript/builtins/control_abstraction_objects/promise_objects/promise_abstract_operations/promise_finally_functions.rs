@@ -8,13 +8,13 @@ use crate::{
         builtins::{ArgumentsList, promise::Promise},
         execution::{Agent, JsResult, agent::JsError},
         types::{
-            BUILTIN_STRING_MEMORY, Function, FunctionInternalProperties, IntoValue, Object,
-            OrdinaryObject, String, Value,
+            BUILTIN_STRING_MEMORY, Function, FunctionInternalProperties, OrdinaryObject, String,
+            Value, function_handle,
         },
     },
     engine::{
         context::{Bindable, GcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
+        rootable::Scopable,
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
@@ -52,6 +52,7 @@ pub struct PromiseFinallyFunctionHeapData<'a> {
     backing_object: Option<OrdinaryObject<'a>>,
     resolve_type: PromiseFinallyFunctionType<'a>,
 }
+bindable_handle!(PromiseFinallyFunctionHeapData);
 
 pub(crate) type BuiltinPromiseFinallyFunctionIndex<'a> =
     BaseIndex<'a, PromiseFinallyFunctionHeapData<'static>>;
@@ -59,17 +60,7 @@ pub(crate) type BuiltinPromiseFinallyFunctionIndex<'a> =
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct BuiltinPromiseFinallyFunction<'a>(pub(crate) BuiltinPromiseFinallyFunctionIndex<'a>);
-bindable_handle!(BuiltinPromiseFinallyFunction);
-
-impl HeapIndexHandle for BuiltinPromiseFinallyFunction<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_u32_index(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.into_u32_index()
-    }
-}
+function_handle!(BuiltinPromiseFinallyFunction);
 
 impl<'f> BuiltinPromiseFinallyFunction<'f> {
     pub(crate) fn create_finally_functions(
@@ -102,23 +93,6 @@ impl<'f> BuiltinPromiseFinallyFunction<'f> {
             .promise_finally_functions
             .get_mut(self.get_index())
             .expect("Promise.prototype.finally handler not found")
-    }
-}
-
-impl<'a> From<BuiltinPromiseFinallyFunction<'a>> for Function<'a> {
-    fn from(value: BuiltinPromiseFinallyFunction<'a>) -> Self {
-        Self::BuiltinPromiseFinallyFunction(value)
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for BuiltinPromiseFinallyFunction<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::BuiltinPromiseFinallyFunction(data) => Ok(data),
-            _ => Err(()),
-        }
     }
 }
 
@@ -198,10 +172,10 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseFinallyFunction<'a> {
                 // v. Return ? Invoke(p, "then", « valueThunk »).
                 invoke(
                     agent,
-                    p.into_value().unbind(),
+                    p.into().unbind(),
                     BUILTIN_STRING_MEMORY.then.to_property_key(),
                     Some(ArgumentsList::from_mut_value(
-                        &mut value_thunk.into_value().unbind(),
+                        &mut value_thunk.into().unbind(),
                     )),
                     gc,
                 )
@@ -238,11 +212,9 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseFinallyFunction<'a> {
                 // v. Return ? Invoke(p, "then", « thrower »).
                 invoke(
                     agent,
-                    p.into_value().unbind(),
+                    p.into().unbind(),
                     BUILTIN_STRING_MEMORY.then.to_property_key(),
-                    Some(ArgumentsList::from_mut_value(
-                        &mut thrower.into_value().unbind(),
-                    )),
+                    Some(ArgumentsList::from_mut_value(&mut thrower.into().unbind())),
                     gc,
                 )
             }
@@ -254,29 +226,6 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseFinallyFunction<'a> {
                 // 1. Return ThrowCompletion(reason).
                 Err(reason.unbind().bind(gc.into_nogc()))
             }
-        }
-    }
-}
-
-impl Rootable for BuiltinPromiseFinallyFunction<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::BuiltinPromiseFinallyFunction(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::BuiltinPromiseFinallyFunction(d) => Some(d),
-            _ => None,
         }
     }
 }
@@ -315,8 +264,6 @@ impl HeapSweepWeakReference for BuiltinPromiseFinallyFunction<'static> {
             .map(Self)
     }
 }
-
-bindable_handle!(PromiseFinallyFunctionHeapData);
 
 impl HeapMarkAndSweep for PromiseFinallyFunctionHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

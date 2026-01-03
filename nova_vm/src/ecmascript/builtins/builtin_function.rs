@@ -13,19 +13,18 @@ use crate::{
         execution::{Agent, ExecutionContext, JsResult, Realm, agent::ExceptionType},
         types::{
             BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, Function, FunctionInternalProperties,
-            InternalSlots, IntoFunction, IntoObject, IntoValue, Object, OrdinaryObject,
-            PropertyKey, ScopedValuesIterator, String, Value,
+            InternalSlots, Object, OrdinaryObject, PropertyKey, ScopedValuesIterator, String,
+            Value, function_handle,
         },
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootCollectionData, HeapRootData, HeapRootRef, Rootable},
+        rootable::{HeapRootCollectionData},
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, ObjectEntry,
-        ObjectEntryPropertyDescriptor, WorkQueues,
-        indexes::{BaseIndex, HeapIndexHandle},
+        ObjectEntryPropertyDescriptor, WorkQueues, indexes::BaseIndex,
     },
     ndt,
 };
@@ -464,25 +463,14 @@ impl BuiltinFunction<'_> {
         agent[self].behaviour.is_constructor()
     }
 }
-
-bindable_handle!(BuiltinFunction);
-
-impl HeapIndexHandle for BuiltinFunction<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_u32_index(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.into_u32_index()
-    }
-}
+function_handle!(BuiltinFunction);
 
 impl IntrinsicFunctionIndexes {
     pub(crate) const fn get_builtin_function<'a>(
         self,
         base: BaseIndex<'a, BuiltinFunctionHeapData<'static>>,
     ) -> BuiltinFunction<'a> {
-        BuiltinFunction(BaseIndex::from_u32_index(
+        BuiltinFunction(BaseIndex::from_index_u32(
             self as u32 + base.into_u32_index() + Self::BUILTIN_FUNCTION_INDEX_OFFSET,
         ))
     }
@@ -493,37 +481,9 @@ impl IntrinsicConstructorIndexes {
         self,
         base: BaseIndex<'a, BuiltinFunctionHeapData<'static>>,
     ) -> BuiltinFunction<'a> {
-        BuiltinFunction(BaseIndex::from_u32_index(
+        BuiltinFunction(BaseIndex::from_index_u32(
             self as u32 + base.into_u32_index() + Self::BUILTIN_FUNCTION_INDEX_OFFSET,
         ))
-    }
-}
-
-impl<'a> From<BuiltinFunction<'a>> for Function<'a> {
-    fn from(value: BuiltinFunction<'a>) -> Self {
-        Function::BuiltinFunction(value)
-    }
-}
-
-impl<'a> TryFrom<Function<'a>> for BuiltinFunction<'a> {
-    type Error = ();
-
-    fn try_from(value: Function<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Function::BuiltinFunction(f) => Ok(f),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for BuiltinFunction<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::BuiltinFunction(data) => Ok(data),
-            _ => Err(()),
-        }
     }
 }
 
@@ -656,7 +616,7 @@ fn builtin_call_or_construct<'gc>(
         // 8. Perform any necessary implementation-defined initialization of calleeContext.
         ecmascript_code: None,
         // 4. Set the Function of calleeContext to F.
-        function: Some(f.into_function().unbind()),
+        function: Some(f.into().unbind()),
         // 6. Set the Realm of calleeContext to calleeRealm.
         realm: callee_realm,
         // 7. Set the ScriptOrModule of calleeContext to null.
@@ -688,7 +648,7 @@ fn builtin_call_or_construct<'gc>(
             agent,
             this_argument.unwrap_or(Value::Undefined).unbind(),
             arguments_list.unbind(),
-            new_target.map(|target| target.into_object().unbind()),
+            new_target.map(|target| target.into().unbind()),
             gc,
         ),
     };
@@ -780,7 +740,7 @@ pub fn create_builtin_function<'a>(
             let name_entry = ObjectEntry {
                 key: PropertyKey::from(BUILTIN_STRING_MEMORY.name),
                 value: ObjectEntryPropertyDescriptor::Data {
-                    value: initial_name.into_value(),
+                    value: initial_name.into(),
                     writable: false,
                     enumerable: false,
                     configurable: true,
@@ -815,29 +775,6 @@ impl<'a> CreateHeapData<BuiltinFunctionHeapData<'a>, BuiltinFunction<'a>> for He
         self.builtin_functions.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<BuiltinFunctionHeapData<'static>>();
         BuiltinFunction(BaseIndex::last(&self.builtin_functions))
-    }
-}
-
-impl Rootable for BuiltinFunction<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::BuiltinFunction(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::BuiltinFunction(d) => Some(d),
-            _ => None,
-        }
     }
 }
 

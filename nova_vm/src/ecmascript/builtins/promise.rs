@@ -2,18 +2,16 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::convert::Infallible;
-
 use data::PromiseState;
 
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics, agent::JsError},
-        types::{InternalMethods, InternalSlots, IntoValue, Object, OrdinaryObject, Value},
+        types::{InternalMethods, InternalSlots, OrdinaryObject, Value, object_handle},
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
@@ -31,16 +29,7 @@ pub mod data;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Promise<'a>(BaseIndex<'a, PromiseHeapData<'static>>);
-
-impl HeapIndexHandle for Promise<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_u32_index(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.into_u32_index()
-    }
-}
+object_handle!(Promise);
 
 impl<'a> Promise<'a> {
     /// Create a new resolved Promise.
@@ -111,37 +100,6 @@ impl<'a> Promise<'a> {
     }
 }
 
-bindable_handle!(Promise);
-
-impl<'a> From<Promise<'a>> for JsResult<'a, Value<'a>> {
-    fn from(value: Promise<'a>) -> Self {
-        Ok(value.into_value())
-    }
-}
-
-impl<'a> From<Promise<'a>> for Result<Value<'a>, Infallible> {
-    fn from(value: Promise<'a>) -> Self {
-        Ok(value.into_value())
-    }
-}
-
-impl<'a> From<Promise<'a>> for Object<'a> {
-    fn from(value: Promise<'a>) -> Self {
-        Object::Promise(value)
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for Promise<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::Promise(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
 impl<'a> InternalSlots<'a> for Promise<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Promise;
 
@@ -167,31 +125,6 @@ impl<'a> CreateHeapData<PromiseHeapData<'a>, Promise<'a>> for Heap {
         self.promises.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<PromiseHeapData<'static>>();
         Promise(BaseIndex::last(&self.promises))
-    }
-}
-
-bindable_handle!(PromiseHeapData);
-
-impl Rootable for Promise<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::Promise(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::Promise(object) => Some(object),
-            _ => None,
-        }
     }
 }
 

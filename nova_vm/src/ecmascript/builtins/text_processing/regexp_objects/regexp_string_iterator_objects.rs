@@ -13,12 +13,9 @@
 use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, String, Value},
+        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, String, object_handle},
     },
-    engine::{
-        context::{Bindable, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
+    engine::context::{Bindable, NoGcScope, bindable_handle},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         WorkQueues,
@@ -66,7 +63,7 @@ pub(crate) fn create_reg_exp_string_iterator<'gc>(
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct RegExpStringIterator<'a>(BaseIndex<'a, RegExpStringIteratorRecord<'static>>);
-bindable_handle!(RegExpStringIterator);
+object_handle!(RegExpStringIterator);
 
 impl<'r> RegExpStringIterator<'r> {
     /// \[\[IteratingRegExp]]
@@ -113,56 +110,6 @@ impl<'r> RegExpStringIterator<'r> {
             .regexp_string_iterators
             .get_mut(self.get_index())
             .expect("Couldn't find RegExp String Iterator")
-    }
-}
-
-impl HeapIndexHandle for RegExpStringIterator<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_index_u32(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.get_index_u32()
-    }
-}
-
-impl<'a> From<RegExpStringIterator<'a>> for Object<'a> {
-    fn from(value: RegExpStringIterator) -> Self {
-        Self::RegExpStringIterator(value.unbind())
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for RegExpStringIterator<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::RegExpStringIterator(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
-impl Rootable for RegExpStringIterator<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::RegExpStringIterator(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::RegExpStringIterator(object) => Some(object),
-            _ => None,
-        }
     }
 }
 

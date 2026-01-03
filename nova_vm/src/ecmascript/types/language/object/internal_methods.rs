@@ -24,7 +24,7 @@ use crate::{
             Agent, JsResult,
             agent::{TryError, TryResult, js_result_into_try, try_result_ok, unwrap_try},
         },
-        types::{Function, IntoValue, PropertyDescriptor, Value, throw_cannot_set_property},
+        types::{Function,  PropertyDescriptor, Value, throw_cannot_set_property},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
@@ -35,7 +35,7 @@ use crate::{
 /// ### [6.1.7.2 Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-object-internal-methods-and-internal-slots)
 pub trait InternalMethods<'a>
 where
-    Self: 'a + core::fmt::Debug + Sized + Clone + Copy + Into<Object<'a>> + InternalSlots<'a>,
+    Self: InternalSlots<'a>,
 {
     /// ## Infallible \[\[GetPrototypeOf\]\]
     ///
@@ -82,12 +82,7 @@ where
         prototype: Option<Object>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, bool> {
-        TryResult::Continue(ordinary_set_prototype_of(
-            agent,
-            self.into_object(),
-            prototype,
-            gc,
-        ))
+        TryResult::Continue(ordinary_set_prototype_of(agent, self.into(), prototype, gc))
     }
 
     /// ## \[\[SetPrototypeOf\]\]
@@ -188,7 +183,7 @@ where
         TryResult::Continue(match self.get_backing_object(agent) {
             Some(backing_object) => ordinary_get_own_property(
                 agent,
-                self.into_object().bind(gc),
+                self.into().bind(gc),
                 backing_object,
                 property_key,
                 cache,
@@ -234,7 +229,7 @@ where
             .unwrap_or_else(|| self.create_backing_object(agent));
         js_result_into_try(ordinary_define_own_property(
             agent,
-            self.into_object(),
+            self.into(),
             backing_object,
             property_key,
             property_descriptor,
@@ -278,7 +273,7 @@ where
         // 1. Return ? OrdinaryHasProperty(O, P).
         ordinary_try_has_property(
             agent,
-            self.into_object(),
+            self.into(),
             self.get_backing_object(agent),
             property_key,
             cache,
@@ -298,7 +293,7 @@ where
         match self.get_backing_object(agent) {
             Some(backing_object) => ordinary_has_property(
                 agent,
-                self.into_object(),
+                self.into(),
                 backing_object,
                 property_key.unbind(),
                 gc,
@@ -342,7 +337,7 @@ where
         // 1. Return ? OrdinaryGet(O, P, Receiver).
         ordinary_try_get(
             agent,
-            self.into_object(),
+            self.into(),
             self.get_backing_object(agent),
             property_key,
             receiver,
@@ -417,7 +412,7 @@ where
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
         // 1. Return ? OrdinarySet(O, P, V, Receiver).
-        ordinary_set(agent, self.into_object(), property_key, value, receiver, gc)
+        ordinary_set(agent, self.into(), property_key, value, receiver, gc)
     }
 
     /// ## Infallible \[\[Delete\]\]
@@ -436,7 +431,7 @@ where
         // 1. Return ? OrdinaryDelete(O, P).
         TryResult::Continue(match self.get_backing_object(agent) {
             Some(backing_object) => {
-                ordinary_delete(agent, self.into_object(), backing_object, property_key, gc)
+                ordinary_delete(agent, self.into(), backing_object, property_key, gc)
             }
             None => true,
         })
@@ -537,7 +532,7 @@ where
             ordinary_set_at_offset(
                 agent,
                 props,
-                self.into_object(),
+                self.into(),
                 self.get_backing_object(agent),
                 offset,
                 gc,
@@ -629,17 +624,17 @@ pub fn handle_try_get_result<'gc>(
             TryGetResult::Unset => Ok(Value::Undefined),
             TryGetResult::Value(value) => Ok(value.unbind().bind(gc.into_nogc())),
             TryGetResult::Get(getter) => {
-                call_function(agent, getter.unbind(), o.into_value().unbind(), None, gc)
+                call_function(agent, getter.unbind(), o.into().unbind(), None, gc)
             }
             TryGetResult::Proxy(proxy) => {
                 proxy
                     .unbind()
-                    .internal_get(agent, p.unbind(), o.into_value().unbind(), gc)
+                    .internal_get(agent, p.unbind(), o.into().unbind(), gc)
             }
         },
         ControlFlow::Break(b) => match b {
             TryError::Err(err) => Err(err.unbind().bind(gc.into_nogc())),
-            TryError::GcError => o.internal_get(agent, p.unbind(), o.into_value().unbind(), gc),
+            TryError::GcError => o.internal_get(agent, p.unbind(), o.into().unbind(), gc),
         },
     }
 }
@@ -771,14 +766,14 @@ pub fn call_proxy_set<'a>(
     if strict {
         let scoped_p = p.scope(agent, gc.nogc());
         let scoped_o = receiver.scope(agent, gc.nogc());
-        let succeeded = proxy.internal_set(agent, p, value, receiver.into_value(), gc.reborrow());
+        let succeeded = proxy.internal_set(agent, p, value, receiver.into(), gc.reborrow());
         // SAFETY: not shared.
         let o = unsafe { scoped_o.take(agent) };
         let succeeded = succeeded.unbind()?;
         if !succeeded {
             // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
             let o = o
-                .into_value()
+                .into()
                 .string_repr(agent, gc.reborrow())
                 .unbind()
                 .bind(gc.nogc());
@@ -786,14 +781,14 @@ pub fn call_proxy_set<'a>(
             let p = unsafe { scoped_p.take(agent) }.bind(gc.nogc());
             return Err(throw_cannot_set_property(
                 agent,
-                o.into_value().unbind(),
+                o.into().unbind(),
                 p.unbind(),
                 gc.into_nogc(),
             ));
         }
     } else {
         // In sloppy mode we don't care about the result.
-        let _ = proxy.internal_set(agent, p, value, receiver.into_value(), gc)?;
+        let _ = proxy.internal_set(agent, p, value, receiver.into(), gc)?;
     }
     Ok(())
 }

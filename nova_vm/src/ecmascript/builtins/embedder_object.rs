@@ -5,11 +5,7 @@
 use crate::{
     ecmascript::{
         execution::Agent,
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
-    },
-    engine::{
-        context::{Bindable, bindable_handle},
-        rootable::HeapRootData,
+        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, object_handle},
     },
     heap::{
         CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
@@ -24,37 +20,7 @@ pub mod data;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct EmbedderObject<'a>(BaseIndex<'a, EmbedderObjectHeapData>);
-
-impl EmbedderObject<'_> {}
-
-bindable_handle!(EmbedderObject);
-
-impl<'a> From<EmbedderObject<'a>> for Object<'a> {
-    fn from(value: EmbedderObject<'a>) -> Self {
-        Object::EmbedderObject(value)
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for EmbedderObject<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::EmbedderObject(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
-impl HeapIndexHandle for EmbedderObject<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_index_u32(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.get_index_u32()
-    }
-}
+object_handle!(EmbedderObject);
 
 impl<'a> InternalSlots<'a> for EmbedderObject<'a> {
     #[inline(always)]
@@ -87,19 +53,6 @@ impl<'a> InternalSlots<'a> for EmbedderObject<'a> {
 }
 
 impl<'a> InternalMethods<'a> for EmbedderObject<'a> {}
-
-impl TryFrom<HeapRootData> for EmbedderObject<'_> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        if let HeapRootData::EmbedderObject(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
-}
 
 impl HeapMarkAndSweep for EmbedderObject<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

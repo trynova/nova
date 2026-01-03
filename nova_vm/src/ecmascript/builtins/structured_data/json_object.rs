@@ -31,8 +31,8 @@ use crate::{
             agent::{ExceptionType, unwrap_try},
         },
         types::{
-            BUILTIN_STRING_MEMORY, Function, InternalMethods, IntoObject, IntoPrimitive, IntoValue,
-            Number, Object, PropertyDescriptor, PropertyKey, ScopedPropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, Function, InternalMethods, Number, Object, PropertyDescriptor,
+            PropertyKey, ScopedPropertyKey, String, Value,
         },
     },
     engine::{
@@ -173,7 +173,7 @@ impl JSONObject {
             ));
 
             // d. Return ? InternalizeJSONProperty(root, rootName, reviver).
-            let root = root.unbind().into_object().scope(agent, gc.nogc());
+            let root = root.unbind().into().scope(agent, gc.nogc());
             let reviver = reviver.unbind().scope(agent, gc.nogc());
             return internalize_json_property(agent, root, root_name, reviver, gc);
         }
@@ -345,7 +345,7 @@ impl JSONObject {
                 Some(
                     to_number(agent, space.unbind(), gc.reborrow())
                         .unbind()?
-                        .into_primitive()
+                        .into()
                         .bind(gc.nogc()),
                 )
             } else if space.is_string_object(agent) {
@@ -354,16 +354,16 @@ impl JSONObject {
                 Some(
                     to_string(agent, space.unbind(), gc.reborrow())
                         .unbind()?
-                        .into_primitive()
+                        .into()
                         .bind(gc.nogc()),
                 )
             } else {
                 None
             }
         } else if let Ok(space) = Number::try_from(space) {
-            Some(space.into_primitive())
+            Some(space.into())
         } else if let Ok(space) = String::try_from(space) {
-            Some(space.into_primitive())
+            Some(space.into())
         } else {
             None
         };
@@ -406,7 +406,7 @@ impl JSONObject {
             .property_storage()
             .set(
                 agent,
-                wrapper.into_object(),
+                wrapper.into(),
                 String::EMPTY_STRING.to_property_key(),
                 PropertyDescriptor::new_data_descriptor(value),
                 gc.nogc(),
@@ -423,7 +423,7 @@ impl JSONObject {
             }
             if let Err(err) = wrapper.property_storage().set(
                 agent,
-                wrapper.into_object(),
+                wrapper.into(),
                 String::EMPTY_STRING.to_property_key(),
                 PropertyDescriptor::new_data_descriptor(value),
                 gc.nogc(),
@@ -449,7 +449,7 @@ impl JSONObject {
             agent,
             state.replacer_function.clone(),
             key,
-            wrapper.into_object().unbind(),
+            wrapper.into().unbind(),
             gc.reborrow(),
         )
         .unbind()?
@@ -458,7 +458,7 @@ impl JSONObject {
             serialize_json_property_value(agent, &mut state, value_p.unbind(), gc.reborrow())
                 .unbind()?
                 .bind(gc.nogc());
-            Ok(String::from_wtf8_buf(agent, state.result, gc.into_nogc()).into_value())
+            Ok(String::from_wtf8_buf(agent, state.result, gc.into_nogc()).into())
         } else {
             Ok(Value::Undefined)
         }
@@ -613,9 +613,7 @@ fn internalize_json_property<'a>(
         // SAFETY: scoped_val was shared to other internalise calls as the
         // holder object but those calls have finished and do not store
         // scoped_val anywhere.
-        unsafe { scoped_val.take(agent) }
-            .into_value()
-            .bind(gc.nogc())
+        unsafe { scoped_val.take(agent) }.into().bind(gc.nogc())
     } else {
         val
     };
@@ -629,9 +627,9 @@ fn internalize_json_property<'a>(
     call_function(
         agent,
         reviver.get(agent),
-        holder.get(agent).into_value(),
+        holder.get(agent).into(),
         Some(ArgumentsList::from_mut_slice(&mut [
-            name.into_value().unbind(),
+            name.into().unbind(),
             val.unbind(),
         ])),
         gc,
@@ -714,9 +712,7 @@ fn get_serializable_json_property_value<'a>(
                 agent,
                 to_json.unbind(),
                 scoped_value.get(agent),
-                Some(ArgumentsList::from_mut_value(
-                    &mut key.into_value().unbind(),
-                )),
+                Some(ArgumentsList::from_mut_value(&mut key.into().unbind())),
                 gc.reborrow(),
             )
             .unbind()?
@@ -739,9 +735,9 @@ fn get_serializable_json_property_value<'a>(
             agent,
             replacer_function.get(agent),
             // SAFETY: scoped_holder is not shared.
-            unsafe { scoped_holder.unwrap().take(agent).into_value().unbind() },
+            unsafe { scoped_holder.unwrap().take(agent).into().unbind() },
             Some(ArgumentsList::from_mut_slice(&mut [
-                key.into_value().unbind(),
+                key.into().unbind(),
                 value.unbind(),
             ])),
             gc.reborrow(),
@@ -760,7 +756,7 @@ fn get_serializable_json_property_value<'a>(
             | PrimitiveObjectData::SmallF64(_) => {
                 value = to_number(agent, obj.unbind(), gc.reborrow())
                     .unbind()?
-                    .into_value()
+                    .into()
                     .bind(gc.nogc())
             }
             // b. Else if value has a [[StringData]] internal slot, then
@@ -768,7 +764,7 @@ fn get_serializable_json_property_value<'a>(
             PrimitiveObjectData::String(_) | PrimitiveObjectData::SmallString(_) => {
                 value = to_string(agent, obj.unbind(), gc.reborrow())
                     .unbind()?
-                    .into_value()
+                    .into()
                     .bind(gc.nogc())
             }
             // c. Else if value has a [[BooleanData]] internal slot, then
@@ -982,7 +978,7 @@ fn serialize_json_object<'a, 'b>(
     }
 
     // 2. Append value to state.[[Stack]].
-    state.stack.push(agent, value.into_value());
+    state.stack.push(agent, value.into());
 
     // 5. If state.[[PropertyList]] is not undefined, then
     // a. Let K be state.[[PropertyList]].
@@ -1150,7 +1146,7 @@ fn serialize_json_array<'a, 'b>(
         ));
     }
     // 2. Append value to state.[[Stack]].
-    state.stack.push(agent, value.into_value());
+    state.stack.push(agent, value.into());
     // 6. Let len be ? LengthOfArrayLike(value).
     let len = length_of_array_like(agent, value.unbind(), gc.reborrow()).unbind()? as u64;
 
@@ -1282,7 +1278,7 @@ pub(crate) fn value_from_json<'gc>(
                     agent, array_obj, prop, js_value, None, gc,
                 ));
             }
-            array_obj.into_value()
+            array_obj.into()
         }
         sonic_rs::JsonType::Object => {
             let json_object = json.as_object().unwrap();

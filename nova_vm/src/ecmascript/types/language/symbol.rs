@@ -14,12 +14,12 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        LAST_WELL_KNOWN_SYMBOL_INDEX, PropertyKeyHeap, WellKnownSymbolIndexes, WorkQueues,
+        LAST_WELL_KNOWN_SYMBOL_INDEX, WellKnownSymbolIndexes, WorkQueues,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
-use super::{BUILTIN_STRING_MEMORY, IntoPrimitive, Primitive, PropertyKey, Value};
+use super::{BUILTIN_STRING_MEMORY, Primitive, PropertyKey, Value};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
@@ -87,8 +87,9 @@ impl<'a> Symbol<'a> {
 bindable_handle!(Symbol);
 
 impl HeapIndexHandle for Symbol<'_> {
+    #[inline]
     fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_u32_index(index))
+        Self(BaseIndex::from_index_u32(index))
     }
 
     fn get_index_u32(&self) -> u32 {
@@ -98,19 +99,19 @@ impl HeapIndexHandle for Symbol<'_> {
 
 impl From<WellKnownSymbolIndexes> for Symbol<'static> {
     fn from(value: WellKnownSymbolIndexes) -> Self {
-        Symbol(BaseIndex::from_u32_index(value as u32))
+        Symbol(BaseIndex::from_index_u32(value as u32))
     }
 }
 
 impl WellKnownSymbolIndexes {
     pub const fn to_property_key(self) -> PropertyKey<'static> {
-        PropertyKey::Symbol(Symbol(BaseIndex::from_u32_index(self as u32)))
+        PropertyKey::Symbol(Symbol(BaseIndex::from_index_u32(self as u32)))
     }
 }
 
 impl<'a> From<Symbol<'a>> for Primitive<'a> {
     fn from(value: Symbol<'a>) -> Self {
-        value.into_primitive()
+        value.into()
     }
 }
 

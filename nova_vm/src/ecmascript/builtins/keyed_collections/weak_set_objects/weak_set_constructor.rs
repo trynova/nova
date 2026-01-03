@@ -20,7 +20,7 @@ use crate::{
             Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType, can_be_held_weakly,
             throw_not_weak_key_error,
         },
-        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
+        types::{BUILTIN_STRING_MEMORY, Function, Object, String, Value},
     },
     engine::{
         Scoped,
@@ -77,7 +77,7 @@ impl WeakSetConstructor {
         let iterable = scoped_iterable.get(agent).bind(gc.nogc());
         // 4. If iterable is either undefined or null, return set.
         if iterable.is_undefined() || iterable.is_null() {
-            return Ok(set.unbind().into_value());
+            return Ok(set.unbind().into());
         }
         let scoped_set = set.scope(agent, gc.nogc());
         // 5. Let adder be ? Get(set, "add").
@@ -105,13 +105,13 @@ impl WeakSetConstructor {
                     let set = scoped_set.get(agent).bind(gc);
                     let iterable = iterable.bind(gc);
                     weak_set_add_trivially_iterable_array_elements(agent, set, iterable, gc)?;
-                    return Ok(set.into_value());
+                    return Ok(set.into());
                 }
                 _ => {}
             }
         }
         weak_set_constructor_slow_path(agent, scoped_set, adder.unbind(), scoped_iterable, gc)
-            .map(|set| set.into_value())
+            .map(|set| set.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -120,7 +120,7 @@ impl WeakSetConstructor {
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<WeakSetConstructor>(agent, realm)
             .with_property_capacity(1)
-            .with_prototype_property(weak_set_prototype.into_object())
+            .with_prototype_property(weak_set_prototype.into())
             .build();
     }
 }
@@ -173,7 +173,7 @@ fn weak_set_constructor_slow_path<'a>(
         let status = call_function(
             agent,
             adder.get(agent),
-            set.unbind().into_value(),
+            set.unbind().into(),
             Some(ArgumentsList::from_mut_value(&mut next.unbind())),
             gc.reborrow(),
         );

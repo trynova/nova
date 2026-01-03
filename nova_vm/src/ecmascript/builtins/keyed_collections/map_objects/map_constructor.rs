@@ -38,8 +38,8 @@ use crate::{
             agent::{ExceptionType, TryError},
         },
         types::{
-            BUILTIN_STRING_MEMORY, Function, IntoFunction, IntoObject, IntoValue, Object,
-            PropertyKey, String, TryGetResult, Value, handle_try_get_result,
+            BUILTIN_STRING_MEMORY, Function,  Object, PropertyKey, String, TryGetResult,
+            Value, handle_try_get_result,
         },
     },
     engine::{
@@ -109,7 +109,7 @@ impl MapConstructor {
                 ProtoIntrinsics::Map,
                 gc,
             )?
-            .into_value());
+            .into());
         }
         let iterable = iterable.scope(agent, nogc);
         let mut map = Map::try_from(
@@ -179,7 +179,7 @@ impl MapConstructor {
             adder.unbind(),
             gc,
         )
-        .map(|result| result.into_value())
+        .map(|result| result.into())
     }
 
     /// ### [24.1.2.1 Map.groupBy ( items, callback )](https://tc39.es/ecma262/#sec-map.groupby)
@@ -246,7 +246,7 @@ impl MapConstructor {
             match entry {
                 hashbrown::hash_table::Entry::Occupied(occupied) => {
                     let index = *occupied.get();
-                    values[index as usize] = Some(elements.into_value().unbind());
+                    values[index as usize] = Some(elements.into().unbind());
                 }
                 hashbrown::hash_table::Entry::Vacant(vacant) => {
                     // b. Let entry be the Record { [[Key]]: g.[[Key]], [[Value]]: elements }.
@@ -254,12 +254,12 @@ impl MapConstructor {
                     let index = u32::try_from(values.len()).unwrap();
                     vacant.insert(index);
                     keys.push(Some(key.unbind()));
-                    values.push(Some(elements.into_value().unbind()));
+                    values.push(Some(elements.into().unbind()));
                 }
             }
         }
         // 4. Return map
-        Ok(map.into_value())
+        Ok(map.into())
     }
 
     fn get_species<'gc>(
@@ -278,7 +278,7 @@ impl MapConstructor {
         BuiltinFunctionBuilder::new_intrinsic_constructor::<MapConstructor>(agent, realm)
             .with_property_capacity(3)
             .with_builtin_function_property::<MapGroupBy>()
-            .with_prototype_property(map_prototype.into_object())
+            .with_prototype_property(map_prototype.into())
             .with_builtin_function_getter_property::<MapGetSpecies>()
             .build();
     }
@@ -310,7 +310,7 @@ pub fn add_entries_from_iterable_map_constructor<'a>(
             let scoped_adder = bf.scope(agent, nogc);
             let using_iterator = get_method(
                 agent,
-                arr_iterable.into_value().unbind(),
+                arr_iterable.into().unbind(),
                 WellKnownSymbolIndexes::Iterator.into(),
                 gc.reborrow(),
             )
@@ -323,7 +323,7 @@ pub fn add_entries_from_iterable_map_constructor<'a>(
                         .current_realm_record()
                         .intrinsics()
                         .array_prototype_values()
-                        .into_function(),
+                        .into(),
                 )
             {
                 let arr_iterable = scoped_iterable.get(agent).bind(gc.nogc());
@@ -415,8 +415,8 @@ pub fn add_entries_from_iterable_map_constructor<'a>(
                 }
             }
             let gc = gc.nogc();
-            iterable = scoped_iterable.get(agent).bind(gc).into_value();
-            adder = scoped_adder.get(agent).bind(gc).into_function();
+            iterable = scoped_iterable.get(agent).bind(gc).into();
+            adder = scoped_adder.get(agent).bind(gc).into();
         }
     }
 
@@ -529,7 +529,7 @@ pub(crate) fn add_entries_from_iterable<'a, T: Into<Object<'a>> + TryFrom<Object
         let status = call_function(
             agent,
             adder.get(agent),
-            target.get(agent).into_value(),
+            target.get(agent).into(),
             Some(ArgumentsList::from_mut_slice(&mut [
                 k.get(agent),
                 v.unbind(),

@@ -5,12 +5,9 @@
 use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics, WeakKey},
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
+        types::{InternalMethods, InternalSlots, OrdinaryObject, object_handle},
     },
-    engine::{
-        context::{Bindable, bindable_handle},
-        rootable::HeapRootData,
-    },
+    engine::context::Bindable,
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         WorkQueues,
@@ -25,7 +22,7 @@ pub mod data;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct WeakRef<'a>(BaseIndex<'a, WeakRefHeapData<'static>>);
-bindable_handle!(WeakRef);
+object_handle!(WeakRef);
 
 impl<'a> WeakRef<'a> {
     pub(crate) fn set_target(self, agent: &mut Agent, target: WeakKey) {
@@ -43,33 +40,6 @@ impl<'a> WeakRef<'a> {
             agent[self].kept_alive = true;
         }
         target
-    }
-}
-
-impl HeapIndexHandle for WeakRef<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_index_u32(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.get_index_u32()
-    }
-}
-
-impl<'a> From<WeakRef<'a>> for Object<'a> {
-    fn from(value: WeakRef<'a>) -> Self {
-        Object::WeakRef(value)
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for WeakRef<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::WeakRef(data) => Ok(data),
-            _ => Err(()),
-        }
     }
 }
 
@@ -92,19 +62,6 @@ impl<'a> InternalSlots<'a> for WeakRef<'a> {
 }
 
 impl<'a> InternalMethods<'a> for WeakRef<'a> {}
-
-impl TryFrom<HeapRootData> for WeakRef<'_> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        if let HeapRootData::WeakRef(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
-}
 
 impl<'a> CreateHeapData<WeakRefHeapData<'a>, WeakRef<'a>> for Heap {
     fn create(&mut self, data: WeakRefHeapData<'a>) -> WeakRef<'a> {

@@ -13,7 +13,7 @@ use crate::{
                 FunctionEnvironment,
             },
         },
-        types::{Function, InternalMethods, IntoFunction, IntoValue, Object, String, Value},
+        types::{Function, InternalMethods, Object, String, Value},
     },
     engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -123,7 +123,7 @@ pub(crate) fn new_function_environment<'a>(
         .environments
         .push_declarative_environment(dcl_env, gc);
     // 2. Set env.[[FunctionObject]] to F.
-    let function_object = f.into_function().unbind();
+    let function_object = f.into().unbind();
     // 3. If F.[[ThisMode]] is LEXICAL, set env.[[ThisBindingStatus]] to LEXICAL.
     let this_binding_status = if this_mode == ThisMode::Lexical {
         ThisBindingStatus::Lexical
@@ -171,7 +171,7 @@ pub(crate) fn new_class_static_element_environment<'a>(
         .push_declarative_environment(dcl_env, gc);
 
     let env = FunctionEnvironmentRecord {
-        this_value: Some(class_constructor.into_value().unbind()),
+        this_value: Some(class_constructor.into().unbind()),
 
         function_object: class_constructor.unbind(),
 
@@ -204,7 +204,7 @@ pub(crate) fn new_class_field_initializer_environment<'a>(
         + core::mem::size_of::<Option<DeclarativeEnvironmentRecord>>();
     agent.heap.environments.push_function_environment(
         FunctionEnvironmentRecord {
-            this_value: Some(class_instance.into_value().unbind()),
+            this_value: Some(class_instance.into().unbind()),
             this_binding_status: ThisBindingStatus::Initialized,
             function_object: class_constructor.unbind(),
             new_target: None,
@@ -470,8 +470,7 @@ impl<'e> FunctionEnvironment<'e> {
         };
         // 3. Assert: home is an ordinary object.
         // 4. Return ! home.[[GetPrototypeOf]]().
-        unwrap_try(home.try_get_prototype_of(agent, gc))
-            .map_or(Value::Undefined, |o| o.into_value())
+        unwrap_try(home.try_get_prototype_of(agent, gc)).map_or(Value::Undefined, |o| o.into())
     }
 }
 

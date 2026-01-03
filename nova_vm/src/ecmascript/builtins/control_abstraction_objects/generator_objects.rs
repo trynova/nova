@@ -9,12 +9,12 @@ use crate::{
             Agent, ExecutionContext, JsResult, ProtoIntrinsics,
             agent::{ExceptionType, JsError},
         },
-        types::{InternalMethods, InternalSlots, IntoValue, Object, OrdinaryObject, Value},
+        types::{InternalMethods, InternalSlots, OrdinaryObject, Value, object_handle},
     },
     engine::{
         Executable, ExecutionResult, SuspendedVm,
         context::{Bindable, GcScope, bindable_handle},
-        rootable::{HeapRootData, Scopable},
+        rootable::Scopable,
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
@@ -26,6 +26,7 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Generator<'a>(BaseIndex<'a, GeneratorHeapData<'static>>);
+object_handle!(Generator);
 
 impl Generator<'_> {
     ///### [27.5.3.3 GeneratorResume ( generator, value, generatorBrand )](https://tc39.es/ecma262/#sec-generatorresume)
@@ -49,7 +50,7 @@ impl Generator<'_> {
             GeneratorState::Completed => {
                 // 2. If state is completed, return CreateIterResultObject(undefined, true).
                 return create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
-                    .map(|o| o.into_value());
+                    .map(|o| o.into());
             }
             GeneratorState::SuspendedStart(_) | GeneratorState::SuspendedYield(_) => {
                 // 3. Assert: state is either suspended-start or suspended-yield.
@@ -114,7 +115,7 @@ impl Generator<'_> {
                 //    i. Let resultValue be result.[[Value]].
                 // l. Return CreateIterResultObject(resultValue, true).
                 create_iter_result_object(agent, result_value, true, gc.into_nogc())
-                    .map(|o| o.into_value())
+                    .map(|o| o.into())
             }
             ExecutionResult::Throw(err) => {
                 // GeneratorStart step 4:
@@ -237,7 +238,7 @@ impl Generator<'_> {
             ExecutionResult::Return(result) => {
                 agent[generator].generator_state = Some(GeneratorState::Completed);
                 create_iter_result_object(agent, result.unbind(), true, gc.into_nogc())
-                    .map(|o| o.into_value())
+                    .map(|o| o.into())
             }
             ExecutionResult::Throw(err) => {
                 agent[generator].generator_state = Some(GeneratorState::Completed);
@@ -285,7 +286,7 @@ impl Generator<'_> {
                     true,
                     gc.into_nogc(),
                 )
-                .map(|o| o.into_value());
+                .map(|o| o.into());
             }
             GeneratorState::SuspendedYield(_) => {
                 // 4. Assert: state is suspended-yield.
@@ -306,7 +307,7 @@ impl Generator<'_> {
                     true,
                     gc.into_nogc(),
                 )
-                .map(|o| o.into_value());
+                .map(|o| o.into());
             }
         };
 
@@ -364,8 +365,7 @@ impl Generator<'_> {
         match execution_result {
             ExecutionResult::Return(result) => {
                 agent[generator].generator_state = Some(GeneratorState::Completed);
-                create_iter_result_object(agent, result, true, gc.into_nogc())
-                    .map(|o| o.into_value())
+                create_iter_result_object(agent, result, true, gc.into_nogc()).map(|o| o.into())
             }
             ExecutionResult::Throw(err) => {
                 agent[generator].generator_state = Some(GeneratorState::Completed);
@@ -381,36 +381,6 @@ impl Generator<'_> {
                 Ok(yielded_value)
             }
             ExecutionResult::Await { .. } => unreachable!(),
-        }
-    }
-}
-
-bindable_handle!(Generator);
-
-impl HeapIndexHandle for Generator<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_index_u32(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.get_index_u32()
-    }
-}
-
-impl<'a> From<Generator<'a>> for Object<'a> {
-    fn from(value: Generator) -> Self {
-        Object::Generator(value.unbind())
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for Generator<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        if let Value::Generator(value) = value {
-            Ok(value)
-        } else {
-            Err(())
         }
     }
 }
@@ -435,19 +405,6 @@ impl<'a> CreateHeapData<GeneratorHeapData<'a>, Generator<'a>> for Heap {
         self.generators.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<GeneratorHeapData<'static>>();
         Generator(BaseIndex::last(&self.generators))
-    }
-}
-
-impl TryFrom<HeapRootData> for Generator<'_> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        if let HeapRootData::Generator(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
     }
 }
 

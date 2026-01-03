@@ -21,9 +21,7 @@ use crate::{
         numbers_and_dates::date_objects::date_prototype::{
             make_date, make_day, make_full_year, make_time, utc,
         },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Number, Object, String, Value,
-        },
+        types::{BUILTIN_STRING_MEMORY, Function, Number, Object, String, Value},
     },
     engine::{
         context::{Bindable, GcScope},
@@ -202,7 +200,7 @@ impl DateConstructor {
         // 7. Set O.[[DateValue]] to dv.
         agent[o].date = dv;
         // 8. Return O.
-        Ok(o.into_value())
+        Ok(o.into())
     }
 
     /// ### [21.4.3.1 Date.now ( )](https://tc39.es/ecma262/#sec-date.now1)
@@ -222,7 +220,7 @@ impl DateConstructor {
         let time_value = time_value as u64;
         Ok(
             Number::from(SmallInteger::try_from(time_value).expect("SystemTime is beyond range"))
-                .into_value(),
+                .into(),
         )
     }
 
@@ -355,7 +353,7 @@ impl DateConstructor {
         // 8. Let yr be MakeFullYear(y).
         let yr = make_full_year(y);
         // 9. Return TimeClip(MakeDate(MakeDay(yr, m, dt), MakeTime(h, min, s, milli))).
-        Ok(time_clip(make_date(make_day(yr, m, dt), make_time(h, min, s, milli))).into_value())
+        Ok(time_clip(make_date(make_day(yr, m, dt), make_time(h, min, s, milli))).into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -366,7 +364,7 @@ impl DateConstructor {
             .with_property_capacity(4)
             .with_builtin_function_property::<DateNow>()
             .with_builtin_function_property::<DateParse>()
-            .with_prototype_property(date_prototype.into_object())
+            .with_prototype_property(date_prototype.into())
             .with_builtin_function_property::<DateUTC>()
             .build();
     }

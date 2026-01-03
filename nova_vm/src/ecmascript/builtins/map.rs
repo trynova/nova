@@ -6,11 +6,10 @@ use crate::{
     Heap,
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
+        types::{InternalMethods, InternalSlots, OrdinaryObject, object_handle},
     },
     engine::{
-        context::{Bindable, bindable_handle},
-        rootable::HeapRootData,
+        context::{Bindable},
     },
     heap::{
         CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, PrimitiveHeap,
@@ -27,16 +26,7 @@ pub mod data;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Map<'a>(BaseIndex<'a, MapHeapData<'static>>);
-
-impl HeapIndexHandle for Map<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_u32_index(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.into_u32_index()
-    }
-}
+object_handle!(Map);
 
 impl<'gc> Map<'gc> {
     #[inline(always)]
@@ -92,53 +82,6 @@ impl<'gc> Map<'gc> {
     }
 }
 
-bindable_handle!(Map);
-
-impl<'a> From<Map<'a>> for Object<'a> {
-    fn from(value: Map<'a>) -> Self {
-        Object::Map(value)
-    }
-}
-
-impl From<Map<'_>> for HeapRootData {
-    fn from(value: Map) -> Self {
-        HeapRootData::Map(value.unbind())
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for Map<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Object::Map(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for Map<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::Map(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
-impl TryFrom<HeapRootData> for Map<'_> {
-    type Error = ();
-
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        match value {
-            HeapRootData::Map(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
 impl<'a> InternalSlots<'a> for Map<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Map;
 
@@ -182,6 +125,6 @@ impl<'a> CreateHeapData<MapHeapData<'a>, Map<'a>> for Heap {
             .push(data.unbind())
             .expect("Failed to allocate Map");
         self.alloc_counter += core::mem::size_of::<MapHeapData<'static>>();
-        Map(BaseIndex::from_u32_index(i))
+        Map(BaseIndex::from_index_u32(i))
     }
 }

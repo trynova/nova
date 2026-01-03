@@ -10,7 +10,7 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin},
         execution::{Agent, JsResult, Realm},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, Number, Primitive, String, Value},
+        types::{BUILTIN_STRING_MEMORY, Number, Primitive, String, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
@@ -344,7 +344,7 @@ impl MathObject {
         let n = to_number(agent, arguments.get(0), gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
-        Ok(n.abs(agent).into_value().unbind())
+        Ok(n.abs(agent).into().unbind())
     }
 
     fn acos<'gc>(
@@ -377,7 +377,7 @@ impl MathObject {
 
         // 2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan(agent) || n.is_pos_infinity(agent) {
-            return Ok(n.into_value().unbind());
+            return Ok(n.into().unbind());
         }
 
         // 3. If n is 1𝔽, return +0𝔽.
@@ -405,7 +405,7 @@ impl MathObject {
 
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
-            return Ok(n.into_value().unbind());
+            return Ok(n.into().unbind());
         }
 
         let n = n.into_f64(agent);
@@ -432,7 +432,7 @@ impl MathObject {
 
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
         if !n.is_finite(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
-            return Ok(n.into_value().unbind());
+            return Ok(n.into().unbind());
         }
 
         // 3. Return an implementation-approximated Number value representing the result of the inverse hyperbolic sine of ℝ(n).
@@ -453,7 +453,7 @@ impl MathObject {
 
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
-            return Ok(n.into_value().unbind());
+            return Ok(n.into().unbind());
         }
 
         // 3. If n is +∞𝔽, return an implementation-approximated Number value representing π / 2.
@@ -484,7 +484,7 @@ impl MathObject {
 
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
-            return Ok(n.into_value().unbind());
+            return Ok(n.into().unbind());
         }
 
         // 4. If n is 1𝔽, return +∞𝔽.
@@ -670,7 +670,7 @@ impl MathObject {
 
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
         if !n.is_finite(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
-            return Ok(n.into_value());
+            return Ok(n.into());
         }
 
         // 3. Return an implementation-approximated Number value representing the result of the cube root of ℝ(n).
@@ -696,12 +696,12 @@ impl MathObject {
 
         // 4. If n is an integral Number, return n.
         if n.is_integer(agent) {
-            return Ok(n.into_value().unbind());
+            return Ok(n.into().unbind());
         }
 
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
         if !n.is_finite(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
-            return Ok(n.into_value().unbind());
+            return Ok(n.into().unbind());
         }
 
         let n = n.into_f64(agent);
@@ -774,7 +774,7 @@ impl MathObject {
 
         // 3. If n is either +∞𝔽 or -∞𝔽, return +∞𝔽.
         if n.is_infinite() {
-            return Ok(Number::pos_inf().into_value());
+            return Ok(Number::pos_inf().into());
         }
 
         // 4. If n is either +0𝔽 or -0𝔽, return 1𝔽.
@@ -799,7 +799,7 @@ impl MathObject {
 
         //2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan(agent) || n.is_pos_infinity(agent) {
-            return Ok(n.into_value().unbind());
+            return Ok(n.into().unbind());
         }
 
         let n = n.into_f64(agent);
@@ -835,7 +835,7 @@ impl MathObject {
             || n.is_neg_zero(agent)
             || n.is_pos_infinity(agent)
         {
-            return Ok(n.into_value().unbind());
+            return Ok(n.into().unbind());
         }
 
         let n = n.into_f64(agent);
@@ -859,7 +859,7 @@ impl MathObject {
 
         // 4. If n is an integral Number, return n.
         if n.is_integer() {
-            return Ok(n.into_value().unbind());
+            return Ok(n.into().unbind());
         }
 
         // 1. Let n be ? ToNumber(x).
@@ -869,12 +869,12 @@ impl MathObject {
 
         // 4. If n is an integral Number, return n.
         if n.is_integer(agent) {
-            return Ok(n.into_value().unbind());
+            return Ok(n.into().unbind());
         }
 
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
         if !n.is_finite(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
-            return Ok(n.into_value().unbind());
+            return Ok(n.into().unbind());
         }
 
         let n = n.into_f64(agent);
@@ -910,7 +910,7 @@ impl MathObject {
             || n.is_pos_infinity(agent)
             || n.is_neg_infinity(agent)
         {
-            return Ok(n.into_value().unbind());
+            return Ok(n.into().unbind());
         }
 
         // 4. Let n32 be the result of converting n to IEEE 754-2019 binary32 format using roundTiesToEven mode.
@@ -1019,7 +1019,7 @@ impl MathObject {
 
         // 2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan() || n == f64::INFINITY {
-            return Ok(n_number.into_value().unbind());
+            return Ok(n_number.into().unbind());
         }
 
         // 3. If n is 1𝔽, return +0𝔽.
@@ -1054,7 +1054,7 @@ impl MathObject {
         let n = n_number.into_f64(agent);
         // 2. If n is one of NaN, +0𝔽, -0𝔽, or +∞𝔽, return n.
         if n.is_nan() || n == 0.0 || n == f64::INFINITY {
-            return Ok(n_number.into_value().unbind());
+            return Ok(n_number.into().unbind());
         }
         // 3. If n is -1𝔽, return -∞𝔽.
         if n == -1.0 {
@@ -1081,7 +1081,7 @@ impl MathObject {
         let n = n_number.into_f64(agent);
         // 2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan() || n == f64::INFINITY {
-            return Ok(n_number.into_value().unbind());
+            return Ok(n_number.into().unbind());
         }
         // 3. If n is 1𝔽, return +0𝔽.
         if n == 1.0 {
@@ -1113,7 +1113,7 @@ impl MathObject {
         let n = n_number.into_f64(agent);
         // 2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan() || n == f64::INFINITY {
-            return Ok(n_number.into_value().unbind());
+            return Ok(n_number.into().unbind());
         }
         // 3. If n is 1𝔽, return +0𝔽.
         if n == 1.0 {
@@ -1220,7 +1220,7 @@ impl MathObject {
         if only_ints {
             // SAFETY: Because we know that we only got safe integers, we
             // know that the maximum integer is also a safe integer.
-            Ok(Number::try_from(highest_i64).unwrap().into_value())
+            Ok(Number::try_from(highest_i64).unwrap().into())
         } else {
             // Note: This is potentially one unnecessary heap f64 allocation.
             // We may have got the maximum f64 from the heap and now we push it
@@ -1232,7 +1232,7 @@ impl MathObject {
                 highest_f64 = (highest_i64 as f64).max(highest_f64);
             }
             let result = Number::from_f64(agent, highest_f64, gc.nogc());
-            Ok(result.into_value().unbind())
+            Ok(result.into().unbind())
         }
     }
 
@@ -1327,7 +1327,7 @@ impl MathObject {
         if only_ints {
             // SAFETY: Because we know that we only got safe integers, we
             // know that the maximum integer is also a safe integer.
-            Ok(Number::try_from(lowest_i64).unwrap().into_value())
+            Ok(Number::try_from(lowest_i64).unwrap().into())
         } else {
             // Note: This is potentially one unnecessary heap f64 allocation.
             // We may have got the minimum f64 from the heap and now we push it
@@ -1340,7 +1340,7 @@ impl MathObject {
                 }
             }
             Ok(Number::from_f64(agent, lowest_f64, gc.nogc())
-                .into_value()
+                .into()
                 .unbind())
         }
     }
@@ -1384,7 +1384,7 @@ impl MathObject {
             if let Ok(exponent) = u32::try_from(exponent) {
                 if let Some(result) = base.checked_pow(exponent) {
                     if let Ok(result) = Number::try_from(result) {
-                        return Ok(result.into_value());
+                        return Ok(result.into());
                     } else {
                         return Ok(Value::from_f64(agent, result as f64, gc).unbind());
                     }
@@ -1403,9 +1403,7 @@ impl MathObject {
                 return Ok(Value::from_f64(agent, result, gc).unbind());
             }
         }
-        Ok(Number::exponentiate(agent, base, exponent)
-            .into_value()
-            .unbind())
+        Ok(Number::exponentiate(agent, base, exponent).into().unbind())
     }
 
     fn random<'gc>(
@@ -1438,7 +1436,7 @@ impl MathObject {
 
         // 2. If n is not finite or n is an integral Number, return n.
         if !n.is_finite(agent) || n.is_integer(agent) {
-            return Ok(n.into_value().unbind());
+            return Ok(n.into().unbind());
         }
 
         let n = n.into_f64(agent);
@@ -1469,7 +1467,7 @@ impl MathObject {
             .bind(gc.nogc());
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
-            return Ok(n.into_value().unbind());
+            return Ok(n.into().unbind());
         }
         // 3. If n < -0𝔽, return -1𝔽.
         if n.is_sign_negative(agent) {
@@ -1492,7 +1490,7 @@ impl MathObject {
         let n = n_number.into_f64(agent);
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan() || n == 0.0 {
-            return Ok(n_number.into_value().unbind());
+            return Ok(n_number.into().unbind());
         }
         // 3. If n is either +∞𝔽 or -∞𝔽, return NaN.
         if n.is_infinite() {
@@ -1515,7 +1513,7 @@ impl MathObject {
         let n = n_number.into_f64(agent);
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
         if !n.is_finite() || n == 0.0 {
-            return Ok(n_number.into_value().unbind());
+            return Ok(n_number.into().unbind());
         }
         // 3. Return an implementation-approximated Number value representing the hyperbolic sine of ℝ(n).
         Ok(Value::from_f64(agent, n.sinh(), gc.into_nogc()))
@@ -1534,7 +1532,7 @@ impl MathObject {
         let n = n_number.into_f64(agent);
         // 2. If n is one of NaN, +0𝔽, -0𝔽, or +∞𝔽, return n.
         if n.is_nan() || n == 0.0 || n == f64::INFINITY {
-            return Ok(n_number.into_value().unbind());
+            return Ok(n_number.into().unbind());
         }
         // 3. If n < -0𝔽, return NaN.
         if n < -0.0 {
@@ -1557,7 +1555,7 @@ impl MathObject {
         let n = n_number.into_f64(agent);
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan() || n == 0.0 {
-            return Ok(n_number.into_value().unbind());
+            return Ok(n_number.into().unbind());
         }
         // 3. If n is either +∞𝔽 or -∞𝔽, return NaN.
         if n.is_infinite() {
@@ -1580,7 +1578,7 @@ impl MathObject {
         let n = n_number.into_f64(agent);
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan() || n == 0.0 {
-            return Ok(n_number.into_value().unbind());
+            return Ok(n_number.into().unbind());
         }
         // 3. If n is +∞𝔽, return 1𝔽.
         if n == f64::INFINITY {
@@ -1608,7 +1606,7 @@ impl MathObject {
 
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
         if !n.is_finite() || n == 0.0 {
-            return Ok(n_number.into_value().unbind());
+            return Ok(n_number.into().unbind());
         }
 
         // 3. If n < 1𝔽 and n > +0𝔽, return +0𝔽.
@@ -1668,7 +1666,7 @@ impl MathObject {
             || n.is_pos_infinity(agent)
             || n.is_neg_infinity(agent)
         {
-            return Ok(n.into_value().unbind());
+            return Ok(n.into().unbind());
         }
 
         // 4. Let n16 be the result of converting n to IEEE 754-2019 binary16 format using roundTiesToEven mode.
@@ -1952,7 +1950,7 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.E.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::E, gc).into_value().unbind()
+                        Number::from_f64(agent, consts::E, gc).into().unbind()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1962,9 +1960,7 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.LN10.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::LN_10, gc)
-                            .into_value()
-                            .unbind()
+                        Number::from_f64(agent, consts::LN_10, gc).into().unbind()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1974,9 +1970,7 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.LN2.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::LN_2, gc)
-                            .into_value()
-                            .unbind()
+                        Number::from_f64(agent, consts::LN_2, gc).into().unbind()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1986,9 +1980,7 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.LOG10E.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::LOG10_E, gc)
-                            .into_value()
-                            .unbind()
+                        Number::from_f64(agent, consts::LOG10_E, gc).into().unbind()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1998,9 +1990,7 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.LOG2E.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::LOG2_E, gc)
-                            .into_value()
-                            .unbind()
+                        Number::from_f64(agent, consts::LOG2_E, gc).into().unbind()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -2010,9 +2000,7 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.PI.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::PI, gc)
-                            .into_value()
-                            .unbind()
+                        Number::from_f64(agent, consts::PI, gc).into().unbind()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -2023,7 +2011,7 @@ impl MathObject {
                     .with_key(BUILTIN_STRING_MEMORY.SQRT1_2.into())
                     .with_value_creator_readonly(|agent| {
                         Number::from_f64(agent, consts::FRAC_1_SQRT_2, gc)
-                            .into_value()
+                            .into()
                             .unbind()
                     })
                     .with_enumerable(false)
@@ -2034,9 +2022,7 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.SQRT2.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::SQRT_2, gc)
-                            .into_value()
-                            .unbind()
+                        Number::from_f64(agent, consts::SQRT_2, gc).into().unbind()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)

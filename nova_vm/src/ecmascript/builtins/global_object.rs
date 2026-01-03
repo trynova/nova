@@ -30,10 +30,7 @@ use crate::{
                 script_var_scoped_declarations,
             },
         },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, IntoValue, Primitive, STRING_DISCRIMINANT, String,
-            Value,
-        },
+        types::{BUILTIN_STRING_MEMORY, Function, Primitive, STRING_DISCRIMINANT, String, Value},
     },
     engine::{
         Executable, Vm,
@@ -281,8 +278,7 @@ pub(crate) fn perform_eval<'gc>(
         } else {
             // If directives exist, it means that the last directive gets used
             // as the eval result.
-            string_literal_to_wtf8(agent, &directives.last().unwrap().expression, gc.nogc())
-                .into_value()
+            string_literal_to_wtf8(agent, &directives.last().unwrap().expression, gc.nogc()).into()
         };
         // SAFETY: SourceCode was just parsed and found empty; even if it had
         // been executed, it would do nothing.
@@ -741,7 +737,7 @@ fn eval_declaration_instantiation<'a>(
             private_env.as_ref().map(|v| v.get(agent).bind(gc.nogc())),
             gc.nogc(),
         )
-        .into_value()
+        .into()
         .unbind();
 
         // c. If varEnv is a Global Environment Record, then
@@ -1212,7 +1208,7 @@ impl GlobalObject {
             preserve_escape_set,
             gc.into_nogc(),
         )
-        .map(IntoValue::into_value)
+        .map(Into::into)
     }
 
     /// ### [19.2.6.2 decodeURIComponent ( encodedURIComponent )](https://tc39.es/ecma262/#sec-decodeuricomponent-encodeduricomponent)
@@ -1246,7 +1242,7 @@ impl GlobalObject {
             preserve_escape_set,
             gc.into_nogc(),
         )
-        .map(IntoValue::into_value)
+        .map(Into::into)
     }
 
     /// ### [19.2.6.3 encodeURI ( uri )](https://tc39.es/ecma262/#sec-encodeuri-uri)
@@ -1272,7 +1268,7 @@ impl GlobalObject {
 
         // 2. Let extraUnescaped be ";/?:@&=+$,#".
         // 3. Return ? Encode(uriString, extraUnescaped).
-        encode::<true>(agent, uri_string, gc).map(|c| c.into_value())
+        encode::<true>(agent, uri_string, gc).map(|c| c.into())
     }
 
     /// ### [19.2.6.4 encodeURIComponent ( uriComponent )](https://tc39.es/ecma262/#sec-encodeuricomponent-uricomponent)
@@ -1298,7 +1294,7 @@ impl GlobalObject {
 
         // 2. Let extraUnescaped be the empty String.
         // 3. Return ? Encode(componentString, extraUnescaped).
-        encode::<false>(agent, component_string, gc).map(|c| c.into_value())
+        encode::<false>(agent, component_string, gc).map(|c| c.into())
     }
 
     /// ### [B.2.1.1 escape ( string )](https://tc39.es/ecma262/#sec-escape-string)
@@ -1342,7 +1338,7 @@ impl GlobalObject {
 
         if bytes.iter().all(unescape_set) {
             // Nothing to escape.
-            return Ok(string.into_value());
+            return Ok(string.into());
         }
         let mut r = Wtf8Buf::with_capacity(bytes.len() + (bytes.len() >> 2));
 
@@ -1390,7 +1386,7 @@ impl GlobalObject {
             // e. Set k to k + 1.
         }
         // 7. Return R.
-        Ok(String::from_wtf8_buf(agent, r, gc).into_value())
+        Ok(String::from_wtf8_buf(agent, r, gc).into())
     }
 
     /// ### [B.2.1.2 unescape ( string )](https://tc39.es/ecma262/#sec-unescape-string)
@@ -1475,12 +1471,12 @@ impl GlobalObject {
         }
         if previous_k == 0 {
             // Nothing to unescape
-            Ok(string.into_value())
+            Ok(string.into())
         } else {
             // Push the rest of the string into r.
             // 6. Return R.
             r.push_wtf8(string_wtf8.slice_from(previous_k));
-            Ok(String::from_wtf8_buf(agent, r, gc).into_value())
+            Ok(String::from_wtf8_buf(agent, r, gc).into())
         }
     }
 

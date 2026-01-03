@@ -9,12 +9,9 @@ use crate::{
             map::Map,
         },
         execution::{Agent, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
+        types::{InternalMethods, InternalSlots, OrdinaryObject, object_handle},
     },
-    engine::{
-        context::{Bindable, bindable_handle},
-        rootable::HeapRootData,
-    },
+    engine::context::{Bindable, bindable_handle},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         WorkQueues,
@@ -25,7 +22,7 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct MapIterator<'a>(BaseIndex<'a, MapIteratorHeapData<'static>>);
-bindable_handle!(MapIterator);
+object_handle!(MapIterator);
 
 impl MapIterator<'_> {
     pub(crate) fn from_map(agent: &mut Agent, map: Map, kind: CollectionIteratorKind) -> Self {
@@ -35,44 +32,6 @@ impl MapIterator<'_> {
             next_index: 0,
             kind,
         })
-    }
-}
-
-impl HeapIndexHandle for MapIterator<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_index_u32(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.get_index_u32()
-    }
-}
-
-impl<'a> From<MapIterator<'a>> for Object<'a> {
-    fn from(value: MapIterator) -> Self {
-        Self::MapIterator(value.unbind())
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for MapIterator<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::MapIterator(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for MapIterator<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Object::MapIterator(data) => Ok(data),
-            _ => Err(()),
-        }
     }
 }
 
@@ -95,19 +54,6 @@ impl<'a> InternalSlots<'a> for MapIterator<'a> {
 }
 
 impl<'a> InternalMethods<'a> for MapIterator<'a> {}
-
-impl TryFrom<HeapRootData> for MapIterator<'_> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        if let HeapRootData::MapIterator(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
-}
 
 impl<'a> CreateHeapData<MapIteratorHeapData<'a>, MapIterator<'a>> for Heap {
     fn create(&mut self, data: MapIteratorHeapData<'a>) -> MapIterator<'a> {

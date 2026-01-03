@@ -11,8 +11,8 @@ use crate::{
         },
         execution::{Agent, Realm},
         types::{
-            BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, IntoFunction, IntoObject, IntoValue,
-            Object, OrdinaryObject, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData,  Object, OrdinaryObject,
+            PropertyKey, String, Value,
         },
     },
     engine::context::Bindable,
@@ -239,7 +239,7 @@ impl<'agent, L, N, B, Pr> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, P
                 .get_realm_record_by_id(self.realm)
                 .intrinsics()
                 .function_prototype()
-                .into_object()
+                .into()
             && self.backing_object.is_none()
         {
             Some(OrdinaryObject::new_uninitialised(self.agent))
@@ -497,7 +497,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
         let property = PropertyBuilder::new(self.agent)
             .with_configurable(false)
             .with_enumerable(false)
-            .with_value_readonly(prototype.into_value())
+            .with_value_readonly(prototype.into())
             .with_key(BUILTIN_STRING_MEMORY.prototype.into())
             .build();
         self.properties.0.push(property);
@@ -519,7 +519,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
         let (value, key) = {
             let mut builder = BuiltinFunctionBuilder::new::<T>(self.agent, self.realm);
             let name = T::KEY.unwrap_or_else(|| PropertyKey::from(builder.get_name()));
-            (builder.build().into_value(), name)
+            (builder.build().into(), name)
         };
         let builder = PropertyBuilder::new(self.agent)
             .with_key(key)
@@ -548,7 +548,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
     pub fn with_builtin_function_getter_property<T: BuiltinGetter>(mut self) -> Self {
         let getter_function = BuiltinFunctionBuilder::new::<T>(self.agent, self.realm)
             .build()
-            .into_function();
+            .into();
         let property = PropertyBuilder::new(self.agent)
             .with_key(T::KEY.unwrap())
             .with_configurable(T::CONFIGURABLE)
@@ -626,7 +626,7 @@ impl
             .get_realm_record_by_id(realm)
             .intrinsics()
             .function_prototype()
-            .into_object();
+            .into();
         create_function_intrinsic_backing_object(
             agent,
             backing_object,

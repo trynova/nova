@@ -8,10 +8,7 @@ use crate::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{
-            BUILTIN_STRING_MEMORY, IntoObject, IntoValue, Object, String, Symbol, SymbolHeapData,
-            Value,
-        },
+        types::{BUILTIN_STRING_MEMORY, Object, String, Symbol, SymbolHeapData, Value},
     },
     engine::context::{Bindable, GcScope},
     heap::{CreateHeapData, IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
@@ -83,7 +80,7 @@ impl SymbolConstructor {
             .create(SymbolHeapData {
                 descriptor: desc_string,
             })
-            .into_value())
+            .into())
     }
 
     /// ### [20.4.2.2 Symbol.for ( key )](https://tc39.es/ecma262/#sec-symbol.for)
@@ -102,7 +99,7 @@ impl SymbolConstructor {
         // 2. For each element e of the GlobalSymbolRegistry List, do
         //        a. If e.[[Key]] is stringKey, return e.[[Symbol]].
         if let Some(&symbol) = agent.global_symbol_registry.get(&string_key.unbind()) {
-            return Ok(symbol.into_value());
+            return Ok(symbol.into());
         }
 
         // 3. Assert: The GlobalSymbolRegistry List does not currently contain an entry for stringKey.
@@ -117,7 +114,7 @@ impl SymbolConstructor {
             .insert(string_key.unbind(), new_symbol);
 
         // 6. Return newSymbol.
-        Ok(new_symbol.into_value())
+        Ok(new_symbol.into())
     }
 
     /// ### [20.4.2.6 Symbol.keyFor ( sym )](https://tc39.es/ecma262/#sec-symbol.keyfor)
@@ -142,7 +139,7 @@ impl SymbolConstructor {
         };
 
         // 2. Return KeyForSymbol(sym).
-        Ok(key_for_symbol(agent, symbol).map_or(Value::Undefined, |key| key.into_value()))
+        Ok(key_for_symbol(agent, symbol).map_or(Value::Undefined, |key| key.into()))
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -204,7 +201,7 @@ impl SymbolConstructor {
                     .with_configurable(false)
                     .build()
             });
-        let builder = builder.with_prototype_property(symbol_prototype.into_object());
+        let builder = builder.with_prototype_property(symbol_prototype.into());
         #[cfg(feature = "regexp")]
         let builder = builder
             .with_property(|builder| {

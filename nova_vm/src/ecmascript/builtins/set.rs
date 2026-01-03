@@ -6,12 +6,9 @@ use crate::{
     Heap,
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
+        types::{InternalMethods, InternalSlots, OrdinaryObject, object_handle},
     },
-    engine::{
-        context::{Bindable, bindable_handle},
-        rootable::HeapRootData,
-    },
+    engine::context::Bindable,
     heap::{
         CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
         indexes::{BaseIndex, HeapIndexHandle},
@@ -26,17 +23,7 @@ pub mod data;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Set<'a>(BaseIndex<'a, SetHeapData<'static>>);
-bindable_handle!(Set);
-
-impl HeapIndexHandle for Set<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_u32_index(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.into_u32_index()
-    }
-}
+object_handle!(Set);
 
 impl<'gc> Set<'gc> {
     #[inline(always)]
@@ -70,36 +57,6 @@ impl<'gc> Set<'gc> {
                 sets.get_mut(self.0.into_u32_index())
                     .expect("Invalid Set reference"),
             )
-        }
-    }
-}
-
-impl<'a> From<Set<'a>> for Object<'a> {
-    fn from(value: Set<'a>) -> Self {
-        Object::Set(value)
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for Set<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        if let Value::Set(set) = value {
-            Ok(set)
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for Set<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        if let Object::Set(set) = value {
-            Ok(set)
-        } else {
-            Err(())
         }
     }
 }
@@ -140,19 +97,6 @@ impl HeapSweepWeakReference for Set<'static> {
     }
 }
 
-impl TryFrom<HeapRootData> for Set<'_> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        if let HeapRootData::Set(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
-}
-
 impl<'a> CreateHeapData<SetHeapData<'a>, Set<'a>> for Heap {
     fn create(&mut self, data: SetHeapData<'a>) -> Set<'a> {
         let i = self.sets.len();
@@ -160,7 +104,7 @@ impl<'a> CreateHeapData<SetHeapData<'a>, Set<'a>> for Heap {
             .push(data.unbind())
             .expect("Failed to allocate Set");
         self.alloc_counter += core::mem::size_of::<SetHeapData<'static>>();
-        Set(BaseIndex::from_u32_index(i))
+        Set(BaseIndex::from_index_u32(i))
     }
 }
 

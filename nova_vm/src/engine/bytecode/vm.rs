@@ -65,8 +65,8 @@ use crate::{
             agent::{ExceptionType, JsError, resolve_binding},
         },
         types::{
-            BUILTIN_STRING_MEMORY, BigInt, IntoValue, Number, Object, Primitive, Reference, String,
-            Value, initialize_referenced_binding, put_value,
+            BUILTIN_STRING_MEMORY, BigInt, Number, Object, Primitive, Reference, String, Value,
+            initialize_referenced_binding, put_value,
         },
     },
     engine::{
@@ -1075,9 +1075,9 @@ fn apply_string_or_numeric_binary_operator<'gc>(
 
     // 6. If lnum is a BigInt, then
     if let (Ok(lnum), Ok(rnum)) = (BigInt::try_from(lnum), BigInt::try_from(rnum)) {
-        bigint_binary_operator(agent, op_text, lnum, rnum, gc).map(|v| v.into_value())
+        bigint_binary_operator(agent, op_text, lnum, rnum, gc).map(|v| v.into())
     } else if let (Ok(lnum), Ok(rnum)) = (Number::try_from(lnum), Number::try_from(rnum)) {
-        number_binary_operator(agent, op_text, lnum, rnum, gc).map(|v| v.into_value())
+        number_binary_operator(agent, op_text, lnum, rnum, gc).map(|v| v.into())
     } else {
         // 5. If Type(lnum) is not Type(rnum), throw a TypeError exception.
         Err(agent.throw_exception_with_static_message(
@@ -1147,21 +1147,21 @@ fn apply_string_or_numeric_addition<'gc>(
     match (String::try_from(lprim), String::try_from(rprim)) {
         (Ok(lstr), Ok(rstr)) => {
             // iii. Return the string-concatenation of lstr and rstr.
-            return Ok(String::concat(agent, [lstr, rstr], gc).into_value());
+            return Ok(String::concat(agent, [lstr, rstr], gc).into());
         }
         (Ok(lstr), Err(_)) => {
             let lstr = lstr.scope(agent, gc);
             // ii. Let rstr be ? ToString(rprim).
             let rstr = to_string_primitive(agent, rprim, gc)?;
             // iii. Return the string-concatenation of lstr and rstr.
-            return Ok(String::concat(agent, [lstr.get(agent).bind(gc), rstr], gc).into_value());
+            return Ok(String::concat(agent, [lstr.get(agent).bind(gc), rstr], gc).into());
         }
         (Err(_), Ok(rstr)) => {
             let rstr = rstr.scope(agent, gc);
             // i. Let lstr be ? ToString(lprim).
             let lstr = to_string_primitive(agent, lprim, gc)?;
             // iii. Return the string-concatenation of lstr and rstr.
-            return Ok(String::concat(agent, [lstr, rstr.get(agent).bind(gc)], gc).into_value());
+            return Ok(String::concat(agent, [lstr, rstr.get(agent).bind(gc)], gc).into());
         }
         (Err(_), Err(_)) => {}
     }
@@ -1176,9 +1176,9 @@ fn apply_string_or_numeric_addition<'gc>(
 
     // 6. If lnum is a BigInt, then
     if let (Ok(lnum), Ok(rnum)) = (BigInt::try_from(lnum), BigInt::try_from(rnum)) {
-        Ok(BigInt::add(agent, lnum, rnum).into_value())
+        Ok(BigInt::add(agent, lnum, rnum).into())
     } else if let (Ok(lnum), Ok(rnum)) = (Number::try_from(lnum), Number::try_from(rnum)) {
-        Ok(Number::add(agent, lnum, rnum).into_value())
+        Ok(Number::add(agent, lnum, rnum).into())
     } else {
         // 5. If Type(lnum) is not Type(rnum), throw a TypeError exception.
         Err(agent.throw_exception_with_static_message(
@@ -1385,16 +1385,16 @@ pub(crate) fn typeof_operator(agent: &Agent, val: Value, gc: NoGcScope) -> Strin
 /// > the default instanceof semantics.
 pub(crate) fn instanceof_operator<'a, 'b>(
     agent: &mut Agent,
-    value: impl IntoValue<'b>,
-    target: impl IntoValue<'b>,
+    value: impl Into<Value<'b>>,
+    target: impl Into<Value<'b>>,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, bool> {
     // 1. If target is not an Object, throw a TypeError exception.
-    let Ok(target) = Object::try_from(target.into_value()) else {
+    let Ok(target) = Object::try_from(target.into()) else {
         let error_message = format!(
             "Invalid instanceof target {}.",
             target
-                .into_value()
+                .into()
                 .string_repr(agent, gc.reborrow())
                 .to_string_lossy(agent)
         );
@@ -1403,7 +1403,7 @@ pub(crate) fn instanceof_operator<'a, 'b>(
     // 2. Let instOfHandler be ? GetMethod(target, @@hasInstance).
     let inst_of_handler = get_method(
         agent,
-        target.into_value(),
+        target.into(),
         WellKnownSymbolIndexes::HasInstance.into(),
         gc.reborrow(),
     )
@@ -1415,10 +1415,8 @@ pub(crate) fn instanceof_operator<'a, 'b>(
         let result = call_function(
             agent,
             inst_of_handler.unbind(),
-            target.into_value(),
-            Some(ArgumentsList::from_mut_slice(&mut [value
-                .into_value()
-                .unbind()])),
+            target.into(),
+            Some(ArgumentsList::from_mut_slice(&mut [value.into().unbind()])),
             gc.reborrow(),
         )
         .unbind()?
@@ -1430,7 +1428,7 @@ pub(crate) fn instanceof_operator<'a, 'b>(
             let error_message = format!(
                 "Invalid instanceof target {} is not a function.",
                 target
-                    .into_value()
+                    .into()
                     .string_repr(agent, gc.reborrow())
                     .to_string_lossy(agent)
             );
@@ -1593,7 +1591,7 @@ fn set_class_name<'a>(
         };
 
         let name = prop_key.convert_to_value(agent, gc.nogc());
-        set_class_name(agent, vm, name.into_value().unbind(), gc)
+        set_class_name(agent, vm, name.into().unbind(), gc)
     }
 }
 

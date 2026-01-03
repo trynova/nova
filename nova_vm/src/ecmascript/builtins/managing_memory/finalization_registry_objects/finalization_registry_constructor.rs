@@ -13,7 +13,7 @@ use crate::{
             ordinary::ordinary_create_from_constructor,
         },
         execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
+        types::{BUILTIN_STRING_MEMORY, Function, Object, String, Value},
     },
     engine::{
         context::{Bindable, GcScope},
@@ -114,7 +114,7 @@ impl FinalizationRegistryConstructor {
         // SAFETY: initialising new FR.
         unsafe { finalization_registry.initialise(agent, realm, cleanup_callback) };
         // 8. Return finalizationRegistry.
-        Ok(finalization_registry.into_value())
+        Ok(finalization_registry.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -125,7 +125,7 @@ impl FinalizationRegistryConstructor {
             agent, realm,
         )
         .with_property_capacity(1)
-        .with_prototype_property(finalization_registry_prototype.into_object())
+        .with_prototype_property(finalization_registry_prototype.into())
         .build();
     }
 }

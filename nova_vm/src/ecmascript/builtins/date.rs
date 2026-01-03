@@ -9,11 +9,10 @@ use data::DateValue;
 use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
+        types::{InternalMethods, InternalSlots, OrdinaryObject, object_handle},
     },
     engine::{
-        context::{Bindable, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
+        context::{Bindable},
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
@@ -27,16 +26,7 @@ use self::data::DateHeapData;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Date<'a>(BaseIndex<'a, DateHeapData<'static>>);
-
-impl HeapIndexHandle for Date<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_u32_index(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.into_u32_index()
-    }
-}
+object_handle!(Date);
 
 impl Date<'_> {
     /// ### get [[DateValue]]
@@ -49,36 +39,6 @@ impl Date<'_> {
     #[inline]
     pub(crate) fn set_date_value(self, agent: &mut Agent, date: DateValue) {
         agent[self].date = date;
-    }
-}
-
-bindable_handle!(Date);
-
-impl<'a> From<Date<'a>> for Object<'a> {
-    fn from(value: Date<'a>) -> Self {
-        Object::Date(value)
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for Date<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, ()> {
-        match value {
-            Value::Date(idx) => Ok(idx),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for Date<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, ()> {
-        match value {
-            Object::Date(idx) => Ok(idx),
-            _ => Err(()),
-        }
     }
 }
 
@@ -96,29 +56,6 @@ impl<'a> InternalSlots<'a> for Date<'a> {
 }
 
 impl<'a> InternalMethods<'a> for Date<'a> {}
-
-impl Rootable for Date<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::Date(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::Date(object) => Some(object),
-            _ => None,
-        }
-    }
-}
 
 impl HeapMarkAndSweep for Date<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

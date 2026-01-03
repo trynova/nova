@@ -6,17 +6,14 @@ use ecmascript_atomics::{Ordering, RacySlice};
 
 use crate::{
     ecmascript::{
-        builtins::array_buffer::AnyArrayBuffer,
+        builtins::array_buffer::array_buffer_handle,
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            InternalMethods, InternalSlots, Object, OrdinaryObject, SharedDataBlock, Value,
+            InternalMethods, InternalSlots, OrdinaryObject, SharedDataBlock,
             create_shared_byte_data_block,
         },
     },
-    engine::{
-        context::{Bindable, NoGcScope, bindable_handle},
-        rootable::HeapRootData,
-    },
+    engine::context::{Bindable, NoGcScope},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         WorkQueues,
@@ -31,8 +28,7 @@ pub mod data;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct SharedArrayBuffer<'a>(BaseIndex<'a, SharedArrayBufferRecord<'static>>);
-
-bindable_handle!(SharedArrayBuffer);
+array_buffer_handle!(SharedArrayBuffer);
 
 impl<'sab> SharedArrayBuffer<'sab> {
     pub fn new<'gc>(
@@ -158,74 +154,6 @@ impl<'sab> SharedArrayBuffer<'sab> {
         let data = self.get_mut(agent);
         debug_assert!(data.data_block.is_dangling());
         data.data_block = data_block;
-    }
-}
-
-impl HeapIndexHandle for SharedArrayBuffer<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_index_u32(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.get_index_u32()
-    }
-}
-
-impl<'a> From<SharedArrayBuffer<'a>> for Object<'a> {
-    fn from(value: SharedArrayBuffer<'a>) -> Self {
-        Object::SharedArrayBuffer(value)
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for SharedArrayBuffer<'a> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        if let Value::SharedArrayBuffer(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for SharedArrayBuffer<'a> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        if let Object::SharedArrayBuffer(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl<'a> TryFrom<AnyArrayBuffer<'a>> for SharedArrayBuffer<'a> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: AnyArrayBuffer<'a>) -> Result<Self, Self::Error> {
-        if let AnyArrayBuffer::SharedArrayBuffer(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl TryFrom<HeapRootData> for SharedArrayBuffer<'_> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        if let HeapRootData::SharedArrayBuffer(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
     }
 }
 

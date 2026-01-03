@@ -3,18 +3,15 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{Object, OrdinaryObject};
-use crate::{
-    ecmascript::{
-        builtins::ordinary::shape::ObjectShape,
-        execution::{Agent, ProtoIntrinsics},
-    },
-    heap::indexes::HeapIndexHandle,
+use crate::ecmascript::{
+    builtins::ordinary::shape::ObjectShape,
+    execution::{Agent, ProtoIntrinsics},
 };
 
 /// ## [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
 pub trait InternalSlots<'a>
 where
-    Self: 'a + Sized + Copy + Into<Object<'a>> + TryFrom<Object<'a>> + HeapIndexHandle,
+    Self: 'a + core::fmt::Debug + Sized + Copy + Into<Object<'a>> + TryFrom<Object<'a>>,
 {
     /// Default prototype of the object; this is used by
     /// [InternalSlots::internal_prototype].

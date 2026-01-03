@@ -11,8 +11,8 @@ use crate::{
         scripts_and_modules::source_code::SourceCode,
         types::{OrdinaryObject, String, Value},
     },
-    engine::Executable,
-    heap::element_array::ElementsVector,
+    engine::{Executable, context::bindable_handle},
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, element_array::ElementsVector},
 };
 
 use super::Function;
@@ -37,6 +37,7 @@ pub struct BoundFunctionHeapData<'a> {
     pub(crate) bound_arguments: ElementsVector<'a>,
     pub(crate) name: Option<String<'a>>,
 }
+bindable_handle!(BoundFunctionHeapData);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BuiltinFunctionHeapData<'a> {
@@ -109,3 +110,37 @@ pub struct ECMAScriptFunctionHeapData<'a> {
 }
 
 unsafe impl Send for ECMAScriptFunctionHeapData<'_> {}
+
+impl HeapMarkAndSweep for BoundFunctionHeapData<'static> {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let Self {
+            object_index,
+            length: _,
+            bound_target_function,
+            bound_this,
+            bound_arguments,
+            name,
+        } = self;
+        name.mark_values(queues);
+        bound_target_function.mark_values(queues);
+        object_index.mark_values(queues);
+        bound_this.mark_values(queues);
+        bound_arguments.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let Self {
+            object_index,
+            length: _,
+            bound_target_function,
+            bound_this,
+            bound_arguments,
+            name,
+        } = self;
+        name.sweep_values(compactions);
+        bound_target_function.sweep_values(compactions);
+        object_index.sweep_values(compactions);
+        bound_this.sweep_values(compactions);
+        bound_arguments.sweep_values(compactions);
+    }
+}

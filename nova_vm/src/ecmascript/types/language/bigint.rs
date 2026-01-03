@@ -6,7 +6,7 @@ mod data;
 mod operators;
 
 use super::{
-    IntoPrimitive, Primitive, String, Value,
+    Primitive, String, Value,
     numeric::Numeric,
     value::{BIGINT_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT},
     with_radix,
@@ -20,11 +20,11 @@ use crate::{
         small_bigint::SmallBigInt,
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeap, WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
-use core::ops::{Index, IndexMut, Neg};
+use core::ops::Neg;
 pub(crate) use data::BigIntHeapData;
 use num_bigint::{Sign, ToBigInt, TryFromBigIntError};
 use operators::{
@@ -49,8 +49,9 @@ impl<'a> HeapBigInt<'a> {
 }
 
 impl HeapIndexHandle for HeapBigInt<'_> {
+    #[inline]
     fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_u32_index(index))
+        Self(BaseIndex::from_index_u32(index))
     }
 
     fn get_index_u32(&self) -> u32 {
@@ -96,9 +97,9 @@ impl<'a> HeapBigInt<'a> {
 
 bindable_handle!(HeapBigInt);
 
-impl<'a> IntoPrimitive<'a> for HeapBigInt<'a> {
-    fn into_primitive(self) -> Primitive<'a> {
-        Primitive::BigInt(self.unbind())
+impl<'a> From<HeapBigInt<'a>> for Primitive<'a> {
+    fn from(value: HeapBigInt<'a>) -> Self {
+        Primitive::BigInt(value)
     }
 }
 

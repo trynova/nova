@@ -5,7 +5,6 @@
 mod data;
 mod internal_methods;
 mod internal_slots;
-mod into_object;
 mod property_key;
 mod property_key_set;
 mod property_key_vec;
@@ -149,7 +148,6 @@ use ahash::AHashMap;
 pub(crate) use data::ObjectRecord;
 pub use internal_methods::*;
 pub use internal_slots::InternalSlots;
-pub use into_object::IntoObject;
 pub use property_key::PropertyKey;
 pub use property_key_set::PropertyKeySet;
 #[cfg(feature = "json")]
@@ -293,17 +291,7 @@ impl Object<'_> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct OrdinaryObject<'a>(BaseIndex<'a, ObjectRecord<'static>>);
-bindable_handle!(OrdinaryObject);
-
-impl HeapIndexHandle for OrdinaryObject<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_u32_index(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.into_u32_index()
-    }
-}
+object_handle!(OrdinaryObject);
 
 impl<'a> OrdinaryObject<'a> {
     /// Allocate a a new blank OrdinaryObject and return its reference.
@@ -648,7 +636,7 @@ impl IntrinsicObjectIndexes {
         self,
         base: BaseIndex<'a, ObjectRecord<'static>>,
     ) -> OrdinaryObject<'a> {
-        OrdinaryObject(BaseIndex::from_u32_index(
+        OrdinaryObject(BaseIndex::from_index_u32(
             self as u32 + base.into_u32_index() + Self::OBJECT_INDEX_OFFSET,
         ))
     }
@@ -659,7 +647,7 @@ impl IntrinsicConstructorIndexes {
         self,
         base: BaseIndex<'a, ObjectRecord<'static>>,
     ) -> OrdinaryObject<'a> {
-        OrdinaryObject(BaseIndex::from_u32_index(
+        OrdinaryObject(BaseIndex::from_index_u32(
             self as u32 + base.into_u32_index() + Self::OBJECT_INDEX_OFFSET,
         ))
     }
@@ -670,38 +658,9 @@ impl IntrinsicPrimitiveObjectIndexes {
         self,
         base: BaseIndex<'a, ObjectRecord<'static>>,
     ) -> OrdinaryObject<'a> {
-        OrdinaryObject(BaseIndex::from_u32_index(
+        OrdinaryObject(BaseIndex::from_index_u32(
             self as u32 + base.into_u32_index() + Self::OBJECT_INDEX_OFFSET,
         ))
-    }
-}
-
-impl<'a> From<OrdinaryObject<'a>> for Object<'a> {
-    fn from(value: OrdinaryObject<'a>) -> Self {
-        Self::Object(value)
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for OrdinaryObject<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::Object(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for OrdinaryObject<'a> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Object::Object(data) => Ok(data),
-            _ => Err(()),
-        }
     }
 }
 
@@ -745,10 +704,9 @@ impl<'a> InternalSlots<'a> for OrdinaryObject<'a> {
     }
 }
 
-impl<'a, T: Into<Object<'a>>> From<T> for Value<'a> {
+impl<'a> From<Object<'a>> for Value<'a> {
     #[inline]
-    fn from(value: T) -> Self {
-        let value: Object = value.into();
+    fn from(value: Object<'a>) -> Self {
         match value {
             Object::Object(data) => Self::Object(data),
             Object::BoundFunction(data) => Self::BoundFunction(data),
@@ -1506,18 +1464,6 @@ impl<'a> CreateHeapData<ObjectRecord<'a>, OrdinaryObject<'a>> for Heap {
     }
 }
 
-impl TryFrom<HeapRootData> for OrdinaryObject<'_> {
-    type Error = ();
-
-    fn try_from(value: HeapRootData) -> Result<Self, ()> {
-        if let HeapRootData::Object(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
-}
-
 impl TryFrom<HeapRootData> for Object<'_> {
     type Error = ();
 
@@ -1667,3 +1613,81 @@ impl TryFrom<HeapRootData> for Object<'_> {
         }
     }
 }
+
+macro_rules! object_handle {
+    ($name: ident) => {
+        crate::engine::context::bindable_handle!($name);
+
+        impl crate::heap::indexes::HeapIndexHandle for $name<'_> {
+            const _DEF: Self = Self(crate::heap::indexes::BaseIndex::MAX);
+
+            #[inline]
+            fn from_index_u32(index: u32) -> Self {
+                Self(crate::heap::indexes::BaseIndex::from_index_u32(index))
+            }
+
+            #[inline]
+            fn get_index_u32(&self) -> u32 {
+                self.0.into_u32_index()
+            }
+        }
+
+        impl<'a> From<$name<'a>> for crate::ecmascript::types::Object<'a> {
+            #[inline(always)]
+            fn from(value: $name<'a>) -> Self {
+                Self::$name(value)
+            }
+        }
+
+        impl<'a> From<$name<'a>> for crate::ecmascript::types::Value<'a> {
+            #[inline(always)]
+            fn from(value: $name<'a>) -> Self {
+                Self::$name(value)
+            }
+        }
+
+        impl<'a> From<$name<'a>> for crate::engine::rootable::HeapRootData {
+            #[inline(always)]
+            fn from(value: $name<'a>) -> Self {
+                Self::$name(value)
+            }
+        }
+
+        impl<'a> TryFrom<crate::ecmascript::types::Object<'a>> for $name<'a> {
+            type Error = ();
+
+            #[inline]
+            fn try_from(value: crate::ecmascript::types::Object<'a>) -> Result<Self, Self::Error> {
+                match value {
+                    crate::ecmascript::types::Object::$name(data) => Ok(data),
+                    _ => Err(()),
+                }
+            }
+        }
+
+        impl<'a> TryFrom<crate::ecmascript::types::Value<'a>> for $name<'a> {
+            type Error = ();
+
+            #[inline]
+            fn try_from(value: crate::ecmascript::types::Value<'a>) -> Result<Self, Self::Error> {
+                match value {
+                    crate::ecmascript::types::Value::$name(data) => Ok(data),
+                    _ => Err(()),
+                }
+            }
+        }
+
+        impl TryFrom<crate::engine::rootable::HeapRootData> for $name<'_> {
+            type Error = ();
+
+            #[inline]
+            fn try_from(value: crate::engine::rootable::HeapRootData) -> Result<Self, Self::Error> {
+                match value {
+                    crate::engine::rootable::HeapRootData::$name(data) => Ok(data),
+                    _ => Err(()),
+                }
+            }
+        }
+    };
+}
+pub(crate) use object_handle;

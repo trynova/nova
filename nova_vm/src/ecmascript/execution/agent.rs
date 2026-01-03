@@ -49,7 +49,7 @@ use crate::{
             source_code::SourceCode,
         },
         types::{
-            Function, IntoValue, Object, OrdinaryObject, PrivateName, PropertyKey, Reference,
+            Function,  Object, OrdinaryObject, PrivateName, PropertyKey, Reference,
             String, Symbol, Value, ValueRootRepr,
         },
     },
@@ -1064,7 +1064,7 @@ impl Agent {
         let message = String::from_static_str(self, message, gc).unbind();
         self.heap
             .create(ErrorHeapData::new(kind, Some(message), None))
-            .into_value()
+            .into()
     }
 
     #[must_use]
@@ -1101,7 +1101,7 @@ impl Agent {
         JsError(
             self.heap
                 .create(ErrorHeapData::new(kind, Some(message), None))
-                .into_value(),
+                .into(),
         )
     }
 
@@ -1115,7 +1115,7 @@ impl Agent {
         JsError(
             self.heap
                 .create(ErrorHeapData::new(kind, Some(message.unbind()), None))
-                .into_value()
+                .into()
                 .bind(gc),
         )
     }

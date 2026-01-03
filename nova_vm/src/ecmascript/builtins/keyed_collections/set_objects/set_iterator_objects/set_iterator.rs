@@ -9,12 +9,9 @@ use crate::{
             set::Set,
         },
         execution::{Agent, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
+        types::{InternalMethods, InternalSlots, OrdinaryObject, object_handle},
     },
-    engine::{
-        context::{Bindable, bindable_handle},
-        rootable::HeapRootData,
-    },
+    engine::context::{Bindable, bindable_handle},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         WorkQueues,
@@ -25,7 +22,7 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct SetIterator<'a>(BaseIndex<'a, SetIteratorHeapData<'static>>);
-bindable_handle!(SetIterator);
+object_handle!(SetIterator);
 
 impl SetIterator<'_> {
     pub(crate) fn from_set(agent: &mut Agent, set: Set, kind: CollectionIteratorKind) -> Self {
@@ -35,44 +32,6 @@ impl SetIterator<'_> {
             next_index: 0,
             kind,
         })
-    }
-}
-
-impl HeapIndexHandle for SetIterator<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_index_u32(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.get_index_u32()
-    }
-}
-
-impl<'a> From<SetIterator<'a>> for Object<'a> {
-    fn from(value: SetIterator) -> Self {
-        Self::SetIterator(value.unbind())
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for SetIterator<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::SetIterator(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for SetIterator<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Object::SetIterator(data) => Ok(data),
-            _ => Err(()),
-        }
     }
 }
 
@@ -95,19 +54,6 @@ impl<'a> InternalSlots<'a> for SetIterator<'a> {
 }
 
 impl<'a> InternalMethods<'a> for SetIterator<'a> {}
-
-impl TryFrom<HeapRootData> for SetIterator<'_> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        if let HeapRootData::SetIterator(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
-}
 
 impl<'a> CreateHeapData<SetIteratorHeapData<'a>, SetIterator<'a>> for Heap {
     fn create(&mut self, data: SetIteratorHeapData<'a>) -> SetIterator<'a> {

@@ -29,8 +29,8 @@ use crate::{
             agent::{ExceptionType, TryError, try_result_into_js, unwrap_try},
         },
         types::{
-            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Number, Object, PropertyKey,
-            String, TryGetResult, Value, handle_try_get_result, unwrap_try_get_value,
+            BUILTIN_STRING_MEMORY, Function,  Number, Object, PropertyKey, String,
+            TryGetResult, Value, handle_try_get_result, unwrap_try_get_value,
         },
     },
     engine::{
@@ -55,7 +55,7 @@ pub(crate) fn reg_exp_create<'a>(
     gc: GcScope<'a, '_>,
 ) -> JsResult<'a, RegExp<'a>> {
     let f = f.map_or(Ok(RegExpFlags::empty()), |f| {
-        Err(f.into_value().scope(agent, gc.nogc()))
+        Err(f.into().scope(agent, gc.nogc()))
     });
     // 1. Let obj be ! RegExpAlloc(%RegExp%).
     let obj = agent.heap.create(RegExpHeapData::default()).bind(gc.nogc());
@@ -339,7 +339,7 @@ pub(crate) fn reg_exp_exec<'a>(
     };
 
     // 4. Return ? RegExpBuiltinExec(R, S).
-    reg_exp_builtin_exec(agent, r.unbind(), s.unbind(), gc).map(|o| o.map(|o| o.into_object()))
+    reg_exp_builtin_exec(agent, r.unbind(), s.unbind(), gc).map(|o| o.map(|o| o.into()))
 }
 
 /// Performs steps 1-3 of RegExpExec
@@ -399,7 +399,7 @@ fn reg_exp_exec_prepare<'a>(
                 .current_realm_record()
                 .intrinsics()
                 .reg_exp_prototype_exec()
-                .into_value()
+                .into()
     {
         return ControlFlow::Continue((r.unbind(), s.unbind()));
     }
@@ -410,8 +410,8 @@ fn reg_exp_exec_prepare<'a>(
         let result = call_function(
             agent,
             exec.unbind(),
-            r.into_value().unbind(),
-            Some(ArgumentsList::from_mut_value(&mut s.into_value().unbind())),
+            r.into().unbind(),
+            Some(ArgumentsList::from_mut_value(&mut s.into().unbind())),
             gc.reborrow(),
         )
         .unbind();
@@ -665,7 +665,7 @@ pub(crate) fn reg_exp_builtin_exec<'a>(
         agent,
         a,
         BUILTIN_STRING_MEMORY.index.to_property_key(),
-        Number::try_from(last_index).unwrap().into_value(),
+        Number::try_from(last_index).unwrap().into(),
         None,
         gc,
     ));
@@ -675,7 +675,7 @@ pub(crate) fn reg_exp_builtin_exec<'a>(
         agent,
         a,
         input,
-        s.into_value(),
+        s.into(),
         None,
         gc,
     ));
@@ -703,7 +703,7 @@ pub(crate) fn reg_exp_builtin_exec<'a>(
         agent,
         a,
         key,
-        groups.map_or(Value::Undefined, |g| g.into_value()),
+        groups.map_or(Value::Undefined, |g| g.into()),
         None,
         gc,
     ));
@@ -728,10 +728,8 @@ pub(crate) fn reg_exp_builtin_exec<'a>(
         }
         let captured_value = if let Some(capture_i) = capture_i {
             match std::string::String::from_utf8_lossy(capture_i.as_bytes()) {
-                std::borrow::Cow::Borrowed(str) => String::from_str(agent, str, gc).into_value(),
-                std::borrow::Cow::Owned(string) => {
-                    String::from_string(agent, string, gc).into_value()
-                }
+                std::borrow::Cow::Borrowed(str) => String::from_str(agent, str, gc).into(),
+                std::borrow::Cow::Owned(string) => String::from_string(agent, string, gc).into()
             }
         } else {
             Value::Undefined

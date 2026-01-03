@@ -17,7 +17,7 @@ use crate::{
             Agent, JsResult, ProtoIntrinsics, Realm,
             agent::{ExceptionType, try_result_into_js},
         },
-        types::{BUILTIN_STRING_MEMORY, IntoObject, IntoValue, PropertyKey, String, Value},
+        types::{BUILTIN_STRING_MEMORY, PropertyKey, String, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
@@ -307,7 +307,7 @@ impl ArrayBufferPrototype {
         // 15. Let ctor be ? SpeciesConstructor(O, %ArrayBuffer%).
         let ctor = species_constructor(
             agent,
-            scoped_o.get(agent).into_object(),
+            scoped_o.get(agent).into(),
             ProtoIntrinsics::ArrayBuffer,
             gc.reborrow(),
         )
@@ -327,7 +327,7 @@ impl ArrayBufferPrototype {
         let gc = gc.into_nogc();
         let new = new.bind(gc);
         // 17. Perform ? RequireInternalSlot(new, [[ArrayBufferData]]).
-        let new = require_internal_slot_array_buffer(agent, new.into_value(), gc)?;
+        let new = require_internal_slot_array_buffer(agent, new.into(), gc)?;
         // 18. If IsSharedArrayBuffer(new) is true, throw a TypeError exception.
         // 19. If IsDetachedBuffer(new) is true, throw a TypeError exception.
         if is_detached_buffer(agent, new) {
@@ -375,7 +375,7 @@ impl ArrayBufferPrototype {
             new.copy_array_buffer_data(agent, o, first, count);
         }
         // 28. Return new.
-        Ok(new.into_value())
+        Ok(new.into())
     }
 
     /// ### [25.1.6.8 ArrayBuffer.prototype.transfer ( [ newLength ] )](https://tc39.es/ecma262/#sec-arraybuffer.prototype.transfer)
@@ -426,7 +426,7 @@ impl ArrayBufferPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.ArrayBuffer.into_value())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.ArrayBuffer.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()

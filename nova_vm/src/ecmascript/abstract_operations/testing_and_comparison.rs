@@ -12,8 +12,8 @@ use crate::{
         builtins::proxy::abstract_operations::{NonRevokedProxy, validate_non_revoked_proxy},
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{
-            Function, InternalMethods, IntoValue, Number, Numeric, Object, Primitive, String,
-            Value, bigint::BigInt,
+            Function, InternalMethods, Number, Numeric, Object, Primitive, String, Value,
+            bigint::BigInt,
         },
     },
     engine::{
@@ -62,10 +62,10 @@ pub(crate) fn require_object_coercible<'gc>(
 /// or a throw completion.
 pub(crate) fn is_array<'a, 'gc>(
     agent: &mut Agent,
-    argument: impl IntoValue<'a>,
+    argument: impl Into<Value<'a>>,
     gc: NoGcScope<'gc, '_>,
 ) -> JsResult<'gc, bool> {
-    let argument = argument.into_value().bind(gc);
+    let argument = argument.into().bind(gc);
 
     match argument {
         // 1. If argument is not an Object, return false.

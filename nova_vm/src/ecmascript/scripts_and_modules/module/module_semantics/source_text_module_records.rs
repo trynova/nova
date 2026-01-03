@@ -52,7 +52,7 @@ use crate::{
                 VarScopedDeclarations,
             },
         },
-        types::{BUILTIN_STRING_MEMORY, IntoValue, OrdinaryObject, String, Value},
+        types::{BUILTIN_STRING_MEMORY, OrdinaryObject, String, Value},
     },
     engine::{
         Executable, ExecutionResult, Scoped, Vm,
@@ -1201,7 +1201,7 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
                 // ii. Perform ! env.CreateImmutableBinding(in.[[LocalName]], true).
                 env.create_immutable_binding(agent, r#in.local_name);
                 // iii. Perform ! env.InitializeBinding(in.[[LocalName]], namespace).
-                env.initialize_binding(agent, r#in.local_name, namespace.into_value());
+                env.initialize_binding(agent, r#in.local_name, namespace.into());
                 continue;
             };
             // c. Else,
@@ -1226,7 +1226,7 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
                 // 2. Perform ! env.CreateImmutableBinding(in.[[LocalName]], true).
                 env.create_immutable_binding(agent, r#in.local_name);
                 // 3. Perform ! env.InitializeBinding(in.[[LocalName]], namespace).
-                env.initialize_binding(agent, r#in.local_name, namespace.into_value());
+                env.initialize_binding(agent, r#in.local_name, namespace.into());
                 continue;
             };
             // iv. Else,
@@ -1333,11 +1333,7 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
                     // 1. Let fo be InstantiateFunctionObject of d with arguments env and privateEnv.
                     let fo = instantiate_function_object(agent, d, env.into(), private_env, gc);
                     // 2. Perform ! env.InitializeBinding(dn, fo).
-                    env.initialize_binding(
-                        &mut agent.heap.environments,
-                        dn_string,
-                        fo.into_value(),
-                    );
+                    env.initialize_binding(&mut agent.heap.environments, dn_string, fo.into());
                 }
             };
             let mut create_default_export = false;

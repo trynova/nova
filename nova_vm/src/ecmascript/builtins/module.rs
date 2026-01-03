@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{marker::PhantomData, ops::ControlFlow};
+use std::ops::ControlFlow;
 
 use crate::{
     ecmascript::{
@@ -19,14 +19,14 @@ use crate::{
             get_module_namespace,
         },
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, SetResult, String, TryGetResult,
-            TryHasResult, Value,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, Object, OrdinaryObject,
+            PropertyDescriptor, PropertyKey, SetResult, String, TryGetResult, TryHasResult, Value,
+            object_handle,
         },
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, Scopable},
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
     },
     heap::{
         CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference,
@@ -47,34 +47,7 @@ pub mod data;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Module<'a>(BaseIndex<'a, ModuleHeapData<'static>>);
-bindable_handle!(Module);
-
-impl<'a> From<Module<'a>> for Object<'a> {
-    fn from(value: Module<'a>) -> Self {
-        Object::Module(value)
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for Module<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::Module(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
-impl HeapIndexHandle for Module<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_index_u32(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.get_index_u32()
-    }
-}
+object_handle!(Module);
 
 impl<'a> InternalSlots<'a> for Module<'a> {
     #[inline(always)]
@@ -165,7 +138,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                 // 1. If P is a Symbol, return OrdinaryGetOwnProperty(O, P).
                 if symbol == WellKnownSymbolIndexes::ToStringTag.into() {
                     TryResult::Continue(Some(PropertyDescriptor {
-                        value: Some(BUILTIN_STRING_MEMORY.Module.into_value()),
+                        value: Some(BUILTIN_STRING_MEMORY.Module.into()),
                         writable: Some(false),
                         get: None,
                         set: None,
@@ -194,8 +167,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     TryResult::Continue(None)
                 } else {
                     // 4. Let value be ? O.[[Get]](P, O).
-                    let value = match self.try_get(agent, property_key, self.into_value(), None, gc)
-                    {
+                    let value = match self.try_get(agent, property_key, self.into(), None, gc) {
                         ControlFlow::Continue(TryGetResult::Unset) => Value::Undefined,
                         ControlFlow::Continue(TryGetResult::Value(v)) => v,
                         _ => return TryError::GcError.into(),
@@ -227,7 +199,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                 // 1. If P is a Symbol, return OrdinaryGetOwnProperty(O, P).
                 if symbol == WellKnownSymbolIndexes::ToStringTag.into() {
                     Ok(Some(PropertyDescriptor {
-                        value: Some(BUILTIN_STRING_MEMORY.Module.into_value()),
+                        value: Some(BUILTIN_STRING_MEMORY.Module.into()),
                         writable: Some(false),
                         get: None,
                         set: None,
@@ -256,8 +228,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     Ok(None)
                 } else {
                     // 4. Let value be ? O.[[Get]](P, O).
-                    let value =
-                        self.internal_get(agent, property_key.unbind(), self.into_value(), gc)?;
+                    let value = self.internal_get(agent, property_key.unbind(), self.into(), gc)?;
                     // 5. Return PropertyDescriptor { [[Value]]: value, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: false }.
                     Ok(Some(PropertyDescriptor {
                         value: Some(value.unbind()),
@@ -291,7 +262,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     TryResult::Continue(
                         property_descriptor
                             .value
-                            .is_none_or(|v| v == BUILTIN_STRING_MEMORY.Module.into_value())
+                            .is_none_or(|v| v == BUILTIN_STRING_MEMORY.Module.into())
                             && property_descriptor.writable.is_none_or(|v| !v)
                             && property_descriptor.get.is_none()
                             && property_descriptor.set.is_none()
@@ -358,7 +329,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     // below.
                     Ok(property_descriptor
                         .value
-                        .is_none_or(|v| v == BUILTIN_STRING_MEMORY.Module.into_value())
+                        .is_none_or(|v| v == BUILTIN_STRING_MEMORY.Module.into())
                         && property_descriptor.writable.is_none_or(|v| !v)
                         && property_descriptor.get.is_none()
                         && property_descriptor.set.is_none()
@@ -438,7 +409,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                 let exports: &[String] = &agent[self].exports;
                 // 3. If exports contains P, return true.
                 if exports.contains(&p) {
-                    TryHasResult::Custom(1, self.into_object().bind(gc)).into()
+                    TryHasResult::Custom(1, self.into().bind(gc)).into()
                 } else {
                     // 4. Return false.
                     TryHasResult::Unset.into()
@@ -447,7 +418,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
             PropertyKey::Symbol(symbol) => {
                 // 1. If P is a Symbol, return ! OrdinaryHasProperty(O, P).
                 if symbol == WellKnownSymbolIndexes::ToStringTag.into() {
-                    TryHasResult::Custom(0, self.into_object().bind(gc)).into()
+                    TryHasResult::Custom(0, self.into().bind(gc)).into()
                 } else {
                     TryHasResult::Unset.into()
                 }
@@ -488,7 +459,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
             PropertyKey::Symbol(symbol) => {
                 // a. Return ! OrdinaryGet(O, P, Receiver).
                 if symbol == WellKnownSymbolIndexes::ToStringTag.into() {
-                    TryGetResult::Value(BUILTIN_STRING_MEMORY.Module.into_value()).into()
+                    TryGetResult::Value(BUILTIN_STRING_MEMORY.Module.into()).into()
                 } else {
                     TryGetResult::Unset.into()
                 }
@@ -526,7 +497,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     let Some(binding_name) = binding_name else {
                         // a. Return GetModuleNamespace(targetModule).
                         return TryGetResult::Value(
-                            get_module_namespace(agent, target_module.unbind(), gc).into_value(),
+                            get_module_namespace(agent, target_module.unbind(), gc).into(),
                         )
                         .into();
                     };
@@ -576,7 +547,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
             PropertyKey::Symbol(symbol) => {
                 // a. Return ! OrdinaryGet(O, P, Receiver).
                 if symbol == WellKnownSymbolIndexes::ToStringTag.into() {
-                    Ok(BUILTIN_STRING_MEMORY.Module.into_value())
+                    Ok(BUILTIN_STRING_MEMORY.Module.into())
                 } else {
                     Ok(Value::Undefined)
                 }
@@ -614,9 +585,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     // 9. If binding.[[BindingName]] is NAMESPACE, then
                     let Some(binding_name) = binding_name else {
                         // a. Return GetModuleNamespace(targetModule).
-                        return Ok(
-                            get_module_namespace(agent, target_module.unbind(), gc).into_value()
-                        );
+                        return Ok(get_module_namespace(agent, target_module.unbind(), gc).into());
                     };
                     // 10. Let targetEnv be targetModule.[[Environment]].
                     let target_env = target_module.environment(agent, gc);
@@ -763,26 +732,13 @@ pub(crate) fn module_namespace_create<'a>(
     m
 }
 
-impl TryFrom<HeapRootData> for Module<'_> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        if let HeapRootData::Module(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
-}
-
 impl HeapMarkAndSweep for Module<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.modules.push(*self);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        compactions.modules.shift_u32_index(&mut self.0);
+        compactions.modules.shift_index(&mut self.0);
     }
 }
 
@@ -790,7 +746,7 @@ impl HeapSweepWeakReference for Module<'static> {
     fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
         compactions
             .modules
-            .shift_weak_u32_index(self.0)
+            .shift_weak_index(self.0)
             .map(Self::from_u32)
     }
 }

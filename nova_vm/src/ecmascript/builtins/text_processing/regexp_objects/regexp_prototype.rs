@@ -33,8 +33,8 @@ use crate::{
             agent::{ExceptionType, JsError, unwrap_try},
         },
         types::{
-            BUILTIN_STRING_MEMORY, Function, IntoFunction, IntoObject, IntoValue, Number, Object,
-            PropertyKey, String, TryGetResult, Value,
+            BUILTIN_STRING_MEMORY, Function,  Number, Object, PropertyKey, String,
+            TryGetResult, Value,
         },
     },
     engine::{
@@ -221,7 +221,7 @@ impl RegExpPrototype {
         let r = unsafe { r.take(agent) }.bind(gc.nogc());
         // 4. Return ? RegExpBuiltinExec(R, S).
         reg_exp_builtin_exec(agent, r.unbind(), s.unbind(), gc)
-            .map(|r| r.map_or(Value::Null, |a| a.into_value()))
+            .map(|r| r.map_or(Value::Null, |a| a.into()))
     }
 
     /// ### [22.2.6.3 get RegExp.prototype.dotAll](https://tc39.es/ecma262/#sec-get-regexp.prototype.dotAll)
@@ -503,7 +503,7 @@ impl RegExpPrototype {
                 unsafe { s.take(agent) },
                 gc,
             )
-            .map(|o| o.map_or(Value::Null, |o| o.into_value()))
+            .map(|o| o.map_or(Value::Null, |o| o.into()))
         } else {
             // 6. Else,
             // a. If flags contains "u" or flags contains "v", let fullUnicode
@@ -515,7 +515,7 @@ impl RegExpPrototype {
                 agent,
                 rx.get(agent),
                 BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
-                0.into_value(),
+                0.into(),
                 true,
                 gc.reborrow(),
             )
@@ -540,7 +540,7 @@ impl RegExpPrototype {
                     } else {
                         // 2. Return A.
                         // SAFETY: not shared.
-                        return Ok(unsafe { a.take(agent) }.into_value());
+                        return Ok(unsafe { a.take(agent) }.into());
                     }
                 };
                 // iii. Else,
@@ -556,7 +556,7 @@ impl RegExpPrototype {
                     agent,
                     a.get(agent),
                     n.into(),
-                    match_str.into_value(),
+                    match_str.into(),
                     None,
                     gc.nogc(),
                 ));
@@ -586,7 +586,7 @@ impl RegExpPrototype {
                         agent,
                         rx.get(agent),
                         BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
-                        Number::try_from(next_index).unwrap().into_value(),
+                        Number::try_from(next_index).unwrap().into(),
                         true,
                         gc.reborrow(),
                     )
@@ -633,13 +633,7 @@ impl RegExpPrototype {
         )
         .unbind()?
         .bind(gc.nogc());
-        let c = if c
-            == agent
-                .current_realm_record()
-                .intrinsics()
-                .reg_exp()
-                .into_function()
-        {
+        let c = if c == agent.current_realm_record().intrinsics().reg_exp().into() {
             None
         } else {
             Some(c.scope(agent, gc.nogc()))
@@ -664,7 +658,7 @@ impl RegExpPrototype {
                 .current_realm_record()
                 .intrinsics()
                 .reg_exp()
-                .into_function()
+                .into()
                 .bind(gc.nogc())
         };
         // 6. Let matcher be ? Construct(C, « R, flags »).
@@ -672,8 +666,8 @@ impl RegExpPrototype {
             agent,
             c.unbind(),
             Some(ArgumentsList::from_mut_slice(&mut [
-                scoped_r.get(agent).into_value(),
-                flags.into_value().unbind(),
+                scoped_r.get(agent).into(),
+                flags.into().unbind(),
             ])),
             None,
             gc.reborrow(),
@@ -720,7 +714,7 @@ impl RegExpPrototype {
             full_unicode,
             gc.into_nogc(),
         )
-        .into_value())
+        .into())
     }
 
     /// ### [22.2.6.10 get RegExp.prototype.multiline](https://tc39.es/ecma262/#sec-get-regexp.prototype.multiline)
@@ -884,7 +878,7 @@ impl RegExpPrototype {
                     agent,
                     rx.get(agent),
                     BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
-                    Number::try_from(next_index).unwrap().into_value(),
+                    Number::try_from(next_index).unwrap().into(),
                     true,
                     gc.reborrow(),
                 )
@@ -980,12 +974,12 @@ impl RegExpPrototype {
                         .into_iter()
                         .map(|s| {
                             s.map_or(Value::Undefined, |s| {
-                                s.get(agent).into_value().bind(gc.nogc())
+                                s.get(agent).into().bind(gc.nogc())
                             })
                         })
                         .collect::<Vec<_>>();
-                    replacer_args.insert(0, matched.get(agent).into_value());
-                    replacer_args.push(Number::try_from(position).unwrap().into_value());
+                    replacer_args.insert(0, matched.get(agent).into());
+                    replacer_args.push(Number::try_from(position).unwrap().into());
                     // ii. If namedCaptures is not undefined, then
                     if !named_captures.is_undefined() {
                         // 1. Append namedCaptures to replacerArgs.
@@ -1072,7 +1066,7 @@ impl RegExpPrototype {
             let next_source_position_utf8 = s.utf8_index(agent, next_source_position).unwrap();
             accumulated_result.push_wtf8(s.as_wtf8(agent).slice_from(next_source_position_utf8));
         }
-        Ok(String::from_wtf8_buf(agent, accumulated_result, gc.into_nogc()).into_value())
+        Ok(String::from_wtf8_buf(agent, accumulated_result, gc.into_nogc()).into())
     }
 
     /// ### [22.2.6.12 RegExp.prototype \[ %Symbol.search% \] ( string )](https://tc39.es/ecma262/#sec-regexp.prototype-%symbol.search%)
@@ -1111,13 +1105,13 @@ impl RegExpPrototype {
         .bind(gc.nogc());
         let scoped_previous_last_index = previous_last_index.scope(agent, gc.nogc());
         // 5. If previousLastIndex is not +0𝔽, then
-        if previous_last_index != Number::pos_zero().into_value() {
+        if previous_last_index != Number::pos_zero().into() {
             // a. Perform ? Set(rx, "lastIndex", +0𝔽, true).
             set(
                 agent,
                 rx.get(agent),
                 BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
-                Number::pos_zero().into_value(),
+                Number::pos_zero().into(),
                 true,
                 gc.reborrow(),
             )
@@ -1160,7 +1154,7 @@ impl RegExpPrototype {
             )
         } else {
             // 9. If result is null, return -1𝔽.
-            Ok(Number::from(-1).into_value())
+            Ok(Number::from(-1).into())
         }
     }
 
@@ -1187,9 +1181,9 @@ impl RegExpPrototype {
                 .current_realm_record()
                 .intrinsics()
                 .reg_exp_prototype()
-                .into_object()
+                .into()
             {
-                return Ok(String::from_small_string("(?:)").into_value());
+                return Ok(String::from_small_string("(?:)").into());
             }
             // b. Otherwise, throw a TypeError exception.
             return Err(agent.throw_exception_with_static_message(
@@ -1204,10 +1198,10 @@ impl RegExpPrototype {
         // 6. Let flags be R.[[OriginalFlags]].
         let flags = r.original_flags(agent);
         if src.is_empty_string() {
-            Ok(String::from_small_string("(?:)").into_value())
+            Ok(String::from_small_string("(?:)").into())
         } else {
             // 7. Return EscapeRegExpPattern(src, flags).
-            Ok(escape_reg_exp_pattern(agent, src.unbind(), flags, gc.into_nogc()).into_value())
+            Ok(escape_reg_exp_pattern(agent, src.unbind(), flags, gc.into_nogc()).into())
         }
     }
 
@@ -1318,8 +1312,8 @@ impl RegExpPrototype {
             agent,
             c.unbind(),
             Some(ArgumentsList::from_mut_slice(&mut [
-                rx.get(agent).into_value(),
-                new_flags.into_value().unbind(),
+                rx.get(agent).into(),
+                new_flags.into().unbind(),
             ])),
             None,
             gc.reborrow(),
@@ -1345,7 +1339,7 @@ impl RegExpPrototype {
         // 14. If lim = 0, return A.
         if lim == 0 {
             // SAFETY: not shared.
-            return Ok(unsafe { a.take(agent) }.into_value());
+            return Ok(unsafe { a.take(agent) }.into());
         }
         // 15. If S is the empty String, then
         if s.is_empty_string() {
@@ -1356,17 +1350,17 @@ impl RegExpPrototype {
             // b. If z is not null, return A.
             if z.is_some() {
                 // SAFETY: not shared.
-                return Ok(unsafe { a.take(agent) }.into_value());
+                return Ok(unsafe { a.take(agent) }.into());
             }
             let gc = gc.into_nogc();
             let a = unsafe { a.take(agent) }.bind(gc);
             let s = unsafe { s.take(agent) }.bind(gc);
             // c. Perform ! CreateDataPropertyOrThrow(A, "0", S).
-            if let Err(err) = a.push(agent, s.into_value()) {
+            if let Err(err) = a.push(agent, s.into()) {
                 return Err(agent.throw_allocation_exception(err, gc));
             }
             // d. Return A.
-            return Ok(a.into_value());
+            return Ok(a.into());
         }
         // 16. Let size be the length of S.
         let size = s.get(agent).utf16_len(agent);
@@ -1382,7 +1376,7 @@ impl RegExpPrototype {
                 agent,
                 splitter.get(agent),
                 BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
-                f_q.into_value(),
+                f_q.into(),
                 true,
                 gc.reborrow(),
             )
@@ -1431,7 +1425,7 @@ impl RegExpPrototype {
                     t_buf.push_wtf8(t);
                     let t = String::from_wtf8_buf(agent, t_buf, gc.nogc());
                     // 2. Perform ! CreateDataPropertyOrThrow(A, ! ToString(𝔽(lengthA)), T).
-                    if let Err(err) = a_local.push(agent, t.into_value()) {
+                    if let Err(err) = a_local.push(agent, t.into()) {
                         return Err(agent.throw_allocation_exception(err, gc.into_nogc()));
                     };
                     // 3. Set lengthA to lengthA + 1.
@@ -1439,7 +1433,7 @@ impl RegExpPrototype {
                     // 4. If lengthA = lim,
                     if length_a == lim {
                         // return A.
-                        return Ok(a_local.into_value().unbind());
+                        return Ok(a_local.into().unbind());
                     }
                     // 5. Set p to e.
                     p = e;
@@ -1474,7 +1468,7 @@ impl RegExpPrototype {
                         // e. If lengthA = lim, return A.
                         if length_a == lim {
                             // SAFETY: not shared.
-                            return Ok(unsafe { a.take(agent) }.into_value());
+                            return Ok(unsafe { a.take(agent) }.into());
                         }
                     }
                     // 10. Set q to p.
@@ -1488,7 +1482,7 @@ impl RegExpPrototype {
         let gc = gc.into_nogc();
         let a = unsafe { a.take(agent) }.bind(gc);
         let result = if p == size {
-            a.push(agent, String::EMPTY_STRING.into_value())
+            a.push(agent, String::EMPTY_STRING.into())
         } else {
             let s = unsafe { s.take(agent) }.bind(gc);
             let p_utf8 = s
@@ -1500,14 +1494,14 @@ impl RegExpPrototype {
             t_buf.push_wtf8(t);
             let t = String::from_wtf8_buf(agent, t_buf, gc);
             // 21. Perform ! CreateDataPropertyOrThrow(A, ! ToString(𝔽(lengthA)), T).
-            a.push(agent, t.into_value())
+            a.push(agent, t.into())
         };
         if let Err(err) = result {
             return Err(agent.throw_allocation_exception(err, gc));
         };
 
         // 22. Return A.
-        Ok(a.into_value())
+        Ok(a.into())
     }
 
     /// ### [22.2.6.15 get RegExp.prototype.sticky](https://tc39.es/ecma262/#sec-get-regexp.prototype.sticky)
@@ -1553,11 +1547,11 @@ impl RegExpPrototype {
                         .current_realm_record()
                         .intrinsics()
                         .reg_exp_prototype_exec()
-                        .into_value(),
+                        .into(),
                 )
                 .into()
             {
-                return Ok(reg_exp_builtin_test(agent, r.unbind(), s.unbind(), gc)?.into_value());
+                return Ok(reg_exp_builtin_test(agent, r.unbind(), s.unbind(), gc)?.into());
             }
         }
         // 2. If R is not an Object, throw a TypeError exception.
@@ -1575,7 +1569,7 @@ impl RegExpPrototype {
             .unbind()?
             .bind(gc.nogc());
         // 5. If match is not null, return true; else return false.
-        Ok(r#match.into_value())
+        Ok(r#match.into())
     }
 
     /// ### [22.2.6.17 RegExp.prototype.toString ( )](https://tc39.es/ecma262/#sec-regexp.prototype.tostring)
@@ -1614,7 +1608,7 @@ impl RegExpPrototype {
             // does not take into account prototype mutations.
             let regexp_string = r.create_regexp_string(agent);
             return Ok(String::from_wtf8_buf(agent, regexp_string, nogc)
-                .into_value()
+                .into()
                 .unbind());
         }
         let scoped_r = r.scope(agent, nogc);
@@ -1650,7 +1644,7 @@ impl RegExpPrototype {
         );
         let result = String::from_string(agent, result, gc.into_nogc());
         // 6. Return result.
-        Ok(result.into_value())
+        Ok(result.into())
     }
 
     /// ### [22.2.6.18 get RegExp.prototype.unicode](https://tc39.es/ecma262/#sec-get-regexp.prototype.unicode)
@@ -1743,7 +1737,7 @@ fn reg_exp_has_flag<'a>(
             .current_realm_record()
             .intrinsics()
             .reg_exp_prototype()
-            .into_object()
+            .into()
         {
             return Ok(None);
         }

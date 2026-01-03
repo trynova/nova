@@ -18,10 +18,7 @@ use crate::{
             Agent, JsResult,
             agent::{ExceptionType, JsError, try_result_into_option_js},
         },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, OrdinaryObject,
-            PropertyKey, Value,
-        },
+        types::{BUILTIN_STRING_MEMORY, Function, Object, OrdinaryObject, PropertyKey, Value},
     },
     engine::{
         ScopableCollection, ScopedCollection, VmIteratorRecord,
@@ -492,7 +489,7 @@ pub(crate) fn iterator_close_with_value<'a>(
             call_function(
                 agent,
                 return_function.unbind(),
-                iterator.into_value().unbind(),
+                iterator.into().unbind(),
                 None,
                 gc.reborrow(),
             )
@@ -566,7 +563,7 @@ pub(crate) fn iterator_close_with_error<'a>(
         let _ = call_function(
             agent,
             r#return.unbind(),
-            iterator.into_value().unbind(),
+            iterator.into().unbind(),
             None,
             gc.reborrow(),
         );
@@ -622,7 +619,7 @@ pub(crate) fn create_iter_result_object<'a>(
                 .current_realm_record()
                 .intrinsics()
                 .object_prototype()
-                .into_object(),
+                .into(),
         ),
         &[
             ObjectEntry {
@@ -637,7 +634,7 @@ pub(crate) fn create_iter_result_object<'a>(
             ObjectEntry {
                 key: PropertyKey::from(BUILTIN_STRING_MEMORY.done),
                 value: ObjectEntryPropertyDescriptor::Data {
-                    value: done.into_value(),
+                    value: done.into(),
                     writable: true,
                     enumerable: true,
                     configurable: true,

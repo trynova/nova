@@ -18,8 +18,7 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyDescriptor,
-            PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, Function, Object, PropertyDescriptor, PropertyKey, String, Value,
         },
     },
     engine::{
@@ -113,7 +112,7 @@ impl AggregateErrorConstructor {
             // [[Value]]: CreateArrayFromList(errorsList)
             value: Some(
                 create_array_from_scoped_list(agent, errors_list, gc.nogc())
-                    .into_value()
+                    .into()
                     .unbind(),
             ),
             ..Default::default()
@@ -128,7 +127,7 @@ impl AggregateErrorConstructor {
         .unbind()?;
         // }).
         // 7. Return O.
-        Ok(o.into_value())
+        Ok(o.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -140,8 +139,8 @@ impl AggregateErrorConstructor {
             agent, realm,
         )
         .with_property_capacity(1)
-        .with_prototype(error_constructor.into_object())
-        .with_prototype_property(aggregate_error_prototype.into_object())
+        .with_prototype(error_constructor.into())
+        .with_prototype_property(aggregate_error_prototype.into())
         .build();
     }
 }

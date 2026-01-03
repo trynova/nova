@@ -11,7 +11,7 @@ use crate::{
             Agent, JsResult,
             agent::{ExceptionType, try_result_into_js},
         },
-        types::{BigInt, IntoNumeric, Number, Value, Viewable},
+        types::{BigInt, Number, Value, Viewable},
     },
     engine::{
         context::{Bindable, GcScope},

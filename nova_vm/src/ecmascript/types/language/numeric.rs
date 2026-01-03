@@ -14,7 +14,7 @@ use crate::{
 };
 
 use super::{
-    IntoPrimitive, Number, Primitive, Value,
+    Number, Primitive, Value,
     bigint::HeapBigInt,
     number::HeapNumber,
     value::{
@@ -96,7 +96,7 @@ bindable_handle!(Numeric);
 
 impl<'a> From<Numeric<'a>> for Primitive<'a> {
     fn from(value: Numeric<'a>) -> Self {
-        value.into_primitive()
+        value.into()
     }
 }
 

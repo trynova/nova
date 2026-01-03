@@ -31,8 +31,8 @@ use crate::{
             agent::{ExceptionType, TryError, TryResult, js_result_into_try},
         },
         types::{
-            BUILTIN_STRING_MEMORY, BigInt, IntoNumeric, IntoObject, IntoPrimitive, IntoValue,
-            Number, Numeric, Object, Primitive, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, BigInt, Number, Numeric, Object, Primitive, PropertyKey, String,
+            Value,
         },
     },
     engine::{
@@ -70,11 +70,11 @@ pub enum PreferredType {
 /// > absence of a hint as if the hint were STRING.
 pub(crate) fn to_primitive<'a, 'gc>(
     agent: &mut Agent,
-    input: impl IntoValue<'a>,
+    input: impl Into<Value<'a>>,
     preferred_type: Option<PreferredType>,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Primitive<'gc>> {
-    let input = input.into_value().bind(gc.nogc());
+    let input = input.into().bind(gc.nogc());
     // 1. If input is an Object, then
     if let Ok(input) = Object::try_from(input) {
         to_primitive_object(agent, input.unbind(), preferred_type, gc)
@@ -86,16 +86,16 @@ pub(crate) fn to_primitive<'a, 'gc>(
 
 pub(crate) fn to_primitive_object<'a, 'gc>(
     agent: &mut Agent,
-    input: impl IntoObject<'a>,
+    input: impl Into<Object<'a>>,
     preferred_type: Option<PreferredType>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Primitive<'gc>> {
-    let input = input.into_object().bind(gc.nogc());
+    let input = input.into().bind(gc.nogc());
     // a. Let exoticToPrim be ? GetMethod(input, @@toPrimitive).
     let scoped_input = input.scope(agent, gc.nogc());
     let exotic_to_prim = get_method(
         agent,
-        input.into_value().unbind(),
+        input.into().unbind(),
         PropertyKey::Symbol(WellKnownSymbolIndexes::ToPrimitive.into()),
         gc.reborrow(),
     )
@@ -119,7 +119,7 @@ pub(crate) fn to_primitive_object<'a, 'gc>(
         let result = call_function(
             agent,
             exotic_to_prim.unbind(),
-            scoped_input.get(agent).into_value().unbind(),
+            scoped_input.get(agent).into().unbind(),
             Some(ArgumentsList::from_mut_slice(&mut [hint.into()])),
             gc.reborrow(),
         )
@@ -186,7 +186,7 @@ pub(crate) fn ordinary_to_primitive<'gc>(
             let result: Value = call_function(
                 agent,
                 method.unbind(),
-                scoped_o.get(agent).into_value(),
+                scoped_o.get(agent).into(),
                 None,
                 gc.reborrow(),
             )
@@ -235,7 +235,7 @@ pub(crate) fn to_boolean(agent: &Agent, argument: Value) -> bool {
 /// ### [7.1.3 ToNumeric ( value )](https://tc39.es/ecma262/#sec-tonumeric)
 pub(crate) fn to_numeric<'a, 'gc>(
     agent: &mut Agent,
-    value: impl IntoValue<'a>,
+    value: impl Into<Value<'a>>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Numeric<'gc>> {
     // 1. Let primValue be ? ToPrimitive(value, number).
@@ -249,10 +249,10 @@ pub(crate) fn to_numeric<'a, 'gc>(
 
 pub(crate) fn to_numeric_primitive<'a>(
     agent: &mut Agent,
-    prim_value: impl IntoPrimitive<'a>,
+    prim_value: impl Into<Primitive<'a>>,
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, Numeric<'a>> {
-    let prim_value = prim_value.into_primitive();
+    let prim_value = prim_value.into();
     // 2. If primValue is a BigInt, return primValue.
     if let Ok(prim_value) = BigInt::try_from(prim_value) {
         return Ok(prim_value.into_numeric());
@@ -265,10 +265,10 @@ pub(crate) fn to_numeric_primitive<'a>(
 /// ### [7.1.4 ToNumber ( argument )](https://tc39.es/ecma262/#sec-tonumber)
 pub(crate) fn to_number<'a, 'gc>(
     agent: &mut Agent,
-    argument: impl IntoValue<'a>,
+    argument: impl Into<Value<'a>>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Number<'gc>> {
-    let argument = argument.into_value().unbind().bind(gc.nogc());
+    let argument = argument.into().unbind().bind(gc.nogc());
     if let Ok(argument) = Primitive::try_from(argument) {
         to_number_primitive(agent, argument.unbind(), gc.into_nogc())
     } else {
@@ -1116,10 +1116,10 @@ pub(crate) fn to_big_uint64_big_int(agent: &Agent, n: BigInt) -> u64 {
 
 pub(crate) fn try_to_string<'a, 'gc>(
     agent: &mut Agent,
-    argument: impl IntoValue<'a>,
+    argument: impl Into<Value<'a>>,
     gc: NoGcScope<'gc, '_>,
 ) -> TryResult<'gc, String<'gc>> {
-    let argument = argument.into_value().unbind().bind(gc);
+    let argument = argument.into().unbind().bind(gc);
     if let Ok(argument) = Primitive::try_from(argument) {
         js_result_into_try(to_string_primitive(agent, argument, gc))
     } else {
@@ -1130,10 +1130,10 @@ pub(crate) fn try_to_string<'a, 'gc>(
 /// ### [7.1.17 ToString ( argument )](https://tc39.es/ecma262/#sec-tostring)
 pub(crate) fn to_string<'a, 'gc>(
     agent: &mut Agent,
-    argument: impl IntoValue<'a>,
+    argument: impl Into<Value<'a>>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, String<'gc>> {
-    let argument = argument.into_value().unbind().bind(gc.nogc());
+    let argument = argument.into().unbind().bind(gc.nogc());
     // 1. If argument is a String, return argument.
     if let Ok(argument) = Primitive::try_from(argument) {
         to_string_primitive(agent, argument.unbind(), gc.into_nogc())
@@ -1218,7 +1218,7 @@ pub(crate) fn to_object<'a>(
                 object_index: None,
                 data: PrimitiveObjectData::Boolean(bool),
             })
-            .into_object()),
+            .into()),
         // Return a new String object whose [[StringData]] internal slot is set to argument.
         Value::String(str) => Ok(agent
             .heap
@@ -1226,14 +1226,14 @@ pub(crate) fn to_object<'a>(
                 object_index: None,
                 data: PrimitiveObjectData::String(str.unbind()),
             })
-            .into_object()),
+            .into()),
         Value::SmallString(str) => Ok(agent
             .heap
             .create(PrimitiveObjectRecord {
                 object_index: None,
                 data: PrimitiveObjectData::SmallString(str),
             })
-            .into_object()),
+            .into()),
         // Return a new Symbol object whose [[SymbolnData]] internal slot is set to argument.
         Value::Symbol(symbol) => Ok(agent
             .heap
@@ -1241,7 +1241,7 @@ pub(crate) fn to_object<'a>(
                 object_index: None,
                 data: PrimitiveObjectData::Symbol(symbol.unbind()),
             })
-            .into_object()),
+            .into()),
         // Return a new Number object whose [[NumberData]] internal slot is set to argument.
         Value::Number(number) => Ok(agent
             .heap
@@ -1249,21 +1249,21 @@ pub(crate) fn to_object<'a>(
                 object_index: None,
                 data: PrimitiveObjectData::Number(number.unbind()),
             })
-            .into_object()),
+            .into()),
         Value::Integer(integer) => Ok(agent
             .heap
             .create(PrimitiveObjectRecord {
                 object_index: None,
                 data: PrimitiveObjectData::Integer(integer),
             })
-            .into_object()),
+            .into()),
         Value::SmallF64(float) => Ok(agent
             .heap
             .create(PrimitiveObjectRecord {
                 object_index: None,
                 data: PrimitiveObjectData::SmallF64(float),
             })
-            .into_object()),
+            .into()),
         // Return a new BigInt object whose [[BigIntData]] internal slot is set to argument.
         Value::BigInt(bigint) => Ok(agent
             .heap
@@ -1271,14 +1271,14 @@ pub(crate) fn to_object<'a>(
                 object_index: None,
                 data: PrimitiveObjectData::BigInt(bigint.unbind()),
             })
-            .into_object()),
+            .into()),
         Value::SmallBigInt(bigint) => Ok(agent
             .heap
             .create(PrimitiveObjectRecord {
                 object_index: None,
                 data: PrimitiveObjectData::SmallBigInt(bigint),
             })
-            .into_object()),
+            .into()),
         _ => Ok(Object::try_from(argument).unwrap()),
     }
 }
@@ -1286,7 +1286,7 @@ pub(crate) fn to_object<'a>(
 /// ### [7.1.19 ToPropertyKey ( argument )](https://tc39.es/ecma262/#sec-topropertykey)
 pub(crate) fn to_property_key<'a, 'gc>(
     agent: &mut Agent,
-    argument: impl IntoValue<'a>,
+    argument: impl Into<Value<'a>>,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, PropertyKey<'gc>> {
     // Note: Fast path and non-standard special case combined. Usually the
@@ -1324,10 +1324,10 @@ pub(crate) fn to_property_key<'a, 'gc>(
 /// caller should handle the uncommon case.
 pub(crate) fn to_property_key_simple<'a, 'gc>(
     agent: &Agent,
-    argument: impl IntoValue<'a>,
+    argument: impl Into<Value<'a>>,
     gc: NoGcScope<'gc, '_>,
 ) -> Option<PropertyKey<'gc>> {
-    let argument = argument.into_value().unbind().bind(gc);
+    let argument = argument.into().unbind().bind(gc);
     match argument {
         Value::String(_) | Value::SmallString(_) => {
             let (str, string_key) = match &argument {
@@ -1367,7 +1367,7 @@ pub(crate) fn to_property_key_simple<'a, 'gc>(
 
 pub(crate) fn to_property_key_complex<'a, 'gc>(
     agent: &mut Agent,
-    argument: impl IntoValue<'a>,
+    argument: impl Into<Value<'a>>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, PropertyKey<'gc>> {
     // 1. Let key be ? ToPrimitive(argument, hint String).
@@ -1482,10 +1482,10 @@ pub(crate) fn canonical_numeric_index_string<'gc>(
     }
 
     // 2. Let n be ! ToNumber(argument).
-    let n = to_number_primitive(agent, argument.into_primitive(), gc).unwrap();
+    let n = to_number_primitive(agent, argument.into(), gc).unwrap();
 
     // 3. If ! ToString(n) is argument, return n.
-    if to_string_primitive(agent, n.into_primitive(), gc).unwrap() == argument {
+    if to_string_primitive(agent, n.into(), gc).unwrap() == argument {
         return Some(n);
     }
 

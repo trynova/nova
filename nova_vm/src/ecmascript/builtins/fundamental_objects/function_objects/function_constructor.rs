@@ -16,10 +16,7 @@ use crate::{
         },
         execution::{Agent, Environment, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
         scripts_and_modules::source_code::{ParseResult, SourceCode, SourceCodeType},
-        types::{
-            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, Primitive, String,
-            Value,
-        },
+        types::{BUILTIN_STRING_MEMORY, Function,  Object, Primitive, String, Value},
     },
     engine::{
         context::{Bindable, GcScope},
@@ -51,7 +48,7 @@ impl FunctionConstructor {
     ) -> JsResult<'gc, Value<'gc>> {
         // 2. If bodyArg is not present, set bodyArg to the empty String.
         let (parameter_args, body_arg) = if arguments.is_empty() {
-            (&[] as &[Value], String::EMPTY_STRING.into_value())
+            (&[] as &[Value], String::EMPTY_STRING.into())
         } else {
             let (last, others) = arguments.split_last().unwrap();
             (others, *last)
@@ -78,12 +75,12 @@ impl FunctionConstructor {
         //   a. Perform MakeConstructor(F).
         make_constructor(agent, f.unbind(), None, None, gc.nogc());
 
-        Ok(f.into_value().unbind())
+        Ok(f.into().unbind())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
-        let function_prototype = intrinsics.function_prototype().into_object();
+        let function_prototype = intrinsics.function_prototype().into();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<FunctionConstructor>(agent, realm)
             .with_property_capacity(1)

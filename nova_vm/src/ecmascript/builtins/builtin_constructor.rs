@@ -16,14 +16,12 @@ use crate::{
         },
         types::{
             BUILTIN_STRING_MEMORY, BuiltinConstructorRecord, Function, FunctionInternalProperties,
-            IntoFunction, IntoObject, IntoValue, Object, OrdinaryObject, PropertyKey, String,
-            Value,
+            Object, OrdinaryObject, PropertyKey, String, Value, function_handle,
         },
     },
     engine::{
         Executable,
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
@@ -38,61 +36,11 @@ use super::ArgumentsList;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct BuiltinConstructorFunction<'a>(BaseIndex<'a, BuiltinConstructorRecord<'static>>);
-
-impl HeapIndexHandle for BuiltinConstructorFunction<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_u32_index(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.into_u32_index()
-    }
-}
+function_handle!(BuiltinConstructorFunction);
 
 impl BuiltinConstructorFunction<'_> {
     pub const fn is_constructor(self) -> bool {
         true
-    }
-}
-
-bindable_handle!(BuiltinConstructorFunction);
-
-impl<'a> From<BuiltinConstructorFunction<'a>> for Function<'a> {
-    fn from(value: BuiltinConstructorFunction<'a>) -> Self {
-        Self::BuiltinConstructorFunction(value)
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for BuiltinConstructorFunction<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::BuiltinConstructorFunction(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for BuiltinConstructorFunction<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Object::BuiltinConstructorFunction(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Function<'a>> for BuiltinConstructorFunction<'a> {
-    type Error = ();
-
-    fn try_from(value: Function<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Function::BuiltinConstructorFunction(data) => Ok(data),
-            _ => Err(()),
-        }
     }
 }
 
@@ -202,7 +150,7 @@ fn builtin_call_or_construct<'a>(
         // 8. Perform any necessary implementation-defined initialization of calleeContext.
         ecmascript_code: None,
         // 4. Set the Function of calleeContext to F.
-        function: Some(f.into_function().unbind()),
+        function: Some(f.into().unbind()),
         // 6. Set the Realm of calleeContext to calleeRealm.
         realm: callee_realm,
         // 7. Set the ScriptOrModule of calleeContext to null.
@@ -217,11 +165,11 @@ fn builtin_call_or_construct<'a>(
         derived_class_default_constructor(
             agent,
             arguments_list.unbind(),
-            new_target.into_object().unbind(),
+            new_target.into().unbind(),
             gc,
         )
     } else {
-        base_class_default_constructor(agent, new_target.into_object().unbind(), gc)
+        base_class_default_constructor(agent, new_target.into().unbind(), gc)
     };
     // 11. NOTE: If F is defined in this document, “the specification of F” is the behaviour specified for it via
     // algorithm steps or other means.
@@ -294,7 +242,7 @@ pub(crate) fn create_builtin_constructor<'a>(
     let name_entry = ObjectEntry {
         key: PropertyKey::from(BUILTIN_STRING_MEMORY.name),
         value: ObjectEntryPropertyDescriptor::Data {
-            value: args.class_name.into_value(),
+            value: args.class_name.into(),
             writable: false,
             enumerable: false,
             configurable: true,
@@ -303,7 +251,7 @@ pub(crate) fn create_builtin_constructor<'a>(
     let prototype_entry = ObjectEntry {
         key: PropertyKey::from(BUILTIN_STRING_MEMORY.prototype),
         value: ObjectEntryPropertyDescriptor::Data {
-            value: args.prototype_property.into_value(),
+            value: args.prototype_property.into(),
             writable: false,
             enumerable: false,
             configurable: false,
@@ -331,29 +279,6 @@ pub(crate) fn create_builtin_constructor<'a>(
             class_name: args.class_name,
         })
         .bind(gc)
-}
-
-impl Rootable for BuiltinConstructorFunction<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::BuiltinConstructorFunction(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::BuiltinConstructorFunction(d) => Some(d),
-            _ => None,
-        }
-    }
 }
 
 impl<'a> CreateHeapData<BuiltinConstructorRecord<'a>, BuiltinConstructorFunction<'a>> for Heap {

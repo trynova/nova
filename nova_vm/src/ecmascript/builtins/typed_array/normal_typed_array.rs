@@ -7,6 +7,7 @@ use core::{
     hint::{assert_unchecked, unreachable_unchecked},
     marker::PhantomData,
 };
+use std::convert::Infallible;
 
 use ecmascript_atomics::Ordering;
 
@@ -52,17 +53,17 @@ use crate::{
             BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT, BigInt, DataBlock,
             FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, Function,
             INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
-            InternalMethods, InternalSlots, IntoNumeric, IntoObject, IntoValue, Number, Numeric,
-            Object, OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey, SetCachedProps,
-            SetResult, TryGetResult, TryHasResult, U8Clamped, UINT_8_ARRAY_DISCRIMINANT,
-            UINT_8_CLAMPED_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT,
-            UINT_32_ARRAY_DISCRIMINANT, Value, Viewable, create_byte_data_block,
+            InternalMethods, InternalSlots, Number, Numeric, Object, OrdinaryObject, Primitive,
+            PropertyDescriptor, PropertyKey, SetCachedProps, SetResult, TryGetResult, TryHasResult,
+            U8Clamped, UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+            UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT, Value, Viewable,
+            create_byte_data_block,
         },
     },
     engine::{
         Scoped,
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
+        rootable::{HeapRootData, Scopable},
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
@@ -374,176 +375,6 @@ pub type Float16Array<'a> = GenericTypedArray<'a, f16>;
 pub type Float32Array<'a> = GenericTypedArray<'a, f32>;
 pub type Float64Array<'a> = GenericTypedArray<'a, f64>;
 
-impl<T: Viewable> Rootable for GenericTypedArray<'_, T> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>() {
-            Err(HeapRootData::Uint8Array(unsafe {
-                core::mem::transmute::<GenericTypedArray<'_, T>, Uint8Array>(value.unbind())
-            }))
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>() {
-            Err(HeapRootData::Uint8ClampedArray(unsafe {
-                core::mem::transmute::<GenericTypedArray<'_, T>, Uint8ClampedArray>(value.unbind())
-            }))
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>() {
-            Err(HeapRootData::Int8Array(unsafe {
-                core::mem::transmute::<GenericTypedArray<'_, T>, Int8Array>(value.unbind())
-            }))
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u16>() {
-            Err(HeapRootData::Uint16Array(unsafe {
-                core::mem::transmute::<GenericTypedArray<'_, T>, Uint16Array>(value.unbind())
-            }))
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i16>() {
-            Err(HeapRootData::Int16Array(unsafe {
-                core::mem::transmute::<GenericTypedArray<'_, T>, Int16Array>(value.unbind())
-            }))
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>() {
-            Err(HeapRootData::Uint32Array(unsafe {
-                core::mem::transmute::<GenericTypedArray<'_, T>, Uint32Array>(value.unbind())
-            }))
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>() {
-            Err(HeapRootData::Int32Array(unsafe {
-                core::mem::transmute::<GenericTypedArray<'_, T>, Int32Array>(value.unbind())
-            }))
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>() {
-            Err(HeapRootData::BigUint64Array(unsafe {
-                core::mem::transmute::<GenericTypedArray<'_, T>, BigUint64Array>(value.unbind())
-            }))
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>() {
-            Err(HeapRootData::BigInt64Array(unsafe {
-                core::mem::transmute::<GenericTypedArray<'_, T>, BigInt64Array>(value.unbind())
-            }))
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>() {
-            Err(HeapRootData::Float32Array(unsafe {
-                core::mem::transmute::<GenericTypedArray<'_, T>, Float32Array>(value.unbind())
-            }))
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>() {
-            Err(HeapRootData::Float64Array(unsafe {
-                core::mem::transmute::<GenericTypedArray<'_, T>, Float64Array>(value.unbind())
-            }))
-        } else {
-            #[cfg(feature = "proposal-float16array")]
-            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f16>() {
-                return Err(HeapRootData::Float16Array(unsafe {
-                    core::mem::transmute::<GenericTypedArray<'_, T>, Float16Array>(value.unbind())
-                }));
-            }
-            unreachable!()
-        }
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>() {
-            match heap_data {
-                HeapRootData::Uint8Array(ta) => Some(unsafe {
-                    core::mem::transmute::<Uint8Array, GenericTypedArray<'_, T>>(ta)
-                }),
-                _ => None,
-            }
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>() {
-            match heap_data {
-                HeapRootData::Uint8ClampedArray(ta) => Some(unsafe {
-                    core::mem::transmute::<Uint8ClampedArray, GenericTypedArray<'_, T>>(ta)
-                }),
-                _ => None,
-            }
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>() {
-            match heap_data {
-                HeapRootData::Int8Array(ta) => {
-                    Some(unsafe { core::mem::transmute::<Int8Array, GenericTypedArray<'_, T>>(ta) })
-                }
-                _ => None,
-            }
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u16>() {
-            match heap_data {
-                HeapRootData::Uint16Array(ta) => Some(unsafe {
-                    core::mem::transmute::<Uint16Array, GenericTypedArray<'_, T>>(ta)
-                }),
-                _ => None,
-            }
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i16>() {
-            match heap_data {
-                HeapRootData::Int16Array(ta) => Some(unsafe {
-                    core::mem::transmute::<Int16Array, GenericTypedArray<'_, T>>(ta)
-                }),
-                _ => None,
-            }
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>() {
-            match heap_data {
-                HeapRootData::Uint32Array(ta) => Some(unsafe {
-                    core::mem::transmute::<Uint32Array, GenericTypedArray<'_, T>>(ta)
-                }),
-                _ => None,
-            }
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>() {
-            match heap_data {
-                HeapRootData::Int32Array(ta) => Some(unsafe {
-                    core::mem::transmute::<Int32Array, GenericTypedArray<'_, T>>(ta)
-                }),
-                _ => None,
-            }
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>() {
-            match heap_data {
-                HeapRootData::BigUint64Array(ta) => Some(unsafe {
-                    core::mem::transmute::<BigUint64Array, GenericTypedArray<'_, T>>(ta)
-                }),
-                _ => None,
-            }
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>() {
-            match heap_data {
-                HeapRootData::BigInt64Array(ta) => Some(unsafe {
-                    core::mem::transmute::<BigInt64Array, GenericTypedArray<'_, T>>(ta)
-                }),
-                _ => None,
-            }
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>() {
-            match heap_data {
-                HeapRootData::Float32Array(ta) => Some(unsafe {
-                    core::mem::transmute::<Float32Array, GenericTypedArray<'_, T>>(ta)
-                }),
-                _ => None,
-            }
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>() {
-            match heap_data {
-                HeapRootData::Float64Array(ta) => Some(unsafe {
-                    core::mem::transmute::<Float64Array, GenericTypedArray<'_, T>>(ta)
-                }),
-                _ => None,
-            }
-        } else {
-            #[cfg(feature = "proposal-float16array")]
-            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f16>() {
-                return match heap_data {
-                    HeapRootData::Float16Array(ta) => Some(unsafe {
-                        core::mem::transmute::<Float16Array, GenericTypedArray<'_, T>>(ta)
-                    }),
-                    _ => None,
-                };
-            }
-            unreachable!()
-        }
-    }
-}
-
-impl<T: Viewable> HeapIndexHandle for GenericTypedArray<'_, T> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_index_u32(index), PhantomData)
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.get_index_u32()
-    }
-}
-
 /// ## [23.2 TypedArray Objects](https://tc39.es/ecma262/#sec-typedarray-objects)
 ///
 /// A TypedArray presents an array-like view of an underlying binary data
@@ -690,160 +521,6 @@ impl<'a> TypedArray<'a> {
     }
 }
 
-impl<'a> From<TypedArray<'a>> for AnyTypedArray<'a> {
-    #[inline(always)]
-    fn from(value: TypedArray<'a>) -> Self {
-        match value {
-            TypedArray::Int8Array(ta) => Self::Int8Array(ta),
-            TypedArray::Uint8Array(ta) => Self::Uint8Array(ta),
-            TypedArray::Uint8ClampedArray(ta) => Self::Uint8ClampedArray(ta),
-            TypedArray::Int16Array(ta) => Self::Int16Array(ta),
-            TypedArray::Uint16Array(ta) => Self::Uint16Array(ta),
-            TypedArray::Int32Array(ta) => Self::Int32Array(ta),
-            TypedArray::Uint32Array(ta) => Self::Uint32Array(ta),
-            TypedArray::BigInt64Array(ta) => Self::BigInt64Array(ta),
-            TypedArray::BigUint64Array(ta) => Self::BigUint64Array(ta),
-            #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(ta) => Self::Float16Array(ta),
-            TypedArray::Float32Array(ta) => Self::Float32Array(ta),
-            TypedArray::Float64Array(ta) => Self::Float64Array(ta),
-        }
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for TypedArray<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::Int8Array(base_index) => Ok(Self::Int8Array(base_index)),
-            Value::Uint8Array(base_index) => Ok(Self::Uint8Array(base_index)),
-            Value::Uint8ClampedArray(base_index) => Ok(Self::Uint8ClampedArray(base_index)),
-            Value::Int16Array(base_index) => Ok(Self::Int16Array(base_index)),
-            Value::Uint16Array(base_index) => Ok(Self::Uint16Array(base_index)),
-            Value::Int32Array(base_index) => Ok(Self::Int32Array(base_index)),
-            Value::Uint32Array(base_index) => Ok(Self::Uint32Array(base_index)),
-            Value::BigInt64Array(base_index) => Ok(Self::BigInt64Array(base_index)),
-            Value::BigUint64Array(base_index) => Ok(Self::BigUint64Array(base_index)),
-            #[cfg(feature = "proposal-float16array")]
-            Value::Float16Array(base_index) => Ok(Self::Float16Array(base_index)),
-            Value::Float32Array(base_index) => Ok(Self::Float32Array(base_index)),
-            Value::Float64Array(base_index) => Ok(Self::Float64Array(base_index)),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for TypedArray<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Object::Uint8Array(t) => Ok(Self::Uint8Array(t)),
-            Object::Int8Array(t) => Ok(Self::Int8Array(t)),
-            Object::Uint8ClampedArray(t) => Ok(Self::Uint8ClampedArray(t)),
-            Object::Int16Array(t) => Ok(Self::Int16Array(t)),
-            Object::Uint16Array(t) => Ok(Self::Uint16Array(t)),
-            Object::Int32Array(t) => Ok(Self::Int32Array(t)),
-            Object::Uint32Array(t) => Ok(Self::Uint32Array(t)),
-            Object::BigInt64Array(t) => Ok(Self::BigInt64Array(t)),
-            Object::BigUint64Array(t) => Ok(Self::BigUint64Array(t)),
-            #[cfg(feature = "proposal-float16array")]
-            Object::Float16Array(t) => Ok(Self::Float16Array(t)),
-            Object::Float32Array(t) => Ok(Self::Float32Array(t)),
-            Object::Float64Array(t) => Ok(Self::Float64Array(t)),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<AnyTypedArray<'a>> for TypedArray<'a> {
-    type Error = ();
-
-    fn try_from(value: AnyTypedArray<'a>) -> Result<Self, Self::Error> {
-        match value {
-            AnyTypedArray::Int8Array(base_index) => Ok(Self::Int8Array(base_index)),
-            AnyTypedArray::Uint8Array(base_index) => Ok(Self::Uint8Array(base_index)),
-            AnyTypedArray::Uint8ClampedArray(base_index) => Ok(Self::Uint8ClampedArray(base_index)),
-            AnyTypedArray::Int16Array(base_index) => Ok(Self::Int16Array(base_index)),
-            AnyTypedArray::Uint16Array(base_index) => Ok(Self::Uint16Array(base_index)),
-            AnyTypedArray::Int32Array(base_index) => Ok(Self::Int32Array(base_index)),
-            AnyTypedArray::Uint32Array(base_index) => Ok(Self::Uint32Array(base_index)),
-            AnyTypedArray::BigInt64Array(base_index) => Ok(Self::BigInt64Array(base_index)),
-            AnyTypedArray::BigUint64Array(base_index) => Ok(Self::BigUint64Array(base_index)),
-            #[cfg(feature = "proposal-float16array")]
-            AnyTypedArray::Float16Array(base_index) => Ok(Self::Float16Array(base_index)),
-            AnyTypedArray::Float32Array(base_index) => Ok(Self::Float32Array(base_index)),
-            AnyTypedArray::Float64Array(base_index) => Ok(Self::Float64Array(base_index)),
-            #[cfg(feature = "shared-array-buffer")]
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a, T: Viewable> From<GenericTypedArray<'a, T>> for TypedArray<'a> {
-    #[inline(always)]
-    fn from(value: GenericTypedArray<'a, T>) -> Self {
-        if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>() {
-            // SAFETY: type checked.
-            Self::Uint8Array(unsafe { value.into_void_array().cast() })
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>() {
-            // SAFETY: type checked.
-            Self::Uint8ClampedArray(unsafe { value.into_void_array().cast() })
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>() {
-            // SAFETY: type checked.
-            Self::Int8Array(unsafe { value.into_void_array().cast() })
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u16>() {
-            // SAFETY: type checked.
-            Self::Uint16Array(unsafe { value.into_void_array().cast() })
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i16>() {
-            // SAFETY: type checked.
-            Self::Int16Array(unsafe { value.into_void_array().cast() })
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>() {
-            // SAFETY: type checked.
-            Self::Uint32Array(unsafe { value.into_void_array().cast() })
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>() {
-            // SAFETY: type checked.
-            Self::Int32Array(unsafe { value.into_void_array().cast() })
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>() {
-            // SAFETY: type checked.
-            Self::BigUint64Array(unsafe { value.into_void_array().cast() })
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>() {
-            // SAFETY: type checked.
-            Self::BigInt64Array(unsafe { value.into_void_array().cast() })
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>() {
-            // SAFETY: type checked.
-            Self::Float32Array(unsafe { value.into_void_array().cast() })
-        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>() {
-            // SAFETY: type checked.
-            Self::Float64Array(unsafe { value.into_void_array().cast() })
-        } else {
-            #[cfg(feature = "proposal-float16array")]
-            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f16>() {
-                // SAFETY: type checked.
-                return Self::Float16Array(unsafe { value.into_void_array().cast() });
-            }
-            unreachable!()
-        }
-    }
-}
-
-impl<'a, T: Viewable> From<GenericTypedArray<'a, T>> for AnyTypedArray<'a> {
-    #[inline(always)]
-    fn from(value: GenericTypedArray<'a, T>) -> Self {
-        let value: TypedArray = value.into();
-        value.into()
-    }
-}
-
-impl<'a, T: Viewable> From<GenericTypedArray<'a, T>> for Object<'a> {
-    #[inline(always)]
-    fn from(value: GenericTypedArray<'a, T>) -> Self {
-        let value: AnyTypedArray = value.into();
-        value.into()
-    }
-}
-
 impl<'a, T: Viewable> InternalSlots<'a> for GenericTypedArray<'a, T> {
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
@@ -889,7 +566,7 @@ impl<'a, T: Viewable> InternalSlots<'a> for GenericTypedArray<'a, T> {
                 ProtoIntrinsics::Uint8ClampedArray => intrinsics.uint8_clamped_array_prototype(),
                 _ => unreachable!(),
             };
-            Some(default_proto.into_object())
+            Some(default_proto.into())
         }
     }
 }
@@ -944,7 +621,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericTypedArray<'a, T> {
                 //          [[Configurable]]: true
                 //      }.
                 TryResult::Continue(Some(PropertyDescriptor {
-                    value: Some(value.into_value().unbind()),
+                    value: Some(value.into().unbind()),
                     writable: Some(true),
                     enumerable: Some(true),
                     configurable: Some(true),
@@ -957,14 +634,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericTypedArray<'a, T> {
         } else {
             // 2. Return OrdinaryGetOwnProperty(O, P).
             TryResult::Continue(o.get_backing_object(agent).and_then(|backing_o| {
-                ordinary_get_own_property(
-                    agent,
-                    o.into_object(),
-                    backing_o,
-                    property_key,
-                    cache,
-                    gc,
-                )
+                ordinary_get_own_property(agent, o.into(), backing_o, property_key, cache, gc)
             }))
         }
     }
@@ -985,11 +655,8 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericTypedArray<'a, T> {
             let numeric_index = numeric_index.into_i64();
             let result = self.is_valid_integer_index(agent, numeric_index);
             if let Some(result) = result {
-                TryHasResult::Custom(
-                    result.min(u32::MAX as usize) as u32,
-                    self.into_object().bind(gc),
-                )
-                .into()
+                TryHasResult::Custom(result.min(u32::MAX as usize) as u32, self.into().bind(gc))
+                    .into()
             } else {
                 TryHasResult::Unset.into()
             }
@@ -997,7 +664,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericTypedArray<'a, T> {
             // 2. Return ? OrdinaryHasProperty(O, P).
             ordinary_try_has_property(
                 agent,
-                self.into_object(),
+                self.into(),
                 self.get_backing_object(agent),
                 property_key,
                 cache,
@@ -1080,7 +747,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericTypedArray<'a, T> {
                 .unwrap_or_else(|| self.create_backing_object(agent));
             js_result_into_try(ordinary_define_own_property(
                 agent,
-                self.into_object(),
+                self.into(),
                 backing_object,
                 property_key,
                 property_descriptor,
@@ -1146,7 +813,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericTypedArray<'a, T> {
                 .unwrap_or_else(|| o.create_backing_object(agent));
             ordinary_define_own_property(
                 agent,
-                self.into_object(),
+                self.into(),
                 backing_object,
                 property_key,
                 property_descriptor.unbind(),
@@ -1175,13 +842,13 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericTypedArray<'a, T> {
             let numeric_index = numeric_index.into_i64();
             let result = o.typed_array_get_element(agent, numeric_index, gc);
             result
-                .map_or(TryGetResult::Unset, |v| TryGetResult::Value(v.into_value()))
+                .map_or(TryGetResult::Unset, |v| TryGetResult::Value(v.into()))
                 .into()
         } else {
             // 2. Return ? OrdinaryGet(O, P, Receiver).
             ordinary_try_get(
                 agent,
-                o.into_object(),
+                o.into(),
                 o.get_backing_object(agent),
                 property_key,
                 receiver,
@@ -1260,7 +927,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericTypedArray<'a, T> {
         if let PropertyKey::Integer(numeric_index) = property_key {
             let numeric_index = numeric_index.into_i64();
             // i. If SameValue(O, Receiver) is true, then
-            if self.into_value() == receiver {
+            if self.into() == receiver {
                 // 1. Perform ? TypedArraySetElement(O, numericIndex, V).
                 o.try_set_element(agent, numeric_index, value, gc)?;
                 // 2. Return true.
@@ -1274,15 +941,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericTypedArray<'a, T> {
             }
         }
         // 2. Return ? OrdinarySet(O, P, V, Receiver).
-        ordinary_try_set(
-            agent,
-            self.into_object(),
-            property_key,
-            value,
-            receiver,
-            cache,
-            gc,
-        )
+        ordinary_try_set(agent, self.into(), property_key, value, receiver, cache, gc)
     }
 
     /// ### [10.4.5.6 \[\[Set\]\] ( P, V, Receiver )](https://tc39.es/ecma262/#sec-typedarray-set)
@@ -1302,7 +961,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericTypedArray<'a, T> {
         if let PropertyKey::Integer(numeric_index) = property_key {
             let numeric_index = numeric_index.into_i64();
             // i. If SameValue(O, Receiver) is true, then
-            if self.into_value() == receiver {
+            if self.into() == receiver {
                 // 1. Perform ? TypedArraySetElement(O, numericIndex, V).
                 o.unbind().set_element(agent, numeric_index, value, gc)?;
                 // 2. Return true.
@@ -1316,7 +975,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericTypedArray<'a, T> {
             }
         }
         // 2. Return ? OrdinarySet(O, P, V, Receiver).
-        ordinary_set(agent, self.into_object(), property_key, value, receiver, gc)
+        ordinary_set(agent, self.into(), property_key, value, receiver, gc)
     }
 
     /// ### [10.4.5.7 Infallible \[\[Delete\]\] ( P )](https://tc39.es/ecma262/#sec-typedarray-delete)
@@ -1338,9 +997,11 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericTypedArray<'a, T> {
             TryResult::Continue(result.is_none())
         } else {
             // 2. Return ! OrdinaryDelete(O, P).
-            TryResult::Continue(self.get_backing_object(agent).is_none_or(|object| {
-                ordinary_delete(agent, self.into_object(), object, property_key, gc)
-            }))
+            TryResult::Continue(
+                self.get_backing_object(agent).is_none_or(|object| {
+                    ordinary_delete(agent, self.into(), object, property_key, gc)
+                }),
+            )
         }
     }
 
@@ -1863,7 +1524,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
             let value = slice.get(k).copied();
             // b. Let kValue be ! Get(O, Pk).
             let k_value = value.map_or(Value::Undefined, |v| {
-                v.into_le_value(agent, gc.nogc()).into_value()
+                v.into_le_value(agent, gc.nogc()).into()
             });
             let result = call_function(
                 agent,
@@ -1871,8 +1532,8 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
                 this_arg.get(agent),
                 Some(ArgumentsList::from_mut_slice(&mut [
                     k_value.unbind(),
-                    Number::try_from(k).unwrap().into_value(),
-                    scoped_o.get(agent).into_value(),
+                    Number::try_from(k).unwrap().into(),
+                    scoped_o.get(agent).into(),
                 ])),
                 gc.reborrow(),
             )
@@ -1934,7 +1595,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
         }
 
         // 12. Return A.
-        Ok(a.into_value())
+        Ok(a.into())
     }
 
     fn search<const ASCENDING: bool>(
@@ -2003,7 +1664,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
                     .as_viewable_slice::<T>(agent, byte_offset, byte_length);
             let value = slice.get(k).copied();
             let k_value = value.map_or(Value::Undefined, |v| {
-                v.into_ne_value(agent, gc.nogc()).into_value()
+                v.into_ne_value(agent, gc.nogc()).into()
             });
             // c. Let mappedValue be ? Call(callback, thisArg, « kValue, 𝔽(k), O »).
             let mapped_value = call_function(
@@ -2014,7 +1675,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
                     k_value.unbind(),
                     // SAFETY: we want the numeric value, not string.
                     unsafe { pk.into_value_unchecked() },
-                    scoped_o.get(agent).into_value(),
+                    scoped_o.get(agent).into(),
                 ])),
                 gc.reborrow(),
             )
@@ -2023,7 +1684,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
             // d. Perform ? Set(A, Pk, mappedValue, true).
             set(
                 agent,
-                a.get(agent).into_object(),
+                a.get(agent).into(),
                 pk,
                 mapped_value.unbind(),
                 true,
@@ -2033,7 +1694,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
             // e. Set k to k + 1.
         }
         // 8. Return A.
-        Ok(a.get(agent).into_value().unbind())
+        Ok(a.get(agent).into().unbind())
     }
 
     fn reverse(self, agent: &mut Agent, len: usize) {
@@ -2320,8 +1981,8 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
             if error.is_some() {
                 return std::cmp::Ordering::Equal;
             }
-            let a_val = a.into_ne_value(agent, gc.nogc()).into_value();
-            let b_val = b.into_ne_value(agent, gc.nogc()).into_value();
+            let a_val = a.into_ne_value(agent, gc.nogc()).into();
+            let b_val = b.into_ne_value(agent, gc.nogc()).into();
             let result = call_function(
                 agent,
                 comparator.get(agent),
@@ -2465,86 +2126,6 @@ fn copy_between_typed_arrays<Source: Viewable, Target: Viewable>(
     };
 }
 
-unsafe impl<T: Viewable> Bindable for GenericTypedArray<'_, T> {
-    type Of<'a> = GenericTypedArray<'a, T>;
-
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    fn bind<'a>(self, _: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
-    }
-}
-
-impl<T: Viewable> Clone for GenericTypedArray<'_, T> {
-    #[inline(always)]
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<T: Viewable> Copy for GenericTypedArray<'_, T> {}
-
-impl<T: Viewable> PartialEq for GenericTypedArray<'_, T> {
-    #[inline(always)]
-    fn eq(&self, other: &Self) -> bool {
-        self.0.eq(&other.0)
-    }
-}
-
-impl<T: Viewable> Eq for GenericTypedArray<'_, T> {}
-
-impl<T: Viewable> PartialOrd for GenericTypedArray<'_, T> {
-    #[inline(always)]
-    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl<T: Viewable> Ord for GenericTypedArray<'_, T> {
-    #[inline(always)]
-    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
-        self.0.cmp(&other.0)
-    }
-}
-
-impl<T: Viewable> Hash for GenericTypedArray<'_, T> {
-    #[inline(always)]
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.hash(state);
-    }
-}
-
-impl<T: Viewable> core::fmt::Debug for GenericTypedArray<'_, T> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}({})", T::NAME, self.0.into_u32_index())
-    }
-}
-
-impl TryFrom<HeapRootData> for TypedArray<'_> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        match value {
-            HeapRootData::Int8Array(ta) => Ok(Self::Int8Array(ta)),
-            HeapRootData::Uint8Array(ta) => Ok(Self::Uint8Array(ta)),
-            HeapRootData::Uint8ClampedArray(ta) => Ok(Self::Uint8ClampedArray(ta)),
-            HeapRootData::Int16Array(ta) => Ok(Self::Int16Array(ta)),
-            HeapRootData::Uint16Array(ta) => Ok(Self::Uint16Array(ta)),
-            HeapRootData::Int32Array(ta) => Ok(Self::Int32Array(ta)),
-            HeapRootData::Uint32Array(ta) => Ok(Self::Uint32Array(ta)),
-            HeapRootData::BigInt64Array(ta) => Ok(Self::BigInt64Array(ta)),
-            HeapRootData::BigUint64Array(ta) => Ok(Self::BigUint64Array(ta)),
-            // HeapRootData::Float16Array(ta) => Ok(Self::Float16Array(ta)),
-            HeapRootData::Float32Array(ta) => Ok(Self::Float32Array(ta)),
-            HeapRootData::Float64Array(ta) => Ok(Self::Float64Array(ta)),
-            _ => Err(()),
-        }
-    }
-}
-
 impl<'a, T: Viewable> CreateHeapData<TypedArrayRecord<'a>, GenericTypedArray<'a, T>> for Heap {
     fn create(&mut self, data: TypedArrayRecord<'a>) -> GenericTypedArray<'a, T> {
         self.typed_arrays.push(data.unbind());
@@ -2610,3 +2191,532 @@ impl HeapMarkAndSweep for TypedArray<'static> {
         }
     }
 }
+
+// === OUTPUT FROM object_handle! ADAPTED TO GenericTypedArray ===
+unsafe impl<T: Viewable> Bindable for GenericTypedArray<'_, T> {
+    type Of<'a> = GenericTypedArray<'a, T>;
+
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    fn bind<'a>(self, _: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+impl<T: Viewable> Clone for GenericTypedArray<'_, T> {
+    #[inline(always)]
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T: Viewable> Copy for GenericTypedArray<'_, T> {}
+
+impl<T: Viewable> PartialEq for GenericTypedArray<'_, T> {
+    #[inline(always)]
+    fn eq(&self, other: &Self) -> bool {
+        self.0.eq(&other.0)
+    }
+}
+
+impl<T: Viewable> Eq for GenericTypedArray<'_, T> {}
+
+impl<T: Viewable> PartialOrd for GenericTypedArray<'_, T> {
+    #[inline(always)]
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<T: Viewable> Ord for GenericTypedArray<'_, T> {
+    #[inline(always)]
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+
+impl<T: Viewable> Hash for GenericTypedArray<'_, T> {
+    #[inline(always)]
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
+
+impl<T: Viewable> core::fmt::Debug for GenericTypedArray<'_, T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}({})", T::NAME, self.0.into_u32_index())
+    }
+}
+impl<T: Viewable> HeapIndexHandle for GenericTypedArray<'_, T> {
+    const _DEF: Self = Self(BaseIndex::MAX, PhantomData);
+
+    #[inline]
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_index_u32(index), PhantomData)
+    }
+
+    fn get_index_u32(&self) -> u32 {
+        self.0.get_index_u32()
+    }
+}
+impl<'a, T: Viewable> From<GenericTypedArray<'a, T>> for TypedArray<'a> {
+    #[inline(always)]
+    fn from(value: GenericTypedArray<'a, T>) -> Self {
+        if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>() {
+            // SAFETY: type checked.
+            Self::Uint8Array(unsafe { value.into_void_array().cast() })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>() {
+            // SAFETY: type checked.
+            Self::Uint8ClampedArray(unsafe { value.into_void_array().cast() })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>() {
+            // SAFETY: type checked.
+            Self::Int8Array(unsafe { value.into_void_array().cast() })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u16>() {
+            // SAFETY: type checked.
+            Self::Uint16Array(unsafe { value.into_void_array().cast() })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i16>() {
+            // SAFETY: type checked.
+            Self::Int16Array(unsafe { value.into_void_array().cast() })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>() {
+            // SAFETY: type checked.
+            Self::Uint32Array(unsafe { value.into_void_array().cast() })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>() {
+            // SAFETY: type checked.
+            Self::Int32Array(unsafe { value.into_void_array().cast() })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>() {
+            // SAFETY: type checked.
+            Self::BigUint64Array(unsafe { value.into_void_array().cast() })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>() {
+            // SAFETY: type checked.
+            Self::BigInt64Array(unsafe { value.into_void_array().cast() })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>() {
+            // SAFETY: type checked.
+            Self::Float32Array(unsafe { value.into_void_array().cast() })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>() {
+            // SAFETY: type checked.
+            Self::Float64Array(unsafe { value.into_void_array().cast() })
+        } else {
+            #[cfg(feature = "proposal-float16array")]
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f16>() {
+                // SAFETY: type checked.
+                return Self::Float16Array(unsafe { value.into_void_array().cast() });
+            }
+            unreachable!()
+        }
+    }
+}
+impl<'a, T: Viewable> From<GenericTypedArray<'a, T>> for AnyTypedArray<'a> {
+    #[inline(always)]
+    fn from(value: GenericTypedArray<'a, T>) -> Self {
+        let value: TypedArray = value.into();
+        value.into()
+    }
+}
+impl<'a, T: Viewable> From<GenericTypedArray<'a, T>> for Object<'a> {
+    #[inline(always)]
+    fn from(value: GenericTypedArray<'a, T>) -> Self {
+        let value: TypedArray = value.into();
+        value.into()
+    }
+}
+impl<'a, T: Viewable> From<GenericTypedArray<'a, T>> for Value<'a> {
+    #[inline(always)]
+    fn from(value: GenericTypedArray<'a, T>) -> Self {
+        let value: TypedArray = value.into();
+        value.into()
+    }
+}
+impl<'a, T: Viewable> From<GenericTypedArray<'a, T>> for HeapRootData {
+    #[inline(always)]
+    fn from(value: GenericTypedArray<'a, T>) -> Self {
+        let value: TypedArray = value.into();
+        value.into()
+    }
+}
+impl<'a, T: Viewable> TryFrom<TypedArray<'a>> for GenericTypedArray<'a, T> {
+    type Error = ();
+
+    fn try_from(value: TypedArray<'a>) -> Result<Self, Self::Error> {
+        let value: Value = value.into();
+        Self::try_from(value)
+    }
+}
+impl<'a, T: Viewable> TryFrom<AnyTypedArray<'a>> for GenericTypedArray<'a, T> {
+    type Error = ();
+
+    fn try_from(value: AnyTypedArray<'a>) -> Result<Self, Self::Error> {
+        let value: Value = value.into();
+        Self::try_from(value)
+    }
+}
+impl<'a, T: Viewable> TryFrom<Object<'a>> for GenericTypedArray<'a, T> {
+    type Error = ();
+
+    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
+        let value: Value = value.into();
+        Self::try_from(value)
+    }
+}
+impl<'a, T: Viewable> TryFrom<Value<'a>> for GenericTypedArray<'a, T> {
+    type Error = ();
+    #[inline]
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
+        if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>() {
+            if let Value::Uint8Array(ta) = value {
+                // SAFETY: type checked.
+                Ok(unsafe { core::mem::transmute::<Uint8Array, Self>(ta) })
+            } else {
+                Err(())
+            }
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>() {
+            if let Value::Uint8ClampedArray(ta) = value {
+                // SAFETY: type checked.
+                Ok(unsafe { core::mem::transmute::<Uint8ClampedArray, Self>(ta) })
+            } else {
+                Err(())
+            }
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>() {
+            if let Value::Int8Array(ta) = value {
+                // SAFETY: type checked.
+                Ok(unsafe { core::mem::transmute::<Int8Array, Self>(ta) })
+            } else {
+                Err(())
+            }
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u16>() {
+            if let Value::Uint16Array(ta) = value {
+                // SAFETY: type checked.
+                Ok(unsafe { core::mem::transmute::<Uint16Array, Self>(ta) })
+            } else {
+                Err(())
+            }
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i16>() {
+            if let Value::Int16Array(ta) = value {
+                // SAFETY: type checked.
+                Ok(unsafe { core::mem::transmute::<Int16Array, Self>(ta) })
+            } else {
+                Err(())
+            }
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>() {
+            if let Value::Uint32Array(ta) = value {
+                // SAFETY: type checked.
+                Ok(unsafe { core::mem::transmute::<Uint32Array, Self>(ta) })
+            } else {
+                Err(())
+            }
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>() {
+            if let Value::Int32Array(ta) = value {
+                // SAFETY: type checked.
+                Ok(unsafe { core::mem::transmute::<Int32Array, Self>(ta) })
+            } else {
+                Err(())
+            }
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>() {
+            if let Value::BigUint64Array(ta) = value {
+                // SAFETY: type checked.
+                Ok(unsafe { core::mem::transmute::<BigUint64Array, Self>(ta) })
+            } else {
+                Err(())
+            }
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>() {
+            if let Value::BigInt64Array(ta) = value {
+                // SAFETY: type checked.
+                Ok(unsafe { core::mem::transmute::<BigInt64Array, Self>(ta) })
+            } else {
+                Err(())
+            }
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>() {
+            if let Value::Float32Array(ta) = value {
+                // SAFETY: type checked.
+                Ok(unsafe { core::mem::transmute::<Float32Array, Self>(ta) })
+            } else {
+                Err(())
+            }
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>() {
+            if let Value::Float64Array(ta) = value {
+                // SAFETY: type checked.
+                Ok(unsafe { core::mem::transmute::<Float64Array, Self>(ta) })
+            } else {
+                Err(())
+            }
+        } else {
+            #[cfg(feature = "proposal-float16array")]
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f16>() {
+                return if let Value::Float16Array(ta) = value {
+                    // SAFETY: type checked.
+                    Ok(unsafe { core::mem::transmute::<Float16Array, Self>(ta) })
+                } else {
+                    Err(())
+                };
+            }
+            unreachable!()
+        }
+    }
+}
+impl<T: Viewable> TryFrom<HeapRootData> for GenericTypedArray<'_, T> {
+    type Error = ();
+    #[inline]
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>() {
+            if let HeapRootData::Uint8Array(ta) = value {
+                // SAFETY: type checked.
+                Ok(unsafe { core::mem::transmute::<Uint8Array, Self>(ta) })
+            } else {
+                Err(())
+            }
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>() {
+            if let HeapRootData::Uint8ClampedArray(ta) = value {
+                // SAFETY: type checked.
+                Ok(unsafe { core::mem::transmute::<Uint8ClampedArray, Self>(ta) })
+            } else {
+                Err(())
+            }
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>() {
+            if let HeapRootData::Int8Array(ta) = value {
+                // SAFETY: type checked.
+                Ok(unsafe { core::mem::transmute::<Int8Array, Self>(ta) })
+            } else {
+                Err(())
+            }
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u16>() {
+            if let HeapRootData::Uint16Array(ta) = value {
+                // SAFETY: type checked.
+                Ok(unsafe { core::mem::transmute::<Uint16Array, Self>(ta) })
+            } else {
+                Err(())
+            }
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i16>() {
+            if let HeapRootData::Int16Array(ta) = value {
+                // SAFETY: type checked.
+                Ok(unsafe { core::mem::transmute::<Int16Array, Self>(ta) })
+            } else {
+                Err(())
+            }
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>() {
+            if let HeapRootData::Uint32Array(ta) = value {
+                // SAFETY: type checked.
+                Ok(unsafe { core::mem::transmute::<Uint32Array, Self>(ta) })
+            } else {
+                Err(())
+            }
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>() {
+            if let HeapRootData::Int32Array(ta) = value {
+                // SAFETY: type checked.
+                Ok(unsafe { core::mem::transmute::<Int32Array, Self>(ta) })
+            } else {
+                Err(())
+            }
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>() {
+            if let HeapRootData::BigUint64Array(ta) = value {
+                // SAFETY: type checked.
+                Ok(unsafe { core::mem::transmute::<BigUint64Array, Self>(ta) })
+            } else {
+                Err(())
+            }
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>() {
+            if let HeapRootData::BigInt64Array(ta) = value {
+                // SAFETY: type checked.
+                Ok(unsafe { core::mem::transmute::<BigInt64Array, Self>(ta) })
+            } else {
+                Err(())
+            }
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>() {
+            if let HeapRootData::Float32Array(ta) = value {
+                // SAFETY: type checked.
+                Ok(unsafe { core::mem::transmute::<Float32Array, Self>(ta) })
+            } else {
+                Err(())
+            }
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>() {
+            if let HeapRootData::Float64Array(ta) = value {
+                // SAFETY: type checked.
+                Ok(unsafe { core::mem::transmute::<Float64Array, Self>(ta) })
+            } else {
+                Err(())
+            }
+        } else {
+            #[cfg(feature = "proposal-float16array")]
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f16>() {
+                return if let HeapRootData::Float16Array(ta) = value {
+                    // SAFETY: type checked.
+                    Ok(unsafe { core::mem::transmute::<Float16Array, Self>(ta) })
+                } else {
+                    Err(())
+                };
+            }
+            unreachable!()
+        }
+    }
+}
+// === END ===
+
+// === OUTPUT FROM object_handle! ADAPTED TO TypedArray ===
+impl<'a> From<TypedArray<'a>> for AnyTypedArray<'a> {
+    #[inline(always)]
+    fn from(value: TypedArray<'a>) -> Self {
+        match value {
+            TypedArray::Int8Array(ta) => Self::Int8Array(ta),
+            TypedArray::Uint8Array(ta) => Self::Uint8Array(ta),
+            TypedArray::Uint8ClampedArray(ta) => Self::Uint8ClampedArray(ta),
+            TypedArray::Int16Array(ta) => Self::Int16Array(ta),
+            TypedArray::Uint16Array(ta) => Self::Uint16Array(ta),
+            TypedArray::Int32Array(ta) => Self::Int32Array(ta),
+            TypedArray::Uint32Array(ta) => Self::Uint32Array(ta),
+            TypedArray::BigInt64Array(ta) => Self::BigInt64Array(ta),
+            TypedArray::BigUint64Array(ta) => Self::BigUint64Array(ta),
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(ta) => Self::Float16Array(ta),
+            TypedArray::Float32Array(ta) => Self::Float32Array(ta),
+            TypedArray::Float64Array(ta) => Self::Float64Array(ta),
+        }
+    }
+}
+impl<'a> From<TypedArray<'a>> for Object<'a> {
+    #[inline(always)]
+    fn from(value: TypedArray<'a>) -> Self {
+        match value {
+            TypedArray::Int8Array(ta) => Self::Int8Array(ta),
+            TypedArray::Uint8Array(ta) => Self::Uint8Array(ta),
+            TypedArray::Uint8ClampedArray(ta) => Self::Uint8ClampedArray(ta),
+            TypedArray::Int16Array(ta) => Self::Int16Array(ta),
+            TypedArray::Uint16Array(ta) => Self::Uint16Array(ta),
+            TypedArray::Int32Array(ta) => Self::Int32Array(ta),
+            TypedArray::Uint32Array(ta) => Self::Uint32Array(ta),
+            TypedArray::BigInt64Array(ta) => Self::BigInt64Array(ta),
+            TypedArray::BigUint64Array(ta) => Self::BigUint64Array(ta),
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(ta) => Self::Float16Array(ta),
+            TypedArray::Float32Array(ta) => Self::Float32Array(ta),
+            TypedArray::Float64Array(ta) => Self::Float64Array(ta),
+        }
+    }
+}
+impl<'a> From<TypedArray<'a>> for Value<'a> {
+    #[inline(always)]
+    fn from(value: TypedArray<'a>) -> Self {
+        match value {
+            TypedArray::Int8Array(ta) => Self::Int8Array(ta),
+            TypedArray::Uint8Array(ta) => Self::Uint8Array(ta),
+            TypedArray::Uint8ClampedArray(ta) => Self::Uint8ClampedArray(ta),
+            TypedArray::Int16Array(ta) => Self::Int16Array(ta),
+            TypedArray::Uint16Array(ta) => Self::Uint16Array(ta),
+            TypedArray::Int32Array(ta) => Self::Int32Array(ta),
+            TypedArray::Uint32Array(ta) => Self::Uint32Array(ta),
+            TypedArray::BigInt64Array(ta) => Self::BigInt64Array(ta),
+            TypedArray::BigUint64Array(ta) => Self::BigUint64Array(ta),
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(ta) => Self::Float16Array(ta),
+            TypedArray::Float32Array(ta) => Self::Float32Array(ta),
+            TypedArray::Float64Array(ta) => Self::Float64Array(ta),
+        }
+    }
+}
+impl<'a> From<TypedArray<'a>> for HeapRootData {
+    #[inline(always)]
+    fn from(value: TypedArray<'a>) -> Self {
+        match value {
+            TypedArray::Int8Array(ta) => Self::Int8Array(ta),
+            TypedArray::Uint8Array(ta) => Self::Uint8Array(ta),
+            TypedArray::Uint8ClampedArray(ta) => Self::Uint8ClampedArray(ta),
+            TypedArray::Int16Array(ta) => Self::Int16Array(ta),
+            TypedArray::Uint16Array(ta) => Self::Uint16Array(ta),
+            TypedArray::Int32Array(ta) => Self::Int32Array(ta),
+            TypedArray::Uint32Array(ta) => Self::Uint32Array(ta),
+            TypedArray::BigInt64Array(ta) => Self::BigInt64Array(ta),
+            TypedArray::BigUint64Array(ta) => Self::BigUint64Array(ta),
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(ta) => Self::Float16Array(ta),
+            TypedArray::Float32Array(ta) => Self::Float32Array(ta),
+            TypedArray::Float64Array(ta) => Self::Float64Array(ta),
+        }
+    }
+}
+impl<'a> TryFrom<AnyTypedArray<'a>> for TypedArray<'a> {
+    type Error = ();
+
+    fn try_from(value: AnyTypedArray<'a>) -> Result<Self, Self::Error> {
+        match value {
+            AnyTypedArray::Int8Array(ta) => Ok(Self::Int8Array(ta)),
+            AnyTypedArray::Uint8Array(ta) => Ok(Self::Uint8Array(ta)),
+            AnyTypedArray::Uint8ClampedArray(ta) => Ok(Self::Uint8ClampedArray(ta)),
+            AnyTypedArray::Int16Array(ta) => Ok(Self::Int16Array(ta)),
+            AnyTypedArray::Uint16Array(ta) => Ok(Self::Uint16Array(ta)),
+            AnyTypedArray::Int32Array(ta) => Ok(Self::Int32Array(ta)),
+            AnyTypedArray::Uint32Array(ta) => Ok(Self::Uint32Array(ta)),
+            AnyTypedArray::BigInt64Array(ta) => Ok(Self::BigInt64Array(ta)),
+            AnyTypedArray::BigUint64Array(ta) => Ok(Self::BigUint64Array(ta)),
+            #[cfg(feature = "proposal-float16array")]
+            AnyTypedArray::Float16Array(ta) => Ok(Self::Float16Array(ta)),
+            AnyTypedArray::Float32Array(ta) => Ok(Self::Float32Array(ta)),
+            AnyTypedArray::Float64Array(ta) => Ok(Self::Float64Array(ta)),
+            #[cfg(feature = "shared-array-buffer")]
+            _ => Err(()),
+        }
+    }
+}
+impl<'a> TryFrom<Object<'a>> for TypedArray<'a> {
+    type Error = ();
+    #[inline]
+    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Object::Uint8Array(ta) => Ok(Self::Uint8Array(ta)),
+            Object::Int8Array(ta) => Ok(Self::Int8Array(ta)),
+            Object::Uint8ClampedArray(ta) => Ok(Self::Uint8ClampedArray(ta)),
+            Object::Int16Array(ta) => Ok(Self::Int16Array(ta)),
+            Object::Uint16Array(ta) => Ok(Self::Uint16Array(ta)),
+            Object::Int32Array(ta) => Ok(Self::Int32Array(ta)),
+            Object::Uint32Array(ta) => Ok(Self::Uint32Array(ta)),
+            Object::BigInt64Array(ta) => Ok(Self::BigInt64Array(ta)),
+            Object::BigUint64Array(ta) => Ok(Self::BigUint64Array(ta)),
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(ta) => Ok(Self::Float16Array(ta)),
+            Object::Float32Array(ta) => Ok(Self::Float32Array(ta)),
+            Object::Float64Array(ta) => Ok(Self::Float64Array(ta)),
+            _ => Err(()),
+        }
+    }
+}
+impl<'a> TryFrom<Value<'a>> for TypedArray<'a> {
+    type Error = ();
+    #[inline]
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Value::Int8Array(ta) => Ok(Self::Int8Array(ta)),
+            Value::Uint8Array(ta) => Ok(Self::Uint8Array(ta)),
+            Value::Uint8ClampedArray(ta) => Ok(Self::Uint8ClampedArray(ta)),
+            Value::Int16Array(ta) => Ok(Self::Int16Array(ta)),
+            Value::Uint16Array(ta) => Ok(Self::Uint16Array(ta)),
+            Value::Int32Array(ta) => Ok(Self::Int32Array(ta)),
+            Value::Uint32Array(ta) => Ok(Self::Uint32Array(ta)),
+            Value::BigInt64Array(ta) => Ok(Self::BigInt64Array(ta)),
+            Value::BigUint64Array(ta) => Ok(Self::BigUint64Array(ta)),
+            #[cfg(feature = "proposal-float16array")]
+            Value::Float16Array(ta) => Ok(Self::Float16Array(ta)),
+            Value::Float32Array(ta) => Ok(Self::Float32Array(ta)),
+            Value::Float64Array(ta) => Ok(Self::Float64Array(ta)),
+            _ => Err(()),
+        }
+    }
+}
+impl TryFrom<HeapRootData> for TypedArray<'_> {
+    type Error = ();
+    #[inline]
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        match value {
+            HeapRootData::Int8Array(ta) => Ok(Self::Int8Array(ta)),
+            HeapRootData::Uint8Array(ta) => Ok(Self::Uint8Array(ta)),
+            HeapRootData::Uint8ClampedArray(ta) => Ok(Self::Uint8ClampedArray(ta)),
+            HeapRootData::Int16Array(ta) => Ok(Self::Int16Array(ta)),
+            HeapRootData::Uint16Array(ta) => Ok(Self::Uint16Array(ta)),
+            HeapRootData::Int32Array(ta) => Ok(Self::Int32Array(ta)),
+            HeapRootData::Uint32Array(ta) => Ok(Self::Uint32Array(ta)),
+            HeapRootData::BigInt64Array(ta) => Ok(Self::BigInt64Array(ta)),
+            HeapRootData::BigUint64Array(ta) => Ok(Self::BigUint64Array(ta)),
+            // HeapRootData::Float16Array(ta) => Ok(Self::Float16Array(ta)),
+            HeapRootData::Float32Array(ta) => Ok(Self::Float32Array(ta)),
+            HeapRootData::Float64Array(ta) => Ok(Self::Float64Array(ta)),
+            _ => Err(()),
+        }
+    }
+}
+// === END ===

@@ -25,9 +25,8 @@ use crate::{
             agent::{ExceptionType, TryError, TryResult},
         },
         types::{
-            BUILTIN_STRING_MEMORY, Function, InternalSlots, IntoFunction, IntoObject, IntoValue,
-            Number, OrdinaryObject, PropertyKey, String, TryGetResult, Value,
-            handle_try_get_result,
+            BUILTIN_STRING_MEMORY, Function, InternalSlots, Number, OrdinaryObject, PropertyKey,
+            String, TryGetResult, Value, handle_try_get_result,
         },
     },
     engine::{
@@ -205,7 +204,7 @@ impl FunctionPrototype {
         // 5. Let targetHasLength be ? HasOwnProperty(Target, "length").
         let target_has_length = if let TryResult::Continue(result) = try_has_own_property(
             agent,
-            scoped_target.get(agent).into_object(),
+            scoped_target.get(agent).into(),
             BUILTIN_STRING_MEMORY.length.into(),
             None,
             gc.nogc(),
@@ -215,7 +214,7 @@ impl FunctionPrototype {
             scoped_f = Some(f.scope(agent, gc.nogc()));
             let result = has_own_property(
                 agent,
-                target.into_object(),
+                target.into(),
                 BUILTIN_STRING_MEMORY.length.into(),
                 gc.reborrow(),
             )
@@ -335,7 +334,7 @@ impl FunctionPrototype {
         );
         // 11. Return F.
 
-        Ok(f.into_value().unbind())
+        Ok(f.into().unbind())
     }
 
     fn call<'gc>(
@@ -461,8 +460,8 @@ impl FunctionPrototype {
         ThrowTypeError::create_intrinsic(agent, realm);
 
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
-        let object_prototype = intrinsics.object_prototype().into_object();
-        let throw_type_error = intrinsics.throw_type_error().into_function();
+        let object_prototype = intrinsics.object_prototype().into();
+        let throw_type_error = intrinsics.throw_type_error().into();
         let function_constructor = intrinsics.function();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<FunctionPrototype>(agent, realm)
@@ -554,7 +553,7 @@ fn create_throw_type_error_backing_object(
         key: PropertyKey::from(BUILTIN_STRING_MEMORY.name),
         // The "name" property of this function has the attributes { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: false }.
         value: ObjectEntryPropertyDescriptor::Data {
-            value: ThrowTypeError::NAME.into_value(),
+            value: ThrowTypeError::NAME.into(),
             writable: false,
             enumerable: false,
             configurable: false,

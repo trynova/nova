@@ -57,7 +57,7 @@ use crate::{
     ecmascript::{
         builtins::{ordinary::caches::PropertyLookupCache, proxy::Proxy},
         types::{
-            InternalMethods, IntoValue, Object, Reference, SetResult, String, TryHasResult, Value,
+            InternalMethods,  Object, Reference, SetResult, String, TryHasResult, Value,
         },
     },
     engine::{
@@ -649,7 +649,7 @@ impl<'e> Environment<'e> {
     ) -> JsResult<'e, Value<'e>> {
         match self {
             Environment::Function(e) => e.get_this_binding(agent, gc),
-            Environment::Global(e) => Ok(e.get_this_binding(agent).into_value()),
+            Environment::Global(e) => Ok(e.get_this_binding(agent).into()),
             Environment::Module(_) => Ok(Value::Undefined),
             _ => unreachable!(),
         }

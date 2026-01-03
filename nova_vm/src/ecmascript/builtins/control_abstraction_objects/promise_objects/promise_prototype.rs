@@ -21,7 +21,7 @@ use crate::{
             Agent, JsResult, ProtoIntrinsics, Realm,
             agent::{ExceptionType, PromiseRejectionTrackerOperation},
         },
-        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
+        types::{BUILTIN_STRING_MEMORY, Function,  Object, String, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
@@ -108,7 +108,7 @@ impl PromisePrototype {
         // 3. Let C be ? SpeciesConstructor(promise, %Promise%).
         let c = species_constructor(
             agent,
-            promise.into_object().unbind(),
+            promise.into().unbind(),
             ProtoIntrinsics::Promise,
             gc.reborrow(),
         )
@@ -132,7 +132,7 @@ impl PromisePrototype {
                 // d. Let catchFinally be CreateBuiltinFunction(catchFinallyClosure, 1, "", « »).
                 let (then_finally, catch_finally) =
                     BuiltinPromiseFinallyFunction::create_finally_functions(agent, c, on_finally);
-                (then_finally.into_value(), catch_finally.into_value())
+                (then_finally.into(), catch_finally.into())
             } else {
                 // a. Let thenFinally be onFinally.
                 // b. Let catchFinally be onFinally.
@@ -141,7 +141,7 @@ impl PromisePrototype {
         // 7. Return ? Invoke(promise, "then", « thenFinally, catchFinally »).
         invoke(
             agent,
-            promise.into_value().unbind(),
+            promise.into().unbind(),
             BUILTIN_STRING_MEMORY.then.to_property_key(),
             Some(ArgumentsList::from_mut_slice(&mut [
                 then_finally.unbind(),
@@ -186,7 +186,7 @@ impl PromisePrototype {
             Some(result_capability),
             gc,
         );
-        Ok(result_capability_promise.into_value())
+        Ok(result_capability_promise.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -205,7 +205,7 @@ impl PromisePrototype {
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.Promise.into_value())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.Promise.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()

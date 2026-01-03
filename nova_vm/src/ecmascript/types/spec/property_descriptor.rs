@@ -17,8 +17,8 @@ use crate::{
             agent::{ExceptionType, TryError, TryResult},
         },
         types::{
-            BUILTIN_STRING_MEMORY, Function, IntoFunction, IntoObject, IntoValue, Object,
-            OrdinaryObject, TryHasResult, Value, try_get_result_into_value,
+            BUILTIN_STRING_MEMORY, Function, Object, OrdinaryObject, TryHasResult, Value,
+            try_get_result_into_value,
         },
     },
     engine::{
@@ -140,9 +140,9 @@ impl<'a> PropertyDescriptor<'a> {
         }
     }
 
-    pub fn new_data_descriptor(value: impl IntoValue<'a>) -> Self {
+    pub fn new_data_descriptor(value: impl Into<Value<'a>>) -> Self {
         Self {
-            value: Some(value.into_value()),
+            value: Some(value.into()),
             writable: Some(true),
             get: None,
             set: None,
@@ -151,9 +151,9 @@ impl<'a> PropertyDescriptor<'a> {
         }
     }
 
-    pub fn new_prototype_method_descriptor(function: impl IntoFunction<'a>) -> Self {
+    pub fn new_prototype_method_descriptor(function: impl Into<Function<'a>>) -> Self {
         Self {
-            value: Some(function.into_function().into_value().unbind()),
+            value: Some(function.into().into().unbind()),
             writable: Some(true),
             enumerable: Some(false),
             configurable: Some(true),
@@ -234,7 +234,7 @@ impl<'a> PropertyDescriptor<'a> {
             // a. Perform ! CreateDataPropertyOrThrow(obj, "get", Desc.[[Get]]).
             entries.push(ObjectEntry::new_data_entry(
                 BUILTIN_STRING_MEMORY.get.into(),
-                get.into_value(),
+                get.into(),
             ));
         }
 
@@ -243,7 +243,7 @@ impl<'a> PropertyDescriptor<'a> {
             // a. Perform ! CreateDataPropertyOrThrow(obj, "set", Desc.[[Set]]).
             entries.push(ObjectEntry::new_data_entry(
                 BUILTIN_STRING_MEMORY.set.into(),
-                set.into_value(),
+                set.into(),
             ));
         }
 
@@ -276,7 +276,7 @@ impl<'a> PropertyDescriptor<'a> {
                     .current_realm_record()
                     .intrinsics()
                     .object_prototype()
-                    .into_object(),
+                    .into(),
             ),
             &entries,
         )

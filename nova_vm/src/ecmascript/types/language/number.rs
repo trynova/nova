@@ -6,7 +6,7 @@ mod data;
 mod radix;
 
 use super::{
-    IntoNumeric, IntoPrimitive, IntoValue, Numeric, Primitive, String, Value,
+    Numeric, Primitive, String, Value,
     value::{FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT},
 };
 use crate::{
@@ -41,8 +41,9 @@ pub struct HeapNumber<'a>(BaseIndex<'a, NumberHeapData>);
 bindable_handle!(HeapNumber);
 
 impl HeapIndexHandle for HeapNumber<'_> {
+    #[inline]
     fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_u32_index(index))
+        Self(BaseIndex::from_index_u32(index))
     }
 
     fn get_index_u32(&self) -> u32 {
@@ -72,21 +73,21 @@ pub enum NumberRootRepr {
     HeapRef(HeapRootRef) = 0x80,
 }
 
-impl<'a> IntoValue<'a> for HeapNumber<'a> {
-    fn into_value(self) -> Value<'a> {
-        Value::Number(self.unbind())
+impl<'a> From<HeapNumber<'a>> for Value<'a> {
+    fn from(value: HeapNumber<'a>) -> Self {
+        Self::Number(value)
     }
 }
 
-impl<'a> IntoPrimitive<'a> for HeapNumber<'a> {
-    fn into_primitive(self) -> Primitive<'a> {
-        Primitive::Number(self.unbind())
+impl<'a> From<HeapNumber<'a>> for Primitive<'a> {
+    fn from(value: HeapNumber<'a>) -> Self {
+        Self::Number(value)
     }
 }
 
-impl<'a> IntoNumeric<'a> for HeapNumber<'a> {
-    fn into_numeric(self) -> Numeric<'a> {
-        Numeric::Number(self)
+impl<'a> From<HeapNumber<'a>> for Numeric<'a> {
+    fn from(value: HeapNumber<'a>) -> Self {
+        Numeric::Number(value)
     }
 }
 
@@ -102,12 +103,12 @@ impl<'a> TryFrom<Value<'a>> for HeapNumber<'a> {
     }
 }
 
-impl<'a> IntoNumeric<'a> for Number<'a> {
-    fn into_numeric(self) -> Numeric<'a> {
-        match self {
-            Number::Number(idx) => Numeric::Number(idx.unbind()),
-            Number::Integer(data) => Numeric::Integer(data),
-            Number::SmallF64(data) => Numeric::SmallF64(data),
+impl<'a> From<Number<'a>> for Numeric<'a> {
+    fn from(value: Number<'a>) -> Self {
+        match value {
+            Number::Number(data) => Self::Number(data),
+            Number::Integer(data) => Self::Integer(data),
+            Number::SmallF64(data) => Self::SmallF64(data),
         }
     }
 }

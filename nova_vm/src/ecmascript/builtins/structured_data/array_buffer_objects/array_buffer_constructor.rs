@@ -11,10 +11,7 @@ use crate::{
             array_buffer::{allocate_array_buffer, get_array_buffer_max_byte_length_option},
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{
-            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyKey, String,
-            Value,
-        },
+        types::{BUILTIN_STRING_MEMORY, Function, Object, PropertyKey, String, Value},
     },
     engine::{
         context::{Bindable, GcScope},
@@ -121,7 +118,7 @@ impl ArrayBufferConstructor {
             requested_max_byte_length,
             gc,
         )
-        .map(|ab| ab.into_value())
+        .map(|ab| ab.into())
     }
 
     /// ### [25.1.5.1 ArrayBuffer.isView ( arg )](https://tc39.es/ecma262/#sec-arraybuffer.isview)
@@ -182,7 +179,7 @@ impl ArrayBufferConstructor {
         BuiltinFunctionBuilder::new_intrinsic_constructor::<ArrayBufferConstructor>(agent, realm)
             .with_property_capacity(3)
             .with_builtin_function_property::<ArrayBufferIsView>()
-            .with_prototype_property(array_buffer_prototype.into_object())
+            .with_prototype_property(array_buffer_prototype.into())
             .with_builtin_function_getter_property::<ArrayBufferGetSpecies>()
             .build();
     }

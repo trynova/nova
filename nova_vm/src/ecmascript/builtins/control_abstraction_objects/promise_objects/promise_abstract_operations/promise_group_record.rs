@@ -11,7 +11,7 @@ use crate::{
             },
         },
         execution::{Agent, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, OrdinaryObject, PropertyDescriptor, Value},
+        types::{BUILTIN_STRING_MEMORY, OrdinaryObject, PropertyDescriptor, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
@@ -106,7 +106,7 @@ impl<'a> PromiseGroup<'a> {
             promise_group.pop_empty_records(agent);
 
             let capability = PromiseCapability::from_promise(promise_to_resolve, true);
-            capability.resolve(agent, result_array.into_value().unbind(), gc.reborrow());
+            capability.resolve(agent, result_array.into().unbind(), gc.reborrow());
         }
     }
 
@@ -135,7 +135,7 @@ impl<'a> PromiseGroup<'a> {
                 aggregate_error,
                 BUILTIN_STRING_MEMORY.errors.into(),
                 PropertyDescriptor {
-                    value: Some(result_array.into_value().unbind()),
+                    value: Some(result_array.into().unbind()),
                     writable: Some(true),
                     get: None,
                     set: None,
@@ -146,7 +146,7 @@ impl<'a> PromiseGroup<'a> {
             )
             .unwrap();
 
-            capability.reject(agent, aggregate_error.into_value(), gc.nogc());
+            capability.reject(agent, aggregate_error.into(), gc.nogc());
         }
     }
 
@@ -212,7 +212,7 @@ impl<'a> PromiseGroup<'a> {
         .expect("Should perform GC here")
         .bind(gc);
 
-        obj.into_value().unbind()
+        obj.into().unbind()
     }
 
     pub fn get(self, agent: &Agent) -> &PromiseGroupRecord<'a> {

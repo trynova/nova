@@ -43,8 +43,8 @@ use crate::{
             },
         },
         types::{
-            BUILTIN_STRING_MEMORY, BigInt, IntoNumeric, IntoObject, IntoValue, Number, Numeric,
-            OrdinaryObject, SharedDataBlock, String, Value,
+            BUILTIN_STRING_MEMORY, BigInt, Number, Numeric, OrdinaryObject, SharedDataBlock,
+            String, Value,
         },
     },
     engine::{
@@ -189,7 +189,7 @@ impl AtomicsObject {
             arguments.get(2),
             gc,
         )
-        .map(|v| v.into_value())
+        .map(|v| v.into())
     }
 
     fn and<'gc>(
@@ -205,7 +205,7 @@ impl AtomicsObject {
             arguments.get(2),
             gc,
         )
-        .map(|v| v.into_value())
+        .map(|v| v.into())
     }
 
     /// ### [25.4.6 Atomics.compareExchange ( typedArray, index, expectedValue, replacementValue )](https://tc39.es/ecma262/#sec-atomics.compareexchange)
@@ -301,7 +301,7 @@ impl AtomicsObject {
                     replacement,
                     gc,
                 )
-                .into_value()
+                .into()
             },
             ElementType
         ))
@@ -320,7 +320,7 @@ impl AtomicsObject {
             arguments.get(2),
             gc,
         )
-        .map(|v| v.into_value())
+        .map(|v| v.into())
     }
 
     /// ### [25.4.8 Atomics.isLockFree ( size )](https://tc39.es/ecma262/#sec-atomics.islockfree)
@@ -467,7 +467,7 @@ impl AtomicsObject {
             },
             ElementType
         )
-        .into_value())
+        .into())
     }
 
     fn or<'gc>(
@@ -483,7 +483,7 @@ impl AtomicsObject {
             arguments.get(2),
             gc,
         )
-        .map(|v| v.into_value())
+        .map(|v| v.into())
     }
 
     /// ### [25.4.11 Atomics.store ( typedArray, index, value )](https://tc39.es/ecma262/#sec-atomics.store)
@@ -527,7 +527,7 @@ impl AtomicsObject {
             ElementType
         );
         // 8. Return v.
-        Ok(v.into_value())
+        Ok(v.into())
     }
 
     fn sub<'gc>(
@@ -543,7 +543,7 @@ impl AtomicsObject {
             arguments.get(2),
             gc,
         )
-        .map(|v| v.into_value())
+        .map(|v| v.into())
     }
 
     /// ### [25.4.13 Atomics.wait ( typedArray, index, value, timeout )](https://tc39.es/ecma262/#sec-atomics.wait)
@@ -725,7 +725,7 @@ impl AtomicsObject {
         // 12. Perform LeaveCriticalSection(WL).
         // 13. Let n be the number of elements in S.
         // 14. Return 𝔽(n).
-        Ok(Number::from_usize(agent, n, gc).into_value())
+        Ok(Number::from_usize(agent, n, gc).into())
     }
 
     fn xor<'gc>(
@@ -741,7 +741,7 @@ impl AtomicsObject {
             arguments.get(2),
             gc,
         )
-        .map(|v| v.into_value())
+        .map(|v| v.into())
     }
 
     /// ### [1 Atomics.pause ( [ N ] )](https://tc39.es/proposal-atomics-microwait/#Atomics.pause)
@@ -1485,9 +1485,9 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
         // c. Perform ! CreateDataPropertyOrThrow(resultObject, "async", false).
         // d. Perform ! CreateDataPropertyOrThrow(resultObject, "value", "not-equal").
         let result_object =
-            create_wait_result_object(agent, false, BUILTIN_STRING_MEMORY.not_equal.into_value());
+            create_wait_result_object(agent, false, BUILTIN_STRING_MEMORY.not_equal.into());
         // e. Return resultObject.
-        return result_object.into_value();
+        return result_object.into();
     }
     // 21. If t = 0 and mode is async, then
     if t == 0 && IS_ASYNC {
@@ -1498,9 +1498,9 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
         // c. Perform ! CreateDataPropertyOrThrow(resultObject, "async", false).
         // d. Perform ! CreateDataPropertyOrThrow(resultObject, "value", "timed-out").
         let result_object =
-            create_wait_result_object(agent, false, BUILTIN_STRING_MEMORY.timed_out.into_value());
+            create_wait_result_object(agent, false, BUILTIN_STRING_MEMORY.timed_out.into());
         // e. Return resultObject.
-        return result_object.into_value();
+        return result_object.into();
     }
     // 22. Let thisAgent be AgentSignifier().
     // 23. Let now be the time value (UTC) identifying the current time.
@@ -1541,10 +1541,10 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
         // 32. If mode is sync, return waiterRecord.[[Result]].
 
         match result {
-            Ok(_) => BUILTIN_STRING_MEMORY.ok.into_value(),
+            Ok(_) => BUILTIN_STRING_MEMORY.ok.into(),
             Err(err) => match err {
-                FutexError::Timeout => BUILTIN_STRING_MEMORY.timed_out.into_value(),
-                FutexError::NotEqual => BUILTIN_STRING_MEMORY.not_equal.into_value(),
+                FutexError::Timeout => BUILTIN_STRING_MEMORY.timed_out.into(),
+                FutexError::NotEqual => BUILTIN_STRING_MEMORY.not_equal.into(),
                 FutexError::Unknown => panic!(),
             },
         }
@@ -1567,9 +1567,9 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
         // 33. Perform ! CreateDataPropertyOrThrow(resultObject, "async", true).
         // 34. Perform ! CreateDataPropertyOrThrow(resultObject, "value", promiseCapability.[[Promise]]).
         let result_object =
-            create_wait_result_object(agent, true, promise_capability.promise().into_value());
+            create_wait_result_object(agent, true, promise_capability.promise().into());
         // 35. Return resultObject.
-        result_object.into_value()
+        result_object.into()
     }
 }
 
@@ -1639,14 +1639,11 @@ fn create_wait_result_object<'gc>(
                 .current_realm_record()
                 .intrinsics()
                 .object_prototype()
-                .into_object(),
+                .into(),
         ),
         &[
             // 1. Perform ! CreateDataPropertyOrThrow(resultObject, "async", isAsync).
-            ObjectEntry::new_data_entry(
-                BUILTIN_STRING_MEMORY.r#async.into(),
-                is_async.into_value(),
-            ),
+            ObjectEntry::new_data_entry(BUILTIN_STRING_MEMORY.r#async.into(), is_async.into()),
             // 34. Perform ! CreateDataPropertyOrThrow(resultObject, "value", value).
             ObjectEntry::new_data_entry(BUILTIN_STRING_MEMORY.value.into(), value),
         ],
@@ -1696,9 +1693,9 @@ impl WaitAsyncJob {
         // c. Perform LeaveCriticalSection(WL).
         let promise_capability = PromiseCapability::from_promise(promise, true);
         let result = match result {
-            Ok(_) => BUILTIN_STRING_MEMORY.ok.into_value(),
-            Err(FutexError::NotEqual) => BUILTIN_STRING_MEMORY.ok.into_value(),
-            Err(FutexError::Timeout) => BUILTIN_STRING_MEMORY.timed_out.into_value(),
+            Ok(_) => BUILTIN_STRING_MEMORY.ok.into(),
+            Err(FutexError::NotEqual) => BUILTIN_STRING_MEMORY.ok.into(),
+            Err(FutexError::Timeout) => BUILTIN_STRING_MEMORY.timed_out.into(),
             Err(FutexError::Unknown) => {
                 let error = agent.throw_exception_with_static_message(
                     ExceptionType::Error,

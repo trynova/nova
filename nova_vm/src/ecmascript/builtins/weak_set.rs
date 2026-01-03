@@ -6,12 +6,9 @@ use crate::{
     Heap,
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
-        types::{Function, InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
+        types::{Function, InternalMethods, InternalSlots, OrdinaryObject, object_handle},
     },
-    engine::{
-        context::{Bindable, bindable_handle},
-        rootable::HeapRootData,
-    },
+    engine::context::Bindable,
     heap::{
         CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
         indexes::{BaseIndex, HeapIndexHandle},
@@ -27,6 +24,7 @@ pub mod data;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct WeakSet<'a>(BaseIndex<'a, WeakSetHeapData<'static>>);
+object_handle!(WeakSet);
 
 impl WeakSet<'_> {
     /// Returns true if the function is equal to %WeakSet.prototype.add%.
@@ -54,35 +52,6 @@ impl WeakSet<'_> {
     }
 }
 
-bindable_handle!(WeakSet);
-
-impl HeapIndexHandle for WeakSet<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_index_u32(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.get_index_u32()
-    }
-}
-
-impl<'a> From<WeakSet<'a>> for Object<'a> {
-    fn from(value: WeakSet<'a>) -> Self {
-        Object::WeakSet(value)
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for WeakSet<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::WeakSet(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
 impl<'a> InternalSlots<'a> for WeakSet<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::WeakSet;
 
@@ -102,19 +71,6 @@ impl<'a> InternalSlots<'a> for WeakSet<'a> {
 }
 
 impl<'a> InternalMethods<'a> for WeakSet<'a> {}
-
-impl TryFrom<HeapRootData> for WeakSet<'_> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        if let HeapRootData::WeakSet(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
-}
 
 impl<'a> CreateHeapData<WeakSetHeapData<'a>, WeakSet<'a>> for Heap {
     fn create(&mut self, data: WeakSetHeapData<'a>) -> WeakSet<'a> {

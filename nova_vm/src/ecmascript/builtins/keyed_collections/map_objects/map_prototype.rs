@@ -20,7 +20,7 @@ use crate::{
             map::{Map, data::MapHeapDataMut},
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, HeapNumber, IntoValue, PropertyKey, String, Value},
+        types::{BUILTIN_STRING_MEMORY, HeapNumber, PropertyKey, String, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
@@ -199,7 +199,7 @@ impl MapPrototype {
         // 24.1.5.1 CreateMapIterator ( map, kind )
         // 1. Perform ? RequireInternalSlot(map, [[MapData]]).
         let m = require_map_data_internal_slot(agent, this_value, gc)?;
-        Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::KeyAndValue).into_value())
+        Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::KeyAndValue).into())
     }
 
     /// ### [24.1.3.5 Map.prototype.forEach ( callbackfn \[ , thisArg \] )](https://tc39.es/ecma262/#sec-map.prototype.foreach)
@@ -280,7 +280,7 @@ impl MapPrototype {
                     Some(ArgumentsList::from_mut_slice(&mut [
                         v.unbind(),
                         k.unbind(),
-                        m.into_value().unbind(),
+                        m.into().unbind(),
                     ])),
                     gc.reborrow(),
                 )
@@ -415,7 +415,7 @@ impl MapPrototype {
         // 24.1.5.1 CreateMapIterator ( map, kind )
         // 1. Perform ? RequireInternalSlot(map, [[MapData]]).
         let m = require_map_data_internal_slot(agent, this_value, gc)?;
-        Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::Key).into_value())
+        Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::Key).into())
     }
 
     /// ### [24.1.3.9 Map.prototype.set ( key, value )](https://tc39.es/ecma262/#sec-map.prototype.set)
@@ -486,7 +486,7 @@ impl MapPrototype {
             }
         }
         // 7. Return M.
-        Ok(m.into_value())
+        Ok(m.into())
     }
 
     /// ### [24.1.3.10 get Map.prototype.size](https://tc39.es/ecma262/#sec-get-map.prototype.size)
@@ -516,7 +516,7 @@ impl MapPrototype {
         // 24.1.5.1 CreateMapIterator ( map, kind )
         // 1. Perform ? RequireInternalSlot(map, [[MapData]]).
         let m = require_map_data_internal_slot(agent, this_value, gc)?;
-        Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::Value).into_value())
+        Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::Value).into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -543,7 +543,7 @@ impl MapPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::Iterator.into())
-                    .with_value(map_prototype_entries.into_value())
+                    .with_value(map_prototype_entries.into())
                     .with_enumerable(MapPrototypeValues::ENUMERABLE)
                     .with_configurable(MapPrototypeValues::CONFIGURABLE)
                     .build()
@@ -551,7 +551,7 @@ impl MapPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.Map.into_value())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.Map.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()

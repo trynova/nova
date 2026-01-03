@@ -5,12 +5,9 @@
 use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
+        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, object_handle},
     },
-    engine::{
-        context::{Bindable, bindable_handle},
-        rootable::HeapRootData,
-    },
+    engine::context::{Bindable, bindable_handle},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         WorkQueues,
@@ -21,7 +18,7 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct ArrayIterator<'a>(BaseIndex<'a, ArrayIteratorHeapData<'static>>);
-bindable_handle!(ArrayIterator);
+object_handle!(ArrayIterator);
 
 impl<'a> ArrayIterator<'a> {
     pub(crate) fn from_object(
@@ -35,44 +32,6 @@ impl<'a> ArrayIterator<'a> {
             next_index: 0,
             kind,
         })
-    }
-}
-
-impl HeapIndexHandle for ArrayIterator<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_index_u32(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.get_index_u32()
-    }
-}
-
-impl<'a> From<ArrayIterator<'a>> for Object<'a> {
-    fn from(value: ArrayIterator) -> Self {
-        Self::ArrayIterator(value.unbind())
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for ArrayIterator<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::ArrayIterator(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for ArrayIterator<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Object::ArrayIterator(data) => Ok(data),
-            _ => Err(()),
-        }
     }
 }
 
@@ -95,19 +54,6 @@ impl<'a> InternalSlots<'a> for ArrayIterator<'a> {
 }
 
 impl<'a> InternalMethods<'a> for ArrayIterator<'a> {}
-
-impl TryFrom<HeapRootData> for ArrayIterator<'_> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        if let HeapRootData::ArrayIterator(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
-}
 
 impl<'a> CreateHeapData<ArrayIteratorHeapData<'a>, ArrayIterator<'a>> for Heap {
     fn create(&mut self, data: ArrayIteratorHeapData<'a>) -> ArrayIterator<'a> {

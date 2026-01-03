@@ -20,7 +20,7 @@ use crate::{
                 script_var_scoped_declarations,
             },
         },
-        types::{BUILTIN_STRING_MEMORY, IntoValue, String, Value},
+        types::{BUILTIN_STRING_MEMORY, String, Value},
     },
     engine::{
         Executable, Vm,
@@ -691,7 +691,7 @@ unsafe fn global_declaration_instantiation<'a>(
             .create_global_function_binding(
                 agent,
                 function_name.unbind(),
-                fo.into_value().unbind(),
+                fo.into().unbind(),
                 false,
                 gc.reborrow(),
             )
@@ -731,8 +731,8 @@ mod test {
             },
             scripts_and_modules::script::{parse_script, script_evaluation},
             types::{
-                BUILTIN_STRING_MEMORY, InternalMethods, IntoObject, IntoValue, Number, Object,
-                PropertyKey, String, TryHasResult, Value,
+                BUILTIN_STRING_MEMORY, InternalMethods, Number, Object, PropertyKey, String,
+                TryHasResult, Value,
             },
         },
         engine::{
@@ -1087,7 +1087,7 @@ mod test {
         let key = PropertyKey::Integer(0.into());
         assert_eq!(
             result.try_has_property(&mut agent, key, None, gc.nogc()),
-            ControlFlow::Continue(TryHasResult::Custom(0, result.into_object()))
+            ControlFlow::Continue(TryHasResult::Custom(0, result.into()))
         );
         assert_eq!(
             unwrap_try(result.try_get_own_property(&mut agent, key, None, gc.nogc()))
@@ -1098,7 +1098,7 @@ mod test {
         let key = PropertyKey::Integer(1.into());
         assert_eq!(
             result.try_has_property(&mut agent, key, None, gc.nogc()),
-            ControlFlow::Continue(TryHasResult::Custom(1, result.into_object()))
+            ControlFlow::Continue(TryHasResult::Custom(1, result.into()))
         );
         assert_eq!(
             unwrap_try(result.try_get_own_property(&mut agent, key, None, gc.nogc()))
@@ -1199,7 +1199,7 @@ mod test {
         let result = agent
             .run_script(source_text.unbind(), gc.reborrow())
             .unwrap();
-        assert_eq!(result, Number::from(3).into_value());
+        assert_eq!(result, Number::from(3).into());
     }
 
     #[test]
@@ -1237,7 +1237,7 @@ mod test {
             &mut agent,
             global.unbind(),
             key.unbind(),
-            func.into_value().unbind(),
+            func.into().unbind(),
             gc.reborrow(),
         )
         .unwrap();
@@ -1272,7 +1272,7 @@ mod test {
         let result = agent
             .run_script(source_text.unbind(), gc.reborrow())
             .unwrap();
-        assert_eq!(result, Number::from(3).into_value());
+        assert_eq!(result, Number::from(3).into());
 
         let source_text = String::from_static_str(&mut agent, "if (false) 3", gc.nogc());
         let result = agent
@@ -1296,7 +1296,7 @@ mod test {
         let result = agent
             .run_script(source_text.unbind(), gc.reborrow())
             .unwrap();
-        assert_eq!(result, Number::from(3).into_value());
+        assert_eq!(result, Number::from(3).into());
 
         let source_text = String::from_static_str(
             &mut agent,
@@ -1306,7 +1306,7 @@ mod test {
         let result = agent
             .run_script(source_text.unbind(), gc.reborrow())
             .unwrap();
-        assert_eq!(result, Number::from(5).into_value());
+        assert_eq!(result, Number::from(5).into());
     }
 
     #[test]
@@ -1321,7 +1321,7 @@ mod test {
         let result = agent
             .run_script(source_text.unbind(), gc.reborrow())
             .unwrap();
-        assert_eq!(result, Number::from(3).into_value());
+        assert_eq!(result, Number::from(3).into());
     }
 
     #[test]
@@ -1339,7 +1339,7 @@ mod test {
         let result = agent
             .run_script(source_text.unbind(), gc.reborrow())
             .unwrap();
-        assert_eq!(result, Number::from(3).into_value());
+        assert_eq!(result, Number::from(3).into());
     }
 
     #[test]
@@ -1357,7 +1357,7 @@ mod test {
         let result = agent
             .run_script(source_text.unbind(), gc.reborrow())
             .unwrap();
-        assert_eq!(result, Number::from(3).into_value());
+        assert_eq!(result, Number::from(3).into());
     }
     #[test]
     fn for_loop() {
@@ -1416,7 +1416,7 @@ mod test {
         ));
         assert_eq!(
             unwrap_try(global_env.try_get_binding_value(&mut agent, a_key, None, true, gc.nogc())),
-            String::from_small_string("foo").into_value()
+            String::from_small_string("foo").into()
         );
         assert_eq!(
             unwrap_try(global_env.try_get_binding_value(&mut agent, i_key, None, true, gc.nogc())),
@@ -1471,7 +1471,7 @@ mod test {
         assert_eq!(
             object
                 .unbind()
-                .internal_get(&mut agent, pk.unbind(), object.into_value().unbind(), gc)
+                .internal_get(&mut agent, pk.unbind(), object.into().unbind(), gc)
                 .unwrap(),
             Value::Integer(SmallInteger::from(42))
         );

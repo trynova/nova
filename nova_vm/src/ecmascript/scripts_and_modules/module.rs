@@ -35,7 +35,7 @@ use crate::{
             agent::{ExceptionType, get_active_script_or_module, unwrap_try},
         },
         scripts_and_modules::module::module_semantics::all_import_attributes_supported,
-        types::{BUILTIN_STRING_MEMORY, IntoValue, Object, String, Value},
+        types::{BUILTIN_STRING_MEMORY, Object, String, Value},
     },
     engine::{
         Scoped,
@@ -389,7 +389,7 @@ pub(crate) fn link_and_evaluate(
                 // ii. Perform ! Call(promiseCapability.[[Resolve]], undefined, « namespace »).
                 unwrap_try(PromiseCapability::from_promise(promise, true).try_resolve(
                     agent,
-                    namespace.into_value(),
+                    namespace.into(),
                     gc.nogc(),
                 ));
                 // iii. Return unused.
@@ -438,7 +438,7 @@ pub(crate) fn import_get_module_namespace(
     // ii. Perform ! Call(promiseCapability.[[Resolve]], undefined, « namespace »).
     unwrap_try(PromiseCapability::from_promise(promise, true).try_resolve(
         agent,
-        namespace.into_value(),
+        namespace.into(),
         gc,
     ));
     // iii. Return unused.

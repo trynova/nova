@@ -3,8 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{
-    BigInt, BigIntHeapData, IntoValue, Number, Numeric, OrdinaryObject, Primitive, String,
-    StringRecord, Symbol, bigint::HeapBigInt, number::HeapNumber, string::HeapString,
+    BigInt, BigIntHeapData, Number, Numeric, OrdinaryObject, Primitive, String, StringRecord,
+    Symbol, bigint::HeapBigInt, number::HeapNumber, string::HeapString,
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
@@ -83,7 +83,7 @@ use crate::{
         small_bigint::SmallBigInt,
         small_f64::SmallF64,
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, indexes::HeapIndexHandle},
 };
 
 use core::{
@@ -486,7 +486,7 @@ impl<'a> Value<'a> {
     }
 
     pub fn from_str(agent: &mut Agent, str: &str, gc: NoGcScope<'a, '_>) -> Value<'a> {
-        String::from_str(agent, str, gc).into_value()
+        String::from_str(agent, str, gc).into()
     }
 
     pub fn from_string(
@@ -494,7 +494,7 @@ impl<'a> Value<'a> {
         string: std::string::String,
         gc: NoGcScope<'a, '_>,
     ) -> Value<'a> {
-        String::from_string(agent, string, gc).into_value()
+        String::from_string(agent, string, gc).into()
     }
 
     pub fn from_static_str(
@@ -502,35 +502,35 @@ impl<'a> Value<'a> {
         str: &'static str,
         gc: NoGcScope<'a, '_>,
     ) -> Value<'a> {
-        String::from_static_str(agent, str, gc).into_value()
+        String::from_static_str(agent, str, gc).into()
     }
 
     pub fn from_f64(agent: &mut Agent, value: f64, gc: NoGcScope<'a, '_>) -> Value<'a> {
-        Number::from_f64(agent, value, gc).into_value()
+        Number::from_f64(agent, value, gc).into()
     }
 
     pub fn from_i64(agent: &mut Agent, value: i64, gc: NoGcScope<'a, '_>) -> Value<'a> {
-        Number::from_i64(agent, value, gc).into_value()
+        Number::from_i64(agent, value, gc).into()
     }
 
     pub fn nan() -> Self {
-        Number::nan().into_value()
+        Number::nan().into()
     }
 
     pub fn pos_inf() -> Self {
-        Number::pos_inf().into_value()
+        Number::pos_inf().into()
     }
 
     pub fn neg_inf() -> Self {
-        Number::neg_inf().into_value()
+        Number::neg_inf().into()
     }
 
     pub fn pos_zero() -> Self {
-        Number::pos_zero().into_value()
+        Number::pos_zero().into()
     }
 
     pub fn neg_zero() -> Self {
-        Number::neg_zero().into_value()
+        Number::neg_zero().into()
     }
 
     pub fn is_true(self) -> bool {

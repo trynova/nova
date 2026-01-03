@@ -33,8 +33,7 @@ use crate::{
             agent::{ExceptionType, JsError},
         },
         types::{
-            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, OrdinaryObject,
-            PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, Function, Object, OrdinaryObject, PropertyKey, String, Value,
         },
     },
     engine::{
@@ -154,13 +153,7 @@ impl PromiseConstructor {
         };
         let new_target = new_target.unbind().bind(gc.nogc());
 
-        if new_target
-            != agent
-                .current_realm_record()
-                .intrinsics()
-                .promise()
-                .into_object()
-        {
+        if new_target != agent.current_realm_record().intrinsics().promise().into() {
             return Err(throw_promise_subclassing_not_supported(
                 agent,
                 gc.into_nogc(),
@@ -205,7 +198,7 @@ impl PromiseConstructor {
                 promise_capability: promise_capability.clone(),
                 resolve_type: PromiseResolvingFunctionType::Resolve,
             })
-            .into_value();
+            .into();
         let reject_function = agent
             .heap
             .create(PromiseResolvingFunctionHeapData {
@@ -213,7 +206,7 @@ impl PromiseConstructor {
                 promise_capability: promise_capability.clone(),
                 resolve_type: PromiseResolvingFunctionType::Reject,
             })
-            .into_value();
+            .into();
 
         // 9. Let completion be Completion(Call(executor, undefined, « resolvingFunctions.[[Resolve]], resolvingFunctions.[[Reject]] »)).
         // 10. If completion is an abrupt completion, then
@@ -234,7 +227,7 @@ impl PromiseConstructor {
         }
 
         // 11. Return promise.
-        Ok(scoped_promise.get(agent).into_value())
+        Ok(scoped_promise.get(agent).into())
     }
 
     /// ### [27.2.4.1 Promise.all ( iterable )](https://tc39.es/ecma262/#sec-promise.all)
@@ -268,7 +261,7 @@ impl PromiseConstructor {
         } = match setup_result {
             PromiseGroupSetupResult::Success(res) => res,
             PromiseGroupSetupResult::AbruptReject(promise) => {
-                return Ok(promise.unbind().into_value());
+                return Ok(promise.unbind().into());
             }
         };
 
@@ -336,7 +329,7 @@ impl PromiseConstructor {
         } = match setup_result {
             PromiseGroupSetupResult::Success(res) => res,
             PromiseGroupSetupResult::AbruptReject(promise) => {
-                return Ok(promise.unbind().into_value());
+                return Ok(promise.unbind().into());
             }
         };
 
@@ -404,7 +397,7 @@ impl PromiseConstructor {
         } = match setup_result {
             PromiseGroupSetupResult::Success(res) => res,
             PromiseGroupSetupResult::AbruptReject(promise) => {
-                return Ok(promise.unbind().into_value());
+                return Ok(promise.unbind().into());
             }
         };
 
@@ -477,7 +470,7 @@ impl PromiseConstructor {
         } = match setup_result {
             PromiseGroupSetupResult::Success(res) => res,
             PromiseGroupSetupResult::AbruptReject(promise) => {
-                return Ok(promise.unbind().into_value());
+                return Ok(promise.unbind().into());
             }
         };
 
@@ -526,13 +519,7 @@ impl PromiseConstructor {
     ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
         let r = arguments.get(0).bind(gc);
-        if this_value
-            != agent
-                .current_realm_record()
-                .intrinsics()
-                .promise()
-                .into_value()
-        {
+        if this_value != agent.current_realm_record().intrinsics().promise().into() {
             return Err(throw_promise_subclassing_not_supported(agent, gc));
         }
 
@@ -542,7 +529,7 @@ impl PromiseConstructor {
         // 4. Return promiseCapability.[[Promise]].
         // NOTE: Since we don't support promise subclassing, this is equivalent
         // to creating an already-rejected promise.
-        Ok(Promise::new_rejected(agent, r, gc).into_value())
+        Ok(Promise::new_rejected(agent, r, gc).into())
     }
 
     /// ### [27.2.4.7 Promise.resolve ( x )](https://tc39.es/ecma262/#sec-promise.resolve)
@@ -556,13 +543,7 @@ impl PromiseConstructor {
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        if this_value
-            != agent
-                .current_realm_record()
-                .intrinsics()
-                .promise()
-                .into_value()
-        {
+        if this_value != agent.current_realm_record().intrinsics().promise().into() {
             return Err(throw_promise_subclassing_not_supported(
                 agent,
                 gc.into_nogc(),
@@ -570,7 +551,7 @@ impl PromiseConstructor {
         }
 
         // 3. Return ? PromiseResolve(C, x).
-        Ok(Promise::resolve(agent, arguments.get(0), gc).into_value())
+        Ok(Promise::resolve(agent, arguments.get(0), gc).into())
     }
 
     /// ### [27.2.4.8 Promise.try ( callback, ...args )](https://tc39.es/ecma262/#sec-promise.try)
@@ -595,13 +576,7 @@ impl PromiseConstructor {
                 gc.into_nogc(),
             ));
         }
-        if this_value
-            != agent
-                .current_realm_record()
-                .intrinsics()
-                .promise()
-                .into_value()
-        {
+        if this_value != agent.current_realm_record().intrinsics().promise().into() {
             return Err(throw_promise_subclassing_not_supported(
                 agent,
                 gc.into_nogc(),
@@ -637,7 +612,7 @@ impl PromiseConstructor {
             }
         };
         // 7. Return promiseCapability.[[Promise]].
-        Ok(promise.into_value().unbind())
+        Ok(promise.into().unbind())
     }
 
     /// ### [27.2.4.9 Promise.withResolvers ( )](https://tc39.es/ecma262/#sec-promise.withResolvers)
@@ -656,13 +631,7 @@ impl PromiseConstructor {
                 gc,
             ));
         }
-        if this_value
-            != agent
-                .current_realm_record()
-                .intrinsics()
-                .promise()
-                .into_value()
-        {
+        if this_value != agent.current_realm_record().intrinsics().promise().into() {
             return Err(throw_promise_subclassing_not_supported(agent, gc));
         }
 
@@ -676,7 +645,7 @@ impl PromiseConstructor {
                 promise_capability: promise_capability.clone(),
                 resolve_type: PromiseResolvingFunctionType::Resolve,
             })
-            .into_value();
+            .into();
         let reject_function = agent
             .heap
             .create(PromiseResolvingFunctionHeapData {
@@ -684,7 +653,7 @@ impl PromiseConstructor {
                 promise_capability: promise_capability.clone(),
                 resolve_type: PromiseResolvingFunctionType::Reject,
             })
-            .into_value();
+            .into();
 
         // 3. Let obj be OrdinaryObjectCreate(%Object.prototype%).
         // 4. Perform ! CreateDataPropertyOrThrow(obj, "promise", promiseCapability.[[Promise]]).
@@ -697,27 +666,27 @@ impl PromiseConstructor {
                     .current_realm_record()
                     .intrinsics()
                     .object_prototype()
-                    .into_object(),
+                    .into(),
             ),
             &[
                 ObjectEntry::new_data_entry(
                     BUILTIN_STRING_MEMORY.promise.into(),
-                    promise_capability.promise().into_value(),
+                    promise_capability.promise().into(),
                 ),
                 ObjectEntry::new_data_entry(
                     BUILTIN_STRING_MEMORY.resolve.into(),
-                    resolve_function.into_value(),
+                    resolve_function.into(),
                 ),
                 ObjectEntry::new_data_entry(
                     BUILTIN_STRING_MEMORY.reject.into(),
-                    reject_function.into_value(),
+                    reject_function.into(),
                 ),
             ],
         )
         .expect("Should perform GC here");
 
         // 7. Return obj.
-        Ok(obj.into_value())
+        Ok(obj.into())
     }
 
     /// ### [27.2.4.10 get Promise \[ %Symbol.species% \]](https://tc39.es/ecma262/#sec-get-promise-%symbol.species%)
@@ -739,7 +708,7 @@ impl PromiseConstructor {
             .with_builtin_function_property::<PromiseAll>()
             .with_builtin_function_property::<PromiseAllSettled>()
             .with_builtin_function_property::<PromiseAny>()
-            .with_prototype_property(promise_prototype.into_object())
+            .with_prototype_property(promise_prototype.into())
             .with_builtin_function_property::<PromiseRace>()
             .with_builtin_function_property::<PromiseReject>()
             .with_builtin_function_property::<PromiseResolve>()
@@ -795,13 +764,7 @@ fn promise_group_setup<'gc>(
     let iterable = arguments.get(0).scope(agent, gc.nogc());
 
     // 1. Let C be the this value.
-    if this_value
-        != agent
-            .current_realm_record()
-            .intrinsics()
-            .promise()
-            .into_value()
-    {
+    if this_value != agent.current_realm_record().intrinsics().promise().into() {
         return Err(throw_promise_subclassing_not_supported(
             agent,
             gc.into_nogc(),
@@ -918,7 +881,7 @@ fn handle_promise_group_result<'gc>(
         Ok(result) => result,
     };
     // 9. Return ! result.
-    Ok(result.into_value().unbind())
+    Ok(result.into().unbind())
 }
 
 /// ### [27.2.4.1.2 PerformPromiseAll ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiseall)
@@ -1005,7 +968,7 @@ fn perform_promise_group<'gc>(
                 };
                 result_capability.unbind().resolve(
                     agent,
-                    values_array.into_value().unbind(),
+                    values_array.into().unbind(),
                     gc.reborrow(),
                 );
             }
@@ -1026,7 +989,7 @@ fn perform_promise_group<'gc>(
         let call_result = call_function(
             agent,
             promise_resolve.get(agent),
-            constructor.get(agent).into_value(),
+            constructor.get(agent).into(),
             Some(ArgumentsList::from_mut_value(&mut next.unbind())),
             gc.reborrow(),
         )
@@ -1109,7 +1072,7 @@ fn perform_promise_race<'gc>(
         let call_result = call_function(
             agent,
             promise_resolve.get(agent),
-            constructor.get(agent).into_value(),
+            constructor.get(agent).into(),
             Some(ArgumentsList::from_mut_value(&mut next.unbind())),
             gc.reborrow(),
         )

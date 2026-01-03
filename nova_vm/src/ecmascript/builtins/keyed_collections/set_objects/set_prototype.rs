@@ -23,7 +23,7 @@ use crate::{
             set::Set,
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, Number, PropertyKey, String, Value},
+        types::{BUILTIN_STRING_MEMORY, Number, PropertyKey, String, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
@@ -144,7 +144,7 @@ impl SetPrototype {
         }
         // i. Return S.
         // 6. Return S.
-        Ok(s.into_value())
+        Ok(s.into())
     }
 
     /// ### [24.2.4.2 Set.prototype.clear ( )](https://tc39.es/ecma262/#sec-set.prototype.clear)
@@ -249,7 +249,7 @@ impl SetPrototype {
         // 24.2.6.1 CreateSetIterator ( set, kind )
         // 1. Perform ? RequireInternalSlot(set, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value, gc)?;
-        Ok(SetIterator::from_set(agent, s, CollectionIteratorKind::KeyAndValue).into_value())
+        Ok(SetIterator::from_set(agent, s, CollectionIteratorKind::KeyAndValue).into())
     }
 
     /// ### [24.2.4.7 Set.prototype.forEach ( callbackfn \[ , thisArg \] )](https://tc39.es/ecma262/#sec-set.prototype.foreach)
@@ -335,7 +335,7 @@ impl SetPrototype {
                     Some(ArgumentsList::from_mut_slice(&mut [
                         e.unbind(),
                         e.unbind(),
-                        s.into_value().unbind(),
+                        s.into().unbind(),
                     ])),
                     gc.reborrow(),
                 )
@@ -414,7 +414,7 @@ impl SetPrototype {
         // 3. Let size be SetDataSize(S.[[SetData]]).
         let size = s.get(agent).set_data.borrow().len() as u32;
         // 4. Return 𝔽(size).
-        Ok(Number::from(size).into_value())
+        Ok(Number::from(size).into())
     }
 
     /// ### [24.2.4.17 Set.prototype.values ( )](https://tc39.es/ecma262/#sec-set.prototype.values)
@@ -432,7 +432,7 @@ impl SetPrototype {
         // 24.2.6.1 CreateSetIterator ( set, kind )
         // 1. Perform ? RequireInternalSlot(set, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value, gc)?;
-        Ok(SetIterator::from_set(agent, s, CollectionIteratorKind::Value).into_value())
+        Ok(SetIterator::from_set(agent, s, CollectionIteratorKind::Value).into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -455,7 +455,7 @@ impl SetPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.keys.to_property_key())
-                    .with_value(set_prototype_values.into_value())
+                    .with_value(set_prototype_values.into())
                     .with_enumerable(SetPrototypeValues::ENUMERABLE)
                     .with_configurable(SetPrototypeValues::CONFIGURABLE)
                     .build()
@@ -465,7 +465,7 @@ impl SetPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::Iterator.into())
-                    .with_value(set_prototype_values.into_value())
+                    .with_value(set_prototype_values.into())
                     .with_enumerable(SetPrototypeValues::ENUMERABLE)
                     .with_configurable(SetPrototypeValues::CONFIGURABLE)
                     .build()
@@ -473,7 +473,7 @@ impl SetPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.Set.into_value())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.Set.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()

@@ -9,7 +9,7 @@ use crate::{
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor, proxy::proxy_create,
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, Object, String, Value},
+        types::{BUILTIN_STRING_MEMORY,  Object, String, Value},
     },
     engine::context::{Bindable, GcScope},
     heap::IntrinsicConstructorIndexes,
@@ -57,7 +57,7 @@ impl ProxyConstructor {
             ));
         }
         // 2. Return ? ProxyCreate(target, handler).
-        proxy_create(agent, target, handler, gc).map(|proxy| proxy.into_value())
+        proxy_create(agent, target, handler, gc).map(|proxy| proxy.into())
     }
 
     /// ### [28.2.2.1 Proxy.revocable ( target, handler )](https://tc39.es/ecma262/#sec-proxy.revocable)

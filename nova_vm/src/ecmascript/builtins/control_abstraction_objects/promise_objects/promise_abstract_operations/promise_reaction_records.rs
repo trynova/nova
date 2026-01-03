@@ -10,7 +10,6 @@ use crate::{
             promise::Promise,
             promise_objects::promise_abstract_operations::promise_group_record::PromiseGroup,
         },
-        execution::Agent,
         scripts_and_modules::module::module_semantics::{
             abstract_module_records::AbstractModule, source_text_module_records::SourceTextModule,
         },

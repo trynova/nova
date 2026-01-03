@@ -14,8 +14,7 @@ use crate::{
         builtins::{Array, array_create},
         execution::{Agent, agent::unwrap_try},
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, OrdinaryObject,
-            String, Value,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, OrdinaryObject, String, Value,
         },
     },
     engine::context::{Bindable, NoGcScope},
@@ -101,7 +100,7 @@ pub(super) fn get_template_object<'a>(
                 cooked_value.as_str(),
                 gc,
             )
-            .into_value()
+            .into()
         });
         // d. Let rawValue be the String value rawStrings[index].
         let raw_value = String::from_str_direct(
@@ -112,7 +111,7 @@ pub(super) fn get_template_object<'a>(
             quasi.value.raw.as_str(),
             gc,
         )
-        .into_value();
+        .into();
         // c. Perform ! DefinePropertyOrThrow(template, prop,
         //    PropertyDescriptor {
         //        [[Value]]: cookedValue,
@@ -152,7 +151,7 @@ pub(super) fn get_template_object<'a>(
             // PropertyDescriptor {
             value: ObjectEntryPropertyDescriptor::Data {
                 // [[Value]]: rawObj,
-                value: raw_obj.into_value(),
+                value: raw_obj.into(),
                 // [[Writable]]: false,
                 writable: false,
                 // [[Enumerable]]: false,

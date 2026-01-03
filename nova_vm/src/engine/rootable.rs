@@ -121,10 +121,10 @@ use crate::{
             BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
             ECMASCRIPT_FUNCTION_DISCRIMINANT, EMBEDDER_OBJECT_DISCRIMINANT, ERROR_DISCRIMINANT,
             FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, HeapNumber, HeapString,
-            IntoObject, MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT,
-            NUMBER_DISCRIMINANT, OBJECT_DISCRIMINANT, Object, OrdinaryObject, PROMISE_DISCRIMINANT,
-            PROXY_DISCRIMINANT, PropertyKey, PropertyKeySet, STRING_DISCRIMINANT,
-            STRING_ITERATOR_DISCRIMINANT, SYMBOL_DISCRIMINANT, Symbol, Value, bigint::HeapBigInt,
+            MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, NUMBER_DISCRIMINANT,
+            OBJECT_DISCRIMINANT, Object, OrdinaryObject, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT,
+            PropertyKey, PropertyKeySet, STRING_DISCRIMINANT, STRING_ITERATOR_DISCRIMINANT,
+            SYMBOL_DISCRIMINANT, Symbol, Value, bigint::HeapBigInt,
         },
     },
     heap::HeapMarkAndSweep,
@@ -479,12 +479,12 @@ pub trait Rootable: Copy + RootableSealed {
 }
 
 // Blanket impl for Objects
-impl<'a, T: RootableSealed + IntoObject<'a> + TryFrom<HeapRootData>> Rootable for T {
+impl<'a, T: Copy + RootableSealed + Into<Object<'a>> + TryFrom<HeapRootData>> Rootable for T {
     type RootRepr = HeapRootRef;
 
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(value.into_object().unbind().into())
+        Err(value.into().unbind().into())
     }
 
     #[inline]

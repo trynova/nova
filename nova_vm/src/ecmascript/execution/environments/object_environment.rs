@@ -28,9 +28,9 @@ use crate::{
             environments::{Environment, ObjectEnvironment, OuterEnv},
         },
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, IntoValue, Object, PropertyDescriptor,
-            PropertyKey, SetCachedProps, SetResult, String, TryGetResult, TryHasResult, Value,
-            call_proxy_set, try_get_result_into_value,
+            BUILTIN_STRING_MEMORY, InternalMethods, Object, PropertyDescriptor, PropertyKey,
+            SetCachedProps, SetResult, String, TryGetResult, TryHasResult, Value, call_proxy_set,
+            try_get_result_into_value,
         },
     },
     engine::{
@@ -472,7 +472,7 @@ impl<'e> ObjectEnvironment<'e> {
                 agent,
                 &SetCachedProps {
                     p: n.bind(gc),
-                    receiver: binding_object.into_value().bind(gc),
+                    receiver: binding_object.into().bind(gc),
                     cache: cache.bind(gc),
                     value: v.bind(gc),
                 },
@@ -537,7 +537,7 @@ impl<'e> ObjectEnvironment<'e> {
                     call_function(
                         agent,
                         setter.unbind(),
-                        binding_object.into_value().unbind(),
+                        binding_object.into().unbind(),
                         Some(ArgumentsList::from_mut_value(&mut v.unbind())),
                         gc,
                     )?;
@@ -548,7 +548,7 @@ impl<'e> ObjectEnvironment<'e> {
                         proxy.unbind(),
                         n.unbind(),
                         v.unbind(),
-                        binding_object.into_value().unbind(),
+                        binding_object.into().unbind(),
                         s,
                         gc,
                     )?;
@@ -597,8 +597,7 @@ impl<'e> ObjectEnvironment<'e> {
             )
             .into();
         }
-        let result =
-            binding_object.try_set(agent, n, v, binding_object.into_value(), Some(cache), gc)?;
+        let result = binding_object.try_set(agent, n, v, binding_object.into(), Some(cache), gc)?;
         if result.failed() {
             // The key was unwritable and we're in strict mode;
             // need to throw an error.
@@ -639,7 +638,7 @@ impl<'e> ObjectEnvironment<'e> {
         if !still_exists && s {
             let binding_object_repr = scoped_binding_object
                 .get(agent)
-                .into_value()
+                .into()
                 .string_repr(agent, gc.reborrow());
             Err(Self::throw_property_doesnt_exist_error(
                 agent,

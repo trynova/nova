@@ -12,7 +12,7 @@ use crate::{
             primitive_objects::{PrimitiveObject, PrimitiveObjectData, PrimitiveObjectRecord},
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, Number, String, Value},
+        types::{BUILTIN_STRING_MEMORY, Number, String, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
@@ -100,7 +100,7 @@ impl NumberPrototype {
         debug_assert!(!fraction_digits_is_undefined || f.into_i64() == 0);
         // 4. If x is not finite, return Number::toString(x, 10).
         if !x.is_finite(agent) {
-            return Ok(Number::to_string_radix_10(agent, x, gc).into_value());
+            return Ok(Number::to_string_radix_10(agent, x, gc).into());
         }
         let f = f.into_i64();
         // 5. If f < 0 or f > 100, throw a RangeError exception.
@@ -120,9 +120,9 @@ impl NumberPrototype {
             x = 0.0;
         };
         if f == 0 {
-            Ok(f64_to_exponential(agent, x, gc).into_value())
+            Ok(f64_to_exponential(agent, x, gc).into())
         } else {
-            Ok(f64_to_exponential_with_precision(agent, x, f, gc).into_value())
+            Ok(f64_to_exponential_with_precision(agent, x, f, gc).into())
         }
     }
 
@@ -178,7 +178,7 @@ impl NumberPrototype {
         }
         // 6. If x is not finite, return Number::toString(x, 10).
         if !x.is_finite(agent) {
-            return Ok(Number::to_string_radix_10(agent, x, gc).into_value());
+            return Ok(Number::to_string_radix_10(agent, x, gc).into());
         }
         // 7. Set x to ℝ(x).
         let x = x.into_f64(agent);
@@ -221,7 +221,7 @@ impl NumberPrototype {
             // Skip: We know ToString calls Number::toString(argument, 10).
             // Note: That is not `Number.prototype.toString`, but the abstract
             // operation Number::toString.
-            return Ok(Number::to_string_radix_10(agent, x.unbind(), gc.into_nogc()).into_value());
+            return Ok(Number::to_string_radix_10(agent, x.unbind(), gc.into_nogc()).into());
         }
 
         let x = x.scope(agent, nogc);
@@ -235,7 +235,7 @@ impl NumberPrototype {
 
         // 4. If x is not finite, return Number::toString(x, 10).
         if !x.is_finite(agent) {
-            return Ok(Number::to_string_radix_10(agent, x, gc).into_value());
+            return Ok(Number::to_string_radix_10(agent, x, gc).into());
         }
 
         // 5. If p < 1 or p > 100, throw a RangeError exception.
@@ -328,14 +328,14 @@ impl NumberPrototype {
                 // zeroes).
                 m.push_str(&e.to_string());
 
-                return Ok(String::from_string(agent, s + &m, gc).into_value());
+                return Ok(String::from_string(agent, s + &m, gc).into());
             }
         }
 
         // 11. If e = p - 1, return the string-concatenation of s and m.
         let e_inc = e + 1;
         if e_inc == precision as i32 {
-            return Ok(String::from_string(agent, s + &m, gc).into_value());
+            return Ok(String::from_string(agent, s + &m, gc).into());
         }
 
         // 12. If e ≥ 0, then
@@ -356,7 +356,7 @@ impl NumberPrototype {
         }
 
         // 14. Return the string-concatenation of s and m.
-        Ok(String::from_string(agent, s + &m, gc).into_value())
+        Ok(String::from_string(agent, s + &m, gc).into())
     }
 
     /// round_to_precision - used in to_precision
@@ -470,7 +470,7 @@ impl NumberPrototype {
             // 5. Return Number::toString(x, 10).
             Ok(Number::to_string_radix_10(agent, x.unbind(), gc.nogc())
                 .unbind()
-                .into_value())
+                .into())
         } else {
             let x = x.scope(agent, gc.nogc());
             // 3. Else, let radixMV be ? ToIntegerOrInfinity(radix).
@@ -486,7 +486,7 @@ impl NumberPrototype {
             }
             let radix = radix.into_i64() as u32;
             // 5. Return Number::toString(x, radixMV).
-            Ok(Number::to_string_radix_n(agent, x.get(agent), radix, gc).into_value())
+            Ok(Number::to_string_radix_n(agent, x.get(agent), radix, gc).into())
         }
     }
 
@@ -498,7 +498,7 @@ impl NumberPrototype {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         // 1. Return ? ThisNumberValue(this value).
-        this_number_value(agent, this_value, gc.into_nogc()).map(|result| result.into_value())
+        this_number_value(agent, this_value, gc.into_nogc()).map(|result| result.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {

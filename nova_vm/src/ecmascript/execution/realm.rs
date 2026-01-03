@@ -17,8 +17,8 @@ use crate::{
             script::HostDefined,
         },
         types::{
-            BUILTIN_STRING_MEMORY, IntoValue, Number, Object, OrdinaryObject, PropertyDescriptor,
-            PropertyKey, Value,
+            BUILTIN_STRING_MEMORY, Number, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
+            Value,
         },
     },
     engine::{
@@ -383,7 +383,7 @@ pub(crate) fn set_default_global_bindings<'a>(
                 .get_realm_record_by_id(realm_id)
                 .intrinsics()
                 .$value()
-                .into_value();
+                .into();
             define_property!($name, value, Some(true), Some(false), Some(true));
         };
         ($name:ident, $value:ident, $writable:expr, $enumerable:expr, $configurable:expr) => {
@@ -414,23 +414,17 @@ pub(crate) fn set_default_global_bindings<'a>(
     {
         // 19.1.1 globalThis
         let global_env = agent[realm_id].global_env.bind(gc.nogc());
-        let value = global_env
-            .unwrap()
-            .get_this_binding(agent)
-            .into_value()
-            .unbind();
+        let value = global_env.unwrap().get_this_binding(agent).into().unbind();
         define_property!(globalThis, value, Some(true), Some(false), Some(true));
 
         // 19.1.2 Infinity
         let value = Number::from_f64(agent, f64::INFINITY, gc.nogc())
-            .into_value()
+            .into()
             .unbind();
         define_property!(Infinity, value, Some(false), Some(false), Some(false));
 
         // 19.1.3 NaN
-        let value = Number::from_f64(agent, f64::NAN, gc.nogc())
-            .into_value()
-            .unbind();
+        let value = Number::from_f64(agent, f64::NAN, gc.nogc()).into().unbind();
         define_property!(NaN, value, Some(false), Some(false), Some(false));
 
         // 19.1.4 undefined

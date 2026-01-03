@@ -27,8 +27,8 @@ use nova_vm::{
         },
         scripts_and_modules::script::{parse_script, script_evaluation},
         types::{
-            BigInt, Function, InternalMethods, IntoValue, Number, Object, OrdinaryObject,
-            PropertyDescriptor, PropertyKey, String, Value,
+            BigInt, Function, InternalMethods, Number, Object, OrdinaryObject, PropertyDescriptor,
+            PropertyKey, String, Value,
         },
     },
     engine::{
@@ -185,7 +185,7 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope) 
                 return Err(agent.throw_exception(ExceptionType::Error, e.to_string(), gc));
             }
         };
-        Ok(String::from_string(agent, file, gc).into_value())
+        Ok(String::from_string(agent, file, gc).into())
     }
 
     // 'now' function
@@ -197,7 +197,7 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope) 
     ) -> JsResult<'gc, Value<'gc>> {
         let nanos = START_TIME.elapsed().as_nanos();
         let bigint = BigInt::from_u128(agent, nanos, gc.into_nogc());
-        Ok(bigint.into_value())
+        Ok(bigint.into())
     }
 
     let function = create_builtin_function(
@@ -291,7 +291,7 @@ fn monotonic_now<'gc>(
     let micros = ((START_TIME.elapsed().as_micros() as u16 % 1000) / 5 * 5) as f64 / 1000.0;
     let total = millis + micros;
     let number = Number::from_f64(agent, total, gc);
-    Ok(number.into_value())
+    Ok(number.into())
 }
 
 fn create_obj_func(
@@ -337,7 +337,7 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
             Some(initialize_global_object_with_internals),
             gc,
         );
-        Ok(realm.global_object(agent).into_value().unbind())
+        Ok(realm.global_object(agent).into().unbind())
     }
 
     /// `detachArrayBuffer` function
@@ -660,7 +660,7 @@ fn initialize_child_global_object(agent: &mut Agent, global: Object, mut gc: GcS
 
         let _ = cb
             .unbind()
-            .call(agent, Value::Null, &mut [sab.into_value().unbind()], gc);
+            .call(agent, Value::Null, &mut [sab.into().unbind()], gc);
 
         Ok(Value::Undefined)
     }
@@ -726,7 +726,7 @@ fn initialize_child_global_object(agent: &mut Agent, global: Object, mut gc: GcS
         agent,
         property_key,
         PropertyDescriptor {
-            value: Some(test262_obj.into_value()),
+            value: Some(test262_obj.into()),
             writable: Some(true),
             enumerable: Some(false),
             configurable: Some(true),
@@ -742,7 +742,7 @@ fn initialize_child_global_object(agent: &mut Agent, global: Object, mut gc: GcS
         agent,
         property_key,
         PropertyDescriptor {
-            value: Some(agent_obj.into_value()),
+            value: Some(agent_obj.into()),
             writable: Some(true),
             enumerable: Some(false),
             configurable: Some(true),

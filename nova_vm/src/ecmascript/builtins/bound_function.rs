@@ -13,13 +13,13 @@ use crate::{
             agent::{TryResult, unwrap_try},
         },
         types::{
-            BoundFunctionHeapData, Function, FunctionInternalProperties, InternalMethods,
-            IntoFunction, IntoValue, Object, OrdinaryObject, String, Value,
+            BoundFunctionHeapData, Function, FunctionInternalProperties, InternalMethods, Object,
+            OrdinaryObject, String, Value, function_handle,
         },
     },
     engine::{
-        context::{Bindable, GcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
+        context::{Bindable, GcScope},
+        rootable::Scopable,
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
@@ -33,35 +33,13 @@ use super::ArgumentsList;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct BoundFunction<'a>(BaseIndex<'a, BoundFunctionHeapData<'static>>);
+function_handle!(BoundFunction);
 
 impl BoundFunction<'_> {
     pub fn is_constructor(self, agent: &Agent) -> bool {
         // A bound function has the [[Construct]] method if the target function
         // does.
         agent[self].bound_target_function.is_constructor(agent)
-    }
-}
-
-bindable_handle!(BoundFunction);
-
-impl HeapIndexHandle for BoundFunction<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_u32_index(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.into_u32_index()
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for BoundFunction<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::BoundFunction(data) => Ok(data),
-            _ => Err(()),
-        }
     }
 }
 
@@ -236,7 +214,7 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
         // 3. Let boundArgs be F.[[BoundArguments]].
         let bound_args = &agent[self].bound_arguments;
         // 5. If SameValue(F, newTarget) is true, set newTarget to target.
-        let new_target = if self.into_function() == new_target {
+        let new_target = if self.into() == new_target {
             target
         } else {
             new_target
@@ -270,29 +248,6 @@ impl<'a> CreateHeapData<BoundFunctionHeapData<'a>, BoundFunction<'a>> for Heap {
     }
 }
 
-impl Rootable for BoundFunction<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::BoundFunction(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::BoundFunction(d) => Some(d),
-            _ => None,
-        }
-    }
-}
-
 impl HeapMarkAndSweep for BoundFunction<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.bound_functions.push(*self);
@@ -309,41 +264,5 @@ impl HeapSweepWeakReference for BoundFunction<'static> {
             .bound_functions
             .shift_weak_index(self.0)
             .map(Self)
-    }
-}
-
-bindable_handle!(BoundFunctionHeapData);
-
-impl HeapMarkAndSweep for BoundFunctionHeapData<'static> {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        let Self {
-            object_index,
-            length: _,
-            bound_target_function,
-            bound_this,
-            bound_arguments,
-            name,
-        } = self;
-        name.mark_values(queues);
-        bound_target_function.mark_values(queues);
-        object_index.mark_values(queues);
-        bound_this.mark_values(queues);
-        bound_arguments.mark_values(queues);
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let Self {
-            object_index,
-            length: _,
-            bound_target_function,
-            bound_this,
-            bound_arguments,
-            name,
-        } = self;
-        name.sweep_values(compactions);
-        bound_target_function.sweep_values(compactions);
-        object_index.sweep_values(compactions);
-        bound_this.sweep_values(compactions);
-        bound_arguments.sweep_values(compactions);
     }
 }

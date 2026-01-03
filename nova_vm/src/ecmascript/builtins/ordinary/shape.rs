@@ -12,10 +12,7 @@ use hashbrown::{HashTable, hash_table::Entry};
 use crate::{
     ecmascript::{
         execution::{Agent, PrivateField, Realm},
-        types::{
-            InternalMethods, IntoObject, Object, Primitive, PropertyKey, Symbol, TryGetResult,
-            Value,
-        },
+        types::{InternalMethods, Object, Primitive, PropertyKey, Symbol, TryGetResult, Value},
     },
     engine::context::{Bindable, GcToken, NoGcScope, bindable_handle},
     heap::{
@@ -1042,7 +1039,7 @@ impl PrototypeShapeTable {
 impl Symbol<'_> {
     pub(crate) fn object_shape(self, agent: &mut Agent) -> ObjectShape<'static> {
         let prototype = agent.current_realm_record().intrinsics().symbol_prototype();
-        ObjectShape::get_shape_for_prototype(agent, Some(prototype.into_object()))
+        ObjectShape::get_shape_for_prototype(agent, Some(prototype.into()))
     }
 }
 
@@ -1056,7 +1053,7 @@ impl Primitive<'_> {
                 let prototype = intrinsics.boolean_prototype();
                 Some(ObjectShape::get_shape_for_prototype(
                     agent,
-                    Some(prototype.into_object()),
+                    Some(prototype.into()),
                 ))
             }
             Self::String(_) | Self::SmallString(_) => Some(intrinsics.string_shape()),
@@ -1068,7 +1065,7 @@ impl Primitive<'_> {
                 let prototype = intrinsics.big_int_prototype();
                 Some(ObjectShape::get_shape_for_prototype(
                     agent,
-                    Some(prototype.into_object()),
+                    Some(prototype.into()),
                 ))
             }
         }

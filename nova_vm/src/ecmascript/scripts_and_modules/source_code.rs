@@ -7,7 +7,7 @@
 //! that the eval call defines functions. Those functions will refer to the
 //! SourceCode for their function source text.
 
-use core::{fmt::Debug, ops::Index};
+use core::{fmt::Debug};
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast;

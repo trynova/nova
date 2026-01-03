@@ -23,7 +23,7 @@ use crate::{
                 async_module_execution_fulfilled, async_module_execution_rejected,
             },
         },
-        types::{Function, IntoValue, Object, Value},
+        types::{Function, Object, Value},
     },
     engine::{
         Global,
@@ -65,7 +65,7 @@ impl PromiseResolveThenableJob {
                 promise_capability: promise_capability.clone(),
                 resolve_type: PromiseResolvingFunctionType::Resolve,
             })
-            .into_value();
+            .into();
         let reject_function = agent
             .heap
             .create(PromiseResolvingFunctionHeapData {
@@ -73,14 +73,14 @@ impl PromiseResolveThenableJob {
                 promise_capability: promise_capability.clone(),
                 resolve_type: PromiseResolvingFunctionType::Reject,
             })
-            .into_value();
+            .into();
 
         // b. Let thenCallResult be Completion(HostCallJobCallback(then, thenable, « resolvingFunctions.[[Resolve]], resolvingFunctions.[[Reject]] »)).
         // TODO: Add the HostCallJobCallback host hook. For now we're using its default
         // implementation, which is calling the thenable, since only browsers should use a different
         // implementation.
         let then = then.take(agent).bind(gc.nogc());
-        let thenable = thenable.take(agent).bind(gc.nogc()).into_value();
+        let thenable = thenable.take(agent).bind(gc.nogc()).into();
         let then_call_result = call_function(
             agent,
             then.unbind(),
@@ -208,8 +208,7 @@ impl PromiseReactionJob {
                 //    called:
                 // a. Return CreateIteratorResultObject(v, done).
                 (
-                    create_iter_result_object(agent, argument, done, gc.nogc())
-                        .map(|o| o.into_value()),
+                    create_iter_result_object(agent, argument, done, gc.nogc()).map(|o| o.into()),
                     capability,
                 )
             }

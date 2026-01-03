@@ -33,10 +33,7 @@ use ahash::AHashMap;
 use crate::{
     ecmascript::{
         execution::agent::Agent,
-        types::{
-            BUILTIN_STRING_MEMORY, IntoFunction, IntoObject, IntoValue, Number, Object,
-            OrdinaryObject, Value,
-        },
+        types::{BUILTIN_STRING_MEMORY, Number, Object, OrdinaryObject, Value},
     },
     engine::context::{Bindable, NoGcScope},
     heap::{WellKnownSymbolIndexes, element_array::ElementDescriptor},
@@ -61,10 +58,10 @@ pub(crate) fn create_unmapped_arguments_object<'a, 'b>(
     let arguments_non_null_slice = unsafe { arguments_list.as_non_null_slice(agent) };
     debug_assert!(len < u32::MAX as usize);
     let len = len as u32;
-    let len_value = Number::from(len).into_value();
+    let len_value = Number::from(len).into();
     // 2. Let obj be OrdinaryObjectCreate(%Object.prototype%, « [[ParameterMap]] »).
     let prototype = agent.current_realm_record().intrinsics().object_prototype();
-    let mut shape = ObjectShape::get_shape_for_prototype(agent, Some(prototype.into_object()));
+    let mut shape = ObjectShape::get_shape_for_prototype(agent, Some(prototype.into()));
     shape = shape.get_child_shape(agent, BUILTIN_STRING_MEMORY.length.to_property_key())?;
     shape = shape.get_child_shape(agent, BUILTIN_STRING_MEMORY.callee.into())?;
     shape = shape.get_child_shape(agent, WellKnownSymbolIndexes::Iterator.into())?;
@@ -78,12 +75,12 @@ pub(crate) fn create_unmapped_arguments_object<'a, 'b>(
         .intrinsics()
         .array_prototype_values()
         .bind(gc)
-        .into_value();
+        .into();
     let throw_type_error = agent
         .current_realm_record()
         .intrinsics()
         .throw_type_error()
-        .into_function()
+        .into()
         .bind(gc);
     let storage = obj.get_elements_storage_mut(agent);
     let values = storage.values;

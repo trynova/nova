@@ -6,7 +6,7 @@ use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::{get, try_create_data_property_or_throw},
         execution::{Agent, JsResult, agent::unwrap_try},
-        types::{IntoValue, Object, PropertyKey, PropertyKeySet, Value},
+        types::{Object, PropertyKey, PropertyKeySet, Value},
     },
     engine::{
         ScopableCollection, Scoped,
@@ -69,9 +69,7 @@ pub(super) fn execute_simple_array_binding<'a>(
             | Instruction::BindingPatternBindRestToIndex => {
                 break_after_bind = true;
                 if iterator_is_done {
-                    Ok(array_create(agent, 0, 0, None, gc.nogc())
-                        .unwrap()
-                        .into_value())
+                    Ok(array_create(agent, 0, 0, None, gc.nogc()).unwrap().into())
                 } else {
                     with_vm_gc(
                         agent,
@@ -100,7 +98,7 @@ pub(super) fn execute_simple_array_binding<'a>(
                             }
                             iterator_is_done = true;
                             // SAFETY: rest is not shared
-                            JsResult::Ok(unsafe { rest.take(agent).into_value() })
+                            JsResult::Ok(unsafe { rest.take(agent).into() })
                         },
                         gc.reborrow(),
                     )
@@ -386,7 +384,7 @@ pub(super) fn execute_simple_object_binding<'a>(
                         )
                         .unbind()?
                         .bind(gc.nogc())
-                        .into_value();
+                        .into();
                         // 4. If environment is undefined, return ? PutValue(lhs, restObj).
                         // 5. Return ? InitializeReferencedBinding(lhs, restObj).
                         if environment.is_none() {
@@ -426,7 +424,7 @@ pub(super) fn execute_simple_object_binding<'a>(
                 )
                 .unbind()?;
                 let stack_slot = instr.get_first_index();
-                vm.stack[stack_slot] = rest_obj.into_value().unbind();
+                vm.stack[stack_slot] = rest_obj.into().unbind();
                 break;
             }
             Instruction::FinishBindingPattern => break,

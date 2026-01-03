@@ -12,7 +12,7 @@ use core::{
     ops::{Index, IndexMut},
 };
 use core::{marker::PhantomData, mem::size_of, num::NonZeroU32};
-use std::any::type_name;
+use std::{any::type_name, u32};
 
 /// A struct containing a non-zero index into an array or
 /// vector of `T`s. Due to the non-zero value, the offset
@@ -89,7 +89,8 @@ impl<T: ?Sized> Hash for BaseIndex<'_, T> {
 
 impl<T: ?Sized> BaseIndex<'_, T> {
     /// First valid BaseIndex.
-    pub(crate) const ZERO: Self = Self::from_index_u32(0);
+    pub(crate) const ZERO: Self = Self(NonZeroU32::new(1).unwrap(), PhantomData, PhantomData);
+    pub(crate) const MAX: Self = Self(NonZeroU32::new(u32::MAX).unwrap(), PhantomData, PhantomData);
 
     #[inline(always)]
     pub(crate) fn last(vec: &[T]) -> Self
@@ -170,7 +171,7 @@ impl PropertyKeyIndex<'_> {
 /// limited to 32 bit unsigned values.
 pub(crate) trait HeapIndexHandle: Sized {
     /// Constant-time value used for discriminant checking only.
-    const _DEF: Self = Self::from_index_u32(u32::MAX - 1);
+    const _DEF: Self;
 
     /// Convert an index into a heap handle.
     fn from_index(index: usize) -> Self {

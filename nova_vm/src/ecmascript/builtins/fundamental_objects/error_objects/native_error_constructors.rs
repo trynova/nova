@@ -11,7 +11,7 @@ use crate::{
             ordinary::ordinary_create_from_constructor,
         },
         execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
+        types::{BUILTIN_STRING_MEMORY, Function,  Object, String, Value},
     },
     engine::{
         context::{Bindable, GcScope},
@@ -124,13 +124,8 @@ impl NativeErrorConstructors {
 
         // 1. If NewTarget is undefined, let newTarget be the active function
         //    object; else let newTarget be NewTarget.
-        let new_target = new_target.unwrap_or_else(|| {
-            agent
-                .running_execution_context()
-                .function
-                .unwrap()
-                .into_object()
-        });
+        let new_target = new_target
+            .unwrap_or_else(|| agent.running_execution_context().function.unwrap().into());
         // 2. Let O be ? OrdinaryCreateFromConstructor(newTarget, "%NativeError.prototype%", « [[ErrorData]] »).
         let o = ordinary_create_from_constructor(
             agent,
@@ -165,7 +160,7 @@ impl NativeErrorConstructors {
         heap_data.kind = error_kind;
         heap_data.message = msg.unbind();
         heap_data.cause = cause.unbind();
-        Ok(o.into_value())
+        Ok(o.into())
     }
 
     fn eval_error_constructor<'gc>(
@@ -236,7 +231,7 @@ impl NativeErrorConstructors {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
-        let error_constructor = intrinsics.error().into_object();
+        let error_constructor = intrinsics.error().into();
         let eval_error_prototype = intrinsics.eval_error_prototype();
         let range_error_prototype = intrinsics.range_error_prototype();
         let reference_error_prototype = intrinsics.reference_error_prototype();
@@ -246,34 +241,34 @@ impl NativeErrorConstructors {
         BuiltinFunctionBuilder::new_intrinsic_constructor::<EvalErrorConstructor>(agent, realm)
             .with_property_capacity(1)
             .with_prototype(error_constructor)
-            .with_prototype_property(eval_error_prototype.into_object())
+            .with_prototype_property(eval_error_prototype.into())
             .build();
         BuiltinFunctionBuilder::new_intrinsic_constructor::<RangeErrorConstructor>(agent, realm)
             .with_property_capacity(1)
             .with_prototype(error_constructor)
-            .with_prototype_property(range_error_prototype.into_object())
+            .with_prototype_property(range_error_prototype.into())
             .build();
         BuiltinFunctionBuilder::new_intrinsic_constructor::<ReferenceErrorConstructor>(
             agent, realm,
         )
         .with_property_capacity(1)
         .with_prototype(error_constructor)
-        .with_prototype_property(reference_error_prototype.into_object())
+        .with_prototype_property(reference_error_prototype.into())
         .build();
         BuiltinFunctionBuilder::new_intrinsic_constructor::<SyntaxErrorConstructor>(agent, realm)
             .with_property_capacity(1)
             .with_prototype(error_constructor)
-            .with_prototype_property(syntax_error_prototype.into_object())
+            .with_prototype_property(syntax_error_prototype.into())
             .build();
         BuiltinFunctionBuilder::new_intrinsic_constructor::<TypeErrorConstructor>(agent, realm)
             .with_property_capacity(1)
             .with_prototype(error_constructor)
-            .with_prototype_property(type_error_prototype.into_object())
+            .with_prototype_property(type_error_prototype.into())
             .build();
         BuiltinFunctionBuilder::new_intrinsic_constructor::<URIErrorConstructor>(agent, realm)
             .with_property_capacity(1)
             .with_prototype(error_constructor)
-            .with_prototype_property(uri_error_prototype.into_object())
+            .with_prototype_property(uri_error_prototype.into())
             .build();
     }
 }

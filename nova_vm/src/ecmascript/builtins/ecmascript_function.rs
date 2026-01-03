@@ -33,19 +33,18 @@ use crate::{
         },
         types::{
             BUILTIN_STRING_MEMORY, ECMAScriptFunctionHeapData, Function,
-            FunctionInternalProperties, InternalSlots, IntoFunction, IntoObject, IntoValue, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
+            FunctionInternalProperties, InternalSlots, Object, OrdinaryObject, PropertyDescriptor,
+            PropertyKey, String, Value, function_handle,
         },
     },
     engine::{
         Executable,
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
+        rootable::{Scopable},
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues,
-        indexes::{BaseIndex, HeapIndexHandle},
+        WorkQueues, indexes::BaseIndex,
     },
     ndt,
 };
@@ -53,58 +52,7 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct ECMAScriptFunction<'a>(BaseIndex<'a, ECMAScriptFunctionHeapData<'static>>);
-
-impl HeapIndexHandle for ECMAScriptFunction<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_u32_index(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.into_u32_index()
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for ECMAScriptFunction<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        if let Value::ECMAScriptFunction(function) = value {
-            Ok(function)
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for ECMAScriptFunction<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        if let Object::ECMAScriptFunction(function) = value {
-            Ok(function)
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl<'a> TryFrom<Function<'a>> for ECMAScriptFunction<'a> {
-    type Error = ();
-
-    fn try_from(value: Function<'a>) -> Result<Self, Self::Error> {
-        if let Function::ECMAScriptFunction(function) = value {
-            Ok(function)
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl<'a> From<ECMAScriptFunction<'a>> for Function<'a> {
-    fn from(val: ECMAScriptFunction<'a>) -> Self {
-        Function::ECMAScriptFunction(val)
-    }
-}
+function_handle!(ECMAScriptFunction);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConstructorStatus {
@@ -398,8 +346,6 @@ impl<'a> ECMAScriptFunction<'a> {
     }
 }
 
-bindable_handle!(ECMAScriptFunction);
-
 impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
     fn get_name(self, agent: &Agent) -> &String<'a> {
         agent[self].name.as_ref().unwrap_or(&String::EMPTY_STRING)
@@ -436,12 +382,10 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
             // SAFETY: reference is dropped before next GC safepoint.
             let f = unsafe { self.get_ast_unbound(agent) };
             let proto = match (f.is_async(), f.is_generator()) {
-                (false, false) => intrinsics.function_prototype().into_object(),
-                (false, true) => intrinsics.generator_function_prototype().into_object(),
-                (true, false) => intrinsics.async_function_prototype().into_object(),
-                (true, true) => intrinsics
-                    .async_generator_function_prototype()
-                    .into_object(),
+                (false, false) => intrinsics.function_prototype().into(),
+                (false, true) => intrinsics.generator_function_prototype().into(),
+                (true, false) => intrinsics.async_function_prototype().into(),
+                (true, true) => intrinsics.async_generator_function_prototype().into(),
             };
             Some(proto)
         }
@@ -575,7 +519,7 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
 
         // 4. Let calleeContext be PrepareForOrdinaryCall(F, newTarget).
         let callee_context =
-            prepare_for_ordinary_call(agent, f, Some(new_target.into_object()), gc.nogc());
+            prepare_for_ordinary_call(agent, f, Some(new_target.into()), gc.nogc());
         // 7. Let constructorEnv be the LexicalEnvironment of calleeContext.
         let constructor_env = callee_context
             .ecmascript_code
@@ -596,7 +540,7 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
                 agent,
                 f,
                 constructor_env,
-                this_argument.unwrap().into_value(),
+                this_argument.unwrap().into(),
                 gc.nogc(),
             );
             // b. Let initializeResult be Completion(InitializeInstanceElements(thisArgument, F)).
@@ -709,7 +653,7 @@ pub(crate) fn prepare_for_ordinary_call<'a>(
             source_code,
         }),
         // 3. Set the Function of calleeContext to F.
-        function: Some(f.into_function().unbind()),
+        function: Some(f.into().unbind()),
         // 5. Set the Realm of calleeContext to calleeRealm.
         realm: callee_realm,
         // 6. Set the ScriptOrModule of calleeContext to F.[[ScriptOrModule]].
@@ -761,11 +705,11 @@ pub(crate) fn ordinary_call_bind_this(
             // ii. Assert: globalEnv is a Global Environment Record.
             let global_env = global_env.unwrap();
             // iii. Let thisValue be globalEnv.[[GlobalThisValue]].
-            global_env.get_this_binding(agent).into_value()
+            global_env.get_this_binding(agent).into()
         } else {
             // b. Else,
             // i. Let thisValue be ! ToObject(thisArgument).
-            to_object(agent, this_argument, gc).unwrap().into_value()
+            to_object(agent, this_argument, gc).unwrap().into()
             // ii. NOTE: ToObject produces wrapper objects using calleeRealm.
         }
     };
@@ -802,7 +746,7 @@ pub(crate) fn evaluate_body<'gc>(
             // 1. Return ? EvaluateAsyncConciseBody of AsyncConciseBody with arguments functionObject and argumentsList.
             Ok(
                 evaluate_async_function_body(agent, function_object.unbind(), arguments_list, gc)
-                    .into_value(),
+                    .into(),
             )
         }
         (false, false) => {
@@ -933,7 +877,7 @@ pub(crate) fn ordinary_function_create<'gc>(
                 .current_realm_record()
                 .intrinsics()
                 .function_prototype()
-                .into_object()
+                .into()
     {
         function.object_index = Some(
             OrdinaryObject::create_object(agent, Some(function_prototype), &[])
@@ -986,7 +930,7 @@ pub(crate) fn make_constructor<'a>(
 ) {
     // 4. If writablePrototype is not present, set writablePrototype to true.
     let writable_prototype = writable_prototype.unwrap_or(true);
-    match function.into_function() {
+    match function.into() {
         Function::BoundFunction(_) => unreachable!(),
         // 1. If F is an ECMAScript function object, then
         Function::ECMAScriptFunction(idx) => {
@@ -1024,13 +968,13 @@ pub(crate) fn make_constructor<'a>(
             .set(
                 agent,
                 // prototype,
-                prototype.into_object(),
+                prototype.into(),
                 // "constructor",
                 BUILTIN_STRING_MEMORY.constructor.into(),
                 // PropertyDescriptor {
                 PropertyDescriptor {
                     // [[Value]]: F,
-                    value: Some(function.into_value().unbind()),
+                    value: Some(function.into().unbind()),
                     // [[Writable]]: writablePrototype,
                     writable: Some(writable_prototype),
                     // [[Enumerable]]: false,
@@ -1054,13 +998,13 @@ pub(crate) fn make_constructor<'a>(
         .set(
             agent,
             // F,
-            function.into_object(),
+            function.into(),
             // "prototype",
             BUILTIN_STRING_MEMORY.prototype.into(),
             // PropertyDescriptor {
             PropertyDescriptor {
                 // [[Value]]: prototype,
-                value: Some(prototype.into_value().unbind()),
+                value: Some(prototype.into().unbind()),
                 // [[Writable]]: writablePrototype,
                 writable: Some(writable_prototype),
                 // [[Enumerable]]: false,
@@ -1118,7 +1062,7 @@ fn prefix_into_str(prefix: Option<SetFunctionNamePrefix>) -> &'static str {
 /// prefix (a String) and returns UNUSED. It adds a "name" property to F.
 pub(crate) fn set_function_name<'a>(
     agent: &mut Agent,
-    function: impl IntoFunction<'a>,
+    function: impl Into<Function<'a>>,
     name: PropertyKey,
     prefix: Option<SetFunctionNamePrefix>,
     gc: NoGcScope,
@@ -1178,7 +1122,7 @@ pub(crate) fn set_function_name<'a>(
             .expect("Should always find PrivateName in scope when calling SetFunctionName"),
     };
 
-    match function.into_function() {
+    match function.into() {
         Function::BoundFunction(idx) => {
             let function = &mut agent[idx];
             // Note: It's possible that the bound function targeted a function
@@ -1225,29 +1169,6 @@ fn set_ecmascript_function_length<'a>(
 
     // 3. Return unused.
     Ok(())
-}
-
-impl Rootable for ECMAScriptFunction<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::ECMAScriptFunction(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::ECMAScriptFunction(d) => Some(d),
-            _ => None,
-        }
-    }
 }
 
 impl HeapMarkAndSweep for ECMAScriptFunction<'static> {

@@ -6,9 +6,6 @@
 
 pub mod bigint;
 mod function;
-mod into_numeric;
-mod into_primitive;
-mod into_value;
 mod number;
 mod numeric;
 mod object;
@@ -27,10 +24,7 @@ pub(crate) use value::*;
 pub(crate) use value_vec::*;
 
 pub use bigint::BigInt;
-pub use function::{Function, IntoFunction};
-pub use into_numeric::IntoNumeric;
-pub use into_primitive::IntoPrimitive;
-pub use into_value::IntoValue;
+pub use function::Function;
 pub use numeric::Numeric;
 pub use primitive::Primitive;
 pub use string::{BUILTIN_STRING_MEMORY, BUILTIN_STRINGS_LIST, HeapString, String, StringRecord};

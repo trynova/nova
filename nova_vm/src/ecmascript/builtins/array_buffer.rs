@@ -18,7 +18,7 @@ use crate::{
     },
     engine::{
         context::{Bindable, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
+        rootable::HeapRootData,
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
@@ -38,6 +38,7 @@ use super::shared_array_buffer::SharedArrayBuffer;
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct ArrayBuffer<'a>(BaseIndex<'a, ArrayBufferHeapData<'static>>);
+array_buffer_handle!(ArrayBuffer);
 
 impl ArrayBuffer<'_> {
     pub fn new<'gc>(
@@ -216,35 +217,6 @@ impl ArrayBuffer<'_> {
     }
 }
 
-bindable_handle!(ArrayBuffer);
-
-impl HeapIndexHandle for ArrayBuffer<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_index_u32(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.get_index_u32()
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for ArrayBuffer<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::ArrayBuffer(base_index) => Ok(base_index),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> From<ArrayBuffer<'a>> for Object<'a> {
-    fn from(value: ArrayBuffer) -> Self {
-        Self::ArrayBuffer(value.unbind())
-    }
-}
-
 impl<'a> InternalSlots<'a> for ArrayBuffer<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::ArrayBuffer;
 
@@ -264,29 +236,6 @@ impl<'a> InternalSlots<'a> for ArrayBuffer<'a> {
 }
 
 impl<'a> InternalMethods<'a> for ArrayBuffer<'a> {}
-
-impl Rootable for ArrayBuffer<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::ArrayBuffer(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::ArrayBuffer(object) => Some(object),
-            _ => None,
-        }
-    }
-}
 
 impl HeapMarkAndSweep for ArrayBuffer<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
@@ -370,21 +319,6 @@ impl<'ab> AnyArrayBuffer<'ab> {
     }
 }
 
-impl<'a> From<ArrayBuffer<'a>> for AnyArrayBuffer<'a> {
-    #[inline(always)]
-    fn from(value: ArrayBuffer<'a>) -> Self {
-        Self::ArrayBuffer(value)
-    }
-}
-
-#[cfg(feature = "shared-array-buffer")]
-impl<'a> From<SharedArrayBuffer<'a>> for AnyArrayBuffer<'a> {
-    #[inline(always)]
-    fn from(value: SharedArrayBuffer<'a>) -> Self {
-        Self::SharedArrayBuffer(value)
-    }
-}
-
 impl<'a> From<AnyArrayBuffer<'a>> for Object<'a> {
     #[inline(always)]
     fn from(value: AnyArrayBuffer<'a>) -> Self {
@@ -422,3 +356,33 @@ impl TryFrom<HeapRootData> for AnyArrayBuffer<'_> {
         }
     }
 }
+
+macro_rules! array_buffer_handle {
+    ($name: ident) => {
+        crate::ecmascript::types::object_handle!($name);
+
+        impl<'a> From<$name<'a>> for crate::ecmascript::builtins::array_buffer::AnyArrayBuffer<'a> {
+            fn from(value: $name<'a>) -> Self {
+                Self::$name(value)
+            }
+        }
+
+        impl<'a> TryFrom<crate::ecmascript::builtins::array_buffer::AnyArrayBuffer<'a>>
+            for $name<'a>
+        {
+            type Error = ();
+
+            fn try_from(
+                value: crate::ecmascript::builtins::array_buffer::AnyArrayBuffer<'a>,
+            ) -> Result<Self, Self::Error> {
+                match value {
+                    crate::ecmascript::builtins::array_buffer::AnyArrayBuffer::$name(data) => {
+                        Ok(data)
+                    }
+                    _ => Err(()),
+                }
+            }
+        }
+    };
+}
+pub(crate) use array_buffer_handle;

@@ -8,9 +8,7 @@ mod data;
 use core::hash::Hash;
 use std::borrow::Cow;
 
-use super::{
-    IntoValue, Primitive, PropertyKey, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT, Value,
-};
+use super::{Primitive, PropertyKey, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT, Value};
 use crate::{
     SmallInteger, SmallString,
     ecmascript::{execution::Agent, types::PropertyDescriptor},
@@ -59,8 +57,9 @@ impl HeapString<'_> {
 }
 
 impl HeapIndexHandle for HeapString<'_> {
+    #[inline]
     fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_u32_index(index))
+        Self(BaseIndex::from_index_u32(index))
     }
 
     fn get_index_u32(&self) -> u32 {
@@ -520,7 +519,7 @@ impl<'a> String<'a> {
             let smi = SmallInteger::try_from(self.utf16_len(agent) as u64)
                 .expect("String length is over MAX_SAFE_INTEGER");
             Some(PropertyDescriptor {
-                value: Some(super::Number::from(smi).into_value()),
+                value: Some(super::Number::from(smi).into()),
                 writable: Some(false),
                 get: None,
                 set: None,
@@ -532,7 +531,7 @@ impl<'a> String<'a> {
             if index >= 0 && (index as usize) < self.utf16_len(agent) {
                 let ch = self.char_code_at(agent, index as usize);
                 Some(PropertyDescriptor {
-                    value: Some(SmallString::from_code_point(ch).into_value()),
+                    value: Some(SmallString::from_code_point(ch).into()),
                     writable: Some(false),
                     get: None,
                     set: None,
@@ -555,12 +554,12 @@ impl<'a> String<'a> {
         if property_key == BUILTIN_STRING_MEMORY.length.into() {
             let smi = SmallInteger::try_from(self.utf16_len(agent) as u64)
                 .expect("String length is over MAX_SAFE_INTEGER");
-            Some(super::Number::from(smi).into_value())
+            Some(super::Number::from(smi).into())
         } else if let PropertyKey::Integer(index) = property_key {
             let index = index.into_i64();
             if index >= 0 && (index as usize) < self.utf16_len(agent) {
                 let ch = self.char_code_at(agent, index as usize);
-                Some(SmallString::from_code_point(ch).into_value())
+                Some(SmallString::from_code_point(ch).into())
             } else {
                 None
             }

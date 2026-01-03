@@ -24,15 +24,15 @@ use crate::{
             agent::{ExceptionType, TryError, TryResult, try_result_into_js},
         },
         types::{
-            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoValue, Object,
+            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, Object,
             OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps, SetResult, String,
-            TryGetResult, TryHasResult, Value,
+            TryGetResult, TryHasResult, Value, object_handle,
         },
     },
     engine::{
         ScopableCollection,
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, Scopable},
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
@@ -53,7 +53,7 @@ pub mod data;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Proxy<'a>(BaseIndex<'a, ProxyHeapData<'static>>);
-bindable_handle!(Proxy);
+object_handle!(Proxy);
 
 impl Proxy<'_> {
     pub(crate) fn is_callable(self, agent: &Agent, gc: NoGcScope) -> bool {
@@ -69,33 +69,6 @@ impl Proxy<'_> {
             }
             ProxyHeapData::RevokedCallable => true,
             ProxyHeapData::Revoked => false,
-        }
-    }
-}
-
-impl HeapIndexHandle for Proxy<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_index_u32(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.get_index_u32()
-    }
-}
-
-impl<'a> From<Proxy<'a>> for Object<'a> {
-    fn from(value: Proxy<'a>) -> Self {
-        Object::Proxy(value)
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for Proxy<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::Proxy(data) => Ok(data),
-            _ => Err(()),
         }
     }
 }
@@ -203,7 +176,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let handler_proto = call_function(
             agent,
             trap.unbind(),
-            handler.into_value().unbind(),
+            handler.into().unbind(),
             Some(ArgumentsList::from_mut_slice(&mut [target
                 .get(agent)
                 .into()])),
@@ -333,10 +306,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let argument = call_function(
             agent,
             trap.unbind(),
-            handler.into_value().unbind(),
+            handler.into().unbind(),
             Some(ArgumentsList::from_mut_slice(&mut [
-                target.into_value().unbind(),
-                prototype.map_or(Value::Null, |p| p.into_value().unbind()),
+                target.into().unbind(),
+                prototype.map_or(Value::Null, |p| p.into().unbind()),
             ])),
             gc.reborrow(),
         )
@@ -428,7 +401,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let argument = call_function(
             agent,
             trap.unbind(),
-            handler.into_value().unbind(),
+            handler.into().unbind(),
             Some(ArgumentsList::from_mut_slice(&mut [target
                 .get(agent)
                 .into()])),
@@ -514,7 +487,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let argument = call_function(
             agent,
             trap.unbind(),
-            handler.into_value().unbind(),
+            handler.into().unbind(),
             Some(ArgumentsList::from_mut_slice(&mut [target
                 .get(agent)
                 .into()])),
@@ -622,10 +595,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let trap_result_obj = call_function(
             agent,
             trap.unbind(),
-            handler.into_value().unbind(),
+            handler.into().unbind(),
             Some(ArgumentsList::from_mut_slice(&mut [
-                target.unbind().into_value(),
-                p.unbind().into_value(),
+                target.unbind().into(),
+                p.unbind().into(),
             ])),
             gc.reborrow(),
         )
@@ -822,11 +795,11 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let argument = call_function(
             agent,
             trap.unbind(),
-            scoped_handler.get(agent).into_value(),
+            scoped_handler.get(agent).into(),
             Some(ArgumentsList::from_mut_slice(&mut [
-                scoped_target.get(agent).into_value(),
-                p.into_value().unbind(),
-                desc_obj.map_or(Value::Null, |d| d.into_value().unbind()),
+                scoped_target.get(agent).into(),
+                p.into().unbind(),
+                desc_obj.map_or(Value::Null, |d| d.into().unbind()),
             ])),
             gc.reborrow(),
         )
@@ -994,10 +967,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let argument = call_function(
             agent,
             trap.unbind(),
-            handler.into_value().unbind(),
+            handler.into().unbind(),
             Some(ArgumentsList::from_mut_slice(&mut [
-                target.into_value().unbind(),
-                p.into_value().unbind(),
+                target.into().unbind(),
+                p.into().unbind(),
             ])),
             gc.reborrow(),
         )
@@ -1143,10 +1116,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let trap_result = call_function(
             agent,
             trap.unbind(),
-            handler.into_value().unbind(),
+            handler.into().unbind(),
             Some(ArgumentsList::from_mut_slice(&mut [
-                target.into_value().unbind(),
-                p.into_value().unbind(),
+                target.into().unbind(),
+                p.into().unbind(),
                 receiver.unbind(),
             ])),
             gc.reborrow(),
@@ -1284,10 +1257,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let argument = call_function(
             agent,
             trap.unbind(),
-            handler.into_value().unbind(),
+            handler.into().unbind(),
             Some(ArgumentsList::from_mut_slice(&mut [
-                target.into_value().unbind(),
-                p.into_value().unbind(),
+                target.into().unbind(),
+                p.into().unbind(),
                 value.unbind(),
                 receiver.unbind(),
             ])),
@@ -1413,10 +1386,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let argument = call_function(
             agent,
             trap.unbind(),
-            handler.into_value().unbind(),
+            handler.into().unbind(),
             Some(ArgumentsList::from_mut_slice(&mut [
-                target.into_value().unbind(),
-                p.into_value().unbind(),
+                target.into().unbind(),
+                p.into().unbind(),
             ])),
             gc.reborrow(),
         )
@@ -1523,10 +1496,8 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let trap_result_array = call_function(
             agent,
             trap.unbind(),
-            handler.unbind().into_value(),
-            Some(ArgumentsList::from_mut_slice(&mut [target
-                .unbind()
-                .into_value()])),
+            handler.unbind().into(),
+            Some(ArgumentsList::from_mut_slice(&mut [target.unbind().into()])),
             gc.reborrow(),
         )
         .unbind()?
@@ -1765,7 +1736,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             // a. Return ? Call(target, thisArgument, argumentsList).
             return call(
                 agent,
-                target.into_value().unbind(),
+                target.into().unbind(),
                 this_argument.unbind(),
                 Some(arguments_list.unbind()),
                 gc,
@@ -1777,11 +1748,11 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         call_function(
             agent,
             trap.unbind(),
-            handler.into_value().unbind(),
+            handler.into().unbind(),
             Some(ArgumentsList::from_mut_slice(&mut [
-                target.into_value().unbind(),
+                target.into().unbind(),
                 this_argument.unbind(),
-                arg_array.into_value().unbind(),
+                arg_array.into().unbind(),
             ])),
             gc,
         )
@@ -1866,11 +1837,11 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let new_obj = call_function(
             agent,
             trap.unbind(),
-            handler.into_value().unbind(),
+            handler.into().unbind(),
             Some(ArgumentsList::from_mut_slice(&mut [
-                target.into_value().unbind(),
-                arg_array.into_value().unbind(),
-                new_target.into_value().unbind(),
+                target.into().unbind(),
+                arg_array.into().unbind(),
+                new_target.into().unbind(),
             ])),
             gc.reborrow(),
         )
@@ -1933,19 +1904,6 @@ pub(crate) fn proxy_create<'a>(
     // 7. Set P.[[ProxyHandler]] to handler.
     // 8. Return P.
     Ok(p)
-}
-
-impl TryFrom<HeapRootData> for Proxy<'_> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        if let HeapRootData::Proxy(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
 }
 
 impl<'a> CreateHeapData<ProxyHeapData<'a>, Proxy<'a>> for Heap {

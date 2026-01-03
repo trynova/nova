@@ -7,7 +7,7 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter},
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, PropertyKey, String, Symbol, Value},
+        types::{BUILTIN_STRING_MEMORY,  PropertyKey, String, Symbol, Value},
     },
     engine::context::{Bindable, GcScope, NoGcScope},
     heap::WellKnownSymbolIndexes,
@@ -79,7 +79,7 @@ impl SymbolPrototype {
         // 3. Return sym.[[Description]].
         agent[sym]
             .descriptor
-            .map_or_else(|| Ok(Value::Undefined), |desc| Ok(desc.into_value()))
+            .map_or_else(|| Ok(Value::Undefined), |desc| Ok(desc.into()))
     }
 
     /// ### [20.4.3.3 Symbol.prototype.toString ( )](https://tc39.es/ecma262/#sec-symbol.prototype.tostring)
@@ -93,7 +93,7 @@ impl SymbolPrototype {
         // 1. Let sym be ? ThisSymbolValue(this value).
         let symb = this_symbol_value(agent, this_value, gc)?;
         // 2. Return SymbolDescriptiveString(sym).
-        Ok(symbol_descriptive_string(agent, symb, gc).into_value())
+        Ok(symbol_descriptive_string(agent, symb, gc).into())
     }
 
     /// ### [20.4.3.4 Symbol.prototype.valueOf ( )](https://tc39.es/ecma262/#sec-symbol.prototype.valueof)
@@ -104,7 +104,7 @@ impl SymbolPrototype {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         // 1. Return ? ThisSymbolValue(this value).
-        this_symbol_value(agent, this_value, gc.into_nogc()).map(|res| res.into_value())
+        this_symbol_value(agent, this_value, gc.into_nogc()).map(|res| res.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -124,7 +124,7 @@ impl SymbolPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.Symbol.into_value())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.Symbol.into())
                     .with_enumerable(false)
                     .build()
             })

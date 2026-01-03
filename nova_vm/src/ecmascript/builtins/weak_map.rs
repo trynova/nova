@@ -6,12 +6,9 @@ use crate::{
     Heap,
     ecmascript::{
         execution::{Agent, ProtoIntrinsics, WeakKey},
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
+        types::{InternalMethods, InternalSlots, OrdinaryObject, Value, object_handle},
     },
-    engine::{
-        context::{Bindable, bindable_handle},
-        rootable::HeapRootData,
-    },
+    engine::context::Bindable,
     heap::{
         CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
         indexes::{BaseIndex, HeapIndexHandle},
@@ -25,7 +22,7 @@ pub mod data;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct WeakMap<'a>(BaseIndex<'a, WeakMapRecord<'static>>);
-bindable_handle!(WeakMap);
+object_handle!(WeakMap);
 
 impl<'m> WeakMap<'m> {
     pub(crate) fn delete(self, agent: &mut Agent, key: WeakKey<'m>) -> bool {
@@ -77,67 +74,6 @@ impl<'m> WeakMap<'m> {
                     .get_mut(self.get_index())
                     .expect("Invalid WeakMap reference"),
             )
-        }
-    }
-}
-
-impl HeapIndexHandle for WeakMap<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_index_u32(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.get_index_u32()
-    }
-}
-
-impl<'a> From<WeakMap<'a>> for Object<'a> {
-    fn from(value: WeakMap<'a>) -> Self {
-        Object::WeakMap(value)
-    }
-}
-
-impl<'a> From<WeakMap<'a>> for HeapRootData {
-    fn from(value: WeakMap<'a>) -> Self {
-        HeapRootData::WeakMap(value.unbind())
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for WeakMap<'a> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        if let Value::WeakMap(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for WeakMap<'a> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        if let Object::WeakMap(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl TryFrom<HeapRootData> for WeakMap<'_> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        if let HeapRootData::WeakMap(value) = value {
-            Ok(value)
-        } else {
-            Err(())
         }
     }
 }

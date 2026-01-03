@@ -10,7 +10,7 @@ use crate::{
     ecmascript::{
         builtins::ECMAScriptFunction,
         execution::Agent,
-        types::{IntoFunction, IntoValue, PrivateName, String, Value},
+        types::{ PrivateName, String, Value},
     },
     engine::context::{Bindable, NoGcScope, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, element_array::ElementDescriptor},
@@ -69,19 +69,15 @@ impl<'a> PrivateField<'a> {
     pub(crate) fn into_element_descriptor(self) -> ElementDescriptor<'a> {
         match self {
             PrivateField::Getter { get, .. } => {
-                ElementDescriptor::ReadOnlyUnenumerableUnconfigurableAccessor {
-                    get: get.into_function(),
-                }
+                ElementDescriptor::ReadOnlyUnenumerableUnconfigurableAccessor { get: get.into() }
             }
             PrivateField::Setter { set, .. } => {
-                ElementDescriptor::WriteOnlyUnenumerableUnconfigurableAccessor {
-                    set: set.into_function(),
-                }
+                ElementDescriptor::WriteOnlyUnenumerableUnconfigurableAccessor { set: set.into() }
             }
             PrivateField::Accessor { get, set, .. } => {
                 ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor {
-                    get: get.into_function(),
-                    set: set.into_function(),
+                    get: get.into(),
+                    set: set.into(),
                 }
             }
             PrivateField::Method { .. } => {
@@ -111,7 +107,7 @@ impl<'a> PrivateField<'a> {
             | PrivateField::Getter { .. }
             | PrivateField::Setter { .. }
             | PrivateField::Accessor { .. } => None,
-            PrivateField::Method { method, .. } => Some(method.into_value()),
+            PrivateField::Method { method, .. } => Some(method.into()),
         }
     }
 }

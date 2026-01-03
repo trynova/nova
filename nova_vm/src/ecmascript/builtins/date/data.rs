@@ -6,7 +6,7 @@ use std::time::SystemTime;
 
 use crate::{
     SmallInteger,
-    ecmascript::types::{IntoValue, OrdinaryObject, Value},
+    ecmascript::types::{OrdinaryObject, Value},
     engine::context::bindable_handle,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
@@ -72,9 +72,9 @@ pub(crate) fn time_clip(time: f64) -> DateValue {
     DateValue(time.trunc() as i64)
 }
 
-impl<'a> IntoValue<'a> for DateValue {
-    fn into_value(self) -> Value<'a> {
-        if let Some(value) = self.get_f64() {
+impl<'a> From<DateValue> for Value<'a> {
+    fn from(value: DateValue) -> Self {
+        if let Some(value) = value.get_f64() {
             // SAFETY: `value` is guaranteed to be in the range of `SmallInteger`.
             Value::Integer(SmallInteger::try_from(value).unwrap())
         } else {

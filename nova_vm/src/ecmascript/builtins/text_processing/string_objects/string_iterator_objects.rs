@@ -9,8 +9,8 @@ use crate::{
         builtins::{ArgumentsList, Behaviour, Builtin},
         execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, Object,
-            OrdinaryObject, String, Value,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, OrdinaryObject, String, Value,
+            object_handle,
         },
     },
     engine::context::{Bindable, GcScope, NoGcScope, bindable_handle},
@@ -24,6 +24,7 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct StringIterator<'a>(BaseIndex<'a, StringIteratorHeapData<'static>>);
+object_handle!(StringIterator);
 
 impl<'a> StringIterator<'a> {
     pub fn create(agent: &mut Agent, string: String, gc: NoGcScope<'a, '_>) -> StringIterator<'a> {
@@ -59,46 +60,6 @@ impl<'a> StringIterator<'a> {
             .expect("StringIterator use-after-free")
     }
 }
-
-impl HeapIndexHandle for StringIterator<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_index_u32(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.get_index_u32()
-    }
-}
-
-impl<'a> From<StringIterator<'a>> for Object<'a> {
-    fn from(iter: StringIterator<'a>) -> Self {
-        Object::StringIterator(iter)
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for StringIterator<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::StringIterator(iter) => Ok(iter),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for StringIterator<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Object::StringIterator(iter) => Ok(iter),
-            _ => Err(()),
-        }
-    }
-}
-
-bindable_handle!(StringIterator);
 
 impl<'a> InternalSlots<'a> for StringIterator<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::StringIterator;
@@ -172,7 +133,7 @@ impl StringIteratorPrototype {
         // 2. If state is completed, return CreateIteratorResultObject(undefined, true).
         if generator.is_completed(agent) {
             return create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
-                .map(|o| o.into_value());
+                .map(|o| o.into());
         }
         let StringIteratorHeapData { s, position, .. } = generator.get_data(agent);
         let position = *position;
@@ -192,8 +153,8 @@ impl StringIteratorPrototype {
         generator.get_data_mut(agent).position = next_index;
         // v. Perform ? GeneratorYield(CreateIteratorResultObject(resultString, false)).
         // 11. Return ? result.
-        create_iter_result_object(agent, result_string.into_value(), false, gc.into_nogc())
-            .map(|o| o.into_value())
+        create_iter_result_object(agent, result_string.into(), false, gc.into_nogc())
+            .map(|o| o.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -208,7 +169,7 @@ impl StringIteratorPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.String_Iterator.into_value())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.String_Iterator.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()

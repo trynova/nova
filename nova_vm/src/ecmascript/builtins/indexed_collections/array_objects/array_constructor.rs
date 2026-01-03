@@ -26,10 +26,7 @@ use crate::{
             Agent, JsResult, ProtoIntrinsics, Realm,
             agent::{ExceptionType, unwrap_try},
         },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, IntoFunction, IntoObject, IntoValue, Number, Object,
-            PropertyKey, String, Value,
-        },
+        types::{BUILTIN_STRING_MEMORY, Function, Number, Object, PropertyKey, String, Value},
     },
     engine::{
         context::{Bindable, GcScope},
@@ -120,7 +117,7 @@ impl ArrayConstructor {
         // 4. If numberOfArgs = 0, then
         if arguments.is_empty() {
             // a. Return ! ArrayCreate(0, proto).
-            Ok(array_create(agent, 0, 0, proto, gc).unwrap().into_value())
+            Ok(array_create(agent, 0, 0, proto, gc).unwrap().into())
         } else if arguments.len() == 1 {
             // 5. Else if numberOfArgs = 1, then
             // a. Let len be values[0].
@@ -169,7 +166,7 @@ impl ArrayConstructor {
             };
 
             // f. Return array.
-            Ok(array.into_value())
+            Ok(array.into())
         } else {
             // 6. Else,
             // a. Assert: numberOfArgs ≥ 2.
@@ -207,7 +204,7 @@ impl ArrayConstructor {
             );
 
             // f. Return array.
-            Ok(array.into_value())
+            Ok(array.into())
         }
     }
 
@@ -271,9 +268,7 @@ impl ArrayConstructor {
             } else {
                 // b. Else,
                 // i. Let A be ! ArrayCreate(0).
-                array_create(agent, 0, 0, None, gc.nogc())
-                    .unwrap()
-                    .into_object()
+                array_create(agent, 0, 0, None, gc.nogc()).unwrap().into()
             };
 
             let a = a.scope(agent, gc.nogc());
@@ -324,7 +319,7 @@ impl ArrayConstructor {
 
                 let sk = SmallInteger::from(k as u32);
                 // 𝔽(k)
-                let fk = Number::from(sk).into_value();
+                let fk = Number::from(sk).into();
 
                 // ii. Let Pk be ! ToString(𝔽(k)).
                 let pk = PropertyKey::from(sk);
@@ -353,7 +348,7 @@ impl ArrayConstructor {
                     .unbind()?;
 
                     // 2. Return A.
-                    return Ok(a.get(agent).into_value());
+                    return Ok(a.get(agent).into());
                 };
 
                 // v. If mapping is true, then
@@ -431,7 +426,7 @@ impl ArrayConstructor {
             array_create(agent, len as usize, len as usize, None, gc.nogc())
                 .unbind()?
                 .bind(gc.nogc())
-                .into_object()
+                .into()
         };
 
         let a = a.scope(agent, gc.nogc());
@@ -443,7 +438,7 @@ impl ArrayConstructor {
         while k < len {
             let sk = SmallInteger::from(k as u32);
             // 𝔽(k)
-            let fk = Number::from(sk).into_value();
+            let fk = Number::from(sk).into();
 
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk = PropertyKey::from(sk);
@@ -497,7 +492,7 @@ impl ArrayConstructor {
         .unbind()?;
 
         // 14. Return A.
-        Ok(a.get(agent).into_value())
+        Ok(a.get(agent).into())
     }
 
     /// ### [23.1.2.2 Array.isArray ( arg )](https://tc39.es/ecma262/#sec-array.isarray)
@@ -524,12 +519,7 @@ impl ArrayConstructor {
         // 4. If IsConstructor(C) is true, then
         if let Some(c) = is_constructor(agent, this_value) {
             // a. Let A be ? Construct(C, « lenNumber »).
-            if c != agent
-                .current_realm_record()
-                .intrinsics()
-                .array()
-                .into_function()
-            {
+            if c != agent.current_realm_record().intrinsics().array().into() {
                 return array_of_generic(agent, c.unbind(), arguments.unbind(), gc);
             }
             // We're constructring an array with the default constructor.
@@ -570,7 +560,7 @@ impl ArrayConstructor {
         debug_assert!(a.is_dense(agent) && a.is_simple(agent) && a.is_trivial(agent));
 
         // 9. Return A.
-        Ok(a.into_value())
+        Ok(a.into())
     }
 
     fn get_species<'gc>(
@@ -584,7 +574,7 @@ impl ArrayConstructor {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
-        let function_prototype = intrinsics.function_prototype().into_object();
+        let function_prototype = intrinsics.function_prototype().into();
         let array_prototype = intrinsics.array_prototype();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<ArrayConstructor>(agent, realm)
@@ -593,7 +583,7 @@ impl ArrayConstructor {
             .with_builtin_function_property::<ArrayFrom>()
             .with_builtin_function_property::<ArrayIsArray>()
             .with_builtin_function_property::<ArrayOf>()
-            .with_prototype_property(array_prototype.into_object())
+            .with_prototype_property(array_prototype.into())
             .with_builtin_function_getter_property::<ArrayGetSpecies>()
             .build();
     }
@@ -615,7 +605,7 @@ fn array_of_generic<'gc>(
                 agent,
                 |agent, args, mut gc| {
                     // a. Let A be ? Construct(C, « lenNumber »).
-                    let mut len_number = Number::try_from(len_number).unwrap().into_value();
+                    let mut len_number = Number::try_from(len_number).unwrap().into();
                     let a = construct(
                         agent,
                         c.unbind(),
@@ -659,11 +649,11 @@ fn array_of_generic<'gc>(
         agent,
         a.unbind(),
         PropertyKey::from(BUILTIN_STRING_MEMORY.length),
-        Number::try_from(len_number).unwrap().into_value(),
+        Number::try_from(len_number).unwrap().into(),
         true,
         gc.reborrow(),
     )
     .unbind()?;
 
-    Ok(scoped_a.get(agent).into_value().unbind())
+    Ok(scoped_a.get(agent).into().unbind())
 }

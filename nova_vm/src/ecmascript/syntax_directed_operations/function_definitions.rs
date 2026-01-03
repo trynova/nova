@@ -35,10 +35,7 @@ use crate::{
             Agent, Environment, JsResult, PrivateEnvironment, ProtoIntrinsics, agent::unwrap_try,
         },
         scripts_and_modules::source_code::SourceCode,
-        types::{
-            BUILTIN_STRING_MEMORY, IntoFunction, IntoObject, IntoValue, PropertyDescriptor,
-            PropertyKey, Value,
-        },
+        types::{BUILTIN_STRING_MEMORY, PropertyDescriptor, PropertyKey, Value},
     },
     engine::{
         Executable, ExecutionResult, Vm,
@@ -158,13 +155,13 @@ pub(crate) fn instantiate_ordinary_function_object<'a>(
                     .current_realm_record()
                     .intrinsics()
                     .async_generator_prototype()
-                    .into_object()
+                    .into()
             } else {
                 agent
                     .current_realm_record()
                     .intrinsics()
                     .generator_prototype()
-                    .into_object()
+                    .into()
             }),
             gc,
         );
@@ -175,7 +172,7 @@ pub(crate) fn instantiate_ordinary_function_object<'a>(
             BUILTIN_STRING_MEMORY.prototype.to_property_key(),
             PropertyDescriptor {
                 // [[Value]]: prototype,
-                value: Some(prototype.into_value().unbind()),
+                value: Some(prototype.into().unbind()),
                 // [[Writable]]: true,
                 writable: Some(true),
                 // [[Enumerable]]: false,
@@ -415,9 +412,9 @@ pub(crate) fn evaluate_generator_body<'gc>(
         .bind(gc.nogc());
     ordinary_populate_from_constructor(
         agent,
-        g.into_object().unbind(),
+        g.into().unbind(),
         // SAFETY: not shared.
-        unsafe { function_object.take(agent) }.into_function(),
+        unsafe { function_object.take(agent) }.into(),
         ProtoIntrinsics::Generator,
         gc,
     )
@@ -492,9 +489,9 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
         .bind(gc.nogc());
     ordinary_populate_from_constructor(
         agent,
-        generator.into_object().unbind(),
+        generator.into().unbind(),
         // SAFETY: not shared.
-        unsafe { function_object.take(agent) }.into_function(),
+        unsafe { function_object.take(agent) }.into(),
         ProtoIntrinsics::AsyncGenerator,
         gc,
     )

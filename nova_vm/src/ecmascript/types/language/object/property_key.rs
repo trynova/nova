@@ -13,7 +13,7 @@ use crate::{
         abstract_operations::type_conversion::parse_string_to_integer_property_key,
         execution::Agent,
         types::{
-            IntoPrimitive, Primitive, PrivateName, String, Symbol, Value,
+            Primitive, PrivateName, String, Symbol, Value,
             language::{
                 string::HeapString,
                 value::{
@@ -31,7 +31,7 @@ use crate::{
     heap::{CompactionLists, HeapMarkAndSweep, PropertyKeyHeapIndexable, WorkQueues},
 };
 
-const PRIVATE_NAME_DISCRIMINANT: u8 = SYMBOL_DISCRIMINANT & 0b1000_0000;
+const PRIVATE_NAME_DISCRIMINANT: u8 = SYMBOL_DISCRIMINANT + 0b1000_0000;
 
 /// # [Property key](https://tc39.es/ecma262/#property-key)
 ///
@@ -100,8 +100,7 @@ impl<'a> PropertyKey<'a> {
     ) -> Primitive<'gc> {
         match self {
             PropertyKey::Integer(small_integer) => {
-                String::from_string(agent, small_integer.into_i64().to_string(), gc)
-                    .into_primitive()
+                String::from_string(agent, small_integer.into_i64().to_string(), gc).into()
             }
             PropertyKey::SmallString(small_string) => Primitive::SmallString(small_string),
             PropertyKey::String(heap_string) => Primitive::String(heap_string.unbind()),

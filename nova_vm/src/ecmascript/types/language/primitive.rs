@@ -15,7 +15,7 @@ use crate::{
 };
 
 use super::{
-    IntoValue, Symbol, Value,
+     Symbol, Value,
     bigint::HeapBigInt,
     number::HeapNumber,
     string::HeapString,
@@ -179,21 +179,21 @@ impl From<bool> for Primitive<'static> {
     }
 }
 
-impl<'a, T: Into<Primitive<'a>>> From<T> for Value<'a> {
-    fn from(value: T) -> Self {
-        let value: Primitive = value.into();
+impl<'a> From<Primitive<'a>> for Value<'a> {
+    #[inline]
+    fn from(value: Primitive<'a>) -> Self {
         match value {
-            Primitive::Undefined => Value::Undefined,
-            Primitive::Null => Value::Null,
-            Primitive::Boolean(data) => Value::Boolean(data),
-            Primitive::String(data) => Value::String(data.unbind()),
-            Primitive::SmallString(data) => Value::SmallString(data),
-            Primitive::Symbol(data) => Value::Symbol(data.unbind()),
-            Primitive::Number(data) => Value::Number(data.unbind()),
-            Primitive::Integer(data) => Value::Integer(data),
-            Primitive::SmallF64(data) => Value::SmallF64(data),
-            Primitive::BigInt(data) => Value::BigInt(data.unbind()),
-            Primitive::SmallBigInt(data) => Value::SmallBigInt(data),
+            Primitive::Undefined => Self::Undefined,
+            Primitive::Null => Self::Null,
+            Primitive::Boolean(data) => Self::Boolean(data),
+            Primitive::String(data) => Self::String(data.unbind()),
+            Primitive::SmallString(data) => Self::SmallString(data),
+            Primitive::Symbol(data) => Self::Symbol(data.unbind()),
+            Primitive::Number(data) => Self::Number(data.unbind()),
+            Primitive::Integer(data) => Self::Integer(data),
+            Primitive::SmallF64(data) => Self::SmallF64(data),
+            Primitive::BigInt(data) => Self::BigInt(data.unbind()),
+            Primitive::SmallBigInt(data) => Self::SmallBigInt(data),
         }
     }
 }

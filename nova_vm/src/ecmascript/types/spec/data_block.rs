@@ -33,7 +33,7 @@ use crate::{
             to_uint32_number,
         },
         execution::{Agent, JsResult, agent::ExceptionType},
-        types::{BigInt, IntoNumeric, Number, Numeric, Value},
+        types::{BigInt, Number, Numeric, Value},
     },
     engine::context::{NoGcScope, trivially_bindable},
 };

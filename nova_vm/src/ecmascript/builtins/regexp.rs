@@ -12,15 +12,12 @@ use crate::{
             agent::{TryResult, unwrap_try},
         },
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, SetResult, String, TryGetResult,
-            TryHasResult, Value,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, OrdinaryObject,
+            PropertyDescriptor, PropertyKey, SetResult, String, TryGetResult, TryHasResult, Value,
+            object_handle,
         },
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::HeapRootData,
-    },
+    engine::context::{Bindable, GcScope, NoGcScope},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
@@ -41,16 +38,7 @@ use super::ordinary::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct RegExp<'a>(BaseIndex<'a, RegExpHeapData<'static>>);
-
-impl HeapIndexHandle for RegExp<'_> {
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_u32_index(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.into_u32_index()
-    }
-}
+object_handle!(RegExp);
 
 impl<'a> RegExp<'a> {
     /// Fast-path for RegExp object debug stringifying; this does not take into
@@ -85,10 +73,10 @@ impl<'a> RegExp<'a> {
             // call into JavaScript.
             let success = unwrap_try(ordinary_try_set(
                 agent,
-                self.into_object(),
+                self.into(),
                 BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
-                last_index.get_value().unwrap().into_value(),
-                self.into_value(),
+                last_index.get_value().unwrap().into(),
+                self.into(),
                 None,
                 gc,
             ))
@@ -120,36 +108,6 @@ impl<'a> RegExp<'a> {
             Some(last_index.unwrap_or(0))
         } else {
             None
-        }
-    }
-}
-
-bindable_handle!(RegExp);
-
-impl<'a> From<RegExp<'a>> for Object<'a> {
-    fn from(value: RegExp) -> Self {
-        Self::RegExp(value.unbind())
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for RegExp<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Object::RegExp(regexp) => Ok(regexp),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for RegExp<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::RegExp(regexp) => Ok(regexp),
-            _ => Err(()),
         }
     }
 }
@@ -209,7 +167,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
             // knowledge of all our properties, including lastIndex.
             TryResult::Continue(ordinary_get_own_property(
                 agent,
-                self.into_object(),
+                self.into(),
                 backing_object,
                 property_key,
                 cache,
@@ -233,11 +191,11 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
     ) -> TryResult<'gc, TryHasResult<'gc>> {
         if property_key == BUILTIN_STRING_MEMORY.lastIndex.into() {
             // lastIndex always exists
-            TryHasResult::Custom(0, self.into_object().bind(gc)).into()
+            TryHasResult::Custom(0, self.into().bind(gc)).into()
         } else {
             ordinary_try_has_property(
                 agent,
-                self.into_object(),
+                self.into(),
                 self.get_backing_object(agent),
                 property_key,
                 cache,
@@ -256,7 +214,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
             // lastIndex always exists
             Ok(true)
         } else if let Some(backing_object) = self.get_backing_object(agent) {
-            ordinary_has_property(agent, self.into_object(), backing_object, property_key, gc)
+            ordinary_has_property(agent, self.into(), backing_object, property_key, gc)
         } else {
             // a. Let parent be ? O.[[GetPrototypeOf]]().
             // Note: We know statically what this ends up doing.
@@ -287,7 +245,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         }
         ordinary_try_get(
             agent,
-            self.into_object(),
+            self.into(),
             self.get_backing_object(agent),
             property_key,
             receiver,
@@ -345,7 +303,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
                 // call into JavaScript.
                 let success = unwrap_try(ordinary_try_set(
                     agent,
-                    self.into_object(),
+                    self.into(),
                     property_key,
                     value,
                     receiver,
@@ -408,7 +366,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         } else {
             // If something else is being set, fall back onto the ordinary
             // abstract operation.
-            ordinary_set(agent, self.into_object(), property_key, value, receiver, gc)
+            ordinary_set(agent, self.into(), property_key, value, receiver, gc)
         }
     }
 
@@ -442,19 +400,6 @@ impl HeapMarkAndSweep for RegExp<'static> {
 impl HeapSweepWeakReference for RegExp<'static> {
     fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
         compactions.regexps.shift_weak_index(self.0).map(Self)
-    }
-}
-
-impl TryFrom<HeapRootData> for RegExp<'_> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        if let HeapRootData::RegExp(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
     }
 }
 

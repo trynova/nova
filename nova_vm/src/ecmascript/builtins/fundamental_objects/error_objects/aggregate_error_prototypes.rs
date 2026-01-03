@@ -5,7 +5,7 @@
 use crate::ecmascript::{
     builders::ordinary_object_builder::OrdinaryObjectBuilder,
     execution::{Agent, Realm},
-    types::{BUILTIN_STRING_MEMORY, IntoValue, String},
+    types::{BUILTIN_STRING_MEMORY, String},
 };
 
 pub(crate) struct AggregateErrorPrototype;
@@ -24,14 +24,14 @@ impl AggregateErrorPrototype {
                 builder
                     .with_enumerable(false)
                     .with_key(BUILTIN_STRING_MEMORY.message.into())
-                    .with_value(String::EMPTY_STRING.into_value())
+                    .with_value(String::EMPTY_STRING.into())
                     .build()
             })
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
                     .with_key(BUILTIN_STRING_MEMORY.name.into())
-                    .with_value(BUILTIN_STRING_MEMORY.AggregateError.into_value())
+                    .with_value(BUILTIN_STRING_MEMORY.AggregateError.into())
                     .build()
             })
             .build();
