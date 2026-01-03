@@ -890,17 +890,6 @@ impl TryFrom<i64> for Value<'static> {
     }
 }
 
-impl<'a> TryFrom<Value<'a>> for bool {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::Boolean(bool) => Ok(bool),
-            _ => Err(()),
-        }
-    }
-}
-
 macro_rules! impl_value_from_n {
     ($size: ty) => {
         impl From<$size> for Value<'_> {
@@ -1567,3 +1556,65 @@ fn map_object_to_static_string_repr(value: Value) -> String<'static> {
         | Object::EmbedderObject(_) => BUILTIN_STRING_MEMORY._object_Object_,
     }
 }
+
+macro_rules! value_handle {
+    ($name: tt) => {
+        crate::ecmascript::types::value_handle!($name, $name);
+    };
+    ($name: ident, $variant: ident) => {
+        crate::engine::context::bindable_handle!($name);
+
+        impl crate::heap::indexes::HeapIndexHandle for $name<'_> {
+            const _DEF: Self = Self(crate::heap::indexes::BaseIndex::MAX);
+
+            #[inline]
+            fn from_index_u32(index: u32) -> Self {
+                Self(crate::heap::indexes::BaseIndex::from_index_u32(index))
+            }
+
+            #[inline]
+            fn get_index_u32(&self) -> u32 {
+                self.0.into_u32_index()
+            }
+        }
+
+        impl<'a> From<$name<'a>> for crate::ecmascript::types::Value<'a> {
+            #[inline(always)]
+            fn from(value: $name<'a>) -> Self {
+                Self::$variant(value)
+            }
+        }
+
+        impl<'a> From<$name<'a>> for crate::engine::rootable::HeapRootData {
+            #[inline(always)]
+            fn from(value: $name<'a>) -> Self {
+                Self::$variant(value)
+            }
+        }
+
+        impl<'a> TryFrom<crate::ecmascript::types::Value<'a>> for $name<'a> {
+            type Error = ();
+
+            #[inline]
+            fn try_from(value: crate::ecmascript::types::Value<'a>) -> Result<Self, Self::Error> {
+                match value {
+                    crate::ecmascript::types::Value::$variant(data) => Ok(data),
+                    _ => Err(()),
+                }
+            }
+        }
+
+        impl TryFrom<crate::engine::rootable::HeapRootData> for $name<'_> {
+            type Error = ();
+
+            #[inline]
+            fn try_from(value: crate::engine::rootable::HeapRootData) -> Result<Self, Self::Error> {
+                match value {
+                    crate::engine::rootable::HeapRootData::$variant(data) => Ok(data),
+                    _ => Err(()),
+                }
+            }
+        }
+    };
+}
+pub(crate) use value_handle;

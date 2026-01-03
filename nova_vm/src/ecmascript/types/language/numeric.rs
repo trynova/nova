@@ -168,3 +168,59 @@ impl Rootable for Numeric<'_> {
         }
     }
 }
+
+macro_rules! numeric_value {
+    ($name: tt) => {
+        crate::ecmascript::types::numeric_value!($name, $name);
+    };
+    ($name: ident, $variant: ident) => {
+        crate::ecmascript::types::primitive_value!($name, $variant);
+
+        impl From<$name> for crate::ecmascript::types::Numeric<'static> {
+            #[inline(always)]
+            fn from(value: $name) -> Self {
+                Self::$variant(value)
+            }
+        }
+
+        impl TryFrom<crate::ecmascript::types::Numeric<'_>> for $name {
+            type Error = ();
+
+            #[inline]
+            fn try_from(value: crate::ecmascript::types::Numeric) -> Result<Self, Self::Error> {
+                match value {
+                    crate::ecmascript::types::Numeric::$variant(data) => Ok(data),
+                    _ => Err(()),
+                }
+            }
+        }
+    };
+}
+pub(crate) use numeric_value;
+
+macro_rules! numeric_handle {
+    ($name: tt) => {
+        crate::ecmascript::types::numeric_handle!($name, $name);
+    };
+    ($name: ident, $variant: ident) => {
+        crate::ecmascript::types::primitive_handle!($name, $variant);
+
+        impl<'a> From<$name<'a>> for crate::ecmascript::types::Numeric<'a> {
+            fn from(value: $name<'a>) -> Self {
+                Self::$variant(value)
+            }
+        }
+
+        impl<'a> TryFrom<crate::ecmascript::types::Numeric<'a>> for $name<'a> {
+            type Error = ();
+
+            fn try_from(value: crate::ecmascript::types::Numeric<'a>) -> Result<Self, Self::Error> {
+                match value {
+                    crate::ecmascript::types::Numeric::$variant(data) => Ok(data),
+                    _ => Err(()),
+                }
+            }
+        }
+    };
+}
+pub(crate) use numeric_handle;

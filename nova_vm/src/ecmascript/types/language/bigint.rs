@@ -13,7 +13,10 @@ use super::{
 };
 use crate::{
     SmallInteger,
-    ecmascript::execution::{Agent, JsResult, agent::ExceptionType},
+    ecmascript::{
+        execution::{Agent, JsResult, agent::ExceptionType},
+        types::primitive_handle,
+    },
     engine::{
         context::{Bindable, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
@@ -35,6 +38,7 @@ use std::ops::{BitAnd, BitOr, BitXor};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct HeapBigInt<'a>(BaseIndex<'a, BigIntHeapData>);
+primitive_handle!(HeapBigInt);
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum BigIntMathematicalValue {
@@ -45,17 +49,6 @@ pub(crate) enum BigIntMathematicalValue {
 impl<'a> HeapBigInt<'a> {
     pub(crate) fn get_index(self) -> usize {
         self.0.into_index()
-    }
-}
-
-impl HeapIndexHandle for HeapBigInt<'_> {
-    #[inline]
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_index_u32(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.into_u32_index()
     }
 }
 
@@ -95,47 +88,37 @@ impl<'a> HeapBigInt<'a> {
     }
 }
 
-bindable_handle!(HeapBigInt);
-
-impl<'a> From<HeapBigInt<'a>> for Primitive<'a> {
-    fn from(value: HeapBigInt<'a>) -> Self {
-        Primitive::BigInt(value)
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for HeapBigInt<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        if let Value::BigInt(x) = value {
-            Ok(x)
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl<'a> TryFrom<Primitive<'a>> for HeapBigInt<'a> {
-    type Error = ();
-
-    fn try_from(value: Primitive<'a>) -> Result<Self, Self::Error> {
-        if let Primitive::BigInt(x) = value {
-            Ok(x)
-        } else {
-            Err(())
-        }
-    }
-}
-
 impl<'a> From<HeapBigInt<'a>> for BigInt<'a> {
     fn from(value: HeapBigInt<'a>) -> Self {
         Self::BigInt(value)
     }
 }
 
+impl<'a> TryFrom<BigInt<'a>> for HeapBigInt<'a> {
+    type Error = ();
+
+    fn try_from(value: BigInt<'a>) -> Result<Self, Self::Error> {
+        match value {
+            BigInt::BigInt(b) => Ok(b),
+            _ => Err(()),
+        }
+    }
+}
+
 impl From<SmallBigInt> for BigInt<'static> {
     fn from(value: SmallBigInt) -> Self {
         Self::SmallBigInt(value)
+    }
+}
+
+impl<'a> TryFrom<BigInt<'a>> for SmallBigInt {
+    type Error = ();
+
+    fn try_from(value: BigInt<'a>) -> Result<Self, Self::Error> {
+        match value {
+            BigInt::SmallBigInt(b) => Ok(b),
+            _ => Err(()),
+        }
     }
 }
 

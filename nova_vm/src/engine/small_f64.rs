@@ -2,13 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::SmallInteger;
+use crate::{SmallInteger, ecmascript::types::number_value};
 
 /// 56-bit double, the implied bottom 8 bits are zero.
 #[derive(Clone, Copy, PartialEq)]
 pub struct SmallF64 {
     data: [u8; 7],
 }
+number_value!(SmallF64);
 
 impl core::fmt::Debug for SmallF64 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {

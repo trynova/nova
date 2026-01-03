@@ -11,7 +11,10 @@ use std::borrow::Cow;
 use super::{Primitive, PropertyKey, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT, Value};
 use crate::{
     SmallInteger, SmallString,
-    ecmascript::{execution::Agent, types::PropertyDescriptor},
+    ecmascript::{
+        execution::Agent,
+        types::{PropertyDescriptor, primitive_handle, primitive_value},
+    },
     engine::{
         Scoped,
         context::{Bindable, NoGcScope, bindable_handle},
@@ -19,7 +22,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        PrimitiveHeap, PropertyKeyHeap, WorkQueues,
+        WorkQueues,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -40,7 +43,8 @@ use wtf8::{CodePoint, Wtf8, Wtf8Buf};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct HeapString<'a>(BaseIndex<'a, StringRecord>);
-bindable_handle!(HeapString);
+primitive_handle!(HeapString);
+primitive_value!(SmallString);
 
 impl HeapString<'_> {
     pub fn len(self, agent: &Agent) -> usize {
@@ -53,17 +57,6 @@ impl HeapString<'_> {
 
     pub fn as_str(self, agent: &Agent) -> Option<&str> {
         agent[self].as_str()
-    }
-}
-
-impl HeapIndexHandle for HeapString<'_> {
-    #[inline]
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_index_u32(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.into_u32_index()
     }
 }
 
@@ -112,27 +105,20 @@ pub enum StringRootRepr {
     HeapRef(HeapRootRef) = 0x80,
 }
 
-impl<'a> TryFrom<Value<'a>> for HeapString<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        if let Value::String(x) = value {
-            Ok(x)
-        } else {
-            Err(())
-        }
-    }
-}
-
 impl<'a> From<HeapString<'a>> for String<'a> {
     fn from(value: HeapString<'a>) -> Self {
         String::String(value)
     }
 }
 
-impl<'a> From<HeapString<'a>> for Primitive<'a> {
-    fn from(value: HeapString<'a>) -> Self {
-        Self::String(value.unbind())
+impl<'a> TryFrom<String<'a>> for HeapString<'a> {
+    type Error = ();
+
+    fn try_from(value: String<'a>) -> Result<Self, Self::Error> {
+        match value {
+            String::String(s) => Ok(s),
+            _ => Err(()),
+        }
     }
 }
 
@@ -193,9 +179,14 @@ impl From<SmallString> for String<'static> {
     }
 }
 
-impl From<SmallString> for Primitive<'static> {
-    fn from(value: SmallString) -> Self {
-        Self::SmallString(value)
+impl<'a> TryFrom<String<'a>> for SmallString {
+    type Error = ();
+
+    fn try_from(value: String<'a>) -> Result<Self, Self::Error> {
+        match value {
+            String::SmallString(s) => Ok(s),
+            _ => Err(()),
+        }
     }
 }
 

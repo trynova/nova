@@ -7,7 +7,6 @@ use core::{
     hint::{assert_unchecked, unreachable_unchecked},
     marker::PhantomData,
 };
-use std::convert::Infallible;
 
 use ecmascript_atomics::Ordering;
 

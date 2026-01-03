@@ -14,6 +14,7 @@ use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{to_int32_number, to_uint32_number},
         execution::Agent,
+        types::language::numeric::numeric_handle,
     },
     engine::{
         context::{Bindable, NoGcScope, bindable_handle},
@@ -21,7 +22,7 @@ use crate::{
         small_f64::SmallF64,
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeap, WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -38,18 +39,7 @@ pub(crate) use radix::with_radix;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct HeapNumber<'a>(BaseIndex<'a, NumberHeapData>);
-bindable_handle!(HeapNumber);
-
-impl HeapIndexHandle for HeapNumber<'_> {
-    #[inline]
-    fn from_index_u32(index: u32) -> Self {
-        Self(BaseIndex::from_index_u32(index))
-    }
-
-    fn get_index_u32(&self) -> u32 {
-        self.0.into_u32_index()
-    }
-}
+numeric_handle!(HeapNumber, Number);
 
 /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
 #[derive(Clone, Copy, PartialEq)]
@@ -71,36 +61,6 @@ pub enum NumberRootRepr {
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     SmallF64(SmallF64) = FLOAT_DISCRIMINANT,
     HeapRef(HeapRootRef) = 0x80,
-}
-
-impl<'a> From<HeapNumber<'a>> for Value<'a> {
-    fn from(value: HeapNumber<'a>) -> Self {
-        Self::Number(value)
-    }
-}
-
-impl<'a> From<HeapNumber<'a>> for Primitive<'a> {
-    fn from(value: HeapNumber<'a>) -> Self {
-        Self::Number(value)
-    }
-}
-
-impl<'a> From<HeapNumber<'a>> for Numeric<'a> {
-    fn from(value: HeapNumber<'a>) -> Self {
-        Numeric::Number(value)
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for HeapNumber<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        if let Value::Number(x) = value {
-            Ok(x)
-        } else {
-            Err(())
-        }
-    }
 }
 
 impl<'a> From<Number<'a>> for Numeric<'a> {
@@ -129,15 +89,14 @@ impl<'a> From<HeapNumber<'a>> for Number<'a> {
     }
 }
 
-impl From<SmallInteger> for Number<'static> {
-    fn from(value: SmallInteger) -> Self {
-        Number::Integer(value)
-    }
-}
+impl<'a> TryFrom<Number<'a>> for HeapNumber<'a> {
+    type Error = ();
 
-impl From<SmallF64> for Number<'static> {
-    fn from(value: SmallF64) -> Self {
-        Number::SmallF64(value)
+    fn try_from(value: Number<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Number::Number(s) => Ok(s),
+            _ => Err(()),
+        }
     }
 }
 
@@ -1557,3 +1516,32 @@ mod tests {
         agent.gc(gc);
     }
 }
+
+macro_rules! number_value {
+    ($name: tt) => {
+        crate::ecmascript::types::number_value!($name, $name);
+    };
+    ($name: ident, $variant: ident) => {
+        crate::ecmascript::types::primitive_value!($name, $variant);
+
+        impl From<$name> for crate::ecmascript::types::Number<'static> {
+            #[inline(always)]
+            fn from(value: $name) -> Self {
+                Self::$variant(value)
+            }
+        }
+
+        impl TryFrom<crate::ecmascript::types::Number<'_>> for $name {
+            type Error = ();
+
+            #[inline]
+            fn try_from(value: crate::ecmascript::types::Number) -> Result<Self, Self::Error> {
+                match value {
+                    crate::ecmascript::types::Number::$variant(data) => Ok(data),
+                    _ => Err(()),
+                }
+            }
+        }
+    };
+}
+pub(crate) use number_value;
