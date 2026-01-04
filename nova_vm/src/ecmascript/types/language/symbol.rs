@@ -13,11 +13,11 @@ use crate::{
     },
     engine::{
         context::{Bindable, NoGcScope},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
+        rootable::HeapRootRef,
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        LAST_WELL_KNOWN_SYMBOL_INDEX, WellKnownSymbolIndexes, WorkQueues,
+        WellKnownSymbolIndexes, WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -28,6 +28,12 @@ use super::{BUILTIN_STRING_MEMORY, PropertyKey};
 #[repr(transparent)]
 pub struct Symbol<'a>(BaseIndex<'a, SymbolHeapData<'static>>);
 primitive_handle!(Symbol);
+arena_vec_access!(
+    Symbol,
+    [SymbolHeapData<'static>],
+    symbols,
+    SymbolHeapData<'a>
+);
 
 /// Inner root repr type to hide WellKnownSymbolIndexes.
 #[derive(Debug, Clone, Copy)]

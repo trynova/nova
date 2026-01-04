@@ -30,7 +30,13 @@ use crate::{
 /// These are used when the function hasn't had a backing object created.
 pub(crate) trait FunctionInternalProperties<'a>
 where
-    Self: Sized + Copy + Into<Object<'a>> + Into<Function<'a>> + core::fmt::Debug,
+    Self: Sized
+        + Copy
+        + Into<Object<'a>>
+        + TryFrom<Object<'a>>
+        + Into<Function<'a>>
+        + TryFrom<Function<'a>>
+        + core::fmt::Debug,
 {
     /// Value of the 'name' property.
     fn get_name(self, agent: &Agent) -> &String<'a>;

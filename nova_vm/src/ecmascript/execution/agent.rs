@@ -49,8 +49,8 @@ use crate::{
             source_code::SourceCode,
         },
         types::{
-            Function,  Object, OrdinaryObject, PrivateName, PropertyKey, Reference,
-            String, Symbol, Value, ValueRootRepr,
+            Function, Object, OrdinaryObject, PrivateName, PropertyKey, Reference, String, Symbol,
+            Value, ValueRootRepr,
         },
     },
     engine::{

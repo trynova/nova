@@ -736,9 +736,9 @@ pub(crate) fn initialize_default_realm(agent: &mut Agent, gc: GcScope) {
 
 #[cfg(test)]
 mod test {
-    use crate::ecmascript::types::BuiltinFunctionHeapData;
     #[allow(unused_imports)]
     use crate::{
+        ecmascript::types::BuiltinFunctionHeapData,
         engine::context::{Bindable, GcScope},
         heap::{
             IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, IntrinsicObjectIndexes,

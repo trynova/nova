@@ -22,7 +22,8 @@ use crate::{
         small_f64::SmallF64,
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapAccess, HeapMarkAndSweep, WorkQueues,
+        ArenaAccess, CompactionLists, CreateHeapData, DirectArenaAccess, Heap, HeapMarkAndSweep,
+        WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -133,7 +134,9 @@ impl<'a> Number<'a> {
 
     pub fn is_nan<T>(self, agent: &'a T) -> bool
     where
-        HeapNumber<'a>: HeapAccess<'a, T, OutputRef = &'a f64>,
+        HeapNumber<'a>: ArenaAccess<'a, T, OutputRef = &'a f64>,
+        T: AsRef<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>,
     {
         match self {
             Number::Number(n) => n.get(agent).is_nan(),
@@ -144,7 +147,9 @@ impl<'a> Number<'a> {
 
     pub fn is_pos_zero<T>(self, agent: &'a T) -> bool
     where
-        HeapNumber<'a>: HeapAccess<'a, T, OutputRef = &'a f64>,
+        HeapNumber<'a>: ArenaAccess<'a, T, OutputRef = &'a f64>,
+        T: AsRef<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>,
     {
         match self {
             Number::Number(n) => f64::to_bits(0.0) == f64::to_bits(*n.get(agent)),
@@ -155,7 +160,9 @@ impl<'a> Number<'a> {
 
     pub fn is_neg_zero<T>(self, agent: &'a T) -> bool
     where
-        HeapNumber<'a>: HeapAccess<'a, T, OutputRef = &'a f64>,
+        HeapNumber<'a>: ArenaAccess<'a, T, OutputRef = &'a f64>,
+        T: AsRef<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>,
     {
         match self {
             Number::Number(n) => f64::to_bits(-0.0) == f64::to_bits(*n.get(agent)),
@@ -166,7 +173,9 @@ impl<'a> Number<'a> {
 
     pub fn is_pos_infinity<T>(self, agent: &'a T) -> bool
     where
-        HeapNumber<'a>: HeapAccess<'a, T, OutputRef = &'a f64>,
+        HeapNumber<'a>: ArenaAccess<'a, T, OutputRef = &'a f64>,
+        T: AsRef<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>,
     {
         match self {
             Number::Number(n) => n.get(agent) == f64::INFINITY,
@@ -177,7 +186,9 @@ impl<'a> Number<'a> {
 
     pub fn is_neg_infinity<T>(self, agent: &'a T) -> bool
     where
-        HeapNumber<'a>: HeapAccess<'a, T, OutputRef = &'a f64>,
+        HeapNumber<'a>: ArenaAccess<'a, T, OutputRef = &'a f64>,
+        T: AsRef<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>,
     {
         match self {
             Number::Number(n) => n.get(agent) == f64::NEG_INFINITY,
@@ -188,7 +199,9 @@ impl<'a> Number<'a> {
 
     pub fn is_finite<T>(self, agent: &'a T) -> bool
     where
-        HeapNumber<'a>: HeapAccess<'a, T, OutputRef = &'a f64>,
+        HeapNumber<'a>: ArenaAccess<'a, T, OutputRef = &'a f64>,
+        T: AsRef<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>,
     {
         match self {
             Number::Number(n) => n.get(agent).is_finite(),
@@ -199,7 +212,9 @@ impl<'a> Number<'a> {
 
     pub fn is_integer<T>(self, agent: &'a T) -> bool
     where
-        HeapNumber<'a>: HeapAccess<'a, T, OutputRef = &'a f64>,
+        HeapNumber<'a>: ArenaAccess<'a, T, OutputRef = &'a f64>,
+        T: AsRef<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>,
     {
         match self {
             Number::Number(n) => n.get(agent).fract() == 0.0,
@@ -210,7 +225,9 @@ impl<'a> Number<'a> {
 
     pub fn is_nonzero<T>(self, agent: &'a T) -> bool
     where
-        HeapNumber<'a>: HeapAccess<'a, T, OutputRef = &'a f64>,
+        HeapNumber<'a>: ArenaAccess<'a, T, OutputRef = &'a f64>,
+        T: AsRef<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>,
     {
         match self {
             Number::Number(n) => 0.0 != n.get(agent),
@@ -221,7 +238,9 @@ impl<'a> Number<'a> {
 
     pub fn is_pos_one<T>(self, agent: &'a T) -> bool
     where
-        HeapNumber<'a>: HeapAccess<'a, T, OutputRef = &'a f64>,
+        HeapNumber<'a>: ArenaAccess<'a, T, OutputRef = &'a f64>,
+        T: AsRef<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>,
     {
         // NOTE: Only the integer variant should ever return true, if any other
         // variant returns true, that's a bug as it means that our variants are
@@ -241,7 +260,9 @@ impl<'a> Number<'a> {
 
     pub fn is_neg_one<T>(self, agent: &'a T) -> bool
     where
-        HeapNumber<'a>: HeapAccess<'a, T, OutputRef = &'a f64>,
+        HeapNumber<'a>: ArenaAccess<'a, T, OutputRef = &'a f64>,
+        T: AsRef<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>,
     {
         match self {
             Number::Integer(n) => -1i64 == n.into_i64(),
@@ -258,7 +279,9 @@ impl<'a> Number<'a> {
 
     pub fn is_sign_positive<T>(self, agent: &'a T) -> bool
     where
-        HeapNumber<'a>: HeapAccess<'a, T, OutputRef = &'a f64>,
+        HeapNumber<'a>: ArenaAccess<'a, T, OutputRef = &'a f64>,
+        T: AsRef<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>,
     {
         match self {
             Number::Number(n) => n.get(agent).is_sign_positive(),
@@ -269,7 +292,9 @@ impl<'a> Number<'a> {
 
     pub fn is_sign_negative<T>(self, agent: &'a T) -> bool
     where
-        HeapNumber<'a>: HeapAccess<'a, T, OutputRef = &'a f64>,
+        HeapNumber<'a>: ArenaAccess<'a, T, OutputRef = &'a f64>,
+        T: AsRef<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>,
     {
         match self {
             Number::Number(n) => n.get(agent).is_sign_negative(),
@@ -292,7 +317,9 @@ impl<'a> Number<'a> {
 
     pub fn into_f64<T>(self, agent: &'a T) -> f64
     where
-        HeapNumber<'a>: HeapAccess<'a, T, OutputRef = &'a f64>,
+        HeapNumber<'a>: ArenaAccess<'a, T, OutputRef = &'a f64>,
+        T: AsRef<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>,
     {
         match self {
             Number::Number(n) => *n.get(agent),
@@ -303,7 +330,9 @@ impl<'a> Number<'a> {
 
     pub fn into_f32<T>(self, agent: &'a T) -> f32
     where
-        HeapNumber<'a>: HeapAccess<'a, T, OutputRef = &'a f64>,
+        HeapNumber<'a>: ArenaAccess<'a, T, OutputRef = &'a f64>,
+        T: AsRef<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>,
     {
         match self {
             Number::Number(n) => *n.get(agent) as f32,
@@ -315,7 +344,9 @@ impl<'a> Number<'a> {
     #[cfg(feature = "proposal-float16array")]
     pub fn into_f16<T>(self, agent: &'a T) -> f16
     where
-        HeapNumber<'a>: HeapAccess<'a, T, OutputRef = &'a f64>,
+        HeapNumber<'a>: ArenaAccess<'a, T, OutputRef = &'a f64>,
+        T: AsRef<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>,
     {
         match self {
             Number::Number(n) => n.get(agent) as f16,
@@ -332,7 +363,9 @@ impl<'a> Number<'a> {
     /// - All other numbers round towards zero.
     pub fn into_i64<T>(self, agent: &'a T) -> i64
     where
-        HeapNumber<'a>: HeapAccess<'a, T, OutputRef = &'a f64>,
+        HeapNumber<'a>: ArenaAccess<'a, T, OutputRef = &'a f64>,
+        T: AsRef<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>,
     {
         match self {
             Number::Number(n) => *n.get(agent) as i64,
@@ -349,7 +382,9 @@ impl<'a> Number<'a> {
     /// - All other numbers round towards zero.
     pub fn into_usize<T>(self, agent: &'a T) -> usize
     where
-        HeapNumber<'a>: HeapAccess<'a, T, OutputRef = &'a f64>,
+        HeapNumber<'a>: ArenaAccess<'a, T, OutputRef = &'a f64>,
+        T: AsRef<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>,
     {
         match self {
             Number::Number(n) => *n.get(agent) as usize,
@@ -372,7 +407,9 @@ impl<'a> Number<'a> {
     #[inline(always)]
     fn is<T>(agent: &'a T, x: Self, y: Self) -> bool
     where
-        HeapNumber<'a>: HeapAccess<'a, T, OutputRef = &'a f64>,
+        HeapNumber<'a>: ArenaAccess<'a, T, OutputRef = &'a f64>,
+        T: AsRef<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>,
     {
         match (x, y) {
             // Optimisation: First compare by-reference; only read from heap if needed.
@@ -1025,7 +1062,9 @@ impl<'a> Number<'a> {
     /// ### [6.1.6.1.13 Number::equal ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-equal)
     pub fn equal<T>(agent: &'a T, x: Self, y: Self) -> bool
     where
-        HeapNumber<'a>: HeapAccess<'a, T, OutputRef = &'a f64>,
+        HeapNumber<'a>: ArenaAccess<'a, T, OutputRef = &'a f64>,
+        T: AsRef<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>,
     {
         // 1. If x is NaN, return false.
         if x.is_nan(agent) {
@@ -1059,7 +1098,9 @@ impl<'a> Number<'a> {
     /// ### [6.1.6.1.14 Number::sameValue ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-sameValue)
     pub fn same_value<T>(agent: &'a T, x: Self, y: Self) -> bool
     where
-        HeapNumber<'a>: HeapAccess<'a, T, OutputRef = &'a f64>,
+        HeapNumber<'a>: ArenaAccess<'a, T, OutputRef = &'a f64>,
+        T: AsRef<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>,
     {
         // 1. If x is NaN and y is NaN, return true.
         if x.is_nan(agent) && y.is_nan(agent) {
@@ -1088,7 +1129,9 @@ impl<'a> Number<'a> {
     /// ### [6.1.6.1.15 Number::sameValueZero ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-sameValueZero)
     pub fn same_value_zero<T>(agent: &'a T, x: Self, y: Self) -> bool
     where
-        HeapNumber<'a>: HeapAccess<'a, T, OutputRef = &'a f64>,
+        HeapNumber<'a>: ArenaAccess<'a, T, OutputRef = &'a f64>,
+        T: AsRef<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>,
     {
         // 1. If x is NaN and y is NaN, return true.
         if x.is_nan(agent) && y.is_nan(agent) {
@@ -1232,7 +1275,9 @@ impl<'a> Number<'a> {
     /// # [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
     pub(crate) fn to_real<T>(self, agent: &'a T) -> f64
     where
-        HeapNumber<'a>: HeapAccess<'a, T, OutputRef = &'a f64>,
+        HeapNumber<'a>: ArenaAccess<'a, T, OutputRef = &'a f64>,
+        T: AsRef<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapNumber<'a> as DirectArenaAccess<'a>>::Arena>,
     {
         match self {
             Self::Number(n) => *n.get(agent),
@@ -1536,6 +1581,7 @@ impl Rootable for Number<'_> {
 #[repr(transparent)]
 pub struct HeapNumber<'a>(BaseIndex<'a, NumberHeapData>);
 numeric_handle!(HeapNumber, Number);
+arena_vec_access!(HeapNumber, [NumberHeapData], numbers, f64);
 
 impl<'a> From<HeapNumber<'a>> for Number<'a> {
     fn from(value: HeapNumber<'a>) -> Self {
@@ -1551,40 +1597,6 @@ impl<'a> TryFrom<Number<'a>> for HeapNumber<'a> {
             Number::Number(s) => Ok(s),
             _ => Err(()),
         }
-    }
-}
-
-impl<'a> HeapAccess<'a, [NumberHeapData]> for HeapNumber<'a> {
-    type OutputRef = &'a f64;
-
-    type OutputMut = &'a mut f64;
-
-    #[inline]
-    fn get(self, source: &'a [NumberHeapData]) -> Self::OutputRef {
-        source.get(self.get_index()).expect("Invalid Number handle")
-    }
-
-    #[inline]
-    fn get_mut(self, source: &'a mut [NumberHeapData]) -> Self::OutputMut {
-        source
-            .get_mut(self.get_index())
-            .expect("Invalid Number handle")
-    }
-}
-
-impl<'a> HeapAccess<'a, Agent> for HeapNumber<'a> {
-    type OutputRef = &'a f64;
-
-    type OutputMut = &'a mut f64;
-
-    #[inline]
-    fn get(self, source: &'a Agent) -> Self::OutputRef {
-        HeapAccess::get(self, &source.heap.numbers)
-    }
-
-    #[inline]
-    fn get_mut(self, source: &'a mut Agent) -> Self::OutputMut {
-        HeapAccess::get_mut(self, &mut source.heap.numbers)
     }
 }
 

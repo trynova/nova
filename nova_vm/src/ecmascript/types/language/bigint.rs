@@ -23,7 +23,8 @@ use crate::{
         small_bigint::SmallBigInt,
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        ArenaAccess, CompactionLists, CreateHeapData, DirectArenaAccess, Heap, HeapMarkAndSweep,
+        WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -39,6 +40,7 @@ use std::ops::{BitAnd, BitOr, BitXor};
 #[repr(transparent)]
 pub struct HeapBigInt<'a>(BaseIndex<'a, BigIntHeapData>);
 primitive_handle!(HeapBigInt);
+arena_vec_access!(HeapBigInt, [BigIntHeapData], bigints, BigIntHeapData);
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum BigIntMathematicalValue {
@@ -626,11 +628,12 @@ impl<'a> BigInt<'a> {
     ///
     /// The abstract operation BigInt::lessThan takes arguments x (a BigInt)
     /// and y (a BigInt) and returns a Boolean.
-    pub(crate) fn less_than(
-        agent: &impl Index<HeapBigInt<'a>, Output = BigIntHeapData>,
-        x: Self,
-        y: Self,
-    ) -> bool {
+    pub(crate) fn less_than<T>(agent: &'a T, x: Self, y: Self) -> bool
+    where
+        HeapBigInt<'a>: ArenaAccess<'a, T, OutputRef = &'a BigIntHeapData>,
+        T: AsRef<<HeapBigInt<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapBigInt<'a> as DirectArenaAccess<'a>>::Arena>,
+    {
         // 1. If ℝ(x) < ℝ(y), return true; otherwise return false.
         match (x, y) {
             (BigInt::BigInt(_), BigInt::SmallBigInt(_)) => false,
@@ -644,11 +647,12 @@ impl<'a> BigInt<'a> {
     ///
     /// The abstract operation BigInt::equal takes arguments x (a BigInt) and y
     /// (a BigInt) and returns a Boolean.
-    pub(crate) fn equal(
-        agent: &impl Index<HeapBigInt<'a>, Output = BigIntHeapData>,
-        x: Self,
-        y: Self,
-    ) -> bool {
+    pub(crate) fn equal<T>(agent: &'a T, x: Self, y: Self) -> bool
+    where
+        HeapBigInt<'a>: ArenaAccess<'a, T, OutputRef = &'a BigIntHeapData>,
+        T: AsRef<<HeapBigInt<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapBigInt<'a> as DirectArenaAccess<'a>>::Arena>,
+    {
         // 1. If ℝ(x) = ℝ(y), return true; otherwise return false.
         match (x, y) {
             (BigInt::BigInt(x), BigInt::BigInt(y)) => x == y || agent[x].data == agent[y].data,

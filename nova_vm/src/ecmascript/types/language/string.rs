@@ -21,8 +21,8 @@ use crate::{
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues,
+        ArenaAccess, CompactionLists, CreateHeapData, DirectArenaAccess, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -45,6 +45,7 @@ use wtf8::{CodePoint, Wtf8, Wtf8Buf};
 pub struct HeapString<'a>(BaseIndex<'a, StringRecord>);
 primitive_handle!(HeapString);
 primitive_value!(SmallString);
+arena_vec_access!(HeapString, [StringRecord], strings, StringRecord);
 
 impl HeapString<'_> {
     pub fn len(self, agent: &Agent) -> usize {
@@ -328,7 +329,12 @@ impl<'a> String<'a> {
     }
 
     /// Byte length of the string.
-    pub fn len(self, agent: &impl Index<HeapString<'static>, Output = StringRecord>) -> usize {
+    pub fn len<T>(self, agent: &'a T) -> usize
+    where
+        HeapString<'a>: ArenaAccess<'a, T, OutputRef = &'a StringRecord>,
+        T: AsRef<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>,
+    {
         match self {
             String::String(s) => agent[s.unbind()].len(),
             String::SmallString(s) => s.len(),
@@ -336,32 +342,36 @@ impl<'a> String<'a> {
     }
 
     /// UTF-16 length of the string.
-    pub fn utf16_len(
-        self,
-        agent: &impl Index<HeapString<'static>, Output = StringRecord>,
-    ) -> usize {
+    pub fn utf16_len<T>(self, agent: &'a T) -> usize
+    where
+        HeapString<'a>: ArenaAccess<'a, T, OutputRef = &'a StringRecord>,
+        T: AsRef<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>,
+    {
         match self {
             String::String(s) => agent[s.unbind()].utf16_len(),
             String::SmallString(s) => s.utf16_len(),
         }
     }
 
-    pub fn char_code_at(
-        self,
-        agent: &impl Index<HeapString<'static>, Output = StringRecord>,
-        idx: usize,
-    ) -> CodePoint {
+    pub fn char_code_at<T>(self, agent: &'a T, idx: usize) -> CodePoint
+    where
+        HeapString<'a>: ArenaAccess<'a, T, OutputRef = &'a StringRecord>,
+        T: AsRef<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>,
+    {
         match self {
             String::String(s) => agent[s.unbind()].char_code_at(idx),
             String::SmallString(s) => s.char_code_at(idx),
         }
     }
 
-    pub fn code_point_at(
-        self,
-        agent: &impl Index<HeapString<'static>, Output = StringRecord>,
-        utf16_idx: usize,
-    ) -> CodePoint {
+    pub fn code_point_at<T>(self, agent: &'a T, utf16_idx: usize) -> CodePoint
+    where
+        HeapString<'a>: ArenaAccess<'a, T, OutputRef = &'a StringRecord>,
+        T: AsRef<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>,
+    {
         match self {
             String::String(s) => agent[s.unbind()].code_point_at(utf16_idx),
             String::SmallString(s) => s.code_point_at(utf16_idx),
@@ -376,11 +386,12 @@ impl<'a> String<'a> {
     ///
     /// This function panics if `utf16_idx` is greater (but not equal) than the
     /// UTF-16 string length.
-    pub fn utf8_index(
-        self,
-        agent: &impl Index<HeapString<'static>, Output = StringRecord>,
-        utf16_idx: usize,
-    ) -> Option<usize> {
+    pub fn utf8_index<T>(self, agent: &'a T, utf16_idx: usize) -> Option<usize>
+    where
+        HeapString<'a>: ArenaAccess<'a, T, OutputRef = &'a StringRecord>,
+        T: AsRef<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>,
+    {
         match self {
             String::String(s) => agent[s.unbind()].utf8_index(utf16_idx),
             String::SmallString(s) => s.utf8_index(utf16_idx),
@@ -394,11 +405,12 @@ impl<'a> String<'a> {
     ///
     /// This function panics if `utf8_idx` isn't at a UTF-8 code point boundary,
     /// or if it is past the end (but not *at* the end) of the UTF-8 string.
-    pub fn utf16_index(
-        self,
-        agent: &impl Index<HeapString<'static>, Output = StringRecord>,
-        utf8_idx: usize,
-    ) -> usize {
+    pub fn utf16_index<T>(self, agent: &'a T, utf8_idx: usize) -> usize
+    where
+        HeapString<'a>: ArenaAccess<'a, T, OutputRef = &'a StringRecord>,
+        T: AsRef<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>,
+    {
         match self {
             String::String(s) => agent[s.unbind()].utf16_index(utf8_idx),
             String::SmallString(s) => s.utf16_index(utf8_idx),
@@ -419,10 +431,12 @@ impl<'a> String<'a> {
     /// If the string has not been properly bound (and is not internally a
     /// static string) then garbage collection may deallocate the backing data,
     /// causing the string slice to dangle.
-    pub fn to_string_lossy(
-        &self,
-        agent: &impl Index<HeapString<'a>, Output = StringRecord>,
-    ) -> Cow<'_, str> {
+    pub fn to_string_lossy<T>(&self, agent: &'a T) -> Cow<'_, str>
+    where
+        HeapString<'a>: ArenaAccess<'a, T, OutputRef = &'a StringRecord>,
+        T: AsRef<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>,
+    {
         match self {
             // SAFETY: Assuming that user has properly bound the String, the
             // backing string data is guaranteed to never be accessed as
@@ -436,10 +450,12 @@ impl<'a> String<'a> {
         }
     }
 
-    pub fn as_str(
-        &self,
-        agent: &impl Index<HeapString<'a>, Output = StringRecord>,
-    ) -> Option<&str> {
+    pub fn as_str<T>(&self, agent: &'a T) -> Option<&str>
+    where
+        HeapString<'a>: ArenaAccess<'a, T, OutputRef = &'a StringRecord>,
+        T: AsRef<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>,
+    {
         match self {
             // SAFETY: Assuming that user has properly bound the String, the
             // backing string data is guaranteed to never be accessed as
@@ -453,7 +469,12 @@ impl<'a> String<'a> {
         }
     }
 
-    pub fn as_wtf8(&self, agent: &impl Index<HeapString<'a>, Output = StringRecord>) -> &Wtf8 {
+    pub fn as_wtf8<T>(&self, agent: &'a T) -> &Wtf8
+    where
+        HeapString<'a>: ArenaAccess<'a, T, OutputRef = &'a StringRecord>,
+        T: AsRef<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>,
+    {
         match self {
             // SAFETY: Assuming that user has properly bound the String, the
             // backing string data is guaranteed to never be accessed as
@@ -467,7 +488,12 @@ impl<'a> String<'a> {
         }
     }
 
-    pub fn as_bytes(&self, agent: &impl Index<HeapString<'a>, Output = StringRecord>) -> &[u8] {
+    pub fn as_bytes<T>(&self, agent: &'a T) -> &[u8]
+    where
+        HeapString<'a>: ArenaAccess<'a, T, OutputRef = &'a StringRecord>,
+        T: AsRef<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>,
+    {
         match self {
             // SAFETY: Assuming that user has properly bound the String, the
             // backing string data is guaranteed to never be accessed as
@@ -483,11 +509,12 @@ impl<'a> String<'a> {
 
     /// If x and y have the same length and the same code units in the same
     /// positions, return true; otherwise, return false.
-    pub fn eq(
-        agent: &impl Index<HeapString<'static>, Output = StringRecord>,
-        x: Self,
-        y: Self,
-    ) -> bool {
+    pub fn eq<T>(agent: &'a T, x: Self, y: Self) -> bool
+    where
+        HeapString<'a>: ArenaAccess<'a, T, OutputRef = &'a StringRecord>,
+        T: AsRef<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>
+            + AsMut<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>,
+    {
         match (x, y) {
             (Self::String(x), Self::String(y)) => {
                 let x = &agent[x.unbind()];
