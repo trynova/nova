@@ -8,12 +8,14 @@ mod data;
 use core::hash::Hash;
 use std::borrow::Cow;
 
-use super::{Primitive, PropertyKey, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT, Value};
 use crate::{
     SmallInteger, SmallString,
     ecmascript::{
         execution::Agent,
-        types::{PropertyDescriptor, primitive_handle, primitive_value},
+        types::{
+            Primitive, PropertyDescriptor, PropertyKey, SMALL_STRING_DISCRIMINANT,
+            STRING_DISCRIMINANT, Value, primitive_handle, primitive_value,
+        },
     },
     engine::{
         Scoped,
@@ -43,21 +45,21 @@ use wtf8::{CodePoint, Wtf8, Wtf8Buf};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct HeapString<'a>(BaseIndex<'a, StringRecord>);
-primitive_handle!(HeapString);
+primitive_handle!(HeapString, String);
 primitive_value!(SmallString);
-arena_vec_access!(HeapString, [StringRecord], strings, StringRecord);
+arena_vec_access!(HeapString, StringRecord, strings, StringRecord);
 
 impl HeapString<'_> {
     pub fn len(self, agent: &Agent) -> usize {
-        agent[self].len()
+        self.get(agent).len()
     }
 
     pub fn to_string_lossy(self, agent: &Agent) -> Cow<'_, str> {
-        agent[self].to_string_lossy()
+        self.get(agent).to_string_lossy()
     }
 
     pub fn as_str(self, agent: &Agent) -> Option<&str> {
-        agent[self].as_str()
+        self.get(agent).as_str()
     }
 }
 
@@ -106,6 +108,63 @@ pub enum StringRootRepr {
     HeapRef(HeapRootRef) = 0x80,
 }
 
+impl<'a> From<String<'a>> for Value<'a> {
+    #[inline(always)]
+    fn from(value: String<'a>) -> Self {
+        match value {
+            String::String(s) => Self::String(s),
+            String::SmallString(s) => Self::SmallString(s),
+        }
+    }
+}
+impl<'a> From<String<'a>> for Option<HeapRootData> {
+    #[inline(always)]
+    fn from(value: String<'a>) -> Self {
+        match value {
+            String::String(s) => Some(HeapRootData::String(s)),
+            String::SmallString(s) => None,
+        }
+    }
+}
+impl<'a> TryFrom<Value<'a>> for String<'a> {
+    type Error = ();
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Value::String(x) => Ok(String::String(x)),
+            Value::SmallString(x) => Ok(String::SmallString(x)),
+            _ => Err(()),
+        }
+    }
+}
+impl TryFrom<HeapRootData> for String<'_> {
+    type Error = ();
+    #[inline]
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        match value {
+            HeapRootData::String(data) => Ok(Self::String(data)),
+            _ => Err(()),
+        }
+    }
+}
+impl<'a> From<String<'a>> for Primitive<'a> {
+    fn from(value: String<'a>) -> Self {
+        match value {
+            String::String(x) => Self::String(x),
+            String::SmallString(x) => Self::SmallString(x),
+        }
+    }
+}
+impl<'a> TryFrom<Primitive<'a>> for String<'a> {
+    type Error = ();
+    fn try_from(value: Primitive<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Primitive::String(x) => Ok(String::String(x)),
+            Primitive::SmallString(x) => Ok(String::SmallString(x)),
+            _ => Err(()),
+        }
+    }
+}
+
 impl<'a> From<HeapString<'a>> for String<'a> {
     fn from(value: HeapString<'a>) -> Self {
         String::String(value)
@@ -143,37 +202,6 @@ impl From<CodePoint> for String<'static> {
     }
 }
 
-impl<'a> TryFrom<Value<'a>> for String<'a> {
-    type Error = ();
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::String(x) => Ok(String::String(x)),
-            Value::SmallString(x) => Ok(String::SmallString(x)),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Primitive<'a>> for String<'a> {
-    type Error = ();
-    fn try_from(value: Primitive<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Primitive::String(x) => Ok(String::String(x)),
-            Primitive::SmallString(x) => Ok(String::SmallString(x)),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> From<String<'a>> for Primitive<'a> {
-    fn from(value: String<'a>) -> Self {
-        match value {
-            String::String(x) => Self::String(x),
-            String::SmallString(x) => Self::SmallString(x),
-        }
-    }
-}
-
 impl From<SmallString> for String<'static> {
     fn from(value: SmallString) -> Self {
         Self::SmallString(value)
@@ -203,7 +231,7 @@ impl<'a> String<'a> {
     /// If the String is not stack-only, this method will panic.
     pub const fn scope_static(self) -> Scoped<'static, String<'static>> {
         let key_root_repr = match self {
-            String::SmallString(small_string) => StringRootRepr::SmallString(small_string),
+            String::SmallString(s) => StringRootRepr::SmallString(s),
             _ => panic!("String required rooting"),
         };
         Scoped::from_root_repr(key_root_repr)
@@ -260,11 +288,11 @@ impl<'a> String<'a> {
 
         fn push_string_to_wtf8(agent: &Agent, buf: &mut Wtf8Buf, string: String) {
             match string {
-                String::String(heap_string) => {
-                    buf.push_wtf8(agent[heap_string].as_wtf8());
+                String::String(s) => {
+                    buf.push_wtf8(s.get(agent).as_wtf8());
                 }
-                String::SmallString(small_string) => {
-                    buf.push_wtf8(small_string.as_wtf8());
+                String::SmallString(s) => {
+                    buf.push_wtf8(s.as_wtf8());
                 }
             }
         }
@@ -284,11 +312,10 @@ impl<'a> String<'a> {
                         String::String(idx) => Status::ExistingString(*idx),
                     };
                 }
-                Status::ExistingString(heap_string) => {
-                    let heap_string = *heap_string;
-                    let mut result =
-                        Wtf8Buf::with_capacity(agent[heap_string].len() + string.len(agent));
-                    result.push_wtf8(agent[heap_string].as_wtf8());
+                Status::ExistingString(s) => {
+                    let s = *s;
+                    let mut result = Wtf8Buf::with_capacity(s.get(agent).len() + string.len(agent));
+                    result.push_wtf8(s.get(agent).as_wtf8());
                     push_string_to_wtf8(agent, &mut result, *string);
                     status = Status::String(result)
                 }
@@ -331,12 +358,12 @@ impl<'a> String<'a> {
     /// Byte length of the string.
     pub fn len<T>(self, agent: &'a T) -> usize
     where
-        HeapString<'a>: ArenaAccess<'a, T, OutputRef = &'a StringRecord>,
-        T: AsRef<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>
-            + AsMut<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>,
+        HeapString<'a>: ArenaAccess<T, Output = StringRecord>,
+        T: AsRef<Vec<<HeapString<'a> as DirectArenaAccess>::Data>>
+            + AsMut<Vec<<HeapString<'a> as DirectArenaAccess>::Data>>,
     {
         match self {
-            String::String(s) => agent[s.unbind()].len(),
+            String::String(s) => s.get(agent).len(),
             String::SmallString(s) => s.len(),
         }
     }
@@ -344,36 +371,36 @@ impl<'a> String<'a> {
     /// UTF-16 length of the string.
     pub fn utf16_len<T>(self, agent: &'a T) -> usize
     where
-        HeapString<'a>: ArenaAccess<'a, T, OutputRef = &'a StringRecord>,
-        T: AsRef<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>
-            + AsMut<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>,
+        HeapString<'a>: ArenaAccess<T, Output = StringRecord>,
+        T: AsRef<Vec<<HeapString<'a> as DirectArenaAccess>::Data>>
+            + AsMut<Vec<<HeapString<'a> as DirectArenaAccess>::Data>>,
     {
         match self {
-            String::String(s) => agent[s.unbind()].utf16_len(),
+            String::String(s) => s.get(agent).utf16_len(),
             String::SmallString(s) => s.utf16_len(),
         }
     }
 
     pub fn char_code_at<T>(self, agent: &'a T, idx: usize) -> CodePoint
     where
-        HeapString<'a>: ArenaAccess<'a, T, OutputRef = &'a StringRecord>,
-        T: AsRef<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>
-            + AsMut<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>,
+        HeapString<'a>: ArenaAccess<T, Output = StringRecord>,
+        T: AsRef<Vec<<HeapString<'a> as DirectArenaAccess>::Data>>
+            + AsMut<Vec<<HeapString<'a> as DirectArenaAccess>::Data>>,
     {
         match self {
-            String::String(s) => agent[s.unbind()].char_code_at(idx),
+            String::String(s) => s.get(agent).char_code_at(idx),
             String::SmallString(s) => s.char_code_at(idx),
         }
     }
 
     pub fn code_point_at<T>(self, agent: &'a T, utf16_idx: usize) -> CodePoint
     where
-        HeapString<'a>: ArenaAccess<'a, T, OutputRef = &'a StringRecord>,
-        T: AsRef<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>
-            + AsMut<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>,
+        HeapString<'a>: ArenaAccess<T, Output = StringRecord>,
+        T: AsRef<Vec<<HeapString<'a> as DirectArenaAccess>::Data>>
+            + AsMut<Vec<<HeapString<'a> as DirectArenaAccess>::Data>>,
     {
         match self {
-            String::String(s) => agent[s.unbind()].code_point_at(utf16_idx),
+            String::String(s) => s.get(agent).code_point_at(utf16_idx),
             String::SmallString(s) => s.code_point_at(utf16_idx),
         }
     }
@@ -388,12 +415,12 @@ impl<'a> String<'a> {
     /// UTF-16 string length.
     pub fn utf8_index<T>(self, agent: &'a T, utf16_idx: usize) -> Option<usize>
     where
-        HeapString<'a>: ArenaAccess<'a, T, OutputRef = &'a StringRecord>,
-        T: AsRef<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>
-            + AsMut<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>,
+        HeapString<'a>: ArenaAccess<T, Output = StringRecord>,
+        T: AsRef<Vec<<HeapString<'a> as DirectArenaAccess>::Data>>
+            + AsMut<Vec<<HeapString<'a> as DirectArenaAccess>::Data>>,
     {
         match self {
-            String::String(s) => agent[s.unbind()].utf8_index(utf16_idx),
+            String::String(s) => s.get(agent).utf8_index(utf16_idx),
             String::SmallString(s) => s.utf8_index(utf16_idx),
         }
     }
@@ -407,12 +434,12 @@ impl<'a> String<'a> {
     /// or if it is past the end (but not *at* the end) of the UTF-8 string.
     pub fn utf16_index<T>(self, agent: &'a T, utf8_idx: usize) -> usize
     where
-        HeapString<'a>: ArenaAccess<'a, T, OutputRef = &'a StringRecord>,
-        T: AsRef<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>
-            + AsMut<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>,
+        HeapString<'a>: ArenaAccess<T, Output = StringRecord>,
+        T: AsRef<Vec<<HeapString<'a> as DirectArenaAccess>::Data>>
+            + AsMut<Vec<<HeapString<'a> as DirectArenaAccess>::Data>>,
     {
         match self {
-            String::String(s) => agent[s.unbind()].utf16_index(utf8_idx),
+            String::String(s) => s.get(agent).utf16_index(utf8_idx),
             String::SmallString(s) => s.utf16_index(utf8_idx),
         }
     }
@@ -433,9 +460,9 @@ impl<'a> String<'a> {
     /// causing the string slice to dangle.
     pub fn to_string_lossy<T>(&self, agent: &'a T) -> Cow<'_, str>
     where
-        HeapString<'a>: ArenaAccess<'a, T, OutputRef = &'a StringRecord>,
-        T: AsRef<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>
-            + AsMut<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>,
+        HeapString<'a>: ArenaAccess<T, Output = StringRecord>,
+        T: AsRef<Vec<<HeapString<'a> as DirectArenaAccess>::Data>>
+            + AsMut<Vec<<HeapString<'a> as DirectArenaAccess>::Data>>,
     {
         match self {
             // SAFETY: Assuming that user has properly bound the String, the
@@ -444,7 +471,7 @@ impl<'a> String<'a> {
             // As `&self` is bound to the GC lfietime, the StringHeapData will
             // not be dropped while the `&str` is being used.
             String::String(s) => unsafe {
-                std::mem::transmute::<Cow<str>, Cow<str>>(agent[*s].to_string_lossy())
+                std::mem::transmute::<Cow<str>, Cow<str>>(s.get(agent).to_string_lossy())
             },
             String::SmallString(s) => s.to_string_lossy(),
         }
@@ -452,9 +479,9 @@ impl<'a> String<'a> {
 
     pub fn as_str<T>(&self, agent: &'a T) -> Option<&str>
     where
-        HeapString<'a>: ArenaAccess<'a, T, OutputRef = &'a StringRecord>,
-        T: AsRef<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>
-            + AsMut<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>,
+        HeapString<'a>: ArenaAccess<T, Output = StringRecord>,
+        T: AsRef<Vec<<HeapString<'a> as DirectArenaAccess>::Data>>
+            + AsMut<Vec<<HeapString<'a> as DirectArenaAccess>::Data>>,
     {
         match self {
             // SAFETY: Assuming that user has properly bound the String, the
@@ -463,7 +490,7 @@ impl<'a> String<'a> {
             // As `&self` is bound to the GC lfietime, the StringHeapData will
             // not be dropped while the `&str` is being used.
             String::String(s) => {
-                Some(unsafe { std::mem::transmute::<&str, &str>(agent[*s].as_str()?) })
+                Some(unsafe { std::mem::transmute::<&str, &str>(s.get(agent).as_str()?) })
             }
             String::SmallString(s) => s.as_str(),
         }
@@ -471,9 +498,9 @@ impl<'a> String<'a> {
 
     pub fn as_wtf8<T>(&self, agent: &'a T) -> &Wtf8
     where
-        HeapString<'a>: ArenaAccess<'a, T, OutputRef = &'a StringRecord>,
-        T: AsRef<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>
-            + AsMut<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>,
+        HeapString<'a>: ArenaAccess<T, Output = StringRecord>,
+        T: AsRef<Vec<<HeapString<'a> as DirectArenaAccess>::Data>>
+            + AsMut<Vec<<HeapString<'a> as DirectArenaAccess>::Data>>,
     {
         match self {
             // SAFETY: Assuming that user has properly bound the String, the
@@ -482,7 +509,7 @@ impl<'a> String<'a> {
             // As `&self` is bound to the GC lfietime, the StringHeapData will
             // not be dropped while the `&str` is being used.
             String::String(s) => unsafe {
-                std::mem::transmute::<&Wtf8, &Wtf8>(agent[*s].as_wtf8())
+                std::mem::transmute::<&Wtf8, &Wtf8>(s.get(agent).as_wtf8())
             },
             String::SmallString(s) => s.as_wtf8(),
         }
@@ -490,9 +517,9 @@ impl<'a> String<'a> {
 
     pub fn as_bytes<T>(&self, agent: &'a T) -> &[u8]
     where
-        HeapString<'a>: ArenaAccess<'a, T, OutputRef = &'a StringRecord>,
-        T: AsRef<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>
-            + AsMut<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>,
+        HeapString<'a>: ArenaAccess<T, Output = StringRecord>,
+        T: AsRef<Vec<<HeapString<'a> as DirectArenaAccess>::Data>>
+            + AsMut<Vec<<HeapString<'a> as DirectArenaAccess>::Data>>,
     {
         match self {
             // SAFETY: Assuming that user has properly bound the String, the
@@ -501,7 +528,7 @@ impl<'a> String<'a> {
             // As `&self` is bound to the GC lfietime, the StringHeapData will
             // not be dropped while the `&str` is being used.
             String::String(s) => unsafe {
-                std::mem::transmute::<&[u8], &[u8]>(agent[*s].as_bytes())
+                std::mem::transmute::<&[u8], &[u8]>(s.get(agent).as_bytes())
             },
             String::SmallString(s) => s.as_bytes(),
         }
@@ -511,14 +538,14 @@ impl<'a> String<'a> {
     /// positions, return true; otherwise, return false.
     pub fn eq<T>(agent: &'a T, x: Self, y: Self) -> bool
     where
-        HeapString<'a>: ArenaAccess<'a, T, OutputRef = &'a StringRecord>,
-        T: AsRef<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>
-            + AsMut<<HeapString<'a> as DirectArenaAccess<'a>>::Arena>,
+        HeapString<'a>: ArenaAccess<T, Output = StringRecord>,
+        T: AsRef<Vec<<HeapString<'a> as DirectArenaAccess>::Data>>
+            + AsMut<Vec<<HeapString<'a> as DirectArenaAccess>::Data>>,
     {
         match (x, y) {
             (Self::String(x), Self::String(y)) => {
-                let x = &agent[x.unbind()];
-                let y = &agent[y.unbind()];
+                let x = &x.unbind().get(agent);
+                let y = &y.unbind().get(agent);
                 x == y
             }
             (Self::SmallString(x), Self::SmallString(y)) => x == y,
@@ -624,11 +651,11 @@ impl<'gc> String<'gc> {
             }
         }
 
-        let mut small_string = SmallString::EMPTY;
+        let mut s = SmallString::EMPTY;
         // SAFETY: transmute to backing data type. This is done for const.
         let cp = unsafe { core::mem::transmute::<CodePoint, u32>(cp) };
-        encode_utf8_raw(cp, small_string.data_mut());
-        Self::SmallString(small_string)
+        encode_utf8_raw(cp, s.data_mut());
+        Self::SmallString(s)
     }
 
     pub(crate) fn from_str_direct(
@@ -670,9 +697,9 @@ impl<'gc> String<'gc> {
     ) -> HeapString<'static> {
         strings.push(data);
         let index = BaseIndex::last(strings);
-        let heap_string = HeapString(index);
-        string_lookup_table.insert_unique(hash, heap_string, |_| hash);
-        heap_string
+        let s = HeapString(index);
+        string_lookup_table.insert_unique(hash, s, |_| hash);
+        s
     }
 
     /// Find existing heap String or return the strings hash.
@@ -686,11 +713,11 @@ impl<'gc> String<'gc> {
         let message = Wtf8::from_str(message);
         let hash = string_hasher.hash_one(message);
         string_lookup_table
-            .find(hash, |heap_string| {
-                let heap_str = strings[heap_string.get_index()].as_wtf8();
+            .find(hash, |s| {
+                let heap_str = strings[s.get_index()].as_wtf8();
                 heap_str == message
             })
-            .map(|&heap_string| heap_string.into())
+            .map(|&s| s.into())
             .ok_or(hash)
     }
 
@@ -745,14 +772,13 @@ impl<'a> CreateHeapData<(StringRecord, u64), String<'a>> for Heap {
         self.strings.push(data);
         self.alloc_counter += core::mem::size_of::<StringRecord>();
         let index = BaseIndex::last(&self.strings);
-        let heap_string = HeapString(index);
+        let s = HeapString(index);
         self.alloc_counter += core::mem::size_of::<HeapString>();
-        self.string_lookup_table
-            .insert_unique(hash, heap_string, |s| {
-                let s = self.strings[s.get_index()].as_wtf8();
-                self.string_hasher.hash_one(s)
-            });
-        String::String(heap_string)
+        self.string_lookup_table.insert_unique(hash, s, |s| {
+            let s = self.strings[s.get_index()].as_wtf8();
+            self.string_hasher.hash_one(s)
+        });
+        String::String(s)
     }
 }
 
@@ -794,15 +820,15 @@ impl Rootable for String<'_> {
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match value {
-            Self::String(heap_string) => Err(HeapRootData::String(heap_string.unbind())),
-            Self::SmallString(small_string) => Ok(Self::RootRepr::SmallString(small_string)),
+            Self::String(s) => Err(HeapRootData::String(s.unbind())),
+            Self::SmallString(s) => Ok(Self::RootRepr::SmallString(s)),
         }
     }
 
     #[inline]
     fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
         match *value {
-            Self::RootRepr::SmallString(small_string) => Ok(Self::SmallString(small_string)),
+            Self::RootRepr::SmallString(s) => Ok(Self::SmallString(s)),
             Self::RootRepr::HeapRef(heap_root_ref) => Err(heap_root_ref),
         }
     }
@@ -815,7 +841,7 @@ impl Rootable for String<'_> {
     #[inline]
     fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
         match heap_data {
-            HeapRootData::String(heap_string) => Some(Self::String(heap_string)),
+            HeapRootData::String(s) => Some(Self::String(s)),
             _ => None,
         }
     }

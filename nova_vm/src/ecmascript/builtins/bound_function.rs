@@ -22,9 +22,8 @@ use crate::{
         rootable::Scopable,
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues,
-        indexes::{BaseIndex, HeapIndexHandle},
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, WorkQueues, arena_vec_access, indexes::BaseIndex,
     },
 };
 
@@ -34,12 +33,18 @@ use super::ArgumentsList;
 #[repr(transparent)]
 pub struct BoundFunction<'a>(BaseIndex<'a, BoundFunctionHeapData<'static>>);
 function_handle!(BoundFunction);
+arena_vec_access!(
+    BoundFunction,
+    'a,
+    BoundFunctionHeapData,
+    bound_functions
+);
 
 impl BoundFunction<'_> {
     pub fn is_constructor(self, agent: &Agent) -> bool {
         // A bound function has the [[Construct]] method if the target function
         // does.
-        agent[self].bound_target_function.is_constructor(agent)
+        self.get(agent).bound_target_function.is_constructor(agent)
     }
 }
 
@@ -93,7 +98,8 @@ pub(crate) fn bound_function_create<'a>(
     elements.len = u32::try_from(bound_args.len()).unwrap();
     // SAFETY: Option<Value> is an extra variant of the Value enum.
     // The transmute effectively turns Value into Some(Value).
-    agent[&elements]
+    &elements
+        .get(agent)
         .copy_from_slice(unsafe { core::mem::transmute::<&[Value], &[Option<Value>]>(bound_args) });
     let data = BoundFunctionHeapData {
         object_index: None,
@@ -114,16 +120,19 @@ pub(crate) fn bound_function_create<'a>(
 
 impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
     fn get_name(self, agent: &Agent) -> &String<'a> {
-        agent[self].name.as_ref().unwrap_or(&String::EMPTY_STRING)
+        self.get(agent)
+            .name
+            .as_ref()
+            .unwrap_or(&String::EMPTY_STRING)
     }
 
     fn get_length(self, agent: &Agent) -> u8 {
-        agent[self].length
+        self.get(agent).length
     }
 
     #[inline(always)]
     fn get_function_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index.unbind()
+        self.get(agent).object_index.unbind()
     }
 
     fn set_function_backing_object(
@@ -132,7 +141,7 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
         backing_object: OrdinaryObject<'static>,
     ) {
         assert!(
-            agent[self]
+            self.get(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()
@@ -157,11 +166,11 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
         let f = self.bind(gc.nogc());
         let arguments_list = arguments_list.bind(gc.nogc());
         // 1. Let target be F.[[BoundTargetFunction]].
-        let target = agent[f].bound_target_function;
+        let target = f.get(agent).bound_target_function;
         // 2. Let boundThis be F.[[BoundThis]].
-        let bound_this = agent[f].bound_this;
+        let bound_this = f.get(agent).bound_this;
         // 3. Let boundArgs be F.[[BoundArguments]].
-        let bound_args = &agent[f].bound_arguments;
+        let bound_args = &f.get(agent).bound_arguments;
         // 4. Let args be the list-concatenation of boundArgs and argumentsList.
         if bound_args.is_empty() {
             // Optimisation: If only `this` is bound, then we can pass the
@@ -176,7 +185,8 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
             // if we were basing it on the ElementsVector's data in the heap.
             let mut args: Vec<Value<'static>> =
                 Vec::with_capacity(bound_args.len() as usize + arguments_list.len());
-            agent[bound_args]
+            bound_args
+                .get(agent)
                 .iter()
                 .for_each(|item| args.push(item.unwrap().unbind()));
             args.extend_from_slice(&arguments_list.unbind());
@@ -208,11 +218,11 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
         let arguments_list = arguments_list.bind(gc.nogc());
         let new_target = new_target.bind(gc.nogc());
         // 1. Let target be F.[[BoundTargetFunction]].
-        let target = agent[self].bound_target_function.bind(gc.nogc());
+        let target = self.get(agent).bound_target_function.bind(gc.nogc());
         // 2. Assert: IsConstructor(target) is true.
         assert!(is_constructor(agent, target).is_some());
         // 3. Let boundArgs be F.[[BoundArguments]].
-        let bound_args = &agent[self].bound_arguments;
+        let bound_args = &self.get(agent).bound_arguments;
         // 5. If SameValue(F, newTarget) is true, set newTarget to target.
         let new_target = if self.into() == new_target {
             target
@@ -225,7 +235,8 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
         // in any case to use it as arguments. A slice pointing to it would
         // be unsound as calling to JS may invalidate the slice pointer.
         let mut args = Vec::with_capacity(bound_args.len() as usize + arguments_list.len());
-        agent[bound_args]
+        bound_args
+            .get(agent)
             .iter()
             .for_each(|item| args.push(item.unwrap().unbind()));
         args.extend_from_slice(&arguments_list.unbind());

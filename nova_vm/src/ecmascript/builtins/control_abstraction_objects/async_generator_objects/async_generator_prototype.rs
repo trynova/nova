@@ -82,7 +82,7 @@ impl AsyncGeneratorPrototype {
                 }
             };
         // 5. Let state be generator.[[AsyncGeneratorState]].
-        let state = agent[generator].async_generator_state.as_ref().unwrap();
+        let state = generator.get(agent).async_generator_state.as_ref().unwrap();
         // 6. If state is completed, then
         if state.is_completed() {
             // a. Let iteratorResult be CreateIteratorResultObject(undefined, true).

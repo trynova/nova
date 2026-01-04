@@ -1318,7 +1318,7 @@ pub(crate) fn ordinary_has_instance<'a, 'b>(
     // 2. If C has a [[BoundTargetFunction]] internal slot, then
     if let Function::BoundFunction(c) = c {
         // a. Let BC be C.[[BoundTargetFunction]].
-        let bc = agent[c].bound_target_function.bind(gc.nogc());
+        let bc = c.get(agent).bound_target_function.bind(gc.nogc());
         // b. Return ? InstanceofOperator(O, BC).
         return instanceof_operator(agent, o, bc.unbind(), gc);
     }
@@ -1996,13 +1996,13 @@ pub(crate) fn get_function_realm<'a, 'gc>(
     // a. Return obj.[[Realm]].
     let obj = obj.into();
     match obj {
-        Object::BuiltinFunction(idx) => Ok(agent[idx].realm),
-        Object::ECMAScriptFunction(idx) => Ok(agent[idx].ecmascript_function.realm),
+        Object::BuiltinFunction(idx) => Ok(idx.get(agent).realm),
+        Object::ECMAScriptFunction(idx) => Ok(idx.get(agent).ecmascript_function.realm),
         Object::BoundFunction(idx) => {
             // 2. If obj is a bound function exotic object, then
             // a. Let boundTargetFunction be obj.[[BoundTargetFunction]].
             // b. Return ? GetFunctionRealm(boundTargetFunction).
-            get_function_realm(agent, agent[idx].bound_target_function, gc)
+            get_function_realm(agent, idx.get(agent).bound_target_function, gc)
         }
         // 3. If obj is a Proxy exotic object, then
         Object::Proxy(obj) => {
@@ -2037,13 +2037,13 @@ pub(crate) fn try_get_function_realm<'a, 'gc>(
     // a. Return obj.[[Realm]].
     let obj = obj.into();
     match obj {
-        Object::BuiltinFunction(idx) => Some(agent[idx].realm),
-        Object::ECMAScriptFunction(idx) => Some(agent[idx].ecmascript_function.realm),
+        Object::BuiltinFunction(idx) => Some(idx.get(agent).realm),
+        Object::ECMAScriptFunction(idx) => Some(idx.get(agent).ecmascript_function.realm),
         Object::BoundFunction(idx) => {
             // 2. If obj is a bound function exotic object, then
             // a. Let boundTargetFunction be obj.[[BoundTargetFunction]].
             // b. Return ? GetFunctionRealm(boundTargetFunction).
-            try_get_function_realm(agent, agent[idx].bound_target_function, gc)
+            try_get_function_realm(agent, idx.get(agent).bound_target_function, gc)
         }
         // 3. If obj is a Proxy exotic object, then
         Object::Proxy(obj) => {
@@ -2724,7 +2724,7 @@ pub(crate) fn initialize_instance_elements<'a>(
     // 4. For each element fieldRecord of fields, do
     // a. Perform ? DefineField(O, fieldRecord).
     // 5. Return unused.
-    let constructor_data = &agent[constructor];
+    let constructor_data = &constructor.get(agent);
     if let Some(bytecode) = constructor_data.compiled_initializer_bytecode {
         // Note: The code here looks quite a bit different from what the spec
         // says. For one, the spec is bugged and doesn't consider default
@@ -2753,7 +2753,7 @@ pub(crate) fn initialize_instance_elements<'a>(
                 source_code,
             }),
             function: Some(f.unbind()),
-            realm: agent[constructor].realm,
+            realm: constructor.get(agent).realm,
             script_or_module: None,
         });
         let bytecode = bytecode.scope(agent, gc.nogc());

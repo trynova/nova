@@ -11,7 +11,7 @@ use crate::{
             ordinary::ordinary_create_from_constructor,
         },
         execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Function,  Object, String, Value},
+        types::{BUILTIN_STRING_MEMORY, Function, Object, String, Value},
     },
     engine::{
         context::{Bindable, GcScope},
@@ -156,7 +156,7 @@ impl NativeErrorConstructors {
         let o = Error::try_from(o.get(agent).bind(gc)).unwrap();
         // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
         let msg = msg.map(|msg| msg.get(agent).bind(gc));
-        let heap_data = &mut agent[o];
+        let heap_data = &mut o.get(agent);
         heap_data.kind = error_kind;
         heap_data.message = msg.unbind();
         heap_data.cause = cause.unbind();

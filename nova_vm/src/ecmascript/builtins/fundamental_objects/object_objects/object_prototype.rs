@@ -209,7 +209,7 @@ impl ObjectPrototype {
             // 17. Return the string-concatenation of "[object ", tag, and "]".
             #[cfg(feature = "regexp")]
             Value::RegExp(_) => BUILTIN_STRING_MEMORY._object_RegExp_,
-            Value::PrimitiveObject(idx) => match &agent[idx].data {
+            Value::PrimitiveObject(idx) => match &idx.get(agent).data {
                 // 9. Else if O has a [[BooleanData]] internal slot, let builtinTag be "Boolean".
                 // 17. Return the string-concatenation of "[object ", tag, and "]".
                 PrimitiveObjectData::Boolean(_) => BUILTIN_STRING_MEMORY._object_Boolean_,

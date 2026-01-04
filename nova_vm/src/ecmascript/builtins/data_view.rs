@@ -18,7 +18,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues,
+        WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -41,6 +41,7 @@ pub mod data;
 #[repr(transparent)]
 pub struct DataView<'a>(BaseIndex<'a, DataViewRecord<'static>>);
 data_view_handle!(DataView);
+arena_vec_access!(DataView, 'a, DataViewRecord, data_views);
 
 impl<'gc> DataView<'gc> {
     /// \[\[ByteLength]]
@@ -91,7 +92,7 @@ impl<'gc> DataView<'gc> {
         // 2. Assert: There are sufficient bytes in arrayBuffer starting at byteIndex to represent a value of type.
         // 4. Let elementSize be the Element Size value specified in Table 71 for Element Type type.
         // 3. Let block be arrayBuffer.[[ArrayBufferData]].
-        let block = agent[array_buffer].get_data_block();
+        let block = array_buffer.get(agent).get_data_block();
         // 5. If IsSharedArrayBuffer(arrayBuffer) is true, then
         // a. Assert: block is a Shared Data Block.
         // b. Let rawValue be GetRawBytesFromSharedBlock(block, byteIndex, type,
@@ -179,6 +180,8 @@ impl<'gc> DataView<'gc> {
 pub struct SharedDataView<'a>(BaseIndex<'a, SharedDataViewRecord<'static>>);
 #[cfg(feature = "shared-array-buffer")]
 data_view_handle!(SharedDataView);
+#[cfg(feature = "shared-array-buffer")]
+arena_vec_access!(SharedDataView, 'a, SharedDataViewRecord, shared_data_views);
 
 #[cfg(feature = "shared-array-buffer")]
 impl<'gc> SharedDataView<'gc> {

@@ -14,7 +14,7 @@ use crate::{
             indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY,  String, Value},
+        types::{BUILTIN_STRING_MEMORY, String, Value},
     },
     engine::context::{Bindable, GcScope},
     heap::WellKnownSymbolIndexes,
@@ -52,7 +52,7 @@ impl MapIteratorPrototype {
 
         // 24.1.5.1 CreateMapIterator ( map, kind ), step 2
         // NOTE: We set `map` to None when the generator in the spec text has returned.
-        let Some(map) = agent[iterator].map else {
+        let Some(map) = iterator.get(agent).map else {
             return create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
                 .map(|o| o.into());
         };
@@ -60,13 +60,13 @@ impl MapIteratorPrototype {
         // a. Let entries be map.[[MapData]].
         // c. Let numEntries be the number of elements in entries.
         // d. Repeat, while index < numEntries,
-        while agent[iterator].next_index < map.get(agent).keys.len() {
+        while iterator.get(agent).next_index < map.get(agent).keys.len() {
             // i. Let e be entries[index].
             // ii. Set index to index + 1.
-            let index = agent[iterator].next_index;
-            agent[iterator].next_index += 1;
+            let index = iterator.get(agent).next_index;
+            iterator.get(agent).next_index += 1;
 
-            let result = match agent[iterator].kind {
+            let result = match iterator.get(agent).kind {
                 CollectionIteratorKind::Key => {
                     // iii. If e.[[Key]] is not EMPTY, then
                     //   1. If kind is KEY, then
@@ -103,12 +103,11 @@ impl MapIteratorPrototype {
                 .map(|o| o.into());
         }
 
-        debug_assert_eq!(agent[iterator].next_index, map.get(agent).keys.len());
+        debug_assert_eq!(iterator.get(agent).next_index, map.get(agent).keys.len());
 
         // e. Return undefined.
-        agent[iterator].map = None;
-        create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
-            .map(|o| o.into())
+        iterator.get(agent).map = None;
+        create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc()).map(|o| o.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {

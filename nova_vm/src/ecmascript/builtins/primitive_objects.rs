@@ -29,7 +29,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        IntrinsicPrimitiveObjectIndexes, WorkQueues,
+        IntrinsicPrimitiveObjectIndexes, WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -44,6 +44,7 @@ use super::ordinary::{
 #[repr(transparent)]
 pub struct PrimitiveObject<'a>(BaseIndex<'a, PrimitiveObjectRecord<'static>>);
 object_handle!(PrimitiveObject);
+arena_vec_access!(PrimitiveObject, 'a, PrimitiveObjectRecord, primitive_objects);
 
 impl IntrinsicPrimitiveObjectIndexes {
     pub(crate) const fn get_primitive_object<'a>(
@@ -51,7 +52,7 @@ impl IntrinsicPrimitiveObjectIndexes {
         base: BaseIndex<'a, PrimitiveObjectRecord<'static>>,
     ) -> PrimitiveObject<'a> {
         PrimitiveObject(BaseIndex::from_index_u32(
-            self as u32 + base.into_u32_index() + Self::PRIMITIVE_OBJECT_INDEX_OFFSET,
+            self as u32 + base.get_index_u32() + Self::PRIMITIVE_OBJECT_INDEX_OFFSET,
         ))
     }
 }
@@ -59,14 +60,14 @@ impl IntrinsicPrimitiveObjectIndexes {
 impl PrimitiveObject<'_> {
     pub fn is_bigint_object(self, agent: &Agent) -> bool {
         matches!(
-            agent[self].data,
+            self.get(agent).data,
             PrimitiveObjectData::BigInt(_) | PrimitiveObjectData::SmallBigInt(_)
         )
     }
 
     pub fn is_number_object(self, agent: &Agent) -> bool {
         matches!(
-            agent[self].data,
+            self.get(agent).data,
             PrimitiveObjectData::SmallF64(_)
                 | PrimitiveObjectData::Integer(_)
                 | PrimitiveObjectData::Number(_)
@@ -75,25 +76,25 @@ impl PrimitiveObject<'_> {
 
     pub fn is_string_object(self, agent: &Agent) -> bool {
         matches!(
-            agent[self].data,
+            self.get(agent).data,
             PrimitiveObjectData::String(_) | PrimitiveObjectData::SmallString(_)
         )
     }
 
     pub fn is_symbol_object(self, agent: &Agent) -> bool {
-        matches!(agent[self].data, PrimitiveObjectData::Symbol(_))
+        matches!(self.get(agent).data, PrimitiveObjectData::Symbol(_))
     }
 }
 
 impl<'a> InternalSlots<'a> for PrimitiveObject<'a> {
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
-            agent[self]
+            self.get(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()
@@ -104,7 +105,7 @@ impl<'a> InternalSlots<'a> for PrimitiveObject<'a> {
         if let Some(bo) = self.get_backing_object(agent) {
             bo.object_shape(agent)
         } else {
-            agent[self].data.into().object_shape(agent).unwrap()
+            self.get(agent).data.into().object_shape(agent).unwrap()
         }
     }
 
@@ -112,7 +113,7 @@ impl<'a> InternalSlots<'a> for PrimitiveObject<'a> {
         match self.get_backing_object(agent) {
             Some(obj) => obj.internal_prototype(agent),
             None => {
-                let intrinsic_default_proto = match agent[self].data {
+                let intrinsic_default_proto = match self.get(agent).data {
                     PrimitiveObjectData::Boolean(_) => ProtoIntrinsics::Boolean,
                     PrimitiveObjectData::String(_) | PrimitiveObjectData::SmallString(_) => {
                         ProtoIntrinsics::String
@@ -159,7 +160,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
             return TryResult::Continue(Some(property_descriptor));
         }
 
-        if let Ok(string) = String::try_from(agent[self].data) {
+        if let Ok(string) = String::try_from(self.get(agent).data) {
             // 3. Return StringGetOwnProperty(S, P).
             TryResult::Continue(string.get_property_descriptor(agent, property_key))
         } else {
@@ -175,7 +176,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, bool> {
-        if let Ok(string) = String::try_from(agent[self].data) {
+        if let Ok(string) = String::try_from(self.get(agent).data) {
             // For string exotic objects:
             // 1. Let stringDesc be StringGetOwnProperty(S, P).
             // 2. If stringDesc is not undefined, then
@@ -217,7 +218,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, TryHasResult<'gc>> {
-        if let Ok(string) = String::try_from(agent[self].data)
+        if let Ok(string) = String::try_from(self.get(agent).data)
             && string.get_property_value(agent, property_key).is_some()
         {
             return TryHasResult::Custom(0, self.into().bind(gc)).into();
@@ -241,7 +242,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
         let property_key = property_key.bind(gc.nogc());
-        if let Ok(string) = String::try_from(agent[self].data)
+        if let Ok(string) = String::try_from(self.get(agent).data)
             && string.get_property_value(agent, property_key).is_some()
         {
             return Ok(true);
@@ -283,7 +284,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, TryGetResult<'gc>> {
-        if let Ok(string) = String::try_from(agent[self].data)
+        if let Ok(string) = String::try_from(self.get(agent).data)
             && let Some(value) = string.get_property_value(agent, property_key)
         {
             return TryGetResult::Value(value.bind(gc)).into();
@@ -308,7 +309,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         let property_key = property_key.bind(gc.nogc());
-        if let Ok(string) = String::try_from(agent[self].data)
+        if let Ok(string) = String::try_from(self.get(agent).data)
             && let Some(value) = string.get_property_value(agent, property_key)
         {
             return Ok(value.bind(gc.into_nogc()));
@@ -343,7 +344,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, SetResult<'gc>> {
-        if let Ok(string) = String::try_from(agent[self].data)
+        if let Ok(string) = String::try_from(self.get(agent).data)
             && string.get_property_value(agent, property_key).is_some()
         {
             return SetResult::Unwritable.into();
@@ -362,7 +363,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
         let property_key = property_key.bind(gc.nogc());
-        if let Ok(string) = String::try_from(agent[self].data)
+        if let Ok(string) = String::try_from(self.get(agent).data)
             && string.get_property_value(agent, property_key).is_some()
         {
             return Ok(false);
@@ -385,7 +386,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         property_key: PropertyKey,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, bool> {
-        if let Ok(string) = String::try_from(agent[self].data) {
+        if let Ok(string) = String::try_from(self.get(agent).data) {
             // A String will return unconfigurable descriptors for length and
             // all valid string indexes, making delete return false.
             if property_key == BUILTIN_STRING_MEMORY.length.into() {
@@ -416,7 +417,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, Vec<PropertyKey<'gc>>> {
-        if let Ok(string) = String::try_from(agent[self].data) {
+        if let Ok(string) = String::try_from(self.get(agent).data) {
             let len = string.utf16_len(agent);
             let mut keys = Vec::with_capacity(len + 1);
 

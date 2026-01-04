@@ -11,6 +11,7 @@ use crate::{
     engine::context::Bindable,
     heap::{
         CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
+        arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -25,6 +26,7 @@ pub mod data;
 #[repr(transparent)]
 pub struct WeakSet<'a>(BaseIndex<'a, WeakSetHeapData<'static>>);
 object_handle!(WeakSet);
+arena_vec_access!(WeakSet, 'a, WeakSetHeapData, weak_sets);
 
 impl WeakSet<'_> {
     /// Returns true if the function is equal to %WeakSet.prototype.add%.
@@ -32,7 +34,7 @@ impl WeakSet<'_> {
         let Function::BuiltinFunction(function) = function else {
             return false;
         };
-        let Behaviour::Regular(behaviour) = agent[function].behaviour else {
+        let Behaviour::Regular(behaviour) = function.get(agent).behaviour else {
             return false;
         };
         // We allow a function address comparison here against best advice: it
@@ -57,12 +59,12 @@ impl<'a> InternalSlots<'a> for WeakSet<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
-            agent[self]
+            self.get(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()

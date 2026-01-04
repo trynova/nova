@@ -146,10 +146,15 @@ impl PromiseReactionJob {
         let reaction = reaction.take(agent).bind(gc.nogc());
         let argument = argument.take(agent).bind(gc.nogc());
 
-        let (handler_result, promise_capability) = match agent[reaction].handler {
+        let (handler_result, promise_capability) = match reaction.get(agent).handler {
             PromiseReactionHandler::Empty => {
-                let capability = agent[reaction].capability.clone().unwrap().bind(gc.nogc());
-                match agent[reaction].reaction_type {
+                let capability = reaction
+                    .get(agent)
+                    .capability
+                    .clone()
+                    .unwrap()
+                    .bind(gc.nogc());
+                match reaction.get(agent).reaction_type {
                     PromiseReactionType::Fulfill => {
                         // d.i.1. Let handlerResult be NormalCompletion(argument).
                         (Ok(argument), capability)
@@ -179,20 +184,25 @@ impl PromiseReactionJob {
                 let reaction = unsafe { reaction.take(agent) };
                 (
                     result,
-                    agent[reaction].capability.clone().unwrap().bind(gc.nogc()),
+                    reaction
+                        .get(agent)
+                        .capability
+                        .clone()
+                        .unwrap()
+                        .bind(gc.nogc()),
                 )
             }
             PromiseReactionHandler::Await(await_reaction) => {
-                assert!(agent[reaction].capability.is_none());
-                let reaction_type = agent[reaction].reaction_type;
+                assert!(reaction.get(agent).capability.is_none());
+                let reaction_type = reaction.get(agent).reaction_type;
                 await_reaction.resume(agent, reaction_type, argument.unbind(), gc.reborrow());
                 // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
                 // 5. f. Return undefined.
                 return Ok(());
             }
             PromiseReactionHandler::AsyncGenerator(async_generator) => {
-                assert!(agent[reaction].capability.is_none());
-                let reaction_type = agent[reaction].reaction_type;
+                assert!(reaction.get(agent).capability.is_none());
+                let reaction_type = reaction.get(agent).reaction_type;
                 async_generator.resume_await(
                     agent,
                     reaction_type,
@@ -202,7 +212,12 @@ impl PromiseReactionJob {
                 return Ok(());
             }
             PromiseReactionHandler::AsyncFromSyncIterator { done } => {
-                let capability = agent[reaction].capability.clone().unwrap().bind(gc.nogc());
+                let capability = reaction
+                    .get(agent)
+                    .capability
+                    .clone()
+                    .unwrap()
+                    .bind(gc.nogc());
                 // 9. Let unwrap be a new Abstract Closure with parameters (v)
                 //    that captures done and performs the following steps when
                 //    called:
@@ -225,12 +240,17 @@ impl PromiseReactionJob {
                         .bind(gc.nogc());
                 // SAFETY: reaction is not shared.
                 let reaction = unsafe { reaction.take(agent) }.bind(gc.nogc());
-                let capability = agent[reaction].capability.clone().unwrap().bind(gc.nogc());
+                let capability = reaction
+                    .get(agent)
+                    .capability
+                    .clone()
+                    .unwrap()
+                    .bind(gc.nogc());
                 (Err(err), capability)
             }
             PromiseReactionHandler::AsyncModule(module) => {
-                assert!(agent[reaction].capability.is_none());
-                match agent[reaction].reaction_type {
+                assert!(reaction.get(agent).capability.is_none());
+                match reaction.get(agent).reaction_type {
                     PromiseReactionType::Fulfill => {
                         // a. Perform AsyncModuleExecutionFulfilled(module).
                         async_module_execution_fulfilled(agent, module.unbind(), gc);
@@ -250,8 +270,8 @@ impl PromiseReactionJob {
                 return Ok(());
             }
             PromiseReactionHandler::DynamicImport { promise, module } => {
-                assert!(agent[reaction].capability.is_none());
-                match agent[reaction].reaction_type {
+                assert!(reaction.get(agent).capability.is_none());
+                match reaction.get(agent).reaction_type {
                     PromiseReactionType::Fulfill => {
                         link_and_evaluate(agent, promise.unbind(), module.unbind(), gc);
                         return Ok(());
@@ -267,8 +287,8 @@ impl PromiseReactionJob {
                 }
             }
             PromiseReactionHandler::DynamicImportEvaluate { promise, module } => {
-                assert!(agent[reaction].capability.is_none());
-                match agent[reaction].reaction_type {
+                assert!(reaction.get(agent).capability.is_none());
+                match reaction.get(agent).reaction_type {
                     PromiseReactionType::Fulfill => {
                         import_get_module_namespace(
                             agent,
@@ -288,7 +308,7 @@ impl PromiseReactionJob {
                 promise_group,
                 index,
             } => {
-                let reaction_type = agent[reaction].reaction_type;
+                let reaction_type = reaction.get(agent).reaction_type;
                 promise_group.settle(
                     agent,
                     reaction_type,
@@ -329,7 +349,7 @@ pub(crate) fn new_promise_reaction_job(
     argument: Value,
     gc: NoGcScope,
 ) -> Job {
-    let handler_realm = match agent[reaction].handler {
+    let handler_realm = match reaction.get(agent).handler {
         // 3. If reaction.[[Handler]] is not empty, then
         PromiseReactionHandler::JobCallback(callback) => {
             // a. Let getHandlerRealmResult be Completion(GetFunctionRealm(reaction.[[Handler]].[[Callback]])).
@@ -345,7 +365,8 @@ pub(crate) fn new_promise_reaction_job(
         // operation. Since `Await()` is called inside the execution context of the async function,
         // the realm of the continuation function is the same as the async function's realm.
         PromiseReactionHandler::Await(await_reaction) => Some(
-            agent[await_reaction]
+            await_reaction
+                .get(agent)
                 .execution_context
                 .as_ref()
                 .unwrap()

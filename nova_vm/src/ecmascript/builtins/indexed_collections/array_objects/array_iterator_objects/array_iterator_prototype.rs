@@ -22,7 +22,7 @@ use crate::{
             indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, InternalSlots,  Object, String, Value},
+        types::{BUILTIN_STRING_MEMORY, InternalSlots, Object, String, Value},
     },
     engine::{
         context::{Bindable, GcScope},
@@ -63,7 +63,7 @@ impl ArrayIteratorPrototype {
 
         // 23.1.5.1 CreateArrayIterator ( array, kind ), step 1. b
         // NOTE: We set `array` to None when the generator in the spec text has returned.
-        let Some(array) = agent[iterator].array else {
+        let Some(array) = iterator.get(agent).array else {
             return create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
                 .map(|o| o.into());
         };
@@ -113,18 +113,18 @@ impl ArrayIteratorPrototype {
         };
 
         // iii. If index ≥ len, return NormalCompletion(undefined).
-        if agent[iterator].next_index >= len {
-            agent[iterator].array = None;
+        if iterator.get(agent).next_index >= len {
+            iterator.get(agent).array = None;
             return create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
                 .map(|o| o.into());
         }
 
         // iv. Let indexNumber be 𝔽(index).
-        let index = agent[iterator].next_index;
+        let index = iterator.get(agent).next_index;
         // viii. Set index to index + 1.
-        agent[iterator].next_index += 1;
+        iterator.get(agent).next_index += 1;
 
-        let result = match agent[iterator].kind {
+        let result = match iterator.get(agent).kind {
             // v. If kind is key, then
             CollectionIteratorKind::Key => {
                 // 1. Let result be indexNumber.

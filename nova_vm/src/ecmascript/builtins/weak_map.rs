@@ -11,6 +11,7 @@ use crate::{
     engine::context::Bindable,
     heap::{
         CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
+        arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -23,6 +24,7 @@ pub mod data;
 #[repr(transparent)]
 pub struct WeakMap<'a>(BaseIndex<'a, WeakMapRecord<'static>>);
 object_handle!(WeakMap);
+arena_vec_access!(WeakMap, 'a, WeakMapRecord, weak_maps);
 
 impl<'m> WeakMap<'m> {
     pub(crate) fn delete(self, agent: &mut Agent, key: WeakKey<'m>) -> bool {

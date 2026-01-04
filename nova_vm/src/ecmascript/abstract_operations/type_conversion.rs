@@ -1065,7 +1065,7 @@ pub(crate) fn to_big_int64_big_int(agent: &Agent, n: BigInt) -> i64 {
     match n {
         BigInt::BigInt(heap_big_int) => {
             // 3. If int64bit ≥ 2**63, return ℤ(int64bit - 2**64); otherwise return ℤ(int64bit).
-            let big_int = &agent[heap_big_int].data;
+            let big_int = &heap_big_int.get(agent).data;
             let int64bit = big_int.iter_u64_digits().next().unwrap_or(0);
             let int64bit = if big_int.sign() == Sign::Minus {
                 u64::MAX - int64bit + 1
@@ -1099,7 +1099,7 @@ pub(crate) fn to_big_uint64_big_int(agent: &Agent, n: BigInt) -> u64 {
     match n {
         BigInt::BigInt(heap_big_int) => {
             // https://play.rust-lang.org/?version=stable&mode=debug&edition=2021&gist=7d82adfe85f7d0ed44ab37a7b2cdf092
-            let big_int = &agent[heap_big_int].data;
+            let big_int = &heap_big_int.get(agent).data;
             let int64bit = big_int.iter_u64_digits().next().unwrap_or(0);
             if big_int.sign() == Sign::Minus {
                 u64::MAX - int64bit + 1
@@ -1331,7 +1331,7 @@ pub(crate) fn to_property_key_simple<'a, 'gc>(
     match argument {
         Value::String(_) | Value::SmallString(_) => {
             let (str, string_key) = match &argument {
-                Value::String(x) => (agent[*x].as_wtf8(), PropertyKey::String(*x)),
+                Value::String(x) => (*x.get(agent).as_wtf8(), PropertyKey::String(*x)),
                 Value::SmallString(x) => (x.as_wtf8(), PropertyKey::SmallString(*x)),
                 _ => unreachable!(),
             };

@@ -15,7 +15,7 @@ use crate::{
             Agent, JsResult,
             agent::{ExceptionType, PromiseRejectionTrackerOperation, TryError, TryResult},
         },
-        types::{BUILTIN_STRING_MEMORY, Function,  Object, TryGetResult, Value},
+        types::{BUILTIN_STRING_MEMORY, Function, Object, TryGetResult, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
@@ -71,7 +71,7 @@ impl<'a> PromiseCapability<'a> {
         // If `self.must_be_unresolved` is true, then `alreadyResolved`
         // corresponds with the `is_resolved` flag in PromiseState::Pending.
         // Otherwise, it corresponds to `promise_state` not being Pending.
-        match agent[self.promise].promise_state {
+        match self.promise.get(agent).promise_state {
             PromiseState::Pending { is_resolved, .. } => {
                 if self.must_be_unresolved {
                     is_resolved
@@ -87,7 +87,7 @@ impl<'a> PromiseCapability<'a> {
     pub(crate) fn internal_fulfill(&self, agent: &mut Agent, value: Value, gc: NoGcScope) {
         // 1. Assert: The value of promise.[[PromiseState]] is pending.
         // 2. Let reactions be promise.[[PromiseFulfillReactions]].
-        let promise_state = &mut agent[self.promise].promise_state;
+        let promise_state = &mut self.promise.get(agent).promise_state;
         let reactions = match promise_state {
             PromiseState::Pending {
                 fulfill_reactions, ..
@@ -111,7 +111,7 @@ impl<'a> PromiseCapability<'a> {
     fn internal_reject(&self, agent: &mut Agent, reason: Value, gc: NoGcScope) {
         // 1. Assert: The value of promise.[[PromiseState]] is pending.
         // 2. Let reactions be promise.[[PromiseRejectReactions]].
-        let promise_state = &mut agent[self.promise].promise_state;
+        let promise_state = &mut self.promise.get(agent).promise_state;
         let reactions = match promise_state {
             PromiseState::Pending {
                 reject_reactions, ..
@@ -256,7 +256,7 @@ impl<'a> PromiseCapability<'a> {
             return TryResult::Continue(());
         }
         // 6. Set alreadyResolved.[[Value]] to true.
-        match &mut agent[self.promise].promise_state {
+        match &mut self.promise.get(agent).promise_state {
             PromiseState::Pending { is_resolved, .. } => *is_resolved = true,
             _ => unreachable!(),
         };
@@ -341,7 +341,7 @@ impl<'a> PromiseCapability<'a> {
 
         // 6. Set alreadyResolved.[[Value]] to true.
         debug_assert!(matches!(
-            agent[promise].promise_state,
+            promise.get(agent).promise_state,
             PromiseState::Rejected { .. }
         ));
     }

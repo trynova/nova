@@ -124,7 +124,7 @@ impl BigIntConstructor {
             Some(divisor) => {
                 match bigint {
                     BigInt::BigInt(bigint) => {
-                        let modulo = &agent[bigint].data % divisor;
+                        let modulo = &bigint.get(agent).data % divisor;
                         // SAFETY: This cannot overflow since 2^bits didn't.
                         let divisor_half = divisor >> 1;
                         if let Ok(modulo) = i64::try_from(&modulo) {
@@ -155,7 +155,7 @@ impl BigIntConstructor {
                     num_bigint::BigInt::from_bytes_le(num_bigint::Sign::Plus, &[2]).pow(bits);
                 match bigint {
                     BigInt::BigInt(bigint) => {
-                        let modulo = &agent[bigint].data % &divisor;
+                        let modulo = &bigint.get(agent).data % &divisor;
                         let divisor_half = &divisor >> 1;
                         if let Ok(modulo) = i64::try_from(&modulo) {
                             // Maybe safe? Maybe not.
@@ -205,7 +205,7 @@ impl BigIntConstructor {
         match 2i64.checked_pow(bits) {
             Some(modulus) => match bigint {
                 BigInt::BigInt(int) => {
-                    let int = &agent[int].data;
+                    let int = &int.get(agent).data;
                     Ok(
                         BigInt::from_num_bigint(agent, ((int % modulus) + modulus) % modulus)
                             .into(),
@@ -222,7 +222,7 @@ impl BigIntConstructor {
                     num_bigint::BigInt::from_bytes_le(num_bigint::Sign::Plus, &[2]).pow(bits);
                 match bigint {
                     BigInt::BigInt(int) => {
-                        let int = &agent[int].data;
+                        let int = &int.get(agent).data;
                         let result = ((int % &modulus) + &modulus) % &modulus;
                         Ok(BigInt::from_num_bigint(agent, result).into())
                     }

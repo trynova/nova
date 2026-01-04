@@ -40,11 +40,11 @@ use crate::{
     engine::{
         Executable,
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{Scopable},
+        rootable::Scopable,
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        WorkQueues, arena_vec_access, indexes::BaseIndex,
     },
     ndt,
 };
@@ -53,6 +53,12 @@ use crate::{
 #[repr(transparent)]
 pub struct ECMAScriptFunction<'a>(BaseIndex<'a, ECMAScriptFunctionHeapData<'static>>);
 function_handle!(ECMAScriptFunction);
+arena_vec_access!(
+    ECMAScriptFunction,
+    'a,
+    ECMAScriptFunctionHeapData,
+    ecmascript_functions
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConstructorStatus {
@@ -293,22 +299,22 @@ pub(crate) struct OrdinaryFunctionCreateParams<'ast, 'gc> {
 impl<'a> ECMAScriptFunction<'a> {
     /// Returns true if this function executes in strict mode.
     pub fn is_strict(self, agent: &Agent) -> bool {
-        agent[self].ecmascript_function.strict
+        self.get(agent).ecmascript_function.strict
     }
 
     /// Returns this function's ThisMode.
     pub(crate) fn get_this_mode(self, agent: &Agent) -> ThisMode {
-        agent[self].ecmascript_function.this_mode
+        self.get(agent).ecmascript_function.this_mode
     }
 
     #[inline]
     pub(crate) fn get_executable(self, agent: &Agent) -> Executable<'a> {
-        agent[self].compiled_bytecode.unwrap().unbind()
+        self.get(agent).compiled_bytecode.unwrap().unbind()
     }
 
     #[inline]
     pub(crate) fn get_source_code(self, agent: &Agent) -> SourceCode<'a> {
-        agent[self].ecmascript_function.source_code
+        self.get(agent).ecmascript_function.source_code
     }
 
     /// Get a function's AST reference. This binds to the GC lifetime and is
@@ -319,7 +325,7 @@ impl<'a> ECMAScriptFunction<'a> {
         // SAFETY: ECMAScriptFunctionHeapData was found, which means that
         // SourceData is still live. We bind to the GC lifetime, meaning that
         // the reference cannot live past a GC safepoint.
-        unsafe { agent[self].ecmascript_function.ast.as_ref() }
+        unsafe { self.get(agent).ecmascript_function.ast.as_ref() }
     }
 
     /// Get a function's AST reference. This binds to the ECMAScriptFunction's
@@ -336,28 +342,31 @@ impl<'a> ECMAScriptFunction<'a> {
         // SAFETY: ECMAScriptFunctionHeapData was found, which means that
         // SourceData is still live. We bind to the GC lifetime, meaning that
         // the reference cannot live past a GC point.
-        unsafe { agent[self].ecmascript_function.ast.as_ref() }
+        unsafe { self.get(agent).ecmascript_function.ast.as_ref() }
     }
 
     pub fn is_constructor(self, agent: &Agent) -> bool {
         // An ECMAScript function has the [[Construct]] slot if its constructor
         // status is something other than non-constructor.
-        agent[self].ecmascript_function.constructor_status != ConstructorStatus::NonConstructor
+        self.get(agent).ecmascript_function.constructor_status != ConstructorStatus::NonConstructor
     }
 }
 
 impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
     fn get_name(self, agent: &Agent) -> &String<'a> {
-        agent[self].name.as_ref().unwrap_or(&String::EMPTY_STRING)
+        self.get(agent)
+            .name
+            .as_ref()
+            .unwrap_or(&String::EMPTY_STRING)
     }
 
     fn get_length(self, agent: &Agent) -> u8 {
-        agent[self].length
+        self.get(agent).length
     }
 
     #[inline(always)]
     fn get_function_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        self.get(agent).object_index
     }
 
     fn set_function_backing_object(
@@ -366,7 +375,7 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
         backing_object: OrdinaryObject<'static>,
     ) {
         assert!(
-            agent[self]
+            self.get(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()
@@ -377,8 +386,8 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
         if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_prototype(agent)
         } else {
-            let realm = agent[self].ecmascript_function.realm;
-            let intrinsics = agent[realm].intrinsics();
+            let realm = self.get(agent).ecmascript_function.realm;
+            let intrinsics = realm.get(agent).intrinsics();
             // SAFETY: reference is dropped before next GC safepoint.
             let f = unsafe { self.get_ast_unbound(agent) };
             let proto = match (f.is_async(), f.is_generator()) {
@@ -431,7 +440,7 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
         // 3. Assert: calleeContext is now the running execution context.
         // assert!(core::ptr::eq(agent.running_execution_context(), callee_context));
         // 4. If F.[[IsClassConstructor]] is true, then
-        if agent[f]
+        if f.get(agent)
             .ecmascript_function
             .constructor_status
             .is_class_constructor()
@@ -483,7 +492,8 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
         let mut new_target = new_target.bind(gc.nogc());
         let mut arguments_list = arguments.bind(gc.nogc());
         // 2. Let kind be F.[[ConstructorKind]].
-        let is_base = !agent[f]
+        let is_base = !f
+            .get(agent)
             .ecmascript_function
             .constructor_status
             .is_derived_class();
@@ -609,9 +619,10 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
 
 #[inline(never)]
 fn create_name_and_id<'a>(agent: &'a Agent, f: ECMAScriptFunction<'a>) -> (Cow<'a, str>, u64) {
-    let id = agent[f]
+    let id = f
+        .get(agent)
         .compiled_bytecode
-        .map_or(0, |b| agent[b].instructions.as_ptr() as u64);
+        .map_or(0, |b| b.get(agent).instructions.as_ptr() as u64);
     let name = f.get_name(agent).to_string_lossy(agent);
     (name, id)
 }
@@ -629,7 +640,7 @@ pub(crate) fn prepare_for_ordinary_call<'a>(
 ) -> &'a ExecutionContext {
     let f = f.bind(gc);
     let new_target = new_target.bind(gc);
-    let ecmascript_function_object = &agent[f].ecmascript_function;
+    let ecmascript_function_object = &f.get(agent).ecmascript_function;
     let private_environment = ecmascript_function_object.private_environment.bind(gc);
     let is_strict_mode = ecmascript_function_object.strict;
     let script_or_module = ecmascript_function_object.script_or_module;
@@ -682,7 +693,7 @@ pub(crate) fn ordinary_call_bind_this(
     this_argument: Value,
     gc: NoGcScope,
 ) {
-    let function_heap_data = &agent[f].ecmascript_function;
+    let function_heap_data = &f.get(agent).ecmascript_function;
     // 1. Let thisMode be F.[[ThisMode]].
     let this_mode = function_heap_data.this_mode;
     // 2. If thisMode is LEXICAL, return UNUSED.
@@ -934,7 +945,7 @@ pub(crate) fn make_constructor<'a>(
         Function::BoundFunction(_) => unreachable!(),
         // 1. If F is an ECMAScript function object, then
         Function::ECMAScriptFunction(idx) => {
-            let data = &mut agent[idx];
+            let data = &mut idx.get(agent);
             // a. Assert: IsConstructor(F) is false.
             debug_assert!(!data.ecmascript_function.constructor_status.is_constructor());
             // b. Assert: F is an extensible object that does not have a "prototype" own property.
@@ -1029,7 +1040,7 @@ pub(crate) fn make_constructor<'a>(
 pub(crate) fn make_method(agent: &mut Agent, f: ECMAScriptFunction, home_object: Object) {
     // 1. Assert: homeObject is an ordinary object.
     // 2. Set F.[[HomeObject]] to homeObject.
-    agent[f].ecmascript_function.home_object = Some(home_object.unbind());
+    f.get(agent).ecmascript_function.home_object = Some(home_object.unbind());
     // 3. Return unused.
 }
 
@@ -1075,7 +1086,7 @@ pub(crate) fn set_function_name<'a>(
             // a. Let description be name's [[Description]] value.
             // b. If description is undefined, set name to the empty String.
             // c. Else, set name to the string-concatenation of "[", description, and "]".
-            let symbol_data = &agent[idx];
+            let symbol_data = &idx.get(agent);
             symbol_data
                 .descriptor
                 .map_or(String::EMPTY_STRING, |descriptor| {
@@ -1124,7 +1135,7 @@ pub(crate) fn set_function_name<'a>(
 
     match function.into() {
         Function::BoundFunction(idx) => {
-            let function = &mut agent[idx];
+            let function = &mut idx.get(agent);
             // Note: It's possible that the bound function targeted a function
             // with a non-default prototype. In that case, object_index is
             // already set.
@@ -1133,7 +1144,7 @@ pub(crate) fn set_function_name<'a>(
         }
         Function::BuiltinFunction(_idx) => unreachable!(),
         Function::ECMAScriptFunction(idx) => {
-            let function = &mut agent[idx];
+            let function = &mut idx.get(agent);
             // 1. Assert: F is an extensible object that does not have a "name" own property.
             assert!(function.name.is_none());
             // 6. Perform ! DefinePropertyOrThrow(F, "name", PropertyDescriptor { [[Value]]: name, [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }).

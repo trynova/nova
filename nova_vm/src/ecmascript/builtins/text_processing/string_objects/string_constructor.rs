@@ -18,9 +18,7 @@ use crate::{
             primitive_objects::{PrimitiveObject, PrimitiveObjectData},
         },
         execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        types::{
-            BUILTIN_STRING_MEMORY, Function,  Number, Object, PropertyKey, String, Value,
-        },
+        types::{BUILTIN_STRING_MEMORY, Function, Number, Object, PropertyKey, String, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
@@ -125,7 +123,7 @@ impl StringConstructor {
         // 2. Set S.[[Prototype]] to prototype.
         // 3. Set S.[[StringData]] to value.
         let value = value.get(agent).bind(gc.nogc());
-        agent[s].data = match value {
+        s.get(agent).data = match value {
             String::String(data) => PrimitiveObjectData::String(data.unbind()),
             String::SmallString(data) => PrimitiveObjectData::SmallString(data),
         };

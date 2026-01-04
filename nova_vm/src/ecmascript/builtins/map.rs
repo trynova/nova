@@ -8,12 +8,10 @@ use crate::{
         execution::{Agent, ProtoIntrinsics},
         types::{InternalMethods, InternalSlots, OrdinaryObject, object_handle},
     },
-    engine::{
-        context::{Bindable},
-    },
+    engine::context::Bindable,
     heap::{
         CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, PrimitiveHeap,
-        WorkQueues,
+        WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -27,6 +25,15 @@ pub mod data;
 #[repr(transparent)]
 pub struct Map<'a>(BaseIndex<'a, MapHeapData<'static>>);
 object_handle!(Map);
+arena_vec_access!(
+    soa:
+    Map,
+    'a,
+    MapHeapData,
+    maps,
+    MapHeapDataRef,
+    MapHeapDataMut
+);
 
 impl<'gc> Map<'gc> {
     #[inline(always)]
@@ -54,7 +61,7 @@ impl<'gc> Map<'gc> {
         self,
         maps: &'a SoAVec<MapHeapData<'static>>,
     ) -> MapHeapDataRef<'a, 'gc> {
-        maps.get(self.0.into_u32_index())
+        maps.get(self.0.get_index_u32())
             .expect("Invalid Map reference")
     }
 
@@ -67,7 +74,7 @@ impl<'gc> Map<'gc> {
         // reference.
         unsafe {
             core::mem::transmute::<MapHeapDataMut<'a, 'static>, MapHeapDataMut<'a, 'gc>>(
-                maps.get_mut(self.0.into_u32_index())
+                maps.get_mut(self.0.get_index_u32())
                     .expect("Invalid Map reference"),
             )
         }

@@ -30,9 +30,9 @@ pub struct Symbol<'a>(BaseIndex<'a, SymbolHeapData<'static>>);
 primitive_handle!(Symbol);
 arena_vec_access!(
     Symbol,
-    [SymbolHeapData<'static>],
-    symbols,
-    SymbolHeapData<'a>
+    'a,
+    SymbolHeapData,
+    symbols
 );
 
 /// Inner root repr type to hide WellKnownSymbolIndexes.
@@ -65,7 +65,7 @@ impl<'a> Symbol<'a> {
         gc: NoGcScope<'a, '_>,
     ) -> String<'a> {
         // a. Let description be name's [[Description]] value.
-        if let Some(descriptor) = agent[self].descriptor {
+        if let Some(descriptor) = self.get(agent).descriptor {
             // c. Else, set name to the string-concatenation of
             //    "[", description, and "]".
             let description = descriptor.to_string_lossy(agent);
@@ -78,7 +78,7 @@ impl<'a> Symbol<'a> {
 
     /// ### [20.4.3.3.1 SymbolDescriptiveString ( sym )](https://tc39.es/ecma262/#sec-symboldescriptivestring)
     pub fn descriptive_string(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> String<'a> {
-        if let Some(descriptor) = agent[self].descriptor {
+        if let Some(descriptor) = self.get(agent).descriptor {
             String::concat(
                 agent,
                 [

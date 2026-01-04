@@ -10,7 +10,7 @@ use crate::{
     engine::context::Bindable,
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues,
+        WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -23,21 +23,22 @@ pub mod data;
 #[repr(transparent)]
 pub struct WeakRef<'a>(BaseIndex<'a, WeakRefHeapData<'static>>);
 object_handle!(WeakRef);
+arena_vec_access!(WeakRef, 'a, WeakRefHeapData, weak_refs);
 
 impl<'a> WeakRef<'a> {
     pub(crate) fn set_target(self, agent: &mut Agent, target: WeakKey) {
-        agent[self].weak_ref_target = Some(target.unbind());
+        self.get(agent).weak_ref_target = Some(target.unbind());
         // Note: WeakRefTarget is set only from the constructor, and it also
         // adds the WeakRef into the [[KeptAlive]] list; hence we set the
         // boolean here.
-        agent[self].kept_alive = true;
+        self.get(agent).kept_alive = true;
     }
 
     pub(crate) fn get_target(self, agent: &mut Agent) -> Option<WeakKey<'a>> {
-        let target = agent[self].weak_ref_target;
+        let target = self.get(agent).weak_ref_target;
         if target.is_some() {
             // When observed, WeakRef gets added to [[KeptAlive]] list.
-            agent[self].kept_alive = true;
+            self.get(agent).kept_alive = true;
         }
         target
     }
@@ -48,12 +49,12 @@ impl<'a> InternalSlots<'a> for WeakRef<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
-            agent[self]
+            self.get(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()

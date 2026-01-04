@@ -14,7 +14,7 @@ use crate::{
     engine::context::{Bindable, bindable_handle},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues,
+        WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -23,6 +23,7 @@ use crate::{
 #[repr(transparent)]
 pub struct SetIterator<'a>(BaseIndex<'a, SetIteratorHeapData<'static>>);
 object_handle!(SetIterator);
+arena_vec_access!(SetIterator, 'a, SetIteratorHeapData, set_iterators);
 
 impl SetIterator<'_> {
     pub(crate) fn from_set(agent: &mut Agent, set: Set, kind: CollectionIteratorKind) -> Self {
@@ -40,12 +41,12 @@ impl<'a> InternalSlots<'a> for SetIterator<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
-            agent[self]
+            self.get(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()

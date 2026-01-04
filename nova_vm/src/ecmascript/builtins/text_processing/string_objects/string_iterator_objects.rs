@@ -16,7 +16,7 @@ use crate::{
     engine::context::{Bindable, GcScope, NoGcScope, bindable_handle},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WellKnownSymbolIndexes, WorkQueues,
+        WellKnownSymbolIndexes, WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -25,6 +25,7 @@ use crate::{
 #[repr(transparent)]
 pub struct StringIterator<'a>(BaseIndex<'a, StringIteratorHeapData<'static>>);
 object_handle!(StringIterator);
+arena_vec_access!(StringIterator, 'a, StringIteratorHeapData, string_iterators);
 
 impl<'a> StringIterator<'a> {
     pub fn create(agent: &mut Agent, string: String, gc: NoGcScope<'a, '_>) -> StringIterator<'a> {

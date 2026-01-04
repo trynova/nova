@@ -548,30 +548,30 @@ pub(crate) fn is_less_than<'a, const LEFT_FIRST: bool>(
 
         // k. If ℝ(nx) < ℝ(ny), return true; otherwise return false.
         Ok(Some(match (nx, ny) {
-            (Numeric::Number(x), Numeric::Number(y)) => x != y && agent[x] < agent[y],
-            (Numeric::Number(x), Numeric::Integer(y)) => agent[x] < y.into_i64() as f64,
-            (Numeric::Number(x), Numeric::SmallF64(y)) => agent[x] < y.into_f64(),
-            (Numeric::Integer(x), Numeric::Number(y)) => (x.into_i64() as f64) < agent[y],
+            (Numeric::Number(x), Numeric::Number(y)) => x != y && x.get(agent) < y.get(agent),
+            (Numeric::Number(x), Numeric::Integer(y)) => x.get(agent) < y.into_i64() as f64,
+            (Numeric::Number(x), Numeric::SmallF64(y)) => x.get(agent) < y.into_f64(),
+            (Numeric::Integer(x), Numeric::Number(y)) => (x.into_i64() as f64) < y.get(agent),
             (Numeric::Integer(x), Numeric::Integer(y)) => x.into_i64() < y.into_i64(),
-            (Numeric::Number(x), Numeric::BigInt(y)) => agent[y].ge(&agent[x]),
-            (Numeric::Number(x), Numeric::SmallBigInt(y)) => agent[x] < y.into_i64() as f64,
+            (Numeric::Number(x), Numeric::BigInt(y)) => y.get(agent).ge(&x.get(agent)),
+            (Numeric::Number(x), Numeric::SmallBigInt(y)) => x.get(agent) < y.into_i64() as f64,
             (Numeric::Integer(x), Numeric::SmallF64(y)) => (x.into_i64() as f64) < y.into_f64(),
-            (Numeric::Integer(x), Numeric::BigInt(y)) => agent[y].ge(&x.into_i64()),
+            (Numeric::Integer(x), Numeric::BigInt(y)) => y.get(agent).ge(&x.into_i64()),
             (Numeric::Integer(x), Numeric::SmallBigInt(y)) => x.into_i64() < y.into_i64(),
-            (Numeric::SmallF64(x), Numeric::Number(y)) => x.into_f64() < agent[y],
+            (Numeric::SmallF64(x), Numeric::Number(y)) => x.into_f64() < y.get(agent),
             (Numeric::SmallF64(x), Numeric::Integer(y)) => x.into_f64() < y.into_i64() as f64,
             (Numeric::SmallF64(x), Numeric::SmallF64(y)) => x.into_f64() < y.into_f64(),
-            (Numeric::SmallF64(x), Numeric::BigInt(y)) => agent[y].ge(&x.into_f64()),
+            (Numeric::SmallF64(x), Numeric::BigInt(y)) => y.get(agent).ge(&x.into_f64()),
             (Numeric::SmallF64(x), Numeric::SmallBigInt(y)) => x.into_f64() < y.into_i64() as f64,
-            (Numeric::BigInt(x), Numeric::Number(y)) => agent[x].le(&agent[y]),
-            (Numeric::BigInt(x), Numeric::Integer(y)) => agent[x].le(&y.into_i64()),
-            (Numeric::BigInt(x), Numeric::SmallF64(y)) => agent[x].le(&y.into_f64()),
-            (Numeric::BigInt(x), Numeric::BigInt(y)) => agent[x].data < agent[y].data,
-            (Numeric::BigInt(x), Numeric::SmallBigInt(y)) => agent[x].le(&y.into_i64()),
-            (Numeric::SmallBigInt(x), Numeric::Number(y)) => (x.into_i64() as f64) < agent[y],
+            (Numeric::BigInt(x), Numeric::Number(y)) => x.get(agent).le(&y.get(agent)),
+            (Numeric::BigInt(x), Numeric::Integer(y)) => x.get(agent).le(&y.into_i64()),
+            (Numeric::BigInt(x), Numeric::SmallF64(y)) => x.get(agent).le(&y.into_f64()),
+            (Numeric::BigInt(x), Numeric::BigInt(y)) => x.get(agent).data < y.get(agent).data,
+            (Numeric::BigInt(x), Numeric::SmallBigInt(y)) => x.get(agent).le(&y.into_i64()),
+            (Numeric::SmallBigInt(x), Numeric::Number(y)) => (x.into_i64() as f64) < y.get(agent),
             (Numeric::SmallBigInt(x), Numeric::Integer(y)) => x.into_i64() < y.into_i64(),
             (Numeric::SmallBigInt(x), Numeric::SmallF64(y)) => (x.into_i64() as f64) < y.into_f64(),
-            (Numeric::SmallBigInt(x), Numeric::BigInt(y)) => agent[y].ge(&x.into_i64()),
+            (Numeric::SmallBigInt(x), Numeric::BigInt(y)) => y.get(agent).ge(&x.into_i64()),
             (Numeric::SmallBigInt(x), Numeric::SmallBigInt(y)) => x.into_i64() < y.into_i64(),
         }))
     }
@@ -711,7 +711,7 @@ pub(crate) fn is_loosely_equal<'a>(
 
         // Compare BigInt with f64 using precise comparison.
         return Ok(match a {
-            BigInt::BigInt(heap_big_int) => agent[heap_big_int] == b,
+            BigInt::BigInt(heap_big_int) => heap_big_int.get(agent) == b,
             BigInt::SmallBigInt(small_big_int) => small_big_int.into_i64() as f64 == b,
         });
     }

@@ -754,7 +754,7 @@ impl<'a> Value<'a> {
     /// # [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
     pub fn to_real<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, f64> {
         Ok(match self {
-            Value::Number(n) => agent[n],
+            Value::Number(n) => n.get(agent),
             Value::Integer(i) => i.into_i64() as f64,
             Value::SmallF64(f) => f.into_f64(),
             // NOTE: Converting to a number should give us a nice error message.
@@ -1573,8 +1573,8 @@ macro_rules! value_handle {
             }
 
             #[inline]
-            fn get_index_u32(&self) -> u32 {
-                self.0.into_u32_index()
+            fn get_index_u32(self) -> u32 {
+                self.0.get_index_u32()
             }
         }
 

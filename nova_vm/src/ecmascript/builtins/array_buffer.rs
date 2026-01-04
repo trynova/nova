@@ -22,7 +22,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues,
+        WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -39,6 +39,7 @@ use super::shared_array_buffer::SharedArrayBuffer;
 #[repr(transparent)]
 pub struct ArrayBuffer<'a>(BaseIndex<'a, ArrayBufferHeapData<'static>>);
 array_buffer_handle!(ArrayBuffer);
+arena_vec_access!(ArrayBuffer, 'a, ArrayBufferHeapData, array_buffers);
 
 impl ArrayBuffer<'_> {
     pub fn new<'gc>(
@@ -55,22 +56,22 @@ impl ArrayBuffer<'_> {
 
     #[inline]
     pub fn is_detached(self, agent: &Agent) -> bool {
-        agent[self].is_detached()
+        self.get(agent).is_detached()
     }
 
     #[inline]
     pub fn is_resizable(self, agent: &Agent) -> bool {
-        agent[self].is_resizable()
+        self.get(agent).is_resizable()
     }
 
     #[inline]
     pub fn byte_length(self, agent: &Agent) -> usize {
-        agent[self].byte_length()
+        self.get(agent).byte_length()
     }
 
     #[inline]
     pub fn max_byte_length(self, agent: &Agent) -> usize {
-        agent[self].max_byte_length()
+        self.get(agent).max_byte_length()
     }
 
     #[inline]
@@ -104,7 +105,7 @@ impl ArrayBuffer<'_> {
     ///
     /// `new_byte_length` must be a safe integer.
     pub(crate) fn resize(self, agent: &mut Agent, new_byte_length: usize) {
-        agent[self].resize(new_byte_length);
+        self.get(agent).resize(new_byte_length);
     }
 
     /// Get temporary access to an ArrayBuffer's backing data block as a slice
@@ -117,7 +118,7 @@ impl ArrayBuffer<'_> {
     /// ArrayBuffer may be rewritten or reallocated.
     #[inline]
     pub fn as_slice(self, agent: &Agent) -> &[u8] {
-        agent[self].get_data_block()
+        self.get(agent).get_data_block()
     }
 
     /// Get temporary exclusive access to an ArrayBuffer's backing data block
@@ -131,7 +132,7 @@ impl ArrayBuffer<'_> {
     /// ArrayBuffer may be rewritten or reallocated.
     #[inline]
     pub fn as_mut_slice(self, agent: &mut Agent) -> &mut [u8] {
-        agent[self].get_data_block_mut()
+        self.get(agent).get_data_block_mut()
     }
 
     /// Create a T slice from an ArrayBuffer and byte offset and length values.
@@ -222,12 +223,12 @@ impl<'a> InternalSlots<'a> for ArrayBuffer<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
-            agent[self]
+            self.get(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()

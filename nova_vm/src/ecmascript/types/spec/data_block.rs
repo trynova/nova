@@ -2168,7 +2168,7 @@ impl Viewable for u64 {
             return u64::try_from(value).ok();
         };
         if let Value::BigInt(value) = value {
-            let data = &agent[value];
+            let data = &value.get(agent);
             let mut iter = data.data.iter_u64_digits();
             let sign = data.data.sign();
             if sign == Sign::Minus {
@@ -2290,7 +2290,7 @@ impl Viewable for i64 {
             return Some(value.into_i64());
         };
         if let Value::BigInt(value) = value {
-            let data = &agent[value];
+            let data = &value.get(agent);
             let mut iter = data.data.iter_u64_digits();
             if iter.len() > 1 {
                 return None;

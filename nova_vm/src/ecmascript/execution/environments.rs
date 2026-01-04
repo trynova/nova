@@ -56,9 +56,7 @@ pub(crate) use private_environment::{
 use crate::{
     ecmascript::{
         builtins::{ordinary::caches::PropertyLookupCache, proxy::Proxy},
-        types::{
-            InternalMethods,  Object, Reference, SetResult, String, TryHasResult, Value,
-        },
+        types::{InternalMethods, Object, Reference, SetResult, String, TryHasResult, Value},
     },
     engine::{
         context::{Bindable, GcScope, GcToken, NoGcScope, bindable_handle},
@@ -100,7 +98,7 @@ macro_rules! create_environment_index {
 
         impl core::fmt::Debug for $index<'_> {
             fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-                write!(f, "$index({:?})", self.into_u32_index())
+                write!(f, "$index({:?})", self.get_index_u32())
             }
         }
 
@@ -124,7 +122,7 @@ macro_rules! create_environment_index {
                 self.0.get() as usize - 1
             }
 
-            pub(crate) const fn into_u32_index(self) -> u32 {
+            pub(crate) const fn get_index_u32(self) -> u32 {
                 self.0.get() - 1
             }
         }
@@ -682,12 +680,12 @@ impl core::fmt::Debug for Environment<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Environment::Declarative(d) => {
-                write!(f, "DeclarativeEnvironment({:?})", d.into_u32_index())
+                write!(f, "DeclarativeEnvironment({:?})", d.get_index_u32())
             }
-            Environment::Function(d) => write!(f, "FunctionEnvironment({:?})", d.into_u32_index()),
-            Environment::Global(d) => write!(f, "GlobalEnvironment({:?})", d.into_u32_index()),
-            Environment::Module(d) => write!(f, "ModuleEnvironment({:?})", d.into_u32_index()),
-            Environment::Object(d) => write!(f, "ObjectEnvironment({:?})", d.into_u32_index()),
+            Environment::Function(d) => write!(f, "FunctionEnvironment({:?})", d.get_index_u32()),
+            Environment::Global(d) => write!(f, "GlobalEnvironment({:?})", d.get_index_u32()),
+            Environment::Module(d) => write!(f, "ModuleEnvironment({:?})", d.get_index_u32()),
+            Environment::Object(d) => write!(f, "ObjectEnvironment({:?})", d.get_index_u32()),
             // EnvironmentIndex::Module(d) => {}
         }
     }

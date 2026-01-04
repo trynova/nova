@@ -111,7 +111,7 @@ impl ErrorConstructor {
         // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
         let message = message.map(|message| message.get(agent));
         let cause = cause.map(|c| c.get(agent));
-        let heap_data = &mut agent[o];
+        let heap_data = &mut o.get(agent);
         heap_data.kind = ExceptionType::Error;
         heap_data.message = message;
         heap_data.cause = cause;

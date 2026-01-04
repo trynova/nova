@@ -7,7 +7,7 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter},
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY,  PropertyKey, String, Symbol, Value},
+        types::{BUILTIN_STRING_MEMORY, PropertyKey, String, Symbol, Value},
     },
     engine::context::{Bindable, GcScope, NoGcScope},
     heap::WellKnownSymbolIndexes,
@@ -77,7 +77,7 @@ impl SymbolPrototype {
             .unbind()?
             .bind(gc.into_nogc());
         // 3. Return sym.[[Description]].
-        agent[sym]
+        sym.get(agent)
             .descriptor
             .map_or_else(|| Ok(Value::Undefined), |desc| Ok(desc.into()))
     }
@@ -141,7 +141,7 @@ fn this_symbol_value<'a>(
     match value {
         Value::Symbol(symbol) => Ok(symbol.unbind()),
         Value::PrimitiveObject(object) if object.is_symbol_object(agent) => {
-            let s: Symbol = agent[object].data.try_into().unwrap();
+            let s: Symbol = object.get(agent).data.try_into().unwrap();
             Ok(s)
         }
         _ => Err(agent.throw_exception_with_static_message(
@@ -162,7 +162,7 @@ fn symbol_descriptive_string<'gc>(
     gc: NoGcScope<'gc, '_>,
 ) -> String<'gc> {
     // 1. Let desc be sym's [[Description]] value.
-    let desc = agent[sym].descriptor;
+    let desc = sym.get(agent).descriptor;
     // 2. If desc is undefined, set desc to the empty String.
     if let Some(desc) = desc {
         // 3. Assert: desc is a String.

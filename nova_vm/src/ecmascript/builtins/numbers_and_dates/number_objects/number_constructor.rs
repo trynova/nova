@@ -16,8 +16,8 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics, Realm},
         types::{
-            BUILTIN_STRING_MEMORY, Function,  Number, Numeric, Object, Primitive, String,
-            Value, bigint::BigIntMathematicalValue,
+            BUILTIN_STRING_MEMORY, Function, Number, Numeric, Object, Primitive, String, Value,
+            bigint::BigIntMathematicalValue,
         },
     },
     engine::{
@@ -139,7 +139,7 @@ impl NumberConstructor {
         .unwrap();
         let n = n.get(agent).unbind();
         // 5. Set O.[[NumberData]] to n.
-        agent[o].data = match n {
+        o.get(agent).data = match n {
             Number::Number(d) => PrimitiveObjectData::Number(d),
             Number::Integer(d) => PrimitiveObjectData::Integer(d),
             Number::SmallF64(d) => PrimitiveObjectData::SmallF64(d),

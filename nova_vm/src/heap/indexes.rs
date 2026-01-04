@@ -183,12 +183,12 @@ pub(crate) trait HeapIndexHandle: Copy + Sized {
     fn from_index_u32(index: u32) -> Self;
 
     /// Get the handle's stored index.
-    fn get_index(&self) -> usize {
+    fn get_index(self) -> usize {
         self.get_index_u32() as usize
     }
 
     /// Get the handle's stored 32-bit index.
-    fn get_index_u32(&self) -> u32;
+    fn get_index_u32(self) -> u32;
 }
 
 impl<T: ?Sized> HeapIndexHandle for BaseIndex<'_, T> {
@@ -207,7 +207,7 @@ impl<T: ?Sized> HeapIndexHandle for BaseIndex<'_, T> {
     }
 
     #[inline(always)]
-    fn get_index_u32(&self) -> u32 {
+    fn get_index_u32(self) -> u32 {
         self.0.get() - 1
     }
 }

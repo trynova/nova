@@ -161,7 +161,7 @@ pub(crate) fn new_global_environment<'a>(
 
 impl<'e> GlobalEnvironment<'e> {
     pub(crate) fn get_binding_object(self, agent: &Agent) -> Object<'e> {
-        agent[self].object_record.get_binding_object(agent)
+        self.get(agent).object_record.get_binding_object(agent)
     }
 
     /// ### Try [9.1.1.4.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-global-environment-records-hasbinding-n)
@@ -178,7 +178,7 @@ impl<'e> GlobalEnvironment<'e> {
         gc: NoGcScope<'gc, '_>,
     ) -> ControlFlow<TryError<'gc>, TryHasBindingContinue<'gc>> {
         let env = self.bind(gc);
-        let env_rec = &agent[env];
+        let env_rec = &env.get(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         // 2. If ! DclRec.HasBinding(N) is true, return true.
         if env_rec.declarative_record.has_binding(agent, name) {
@@ -205,7 +205,7 @@ impl<'e> GlobalEnvironment<'e> {
     ) -> JsResult<'a, bool> {
         let env = self.bind(gc.nogc());
         let name = name.bind(gc.nogc());
-        let env_rec = &agent[env];
+        let env_rec = &env.get(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         // 2. If ! DclRec.HasBinding(N) is true, return true.
         if env_rec.declarative_record.has_binding(agent, name) {
@@ -235,7 +235,7 @@ impl<'e> GlobalEnvironment<'e> {
         gc: NoGcScope<'a, '_>,
     ) -> JsResult<'a, ()> {
         let env = self.bind(gc);
-        let env_rec = &agent[env];
+        let env_rec = &env.get(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, throw a TypeError exception.
@@ -269,7 +269,7 @@ impl<'e> GlobalEnvironment<'e> {
         gc: NoGcScope<'a, '_>,
     ) -> JsResult<'a, ()> {
         let env = self.bind(gc);
-        let env_rec = &agent[env];
+        let env_rec = &env.get(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, throw a TypeError exception.
@@ -303,7 +303,7 @@ impl<'e> GlobalEnvironment<'e> {
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, SetResult<'gc>> {
         let env = self.bind(gc);
-        let env_rec = &agent[env];
+        let env_rec = &env.get(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
@@ -341,7 +341,7 @@ impl<'e> GlobalEnvironment<'e> {
         let name = name.bind(nogc);
         let cache = cache.bind(nogc);
         let value = value.bind(nogc);
-        let env_rec = &agent[env];
+        let env_rec = &env.get(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
@@ -378,7 +378,7 @@ impl<'e> GlobalEnvironment<'e> {
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, SetResult<'gc>> {
         let env = self.bind(gc);
-        let env_rec = &agent[env];
+        let env_rec = &env.get(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
@@ -421,7 +421,7 @@ impl<'e> GlobalEnvironment<'e> {
         let name = name.bind(nogc);
         let cache = cache.bind(nogc);
         let value = value.bind(nogc);
-        let env_rec = &agent[env];
+        let env_rec = &env.get(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
@@ -468,7 +468,7 @@ impl<'e> GlobalEnvironment<'e> {
         gc: NoGcScope<'e, '_>,
     ) -> TryResult<'e, Value<'e>> {
         let env = self.bind(gc);
-        let env_rec = &agent[env];
+        let env_rec = &env.get(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
@@ -502,7 +502,7 @@ impl<'e> GlobalEnvironment<'e> {
     ) -> JsResult<'a, Value<'a>> {
         let env = self.bind(gc.nogc());
         let n = n.bind(gc.nogc());
-        let env_rec = &agent[env];
+        let env_rec = &env.get(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
@@ -530,7 +530,7 @@ impl<'e> GlobalEnvironment<'e> {
         gc: NoGcScope<'a, '_>,
     ) -> TryResult<'a, bool> {
         let env = self.bind(gc);
-        let env_rec = &agent[env];
+        let env_rec = &env.get(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
@@ -551,7 +551,7 @@ impl<'e> GlobalEnvironment<'e> {
             let status = obj_rec.try_delete_binding(agent, name, gc)?;
             // b. If status is true and envRec.[[VarNames]] contains N, then
             if status {
-                let env_rec = &mut agent[env];
+                let env_rec = &mut env.get(agent);
                 if env_rec.var_names.contains(&name) {
                     // i. Remove N from envRec.[[VarNames]].
                     env_rec.var_names.remove(&name.unbind());
@@ -579,7 +579,7 @@ impl<'e> GlobalEnvironment<'e> {
     ) -> JsResult<'a, bool> {
         let env = self.bind(gc.nogc());
         let name = name.bind(gc.nogc());
-        let env_rec = &agent[env];
+        let env_rec = &env.get(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
@@ -611,7 +611,7 @@ impl<'e> GlobalEnvironment<'e> {
             // b. If status is true and envRec.[[VarNames]] contains N, then
             if status {
                 let name = scoped_name.get(agent);
-                let env_rec = &mut agent[env];
+                let env_rec = &mut env.get(agent);
                 if env_rec.var_names.contains(&name) {
                     // i. Remove N from envRec.[[VarNames]].
                     env_rec.var_names.remove(&name);
@@ -632,7 +632,7 @@ impl<'e> GlobalEnvironment<'e> {
     /// Object.
     pub(crate) fn get_this_binding(self, agent: &Agent) -> Object<'e> {
         // 1. Return envRec.[[GlobalThisValue]].
-        agent[self].global_this_value
+        self.get(agent).global_this_value
     }
 
     /// ### [9.1.1.4.12 HasVarDeclaration ( N )](https://tc39.es/ecma262/#sec-hasvardeclaration)
@@ -643,7 +643,7 @@ impl<'e> GlobalEnvironment<'e> {
     /// created
     /// using a VariableStatement or a FunctionDeclaration.
     pub(crate) fn has_var_declaration(self, agent: &Agent, name: String) -> bool {
-        let env_rec = &agent[self];
+        let env_rec = &self.get(agent);
         // 1. Let varDeclaredNames be envRec.[[VarNames]].
         let var_declared_names = &env_rec.var_names;
         // 2. If varDeclaredNames contains N, return true.
@@ -659,7 +659,7 @@ impl<'e> GlobalEnvironment<'e> {
     /// was created using a lexical declaration such as a LexicalDeclaration or
     /// a ClassDeclaration.
     pub(crate) fn has_lexical_declaration(self, agent: &Agent, name: String) -> bool {
-        let env_rec = &agent[self];
+        let env_rec = &self.get(agent);
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. Return ! DclRec.HasBinding(N).
@@ -681,7 +681,7 @@ impl<'e> GlobalEnvironment<'e> {
     ) -> JsResult<'a, bool> {
         let env = self.bind(gc.nogc());
         let name = name.bind(gc.nogc());
-        let env_rec = &agent[env];
+        let env_rec = &env.get(agent);
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record.bind(gc.nogc());
         // 2. Let globalObject be ObjRec.[[BindingObject]].
@@ -717,7 +717,7 @@ impl<'e> GlobalEnvironment<'e> {
     ) -> JsResult<'a, bool> {
         let env = self.bind(gc.nogc());
         let name = name.bind(gc.nogc());
-        let env_rec = &agent[env];
+        let env_rec = &env.get(agent);
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record.bind(gc.nogc());
         // 2. Let globalObject be ObjRec.[[BindingObject]].
@@ -751,7 +751,7 @@ impl<'e> GlobalEnvironment<'e> {
     ) -> JsResult<'a, bool> {
         let name = name.bind(gc.nogc());
         let env = self.bind(gc.nogc());
-        let env_rec = &agent[env];
+        let env_rec = &env.get(agent);
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record.bind(gc.nogc());
         // 2. Let globalObject be ObjRec.[[BindingObject]].
@@ -803,7 +803,7 @@ impl<'e> GlobalEnvironment<'e> {
         let env = self.bind(nogc);
         let name = name.bind(nogc);
         let cache = cache.bind(nogc);
-        let env_rec = &agent[env];
+        let env_rec = &env.get(agent);
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record.bind(gc.nogc());
         // 2. Let globalObject be ObjRec.[[BindingObject]].
@@ -850,7 +850,7 @@ impl<'e> GlobalEnvironment<'e> {
         let name = unsafe { name.take(agent) };
         // 6. If envRec.[[VarNames]] does not contain N, then
         //    a. Append N to envRec.[[VarNames]].
-        agent[env].var_names.insert(name);
+        env.get(agent).var_names.insert(name);
 
         // 7. Return UNUSED.
         Ok(())
@@ -877,7 +877,7 @@ impl<'e> GlobalEnvironment<'e> {
         let env = self.bind(nogc);
         let name = name.bind(nogc);
         let value = value.scope(agent, nogc);
-        let env_rec = &agent[env];
+        let env_rec = &env.get(agent);
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record.bind(gc.nogc());
         // 2. Let globalObject be ObjRec.[[BindingObject]].
@@ -941,7 +941,7 @@ impl<'e> GlobalEnvironment<'e> {
         // a. Append N to envRec.[[VarNames]].
         // SAFETY: Name of a global function cannot be a numeric string.
         let n = unsafe { String::try_from(name.into_value_unchecked()).unwrap() };
-        agent[env].var_names.insert(n);
+        env.get(agent).var_names.insert(n);
         // 9. Return UNUSED.
         Ok(())
         // NOTE

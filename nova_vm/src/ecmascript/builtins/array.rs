@@ -30,12 +30,10 @@ use crate::{
             object_handle,
         },
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-    },
+    engine::context::{Bindable, GcScope, NoGcScope},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues,
+        WorkQueues, arena_vec_access,
         element_array::{
             ElementArrays, ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementsVector,
         },
@@ -57,6 +55,7 @@ use super::ordinary::{
 #[repr(transparent)]
 pub struct Array<'a>(BaseIndex<'a, ArrayHeapData<'static>>);
 object_handle!(Array);
+arena_vec_access!(soa: Array, 'a, ArrayHeapData, arrays, ArrayHeapDataRef, ArrayHeapDataMut);
 
 pub(crate) static ARRAY_INDEX_RANGE: RangeInclusive<i64> = 0..=(i64::pow(2, 32) - 2);
 
@@ -112,7 +111,7 @@ impl<'a> Array<'a> {
         agent
             .heap
             .arrays
-            .get_mut(self.0.into_u32_index())
+            .get_mut(self.0.get_index_u32())
             .unwrap()
             .elements
             .push(&mut agent.heap.elements, Some(value), None)
@@ -132,7 +131,7 @@ impl<'a> Array<'a> {
     ) -> ArrayHeapDataRef<'agent, 'a> {
         agent
             .as_ref()
-            .get(self.0.into_u32_index())
+            .get(self.0.get_index_u32())
             .expect("Invalid Array reference")
     }
 
@@ -142,7 +141,7 @@ impl<'a> Array<'a> {
     ) -> ArrayHeapDataMut<'agent, 'static> {
         agent
             .as_mut()
-            .get_mut(self.0.into_u32_index())
+            .get_mut(self.0.get_index_u32())
             .expect("Invalid Array reference")
     }
 
@@ -152,7 +151,7 @@ impl<'a> Array<'a> {
     ) -> &ElementsVector<'a> {
         agent
             .as_ref()
-            .get(self.0.into_u32_index())
+            .get(self.0.get_index_u32())
             .expect("Invalid Array reference")
             .elements
     }
@@ -163,7 +162,7 @@ impl<'a> Array<'a> {
     ) -> &mut ElementsVector<'static> {
         agent
             .as_mut()
-            .get_mut(self.0.into_u32_index())
+            .get_mut(self.0.get_index_u32())
             .expect("Invalid Array reference")
             .elements
     }
@@ -1169,7 +1168,7 @@ fn insert_data_descriptor(
         insert_element_descriptor(agent, elements, index, descriptor_value, descriptor);
     } else {
         agent.heap.alloc_counter += core::mem::size_of::<Option<Value>>();
-        agent[elements][index as usize] =
+        elements.get(agent)[index as usize] =
             Some(descriptor_value.unwrap_or(Value::Undefined).unbind());
     }
 }
@@ -1222,20 +1221,6 @@ impl ArrayHeap<'_> {
 impl AsRef<SoAVec<ArrayHeapData<'static>>> for ArrayHeap<'_> {
     fn as_ref(&self) -> &SoAVec<ArrayHeapData<'static>> {
         self.arrays
-    }
-}
-
-impl AsRef<SoAVec<ArrayHeapData<'static>>> for Agent {
-    #[inline(always)]
-    fn as_ref(&self) -> &SoAVec<ArrayHeapData<'static>> {
-        &self.heap.arrays
-    }
-}
-
-impl AsMut<SoAVec<ArrayHeapData<'static>>> for Agent {
-    #[inline(always)]
-    fn as_mut(&mut self) -> &mut SoAVec<ArrayHeapData<'static>> {
-        &mut self.heap.arrays
     }
 }
 

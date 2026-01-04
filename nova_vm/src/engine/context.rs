@@ -358,7 +358,7 @@ pub unsafe trait Bindable: Sized {
     ///
     /// ```rust,ignore
     /// // Bind a bindable value when it is copied from the engine heap.
-    /// let first = agent[array].as_slice()[0].bind(gc.nogc());
+    /// let first = array.get(agent).as_slice()[0].bind(gc.nogc());
     /// ```
     ///
     /// *Incorrect* usage of this function: skip binding arguments when a

@@ -11,13 +11,10 @@ use crate::{
         execution::{Agent, ProtoIntrinsics},
         types::{InternalMethods, InternalSlots, OrdinaryObject, object_handle},
     },
-    engine::{
-        context::{Bindable},
-    },
+    engine::context::Bindable,
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues,
-        indexes::{BaseIndex, HeapIndexHandle},
+        WorkQueues, arena_vec_access, indexes::BaseIndex,
     },
 };
 
@@ -27,18 +24,24 @@ use self::data::DateHeapData;
 #[repr(transparent)]
 pub struct Date<'a>(BaseIndex<'a, DateHeapData<'static>>);
 object_handle!(Date);
+arena_vec_access!(
+    Date,
+    'a,
+    DateHeapData,
+    dates
+);
 
 impl Date<'_> {
     /// ### get [[DateValue]]
     #[inline]
     pub(crate) fn date_value(self, agent: &Agent) -> DateValue {
-        agent[self].date
+        self.get(agent).date
     }
 
     /// ### set [[DateValue]]
     #[inline]
     pub(crate) fn set_date_value(self, agent: &mut Agent, date: DateValue) {
-        agent[self].date = date;
+        self.get(agent).date = date;
     }
 }
 
@@ -47,11 +50,16 @@ impl<'a> InternalSlots<'a> for Date<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self].object_index.replace(backing_object).is_none());
+        assert!(
+            self.get(agent)
+                .object_index
+                .replace(backing_object)
+                .is_none()
+        );
     }
 }
 

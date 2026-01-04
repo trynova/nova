@@ -24,8 +24,9 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
+        arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
     ndt,
@@ -37,6 +38,12 @@ use super::ArgumentsList;
 #[repr(transparent)]
 pub struct BuiltinConstructorFunction<'a>(BaseIndex<'a, BuiltinConstructorRecord<'static>>);
 function_handle!(BuiltinConstructorFunction);
+arena_vec_access!(
+    BuiltinConstructorFunction,
+    'a,
+    BuiltinConstructorRecord,
+    builtin_constructors
+);
 
 impl BuiltinConstructorFunction<'_> {
     pub const fn is_constructor(self) -> bool {
@@ -46,7 +53,7 @@ impl BuiltinConstructorFunction<'_> {
 
 impl<'a> FunctionInternalProperties<'a> for BuiltinConstructorFunction<'a> {
     fn get_name(self, agent: &Agent) -> &String<'a> {
-        &agent[self].class_name
+        &self.get(agent).class_name
     }
 
     fn get_length(self, _: &Agent) -> u8 {
@@ -55,7 +62,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinConstructorFunction<'a> {
 
     #[inline(always)]
     fn get_function_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].backing_object
+        self.get(agent).backing_object
     }
 
     fn set_function_backing_object(
@@ -63,7 +70,12 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinConstructorFunction<'a> {
         agent: &mut Agent,
         backing_object: OrdinaryObject<'static>,
     ) {
-        assert!(agent[self].backing_object.replace(backing_object).is_none());
+        assert!(
+            self.get(agent)
+                .backing_object
+                .replace(backing_object)
+                .is_none()
+        );
     }
 
     /// ### [10.3.1 \[\[Call\]\] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-built-in-function-objects-call-thisargument-argumentslist)
@@ -117,7 +129,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinConstructorFunction<'a> {
 
 #[inline(never)]
 fn create_id(agent: &Agent, f: BuiltinConstructorFunction) -> u64 {
-    ((f.0.into_u32() as u64) << 32) | agent[f].source_text.start as u64
+    ((f.0.get_index_u32() as u64) << 32) | f.get(agent).source_text.start as u64
 }
 
 /// ### [10.3.3 BuiltinCallOrConstruct ( F, thisArgument, argumentsList, newTarget )](https://tc39.es/ecma262/#sec-builtincallorconstruct)
@@ -142,7 +154,7 @@ fn builtin_call_or_construct<'a>(
     // 2. If callerContext is not already suspended, suspend callerContext.
     caller_context.suspend();
     // 5. Let calleeRealm be F.[[Realm]].
-    let heap_data = &agent[f];
+    let heap_data = &f.get(agent);
     let callee_realm = heap_data.realm;
     let is_derived = heap_data.is_derived;
     // 3. Let calleeContext be a new execution context.
@@ -150,7 +162,7 @@ fn builtin_call_or_construct<'a>(
         // 8. Perform any necessary implementation-defined initialization of calleeContext.
         ecmascript_code: None,
         // 4. Set the Function of calleeContext to F.
-        function: Some(f.into().unbind()),
+        function: Some(f.unbind().into()),
         // 6. Set the Realm of calleeContext to calleeRealm.
         realm: callee_realm,
         // 7. Set the ScriptOrModule of calleeContext to null.
@@ -165,11 +177,11 @@ fn builtin_call_or_construct<'a>(
         derived_class_default_constructor(
             agent,
             arguments_list.unbind(),
-            new_target.into().unbind(),
+            new_target.unbind().into(),
             gc,
         )
     } else {
-        base_class_default_constructor(agent, new_target.into().unbind(), gc)
+        base_class_default_constructor(agent, new_target.unbind().into(), gc)
     };
     // 11. NOTE: If F is defined in this document, “the specification of F” is the behaviour specified for it via
     // algorithm steps or other means.

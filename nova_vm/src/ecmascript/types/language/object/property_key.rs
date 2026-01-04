@@ -194,7 +194,7 @@ impl<'a> PropertyKey<'a> {
                 s1.as_wtf8() == s2.as_wtf8()
             }
             (PropertyKey::String(s), PropertyKey::Integer(n)) => {
-                let s = agent[s.unbind()].as_wtf8();
+                let s = s.unbind().get(agent).as_wtf8();
 
                 Self::is_str_eq_num(s, n.into_i64())
             }
@@ -235,7 +235,7 @@ impl<'a> PropertyKey<'a> {
         matches!(self, PropertyKey::PrivateName(_))
     }
 
-    pub(crate) fn heap_hash(self, heap: &impl PropertyKeyHeapIndexable) -> u64 {
+    pub(crate) fn heap_hash(self, agent: &impl PropertyKeyHeapIndexable) -> u64 {
         let mut hasher = AHasher::default();
         match self {
             PropertyKey::Symbol(sym) => {
@@ -244,7 +244,7 @@ impl<'a> PropertyKey<'a> {
             }
             PropertyKey::String(s) => {
                 // Skip discriminant hashing in strings
-                heap[s.unbind()].data.hash(&mut hasher);
+                s.get(agent).data.hash(&mut hasher);
             }
             PropertyKey::SmallString(s) => {
                 s.as_wtf8().hash(&mut hasher);
@@ -273,7 +273,7 @@ impl core::fmt::Display for DisplayablePropertyKey<'_, '_, '_> {
             PropertyKey::SmallString(data) => data.to_string_lossy().fmt(f),
             PropertyKey::String(data) => data.to_string_lossy(self.agent).fmt(f),
             PropertyKey::Symbol(data) => {
-                if let Some(descriptor) = self.agent[*data].descriptor {
+                if let Some(descriptor) = data.get(self.agent).descriptor {
                     let descriptor = descriptor.to_string_lossy(self.agent);
                     f.debug_tuple("Symbol").field(&descriptor).finish()
                 } else {

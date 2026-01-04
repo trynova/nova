@@ -292,7 +292,7 @@ impl FunctionPrototype {
             }
         }
         // 7. Perform SetFunctionLength(F, L).
-        agent[f].length = u8::try_from(l).unwrap_or(u8::MAX);
+        f.get(agent).length = u8::try_from(l).unwrap_or(u8::MAX);
         // 8. Let targetName be ? Get(Target, "name").
         let target_name = try_get(
             agent,
@@ -385,7 +385,7 @@ impl FunctionPrototype {
             // HostHasSourceTextAvailable(func) is true, then
             Function::ECMAScriptFunction(idx) => {
                 // a. Return CodePointsToString(func.[[SourceText]]).
-                let data = &agent[idx].ecmascript_function;
+                let data = &idx.get(agent).ecmascript_function;
                 let span = data.source_text;
                 let source_text = data.source_code.get_source_text(agent)
                     [(span.start as usize)..(span.end as usize)]
@@ -400,14 +400,14 @@ impl FunctionPrototype {
             // String that would be matched by NativeFunctionAccessor_opt
             // PropertyName must be the value of func.[[InitialName]].
             Function::BuiltinFunction(idx) => {
-                let data = &agent[idx];
+                let data = &idx.get(agent);
                 let initial_name = data.initial_name.map_or_else(
                     || "function () {{ [ native code ] }}".into(),
                     |initial_name| match initial_name {
                         crate::ecmascript::types::String::String(idx) => {
                             format!(
                                 "function {}() {{ [ native code ] }}",
-                                agent[idx].to_string_lossy()
+                                idx.get(agent).to_string_lossy()
                             )
                         }
                         crate::ecmascript::types::String::SmallString(string) => {
@@ -526,7 +526,7 @@ impl ThrowTypeError {
         let throw_type_error =
             BuiltinFunctionBuilder::new_intrinsic_function::<ThrowTypeError>(agent, realm).build();
         let backing_object = create_throw_type_error_backing_object(agent, realm);
-        agent[throw_type_error].object_index = Some(backing_object);
+        throw_type_error.get(agent).object_index = Some(backing_object);
     }
 }
 

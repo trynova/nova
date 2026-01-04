@@ -3567,7 +3567,7 @@ fn this_string_value<'gc>(
             // a. Let s be value.[[StringData]].
             // b. Assert: s is a String.
             // c. Return s.
-            match agent[obj].data {
+            match obj.get(agent).data {
                 PrimitiveObjectData::String(data) => Ok(data.into()),
                 PrimitiveObjectData::SmallString(data) => Ok(data.into()),
                 _ => unreachable!(),

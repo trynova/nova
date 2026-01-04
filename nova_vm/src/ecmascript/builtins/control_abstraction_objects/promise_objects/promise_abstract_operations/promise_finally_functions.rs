@@ -18,7 +18,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues,
+        WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -54,13 +54,13 @@ pub struct PromiseFinallyFunctionHeapData<'a> {
 }
 bindable_handle!(PromiseFinallyFunctionHeapData);
 
-pub(crate) type BuiltinPromiseFinallyFunctionIndex<'a> =
-    BaseIndex<'a, PromiseFinallyFunctionHeapData<'static>>;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct BuiltinPromiseFinallyFunction<'a>(pub(crate) BuiltinPromiseFinallyFunctionIndex<'a>);
+pub struct BuiltinPromiseFinallyFunction<'a>(
+    BaseIndex<'a, PromiseFinallyFunctionHeapData<'static>>,
+);
 function_handle!(BuiltinPromiseFinallyFunction);
+arena_vec_access!(BuiltinPromiseFinallyFunction, 'a, PromiseFinallyFunctionHeapData, promise_finally_functions);
 
 impl<'f> BuiltinPromiseFinallyFunction<'f> {
     pub(crate) fn create_finally_functions(

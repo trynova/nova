@@ -38,8 +38,8 @@ use crate::{
             agent::{ExceptionType, TryError},
         },
         types::{
-            BUILTIN_STRING_MEMORY, Function,  Object, PropertyKey, String, TryGetResult,
-            Value, handle_try_get_result,
+            BUILTIN_STRING_MEMORY, Function, Object, PropertyKey, String, TryGetResult, Value,
+            handle_try_get_result,
         },
     },
     engine::{
@@ -301,7 +301,7 @@ pub fn add_entries_from_iterable_map_constructor<'a>(
     let mut iterable = iterable.bind(nogc);
     let mut adder = adder.bind(nogc);
     if let Function::BuiltinFunction(bf) = adder
-        && agent[bf].behaviour == MapPrototypeSet::BEHAVIOUR
+        && bf.get(agent).behaviour == MapPrototypeSet::BEHAVIOUR
     {
         // Normal Map.prototype.set
         if let Value::Array(arr_iterable) = iterable {

@@ -149,7 +149,7 @@ fn this_big_int_value<'a>(
         Value::SmallBigInt(value) => Ok(value.into()),
         // 2. If value is an Object and value has a [[BigIntData]] internal slot, then
         Value::PrimitiveObject(value) if value.is_bigint_object(agent) => {
-            match agent[value].data {
+            match value.get(agent).data {
                 // b. Return value.[[BigIntData]].
                 PrimitiveObjectData::BigInt(value) => Ok(value.into()),
                 PrimitiveObjectData::SmallBigInt(value) => Ok(value.into()),

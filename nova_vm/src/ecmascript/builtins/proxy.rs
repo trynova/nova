@@ -36,7 +36,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues,
+        WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -54,10 +54,11 @@ pub mod data;
 #[repr(transparent)]
 pub struct Proxy<'a>(BaseIndex<'a, ProxyHeapData<'static>>);
 object_handle!(Proxy);
+arena_vec_access!(Proxy, 'a, ProxyHeapData, proxies);
 
 impl Proxy<'_> {
     pub(crate) fn is_callable(self, agent: &Agent, gc: NoGcScope) -> bool {
-        match agent[self] {
+        match self.get(agent) {
             ProxyHeapData::NonRevoked { proxy_target, .. } => {
                 if let Object::Proxy(proxy_target) = proxy_target {
                     // TODO: Remove this once is_callable handles callable

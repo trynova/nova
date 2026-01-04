@@ -74,7 +74,7 @@ impl Script<'_> {
         // is valid while the self SourceTextModule is held (the parent call).
         unsafe {
             core::mem::transmute::<&[ast::Statement], &'a [ast::Statement<'a>]>(
-                agent[self].ecmascript_code.as_ref(),
+                self.get(agent).ecmascript_code.as_ref(),
             )
         }
     }
@@ -85,7 +85,7 @@ impl Script<'_> {
         agent: &Agent,
         gc: NoGcScope<'a, '_>,
     ) -> SourceCode<'a> {
-        agent[self].source_code.bind(gc)
+        self.get(agent).source_code.bind(gc)
     }
 
     /// Creates a script identififer from a usize.
@@ -117,12 +117,12 @@ impl Script<'_> {
 
     /// ### \[\[Realm]]
     pub(crate) fn realm<'a>(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> Realm<'a> {
-        agent[self].realm.bind(gc)
+        self.get(agent).realm.bind(gc)
     }
 
     /// \[\[\HostDefined]]
     pub(crate) fn host_defined(self, agent: &Agent) -> Option<HostDefined> {
-        agent[self].host_defined.clone()
+        self.get(agent).host_defined.clone()
     }
 
     pub(crate) fn insert_loaded_module(
@@ -342,7 +342,7 @@ pub fn script_evaluation<'a>(
         id = create_id(agent, script, gc.nogc());
         id
     });
-    let script_record = &agent[script];
+    let script_record = &script.get(agent);
     let realm_id = script_record.realm;
     let is_strict_mode = script_record.is_strict;
     let source_code = script_record.source_code;
@@ -466,7 +466,7 @@ unsafe fn global_declaration_instantiation<'a>(
     // 11. Let script be scriptRecord.[[ECMAScriptCode]].
     // SAFETY: Analysing the script cannot cause the environment to move even though we change other parts of the Heap.
     let (lex_names, var_names, var_declarations, lex_declarations) = {
-        let body = agent[script].ecmascript_code;
+        let body = script.get(agent).ecmascript_code;
         // SAFETY: The caller promises that Script is rooted, meaning that its
         // backing SourceCode cannot be dropped during this call. Hence, we can
         // take the body slice reference and keep it alive for the duration of
@@ -1842,7 +1842,7 @@ mod test {
         let Value::Error(result) = result else {
             unreachable!()
         };
-        assert_eq!(agent[result].kind, ExceptionType::TypeError);
+        assert_eq!(result.get(agent).kind, ExceptionType::TypeError);
 
         // let realm = agent.current_realm_id(gc.nogc());
         let source_text = String::from_static_str(&mut agent, "+Symbol('foo')", gc.nogc());
@@ -1852,7 +1852,7 @@ mod test {
         let Value::Error(result) = result else {
             unreachable!()
         };
-        assert_eq!(agent[result].kind, ExceptionType::TypeError);
+        assert_eq!(result.get(agent).kind, ExceptionType::TypeError);
 
         let source_text = String::from_static_str(&mut agent, "String(Symbol())", gc.nogc());
         let result = agent

@@ -2,9 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::{
-    num::NonZeroU32,
-};
+use core::num::NonZeroU32;
 use std::marker::PhantomData;
 
 use crate::{
@@ -254,17 +252,17 @@ impl<'gc> Executable<'gc> {
     fn get_instructions(self, agent: &Agent) -> &'static [u8] {
         // SAFETY: As long as we're alive the instructions Box lives, and it is
         // never accessed mutably.
-        unsafe { core::mem::transmute(&agent[self].instructions[..]) }
+        unsafe { core::mem::transmute(&self.get(agent).instructions[..]) }
     }
 
     #[inline]
     fn get_instruction(self, agent: &Agent, ip: &mut usize) -> Option<Instr> {
-        Instr::consume_instruction(&agent[self].instructions, ip)
+        Instr::consume_instruction(&self.get(agent).instructions, ip)
     }
 
     #[inline]
     fn get_constants<'a>(self, agent: &'a Agent, _: NoGcScope<'gc, '_>) -> &'a [Value<'gc>] {
-        &agent[self].constants[..]
+        &self.get(agent).constants[..]
     }
 
     #[inline]
@@ -274,17 +272,17 @@ impl<'gc> Executable<'gc> {
         index: usize,
         gc: NoGcScope<'gc, '_>,
     ) -> PropertyLookupCache<'gc> {
-        agent[self].caches[index].bind(gc)
+        self.get(agent).caches[index].bind(gc)
     }
 
     #[inline]
     fn fetch_constant(self, agent: &Agent, index: usize, gc: NoGcScope<'gc, '_>) -> Value<'gc> {
-        agent[self].constants[index].bind(gc)
+        self.get(agent).constants[index].bind(gc)
     }
 
     #[inline]
     fn fetch_identifier(self, agent: &Agent, index: usize, gc: NoGcScope<'gc, '_>) -> String<'gc> {
-        let value = agent[self].constants[index];
+        let value = self.get(agent).constants[index];
         let Ok(value) = String::try_from(value) else {
             handle_identifier_failure()
         };
@@ -298,7 +296,7 @@ impl<'gc> Executable<'gc> {
         index: usize,
         gc: NoGcScope<'gc, '_>,
     ) -> PropertyKey<'gc> {
-        let value = agent[self].constants[index];
+        let value = self.get(agent).constants[index];
         // SAFETY: caller wants a PropertyKey.
         unsafe { PropertyKey::from_value_unchecked(value).bind(gc) }
     }
@@ -309,7 +307,7 @@ impl<'gc> Executable<'gc> {
         index: usize,
         _: NoGcScope<'gc, '_>,
     ) -> &'a FunctionExpression<'gc> {
-        &agent[self].function_expressions[index]
+        &self.get(agent).function_expressions[index]
     }
 
     fn fetch_arrow_function_expression(
@@ -317,7 +315,7 @@ impl<'gc> Executable<'gc> {
         agent: &Agent,
         index: usize,
     ) -> &ArrowFunctionExpression {
-        &agent[self].arrow_function_expressions[index]
+        &self.get(agent).arrow_function_expressions[index]
     }
 
     fn fetch_class_initializer_bytecode(
@@ -326,7 +324,7 @@ impl<'gc> Executable<'gc> {
         index: usize,
         _: NoGcScope<'gc, '_>,
     ) -> (Option<Executable<'gc>>, bool) {
-        agent[self].class_initializer_bytecodes[index]
+        self.get(agent).class_initializer_bytecodes[index]
     }
 
     fn fetch_object_shape(
@@ -335,7 +333,7 @@ impl<'gc> Executable<'gc> {
         index: usize,
         gc: NoGcScope<'gc, '_>,
     ) -> ObjectShape<'gc> {
-        agent[self].shapes[index].bind(gc)
+        self.get(agent).shapes[index].bind(gc)
     }
 }
 

@@ -18,12 +18,10 @@ use crate::{
             object_handle,
         },
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-    },
+    engine::context::{Bindable, GcScope, NoGcScope},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
+        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -37,18 +35,24 @@ use super::ordinary::{
 #[repr(transparent)]
 pub struct Error<'a>(BaseIndex<'a, ErrorHeapData<'static>>);
 object_handle!(Error);
+arena_vec_access!(
+    Error,
+    'a,
+    ErrorHeapData,
+    errors
+);
 
 impl<'a> InternalSlots<'a> for Error<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Error;
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
-            agent[self]
+            self.get(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()
@@ -57,7 +61,7 @@ impl<'a> InternalSlots<'a> for Error<'a> {
 
     fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
         let prototype = self.internal_prototype(agent).unwrap();
-        let message_entry = agent[self].message.map(|message| ObjectEntry {
+        let message_entry = self.get(agent).message.map(|message| ObjectEntry {
             key: PropertyKey::from(BUILTIN_STRING_MEMORY.message),
             value: ObjectEntryPropertyDescriptor::Data {
                 value: message.into(),
@@ -66,7 +70,7 @@ impl<'a> InternalSlots<'a> for Error<'a> {
                 configurable: true,
             },
         });
-        let cause_entry = agent[self].cause.map(|cause| ObjectEntry {
+        let cause_entry = self.get(agent).cause.map(|cause| ObjectEntry {
             key: PropertyKey::from(BUILTIN_STRING_MEMORY.cause),
             value: ObjectEntryPropertyDescriptor::Data {
                 value: cause,
@@ -94,7 +98,7 @@ impl<'a> InternalSlots<'a> for Error<'a> {
         if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_prototype(agent)
         } else {
-            let intrinsic = match agent[self].kind {
+            let intrinsic = match self.get(agent).kind {
                 ExceptionType::Error => ProtoIntrinsics::Error,
                 ExceptionType::AggregateError => ProtoIntrinsics::AggregateError,
                 ExceptionType::EvalError => ProtoIntrinsics::EvalError,
@@ -137,9 +141,9 @@ impl<'a> InternalMethods<'a> for Error<'a> {
             None => {
                 let property_value =
                     if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
-                        agent[self].message.map(|message| message.into())
+                        self.get(agent).message.map(|message| message.into())
                     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-                        agent[self].cause
+                        self.get(agent).cause
                     } else {
                         None
                     };
@@ -166,12 +170,12 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         let backing_object = error.get_backing_object(agent);
         if backing_object.is_none()
             && property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
-            && agent[error].message.is_some()
+            && error.get(agent).message.is_some()
         {
             TryHasResult::Custom(0, error.into()).into()
         } else if backing_object.is_none()
             && property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause)
-            && agent[error].cause.is_some()
+            && error.get(agent).cause.is_some()
         {
             TryHasResult::Custom(1, error.into()).into()
         } else {
@@ -197,9 +201,9 @@ impl<'a> InternalMethods<'a> for Error<'a> {
             None => {
                 let found_direct =
                     if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
-                        agent[self].message.is_some()
+                        self.get(agent).message.is_some()
                     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-                        agent[self].cause.is_some()
+                        self.get(agent).cause.is_some()
                     } else {
                         false
                     };
@@ -226,11 +230,11 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         let property_value = if backing_object.is_none()
             && property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
         {
-            agent[self].message.map(|message| message.into())
+            self.get(agent).message.map(|message| message.into())
         } else if backing_object.is_none()
             && property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause)
         {
-            agent[self].cause
+            self.get(agent).cause
         } else {
             None
         };
@@ -263,9 +267,9 @@ impl<'a> InternalMethods<'a> for Error<'a> {
             None => {
                 let property_value =
                     if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
-                        agent[self].message.map(|message| message.into())
+                        self.get(agent).message.map(|message| message.into())
                     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-                        agent[self].cause
+                        self.get(agent).cause
                     } else {
                         None
                     };
@@ -297,10 +301,10 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
             && value.is_string()
         {
-            agent[self].message = Some(String::try_from(value.unbind()).unwrap());
+            self.get(agent).message = Some(String::try_from(value.unbind()).unwrap());
             SetResult::Done.into()
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-            agent[self].cause = Some(value.unbind());
+            self.get(agent).cause = Some(value.unbind());
             SetResult::Done.into()
         } else {
             self.create_backing_object(agent);
@@ -329,10 +333,10 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
             && value.is_string()
         {
-            agent[self].message = Some(String::try_from(value.unbind()).unwrap());
+            self.get(agent).message = Some(String::try_from(value.unbind()).unwrap());
             Ok(true)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-            agent[self].cause = Some(value.unbind());
+            self.get(agent).cause = Some(value.unbind());
             Ok(true)
         } else {
             self.create_backing_object(agent);
@@ -363,9 +367,9 @@ impl<'a> InternalMethods<'a> for Error<'a> {
             )),
             None => {
                 if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
-                    agent[self].message = None;
+                    self.get(agent).message = None;
                 } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-                    agent[self].cause = None;
+                    self.get(agent).cause = None;
                 }
                 TryResult::Continue(true)
             }
@@ -383,10 +387,10 @@ impl<'a> InternalMethods<'a> for Error<'a> {
             }
             None => {
                 let mut property_keys = Vec::with_capacity(2);
-                if agent[self].message.is_some() {
+                if self.get(agent).message.is_some() {
                     property_keys.push(BUILTIN_STRING_MEMORY.message.into());
                 }
-                if agent[self].cause.is_some() {
+                if self.get(agent).cause.is_some() {
                     property_keys.push(BUILTIN_STRING_MEMORY.cause.into());
                 }
                 TryResult::Continue(property_keys)

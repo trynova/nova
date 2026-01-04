@@ -16,7 +16,7 @@ use crate::{
     engine::context::{Bindable, NoGcScope},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues,
+        WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -29,6 +29,7 @@ pub mod data;
 #[repr(transparent)]
 pub struct SharedArrayBuffer<'a>(BaseIndex<'a, SharedArrayBufferRecord<'static>>);
 array_buffer_handle!(SharedArrayBuffer);
+arena_vec_access!(SharedArrayBuffer, 'a, SharedArrayBufferRecord, shared_array_buffers);
 
 impl<'sab> SharedArrayBuffer<'sab> {
     pub fn new<'gc>(

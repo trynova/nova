@@ -65,8 +65,8 @@ use crate::{
         rootable::{HeapRootData, Scopable},
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues,
+        CompactionLists, CreateHeapData, DirectArenaAccess, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -1569,12 +1569,12 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
 
                 if byte_offset == 0 && !is_resizable && byte_length == expected_byte_length {
                     // User cannot detect the switcharoo!
-                    let db = agent[ab].get_data_block_mut();
+                    let db = ab.get(agent).get_data_block_mut();
                     core::mem::swap(db, &mut kept);
                 } else {
                     // SAFETY: All viewable types are trivially transmutable.
                     let (head, dst, _) = unsafe {
-                        agent[ab].get_data_block_mut()[byte_offset..].align_to_mut::<T>()
+                        ab.get(agent).get_data_block_mut()[byte_offset..].align_to_mut::<T>()
                     };
                     assert!(head.is_empty());
                     // SAFETY: All viewable types are trivially transmutable.
@@ -2244,7 +2244,7 @@ impl<T: Viewable> Hash for GenericTypedArray<'_, T> {
 
 impl<T: Viewable> core::fmt::Debug for GenericTypedArray<'_, T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}({})", T::NAME, self.0.into_u32_index())
+        write!(f, "{}({})", T::NAME, self.0.get_index_u32())
     }
 }
 impl<T: Viewable> HeapIndexHandle for GenericTypedArray<'_, T> {
@@ -2255,10 +2255,49 @@ impl<T: Viewable> HeapIndexHandle for GenericTypedArray<'_, T> {
         Self(BaseIndex::from_index_u32(index), PhantomData)
     }
 
-    fn get_index_u32(&self) -> u32 {
+    fn get_index_u32(self) -> u32 {
         self.0.get_index_u32()
     }
 }
+impl<'a, T: Viewable> DirectArenaAccess for GenericTypedArray<'a, T> {
+    type Data = TypedArrayRecord<'static>;
+    type Output = TypedArrayRecord<'a>;
+    #[inline]
+    fn get_direct<'agent>(self, source: &'agent Vec<Self::Data>) -> &'agent Self::Output {
+        source
+            .get(HeapIndexHandle::get_index(self))
+            .expect("Invalid handle")
+    }
+    #[inline]
+    fn get_direct_mut<'agent>(
+        self,
+        source: &'agent mut Vec<Self::Data>,
+    ) -> &'agent mut Self::Output {
+        unsafe {
+            core::mem::transmute::<
+                &'agent mut TypedArrayRecord<'static>,
+                &'agent mut TypedArrayRecord<'a>,
+            >(
+                source
+                    .get_mut(HeapIndexHandle::get_index(self))
+                    .expect("Invalid handle"),
+            )
+        }
+    }
+}
+impl AsRef<Vec<TypedArrayRecord<'static>>> for Agent {
+    #[inline(always)]
+    fn as_ref(&self) -> &Vec<TypedArrayRecord<'static>> {
+        &self.heap.typed_arrays
+    }
+}
+impl AsMut<Vec<TypedArrayRecord<'static>>> for Agent {
+    #[inline(always)]
+    fn as_mut(&mut self) -> &mut Vec<TypedArrayRecord<'static>> {
+        &mut self.heap.typed_arrays
+    }
+}
+
 impl<'a, T: Viewable> From<GenericTypedArray<'a, T>> for TypedArray<'a> {
     #[inline(always)]
     fn from(value: GenericTypedArray<'a, T>) -> Self {

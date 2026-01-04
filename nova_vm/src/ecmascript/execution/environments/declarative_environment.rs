@@ -208,7 +208,7 @@ impl HeapMarkAndSweep for Binding {
 
 impl<'e> DeclarativeEnvironment<'e> {
     pub(crate) fn get_outer_env(self, agent: &Agent) -> Option<Environment<'e>> {
-        agent[self].outer_env
+        self.get(agent).outer_env
     }
 
     /// ### [9.1.1.1.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-hasbinding-n)
@@ -232,7 +232,7 @@ impl<'e> DeclarativeEnvironment<'e> {
     /// already exist in this Environment Record for N. If D is true, the new
     /// binding is marked as being subject to deletion.
     pub fn create_mutable_binding(self, agent: &mut Agent, name: String, is_deletable: bool) {
-        let env_rec = &mut agent[self];
+        let env_rec = &mut self.get(agent);
         // Delegate to heap data record method.
         env_rec.create_mutable_binding(name, is_deletable);
     }
@@ -246,7 +246,7 @@ impl<'e> DeclarativeEnvironment<'e> {
     /// not already exist in this Environment Record for N. If S is true, the
     /// new binding is marked as a strict binding.
     pub(crate) fn create_immutable_binding(self, agent: &mut Agent, name: String, is_strict: bool) {
-        let env_rec = &mut agent[self];
+        let env_rec = &mut self.get(agent);
         // Delegate to heap data record method.
         env_rec.create_immutable_binding(name, is_strict);
     }
@@ -260,7 +260,7 @@ impl<'e> DeclarativeEnvironment<'e> {
     /// whose name is N to the value V. An uninitialized binding for N must
     /// already exist.
     pub(crate) fn initialize_binding(self, agent: &mut Agent, name: String, value: Value) {
-        let env_rec = &mut agent[self];
+        let env_rec = &mut self.get(agent);
         // Delegate to heap data record method.
         env_rec.initialize_binding(name, value)
     }
@@ -283,7 +283,7 @@ impl<'e> DeclarativeEnvironment<'e> {
         mut is_strict: bool,
         gc: NoGcScope<'a, '_>,
     ) -> JsResult<'a, ()> {
-        let env_rec = &mut agent[self];
+        let env_rec = &mut self.get(agent);
         // 1. If envRec does not have a binding for N, then
         let Some(binding) = env_rec.bindings.get_mut(&name.unbind()) else {
             // a. If S is true, throw a ReferenceError exception.
@@ -363,7 +363,7 @@ impl<'e> DeclarativeEnvironment<'e> {
         is_strict: bool,
         gc: NoGcScope<'e, '_>,
     ) -> JsResult<'e, Value<'e>> {
-        let env_rec = &agent[self];
+        let env_rec = &self.get(agent);
         // Delegate to heap data record method.
         match env_rec.get_binding_value(name, is_strict) {
             Some(res) => Ok(res.bind(gc)),
@@ -408,7 +408,7 @@ impl<'e> DeclarativeEnvironment<'e> {
     /// containing a Boolean. It can only delete bindings that have been
     /// explicitly designated as being subject to deletion.
     pub(crate) fn delete_binding(self, agent: &mut Agent, name: String) -> bool {
-        let env_rec = &mut agent[self];
+        let env_rec = &mut self.get(agent);
         // Delegate to heap data record method.
         env_rec.delete_binding(name)
     }

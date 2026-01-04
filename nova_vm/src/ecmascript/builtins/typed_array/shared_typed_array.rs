@@ -11,6 +11,8 @@ use ecmascript_atomics::{Ordering, RacySlice};
 
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::types::SHARED_FLOAT_16_ARRAY_DISCRIMINANT;
+use crate::heap::indexes::HeapIndexHandle;
+use crate::heap::{DirectArenaAccess, arena_vec_access};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -1555,12 +1557,12 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
 
                 if byte_offset == 0 && !is_resizable && byte_length == expected_byte_length {
                     // User cannot detect the switcharoo!
-                    let db = agent[ab].get_data_block_mut();
+                    let db = ab.get(agent).get_data_block_mut();
                     core::mem::swap(db, &mut kept);
                 } else {
                     // SAFETY: All viewable types are trivially transmutable.
                     let (head, dst, _) = unsafe {
-                        agent[ab].get_data_block_mut()[byte_offset..].align_to_mut::<T>()
+                        ab.get(agent).get_data_block_mut()[byte_offset..].align_to_mut::<T>()
                     };
                     assert!(head.is_empty());
                     // SAFETY: All viewable types are trivially transmutable.
@@ -2270,7 +2272,7 @@ impl<T: Viewable> Hash for GenericSharedTypedArray<'_, T> {
 
 impl<T: Viewable> core::fmt::Debug for GenericSharedTypedArray<'_, T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "Shared{}({})", T::NAME, self.0.into_u32_index())
+        write!(f, "Shared{}({})", T::NAME, self.0.get_index_u32())
     }
 }
 impl<T: Viewable> HeapIndexHandle for GenericSharedTypedArray<'_, T> {
@@ -2282,8 +2284,46 @@ impl<T: Viewable> HeapIndexHandle for GenericSharedTypedArray<'_, T> {
     }
 
     #[inline]
-    fn get_index_u32(&self) -> u32 {
-        self.0.into_u32_index()
+    fn get_index_u32(self) -> u32 {
+        self.0.get_index_u32()
+    }
+}
+impl<'a, T: Viewable> DirectArenaAccess for GenericSharedTypedArray<'a, T> {
+    type Data = SharedTypedArrayRecord<'static>;
+    type Output = SharedTypedArrayRecord<'a>;
+    #[inline]
+    fn get_direct<'agent>(self, source: &'agent Vec<Self::Data>) -> &'agent Self::Output {
+        source
+            .get(HeapIndexHandle::get_index(self))
+            .expect("Invalid handle")
+    }
+    #[inline]
+    fn get_direct_mut<'agent>(
+        self,
+        source: &'agent mut Vec<Self::Data>,
+    ) -> &'agent mut Self::Output {
+        unsafe {
+            core::mem::transmute::<
+                &'agent mut SharedTypedArrayRecord<'static>,
+                &'agent mut SharedTypedArrayRecord<'a>,
+            >(
+                source
+                    .get_mut(HeapIndexHandle::get_index(self))
+                    .expect("Invalid handle"),
+            )
+        }
+    }
+}
+impl AsRef<Vec<SharedTypedArrayRecord<'static>>> for crate::ecmascript::execution::Agent {
+    #[inline(always)]
+    fn as_ref(&self) -> &Vec<SharedTypedArrayRecord<'static>> {
+        &self.heap.shared_typed_arrays
+    }
+}
+impl AsMut<Vec<SharedTypedArrayRecord<'static>>> for crate::ecmascript::execution::Agent {
+    #[inline(always)]
+    fn as_mut(&mut self) -> &mut Vec<SharedTypedArrayRecord<'static>> {
+        &mut self.heap.shared_typed_arrays
     }
 }
 impl<'a, T: Viewable> From<GenericSharedTypedArray<'a, T>> for SharedTypedArray<'a> {

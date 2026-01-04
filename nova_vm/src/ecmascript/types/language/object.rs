@@ -135,7 +135,7 @@ use crate::{
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         IntrinsicConstructorIndexes, IntrinsicObjectIndexes, IntrinsicPrimitiveObjectIndexes,
-        ObjectEntry, WorkQueues,
+        ObjectEntry, WorkQueues, arena_vec_access,
         element_array::{
             ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementStorageUninit,
             ElementsVector, PropertyStorageMut, PropertyStorageRef,
@@ -291,7 +291,13 @@ impl Object<'_> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct OrdinaryObject<'a>(BaseIndex<'a, ObjectRecord<'static>>);
-object_handle!(OrdinaryObject);
+object_handle!(OrdinaryObject, Object);
+arena_vec_access!(
+    OrdinaryObject,
+    'a,
+    ObjectRecord,
+    objects
+);
 
 impl<'a> OrdinaryObject<'a> {
     /// Allocate a a new blank OrdinaryObject and return its reference.
@@ -637,7 +643,7 @@ impl IntrinsicObjectIndexes {
         base: BaseIndex<'a, ObjectRecord<'static>>,
     ) -> OrdinaryObject<'a> {
         OrdinaryObject(BaseIndex::from_index_u32(
-            self as u32 + base.into_u32_index() + Self::OBJECT_INDEX_OFFSET,
+            self as u32 + base.get_index_u32() + Self::OBJECT_INDEX_OFFSET,
         ))
     }
 }
@@ -648,7 +654,7 @@ impl IntrinsicConstructorIndexes {
         base: BaseIndex<'a, ObjectRecord<'static>>,
     ) -> OrdinaryObject<'a> {
         OrdinaryObject(BaseIndex::from_index_u32(
-            self as u32 + base.into_u32_index() + Self::OBJECT_INDEX_OFFSET,
+            self as u32 + base.get_index_u32() + Self::OBJECT_INDEX_OFFSET,
         ))
     }
 }
@@ -659,7 +665,7 @@ impl IntrinsicPrimitiveObjectIndexes {
         base: BaseIndex<'a, ObjectRecord<'static>>,
     ) -> OrdinaryObject<'a> {
         OrdinaryObject(BaseIndex::from_index_u32(
-            self as u32 + base.into_u32_index() + Self::OBJECT_INDEX_OFFSET,
+            self as u32 + base.get_index_u32() + Self::OBJECT_INDEX_OFFSET,
         ))
     }
 }
@@ -1615,13 +1621,16 @@ impl TryFrom<HeapRootData> for Object<'_> {
 }
 
 macro_rules! object_handle {
-    ($name: ident) => {
-        crate::ecmascript::types::value_handle!($name);
+    ($name: tt) => {
+        crate::ecmascript::types::object_handle!($name, $name);
+    };
+    ($name: ident, $variant: ident) => {
+        crate::ecmascript::types::value_handle!($name, $variant);
 
         impl<'a> From<$name<'a>> for crate::ecmascript::types::Object<'a> {
             #[inline(always)]
             fn from(value: $name<'a>) -> Self {
-                Self::$name(value)
+                Self::$variant(value)
             }
         }
 
@@ -1631,7 +1640,7 @@ macro_rules! object_handle {
             #[inline]
             fn try_from(value: crate::ecmascript::types::Object<'a>) -> Result<Self, Self::Error> {
                 match value {
-                    crate::ecmascript::types::Object::$name(data) => Ok(data),
+                    crate::ecmascript::types::Object::$variant(data) => Ok(data),
                     _ => Err(()),
                 }
             }

@@ -591,7 +591,7 @@ pub(crate) fn canonicalize_keyed_collection_key<'gc>(
             return 0.into();
         }
     } else if let Value::Number(key) = key {
-        debug_assert_ne!(agent[key], -0.0, "HeapNumber should never be -0.0");
+        debug_assert_ne!(key.get(agent), -0.0, "HeapNumber should never be -0.0");
     }
     // 2. Return key.
     key

@@ -52,7 +52,7 @@ impl BooleanConstructor {
             gc,
         )?)
         .unwrap();
-        agent[o].data = PrimitiveObjectData::Boolean(b);
+        o.get(agent).data = PrimitiveObjectData::Boolean(b);
         Ok(o.into())
     }
 

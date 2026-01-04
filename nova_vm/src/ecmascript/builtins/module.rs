@@ -30,7 +30,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference,
-        WellKnownSymbolIndexes, WorkQueues,
+        WellKnownSymbolIndexes, WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -48,6 +48,7 @@ pub mod data;
 #[repr(transparent)]
 pub struct Module<'a>(BaseIndex<'a, ModuleHeapData<'static>>);
 object_handle!(Module);
+arena_vec_access!(Module, 'a, ModuleHeapData, modules);
 
 impl<'a> InternalSlots<'a> for Module<'a> {
     #[inline(always)]
@@ -160,7 +161,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     PropertyKey::Symbol(_) | PropertyKey::PrivateName(_) => unreachable!(),
                 };
                 // 2. Let exports be O.[[Exports]].
-                let exports: &[String] = &agent[self].exports;
+                let exports: &[String] = &self.get(agent).exports;
                 let exports_contains_p = exports.contains(&key);
                 // 3. If exports does not contain P, return undefined.
                 if !exports_contains_p {
@@ -221,7 +222,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     PropertyKey::Symbol(_) | PropertyKey::PrivateName(_) => unreachable!(),
                 };
                 // 2. Let exports be O.[[Exports]].
-                let exports: &[String] = &agent[self].exports;
+                let exports: &[String] = &self.get(agent).exports;
                 let exports_contains_p = exports.contains(&key);
                 // 3. If exports does not contain P, return undefined.
                 if !exports_contains_p {
@@ -406,7 +407,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     _ => unreachable!(),
                 };
                 // 2. Let exports be O.[[Exports]].
-                let exports: &[String] = &agent[self].exports;
+                let exports: &[String] = &self.get(agent).exports;
                 // 3. If exports contains P, return true.
                 if exports.contains(&p) {
                     TryHasResult::Custom(1, self.into().bind(gc)).into()
@@ -467,7 +468,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
             PropertyKey::PrivateName(_) => unreachable!(),
             PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
                 // 2. Let exports be O.[[Exports]].
-                let exports: &[String] = &agent[self].exports;
+                let exports: &[String] = &self.get(agent).exports;
                 let key = match property_key {
                     PropertyKey::SmallString(data) => String::SmallString(data),
                     PropertyKey::String(data) => String::String(data),
@@ -480,7 +481,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     TryGetResult::Unset.into()
                 } else {
                     // 4. Let m be O.[[Module]].
-                    let m = &agent[self].module;
+                    let m = &self.get(agent).module;
                     // 5. Let binding be m.ResolveExport(P).
                     let binding = m.resolve_export(agent, key, &mut vec![], gc);
                     // 6. Assert: binding is a ResolvedBinding Record.
@@ -555,7 +556,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
             PropertyKey::PrivateName(_) => unreachable!(),
             PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
                 // 2. Let exports be O.[[Exports]].
-                let exports: &[String] = &agent[self].exports;
+                let exports: &[String] = &self.get(agent).exports;
                 let key = match property_key {
                     PropertyKey::SmallString(data) => String::SmallString(data),
                     PropertyKey::String(data) => String::String(data),
@@ -569,7 +570,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     Ok(Value::Undefined)
                 } else {
                     // 4. Let m be O.[[Module]].
-                    let m = &agent[self].module;
+                    let m = &self.get(agent).module;
                     // 5. Let binding be m.ResolveExport(P).
                     let binding = m.resolve_export(agent, key, &mut vec![], gc);
                     // 6. Assert: binding is a ResolvedBinding Record.
@@ -657,7 +658,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     _ => unreachable!(),
                 };
                 // 2. Let exports be O.[[Exports]].
-                let exports = &agent[self].exports;
+                let exports = &self.get(agent).exports;
                 // 3. If exports contains P,
                 if exports.contains(&p) {
                     // return false.
@@ -677,7 +678,8 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         _gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, Vec<PropertyKey<'gc>>> {
         // 1. Let exports be O.[[Exports]].
-        let exports = agent[self]
+        let exports = self
+            .get(agent)
             .exports
             .iter()
             .map(|string| PropertyKey::from(*string));

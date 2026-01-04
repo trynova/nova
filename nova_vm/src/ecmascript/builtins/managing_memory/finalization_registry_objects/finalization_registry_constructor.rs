@@ -96,9 +96,9 @@ impl FinalizationRegistryConstructor {
             Function::BoundFunction(_) => {
                 unreachable!("bound function constructing FinalizationRegistry")
             }
-            Function::BuiltinFunction(f) => agent[f].realm.bind(gc),
-            Function::ECMAScriptFunction(f) => agent[f].ecmascript_function.realm.bind(gc),
-            Function::BuiltinConstructorFunction(f) => agent[f].realm.bind(gc),
+            Function::BuiltinFunction(f) => f.get(agent).realm.bind(gc),
+            Function::ECMAScriptFunction(f) => f.get(agent).ecmascript_function.realm.bind(gc),
+            Function::BuiltinConstructorFunction(f) => f.get(agent).realm.bind(gc),
             Function::BuiltinPromiseResolvingFunction(_) => {
                 unreachable!("builtin promise resolving function constructing FinalizationRegistry")
             }

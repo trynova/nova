@@ -19,12 +19,13 @@ use crate::{
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootCollectionData},
+        rootable::HeapRootCollectionData,
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, ObjectEntry,
-        ObjectEntryPropertyDescriptor, WorkQueues, indexes::BaseIndex,
+        ObjectEntryPropertyDescriptor, WorkQueues, arena_vec_access,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
     ndt,
 };
@@ -446,6 +447,12 @@ impl<'a> BuiltinFunctionArgs<'a> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct BuiltinFunction<'a>(BaseIndex<'a, BuiltinFunctionHeapData<'static>>);
+arena_vec_access!(
+    BuiltinFunction,
+    'a,
+    BuiltinFunctionHeapData,
+    builtin_functions
+);
 
 impl BuiltinFunction<'_> {
     /// Allocate a a new uninitialised (None) BuiltinFunction and return its reference.
@@ -460,7 +467,7 @@ impl BuiltinFunction<'_> {
     pub fn is_constructor(self, agent: &Agent) -> bool {
         // A builtin function has the [[Construct]] method if its behaviour is
         // a constructor behaviour.
-        agent[self].behaviour.is_constructor()
+        self.get(agent).behaviour.is_constructor()
     }
 }
 function_handle!(BuiltinFunction);
@@ -471,7 +478,7 @@ impl IntrinsicFunctionIndexes {
         base: BaseIndex<'a, BuiltinFunctionHeapData<'static>>,
     ) -> BuiltinFunction<'a> {
         BuiltinFunction(BaseIndex::from_index_u32(
-            self as u32 + base.into_u32_index() + Self::BUILTIN_FUNCTION_INDEX_OFFSET,
+            self as u32 + base.get_index_u32() + Self::BUILTIN_FUNCTION_INDEX_OFFSET,
         ))
     }
 }
@@ -482,26 +489,26 @@ impl IntrinsicConstructorIndexes {
         base: BaseIndex<'a, BuiltinFunctionHeapData<'static>>,
     ) -> BuiltinFunction<'a> {
         BuiltinFunction(BaseIndex::from_index_u32(
-            self as u32 + base.into_u32_index() + Self::BUILTIN_FUNCTION_INDEX_OFFSET,
+            self as u32 + base.get_index_u32() + Self::BUILTIN_FUNCTION_INDEX_OFFSET,
         ))
     }
 }
 
 impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
     fn get_name(self, agent: &Agent) -> &String<'a> {
-        agent[self]
+        self.get(agent)
             .initial_name
             .as_ref()
             .unwrap_or(&String::EMPTY_STRING)
     }
 
     fn get_length(self, agent: &Agent) -> u8 {
-        agent[self].length
+        self.get(agent).length
     }
 
     #[inline(always)]
     fn get_function_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        self.get(agent).object_index
     }
 
     fn set_function_backing_object(
@@ -510,7 +517,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
         backing_object: OrdinaryObject<'static>,
     ) {
         assert!(
-            agent[self]
+            self.get(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()
@@ -574,7 +581,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
 
 #[inline(never)]
 fn create_name_and_id<'a>(agent: &'a Agent, f: BuiltinFunction<'a>) -> (Cow<'a, str>, u64) {
-    let id = match agent[f].behaviour {
+    let id = match f.get(agent).behaviour {
         Behaviour::Regular(f) => f as usize as u64,
         Behaviour::Constructor(f) => f as usize as u64,
     };
@@ -608,7 +615,7 @@ fn builtin_call_or_construct<'gc>(
     // 2. If callerContext is not already suspended, suspend callerContext.
     caller_context.suspend();
     // 5. Let calleeRealm be F.[[Realm]].
-    let heap_data = &agent[f];
+    let heap_data = &f.get(agent);
     let callee_realm = heap_data.realm;
     let func = heap_data.behaviour;
     // 3. Let calleeContext be a new execution context.

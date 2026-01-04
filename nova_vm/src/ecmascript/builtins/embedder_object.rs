@@ -8,7 +8,7 @@ use crate::{
         types::{InternalMethods, InternalSlots, Object, OrdinaryObject, object_handle},
     },
     heap::{
-        CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
+        CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -19,8 +19,9 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct EmbedderObject<'a>(BaseIndex<'a, EmbedderObjectHeapData>);
+pub struct EmbedderObject<'a>(BaseIndex<'a, EmbedderObjectHeapData<'static>>);
 object_handle!(EmbedderObject);
+arena_vec_access!(EmbedderObject, 'a, EmbedderObjectHeapData, embedder_objects);
 
 impl<'a> InternalSlots<'a> for EmbedderObject<'a> {
     #[inline(always)]

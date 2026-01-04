@@ -9,17 +9,12 @@ use crate::{
             promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
         },
         execution::{Agent, JsResult},
-        types::{
-            FunctionInternalProperties, OrdinaryObject, String, Value,
-            function_handle,
-        },
+        types::{FunctionInternalProperties, OrdinaryObject, String, Value, function_handle},
     },
-    engine::{
-        context::{Bindable, GcScope, bindable_handle},
-    },
+    engine::context::{Bindable, GcScope, bindable_handle},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues,
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -49,6 +44,7 @@ pub struct BuiltinPromiseResolvingFunction<'a>(
     BaseIndex<'a, PromiseResolvingFunctionHeapData<'static>>,
 );
 function_handle!(BuiltinPromiseResolvingFunction);
+arena_vec_access!(BuiltinPromiseResolvingFunction, 'a, PromiseResolvingFunctionHeapData, promise_resolving_functions);
 
 impl BuiltinPromiseResolvingFunction<'_> {}
 
@@ -63,7 +59,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseResolvingFunction<'a> 
 
     #[inline(always)]
     fn get_function_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        self.get(agent).object_index
     }
 
     fn set_function_backing_object(
@@ -71,7 +67,12 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseResolvingFunction<'a> 
         agent: &mut Agent,
         backing_object: OrdinaryObject<'static>,
     ) {
-        assert!(agent[self].object_index.replace(backing_object).is_none());
+        assert!(
+            self.get(agent)
+                .object_index
+                .replace(backing_object)
+                .is_none()
+        );
     }
 
     fn function_call<'gc>(
@@ -83,8 +84,8 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseResolvingFunction<'a> 
     ) -> JsResult<'gc, Value<'gc>> {
         agent.check_call_depth(gc.nogc()).unbind()?;
         let arguments_list = arguments_list.get(0).bind(gc.nogc());
-        let promise_capability = agent[self].promise_capability.clone();
-        match agent[self].resolve_type {
+        let promise_capability = self.get(agent).promise_capability.clone();
+        match self.get(agent).resolve_type {
             PromiseResolvingFunctionType::Resolve => {
                 promise_capability.resolve(agent, arguments_list.unbind(), gc)
             }

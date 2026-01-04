@@ -13,16 +13,12 @@ use crate::{
             Agent, FinalizationRegistryCleanupJob, ProtoIntrinsics, Realm, WeakKey,
             agent::{InnerJob, Job},
         },
-        types::{
-            Function, InternalMethods, InternalSlots, OrdinaryObject, Value, object_handle,
-        },
+        types::{Function, InternalMethods, InternalSlots, OrdinaryObject, Value, object_handle},
     },
-    engine::{
-        context::{Bindable},
-    },
+    engine::context::Bindable,
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues,
+        WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -35,6 +31,15 @@ pub mod data;
 #[repr(transparent)]
 pub struct FinalizationRegistry<'a>(BaseIndex<'a, FinalizationRegistryRecord<'static>>);
 object_handle!(FinalizationRegistry);
+arena_vec_access!(
+    soa:
+    FinalizationRegistry,
+    'a,
+    FinalizationRegistryRecord,
+    finalization_registrys,
+    FinalizationRegistryRecordRef,
+    FinalizationRegistryRecordMut
+);
 
 impl<'fr> FinalizationRegistry<'fr> {
     pub(crate) fn get_cleanup_queue(self, agent: &mut Agent) -> (Function<'fr>, Vec<Value<'fr>>) {
@@ -136,7 +141,7 @@ impl<'fr> FinalizationRegistry<'fr> {
         finalization_registrys: &'a SoAVec<FinalizationRegistryRecord<'static>>,
     ) -> FinalizationRegistryRecordRef<'a, 'fr> {
         finalization_registrys
-            .get(self.0.into_u32_index())
+            .get(self.0.get_index_u32())
             .expect("Invalid FinalizationRegistry reference")
     }
 
@@ -153,7 +158,7 @@ impl<'fr> FinalizationRegistry<'fr> {
                 FinalizationRegistryRecordMut<'a, 'fr>,
             >(
                 finalization_registrys
-                    .get_mut(self.0.into_u32_index())
+                    .get_mut(self.0.get_index_u32())
                     .expect("Invalid FinalizationRegistry reference"),
             )
         }

@@ -179,7 +179,7 @@ impl<'r> ModuleRequest<'r> {
         self,
         agent: &'a [ModuleRequestRecord<'static>],
     ) -> &'a ModuleRequestRecord<'static> {
-        &agent[self.get_index()]
+        &self.get_index().get(agent)
     }
 
     /// Get the ModuleRequest's \[\[Specifier]] string.

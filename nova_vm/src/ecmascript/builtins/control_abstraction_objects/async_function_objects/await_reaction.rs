@@ -2,9 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::{
-    marker::PhantomData,
-};
+use core::marker::PhantomData;
 
 use crate::{
     ecmascript::scripts_and_modules::module::module_semantics::source_text_module_records::SourceTextModule,
@@ -72,7 +70,7 @@ impl AwaitReaction<'_> {
         let value = value.bind(gc.nogc());
         // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
         // 3. c. Push asyncContext onto the execution context stack; asyncContext is now the running execution context.
-        let record = &mut agent[reaction];
+        let record = &mut reaction.get(agent);
         let execution_context = record.execution_context.take().unwrap();
         let vm = record.vm.take().unwrap();
         let async_function = record.async_executable.unwrap().bind(gc.nogc());
@@ -107,11 +105,11 @@ impl AwaitReaction<'_> {
                 //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « undefined »).
                 //    f. Else if result is a return completion, then
                 //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « result.[[Value]] »).
-                agent[reaction].return_promise_capability.clone().resolve(
-                    agent,
-                    result.unbind(),
-                    gc,
-                );
+                reaction
+                    .get(agent)
+                    .return_promise_capability
+                    .clone()
+                    .resolve(agent, result.unbind(), gc);
             }
             ExecutionResult::Throw(err) => {
                 // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
@@ -119,17 +117,18 @@ impl AwaitReaction<'_> {
                 agent.pop_execution_context();
                 // 2. g. i. Assert: result is a throw completion.
                 //       ii. Perform ! Call(promiseCapability.[[Reject]], undefined, « result.[[Value]] »).
-                agent[reaction].return_promise_capability.clone().reject(
-                    agent,
-                    err.value().unbind(),
-                    gc.nogc(),
-                );
+                reaction
+                    .get(agent)
+                    .return_promise_capability
+                    .clone()
+                    .reject(agent, err.value().unbind(), gc.nogc());
             }
             ExecutionResult::Await { vm, awaited_value } => {
                 // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
                 // 8. Remove asyncContext from the execution context stack and restore the execution context that is at the top of the execution context stack as the running execution context.
-                agent[reaction].vm = Some(vm);
-                agent[reaction].execution_context = Some(agent.pop_execution_context().unwrap());
+                reaction.get(agent).vm = Some(vm);
+                reaction.get(agent).execution_context =
+                    Some(agent.pop_execution_context().unwrap());
 
                 // `handler` corresponds to the `fulfilledClosure` and `rejectedClosure` functions,
                 // which resume execution of the function.

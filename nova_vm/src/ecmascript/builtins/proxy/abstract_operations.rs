@@ -34,7 +34,7 @@ pub(crate) fn validate_non_revoked_proxy<'a>(
     let ProxyHeapData::NonRevoked {
         proxy_handler: handler,
         proxy_target: target,
-    } = agent[proxy]
+    } = proxy.get(agent)
     else {
         // 1. If proxy.[[ProxyTarget]] is null, throw a TypeError exception.
         // 2. Assert: proxy.[[ProxyHandler]] is not null.
@@ -67,7 +67,7 @@ pub(crate) fn try_validate_non_revoked_proxy<'a>(
     let ProxyHeapData::NonRevoked {
         proxy_handler: handler,
         proxy_target: target,
-    } = agent[proxy]
+    } = proxy.get(agent)
     else {
         // 1. If proxy.[[ProxyTarget]] is null, throw a TypeError exception.
         // 2. Assert: proxy.[[ProxyHandler]] is not null.

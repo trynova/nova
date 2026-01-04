@@ -20,7 +20,7 @@ use crate::{
     engine::context::{Bindable, GcScope, NoGcScope},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
+        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -39,23 +39,24 @@ use super::ordinary::{
 #[repr(transparent)]
 pub struct RegExp<'a>(BaseIndex<'a, RegExpHeapData<'static>>);
 object_handle!(RegExp);
+arena_vec_access!(RegExp, 'a, RegExpHeapData, regexps);
 
 impl<'a> RegExp<'a> {
     /// Fast-path for RegExp object debug stringifying; this does not take into
     /// account any prototype-modifications.
     #[inline(always)]
     pub(crate) fn create_regexp_string(self, agent: &Agent) -> Wtf8Buf {
-        agent[self].create_regexp_string(agent)
+        self.get(agent).create_regexp_string(agent)
     }
 
     /// ### \[\[OriginalSource]]
     pub(crate) fn original_source(self, agent: &Agent) -> String<'a> {
-        agent[self].original_source
+        self.get(agent).original_source
     }
 
     /// ### \[\[OriginalFlags]]
     pub(crate) fn original_flags(self, agent: &Agent) -> RegExpFlags {
-        agent[self].original_flags
+        self.get(agent).original_flags
     }
 
     pub(crate) fn set_last_index(
@@ -85,13 +86,13 @@ impl<'a> RegExp<'a> {
             if success {
                 // We successfully set the value, so set it in our direct
                 // data as well.
-                agent[self].last_index = last_index;
+                self.get(agent).last_index = last_index;
             }
             success
         } else {
             // Note: lastIndex property is writable, so setting its value
             // always succeeds. We can just set this directly here.
-            agent[self].last_index = last_index;
+            self.get(agent).last_index = last_index;
             true
         }
     }
@@ -103,7 +104,7 @@ impl<'a> RegExp<'a> {
     /// undefined). The method returns `None` if the property has an unexpected
     /// value, otherwise it returns the length value (0 if value is undefined).
     pub(crate) fn try_get_last_index(self, agent: &Agent) -> Option<u32> {
-        let last_index = agent[self].last_index.get_value();
+        let last_index = self.get(agent).last_index.get_value();
         if last_index.is_some() || self.get_backing_object(agent).is_none() {
             Some(last_index.unwrap_or(0))
         } else {
@@ -118,7 +119,7 @@ impl<'a> InternalSlots<'a> for RegExp<'a> {
     fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
         assert!(self.get_backing_object(agent).is_none());
         let prototype = self.internal_prototype(agent).unwrap();
-        let last_index = agent[self].last_index;
+        let last_index = self.get(agent).last_index;
         let backing_object = OrdinaryObject::create_object(
             agent,
             Some(prototype),
@@ -141,12 +142,12 @@ impl<'a> InternalSlots<'a> for RegExp<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
-            agent[self]
+            self.get(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()
@@ -176,7 +177,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         } else if property_key == BUILTIN_STRING_MEMORY.lastIndex.into() {
             // If no backing object exists, we can turn lastIndex into a
             // PropertyDescriptor statically.
-            TryResult::Continue(Some(agent[self].last_index.into_property_descriptor()))
+            TryResult::Continue(Some(self.get(agent).last_index.into_property_descriptor()))
         } else {
             TryResult::Continue(None)
         }
@@ -239,7 +240,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         // Regardless of the backing object, we might have a valid value
         // for lastIndex.
         if property_key == BUILTIN_STRING_MEMORY.lastIndex.into()
-            && let Some(last_index) = agent[self].last_index.get_value()
+            && let Some(last_index) = self.get(agent).last_index.get_value()
         {
             return TryGetResult::Value(last_index.into()).into();
         }
@@ -265,7 +266,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         if property_key == BUILTIN_STRING_MEMORY.lastIndex.into() {
             // Regardless of the backing object, we might have a valid value
             // for lastIndex.
-            if let Some(last_index) = agent[self].last_index.get_value() {
+            if let Some(last_index) = self.get(agent).last_index.get_value() {
                 return Ok(last_index.into());
             }
         }
@@ -315,7 +316,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
                 if success {
                     // We successfully set the value, so set it in our direct
                     // data as well.
-                    agent[self].last_index = new_last_index;
+                    self.get(agent).last_index = new_last_index;
                     SetResult::Done.into()
                 } else {
                     SetResult::Unwritable.into()
@@ -323,7 +324,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
             } else {
                 // Note: lastIndex property is writable, so setting its value
                 // always succeeds. We can just set this directly here.
-                agent[self].last_index = new_last_index;
+                self.get(agent).last_index = new_last_index;
                 // If we we set a value that is not a valid index or undefined,
                 // we need to create the backing object and set the actual
                 // value there.

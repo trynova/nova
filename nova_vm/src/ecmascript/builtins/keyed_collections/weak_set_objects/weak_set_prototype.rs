@@ -10,7 +10,7 @@ use crate::{
             Agent, JsResult, Realm, agent::ExceptionType, can_be_held_weakly,
             throw_not_weak_key_error,
         },
-        types::{BUILTIN_STRING_MEMORY,  String, Value},
+        types::{BUILTIN_STRING_MEMORY, String, Value},
     },
     engine::context::{Bindable, GcScope, NoGcScope},
     heap::WellKnownSymbolIndexes,
@@ -62,7 +62,7 @@ impl WeakSetPrototype {
         // i. Return S.
         // 5. Append value to S.[[WeakSetData]].
         // 6. Return S.
-        agent[s].add(value);
+        s.get(agent).add(value);
         Ok(s.into().unbind())
     }
 
@@ -95,7 +95,7 @@ impl WeakSetPrototype {
         // i. Replace the element of S.[[WeakSetData]] whose value is e with an
         //    element whose value is empty.
         // ii. Return true.
-        let deleted = agent[s].delete(value);
+        let deleted = s.get(agent).delete(value);
         // 5. Return false.
         Ok(deleted.into())
     }
@@ -122,7 +122,7 @@ impl WeakSetPrototype {
         // 4. For each element e of S.[[WeakSetData]], do
         // a. If e is not empty and SameValue(e, value) is true, return true.
         // 5. Return false.
-        let result = agent[s].has(value);
+        let result = s.get(agent).has(value);
         Ok(result.into())
     }
 

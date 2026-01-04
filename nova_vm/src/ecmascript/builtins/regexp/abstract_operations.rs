@@ -29,8 +29,8 @@ use crate::{
             agent::{ExceptionType, TryError, try_result_into_js, unwrap_try},
         },
         types::{
-            BUILTIN_STRING_MEMORY, Function,  Number, Object, PropertyKey, String,
-            TryGetResult, Value, handle_try_get_result, unwrap_try_get_value,
+            BUILTIN_STRING_MEMORY, Function, Number, Object, PropertyKey, String, TryGetResult,
+            Value, handle_try_get_result, unwrap_try_get_value,
         },
     },
     engine::{
@@ -236,12 +236,12 @@ pub(crate) fn reg_exp_initialize<'a>(
     // 21. Set obj.[[RegExpMatcher]] to CompilePattern of parseResult with argument rer.
     let reg_exp_matcher = RegExpHeapData::compile_pattern(&p.to_string_lossy(agent), f);
     // 16. Set obj.[[OriginalSource]] to P.
-    agent[obj].original_source = p.unbind();
+    obj.get(agent).original_source = p.unbind();
     // 17. Set obj.[[OriginalFlags]] to F.
-    agent[obj].original_flags = f;
+    obj.get(agent).original_flags = f;
     // 20. Set obj.[[RegExpRecord]] to rer.
     // 21. Set obj.[[RegExpMatcher]] to CompilePattern of parseResult with argument rer.
-    agent[obj].reg_exp_matcher = reg_exp_matcher;
+    obj.get(agent).reg_exp_matcher = reg_exp_matcher;
 
     // 22. Perform ? Set(obj, "lastIndex", +0𝔽, true).
     if !obj.set_last_index(agent, RegExpLastIndex::ZERO, gc.nogc()) {
@@ -544,7 +544,7 @@ pub(crate) fn reg_exp_builtin_exec_prepare<'a>(
         s.utf8_index(agent, last_index).unwrap_or(last_index)
     };
     // 8. Let matcher be R.[[RegExpMatcher]].
-    if let Err(err) = &agent[r].reg_exp_matcher {
+    if let Err(err) = &r.get(agent).reg_exp_matcher {
         return Err(agent.throw_exception(ExceptionType::SyntaxError, err.to_string(), gc));
     };
     // 9. If flags contains "u" or flags contains "v", let fullUnicode be true;
@@ -729,7 +729,7 @@ pub(crate) fn reg_exp_builtin_exec<'a>(
         let captured_value = if let Some(capture_i) = capture_i {
             match std::string::String::from_utf8_lossy(capture_i.as_bytes()) {
                 std::borrow::Cow::Borrowed(str) => String::from_str(agent, str, gc).into(),
-                std::borrow::Cow::Owned(string) => String::from_string(agent, string, gc).into()
+                std::borrow::Cow::Owned(string) => String::from_string(agent, string, gc).into(),
             }
         } else {
             Value::Undefined
@@ -771,7 +771,7 @@ pub(crate) fn reg_exp_builtin_test<'a>(
 ) -> JsResult<'a, bool> {
     let r = r.bind(gc.nogc());
     let s = s.bind(gc.nogc());
-    // if (agent[r].original_flags & (RegExpFlags::G | RegExpFlags::S)).bits() > 0 {
+    // if (r.get(agent).original_flags & (RegExpFlags::G | RegExpFlags::S)).bits() > 0 {
     //     // We have to perform the actual matching because global and sticky
     //     // RegExp's can observe its match results from lastIndex.
     //     return reg_exp_builtin_exec(agent, r.unbind(), s.unbind(), gc).map(|a| a.is_some());

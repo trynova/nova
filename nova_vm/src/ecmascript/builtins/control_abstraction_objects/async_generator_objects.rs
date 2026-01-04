@@ -20,10 +20,10 @@ use crate::{
         types::{InternalMethods, InternalSlots, OrdinaryObject, Value, object_handle},
     },
     engine::{
-        Executable, SuspendedVm, context::{Bindable, GcScope, NoGcScope, bindable_handle}, rootable::{Scopable}
+        Executable, SuspendedVm, context::{Bindable, GcScope, NoGcScope, bindable_handle}, rootable::Scopable
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, indexes::{BaseIndex, HeapIndexHandle}
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access, indexes::{BaseIndex, HeapIndexHandle}
     },
 };
 
@@ -33,6 +33,7 @@ use super::promise_objects::promise_abstract_operations::promise_reaction_record
 #[repr(transparent)]
 pub struct AsyncGenerator<'a>(BaseIndex<'a, AsyncGeneratorHeapData<'static>>);
 object_handle!(AsyncGenerator);
+arena_vec_access!(AsyncGenerator, 'a, AsyncGeneratorHeapData, async_generators);
 
 impl AsyncGenerator<'_> {
     pub(crate) fn get_executable<'gc>(
@@ -40,7 +41,7 @@ impl AsyncGenerator<'_> {
         agent: &Agent,
         _: NoGcScope<'gc, '_>,
     ) -> Executable<'gc> {
-        agent[self].executable.unwrap()
+        self.get(agent).executable.unwrap()
     }
 
     /// Returns true if the state of the AsyncGenerator is DRAINING-QUEUE or
@@ -49,7 +50,7 @@ impl AsyncGenerator<'_> {
     /// > NOTE: In our implementation, EXECUTING is split into an extra
     /// > EXECUTING-AWAIT state. This also checks for that.
     pub(crate) fn is_active(self, agent: &Agent) -> bool {
-        agent[self]
+        self.get(agent)
             .async_generator_state
             .as_ref()
             .unwrap()
@@ -57,7 +58,7 @@ impl AsyncGenerator<'_> {
     }
 
     pub(crate) fn is_draining_queue(self, agent: &Agent) -> bool {
-        agent[self]
+        self.get(agent)
             .async_generator_state
             .as_ref()
             .unwrap()
@@ -65,7 +66,7 @@ impl AsyncGenerator<'_> {
     }
 
     pub(crate) fn is_executing(self, agent: &Agent) -> bool {
-        agent[self]
+        self.get(agent)
             .async_generator_state
             .as_ref()
             .unwrap()
@@ -73,7 +74,7 @@ impl AsyncGenerator<'_> {
     }
 
     pub(crate) fn is_suspended_start(self, agent: &Agent) -> bool {
-        agent[self]
+        self.get(agent)
             .async_generator_state
             .as_ref()
             .unwrap()
@@ -81,7 +82,7 @@ impl AsyncGenerator<'_> {
     }
 
     pub(crate) fn is_suspended_yield(self, agent: &Agent) -> bool {
-        agent[self]
+        self.get(agent)
             .async_generator_state
             .as_ref()
             .unwrap()
@@ -89,7 +90,7 @@ impl AsyncGenerator<'_> {
     }
 
     pub(crate) fn is_completed(self, agent: &Agent) -> bool {
-        agent[self]
+        self.get(agent)
             .async_generator_state
             .as_ref()
             .unwrap()
@@ -97,7 +98,7 @@ impl AsyncGenerator<'_> {
     }
 
     pub(crate) fn queue_is_empty(self, agent: &Agent) -> bool {
-        match agent[self].async_generator_state.as_ref().unwrap() {
+        match self.get(agent).async_generator_state.as_ref().unwrap() {
             AsyncGeneratorState::ExecutingAwait { queue, .. }
             | AsyncGeneratorState::SuspendedStart { queue, .. }
             | AsyncGeneratorState::SuspendedYield { queue, .. }
@@ -112,7 +113,7 @@ impl AsyncGenerator<'_> {
         agent: &'a mut Agent,
         _gc: NoGcScope<'gc, '_>,
     ) -> &'a AsyncGeneratorRequest<'gc> {
-        match agent[self].async_generator_state.as_mut().unwrap() {
+        match self.get(agent).async_generator_state.as_mut().unwrap() {
             AsyncGeneratorState::ExecutingAwait { queue, .. }
             | AsyncGeneratorState::SuspendedStart { queue, .. }
             | AsyncGeneratorState::SuspendedYield { queue, .. }
@@ -127,7 +128,7 @@ impl AsyncGenerator<'_> {
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
     ) -> AsyncGeneratorRequest<'gc> {
-        match agent[self].async_generator_state.as_mut().unwrap() {
+        match self.get(agent).async_generator_state.as_mut().unwrap() {
             AsyncGeneratorState::ExecutingAwait { queue, .. }
             | AsyncGeneratorState::SuspendedStart { queue, .. }
             | AsyncGeneratorState::SuspendedYield { queue, .. }
@@ -138,7 +139,7 @@ impl AsyncGenerator<'_> {
     }
 
     pub(crate) fn append_to_queue(self, agent: &mut Agent, request: AsyncGeneratorRequest<'_>) {
-        match agent[self].async_generator_state.as_mut().unwrap() {
+        match self.get(agent).async_generator_state.as_mut().unwrap() {
             AsyncGeneratorState::ExecutingAwait { queue, .. }
             | AsyncGeneratorState::SuspendedStart { queue, .. }
             | AsyncGeneratorState::SuspendedYield { queue, .. }
@@ -149,7 +150,7 @@ impl AsyncGenerator<'_> {
     }
 
     pub(crate) fn transition_to_draining_queue(self, agent: &mut Agent) {
-        let async_generator_state = &mut agent[self].async_generator_state;
+        let async_generator_state = &mut self.get(agent).async_generator_state;
         let state = async_generator_state.take().unwrap();
         let queue = match state {
             AsyncGeneratorState::SuspendedStart { queue, .. }
@@ -162,7 +163,7 @@ impl AsyncGenerator<'_> {
     }
 
     pub(crate) fn transition_to_complete(self, agent: &mut Agent) {
-        let async_generator_state = &mut agent[self].async_generator_state;
+        let async_generator_state = &mut self.get(agent).async_generator_state;
         let state = async_generator_state.take().unwrap();
         let queue = match state {
             AsyncGeneratorState::SuspendedStart { queue, .. }
@@ -182,7 +183,7 @@ impl AsyncGenerator<'_> {
         kind: AsyncGeneratorAwaitKind,
         execution_context: ExecutionContext,
     ) {
-        let async_generator_state = &mut agent[self].async_generator_state;
+        let async_generator_state = &mut self.get(agent).async_generator_state;
         let AsyncGeneratorState::Executing(queue) = async_generator_state.take().unwrap() else {
             unreachable!()
         };
@@ -199,7 +200,7 @@ impl AsyncGenerator<'_> {
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
     ) -> (SuspendedVm, ExecutionContext, Executable<'gc>) {
-        let async_generator_state = &mut agent[self].async_generator_state;
+        let async_generator_state = &mut self.get(agent).async_generator_state;
         let (vm, execution_context, queue) = match async_generator_state.take() {
             Some(AsyncGeneratorState::SuspendedStart {
                 vm,
@@ -223,7 +224,7 @@ impl AsyncGenerator<'_> {
         vm: SuspendedVm,
         execution_context: ExecutionContext,
     ) {
-        let async_generator_state = &mut agent[self].async_generator_state;
+        let async_generator_state = &mut self.get(agent).async_generator_state;
         let AsyncGeneratorState::Executing(queue) = async_generator_state.take().unwrap() else {
             unreachable!()
         };
@@ -256,7 +257,7 @@ impl AsyncGenerator<'_> {
             return;
         }
         // 1. Assert: generator.[[AsyncGeneratorState]] is either suspended-start or suspended-yield.
-        let state = agent[self].async_generator_state.take().unwrap();
+        let state = self.get(agent).async_generator_state.take().unwrap();
         let (vm, execution_context, queue, kind) = match state {
             AsyncGeneratorState::SuspendedYield {
                 vm,
@@ -272,12 +273,12 @@ impl AsyncGenerator<'_> {
             _ => unreachable!(),
         };
         agent.push_execution_context(execution_context);
-        agent[self].async_generator_state = Some(AsyncGeneratorState::Executing(queue));
+        self.get(agent).async_generator_state = Some(AsyncGeneratorState::Executing(queue));
         let scoped_generator = self.scope(agent, gc.nogc());
         let execution_result = match kind {
             AsyncGeneratorAwaitKind::Await => {
                 // Await only.
-                let executable = agent[self].executable.unwrap().scope(agent, gc.nogc());
+                let executable = self.get(agent).executable.unwrap().scope(agent, gc.nogc());
                 match reaction_type {
                     PromiseReactionType::Fulfill => {
                         vm.resume(agent, executable, value.unbind(), gc.reborrow())
@@ -292,7 +293,7 @@ impl AsyncGenerator<'_> {
                 if reaction_type == PromiseReactionType::Reject {
                     // ? Yield ( ? Await ( Value ) ), so Yield doesn't get
                     // performed at all and value is just thrown.
-                    let executable = agent[self].executable.unwrap().scope(agent, gc.nogc());
+                    let executable = self.get(agent).executable.unwrap().scope(agent, gc.nogc());
                     vm.resume_throw(agent, executable, value.unbind(), gc.reborrow())
                 } else {
                     async_generator_yield(
@@ -315,12 +316,12 @@ impl<'a> InternalSlots<'a> for AsyncGenerator<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
-            agent[self]
+            self.get(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()

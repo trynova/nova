@@ -21,7 +21,7 @@ use crate::{
             Agent, JsResult, ProtoIntrinsics, Realm,
             agent::{ExceptionType, PromiseRejectionTrackerOperation},
         },
-        types::{BUILTIN_STRING_MEMORY, Function,  Object, String, Value},
+        types::{BUILTIN_STRING_MEMORY, Function, Object, String, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
@@ -275,7 +275,7 @@ pub(crate) fn inner_promise_then(
         handler: on_rejected,
     });
 
-    match &mut agent[promise].promise_state {
+    match &mut promise.get(agent).promise_state {
         // 9. If promise.[[PromiseState]] is pending, then
         PromiseState::Pending {
             fulfill_reactions,

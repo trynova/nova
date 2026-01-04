@@ -15,7 +15,7 @@ use crate::{
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues,
+        WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -30,6 +30,7 @@ pub mod data;
 #[repr(transparent)]
 pub struct Promise<'a>(BaseIndex<'a, PromiseHeapData<'static>>);
 object_handle!(Promise);
+arena_vec_access!(Promise, 'a, PromiseHeapData, promises);
 
 impl<'a> Promise<'a> {
     /// Create a new resolved Promise.
@@ -63,7 +64,7 @@ impl<'a> Promise<'a> {
         agent: &Agent,
         gc: NoGcScope<'gc, '_>,
     ) -> Option<JsResult<'gc, Value<'gc>>> {
-        match &agent[self].promise_state {
+        match &self.get(agent).promise_state {
             PromiseState::Pending { .. } => None,
             PromiseState::Fulfilled { promise_result } => Some(Ok(promise_result.bind(gc))),
             PromiseState::Rejected { promise_result, .. } => {
@@ -73,7 +74,7 @@ impl<'a> Promise<'a> {
     }
 
     pub(crate) fn set_already_resolved(self, agent: &mut Agent) {
-        match &mut agent[self].promise_state {
+        match &mut self.get(agent).promise_state {
             PromiseState::Pending { is_resolved, .. } => *is_resolved = true,
             _ => unreachable!(),
         };
@@ -105,12 +106,12 @@ impl<'a> InternalSlots<'a> for Promise<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
-            agent[self]
+            self.get(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()

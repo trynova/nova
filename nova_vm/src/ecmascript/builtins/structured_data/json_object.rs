@@ -748,7 +748,7 @@ fn get_serializable_json_property_value<'a>(
 
     // 4. If value is an Object, then
     if let Ok(obj) = PrimitiveObject::try_from(value) {
-        match agent[obj].data {
+        match obj.get(agent).data {
             // a. If value has a [[NumberData]] internal slot, then
             // i. Set value to ? ToNumber(value).
             PrimitiveObjectData::Number(_)

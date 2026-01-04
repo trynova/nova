@@ -1087,7 +1087,7 @@ pub(super) fn execute_instantiate_ordinary_function_expression<'gc>(
         compiled_bytecode, ..
     } = executable.fetch_function_expression(agent, instr.get_first_index(), gc.nogc());
     if let Some(compiled_bytecode) = compiled_bytecode {
-        agent[function].compiled_bytecode = Some(compiled_bytecode.unbind());
+        function.get(agent).compiled_bytecode = Some(compiled_bytecode.unbind());
     }
     set_function_name(agent, function, name, None, gc.nogc());
     if !function_expression.r#async && !function_expression.generator {
@@ -1194,12 +1194,12 @@ pub(super) fn execute_class_define_constructor<'gc>(
     };
     let function = ordinary_function_create(agent, params, gc.nogc());
     if let Some(compiled_bytecode) = compiled_bytecode {
-        agent[function].compiled_bytecode = Some(compiled_bytecode.unbind());
+        function.get(agent).compiled_bytecode = Some(compiled_bytecode.unbind());
     }
     set_function_name(agent, function, class_name.into(), None, gc.nogc());
     make_constructor(agent, function, Some(false), Some(proto), gc.nogc());
-    agent[function].ecmascript_function.home_object = Some(proto.into());
-    agent[function].ecmascript_function.constructor_status =
+    function.get(agent).ecmascript_function.home_object = Some(proto.into());
+    function.get(agent).ecmascript_function.constructor_status =
         if has_constructor_parent || is_null_derived_class {
             ConstructorStatus::DerivedClass
         } else {

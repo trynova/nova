@@ -182,7 +182,7 @@ pub(crate) fn perform_eval<'gc>(
     // 5. Perform ? HostEnsureCanCompileStrings(evalRealm, « », x, direct).
     agent
         .host_hooks
-        .ensure_can_compile_strings(&mut agent[eval_realm], gc.nogc())
+        .ensure_can_compile_strings(&mut eval_realm.get(agent), gc.nogc())
         .unbind()?;
 
     let mut id = 0;
@@ -214,11 +214,12 @@ pub(crate) fn perform_eval<'gc>(
             _in_method = this_env_rec.has_super_binding(agent);
             // iv. If F.[[ConstructorKind]] is derived, set inDerivedConstructor to true.
             _in_derived_constructor = match f {
-                Function::ECMAScriptFunction(f) => agent[f]
+                Function::ECMAScriptFunction(f) => f
+                    .get(agent)
                     .ecmascript_function
                     .constructor_status
                     .is_derived_class(),
-                Function::BuiltinConstructorFunction(f) => agent[f].is_derived,
+                Function::BuiltinConstructorFunction(f) => f.get(agent).is_derived,
                 _ => false,
             };
 
@@ -337,7 +338,8 @@ pub(crate) fn perform_eval<'gc>(
         }
     } else {
         // 17. Else,
-        let global_env = Environment::Global(agent[eval_realm].global_env.unwrap()).bind(gc.nogc());
+        let global_env =
+            Environment::Global(eval_realm.get(agent).global_env.unwrap()).bind(gc.nogc());
 
         ECMAScriptCodeEvaluationState {
             // a. Let lexEnv be NewDeclarativeEnvironment(evalRealm.[[GlobalEnv]]).

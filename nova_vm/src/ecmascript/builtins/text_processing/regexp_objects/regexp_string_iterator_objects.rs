@@ -18,7 +18,7 @@ use crate::{
     engine::context::{Bindable, NoGcScope, bindable_handle},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues,
+        WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -64,6 +64,7 @@ pub(crate) fn create_reg_exp_string_iterator<'gc>(
 #[repr(transparent)]
 pub struct RegExpStringIterator<'a>(BaseIndex<'a, RegExpStringIteratorRecord<'static>>);
 object_handle!(RegExpStringIterator);
+arena_vec_access!(RegExpStringIterator, 'a, RegExpStringIteratorRecord, regexp_string_iterators);
 
 impl<'r> RegExpStringIterator<'r> {
     /// \[\[IteratingRegExp]]

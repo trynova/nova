@@ -41,7 +41,7 @@ pub struct Realm<'a>(
 
 impl core::fmt::Debug for Realm<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "Realm({:?})", self.into_u32_index())
+        write!(f, "Realm({:?})", self.get_index_u32())
     }
 }
 
@@ -75,13 +75,13 @@ impl<'r> Realm<'r> {
         self.0.get() as usize - 1
     }
 
-    pub(crate) const fn into_u32_index(self) -> u32 {
+    pub(crate) const fn get_index_u32(self) -> u32 {
         self.0.get() - 1
     }
 
     /// ### \[\[\HostDefined]]
     pub fn host_defined(self, agent: &Agent) -> Option<HostDefined> {
-        agent[self].host_defined.clone()
+        self.get(agent).host_defined.clone()
     }
 
     /// Initialize the \[\[HostDefined]] field to a value.
@@ -91,15 +91,15 @@ impl<'r> Realm<'r> {
     /// Panics if the \[\[HostDefined]] field is non-empty.
     pub fn initialize_host_defined(self, agent: &mut Agent, host_defined: HostDefined) {
         assert!(
-            agent[self].host_defined.is_none(),
+            self.get(agent).host_defined.is_none(),
             "Attempted to replace Realm's [[HostDefined]] slot data."
         );
-        agent[self].host_defined.replace(host_defined);
+        self.get(agent).host_defined.replace(host_defined);
     }
 
     /// ### \[\[GlobalObject]]
     pub fn global_object(self, agent: &mut Agent) -> Object<'r> {
-        agent[self].global_object
+        self.get(agent).global_object
     }
 
     /// ### \[\[GlobalEnv]]
@@ -108,7 +108,7 @@ impl<'r> Realm<'r> {
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
     ) -> Option<GlobalEnvironment<'gc>> {
-        agent[self].global_env.bind(gc)
+        self.get(agent).global_env.bind(gc)
     }
 
     pub(crate) fn insert_loaded_module<'gc>(
@@ -351,13 +351,13 @@ pub(crate) fn set_realm_global_object(
     let this_value = this_value.unwrap_or(global_object);
 
     // 4. Set realmRec.[[GlobalObject]] to globalObj.
-    agent[realm_id].global_object = global_object.unbind();
+    realm_id.get(agent).global_object = global_object.unbind();
 
     // 5. Let newGlobalEnv be NewGlobalEnvironment(globalObj, thisValue).
     let new_global_env = new_global_environment(agent, global_object, this_value, gc);
 
     // 6. Set realmRec.[[GlobalEnv]] to newGlobalEnv.
-    agent[realm_id].global_env = Some(new_global_env.unbind());
+    realm_id.get(agent).global_env = Some(new_global_env.unbind());
 
     // 7. Return UNUSED.
 }
@@ -373,7 +373,7 @@ pub(crate) fn set_default_global_bindings<'a>(
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, Object<'a>> {
     // 1. Let global be realmRec.[[GlobalObject]].
-    let global = agent[realm_id].global_object.scope(agent, gc.nogc());
+    let global = realm_id.get(agent).global_object.scope(agent, gc.nogc());
 
     // 2. For each property of the Global Object specified in clause 19, do
     macro_rules! define_property {
@@ -413,7 +413,7 @@ pub(crate) fn set_default_global_bindings<'a>(
     // 19.1 Value Properties of the Global Object
     {
         // 19.1.1 globalThis
-        let global_env = agent[realm_id].global_env.bind(gc.nogc());
+        let global_env = realm_id.get(agent).global_env.bind(gc.nogc());
         let value = global_env.unwrap().get_this_binding(agent).into().unbind();
         define_property!(globalThis, value, Some(true), Some(false), Some(true));
 

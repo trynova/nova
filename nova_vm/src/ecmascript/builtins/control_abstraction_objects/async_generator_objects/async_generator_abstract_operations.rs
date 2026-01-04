@@ -515,14 +515,15 @@ fn async_generator_drain_queue(
     // Assert: generator.[[AsyncGeneratorState]] is draining-queue.
     // 2. Let queue be generator.[[AsyncGeneratorQueue]].
     let Some(AsyncGeneratorState::DrainingQueue(queue)) =
-        &mut agent[generator].async_generator_state
+        &mut generator.get(agent).async_generator_state
     else {
         unreachable!()
     };
     // 3. If queue is empty, then
     if queue.is_empty() {
         // a. Set generator.[[AsyncGeneratorState]] to completed.
-        agent[generator]
+        generator
+            .get(agent)
             .async_generator_state
             .replace(AsyncGeneratorState::Completed(Default::default()));
         // b. Return unused.
@@ -555,13 +556,14 @@ fn async_generator_drain_queue(
             async_generator_complete_step(agent, generator, completion, true, None, gc.nogc());
             // iii. If queue is empty, then
             let Some(AsyncGeneratorState::DrainingQueue(queue)) =
-                &mut agent[generator].async_generator_state
+                &mut generator.get(agent).async_generator_state
             else {
                 unreachable!()
             };
             if queue.is_empty() {
                 // 1. Set generator.[[AsyncGeneratorState]] to completed.
-                agent[generator]
+                generator
+                    .get(agent)
                     .async_generator_state
                     .replace(AsyncGeneratorState::Completed(Default::default()));
                 // 2. Set done to true.

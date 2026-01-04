@@ -576,7 +576,7 @@ fn this_number_value<'gc>(
     {
         // a. Let n be value.[[NumberData]].
         // b. Assert: n is a Number.
-        let n: Number = agent[value].data.try_into().unwrap();
+        let n: Number = value.get(agent).data.try_into().unwrap();
         // c. Return n.
         return Ok(n.bind(gc));
     }

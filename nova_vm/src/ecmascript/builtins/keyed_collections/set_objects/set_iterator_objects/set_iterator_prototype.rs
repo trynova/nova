@@ -52,7 +52,7 @@ impl SetIteratorPrototype {
 
         // 24.2.6.1 CreateSetIterator ( set, kind )
         // NOTE: We set `set` to None when the generator in the spec text has returned.
-        let Some(set) = agent[iterator].set else {
+        let Some(set) = iterator.get(agent).set else {
             return create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
                 .map(|o| o.into());
         };
@@ -60,18 +60,18 @@ impl SetIteratorPrototype {
         // b. Let entries be set.[[SetData]].
         // c. Let numEntries be the number of elements in entries.
         // d. Repeat, while index < numEntries,
-        while agent[iterator].next_index < set.get(agent).values.len() {
+        while iterator.get(agent).next_index < set.get(agent).values.len() {
             // i. Let e be entries[index].
             // ii. Set index to index + 1.
-            let index = agent[iterator].next_index;
-            agent[iterator].next_index += 1;
+            let index = iterator.get(agent).next_index;
+            iterator.get(agent).next_index += 1;
 
             // iii. if e is not EMPTY, then
             let Some(e) = set.get(agent).values[index] else {
                 continue;
             };
 
-            let result = match agent[iterator].kind {
+            let result = match iterator.get(agent).kind {
                 CollectionIteratorKind::Key => unreachable!(),
                 CollectionIteratorKind::KeyAndValue => {
                     // 1. If kind is KEY+VALUE, then
@@ -91,10 +91,10 @@ impl SetIteratorPrototype {
                 .map(|o| o.into());
         }
 
-        debug_assert_eq!(agent[iterator].next_index, set.get(agent).values.len());
+        debug_assert_eq!(iterator.get(agent).next_index, set.get(agent).values.len());
 
         // e. Return undefined.
-        agent[iterator].set = None;
+        iterator.get(agent).set = None;
         create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc()).map(|o| o.into())
     }
 

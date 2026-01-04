@@ -7,7 +7,7 @@
 //! that the eval call defines functions. Those functions will refer to the
 //! SourceCode for their function source text.
 
-use core::{fmt::Debug};
+use core::fmt::Debug;
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast;
@@ -36,7 +36,7 @@ pub struct SourceCode<'a>(BaseIndex<'a, SourceCodeHeapData<'static>>);
 
 impl core::fmt::Debug for SourceCode<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "SourceCode({:?})", self.0.into_u32_index())
+        write!(f, "SourceCode({:?})", self.0.get_index_u32())
     }
 }
 
@@ -292,17 +292,23 @@ impl<'a> SourceCode<'a> {
     pub(crate) fn get_source_text(self, agent: &Agent) -> &str {
         // SAFETY: parse_source will always copy non-UTF-8 source texts into
         // well-formed UTF-8.
-        unsafe { agent[agent[self].source].as_str().unwrap_unchecked() }
+        unsafe {
+            self.get(agent)
+                .source
+                .get(agent)
+                .as_str()
+                .unwrap_unchecked()
+        }
     }
 
     /// Access the Scoping information of the SourceCode.
     pub(crate) fn get_scoping(self, agent: &Agent) -> &Scoping {
-        &agent[self].scoping
+        &self.get(agent).scoping
     }
 
     /// Access the AstNodes information of the SourceCode.
     pub(crate) fn get_nodes(self, agent: &Agent) -> &AstNodes<'a> {
-        &agent[self].nodes
+        &self.get(agent).nodes
     }
 
     pub(crate) fn get_index(self) -> usize {

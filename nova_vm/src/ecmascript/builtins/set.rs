@@ -11,6 +11,7 @@ use crate::{
     engine::context::Bindable,
     heap::{
         CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
+        arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -24,6 +25,7 @@ pub mod data;
 #[repr(transparent)]
 pub struct Set<'a>(BaseIndex<'a, SetHeapData<'static>>);
 object_handle!(Set);
+arena_vec_access!(soa: Set, 'a, SetHeapData, sets, SetHeapDataRef, SetHeapDataMut);
 
 impl<'gc> Set<'gc> {
     #[inline(always)]
@@ -41,7 +43,7 @@ impl<'gc> Set<'gc> {
         self,
         sets: &'a SoAVec<SetHeapData<'static>>,
     ) -> SetHeapDataRef<'a, 'gc> {
-        sets.get(self.0.into_u32_index())
+        sets.get(self.0.get_index_u32())
             .expect("Invalid Set reference")
     }
 
@@ -54,7 +56,7 @@ impl<'gc> Set<'gc> {
         // reference.
         unsafe {
             core::mem::transmute::<SetHeapDataMut<'a, 'static>, SetHeapDataMut<'a, 'gc>>(
-                sets.get_mut(self.0.into_u32_index())
+                sets.get_mut(self.0.get_index_u32())
                     .expect("Invalid Set reference"),
             )
         }

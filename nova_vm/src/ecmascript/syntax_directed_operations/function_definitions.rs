@@ -233,12 +233,12 @@ pub(crate) fn evaluate_function_body<'gc>(
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
     //function_declaration_instantiation(agent, function_object, arguments_list).unbind()?.bind(gc.nogc());
     // 2. Return ? Evaluation of FunctionStatementList.
-    let exe = if let Some(exe) = agent[function_object].compiled_bytecode {
+    let exe = if let Some(exe) = function_object.get(agent).compiled_bytecode {
         exe.bind(gc.nogc())
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object, gc.nogc());
         let exe = Executable::compile_function_body(agent, data, gc.nogc());
-        agent[function_object].compiled_bytecode = Some(exe.unbind());
+        function_object.get(agent).compiled_bytecode = Some(exe.unbind());
         exe
     };
     let exe = exe.scope(agent, gc.nogc());
@@ -268,12 +268,12 @@ pub(crate) fn evaluate_async_function_body<'a>(
     // Note: FunctionDeclarationInstantiation is performed as the first part of
     // the compiled function body; we do not need to run it and
     // AsyncFunctionStart separately.
-    let exe = if let Some(exe) = agent[function_object].compiled_bytecode {
+    let exe = if let Some(exe) = function_object.get(agent).compiled_bytecode {
         exe.bind(gc.nogc())
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object, gc.nogc());
         let exe = Executable::compile_function_body(agent, data, gc.nogc());
-        agent[function_object].compiled_bytecode = Some(exe.unbind());
+        function_object.get(agent).compiled_bytecode = Some(exe.unbind());
         exe
     };
     let exe = exe.scope(agent, gc.nogc());
@@ -362,12 +362,12 @@ pub(crate) fn evaluate_generator_body<'gc>(
     let arguments_list = arguments_list.bind(gc.nogc());
     let function_object = function_object.bind(gc.nogc());
 
-    let exe = if let Some(exe) = agent[function_object].compiled_bytecode {
+    let exe = if let Some(exe) = function_object.get(agent).compiled_bytecode {
         exe.scope(agent, gc.nogc())
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object, gc.nogc());
         let exe = Executable::compile_function_body(agent, data, gc.nogc());
-        agent[function_object].compiled_bytecode = Some(exe.unbind());
+        function_object.get(agent).compiled_bytecode = Some(exe.unbind());
         exe.scope(agent, gc.nogc())
     };
 
@@ -436,12 +436,12 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
     let function_object = function_object.bind(gc.nogc());
     let arguments_list = arguments_list.bind(gc.nogc());
 
-    let exe = if let Some(exe) = agent[function_object].compiled_bytecode {
+    let exe = if let Some(exe) = function_object.get(agent).compiled_bytecode {
         exe.scope(agent, gc.nogc())
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object, gc.nogc());
         let exe = Executable::compile_function_body(agent, data, gc.nogc());
-        agent[function_object].compiled_bytecode = Some(exe.unbind());
+        function_object.get(agent).compiled_bytecode = Some(exe.unbind());
         exe.scope(agent, gc.nogc())
     };
 

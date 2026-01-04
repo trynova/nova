@@ -109,6 +109,7 @@ use crate::{
         context::{Bindable, NoGcScope},
         rootable::HeapRootData,
     },
+    heap::indexes::HeapIndexHandle,
 };
 #[cfg(feature = "array-buffer")]
 use ahash::AHashMap;
@@ -125,7 +126,7 @@ pub(crate) use heap_bits::{
     AtomicBits, BitRange, CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WeakReference,
     WorkQueues, sweep_heap_vector_values,
 };
-use soavec::SoAVec;
+use soavec::{SoAVec, SoAble};
 use wtf8::{Wtf8, Wtf8Buf};
 
 pub(crate) struct Heap {
@@ -149,7 +150,7 @@ pub(crate) struct Heap {
     /// Element arrays are static arrays of Values plus
     /// a HashMap of possible property descriptors.
     pub(crate) elements: ElementArrays,
-    pub(crate) embedder_objects: Vec<EmbedderObjectHeapData>,
+    pub(crate) embedder_objects: Vec<EmbedderObjectHeapData<'static>>,
     pub(crate) environments: Environments,
     pub(crate) errors: Vec<ErrorHeapData<'static>>,
     /// Stores compiled bytecodes
@@ -594,140 +595,142 @@ impl Default for Heap {
     }
 }
 
-pub(crate) trait DirectArenaAccess<'a>: Copy {
-    type Arena: ?Sized;
-    type OutputRef;
-    type OutputMut;
+pub(crate) trait DirectArenaAccess: HeapIndexHandle {
+    type Data;
+    type Output;
 
     /// Access arena data beloning to a handle.
-    fn get_direct(self, source: &'a Self::Arena) -> Self::OutputRef;
+    fn get_direct<'agent>(self, agent: &'agent Vec<Self::Data>) -> &'agent Self::Output;
 
     /// Access arena data beloning to a handle as mutable.
-    fn get_direct_mut(self, source: &'a mut Self::Arena) -> Self::OutputMut;
+    fn get_direct_mut<'agent>(self, agent: &'agent mut Vec<Self::Data>)
+    -> &'agent mut Self::Output;
 }
 
-pub(crate) trait ArenaAccess<'a, T>: DirectArenaAccess<'a>
+pub(crate) trait ArenaAccess<T>: DirectArenaAccess {
+    /// Access data beloning to a handle.
+    fn get<'agent>(self, agent: &'agent T) -> &'agent <Self as DirectArenaAccess>::Output;
+
+    /// Access data beloning to a handle as mutable.
+    fn get_mut<'agent>(
+        self,
+        agent: &'agent mut T,
+    ) -> &'agent mut <Self as DirectArenaAccess>::Output;
+}
+
+impl<K: DirectArenaAccess, T> ArenaAccess<T> for K
 where
-    T: 'a
-        + ?Sized
-        + AsRef<<Self as DirectArenaAccess<'a>>::Arena>
-        + AsMut<<Self as DirectArenaAccess<'a>>::Arena>,
+    T: AsRef<Vec<K::Data>> + AsMut<Vec<K::Data>>,
 {
     /// Access data beloning to a handle.
     #[inline]
-    fn get(self, source: &'a T) -> Self::OutputRef {
-        self.get_direct(source.as_ref())
+    fn get<'agent>(self, agent: &'agent T) -> &'agent <Self as DirectArenaAccess>::Output {
+        self.get_direct(agent.as_ref())
     }
 
     /// Access data beloning to a handle as mutable.
     #[inline]
-    fn get_mut(self, source: &'a mut T) -> Self::OutputMut {
-        self.get_direct_mut(source.as_mut())
+    fn get_mut<'agent>(
+        self,
+        agent: &'agent mut T,
+    ) -> &'agent mut <Self as DirectArenaAccess>::Output {
+        self.get_direct_mut(agent.as_mut())
     }
 }
 
-// macro_rules! arena_access {
-//     ($handle: ident, $heap: ident, $member: ident, $output: ty) => {
-//         impl<'a> crate::heap::HeapAccess<'a, [$heap]> for $handle<'a> {
-//             type OutputRef = &'a $output;
+pub(crate) trait DirectArenaAccessSoA: HeapIndexHandle {
+    type Data: SoAble;
 
-//             type OutputMut = &'a mut $output;
+    /// Access arena data beloning to a handle.
+    fn get_direct<'agent>(
+        self,
+        source: &'agent SoAVec<Self::Data>,
+    ) -> <Self::Data as SoAble>::Ref<'agent>;
 
-//             #[inline]
-//             fn get(self, source: &'a [$heap]) -> Self::OutputRef {
-//                 source.get(self.get_index()).expect("Invalid handle")
-//             }
+    /// Access arena data beloning to a handle as mutable.
+    fn get_direct_mut<'agent>(
+        self,
+        source: &'agent mut SoAVec<Self::Data>,
+    ) -> <Self::Data as SoAble>::Mut<'agent>;
+}
 
-//             #[inline]
-//             fn get_mut(self, source: &'a mut [$heap]) -> Self::OutputMut {
-//                 source.get_mut(self.get_index()).expect("Invalid handle")
-//             }
-//         }
+pub(crate) trait ArenaAccessSoA<T>: DirectArenaAccessSoA {
+    /// Access data beloning to a handle.
+    fn get<'a>(self, agent: &'a T) -> <Self::Data as SoAble>::Ref<'a>;
 
-//         impl<'a> crate::heap::HeapAccess<'a, crate::ecmascript::execution::Agent> for $handle<'a> {
-//             type OutputRef = &'a $output;
+    /// Access data beloning to a handle as mutable.
+    fn get_mut<'a>(self, agent: &'a mut T) -> <Self::Data as SoAble>::Mut<'a>;
+}
 
-//             type OutputMut = &'a mut $output;
+impl<K: DirectArenaAccessSoA, T> ArenaAccessSoA<T> for K
+where
+    T: AsRef<SoAVec<K::Data>> + AsMut<SoAVec<K::Data>>,
+{
+    /// Access data beloning to a handle.
+    #[inline]
+    fn get<'a>(self, agent: &'a T) -> <Self::Data as SoAble>::Ref<'a> {
+        self.get_direct(agent.as_ref())
+    }
 
-//             #[inline]
-//             fn get(self, source: &'a [$heap]) -> Self::OutputRef {
-//                 source.get(self.get_index()).expect("Invalid handle")
-//             }
-
-//             #[inline]
-//             fn get_mut(self, source: &'a mut [$heap]) -> Self::OutputMut {
-//                 source.get_mut(self.get_index()).expect("Invalid handle")
-//             }
-//         }
-
-//         impl core::convert::AsRef<[$heap]> for crate::heap::Heap {
-//             #[inline]
-//             fn as_ref(&self) -> &[$heap] {
-//                 &self.$member
-//             }
-//         }
-
-//         impl core::convert::AsMut<[$heap]> for crate::heap::Heap {
-//             #[inline]
-//             fn as_mut(&mut self) -> &mut [$heap] {
-//                 &mut self.$member
-//             }
-//         }
-//     };
-// }
+    /// Access data beloning to a handle as mutable.
+    #[inline]
+    fn get_mut<'a>(self, agent: &'a mut T) -> <Self::Data as SoAble>::Mut<'a> {
+        self.get_direct_mut(agent.as_mut())
+    }
+}
 
 /// A partial view to the Agent's heap that allows accessing primitive value
 /// heap data.
 pub(crate) struct PrimitiveHeap<'a> {
-    pub(crate) bigints: &'a Vec<BigIntHeapData>,
-    pub(crate) numbers: &'a Vec<NumberHeapData>,
-    pub(crate) strings: &'a Vec<StringRecord>,
+    pub(crate) bigints: &'a mut Vec<BigIntHeapData>,
+    pub(crate) numbers: &'a mut Vec<NumberHeapData>,
+    pub(crate) strings: &'a mut Vec<StringRecord>,
 }
 
-impl AsRef<[BigIntHeapData]> for PrimitiveHeap<'_> {
+impl AsRef<Vec<BigIntHeapData>> for PrimitiveHeap<'_> {
     #[inline]
-    fn as_ref(&self) -> &[BigIntHeapData] {
+    fn as_ref(&self) -> &Vec<BigIntHeapData> {
         &self.bigints
     }
 }
 
-impl AsMut<[BigIntHeapData]> for PrimitiveHeap<'_> {
-    fn as_mut(&mut self) -> &mut [BigIntHeapData] {
+impl AsMut<Vec<BigIntHeapData>> for PrimitiveHeap<'_> {
+    fn as_mut(&mut self) -> &mut Vec<BigIntHeapData> {
         &mut self.bigints
     }
 }
 
-impl AsRef<[NumberHeapData]> for PrimitiveHeap<'_> {
+impl AsRef<Vec<NumberHeapData>> for PrimitiveHeap<'_> {
     #[inline]
-    fn as_ref(&self) -> &[NumberHeapData] {
+    fn as_ref(&self) -> &Vec<NumberHeapData> {
         &self.numbers
     }
 }
 
-impl AsMut<[NumberHeapData]> for PrimitiveHeap<'_> {
-    fn as_mut(&mut self) -> &mut [NumberHeapData] {
+impl AsMut<Vec<NumberHeapData>> for PrimitiveHeap<'_> {
+    fn as_mut(&mut self) -> &mut Vec<NumberHeapData> {
         &mut self.numbers
     }
 }
 
-impl AsRef<[StringRecord]> for PrimitiveHeap<'_> {
+impl AsRef<Vec<StringRecord>> for PrimitiveHeap<'_> {
     #[inline]
-    fn as_ref(&self) -> &[StringRecord] {
+    fn as_ref(&self) -> &Vec<StringRecord> {
         &self.strings
     }
 }
 
-impl AsMut<[StringRecord]> for PrimitiveHeap<'_> {
-    fn as_mut(&mut self) -> &mut [StringRecord] {
+impl AsMut<Vec<StringRecord>> for PrimitiveHeap<'_> {
+    fn as_mut(&mut self) -> &mut Vec<StringRecord> {
         &mut self.strings
     }
 }
 
 impl PrimitiveHeap<'_> {
     pub(crate) fn new<'a>(
-        bigints: &'a Vec<BigIntHeapData>,
-        numbers: &'a Vec<NumberHeapData>,
-        strings: &'a Vec<StringRecord>,
+        bigints: &'a mut Vec<BigIntHeapData>,
+        numbers: &'a mut Vec<NumberHeapData>,
+        strings: &'a mut Vec<StringRecord>,
     ) -> PrimitiveHeap<'a> {
         PrimitiveHeap {
             bigints,
@@ -739,12 +742,12 @@ impl PrimitiveHeap<'_> {
 
 /// Helper trait for primitive heap data indexing.
 pub(crate) trait PrimitiveHeapIndexable:
-    AsRef<[BigIntHeapData]>
-    + AsMut<[BigIntHeapData]>
-    + AsRef<[NumberHeapData]>
-    + AsMut<[NumberHeapData]>
-    + AsRef<[StringRecord]>
-    + AsMut<[StringRecord]>
+    AsRef<Vec<BigIntHeapData>>
+    + AsMut<Vec<BigIntHeapData>>
+    + AsRef<Vec<NumberHeapData>>
+    + AsMut<Vec<NumberHeapData>>
+    + AsRef<Vec<StringRecord>>
+    + AsMut<Vec<StringRecord>>
 {
 }
 
@@ -766,38 +769,38 @@ impl PropertyKeyHeap<'_> {
     }
 }
 
-impl AsRef<[StringRecord]> for PropertyKeyHeap<'_> {
+impl AsRef<Vec<StringRecord>> for PropertyKeyHeap<'_> {
     #[inline]
-    fn as_ref(&self) -> &[StringRecord] {
+    fn as_ref(&self) -> &Vec<StringRecord> {
         &self.strings
     }
 }
 
-impl AsMut<[StringRecord]> for PropertyKeyHeap<'_> {
-    fn as_mut(&mut self) -> &mut [StringRecord] {
+impl AsMut<Vec<StringRecord>> for PropertyKeyHeap<'_> {
+    fn as_mut(&mut self) -> &mut Vec<StringRecord> {
         &mut self.strings
     }
 }
 
-impl AsRef<[SymbolHeapData<'static>]> for PropertyKeyHeap<'_> {
+impl AsRef<Vec<SymbolHeapData<'static>>> for PropertyKeyHeap<'_> {
     #[inline]
-    fn as_ref(&self) -> &[SymbolHeapData<'static>] {
+    fn as_ref(&self) -> &Vec<SymbolHeapData<'static>> {
         &self.symbols
     }
 }
 
-impl AsMut<[SymbolHeapData<'static>]> for PropertyKeyHeap<'_> {
-    fn as_mut(&mut self) -> &mut [SymbolHeapData<'static>] {
+impl AsMut<Vec<SymbolHeapData<'static>>> for PropertyKeyHeap<'_> {
+    fn as_mut(&mut self) -> &mut Vec<SymbolHeapData<'static>> {
         &mut self.symbols
     }
 }
 
 /// Helper trait for primitive heap data indexing.
 pub(crate) trait PropertyKeyHeapIndexable:
-    AsRef<[StringRecord]>
-    + AsMut<[StringRecord]>
-    + AsRef<[SymbolHeapData<'static>]>
-    + AsMut<[SymbolHeapData<'static>]>
+    AsRef<Vec<StringRecord>>
+    + AsMut<Vec<StringRecord>>
+    + AsRef<Vec<SymbolHeapData<'static>>>
+    + AsMut<Vec<SymbolHeapData<'static>>>
 {
 }
 
@@ -810,35 +813,132 @@ fn init_heap() {
 }
 
 macro_rules! arena_vec_access {
-    ($name: ident, $arena: ty, $member: ident, $output: ty) => {
-        impl<'a> crate::heap::DirectArenaAccess<'a> for $name<'a> {
-            type Arena = $arena;
-
-            type OutputRef = &'a $output;
-
-            type OutputMut = &'a mut $output;
+    (soa: $name: ident, $lt: lifetime, $data: ident, $member: ident, $output_ref: ident, $output_mut: ident) => {
+        impl<$lt> crate::heap::DirectArenaAccessSoA for $name<$lt> {
+            type Data = $data<'static>;
 
             #[inline]
-            fn get_direct(self, source: &'a $arena) -> Self::OutputRef {
-                source.get(self.get_index()).expect("Invalid handle")
+            fn get_direct<'agent>(
+                self,
+                source: &'agent soavec::SoAVec<Self::Data>,
+            ) -> <Self::Data as soavec::SoAble>::Ref<'agent> {
+                source.get(self.get_index_u32()).expect("Invalid handle")
             }
 
             #[inline]
-            fn get_direct_mut(self, source: &'a mut $arena) -> Self::OutputMut {
-                source.get_mut(self.get_index()).expect("Invalid handle")
+            fn get_direct_mut<'agent>(
+                self,
+                source: &'agent mut soavec::SoAVec<Self::Data>,
+            ) -> <Self::Data as soavec::SoAble>::Mut<'agent> {
+                // SAFETY: transmuting OutputMut<'agent, 'static> to
+                // OutputMut<'agent, 'gc>. The shortening of the 'gc lifetime in
+                // a mutable setting means that it's okay to store handles to
+                // garbage collectable data inside the 'agent without them being
+                // invalidated when a garbage collection safepoint is reached.
+                // This is exactly correct, as data inside the 'agent is traced
+                // by the GC and does not get invalidated at a safepoint. The
+                // shortened lifetime is thus valid, and exposing it protects
+                // users of this API from accidentally using the original
+                // 'static lifetime.
+                unsafe {
+                    core::mem::transmute::<_, <Self::Data as soavec::SoAble>::Mut<'agent>>(
+                        source
+                            .get_mut(self.get_index_u32())
+                            .expect("Invalid handle"),
+                    )
+                }
             }
         }
 
-        impl AsRef<$arena> for crate::ecmascript::execution::Agent {
+        impl AsRef<soavec::SoAVec<$data<'static>>> for crate::ecmascript::execution::Agent {
             #[inline(always)]
-            fn as_ref(&self) -> &$arena {
+            fn as_ref(&self) -> &soavec::SoAVec<$data<'static>> {
                 &self.heap.$member
             }
         }
 
-        impl AsMut<$arena> for crate::ecmascript::execution::Agent {
+        impl AsMut<soavec::SoAVec<$data<'static>>> for crate::ecmascript::execution::Agent {
             #[inline(always)]
-            fn as_mut(&mut self) -> &mut $arena {
+            fn as_mut(&mut self) -> &mut soavec::SoAVec<$data<'static>> {
+                &mut self.heap.$member
+            }
+        }
+    };
+    ($name: ident, $lt: lifetime, $data: ident, $member: ident) => {
+        impl<$lt> crate::heap::DirectArenaAccess for $name<$lt> {
+            type Data = $data<'static>;
+            type Output = $data<$lt>;
+
+            #[inline]
+            fn get_direct<'agent>(self, source: &'agent Vec<Self::Data>) -> &'agent Self::Output {
+                source
+                    .get(crate::heap::indexes::HeapIndexHandle::get_index(self))
+                    .expect("Invalid handle")
+            }
+
+            #[inline]
+            fn get_direct_mut<'agent>(
+                self,
+                source: &'agent mut Vec<Self::Data>,
+            ) -> &'agent mut Self::Output {
+                // SAFETY: GC handles are always safe within the arena.
+                unsafe {
+                    core::mem::transmute::<&'agent mut $data<'static>, &'agent mut $data<$lt>>(
+                        source
+                            .get_mut(crate::heap::indexes::HeapIndexHandle::get_index(self))
+                            .expect("Invalid handle"),
+                    )
+                }
+            }
+        }
+
+        impl AsRef<Vec<$data<'static>>> for crate::ecmascript::execution::Agent {
+            #[inline(always)]
+            fn as_ref(&self) -> &Vec<$data<'static>> {
+                &self.heap.$member
+            }
+        }
+
+        impl AsMut<Vec<$data<'static>>> for crate::ecmascript::execution::Agent {
+            #[inline(always)]
+            fn as_mut(&mut self) -> &mut Vec<$data<'static>> {
+                &mut self.heap.$member
+            }
+        }
+    };
+    ($name: ident, $data: ty, $member: ident, $output: ty) => {
+        impl crate::heap::DirectArenaAccess for $name<'_> {
+            type Data = $data;
+            type Output = $output;
+
+            #[inline]
+            fn get_direct<'agent>(self, source: &'agent Vec<Self::Data>) -> &'agent Self::Output {
+                source
+                    .get(crate::heap::indexes::HeapIndexHandle::get_index(self))
+                    .expect("Invalid handle")
+            }
+
+            #[inline]
+            fn get_direct_mut<'agent>(
+                self,
+                source: &'agent mut Vec<Self::Data>,
+            ) -> &'agent mut Self::Output {
+                source
+                    .get_mut(crate::heap::indexes::HeapIndexHandle::get_index(self))
+                    .expect("Invalid handle")
+            }
+        }
+
+        impl AsRef<Vec<$data>> for crate::ecmascript::execution::Agent {
+            #[inline(always)]
+            fn as_ref(&self) -> &Vec<$data> {
+                &self.heap.$member
+            }
+        }
+
+        impl AsMut<Vec<$data>> for crate::ecmascript::execution::Agent {
+            #[inline(always)]
+            fn as_mut(&mut self) -> &mut Vec<$data> {
                 &mut self.heap.$member
             }
         }

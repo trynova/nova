@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use core::{cmp::Ordering, hint::unreachable_unchecked};
+use std::ops::{Deref, DerefMut};
 
 use crate::heap::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 use num_bigint::{BigInt, Sign};
@@ -10,6 +11,20 @@ use num_bigint::{BigInt, Sign};
 #[derive(Debug, Clone)]
 pub struct BigIntHeapData {
     pub(crate) data: BigInt,
+}
+
+impl Deref for BigIntHeapData {
+    type Target = BigInt;
+
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+
+impl DerefMut for BigIntHeapData {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.data
+    }
 }
 
 /// Convert f64 to exact BigInt for precise comparison.
