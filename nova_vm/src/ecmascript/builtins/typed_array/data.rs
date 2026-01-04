@@ -16,7 +16,7 @@ use crate::{
         types::OrdinaryObject,
     },
     engine::context::bindable_handle,
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, indexes::HeapIndexHandle},
 };
 
 #[repr(transparent)]
@@ -140,7 +140,7 @@ impl Default for TypedArrayRecord<'_> {
     fn default() -> Self {
         Self {
             object_index: Default::default(),
-            viewed_array_buffer: ArrayBuffer::_def(),
+            viewed_array_buffer: ArrayBuffer::_DEF,
             byte_length: Default::default(),
             byte_offset: Default::default(),
             array_length: Default::default(),

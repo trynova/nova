@@ -45,7 +45,9 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+    heap::{
+        ArenaAccess, IntrinsicFunctionIndexes, WellKnownSymbolIndexes, indexes::HeapIndexHandle,
+    },
 };
 
 use super::string_iterator_objects::StringIterator;
@@ -1448,9 +1450,9 @@ impl StringPrototype {
         // 5. Return ? Invoke(rx, %Symbol.matchAll%, « S »).
         invoke(
             agent,
-            rx.into().unbind(),
+            rx.unbind().into(),
             WellKnownSymbolIndexes::MatchAll.to_property_key(),
-            Some(ArgumentsList::from_mut_value(&mut s.into().unbind())),
+            Some(ArgumentsList::from_mut_value(&mut s.unbind().into())),
             gc,
         )
     }
@@ -1526,7 +1528,7 @@ impl StringPrototype {
         //    Unicode Standard, Normalization Forms.
         match unicode_normalize(&s.to_string_lossy(agent), f) {
             // 7. Return ns.
-            None => Ok(s.into().unbind()),
+            None => Ok(s.unbind().into()),
             Some(ns) => Ok(Value::from_string(agent, ns, gc.into_nogc()).into()),
         }
     }
@@ -1652,7 +1654,7 @@ impl StringPrototype {
         }
 
         if n == 1 {
-            return Ok(s.into().unbind());
+            return Ok(s.unbind().into());
         }
 
         // 6. Return the String value that is made from n copies of S appended together.
@@ -1744,7 +1746,7 @@ impl StringPrototype {
                 Some(ArgumentsList::from_mut_slice(&mut [
                     search_string.unbind().into(),
                     Number::from(position as u32).into(),
-                    s.get(agent).into().unbind(),
+                    s.get(agent).unbind().into(),
                 ])),
                 gc.reborrow(),
             )
@@ -2035,9 +2037,9 @@ impl StringPrototype {
         // 5. Return ? Invoke(rx, %Symbol.search%, « string »).
         invoke(
             agent,
-            rx.into().unbind(),
+            rx.unbind().into(),
             WellKnownSymbolIndexes::Search.to_property_key(),
-            Some(ArgumentsList::from_mut_value(&mut string.into().unbind())),
+            Some(ArgumentsList::from_mut_value(&mut string.unbind().into())),
             gc,
         )
     }
@@ -2263,21 +2265,22 @@ impl StringPrototype {
         // 10. If S is the empty String, return CreateArrayFromList(« S »).
         let s = scoped_s.get(agent).bind(gc);
         if s.is_empty_string() {
-            let list: [Value; 1] = [s.into().unbind()];
+            let list: [Value; 1] = [s.unbind().into()];
             return Ok(create_array_from_list(agent, &list, gc).into());
         }
 
         // 11-17. Normal split
         let subject = s.to_string_lossy(agent);
         let separator = r.to_string_lossy(agent);
-        let head = subject.split(separator.deref());
+        let head = subject
+            .split(separator.deref())
+            .take(lim as usize)
+            .map(|part| part.to_owned())
+            .collect::<Vec<_>>();
         let mut results: Vec<Value> = Vec::new();
 
-        for (i, part) in head.enumerate() {
-            if lim as usize == i {
-                break;
-            }
-            results.push(Value::from_str(agent, part, gc));
+        for part in head {
+            results.push(Value::from_string(agent, part, gc));
         }
 
         let results = Array::from_slice(agent, results.as_slice(), gc);
@@ -2468,7 +2471,7 @@ impl StringPrototype {
                 .map(|int_end| int_end.into_i64() >= s.len(agent) as i64)
                 .unwrap_or(true)
         {
-            return Ok(s.into().unbind());
+            return Ok(s.unbind().into());
         }
 
         let len = s.utf16_len(agent);
@@ -2646,7 +2649,7 @@ impl StringPrototype {
 
         match s.to_string_lossy(agent) {
             // String is already well-formed UTF-8.
-            std::borrow::Cow::Borrowed(_) => Ok(s.into().unbind()),
+            std::borrow::Cow::Borrowed(_) => Ok(s.unbind().into()),
             std::borrow::Cow::Owned(string) => {
                 // String was ill-formed UTF-8 and a well-formed copy was created.
                 Ok(String::from_string(agent, string, gc.into_nogc()).into())

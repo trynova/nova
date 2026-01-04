@@ -172,7 +172,7 @@ impl BigIntConstructor {
                     BigInt::SmallBigInt(_) => {
                         // Probably safe: The divisor is bigger than i64 but
                         // value is i54.
-                        Ok(bigint.into().unbind())
+                        Ok(bigint.unbind().into())
                     }
                 }
             }

@@ -63,7 +63,7 @@ impl WeakSetPrototype {
         // 5. Append value to S.[[WeakSetData]].
         // 6. Return S.
         s.get(agent).add(value);
-        Ok(s.into().unbind())
+        Ok(s.unbind().into())
     }
 
     /// ### [24.4.3.3 WeakSet.prototype.delete ( value )](https://tc39.es/ecma262/#sec-weakset.prototype.delete)

@@ -86,6 +86,7 @@ use crate::{
         Executable,
         context::{Bindable, GcScope},
     },
+    heap::indexes::HeapIndexHandle,
     ndt,
 };
 
@@ -256,7 +257,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut script_marks: Box<[Script]> = queues.scripts.drain(..).collect();
             script_marks.sort();
             script_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.scripts.set_bit(index, &bits.bits) {
                     // Did mark.
                     scripts.get(index).mark_values(&mut queues);
@@ -267,7 +268,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut realm_marks: Box<[Realm]> = queues.realms.drain(..).collect();
             realm_marks.sort();
             realm_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.realms.set_bit(index, &bits.bits) {
                     // Did mark.
                     realms.get(index).mark_values(&mut queues);
@@ -280,7 +281,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 queues.declarative_environments.drain(..).collect();
             declarative_environment_marks.sort();
             declarative_environment_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.declarative_environments.set_bit(index, &bits.bits) {
                     // Did mark.
                     declarative_environments.get(index).mark_values(&mut queues);
@@ -293,7 +294,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 queues.function_environments.drain(..).collect();
             function_environment_marks.sort();
             function_environment_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.function_environments.set_bit(index, &bits.bits) {
                     // Did mark.
                     function_environments.get(index).mark_values(&mut queues);
@@ -306,7 +307,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 queues.global_environments.drain(..).collect();
             global_environment_marks.sort();
             global_environment_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.global_environments.set_bit(index, &bits.bits) {
                     // Did mark.
                     global_environments.get(index).mark_values(&mut queues);
@@ -319,7 +320,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 queues.module_environments.drain(..).collect();
             module_environment_marks.sort();
             module_environment_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.module_environments.set_bit(index, &bits.bits) {
                     // Did mark.
                     module_environments.get(index).mark_values(&mut queues);
@@ -332,7 +333,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 queues.object_environments.drain(..).collect();
             object_environment_marks.sort();
             object_environment_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.object_environments.set_bit(index, &bits.bits) {
                     // Did mark.
                     object_environments.get(index).mark_values(&mut queues);
@@ -411,7 +412,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 queues.await_reactions.drain(..).collect();
             await_reaction_marks.sort();
             await_reaction_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.await_reactions.set_bit(index, &bits.bits) {
                     // Did mark.
                     await_reactions.get(index).mark_values(&mut queues);
@@ -940,7 +941,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut e_2_1_marks: Box<[ElementIndex]> = queues.e_2_1.drain(..).collect();
             e_2_1_marks.sort();
             e_2_1_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.e_2_1.set_bit(index, &bits.bits) {
                     if let Some(descriptors) = e2pow1.descriptors.get(&idx) {
                         mark_descriptors(descriptors, &mut queues);
@@ -955,7 +956,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut e_2_2_marks: Box<[ElementIndex]> = queues.e_2_2.drain(..).collect();
             e_2_2_marks.sort();
             e_2_2_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.e_2_2.set_bit(index, &bits.bits) {
                     if let Some(descriptors) = e2pow2.descriptors.get(&idx) {
                         mark_descriptors(descriptors, &mut queues);
@@ -970,7 +971,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut e_2_3_marks: Box<[ElementIndex]> = queues.e_2_3.drain(..).collect();
             e_2_3_marks.sort();
             e_2_3_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.e_2_3.set_bit(index, &bits.bits) {
                     if let Some(descriptors) = e2pow3.descriptors.get(&idx) {
                         mark_descriptors(descriptors, &mut queues);
@@ -985,7 +986,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut e_2_4_marks: Box<[ElementIndex]> = queues.e_2_4.drain(..).collect();
             e_2_4_marks.sort();
             e_2_4_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.e_2_4.set_bit(index, &bits.bits) {
                     if let Some(descriptors) = e2pow4.descriptors.get(&idx) {
                         mark_descriptors(descriptors, &mut queues);
@@ -1000,7 +1001,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut e_2_6_marks: Box<[ElementIndex]> = queues.e_2_6.drain(..).collect();
             e_2_6_marks.sort();
             e_2_6_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.e_2_6.set_bit(index, &bits.bits) {
                     if let Some(descriptors) = e2pow6.descriptors.get(&idx) {
                         mark_descriptors(descriptors, &mut queues);
@@ -1015,7 +1016,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut e_2_8_marks: Box<[ElementIndex]> = queues.e_2_8.drain(..).collect();
             e_2_8_marks.sort();
             e_2_8_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.e_2_8.set_bit(index, &bits.bits) {
                     if let Some(descriptors) = e2pow8.descriptors.get(&idx) {
                         mark_descriptors(descriptors, &mut queues);
@@ -1030,7 +1031,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut e_2_10_marks: Box<[ElementIndex]> = queues.e_2_10.drain(..).collect();
             e_2_10_marks.sort();
             e_2_10_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.e_2_10.set_bit(index, &bits.bits) {
                     if let Some(descriptors) = e2pow10.descriptors.get(&idx) {
                         mark_descriptors(descriptors, &mut queues);
@@ -1045,7 +1046,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut e_2_12_marks: Box<[ElementIndex]> = queues.e_2_12.drain(..).collect();
             e_2_12_marks.sort();
             e_2_12_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.e_2_12.set_bit(index, &bits.bits) {
                     if let Some(descriptors) = e2pow12.descriptors.get(&idx) {
                         mark_descriptors(descriptors, &mut queues);
@@ -1060,7 +1061,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut e_2_16_marks: Box<[ElementIndex]> = queues.e_2_16.drain(..).collect();
             e_2_16_marks.sort();
             e_2_16_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.e_2_16.set_bit(index, &bits.bits) {
                     if let Some(descriptors) = e2pow16.descriptors.get(&idx) {
                         mark_descriptors(descriptors, &mut queues);
@@ -1075,7 +1076,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut e_2_24_marks: Box<[ElementIndex]> = queues.e_2_24.drain(..).collect();
             e_2_24_marks.sort();
             e_2_24_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.e_2_24.set_bit(index, &bits.bits) {
                     if let Some(descriptors) = e2pow24.descriptors.get(&idx) {
                         mark_descriptors(descriptors, &mut queues);
@@ -1090,7 +1091,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut e_2_32_marks: Box<[ElementIndex]> = queues.e_2_32.drain(..).collect();
             e_2_32_marks.sort();
             e_2_32_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.e_2_32.set_bit(index, &bits.bits) {
                     if let Some(descriptors) = e2pow32.descriptors.get(&idx) {
                         mark_descriptors(descriptors, &mut queues);
@@ -1106,7 +1107,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut k_2_4_marks: Box<[PropertyKeyIndex]> = queues.k_2_4.drain(..).collect();
             k_2_4_marks.sort();
             k_2_4_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.k_2_4.set_bit(index, &bits.bits) {
                     k2pow4.keys.get(index).mark_values(&mut queues)
                 }
@@ -1116,7 +1117,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut k_2_1_marks: Box<[PropertyKeyIndex]> = queues.k_2_1.drain(..).collect();
             k_2_1_marks.sort();
             k_2_1_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.k_2_1.set_bit(index, &bits.bits) {
                     k2pow1.keys.get(index).mark_values(&mut queues)
                 }
@@ -1126,7 +1127,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut k_2_2_marks: Box<[PropertyKeyIndex]> = queues.k_2_2.drain(..).collect();
             k_2_2_marks.sort();
             k_2_2_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.k_2_2.set_bit(index, &bits.bits) {
                     k2pow2.keys.get(index).mark_values(&mut queues)
                 }
@@ -1136,7 +1137,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut k_2_3_marks: Box<[PropertyKeyIndex]> = queues.k_2_3.drain(..).collect();
             k_2_3_marks.sort();
             k_2_3_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.k_2_3.set_bit(index, &bits.bits) {
                     k2pow3.keys.get(index).mark_values(&mut queues)
                 }
@@ -1146,7 +1147,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut k_2_6_marks: Box<[PropertyKeyIndex]> = queues.k_2_6.drain(..).collect();
             k_2_6_marks.sort();
             k_2_6_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.k_2_6.set_bit(index, &bits.bits) {
                     k2pow6.keys.get(index).mark_values(&mut queues)
                 }
@@ -1156,7 +1157,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut k_2_8_marks: Box<[PropertyKeyIndex]> = queues.k_2_8.drain(..).collect();
             k_2_8_marks.sort();
             k_2_8_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.k_2_8.set_bit(index, &bits.bits) {
                     k2pow8.keys.get(index).mark_values(&mut queues)
                 }
@@ -1166,7 +1167,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut k_2_10_marks: Box<[PropertyKeyIndex]> = queues.k_2_10.drain(..).collect();
             k_2_10_marks.sort();
             k_2_10_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.k_2_10.set_bit(index, &bits.bits) {
                     k2pow10.keys.get(index).mark_values(&mut queues)
                 }
@@ -1176,7 +1177,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut k_2_12_marks: Box<[PropertyKeyIndex]> = queues.k_2_12.drain(..).collect();
             k_2_12_marks.sort();
             k_2_12_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.k_2_12.set_bit(index, &bits.bits) {
                     k2pow12.keys.get(index).mark_values(&mut queues)
                 }
@@ -1186,7 +1187,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut k_2_16_marks: Box<[PropertyKeyIndex]> = queues.k_2_16.drain(..).collect();
             k_2_16_marks.sort();
             k_2_16_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.k_2_16.set_bit(index, &bits.bits) {
                     k2pow16.keys.get(index).mark_values(&mut queues)
                 }
@@ -1196,7 +1197,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut k_2_24_marks: Box<[PropertyKeyIndex]> = queues.k_2_24.drain(..).collect();
             k_2_24_marks.sort();
             k_2_24_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.k_2_24.set_bit(index, &bits.bits) {
                     k2pow24.keys.get(index).mark_values(&mut queues)
                 }
@@ -1206,7 +1207,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut k_2_32_marks: Box<[PropertyKeyIndex]> = queues.k_2_32.drain(..).collect();
             k_2_32_marks.sort();
             k_2_32_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.k_2_32.set_bit(index, &bits.bits) {
                     k2pow32.keys.get(index).mark_values(&mut queues)
                 }

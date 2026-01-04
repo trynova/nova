@@ -954,7 +954,7 @@ impl TypedArrayPrototype {
                 Some(ArgumentsList::from_mut_slice(&mut [
                     k_value.unbind(),
                     Number::try_from(k).unwrap().into(),
-                    o.into().unbind(),
+                    o.unbind().into(),
                 ])),
                 gc.reborrow(),
             )
@@ -1006,12 +1006,12 @@ impl TypedArrayPrototype {
                 to_big_int_primitive(agent, value, gc.nogc())
                     .unbind()?
                     .bind(gc.nogc())
-                    .into_numeric()
+                    .into()
             } else {
                 to_number_primitive(agent, value, gc.nogc())
                     .unbind()?
                     .bind(gc.nogc())
-                    .into_numeric()
+                    .into()
             };
             let start_index = calculate_relative_index(relative_start.into_i64(), len);
             let end_index = if let Value::Integer(relative_end) = relative_end {
@@ -1074,13 +1074,13 @@ impl TypedArrayPrototype {
             to_big_int(agent, value.unbind(), gc.reborrow())
                 .unbind()?
                 .bind(gc.nogc())
-                .into_numeric()
+                .into()
         } else {
             // 5. Otherwise, set value to ? ToNumber(value).
             to_number(agent, value.unbind(), gc.reborrow())
                 .unbind()?
                 .bind(gc.nogc())
-                .into_numeric()
+                .into()
         };
 
         let start_temp = start.get(agent).bind(gc.nogc());
@@ -1338,7 +1338,7 @@ impl TypedArrayPrototype {
                 Some(ArgumentsList::from_mut_slice(&mut [
                     k_value.unbind(),
                     fk.unbind(),
-                    o.into().unbind(),
+                    o.unbind().into(),
                 ])),
                 gc.reborrow(),
             )
@@ -1620,7 +1620,7 @@ impl TypedArrayPrototype {
             // d. Set k to k + 1.
         }
         // 9. Return R.
-        Ok(String::from_wtf8_buf(agent, r, gc).into().unbind())
+        Ok(String::from_wtf8_buf(agent, r, gc).unbind().into())
     }
 
     /// ### [23.2.3.19 %TypedArray%.prototype.keys ( )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.keys)
@@ -2201,12 +2201,12 @@ impl TypedArrayPrototype {
                     to_big_int(agent, value.unbind(), gc.reborrow())
                         .unbind()?
                         .bind(gc.nogc())
-                        .into_numeric()
+                        .into()
                 } else {
                     to_number(agent, value.unbind(), gc.reborrow())
                         .unbind()?
                         .bind(gc.nogc())
-                        .into_numeric()
+                        .into()
                 };
                 target
                     .get(agent)
@@ -2445,8 +2445,8 @@ impl TypedArrayPrototype {
                 this_arg.get(agent),
                 Some(ArgumentsList::from_mut_slice(&mut [
                     k_value.unbind(),
-                    Number::try_from(k).unwrap().into().unbind(),
-                    o.into().unbind(),
+                    Number::try_from(k).unwrap().unbind().into(),
+                    o.unbind().into(),
                 ])),
                 gc.reborrow(),
             )
@@ -2867,7 +2867,7 @@ impl TypedArrayPrototype {
             // b. Set j to j + 1.
         }
         // 10. Return obj.
-        Ok(a.into().unbind())
+        Ok(a.unbind().into())
     }
 
     /// ### [23.2.3.35 %TypedArray%.prototype.values ( )](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype-%symbol.tostringtag%)
@@ -2916,13 +2916,13 @@ impl TypedArrayPrototype {
                     to_big_int_primitive(agent, value, gc.nogc())
                         .unbind()?
                         .bind(gc.nogc())
-                        .into_numeric()
+                        .into()
                 } else {
                     // 8. Else, let numericValue be ? ToNumber(value).
                     to_number_primitive(agent, value, gc.nogc())
                         .unbind()?
                         .bind(gc.nogc())
-                        .into_numeric()
+                        .into()
                 };
                 (relative_index, numeric_value)
             } else {
@@ -2940,13 +2940,13 @@ impl TypedArrayPrototype {
                     to_big_int(agent, value.unbind(), gc.reborrow())
                         .unbind()?
                         .bind(gc.nogc())
-                        .into_numeric()
+                        .into()
                 } else {
                     // 8. Else, let numericValue be ? ToNumber(value).
                     to_number(agent, value.unbind(), gc.reborrow())
                         .unbind()?
                         .bind(gc.nogc())
-                        .into_numeric()
+                        .into()
                 };
                 // SAFETY: not shared.
                 o = unsafe { scoped_o.take(agent).bind(gc.nogc()) };

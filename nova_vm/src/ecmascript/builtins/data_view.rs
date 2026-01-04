@@ -17,8 +17,8 @@ use crate::{
         rootable::HeapRootData,
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, arena_vec_access,
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -558,9 +558,9 @@ impl<'a> TryFrom<Object<'a>> for AnyDataView<'a> {
 impl From<AnyDataView<'_>> for HeapRootData {
     fn from(value: AnyDataView<'_>) -> Self {
         match value {
-            AnyDataView::DataView(dv) => Self::DataView(dv),
+            AnyDataView::DataView(dv) => Self::DataView(dv.unbind()),
             #[cfg(feature = "shared-array-buffer")]
-            AnyDataView::SharedDataView(sdv) => Self::SharedDataView(sdv),
+            AnyDataView::SharedDataView(sdv) => Self::SharedDataView(sdv.unbind()),
         }
     }
 }

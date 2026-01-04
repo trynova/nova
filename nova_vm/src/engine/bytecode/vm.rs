@@ -1416,7 +1416,7 @@ pub(crate) fn instanceof_operator<'a, 'b>(
             agent,
             inst_of_handler.unbind(),
             target.into(),
-            Some(ArgumentsList::from_mut_slice(&mut [value.into().unbind()])),
+            Some(ArgumentsList::from_mut_slice(&mut [value.unbind().into()])),
             gc.reborrow(),
         )
         .unbind()?
@@ -1591,7 +1591,7 @@ fn set_class_name<'a>(
         };
 
         let name = prop_key.convert_to_value(agent, gc.nogc());
-        set_class_name(agent, vm, name.into().unbind(), gc)
+        set_class_name(agent, vm, name.unbind().into(), gc)
     }
 }
 

@@ -587,12 +587,12 @@ impl ArrayPrototype {
 
                 let count = (final_end - from).min(len as isize - to);
                 if count <= 0 {
-                    return Ok(array.into().unbind());
+                    return Ok(array.unbind().into());
                 }
                 let data = array.as_mut_slice(agent);
                 data.copy_within((from as usize)..((from + count) as usize), to as usize);
 
-                return Ok(array.into().unbind());
+                return Ok(array.unbind().into());
             }
         }
         // 1. Let O be ? ToObject(this value).
@@ -914,7 +914,7 @@ impl ArrayPrototype {
                     let data = array.as_mut_slice(agent);
                     data[k..final_end].fill(Some(value.unbind()));
                 }
-                return Ok(array.into().unbind());
+                return Ok(array.unbind().into());
             }
         };
         let value = value.scope(agent, nogc);
@@ -2580,7 +2580,7 @@ impl ArrayPrototype {
             // functions can thus be called by shift.
             if array.is_trivial(agent) && array.is_dense(agent) {
                 array.as_mut_slice(agent).reverse();
-                return Ok(array.into().unbind());
+                return Ok(array.unbind().into());
             }
         }
 
@@ -2723,7 +2723,7 @@ impl ArrayPrototype {
                     // This will throw
                     set(
                         agent,
-                        array.into().unbind(),
+                        array.unbind().into(),
                         BUILTIN_STRING_MEMORY.length.into(),
                         0.into(),
                         true,
@@ -2748,7 +2748,7 @@ impl ArrayPrototype {
                     // This will throw
                     set(
                         agent,
-                        array.into().unbind(),
+                        array.unbind().into(),
                         BUILTIN_STRING_MEMORY.length.into(),
                         (array.len(agent) - 1).into(),
                         true,
@@ -4052,7 +4052,7 @@ impl ArrayPrototype {
             // Fast path: Set new value in cloned array.
             let cloned_array = array.to_cloned(agent);
             cloned_array.as_mut_slice(agent)[actual_index as usize] = Some(value.unbind());
-            return Ok(cloned_array.into().unbind().bind(gc.into_nogc()));
+            return Ok(cloned_array.unbind().into().bind(gc.into_nogc()));
         }
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value, nogc)

@@ -33,8 +33,8 @@ use crate::{
             agent::{ExceptionType, JsError, unwrap_try},
         },
         types::{
-            BUILTIN_STRING_MEMORY, Function,  Number, Object, PropertyKey, String,
-            TryGetResult, Value,
+            BUILTIN_STRING_MEMORY, Function, Number, Object, PropertyKey, String, TryGetResult,
+            Value,
         },
     },
     engine::{
@@ -667,7 +667,7 @@ impl RegExpPrototype {
             c.unbind(),
             Some(ArgumentsList::from_mut_slice(&mut [
                 scoped_r.get(agent).into(),
-                flags.into().unbind(),
+                flags.unbind().into(),
             ])),
             None,
             gc.reborrow(),
@@ -973,9 +973,7 @@ impl RegExpPrototype {
                     let mut replacer_args = captures
                         .into_iter()
                         .map(|s| {
-                            s.map_or(Value::Undefined, |s| {
-                                s.get(agent).into().bind(gc.nogc())
-                            })
+                            s.map_or(Value::Undefined, |s| s.get(agent).into().bind(gc.nogc()))
                         })
                         .collect::<Vec<_>>();
                     replacer_args.insert(0, matched.get(agent).into());
@@ -1313,7 +1311,7 @@ impl RegExpPrototype {
             c.unbind(),
             Some(ArgumentsList::from_mut_slice(&mut [
                 rx.get(agent).into(),
-                new_flags.into().unbind(),
+                new_flags.unbind().into(),
             ])),
             None,
             gc.reborrow(),
@@ -1433,7 +1431,7 @@ impl RegExpPrototype {
                     // 4. If lengthA = lim,
                     if length_a == lim {
                         // return A.
-                        return Ok(a_local.into().unbind());
+                        return Ok(a_local.unbind().into());
                     }
                     // 5. Set p to e.
                     p = e;

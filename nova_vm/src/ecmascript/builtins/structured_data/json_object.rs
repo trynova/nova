@@ -449,7 +449,7 @@ impl JSONObject {
             agent,
             state.replacer_function.clone(),
             key,
-            wrapper.into().unbind(),
+            wrapper.unbind().into(),
             gc.reborrow(),
         )
         .unbind()?
@@ -629,7 +629,7 @@ fn internalize_json_property<'a>(
         reviver.get(agent),
         holder.get(agent).into(),
         Some(ArgumentsList::from_mut_slice(&mut [
-            name.into().unbind(),
+            name.unbind().into(),
             val.unbind(),
         ])),
         gc,
@@ -712,7 +712,7 @@ fn get_serializable_json_property_value<'a>(
                 agent,
                 to_json.unbind(),
                 scoped_value.get(agent),
-                Some(ArgumentsList::from_mut_value(&mut key.into().unbind())),
+                Some(ArgumentsList::from_mut_value(&mut key.unbind().into())),
                 gc.reborrow(),
             )
             .unbind()?
@@ -735,9 +735,9 @@ fn get_serializable_json_property_value<'a>(
             agent,
             replacer_function.get(agent),
             // SAFETY: scoped_holder is not shared.
-            unsafe { scoped_holder.unwrap().take(agent).into().unbind() },
+            unsafe { scoped_holder.unwrap().take(agent).unbind().into() },
             Some(ArgumentsList::from_mut_slice(&mut [
-                key.into().unbind(),
+                key.unbind().into(),
                 value.unbind(),
             ])),
             gc.reborrow(),

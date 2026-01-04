@@ -23,13 +23,13 @@ use crate::{
         },
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope, bindable_handle},
         small_bigint::SmallBigInt,
         small_f64::SmallF64,
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        IntrinsicPrimitiveObjectIndexes, WorkQueues, arena_vec_access,
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, IntrinsicPrimitiveObjectIndexes, WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -89,12 +89,12 @@ impl PrimitiveObject<'_> {
 impl<'a> InternalSlots<'a> for PrimitiveObject<'a> {
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index
+        self.get(agent).object_index.unbind()
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
-            self.get(agent)
+            self.get_mut(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()
@@ -105,7 +105,8 @@ impl<'a> InternalSlots<'a> for PrimitiveObject<'a> {
         if let Some(bo) = self.get_backing_object(agent) {
             bo.object_shape(agent)
         } else {
-            self.get(agent).data.into().object_shape(agent).unwrap()
+            let primitive: Primitive = self.get(agent).data.into();
+            primitive.object_shape(agent).unwrap()
         }
     }
 
@@ -221,7 +222,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         if let Ok(string) = String::try_from(self.get(agent).data)
             && string.get_property_value(agent, property_key).is_some()
         {
-            return TryHasResult::Custom(0, self.into().bind(gc)).into();
+            return TryHasResult::Custom(0, self.bind(gc).into()).into();
         }
 
         // 1. Return ? OrdinaryHasProperty(O, P).
@@ -547,6 +548,7 @@ pub struct PrimitiveObjectRecord<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) data: PrimitiveObjectData<'a>,
 }
+bindable_handle!(PrimitiveObjectRecord);
 
 impl<'a> PrimitiveObjectRecord<'a> {
     pub(crate) const BLANK: Self = Self {

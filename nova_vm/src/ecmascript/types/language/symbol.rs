@@ -16,8 +16,8 @@ use crate::{
         rootable::HeapRootRef,
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WellKnownSymbolIndexes, WorkQueues, arena_vec_access,
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, WellKnownSymbolIndexes, WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -102,7 +102,7 @@ impl From<WellKnownSymbolIndexes> for Symbol<'static> {
 
 impl WellKnownSymbolIndexes {
     pub const fn to_property_key(self) -> PropertyKey<'static> {
-        PropertyKey::Symbol(Symbol(BaseIndex::from_index_u32(self as u32)))
+        PropertyKey::Symbol(Symbol(BaseIndex::from_index_const(self as u32 as usize)))
     }
 }
 

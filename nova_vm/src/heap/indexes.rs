@@ -23,6 +23,19 @@ use std::{any::type_name, u32};
 #[repr(transparent)]
 pub struct BaseIndex<'a, T: ?Sized>(NonZeroU32, PhantomData<T>, PhantomData<&'a GcToken>);
 
+impl<T: ?Sized> BaseIndex<'_, T> {
+    pub(crate) const fn from_index_const(index: usize) -> Self {
+        Self(
+            u32::try_from(index)
+                .ok()
+                .and_then(NonZeroU32::new)
+                .expect("BaseIndex overflow"),
+            PhantomData,
+            PhantomData,
+        )
+    }
+}
+
 // SAFETY: Marker lifetime transmute.
 unsafe impl<T: ?Sized> Bindable for BaseIndex<'_, T> {
     type Of<'a> = BaseIndex<'a, T>;
@@ -98,14 +111,14 @@ impl<T: ?Sized> BaseIndex<'_, T> {
         T: Sized,
     {
         assert!(!vec.is_empty());
-        Self::from_usize(vec.len())
+        Self::from_index(vec.len() - 1)
     }
 }
 
 impl<T> Default for BaseIndex<'_, T> {
     #[inline(always)]
     fn default() -> Self {
-        Self::from_u32_index(0)
+        Self::ZERO
     }
 }
 
@@ -129,7 +142,7 @@ impl ElementIndex<'_> {
     #[inline(always)]
     pub fn last_element_index<const N: usize>(vec: &[[Option<Value>; N]]) -> Self {
         assert!(!vec.is_empty());
-        Self::from_usize(vec.len())
+        Self::from_index(vec.len() - 1)
     }
 }
 
@@ -137,14 +150,14 @@ impl<const N: usize> Index<ElementIndex<'_>> for Vec<[Option<Value<'static>>; N]
     type Output = [Option<Value<'static>>; N];
 
     fn index(&self, index: ElementIndex) -> &Self::Output {
-        self.get(index.into_index())
+        self.get(index.get_index())
             .expect("Invalid ElementsVector: No item at index")
     }
 }
 
 impl<const N: usize> IndexMut<ElementIndex<'_>> for Vec<[Option<Value<'static>>; N]> {
     fn index_mut(&mut self, index: ElementIndex<'_>) -> &mut Self::Output {
-        self.get_mut(index.into_index())
+        self.get_mut(index.get_index())
             .expect("Invalid ElementsVector: No item at index")
     }
 }
@@ -163,7 +176,7 @@ impl PropertyKeyIndex<'_> {
     #[inline(always)]
     pub fn last_property_key_index<const N: usize>(vec: &[[Option<PropertyKey>; N]]) -> Self {
         assert!(!vec.is_empty());
-        Self::from_usize(vec.len())
+        Self::from_index(vec.len() - 1)
     }
 }
 
@@ -211,3 +224,46 @@ impl<T: ?Sized> HeapIndexHandle for BaseIndex<'_, T> {
         self.0.get() - 1
     }
 }
+
+macro_rules! index_handle {
+    ($name: tt) => {
+        crate::heap::indexes::index_handle!($name, $name);
+    };
+    ($name: ident, $variant: ident) => {
+        crate::engine::context::bindable_handle!($name);
+
+        impl crate::heap::indexes::HeapIndexHandle for $name<'_> {
+            const _DEF: Self = Self(crate::heap::indexes::BaseIndex::MAX);
+
+            #[inline]
+            fn from_index_u32(index: u32) -> Self {
+                Self(crate::heap::indexes::BaseIndex::from_index_u32(index))
+            }
+
+            #[inline]
+            fn get_index_u32(self) -> u32 {
+                self.0.get_index_u32()
+            }
+        }
+
+        impl<'a> From<$name<'a>> for crate::engine::rootable::HeapRootData {
+            #[inline(always)]
+            fn from(value: $name<'a>) -> Self {
+                Self::$variant(value)
+            }
+        }
+
+        impl TryFrom<crate::engine::rootable::HeapRootData> for $name<'_> {
+            type Error = ();
+
+            #[inline]
+            fn try_from(value: crate::engine::rootable::HeapRootData) -> Result<Self, Self::Error> {
+                match value {
+                    crate::engine::rootable::HeapRootData::$variant(data) => Ok(data),
+                    _ => Err(()),
+                }
+            }
+        }
+    };
+}
+pub(crate) use index_handle;

@@ -24,7 +24,7 @@ use crate::{
             Agent, JsResult,
             agent::{TryError, TryResult, js_result_into_try, try_result_ok, unwrap_try},
         },
-        types::{Function,  PropertyDescriptor, Value, throw_cannot_set_property},
+        types::{Function, PropertyDescriptor, Value, throw_cannot_set_property},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
@@ -181,14 +181,17 @@ where
     ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         // 1. Return OrdinaryGetOwnProperty(O, P).
         TryResult::Continue(match self.get_backing_object(agent) {
-            Some(backing_object) => ordinary_get_own_property(
-                agent,
-                self.into().bind(gc),
-                backing_object,
-                property_key,
-                cache,
-                gc,
-            ),
+            Some(backing_object) => {
+                let o: Object = self.into();
+                ordinary_get_own_property(
+                    agent,
+                    o.bind(gc),
+                    backing_object,
+                    property_key,
+                    cache,
+                    gc,
+                )
+            }
             None => None,
         })
     }
@@ -624,17 +627,22 @@ pub fn handle_try_get_result<'gc>(
             TryGetResult::Unset => Ok(Value::Undefined),
             TryGetResult::Value(value) => Ok(value.unbind().bind(gc.into_nogc())),
             TryGetResult::Get(getter) => {
-                call_function(agent, getter.unbind(), o.into().unbind(), None, gc)
+                let o: Value = o.into();
+                call_function(agent, getter.unbind(), o.unbind(), None, gc)
             }
             TryGetResult::Proxy(proxy) => {
+                let o: Value = o.into();
                 proxy
                     .unbind()
-                    .internal_get(agent, p.unbind(), o.into().unbind(), gc)
+                    .internal_get(agent, p.unbind(), o.unbind(), gc)
             }
         },
         ControlFlow::Break(b) => match b {
             TryError::Err(err) => Err(err.unbind().bind(gc.into_nogc())),
-            TryError::GcError => o.internal_get(agent, p.unbind(), o.into().unbind(), gc),
+            TryError::GcError => {
+                let receiver: Value = o.into();
+                o.internal_get(agent, p.unbind(), receiver.unbind(), gc)
+            }
         },
     }
 }
@@ -772,8 +780,7 @@ pub fn call_proxy_set<'a>(
         let succeeded = succeeded.unbind()?;
         if !succeeded {
             // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
-            let o = o
-                .into()
+            let o = Value::from(o)
                 .string_repr(agent, gc.reborrow())
                 .unbind()
                 .bind(gc.nogc());
@@ -781,7 +788,7 @@ pub fn call_proxy_set<'a>(
             let p = unsafe { scoped_p.take(agent) }.bind(gc.nogc());
             return Err(throw_cannot_set_property(
                 agent,
-                o.into().unbind(),
+                o.unbind().into(),
                 p.unbind(),
                 gc.into_nogc(),
             ));

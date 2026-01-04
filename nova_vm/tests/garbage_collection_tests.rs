@@ -45,7 +45,7 @@ fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope) {
             agent,
             property_key.unbind(),
             PropertyDescriptor {
-                value: Some(function.into().unbind()),
+                value: Some(function.unbind().into()),
                 ..Default::default()
             },
             gc,

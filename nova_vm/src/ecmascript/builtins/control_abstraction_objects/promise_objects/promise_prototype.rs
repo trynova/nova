@@ -27,7 +27,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::{CreateHeapData, WellKnownSymbolIndexes},
+    heap::{ArenaAccess, CreateHeapData, WellKnownSymbolIndexes},
 };
 
 use super::promise_abstract_operations::{
@@ -108,7 +108,7 @@ impl PromisePrototype {
         // 3. Let C be ? SpeciesConstructor(promise, %Promise%).
         let c = species_constructor(
             agent,
-            promise.into().unbind(),
+            promise.unbind().into(),
             ProtoIntrinsics::Promise,
             gc.reborrow(),
         )
@@ -141,7 +141,7 @@ impl PromisePrototype {
         // 7. Return ? Invoke(promise, "then", « thenFinally, catchFinally »).
         invoke(
             agent,
-            promise.into().unbind(),
+            promise.unbind().into(),
             BUILTIN_STRING_MEMORY.then.to_property_key(),
             Some(ArgumentsList::from_mut_slice(&mut [
                 then_finally.unbind(),
@@ -275,7 +275,7 @@ pub(crate) fn inner_promise_then(
         handler: on_rejected,
     });
 
-    match &mut promise.get(agent).promise_state {
+    match &mut promise.get_mut(agent).promise_state {
         // 9. If promise.[[PromiseState]] is pending, then
         PromiseState::Pending {
             fulfill_reactions,

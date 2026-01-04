@@ -172,10 +172,10 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseFinallyFunction<'a> {
                 // v. Return ? Invoke(p, "then", « valueThunk »).
                 invoke(
                     agent,
-                    p.into().unbind(),
+                    p.unbind().into(),
                     BUILTIN_STRING_MEMORY.then.to_property_key(),
                     Some(ArgumentsList::from_mut_value(
-                        &mut value_thunk.into().unbind(),
+                        &mut value_thunk.unbind().into(),
                     )),
                     gc,
                 )
@@ -212,9 +212,9 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseFinallyFunction<'a> {
                 // v. Return ? Invoke(p, "then", « thrower »).
                 invoke(
                     agent,
-                    p.into().unbind(),
+                    p.unbind().into(),
                     BUILTIN_STRING_MEMORY.then.to_property_key(),
-                    Some(ArgumentsList::from_mut_value(&mut thrower.into().unbind())),
+                    Some(ArgumentsList::from_mut_value(&mut thrower.unbind().into())),
                     gc,
                 )
             }

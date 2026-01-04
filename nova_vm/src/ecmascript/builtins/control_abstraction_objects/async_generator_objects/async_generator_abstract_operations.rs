@@ -27,6 +27,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
+    heap::ArenaAccess,
 };
 
 use super::{
@@ -512,19 +513,16 @@ fn async_generator_drain_queue(
     mut gc: GcScope,
 ) {
     let generator = scoped_generator.get(agent).bind(gc.nogc());
+    let data = generator.get_mut(agent);
     // Assert: generator.[[AsyncGeneratorState]] is draining-queue.
     // 2. Let queue be generator.[[AsyncGeneratorQueue]].
-    let Some(AsyncGeneratorState::DrainingQueue(queue)) =
-        &mut generator.get(agent).async_generator_state
-    else {
+    let Some(AsyncGeneratorState::DrainingQueue(queue)) = data.async_generator_state else {
         unreachable!()
     };
     // 3. If queue is empty, then
     if queue.is_empty() {
         // a. Set generator.[[AsyncGeneratorState]] to completed.
-        generator
-            .get(agent)
-            .async_generator_state
+        data.async_generator_state
             .replace(AsyncGeneratorState::Completed(Default::default()));
         // b. Return unused.
         return;
@@ -554,17 +552,14 @@ fn async_generator_drain_queue(
             };
             // ii. Perform AsyncGeneratorCompleteStep(generator, completion, true).
             async_generator_complete_step(agent, generator, completion, true, None, gc.nogc());
+            let data = generator.get_mut(agent);
             // iii. If queue is empty, then
-            let Some(AsyncGeneratorState::DrainingQueue(queue)) =
-                &mut generator.get(agent).async_generator_state
-            else {
+            let Some(AsyncGeneratorState::DrainingQueue(queue)) = data.async_generator_state else {
                 unreachable!()
             };
             if queue.is_empty() {
                 // 1. Set generator.[[AsyncGeneratorState]] to completed.
-                generator
-                    .get(agent)
-                    .async_generator_state
+                data.async_generator_state
                     .replace(AsyncGeneratorState::Completed(Default::default()));
                 // 2. Set done to true.
                 return;

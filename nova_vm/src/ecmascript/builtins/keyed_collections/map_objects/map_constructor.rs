@@ -246,7 +246,7 @@ impl MapConstructor {
             match entry {
                 hashbrown::hash_table::Entry::Occupied(occupied) => {
                     let index = *occupied.get();
-                    values[index as usize] = Some(elements.into().unbind());
+                    values[index as usize] = Some(elements.unbind().into());
                 }
                 hashbrown::hash_table::Entry::Vacant(vacant) => {
                     // b. Let entry be the Record { [[Key]]: g.[[Key]], [[Value]]: elements }.
@@ -254,7 +254,7 @@ impl MapConstructor {
                     let index = u32::try_from(values.len()).unwrap();
                     vacant.insert(index);
                     keys.push(Some(key.unbind()));
-                    values.push(Some(elements.into().unbind()));
+                    values.push(Some(elements.unbind().into()));
                 }
             }
         }
@@ -310,7 +310,7 @@ pub fn add_entries_from_iterable_map_constructor<'a>(
             let scoped_adder = bf.scope(agent, nogc);
             let using_iterator = get_method(
                 agent,
-                arr_iterable.into().unbind(),
+                arr_iterable.unbind().into(),
                 WellKnownSymbolIndexes::Iterator.into(),
                 gc.reborrow(),
             )

@@ -464,7 +464,8 @@ impl<'a> PropertyLookupCache<'a> {
     pub(crate) fn new(agent: &mut Agent, key: PropertyKey<'a>) -> PropertyLookupCache<'a> {
         let hash = key.heap_hash(agent);
         let caches = &mut agent.heap.caches;
-        let property_key_heap = PropertyKeyHeap::new(&agent.heap.strings, &agent.heap.symbols);
+        let property_key_heap =
+            PropertyKeyHeap::new(&mut agent.heap.strings, &mut agent.heap.symbols);
         let entry = caches.property_lookup_cache_lookup_table.entry(
             hash,
             |(k, _)| *k == key,

@@ -21,8 +21,8 @@ use crate::{
         rootable::HeapRootData,
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, arena_vec_access,
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -105,7 +105,7 @@ impl ArrayBuffer<'_> {
     ///
     /// `new_byte_length` must be a safe integer.
     pub(crate) fn resize(self, agent: &mut Agent, new_byte_length: usize) {
-        self.get(agent).resize(new_byte_length);
+        self.get_mut(agent).resize(new_byte_length);
     }
 
     /// Get temporary access to an ArrayBuffer's backing data block as a slice
@@ -117,7 +117,7 @@ impl ArrayBuffer<'_> {
     /// keep in mind that if JavaScript is called into the contents of the
     /// ArrayBuffer may be rewritten or reallocated.
     #[inline]
-    pub fn as_slice(self, agent: &Agent) -> &[u8] {
+    pub fn as_slice<'a>(self, agent: &'a Agent) -> &'a [u8] {
         self.get(agent).get_data_block()
     }
 
@@ -132,7 +132,7 @@ impl ArrayBuffer<'_> {
     /// ArrayBuffer may be rewritten or reallocated.
     #[inline]
     pub fn as_mut_slice(self, agent: &mut Agent) -> &mut [u8] {
-        self.get(agent).get_data_block_mut()
+        self.get(agent).buffer.get_data_block_mut()
     }
 
     /// Create a T slice from an ArrayBuffer and byte offset and length values.
@@ -327,6 +327,41 @@ impl<'a> From<AnyArrayBuffer<'a>> for Object<'a> {
             AnyArrayBuffer::ArrayBuffer(dv) => Self::ArrayBuffer(dv),
             #[cfg(feature = "shared-array-buffer")]
             AnyArrayBuffer::SharedArrayBuffer(sdv) => Self::SharedArrayBuffer(sdv),
+        }
+    }
+}
+
+impl<'a> From<AnyArrayBuffer<'a>> for Value<'a> {
+    #[inline(always)]
+    fn from(value: AnyArrayBuffer<'a>) -> Self {
+        match value {
+            AnyArrayBuffer::ArrayBuffer(dv) => Self::ArrayBuffer(dv),
+            #[cfg(feature = "shared-array-buffer")]
+            AnyArrayBuffer::SharedArrayBuffer(sdv) => Self::SharedArrayBuffer(sdv),
+        }
+    }
+}
+
+impl<'a> From<AnyArrayBuffer<'a>> for HeapRootData {
+    #[inline(always)]
+    fn from(value: AnyArrayBuffer<'a>) -> Self {
+        match value {
+            AnyArrayBuffer::ArrayBuffer(dv) => Self::ArrayBuffer(dv.unbind()),
+            #[cfg(feature = "shared-array-buffer")]
+            AnyArrayBuffer::SharedArrayBuffer(sdv) => Self::SharedArrayBuffer(sdv.unbind()),
+        }
+    }
+}
+
+impl<'a> TryFrom<Object<'a>> for AnyArrayBuffer<'a> {
+    type Error = ();
+
+    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Object::ArrayBuffer(ab) => Ok(Self::ArrayBuffer(ab)),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedArrayBuffer(sab) => Ok(Self::SharedArrayBuffer(sab)),
+            _ => Err(()),
         }
     }
 }

@@ -65,8 +65,8 @@ use crate::{
         rootable::{HeapRootData, Scopable},
     },
     heap::{
-        CompactionLists, CreateHeapData, DirectArenaAccess, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, WorkQueues, arena_vec_access,
+        ArenaAccess, CompactionLists, CreateHeapData, DirectArenaAccess, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, WorkQueues,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -118,7 +118,7 @@ impl<'ta, T: Viewable> GenericTypedArray<'ta, T> {
         let num_value = if T::IS_BIGINT {
             // 1. If O.[[ContentType]] is bigint, let numValue be ? ToBigInt(value).
             if let Ok(bigint) = BigInt::try_from(value) {
-                bigint.into_numeric()
+                bigint.into()
             } else {
                 let scoped_o = o.scope(agent, gc.nogc());
                 let bigint = to_big_int(agent, value.unbind(), gc.reborrow())
@@ -126,12 +126,12 @@ impl<'ta, T: Viewable> GenericTypedArray<'ta, T> {
                     .bind(gc.nogc());
                 // SAFETY: not shared.
                 o = unsafe { scoped_o.take(agent) }.bind(gc.nogc());
-                bigint.into_numeric()
+                bigint.into()
             }
         } else {
             // 2. Otherwise, let numValue be ? ToNumber(value).
             if let Ok(number) = Number::try_from(value) {
-                number.into_numeric()
+                number.into()
             } else {
                 let scoped_o = o.scope(agent, gc.nogc());
                 let number = to_number(agent, value.unbind(), gc.reborrow())
@@ -139,7 +139,7 @@ impl<'ta, T: Viewable> GenericTypedArray<'ta, T> {
                     .bind(gc.nogc());
                 // SAFETY: not shared.
                 o = unsafe { scoped_o.take(agent) }.bind(gc.nogc());
-                number.into_numeric()
+                number.into()
             }
         };
         o.typed_array_set_element(agent, index, num_value);
@@ -174,10 +174,10 @@ impl<'ta, T: Viewable> GenericTypedArray<'ta, T> {
         };
         let num_value = if T::IS_BIGINT {
             // 1. If O.[[ContentType]] is bigint, let numValue be ? ToBigInt(value).
-            js_result_into_try(to_big_int_primitive(agent, value, gc))?.into_numeric()
+            js_result_into_try(to_big_int_primitive(agent, value, gc))?.into()
         } else {
             // 2. Otherwise, let numValue be ? ToNumber(value).
-            js_result_into_try(to_number_primitive(agent, value, gc))?.into_numeric()
+            js_result_into_try(to_number_primitive(agent, value, gc))?.into()
         };
         o.typed_array_set_element(agent, index, num_value);
         TryResult::Continue(())
@@ -620,7 +620,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericTypedArray<'a, T> {
                 //          [[Configurable]]: true
                 //      }.
                 TryResult::Continue(Some(PropertyDescriptor {
-                    value: Some(value.into().unbind()),
+                    value: Some(value.unbind().into()),
                     writable: Some(true),
                     enumerable: Some(true),
                     configurable: Some(true),
@@ -654,8 +654,8 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericTypedArray<'a, T> {
             let numeric_index = numeric_index.into_i64();
             let result = self.is_valid_integer_index(agent, numeric_index);
             if let Some(result) = result {
-                TryHasResult::Custom(result.min(u32::MAX as usize) as u32, self.into().bind(gc))
-                    .into()
+                let o: Object = self.into();
+                TryHasResult::Custom(result.min(u32::MAX as usize) as u32, o.bind(gc)).into()
             } else {
                 TryHasResult::Unset.into()
             }
@@ -876,7 +876,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericTypedArray<'a, T> {
         if let PropertyKey::Integer(numeric_index) = property_key {
             Ok(o.unbind()
                 .typed_array_get_element(agent, numeric_index.into_i64(), gc.into_nogc())
-                .map_or(Value::Undefined, Numeric::into_value))
+                .map_or(Value::Undefined, Into::into))
         } else {
             // 2. Return ? OrdinaryGet(O, P, Receiver).
             match self.get_backing_object(agent) {
@@ -926,7 +926,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericTypedArray<'a, T> {
         if let PropertyKey::Integer(numeric_index) = property_key {
             let numeric_index = numeric_index.into_i64();
             // i. If SameValue(O, Receiver) is true, then
-            if self.into() == receiver {
+            if receiver == self.into() {
                 // 1. Perform ? TypedArraySetElement(O, numericIndex, V).
                 o.try_set_element(agent, numeric_index, value, gc)?;
                 // 2. Return true.
@@ -940,7 +940,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericTypedArray<'a, T> {
             }
         }
         // 2. Return ? OrdinarySet(O, P, V, Receiver).
-        ordinary_try_set(agent, self.into(), property_key, value, receiver, cache, gc)
+        ordinary_try_set(agent, self, property_key, value, receiver, cache, gc)
     }
 
     /// ### [10.4.5.6 \[\[Set\]\] ( P, V, Receiver )](https://tc39.es/ecma262/#sec-typedarray-set)
@@ -960,7 +960,8 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericTypedArray<'a, T> {
         if let PropertyKey::Integer(numeric_index) = property_key {
             let numeric_index = numeric_index.into_i64();
             // i. If SameValue(O, Receiver) is true, then
-            if self.into() == receiver {
+            let ov: Value = self.into();
+            if ov == receiver {
                 // 1. Perform ? TypedArraySetElement(O, numericIndex, V).
                 o.unbind().set_element(agent, numeric_index, value, gc)?;
                 // 2. Return true.
@@ -1569,13 +1570,12 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
 
                 if byte_offset == 0 && !is_resizable && byte_length == expected_byte_length {
                     // User cannot detect the switcharoo!
-                    let db = ab.get(agent).get_data_block_mut();
+                    let db = ab.get_mut(agent).get_data_block_mut();
                     core::mem::swap(db, &mut kept);
                 } else {
                     // SAFETY: All viewable types are trivially transmutable.
-                    let (head, dst, _) = unsafe {
-                        ab.get(agent).get_data_block_mut()[byte_offset..].align_to_mut::<T>()
-                    };
+                    let (head, dst, _) =
+                        unsafe { ab.as_mut_slice(agent)[byte_offset..].align_to_mut::<T>() };
                     assert!(head.is_empty());
                     // SAFETY: All viewable types are trivially transmutable.
                     let (head, kept_slice, _) = unsafe { kept.align_to::<T>() };
@@ -1693,7 +1693,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
             // e. Set k to k + 1.
         }
         // 8. Return A.
-        Ok(a.get(agent).into().unbind())
+        Ok(a.get(agent).unbind().into())
     }
 
     fn reverse(self, agent: &mut Agent, len: usize) {

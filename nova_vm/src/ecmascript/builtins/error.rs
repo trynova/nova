@@ -20,8 +20,9 @@ use crate::{
     },
     engine::context::{Bindable, GcScope, NoGcScope},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues, arena_vec_access,
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
+        arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -52,7 +53,7 @@ impl<'a> InternalSlots<'a> for Error<'a> {
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
-            self.get(agent)
+            self.get_mut(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()
@@ -301,10 +302,10 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
             && value.is_string()
         {
-            self.get(agent).message = Some(String::try_from(value.unbind()).unwrap());
+            self.get_mut(agent).message = Some(String::try_from(value.unbind()).unwrap());
             SetResult::Done.into()
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-            self.get(agent).cause = Some(value.unbind());
+            self.get_mut(agent).cause = Some(value.unbind());
             SetResult::Done.into()
         } else {
             self.create_backing_object(agent);
@@ -333,10 +334,10 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
             && value.is_string()
         {
-            self.get(agent).message = Some(String::try_from(value.unbind()).unwrap());
+            self.get_mut(agent).message = Some(String::try_from(value.unbind()).unwrap());
             Ok(true)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-            self.get(agent).cause = Some(value.unbind());
+            self.get_mut(agent).cause = Some(value.unbind());
             Ok(true)
         } else {
             self.create_backing_object(agent);
@@ -367,9 +368,9 @@ impl<'a> InternalMethods<'a> for Error<'a> {
             )),
             None => {
                 if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
-                    self.get(agent).message = None;
+                    self.get_mut(agent).message = None;
                 } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-                    self.get(agent).cause = None;
+                    self.get_mut(agent).cause = None;
                 }
                 TryResult::Continue(true)
             }
@@ -387,10 +388,10 @@ impl<'a> InternalMethods<'a> for Error<'a> {
             }
             None => {
                 let mut property_keys = Vec::with_capacity(2);
-                if self.get(agent).message.is_some() {
+                if self.get_mut(agent).message.is_some() {
                     property_keys.push(BUILTIN_STRING_MEMORY.message.into());
                 }
-                if self.get(agent).cause.is_some() {
+                if self.get_mut(agent).cause.is_some() {
                     property_keys.push(BUILTIN_STRING_MEMORY.cause.into());
                 }
                 TryResult::Continue(property_keys)

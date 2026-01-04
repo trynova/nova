@@ -22,22 +22,23 @@ use crate::{
         },
     },
     engine::{
-        context::{Bindable, GcScope, GcToken, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
+        context::{Bindable, GcScope, NoGcScope, bindable_handle},
+        rootable::Scopable,
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+    heap::{
+        ArenaAccess, CompactionLists, HeapMarkAndSweep, WorkQueues, arena_vec_access,
+        indexes::{BaseIndex, HeapIndexHandle, index_handle},
+    },
 };
-use core::{marker::PhantomData, num::NonZeroU32};
+use core::marker::PhantomData;
 pub(crate) use intrinsics::Intrinsics;
 pub(crate) use intrinsics::ProtoIntrinsics;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Realm<'a>(
-    NonZeroU32,
-    PhantomData<RealmRecord<'static>>,
-    PhantomData<&'a GcToken>,
-);
+pub struct Realm<'a>(BaseIndex<'a, RealmRecord<'static>>);
+index_handle!(Realm);
+arena_vec_access!(Realm, 'a, RealmRecord, realms);
 
 impl core::fmt::Debug for Realm<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -46,37 +47,9 @@ impl core::fmt::Debug for Realm<'_> {
 }
 
 impl<'r> Realm<'r> {
-    /// Creates a realm identififer from a usize.
-    ///
-    /// ## Panics
-    /// If the given index is greater than `u32::MAX - 1`.
-    pub(crate) const fn from_index(value: usize) -> Self {
-        assert!(value < u32::MAX as usize);
-        Self::from_u32(value as u32)
-    }
-
-    /// Creates a module identififer from a u32.
-    pub(crate) const fn from_u32(value: u32) -> Self {
-        assert!(value < u32::MAX);
-        // SAFETY: Not u32::MAX, so addition cannot overflow to 0.
-        Self(
-            unsafe { NonZeroU32::new_unchecked(value + 1) },
-            PhantomData,
-            PhantomData,
-        )
-    }
-
     pub(crate) fn last(realms: &[RealmRecord]) -> Self {
         let index = realms.len() - 1;
         Self::from_index(index)
-    }
-
-    pub(crate) const fn into_index(self) -> usize {
-        self.0.get() as usize - 1
-    }
-
-    pub(crate) const fn get_index_u32(self) -> u32 {
-        self.0.get() - 1
     }
 
     /// ### \[\[\HostDefined]]
@@ -94,7 +67,7 @@ impl<'r> Realm<'r> {
             self.get(agent).host_defined.is_none(),
             "Attempted to replace Realm's [[HostDefined]] slot data."
         );
-        self.get(agent).host_defined.replace(host_defined);
+        self.get_mut(agent).host_defined.replace(host_defined);
     }
 
     /// ### \[\[GlobalObject]]
@@ -118,34 +91,9 @@ impl<'r> Realm<'r> {
         module: AbstractModule<'gc>,
     ) {
         let requests = &agent.heap.module_request_records;
-        agent.heap.realms[self]
+        self.get_mut(&mut agent.heap.realms)
             .loaded_modules
             .insert_loaded_module(requests, request, module);
-    }
-}
-
-bindable_handle!(Realm);
-
-impl Rootable for Realm<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::Realm(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::Realm(realm) => Some(realm),
-            _ => None,
-        }
     }
 }
 
@@ -155,7 +103,7 @@ impl HeapMarkAndSweep for Realm<'static> {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        compactions.realms.shift_non_zero_u32_index(&mut self.0);
+        compactions.realms.shift_index(&mut self.0);
     }
 }
 
@@ -270,7 +218,7 @@ pub(crate) fn create_realm<'gc>(agent: &mut Agent, gc: NoGcScope<'gc, '_>) -> Re
         agent_signifier: PhantomData,
 
         // 4. Set realmRec.[[GlobalObject]] to undefined.
-        global_object: Object::Object(OrdinaryObject::_def()),
+        global_object: Object::Object(OrdinaryObject::_DEF),
 
         // 5. Set realmRec.[[GlobalEnv]] to undefined.
         global_env: None,
@@ -351,13 +299,13 @@ pub(crate) fn set_realm_global_object(
     let this_value = this_value.unwrap_or(global_object);
 
     // 4. Set realmRec.[[GlobalObject]] to globalObj.
-    realm_id.get(agent).global_object = global_object.unbind();
+    realm_id.get_mut(agent).global_object = global_object.unbind();
 
     // 5. Let newGlobalEnv be NewGlobalEnvironment(globalObj, thisValue).
     let new_global_env = new_global_environment(agent, global_object, this_value, gc);
 
     // 6. Set realmRec.[[GlobalEnv]] to newGlobalEnv.
-    realm_id.get(agent).global_env = Some(new_global_env.unbind());
+    realm_id.get_mut(agent).global_env = Some(new_global_env.unbind());
 
     // 7. Return UNUSED.
 }
@@ -414,17 +362,17 @@ pub(crate) fn set_default_global_bindings<'a>(
     {
         // 19.1.1 globalThis
         let global_env = realm_id.get(agent).global_env.bind(gc.nogc());
-        let value = global_env.unwrap().get_this_binding(agent).into().unbind();
+        let value = global_env.unwrap().get_this_binding(agent).unbind().into();
         define_property!(globalThis, value, Some(true), Some(false), Some(true));
 
         // 19.1.2 Infinity
         let value = Number::from_f64(agent, f64::INFINITY, gc.nogc())
-            .into()
-            .unbind();
+            .unbind()
+            .into();
         define_property!(Infinity, value, Some(false), Some(false), Some(false));
 
         // 19.1.3 NaN
-        let value = Number::from_f64(agent, f64::NAN, gc.nogc()).into().unbind();
+        let value = Number::from_f64(agent, f64::NAN, gc.nogc()).unbind().into();
         define_property!(NaN, value, Some(false), Some(false), Some(false));
 
         // 19.1.4 undefined
@@ -736,6 +684,7 @@ pub(crate) fn initialize_default_realm(agent: &mut Agent, gc: GcScope) {
 
 #[cfg(test)]
 mod test {
+    use crate::heap::indexes::HeapIndexHandle;
     #[allow(unused_imports)]
     use crate::{
         ecmascript::types::BuiltinFunctionHeapData,

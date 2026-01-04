@@ -49,7 +49,7 @@ use crate::{
         instanceof_operator,
         rootable::{Rootable, Scopable},
     },
-    heap::{ObjectEntry, WellKnownSymbolIndexes, element_array::ElementDescriptor},
+    heap::{ArenaAccess, ObjectEntry, WellKnownSymbolIndexes, element_array::ElementDescriptor},
 };
 
 use super::{
@@ -1318,7 +1318,7 @@ pub(crate) fn ordinary_has_instance<'a, 'b>(
     // 2. If C has a [[BoundTargetFunction]] internal slot, then
     if let Function::BoundFunction(c) = c {
         // a. Let BC be C.[[BoundTargetFunction]].
-        let bc = c.get(agent).bound_target_function.bind(gc.nogc());
+        let bc = c.bound_target_function(agent);
         // b. Return ? InstanceofOperator(O, BC).
         return instanceof_operator(agent, o, bc.unbind(), gc);
     }
@@ -1808,7 +1808,7 @@ fn enumerable_own_properties_slow<'gc, Kind: EnumerablePropertiesKind>(
             // ii. Let entry be CreateArrayFromList(« key, value »).
             let entry = create_array_from_list(
                 agent,
-                &[key_value.into().unbind(), value.unbind()],
+                &[key_value.unbind().into(), value.unbind()],
                 gc.nogc(),
             );
             // iii. Append entry to results.
@@ -1994,15 +1994,15 @@ pub(crate) fn get_function_realm<'a, 'gc>(
 ) -> JsResult<'gc, Realm<'gc>> {
     // 1. If obj has a [[Realm]] internal slot, then
     // a. Return obj.[[Realm]].
-    let obj = obj.into();
+    let obj = obj.into().bind(gc);
     match obj {
-        Object::BuiltinFunction(idx) => Ok(idx.get(agent).realm),
-        Object::ECMAScriptFunction(idx) => Ok(idx.get(agent).ecmascript_function.realm),
-        Object::BoundFunction(idx) => {
+        Object::BuiltinFunction(f) => Ok(f.realm(agent)),
+        Object::ECMAScriptFunction(f) => Ok(f.realm(agent)),
+        Object::BoundFunction(f) => {
             // 2. If obj is a bound function exotic object, then
             // a. Let boundTargetFunction be obj.[[BoundTargetFunction]].
             // b. Return ? GetFunctionRealm(boundTargetFunction).
-            get_function_realm(agent, idx.get(agent).bound_target_function, gc)
+            get_function_realm(agent, f.bound_target_function(agent), gc)
         }
         // 3. If obj is a Proxy exotic object, then
         Object::Proxy(obj) => {
@@ -2035,15 +2035,15 @@ pub(crate) fn try_get_function_realm<'a, 'gc>(
 ) -> Option<Realm<'gc>> {
     // 1. If obj has a [[Realm]] internal slot, then
     // a. Return obj.[[Realm]].
-    let obj = obj.into();
+    let obj = obj.into().bind(gc);
     match obj {
-        Object::BuiltinFunction(idx) => Some(idx.get(agent).realm),
-        Object::ECMAScriptFunction(idx) => Some(idx.get(agent).ecmascript_function.realm),
-        Object::BoundFunction(idx) => {
+        Object::BuiltinFunction(f) => Some(f.realm(agent)),
+        Object::ECMAScriptFunction(f) => Some(f.realm(agent)),
+        Object::BoundFunction(f) => {
             // 2. If obj is a bound function exotic object, then
             // a. Let boundTargetFunction be obj.[[BoundTargetFunction]].
             // b. Return ? GetFunctionRealm(boundTargetFunction).
-            try_get_function_realm(agent, idx.get(agent).bound_target_function, gc)
+            try_get_function_realm(agent, f.bound_target_function(agent), gc)
         }
         // 3. If obj is a Proxy exotic object, then
         Object::Proxy(obj) => {
@@ -2506,7 +2506,7 @@ pub(crate) fn private_get<'a>(
                 return Err(throw_no_private_name_getter_error(agent, gc.into_nogc()));
             };
             // 7. Return ? Call(getter, O).
-            call_function(agent, getter.unbind(), o.into().unbind(), None, gc)
+            call_function(agent, getter.unbind(), o.unbind().into(), None, gc)
         }
         // 2. If entry is empty, throw a TypeError exception.
         _ => Err(throw_no_private_name_error(agent, gc.into_nogc())),
@@ -2618,7 +2618,7 @@ pub(crate) fn private_set<'a>(
             call_function(
                 agent,
                 setter.unbind(),
-                o.into().unbind(),
+                o.unbind().into(),
                 Some(ArgumentsList::from_mut_value(&mut value.unbind())),
                 gc,
             )?;
@@ -2724,7 +2724,7 @@ pub(crate) fn initialize_instance_elements<'a>(
     // 4. For each element fieldRecord of fields, do
     // a. Perform ? DefineField(O, fieldRecord).
     // 5. Return unused.
-    let constructor_data = &constructor.get(agent);
+    let constructor_data = constructor.get(agent);
     if let Some(bytecode) = constructor_data.compiled_initializer_bytecode {
         // Note: The code here looks quite a bit different from what the spec
         // says. For one, the spec is bugged and doesn't consider default
@@ -2748,12 +2748,12 @@ pub(crate) fn initialize_instance_elements<'a>(
             ecmascript_code: Some(ECMAScriptCodeEvaluationState {
                 lexical_environment: Environment::Function(decl_env.unbind()),
                 variable_environment: Environment::Function(decl_env.unbind()),
-                private_environment: outer_priv_env,
+                private_environment: outer_priv_env.unbind(),
                 is_strict_mode: true,
-                source_code,
+                source_code: source_code.unbind(),
             }),
             function: Some(f.unbind()),
-            realm: constructor.get(agent).realm,
+            realm: constructor.get(agent).realm.unbind(),
             script_or_module: None,
         });
         let bytecode = bytecode.scope(agent, gc.nogc());

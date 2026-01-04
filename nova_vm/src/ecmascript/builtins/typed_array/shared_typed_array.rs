@@ -11,8 +11,7 @@ use ecmascript_atomics::{Ordering, RacySlice};
 
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::types::SHARED_FLOAT_16_ARRAY_DISCRIMINANT;
-use crate::heap::indexes::HeapIndexHandle;
-use crate::heap::{DirectArenaAccess, arena_vec_access};
+use crate::heap::ArenaAccess;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -67,8 +66,8 @@ use crate::{
         rootable::{HeapRootData, Scopable},
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues,
+        CompactionLists, CreateHeapData, DirectArenaAccess, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, WorkQueues,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -136,7 +135,7 @@ impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
         let num_value = if T::IS_BIGINT {
             // 1. If O.[[ContentType]] is bigint, let numValue be ? ToBigInt(value).
             if let Ok(bigint) = BigInt::try_from(value) {
-                bigint.into_numeric()
+                bigint.into()
             } else {
                 let scoped_o = o.scope(agent, gc.nogc());
                 let bigint = to_big_int(agent, value.unbind(), gc.reborrow())
@@ -144,12 +143,12 @@ impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
                     .bind(gc.nogc());
                 // SAFETY: not shared.
                 o = unsafe { scoped_o.take(agent) }.bind(gc.nogc());
-                bigint.into_numeric()
+                bigint.into()
             }
         } else {
             // 2. Otherwise, let numValue be ? ToNumber(value).
             if let Ok(number) = Number::try_from(value) {
-                number.into_numeric()
+                number.into()
             } else {
                 let scoped_o = o.scope(agent, gc.nogc());
                 let number = to_number(agent, value.unbind(), gc.reborrow())
@@ -157,7 +156,7 @@ impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
                     .bind(gc.nogc());
                 // SAFETY: not shared.
                 o = unsafe { scoped_o.take(agent) }.bind(gc.nogc());
-                number.into_numeric()
+                number.into()
             }
         };
         o.typed_array_set_element(agent, index, num_value);
@@ -192,10 +191,10 @@ impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
         };
         let num_value = if T::IS_BIGINT {
             // 1. If O.[[ContentType]] is bigint, let numValue be ? ToBigInt(value).
-            js_result_into_try(to_big_int_primitive(agent, value, gc))?.into_numeric()
+            js_result_into_try(to_big_int_primitive(agent, value, gc))?.into()
         } else {
             // 2. Otherwise, let numValue be ? ToNumber(value).
-            js_result_into_try(to_number_primitive(agent, value, gc))?.into_numeric()
+            js_result_into_try(to_number_primitive(agent, value, gc))?.into()
         };
         o.typed_array_set_element(agent, index, num_value);
         TryResult::Continue(())
@@ -867,7 +866,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericSharedTypedArray<'a, T> {
                 //          [[Configurable]]: true
                 //      }.
                 TryResult::Continue(Some(PropertyDescriptor {
-                    value: Some(value.into().unbind()),
+                    value: Some(value.unbind().into()),
                     writable: Some(true),
                     enumerable: Some(true),
                     configurable: Some(true),
@@ -901,7 +900,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericSharedTypedArray<'a, T> {
             let numeric_index = numeric_index.into_i64();
             let result = self.is_valid_integer_index(agent, numeric_index);
             if let Some(result) = result {
-                TryHasResult::Custom(result.min(u32::MAX as usize) as u32, self.into().bind(gc))
+                TryHasResult::Custom(result.min(u32::MAX as usize) as u32, self.bind(gc).into())
                     .into()
             } else {
                 TryHasResult::Unset.into()
@@ -1121,7 +1120,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericSharedTypedArray<'a, T> {
         if let PropertyKey::Integer(numeric_index) = property_key {
             Ok(o.unbind()
                 .typed_array_get_element(agent, numeric_index.into_i64(), gc.into_nogc())
-                .map_or(Value::Undefined, Numeric::into_value))
+                .map_or(Value::Undefined, Into::into))
         } else {
             // 2. Return ? OrdinaryGet(O, P, Receiver).
             match self.get_backing_object(agent) {
@@ -1171,7 +1170,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericSharedTypedArray<'a, T> {
         if let PropertyKey::Integer(numeric_index) = property_key {
             let numeric_index = numeric_index.into_i64();
             // i. If SameValue(O, Receiver) is true, then
-            if self.into() == receiver {
+            if receiver == self.into() {
                 // 1. Perform ? TypedArraySetElement(O, numericIndex, V).
                 o.try_set_element(agent, numeric_index, value, gc)?;
                 // 2. Return true.
@@ -1185,7 +1184,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericSharedTypedArray<'a, T> {
             }
         }
         // 2. Return ? OrdinarySet(O, P, V, Receiver).
-        ordinary_try_set(agent, self.into(), property_key, value, receiver, cache, gc)
+        ordinary_try_set(agent, self, property_key, value, receiver, cache, gc)
     }
 
     /// ### [10.4.5.6 \[\[Set\]\] ( P, V, Receiver )](https://tc39.es/ecma262/#sec-typedarray-set)
@@ -1205,7 +1204,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericSharedTypedArray<'a, T> {
         if let PropertyKey::Integer(numeric_index) = property_key {
             let numeric_index = numeric_index.into_i64();
             // i. If SameValue(O, Receiver) is true, then
-            if self.into() == receiver {
+            if receiver == o.into() {
                 // 1. Perform ? TypedArraySetElement(O, numericIndex, V).
                 o.unbind().set_element(agent, numeric_index, value, gc)?;
                 // 2. Return true.
@@ -1219,7 +1218,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericSharedTypedArray<'a, T> {
             }
         }
         // 2. Return ? OrdinarySet(O, P, V, Receiver).
-        ordinary_set(agent, self.into(), property_key, value, receiver, gc)
+        ordinary_set(agent, o.into(), property_key, value, receiver, gc)
     }
 
     /// ### [10.4.5.7 Infallible \[\[Delete\]\] ( P )](https://tc39.es/ecma262/#sec-typedarray-delete)
@@ -1512,13 +1511,13 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         for (k, k_item) in slice.iter().enumerate() {
             // b. Let kValue be ! Get(O, Pk).
             let value = T::from_storage(k_item.load(Ordering::Unordered));
-            let k_value = value.into_le_value(agent, gc.nogc()).into();
+            let k_value = value.into_le_value(agent, gc.nogc());
             let result = call_function(
                 agent,
                 callback.get(agent),
                 this_arg.get(agent),
                 Some(ArgumentsList::from_mut_slice(&mut [
-                    k_value.unbind(),
+                    k_value.unbind().into(),
                     Number::try_from(k).unwrap().into(),
                     scoped_o.get(agent).into(),
                 ])),
@@ -1561,9 +1560,8 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
                     core::mem::swap(db, &mut kept);
                 } else {
                     // SAFETY: All viewable types are trivially transmutable.
-                    let (head, dst, _) = unsafe {
-                        ab.get(agent).get_data_block_mut()[byte_offset..].align_to_mut::<T>()
-                    };
+                    let (head, dst, _) =
+                        unsafe { ab.as_mut_slice(agent)[byte_offset..].align_to_mut::<T>() };
                     assert!(head.is_empty());
                     // SAFETY: All viewable types are trivially transmutable.
                     let (head, kept_slice, _) = unsafe { kept.align_to::<T>() };
@@ -1651,14 +1649,14 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
             let pk = PropertyKey::try_from(k).unwrap();
             // b. Let kValue be ! Get(O, Pk).
             let value = T::from_storage(k_item.load(Ordering::Unordered));
-            let k_value = value.into_le_value(agent, gc.nogc()).into();
+            let k_value = value.into_le_value(agent, gc.nogc());
             // c. Let mappedValue be ? Call(callback, thisArg, « kValue, 𝔽(k), O »).
             let mapped_value = call_function(
                 agent,
                 callback_fn.get(agent),
                 this_arg.get(agent),
                 Some(ArgumentsList::from_mut_slice(&mut [
-                    k_value.unbind(),
+                    k_value.unbind().into(),
                     // SAFETY: we want the numeric value, not string.
                     unsafe { pk.into_value_unchecked() },
                     scoped_o.get(agent).into(),
@@ -1680,7 +1678,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
             // e. Set k to k + 1.
         }
         // 8. Return A.
-        Ok(a.get(agent).into().unbind())
+        Ok(a.get(agent).unbind().into())
     }
 
     fn reverse(self, agent: &mut Agent, len: usize) {
@@ -1962,15 +1960,15 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
             if error.is_some() {
                 return std::cmp::Ordering::Equal;
             }
-            let a_val = a.into_ne_value(agent, gc.nogc()).into();
-            let b_val = b.into_ne_value(agent, gc.nogc()).into();
+            let a_val = a.into_ne_value(agent, gc.nogc());
+            let b_val = b.into_ne_value(agent, gc.nogc());
             let result = call_function(
                 agent,
                 comparator.get(agent),
                 Value::Undefined,
                 Some(ArgumentsList::from_mut_slice(&mut [
-                    a_val.unbind(),
-                    b_val.unbind(),
+                    a_val.unbind().into(),
+                    b_val.unbind().into(),
                 ])),
                 gc.reborrow(),
             )
@@ -2824,19 +2822,19 @@ impl<'a> From<SharedTypedArray<'a>> for AnyTypedArray<'a> {
     #[inline(always)]
     fn from(value: SharedTypedArray<'a>) -> Self {
         match value {
-            SharedTypedArray::Int8Array(ta) => Self::Int8Array(ta),
-            SharedTypedArray::Uint8Array(ta) => Self::Uint8Array(ta),
-            SharedTypedArray::Uint8ClampedArray(ta) => Self::Uint8ClampedArray(ta),
-            SharedTypedArray::Int16Array(ta) => Self::Int16Array(ta),
-            SharedTypedArray::Uint16Array(ta) => Self::Uint16Array(ta),
-            SharedTypedArray::Int32Array(ta) => Self::Int32Array(ta),
-            SharedTypedArray::Uint32Array(ta) => Self::Uint32Array(ta),
-            SharedTypedArray::BigInt64Array(ta) => Self::BigInt64Array(ta),
-            SharedTypedArray::BigUint64Array(ta) => Self::BigUint64Array(ta),
+            SharedTypedArray::SharedInt8Array(ta) => Self::SharedInt8Array(ta),
+            SharedTypedArray::SharedUint8Array(ta) => Self::SharedUint8Array(ta),
+            SharedTypedArray::SharedUint8ClampedArray(ta) => Self::SharedUint8ClampedArray(ta),
+            SharedTypedArray::SharedInt16Array(ta) => Self::SharedInt16Array(ta),
+            SharedTypedArray::SharedUint16Array(ta) => Self::SharedUint16Array(ta),
+            SharedTypedArray::SharedInt32Array(ta) => Self::SharedInt32Array(ta),
+            SharedTypedArray::SharedUint32Array(ta) => Self::SharedUint32Array(ta),
+            SharedTypedArray::SharedBigInt64Array(ta) => Self::SharedBigInt64Array(ta),
+            SharedTypedArray::SharedBigUint64Array(ta) => Self::SharedBigUint64Array(ta),
             #[cfg(feature = "proposal-float16array")]
-            SharedTypedArray::Float16Array(ta) => Self::Float16Array(ta),
-            SharedTypedArray::Float32Array(ta) => Self::Float32Array(ta),
-            SharedTypedArray::Float64Array(ta) => Self::Float64Array(ta),
+            SharedTypedArray::SharedFloat16Array(ta) => Self::SharedFloat16Array(ta),
+            SharedTypedArray::SharedFloat32Array(ta) => Self::SharedFloat32Array(ta),
+            SharedTypedArray::SharedFloat64Array(ta) => Self::SharedFloat64Array(ta),
         }
     }
 }
@@ -2844,19 +2842,19 @@ impl<'a> From<SharedTypedArray<'a>> for Object<'a> {
     #[inline(always)]
     fn from(value: SharedTypedArray<'a>) -> Self {
         match value {
-            SharedTypedArray::Int8Array(ta) => Self::Int8Array(ta),
-            SharedTypedArray::Uint8Array(ta) => Self::Uint8Array(ta),
-            SharedTypedArray::Uint8ClampedArray(ta) => Self::Uint8ClampedArray(ta),
-            SharedTypedArray::Int16Array(ta) => Self::Int16Array(ta),
-            SharedTypedArray::Uint16Array(ta) => Self::Uint16Array(ta),
-            SharedTypedArray::Int32Array(ta) => Self::Int32Array(ta),
-            SharedTypedArray::Uint32Array(ta) => Self::Uint32Array(ta),
-            SharedTypedArray::BigInt64Array(ta) => Self::BigInt64Array(ta),
-            SharedTypedArray::BigUint64Array(ta) => Self::BigUint64Array(ta),
+            SharedTypedArray::SharedInt8Array(ta) => Self::SharedInt8Array(ta),
+            SharedTypedArray::SharedUint8Array(ta) => Self::SharedUint8Array(ta),
+            SharedTypedArray::SharedUint8ClampedArray(ta) => Self::SharedUint8ClampedArray(ta),
+            SharedTypedArray::SharedInt16Array(ta) => Self::SharedInt16Array(ta),
+            SharedTypedArray::SharedUint16Array(ta) => Self::SharedUint16Array(ta),
+            SharedTypedArray::SharedInt32Array(ta) => Self::SharedInt32Array(ta),
+            SharedTypedArray::SharedUint32Array(ta) => Self::SharedUint32Array(ta),
+            SharedTypedArray::SharedBigInt64Array(ta) => Self::SharedBigInt64Array(ta),
+            SharedTypedArray::SharedBigUint64Array(ta) => Self::SharedBigUint64Array(ta),
             #[cfg(feature = "proposal-float16array")]
-            SharedTypedArray::Float16Array(ta) => Self::Float16Array(ta),
-            SharedTypedArray::Float32Array(ta) => Self::Float32Array(ta),
-            SharedTypedArray::Float64Array(ta) => Self::Float64Array(ta),
+            SharedTypedArray::SharedFloat16Array(ta) => Self::SharedFloat16Array(ta),
+            SharedTypedArray::SharedFloat32Array(ta) => Self::SharedFloat32Array(ta),
+            SharedTypedArray::SharedFloat64Array(ta) => Self::SharedFloat64Array(ta),
         }
     }
 }
@@ -2864,19 +2862,19 @@ impl<'a> From<SharedTypedArray<'a>> for Value<'a> {
     #[inline(always)]
     fn from(value: SharedTypedArray<'a>) -> Self {
         match value {
-            SharedTypedArray::Int8Array(ta) => Self::Int8Array(ta),
-            SharedTypedArray::Uint8Array(ta) => Self::Uint8Array(ta),
-            SharedTypedArray::Uint8ClampedArray(ta) => Self::Uint8ClampedArray(ta),
-            SharedTypedArray::Int16Array(ta) => Self::Int16Array(ta),
-            SharedTypedArray::Uint16Array(ta) => Self::Uint16Array(ta),
-            SharedTypedArray::Int32Array(ta) => Self::Int32Array(ta),
-            SharedTypedArray::Uint32Array(ta) => Self::Uint32Array(ta),
-            SharedTypedArray::BigInt64Array(ta) => Self::BigInt64Array(ta),
-            SharedTypedArray::BigUint64Array(ta) => Self::BigUint64Array(ta),
+            SharedTypedArray::SharedInt8Array(ta) => Self::SharedInt8Array(ta),
+            SharedTypedArray::SharedUint8Array(ta) => Self::SharedUint8Array(ta),
+            SharedTypedArray::SharedUint8ClampedArray(ta) => Self::SharedUint8ClampedArray(ta),
+            SharedTypedArray::SharedInt16Array(ta) => Self::SharedInt16Array(ta),
+            SharedTypedArray::SharedUint16Array(ta) => Self::SharedUint16Array(ta),
+            SharedTypedArray::SharedInt32Array(ta) => Self::SharedInt32Array(ta),
+            SharedTypedArray::SharedUint32Array(ta) => Self::SharedUint32Array(ta),
+            SharedTypedArray::SharedBigInt64Array(ta) => Self::SharedBigInt64Array(ta),
+            SharedTypedArray::SharedBigUint64Array(ta) => Self::SharedBigUint64Array(ta),
             #[cfg(feature = "proposal-float16array")]
-            SharedTypedArray::Float16Array(ta) => Self::Float16Array(ta),
-            SharedTypedArray::Float32Array(ta) => Self::Float32Array(ta),
-            SharedTypedArray::Float64Array(ta) => Self::Float64Array(ta),
+            SharedTypedArray::SharedFloat16Array(ta) => Self::SharedFloat16Array(ta),
+            SharedTypedArray::SharedFloat32Array(ta) => Self::SharedFloat32Array(ta),
+            SharedTypedArray::SharedFloat64Array(ta) => Self::SharedFloat64Array(ta),
         }
     }
 }
@@ -2884,19 +2882,19 @@ impl<'a> From<SharedTypedArray<'a>> for HeapRootData {
     #[inline(always)]
     fn from(value: SharedTypedArray<'a>) -> Self {
         match value {
-            SharedTypedArray::Int8Array(ta) => Self::Int8Array(ta),
-            SharedTypedArray::Uint8Array(ta) => Self::Uint8Array(ta),
-            SharedTypedArray::Uint8ClampedArray(ta) => Self::Uint8ClampedArray(ta),
-            SharedTypedArray::Int16Array(ta) => Self::Int16Array(ta),
-            SharedTypedArray::Uint16Array(ta) => Self::Uint16Array(ta),
-            SharedTypedArray::Int32Array(ta) => Self::Int32Array(ta),
-            SharedTypedArray::Uint32Array(ta) => Self::Uint32Array(ta),
-            SharedTypedArray::BigInt64Array(ta) => Self::BigInt64Array(ta),
-            SharedTypedArray::BigUint64Array(ta) => Self::BigUint64Array(ta),
+            SharedTypedArray::SharedInt8Array(ta) => Self::SharedInt8Array(ta),
+            SharedTypedArray::SharedUint8Array(ta) => Self::SharedUint8Array(ta),
+            SharedTypedArray::SharedUint8ClampedArray(ta) => Self::SharedUint8ClampedArray(ta),
+            SharedTypedArray::SharedInt16Array(ta) => Self::SharedInt16Array(ta),
+            SharedTypedArray::SharedUint16Array(ta) => Self::SharedUint16Array(ta),
+            SharedTypedArray::SharedInt32Array(ta) => Self::SharedInt32Array(ta),
+            SharedTypedArray::SharedUint32Array(ta) => Self::SharedUint32Array(ta),
+            SharedTypedArray::SharedBigInt64Array(ta) => Self::SharedBigInt64Array(ta),
+            SharedTypedArray::SharedBigUint64Array(ta) => Self::SharedBigUint64Array(ta),
             #[cfg(feature = "proposal-float16array")]
-            SharedTypedArray::Float16Array(ta) => Self::Float16Array(ta),
-            SharedTypedArray::Float32Array(ta) => Self::Float32Array(ta),
-            SharedTypedArray::Float64Array(ta) => Self::Float64Array(ta),
+            SharedTypedArray::SharedFloat16Array(ta) => Self::SharedFloat16Array(ta),
+            SharedTypedArray::SharedFloat32Array(ta) => Self::SharedFloat32Array(ta),
+            SharedTypedArray::SharedFloat64Array(ta) => Self::SharedFloat64Array(ta),
         }
     }
 }

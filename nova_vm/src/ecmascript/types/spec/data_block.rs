@@ -36,6 +36,7 @@ use crate::{
         types::{BigInt, Number, Numeric, Value},
     },
     engine::context::{NoGcScope, trivially_bindable},
+    heap::ArenaAccess,
 };
 
 #[cfg(feature = "array-buffer")]
@@ -1363,11 +1364,11 @@ impl Viewable for u8 {
     const NAME: &str = "Uint8Array";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.to_be()).into_numeric()
+        Number::from(self.to_be()).into()
     }
 
     fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.to_le()).into_numeric()
+        Number::from(self.to_le()).into()
     }
 
     fn from_be_value(agent: &Agent, value: Numeric) -> Self {
@@ -1474,11 +1475,11 @@ impl Viewable for U8Clamped {
     const NAME: &str = "Uint8ClampedArray";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.0.to_be()).into_numeric()
+        Number::from(self.0.to_be()).into()
     }
 
     fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.0.to_le()).into_numeric()
+        Number::from(self.0.to_le()).into()
     }
 
     fn from_be_value(agent: &Agent, value: Numeric) -> Self {
@@ -1585,11 +1586,11 @@ impl Viewable for i8 {
     const NAME: &str = "Int8Array";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.to_be()).into_numeric()
+        Number::from(self.to_be()).into()
     }
 
     fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.to_le()).into_numeric()
+        Number::from(self.to_le()).into()
     }
 
     fn from_be_value(agent: &Agent, value: Numeric) -> Self {
@@ -1696,11 +1697,11 @@ impl Viewable for u16 {
     const NAME: &str = "Uint16Array";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.to_be()).into_numeric()
+        Number::from(self.to_be()).into()
     }
 
     fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.to_le()).into_numeric()
+        Number::from(self.to_le()).into()
     }
 
     fn from_be_value(agent: &Agent, value: Numeric) -> Self {
@@ -1807,11 +1808,11 @@ impl Viewable for i16 {
     const NAME: &str = "Int16Array";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.to_be()).into_numeric()
+        Number::from(self.to_be()).into()
     }
 
     fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.to_le()).into_numeric()
+        Number::from(self.to_le()).into()
     }
 
     fn from_be_value(agent: &Agent, value: Numeric) -> Self {
@@ -1918,11 +1919,11 @@ impl Viewable for u32 {
     const NAME: &str = "Uint32Array";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.to_be()).into_numeric()
+        Number::from(self.to_be()).into()
     }
 
     fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.to_le()).into_numeric()
+        Number::from(self.to_le()).into()
     }
 
     fn from_be_value(agent: &Agent, value: Numeric) -> Self {
@@ -2029,11 +2030,11 @@ impl Viewable for i32 {
     const NAME: &str = "Int32Array";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.to_be()).into_numeric()
+        Number::from(self.to_be()).into()
     }
 
     fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.to_le()).into_numeric()
+        Number::from(self.to_le()).into()
     }
 
     fn from_be_value(agent: &Agent, value: Numeric) -> Self {
@@ -2141,11 +2142,11 @@ impl Viewable for u64 {
     const NAME: &str = "BigUint64Array";
 
     fn into_be_value<'a>(self, agent: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        BigInt::from_u64(agent, self.to_be()).into_numeric()
+        BigInt::from_u64(agent, self.to_be()).into()
     }
 
     fn into_le_value<'a>(self, agent: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        BigInt::from_u64(agent, self.to_le()).into_numeric()
+        BigInt::from_u64(agent, self.to_le()).into()
     }
 
     fn from_be_value(agent: &Agent, value: Numeric) -> Self {
@@ -2168,7 +2169,7 @@ impl Viewable for u64 {
             return u64::try_from(value).ok();
         };
         if let Value::BigInt(value) = value {
-            let data = &value.get(agent);
+            let data = value.get(agent);
             let mut iter = data.data.iter_u64_digits();
             let sign = data.data.sign();
             if sign == Sign::Minus {
@@ -2264,11 +2265,11 @@ impl Viewable for i64 {
     const NAME: &str = "BigInt64Array";
 
     fn into_be_value<'a>(self, agent: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        BigInt::from_i64(agent, self.to_be()).into_numeric()
+        BigInt::from_i64(agent, self.to_be()).into()
     }
 
     fn into_le_value<'a>(self, agent: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        BigInt::from_i64(agent, self.to_le()).into_numeric()
+        BigInt::from_i64(agent, self.to_le()).into()
     }
 
     fn from_be_value(agent: &Agent, value: Numeric) -> Self {
@@ -2290,7 +2291,7 @@ impl Viewable for i64 {
             return Some(value.into_i64());
         };
         if let Value::BigInt(value) = value {
-            let data = &value.get(agent);
+            let data = value.get(agent);
             let mut iter = data.data.iter_u64_digits();
             if iter.len() > 1 {
                 return None;
@@ -2395,11 +2396,11 @@ impl Viewable for f16 {
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float16Array;
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(Self::from_ne_bytes(self.to_be_bytes())).into_numeric()
+        Number::from(Self::from_ne_bytes(self.to_be_bytes())).into()
     }
 
     fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(Self::from_ne_bytes(self.to_le_bytes())).into_numeric()
+        Number::from(Self::from_ne_bytes(self.to_le_bytes())).into()
     }
 
     fn from_be_value(agent: &Agent, value: Numeric) -> Self {
@@ -2527,11 +2528,11 @@ impl Viewable for f32 {
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float32Array;
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(Self::from_ne_bytes(self.to_be_bytes())).into_numeric()
+        Number::from(Self::from_ne_bytes(self.to_be_bytes())).into()
     }
 
     fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(Self::from_ne_bytes(self.to_le_bytes())).into_numeric()
+        Number::from(Self::from_ne_bytes(self.to_le_bytes())).into()
     }
 
     fn from_be_value(agent: &Agent, value: Numeric) -> Self {
@@ -2660,11 +2661,11 @@ impl Viewable for f64 {
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float64Array;
 
     fn into_be_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from_f64(agent, Self::from_ne_bytes(self.to_be_bytes()), gc).into_numeric()
+        Number::from_f64(agent, Self::from_ne_bytes(self.to_be_bytes()), gc).into()
     }
 
     fn into_le_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from_f64(agent, Self::from_ne_bytes(self.to_le_bytes()), gc).into_numeric()
+        Number::from_f64(agent, Self::from_ne_bytes(self.to_le_bytes()), gc).into()
     }
 
     fn from_be_value(agent: &Agent, value: Numeric) -> Self {

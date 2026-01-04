@@ -19,7 +19,7 @@ use crate::{
         context::{Bindable, GcScope},
         rootable::Scopable,
     },
-    heap::WellKnownSymbolIndexes,
+    heap::{ArenaAccess, WellKnownSymbolIndexes},
 };
 
 use super::{
@@ -78,7 +78,7 @@ impl AsyncGeneratorPrototype {
             match if_abrupt_reject_promise(agent, result, promise_capability.clone(), gc.nogc()) {
                 Ok(g) => g,
                 Err(p) => {
-                    return Ok(p.into().unbind());
+                    return Ok(p.unbind().into());
                 }
             };
         // 5. Let state be generator.[[AsyncGeneratorState]].
@@ -93,7 +93,7 @@ impl AsyncGeneratorPrototype {
             // b. Perform ! Call(promiseCapability.[[Resolve]], undefined, « iteratorResult »).
             promise_capability
                 .unbind()
-                .resolve(agent, iterator_result.into().unbind(), gc);
+                .resolve(agent, iterator_result.unbind().into(), gc);
             // c. Return promiseCapability.[[Promise]].
             // SAFETY: Promise has not been shared.
             return Ok(unsafe { promise.take(agent).into() });
@@ -137,7 +137,7 @@ impl AsyncGeneratorPrototype {
             match if_abrupt_reject_promise(agent, result, promise_capability.clone(), gc.nogc()) {
                 Ok(g) => g,
                 Err(p) => {
-                    return Ok(p.into().unbind());
+                    return Ok(p.unbind().into());
                 }
             };
         // 5. Let completion be ReturnCompletion(value).
@@ -172,7 +172,7 @@ impl AsyncGeneratorPrototype {
             // a. Assert: state is either executing or draining-queue.
             assert!(generator.is_active(agent));
             // 11. Return promiseCapability.[[Promise]].
-            Ok(promise.into().unbind())
+            Ok(promise.unbind().into())
         }
     }
 
@@ -207,7 +207,7 @@ impl AsyncGeneratorPrototype {
             // a. Perform ! Call(promiseCapability.[[Reject]], undefined, « exception »).
             promise_capability.reject(agent, exception, gc.nogc());
             // b. Return promiseCapability.[[Promise]].
-            return Ok(promise.into().unbind());
+            return Ok(promise.unbind().into());
         }
         // 8. Let completion be ThrowCompletion(exception).
         let completion =
@@ -231,7 +231,7 @@ impl AsyncGeneratorPrototype {
             assert!(generator.is_executing(agent) || generator.is_draining_queue(agent));
         }
         // 12. Return promiseCapability.[[Promise]].
-        Ok(promise.into().unbind())
+        Ok(promise.unbind().into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {

@@ -335,7 +335,7 @@ impl SetPrototype {
                     Some(ArgumentsList::from_mut_slice(&mut [
                         e.unbind(),
                         e.unbind(),
-                        s.into().unbind(),
+                        s.unbind().into(),
                     ])),
                     gc.reborrow(),
                 )

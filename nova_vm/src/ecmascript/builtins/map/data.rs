@@ -8,7 +8,7 @@ use crate::{
         OrdinaryObject, STRING_DISCRIMINANT, Value, bigint::HeapBigInt,
     },
     engine::context::{Bindable, bindable_handle},
-    heap::{CompactionLists, HeapMarkAndSweep, PrimitiveHeapIndexable, WorkQueues},
+    heap::{CompactionLists, HeapMarkAndSweep, PrimitiveHeapAccess, WorkQueues},
 };
 use ahash::AHasher;
 use core::{
@@ -65,7 +65,7 @@ impl<'map, 'soa> MapHeapDataMut<'map, 'soa> {
         self.keys.fill(None);
     }
 
-    pub(crate) fn rehash_if_needed_mut(&mut self, arena: &impl PrimitiveHeapIndexable) {
+    pub(crate) fn rehash_if_needed_mut(&mut self, arena: &impl PrimitiveHeapAccess) {
         if !*self.needs_primitive_rehashing.get_mut() {
             return;
         }
@@ -94,7 +94,7 @@ impl<'map, 'soa> MapHeapDataRef<'map, 'soa> {
 fn rehash_map_data(
     keys: &[Option<Value>],
     map_data: &mut HashTable<u32>,
-    arena: &impl PrimitiveHeapIndexable,
+    arena: &impl PrimitiveHeapAccess,
 ) {
     let hasher = |value: Value| {
         let mut hasher = AHasher::default();

@@ -2,14 +2,16 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::marker::PhantomData;
-
 use crate::{
     ecmascript::scripts_and_modules::module::module_semantics::source_text_module_records::SourceTextModule,
     engine::{
         Executable,
-        context::{Bindable, GcScope, GcToken, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
+        context::{Bindable, GcScope, bindable_handle},
+        rootable::Scopable,
+    },
+    heap::{
+        ArenaAccess, arena_vec_access,
+        indexes::{BaseIndex, HeapIndexHandle, index_handle},
     },
 };
 use crate::{
@@ -34,29 +36,14 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct AwaitReaction<'a>(
-    u32,
-    PhantomData<AwaitReactionRecord<'static>>,
-    PhantomData<&'a GcToken>,
-);
+pub struct AwaitReaction<'a>(BaseIndex<'a, AwaitReactionRecord<'static>>);
+index_handle!(AwaitReaction);
+arena_vec_access!(AwaitReaction, 'a, AwaitReactionRecord, await_reactions);
 
 impl AwaitReaction<'_> {
-    pub(crate) const fn from_index(value: usize) -> Self {
-        assert!(value <= u32::MAX as usize);
-        Self::from_u32(value as u32)
-    }
-
-    pub(crate) const fn from_u32(value: u32) -> Self {
-        Self(value, PhantomData, PhantomData)
-    }
-
     pub(crate) fn last(scripts: &[AwaitReactionRecord]) -> Self {
         let index = scripts.len() - 1;
         Self::from_index(index)
-    }
-
-    pub(crate) const fn into_index(self) -> usize {
-        self.0 as usize
     }
 
     pub(crate) fn resume(
@@ -70,7 +57,7 @@ impl AwaitReaction<'_> {
         let value = value.bind(gc.nogc());
         // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
         // 3. c. Push asyncContext onto the execution context stack; asyncContext is now the running execution context.
-        let record = &mut reaction.get(agent);
+        let record = reaction.get_mut(agent);
         let execution_context = record.execution_context.take().unwrap();
         let vm = record.vm.take().unwrap();
         let async_function = record.async_executable.unwrap().bind(gc.nogc());
@@ -126,9 +113,9 @@ impl AwaitReaction<'_> {
             ExecutionResult::Await { vm, awaited_value } => {
                 // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
                 // 8. Remove asyncContext from the execution context stack and restore the execution context that is at the top of the execution context stack as the running execution context.
-                reaction.get(agent).vm = Some(vm);
-                reaction.get(agent).execution_context =
-                    Some(agent.pop_execution_context().unwrap());
+                let data = reaction.get_mut(agent);
+                data.vm = Some(vm);
+                data.execution_context = Some(agent.pop_execution_context().unwrap());
 
                 // `handler` corresponds to the `fulfilledClosure` and `rejectedClosure` functions,
                 // which resume execution of the function.
@@ -145,38 +132,13 @@ impl AwaitReaction<'_> {
     }
 }
 
-impl Rootable for AwaitReaction<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::AwaitReaction(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::AwaitReaction(object) => Some(object),
-            _ => None,
-        }
-    }
-}
-
-bindable_handle!(AwaitReaction);
-
 impl HeapMarkAndSweep for AwaitReaction<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.await_reactions.push(*self);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        compactions.await_reactions.shift_u32_index(&mut self.0);
+        compactions.await_reactions.shift_index(&mut self.0);
     }
 }
 

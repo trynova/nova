@@ -537,7 +537,7 @@ impl<'e> ObjectEnvironment<'e> {
                     call_function(
                         agent,
                         setter.unbind(),
-                        binding_object.into().unbind(),
+                        binding_object.unbind().into(),
                         Some(ArgumentsList::from_mut_value(&mut v.unbind())),
                         gc,
                     )?;
@@ -548,7 +548,7 @@ impl<'e> ObjectEnvironment<'e> {
                         proxy.unbind(),
                         n.unbind(),
                         v.unbind(),
-                        binding_object.into().unbind(),
+                        binding_object.unbind().into(),
                         s,
                         gc,
                     )?;

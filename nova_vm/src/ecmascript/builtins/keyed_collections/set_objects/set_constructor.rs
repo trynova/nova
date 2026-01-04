@@ -105,7 +105,7 @@ impl SetConstructor {
         // 5. Let adder be ? Get(set, "add").
         let adder = get(
             agent,
-            set.into().unbind(),
+            set.unbind().into(),
             BUILTIN_STRING_MEMORY.add.into(),
             gc.reborrow(),
         )
@@ -184,7 +184,7 @@ impl SetConstructor {
                             }
                         }
                     });
-                return Ok(set.into().unbind());
+                return Ok(set.unbind().into());
             }
         }
         // 7. Let iteratorRecord be ? GetIterator(iterable, SYNC).

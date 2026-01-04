@@ -18,6 +18,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
+    heap::{ArenaAccess, indexes::HeapIndexHandle},
 };
 
 pub(crate) struct NumberPrototype;

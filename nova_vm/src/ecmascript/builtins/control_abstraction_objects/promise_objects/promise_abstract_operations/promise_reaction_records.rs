@@ -20,7 +20,8 @@ use crate::{
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, indexes::BaseIndex,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, arena_vec_access,
+        indexes::{BaseIndex, index_handle},
     },
 };
 
@@ -145,10 +146,10 @@ pub struct PromiseReactionRecord<'a> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct PromiseReaction<'a>(BaseIndex<'a, PromiseReactionRecord<'static>>);
+index_handle!(PromiseReaction);
+arena_vec_access!(PromiseReaction, 'a, PromiseReactionRecord, promise_reaction_records);
 
 impl PromiseReaction<'_> {}
-
-bindable_handle!(PromiseReaction);
 
 impl HeapMarkAndSweep for PromiseReaction<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
@@ -161,32 +162,6 @@ impl HeapMarkAndSweep for PromiseReaction<'static> {
             .shift_index(&mut self.0);
     }
 }
-
-impl Rootable for PromiseReaction<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::PromiseReaction(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        if let HeapRootData::PromiseReaction(data) = heap_data {
-            Some(data)
-        } else {
-            None
-        }
-    }
-}
-
-bindable_handle!(PromiseReactionRecord);
 
 impl HeapMarkAndSweep for PromiseReactionRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

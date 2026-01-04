@@ -655,5 +655,5 @@ fn array_of_generic<'gc>(
     )
     .unbind()?;
 
-    Ok(scoped_a.get(agent).into().unbind())
+    Ok(scoped_a.get(agent).unbind().into())
 }

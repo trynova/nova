@@ -2,9 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::num::NonZeroU32;
-use std::marker::PhantomData;
-
 use crate::{
     ecmascript::{
         builtins::ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
@@ -19,10 +16,13 @@ use crate::{
     engine::{
         Scoped,
         bytecode::{CompileContext, NamedEvaluationParameter, instructions::Instr},
-        context::{Bindable, GcToken, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
+        context::{Bindable, NoGcScope, bindable_handle},
     },
-    heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
+    heap::{
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        arena_vec_access,
+        indexes::{BaseIndex, HeapIndexHandle, index_handle},
+    },
 };
 use oxc_ast::ast;
 
@@ -107,11 +107,9 @@ pub(crate) struct ArrowFunctionExpression {
 /// Reference to a heap-allocated executable VM bytecode.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Executable<'a>(
-    NonZeroU32,
-    PhantomData<ExecutableHeapData<'static>>,
-    PhantomData<&'a GcToken>,
-);
+pub struct Executable<'a>(BaseIndex<'a, ExecutableHeapData<'static>>);
+index_handle!(Executable);
+arena_vec_access!(Executable, 'a, ExecutableHeapData, executables);
 
 impl core::fmt::Debug for Executable<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -242,10 +240,6 @@ impl<'gc> Executable<'gc> {
         }
     }
 
-    pub(crate) fn get_index(self) -> usize {
-        (self.0.get() - 1) as usize
-    }
-
     /// SAFETY: The returned reference is valid until the Executable is garbage
     /// collected.
     #[inline]
@@ -310,11 +304,14 @@ impl<'gc> Executable<'gc> {
         &self.get(agent).function_expressions[index]
     }
 
-    fn fetch_arrow_function_expression(
+    fn fetch_arrow_function_expression<'a>(
         self,
-        agent: &Agent,
+        agent: &'a Agent,
         index: usize,
-    ) -> &ArrowFunctionExpression {
+    ) -> &'a ArrowFunctionExpression
+    where
+        'gc: 'a,
+    {
         &self.get(agent).arrow_function_expressions[index]
     }
 
@@ -441,42 +438,13 @@ impl Scoped<'_, Executable<'static>> {
     }
 }
 
-bindable_handle!(Executable);
-
-impl Rootable for Executable<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::Executable(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::Executable(object) => Some(object),
-            _ => None,
-        }
-    }
-}
-
 impl<'a> CreateHeapData<ExecutableHeapData<'a>, Executable<'a>> for Heap {
     fn create(&mut self, data: ExecutableHeapData<'a>) -> Executable<'a> {
         self.executables.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<ExecutableHeapData<'static>>();
         let index = u32::try_from(self.executables.len()).expect("Executables overflowed");
         // SAFETY: After pushing to executables, the vector cannot be empty.
-        Executable(
-            unsafe { NonZeroU32::new_unchecked(index) },
-            PhantomData,
-            PhantomData,
-        )
+        Executable(BaseIndex::from_index_u32(index))
     }
 }
 
@@ -488,9 +456,7 @@ impl HeapMarkAndSweep for Executable<'static> {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        compactions
-            .executables
-            .shift_non_zero_u32_index(&mut self.0);
+        compactions.executables.shift_index(&mut self.0);
     }
 }
 

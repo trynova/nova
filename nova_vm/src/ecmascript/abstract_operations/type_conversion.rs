@@ -39,7 +39,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope, trivially_bindable},
         rootable::Scopable,
     },
-    heap::{CreateHeapData, WellKnownSymbolIndexes},
+    heap::{ArenaAccess, CreateHeapData, WellKnownSymbolIndexes},
 };
 
 use super::{
@@ -95,7 +95,7 @@ pub(crate) fn to_primitive_object<'a, 'gc>(
     let scoped_input = input.scope(agent, gc.nogc());
     let exotic_to_prim = get_method(
         agent,
-        input.into().unbind(),
+        input.unbind().into(),
         PropertyKey::Symbol(WellKnownSymbolIndexes::ToPrimitive.into()),
         gc.reborrow(),
     )
@@ -119,7 +119,7 @@ pub(crate) fn to_primitive_object<'a, 'gc>(
         let result = call_function(
             agent,
             exotic_to_prim.unbind(),
-            scoped_input.get(agent).into().unbind(),
+            scoped_input.get(agent).unbind().into(),
             Some(ArgumentsList::from_mut_slice(&mut [hint.into()])),
             gc.reborrow(),
         )
@@ -255,11 +255,11 @@ pub(crate) fn to_numeric_primitive<'a>(
     let prim_value = prim_value.into();
     // 2. If primValue is a BigInt, return primValue.
     if let Ok(prim_value) = BigInt::try_from(prim_value) {
-        return Ok(prim_value.into_numeric());
+        return Ok(prim_value.into());
     }
 
     // 3. Return ? ToNumber(primValue).
-    to_number_primitive(agent, prim_value, gc).map(|n| n.into_numeric())
+    to_number_primitive(agent, prim_value, gc).map(|n| n.into())
 }
 
 /// ### [7.1.4 ToNumber ( argument )](https://tc39.es/ecma262/#sec-tonumber)
@@ -268,7 +268,7 @@ pub(crate) fn to_number<'a, 'gc>(
     argument: impl Into<Value<'a>>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Number<'gc>> {
-    let argument = argument.into().unbind().bind(gc.nogc());
+    let argument = argument.into().bind(gc.nogc());
     if let Ok(argument) = Primitive::try_from(argument) {
         to_number_primitive(agent, argument.unbind(), gc.into_nogc())
     } else {
@@ -1065,7 +1065,7 @@ pub(crate) fn to_big_int64_big_int(agent: &Agent, n: BigInt) -> i64 {
     match n {
         BigInt::BigInt(heap_big_int) => {
             // 3. If int64bit ≥ 2**63, return ℤ(int64bit - 2**64); otherwise return ℤ(int64bit).
-            let big_int = &heap_big_int.get(agent).data;
+            let big_int = heap_big_int.get(agent);
             let int64bit = big_int.iter_u64_digits().next().unwrap_or(0);
             let int64bit = if big_int.sign() == Sign::Minus {
                 u64::MAX - int64bit + 1
@@ -1119,7 +1119,7 @@ pub(crate) fn try_to_string<'a, 'gc>(
     argument: impl Into<Value<'a>>,
     gc: NoGcScope<'gc, '_>,
 ) -> TryResult<'gc, String<'gc>> {
-    let argument = argument.into().unbind().bind(gc);
+    let argument = argument.into().bind(gc);
     if let Ok(argument) = Primitive::try_from(argument) {
         js_result_into_try(to_string_primitive(agent, argument, gc))
     } else {
@@ -1133,7 +1133,7 @@ pub(crate) fn to_string<'a, 'gc>(
     argument: impl Into<Value<'a>>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, String<'gc>> {
-    let argument = argument.into().unbind().bind(gc.nogc());
+    let argument = argument.into().bind(gc.nogc());
     // 1. If argument is a String, return argument.
     if let Ok(argument) = Primitive::try_from(argument) {
         to_string_primitive(agent, argument.unbind(), gc.into_nogc())
@@ -1286,7 +1286,7 @@ pub(crate) fn to_object<'a>(
 /// ### [7.1.19 ToPropertyKey ( argument )](https://tc39.es/ecma262/#sec-topropertykey)
 pub(crate) fn to_property_key<'a, 'gc>(
     agent: &mut Agent,
-    argument: impl Into<Value<'a>>,
+    argument: impl Copy + Into<Value<'a>>,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, PropertyKey<'gc>> {
     // Note: Fast path and non-standard special case combined. Usually the
@@ -1327,11 +1327,11 @@ pub(crate) fn to_property_key_simple<'a, 'gc>(
     argument: impl Into<Value<'a>>,
     gc: NoGcScope<'gc, '_>,
 ) -> Option<PropertyKey<'gc>> {
-    let argument = argument.into().unbind().bind(gc);
+    let argument = argument.into().bind(gc);
     match argument {
         Value::String(_) | Value::SmallString(_) => {
             let (str, string_key) = match &argument {
-                Value::String(x) => (*x.get(agent).as_wtf8(), PropertyKey::String(*x)),
+                Value::String(x) => (x.get(agent).as_wtf8(), PropertyKey::String(*x)),
                 Value::SmallString(x) => (x.as_wtf8(), PropertyKey::SmallString(*x)),
                 _ => unreachable!(),
             };

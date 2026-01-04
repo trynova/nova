@@ -35,8 +35,8 @@ use crate::{
             agent::{ExceptionType, TryError, TryResult, js_result_into_try, try_result_into_js},
         },
         types::{
-            DataBlock, Function, InternalSlots,  Number, Numeric, Object, PropertyKey,
-            Value, Viewable, create_byte_data_block,
+            DataBlock, Function, InternalSlots, Number, Numeric, Object, PropertyKey, Value,
+            Viewable, create_byte_data_block,
         },
     },
     engine::{
@@ -976,8 +976,7 @@ fn typed_array_create_from_constructor_internal<'a>(
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, AnyTypedArray<'a>> {
     // 2. Let taRecord be ? ValidateTypedArray(newTypedArray, seq-cst).
-    let ta_record =
-        validate_typed_array(agent, new_typed_array.into(), Ordering::SeqCst, gc)?;
+    let ta_record = validate_typed_array(agent, new_typed_array.into(), Ordering::SeqCst, gc)?;
     // 3. If the number of elements in argumentList is 1 and argumentList[0] is a Number, then
     if let Some(length) = length {
         // a. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
@@ -1057,17 +1056,15 @@ pub(crate) fn typed_array_create_from_constructor_with_buffer<'a>(
     let new_typed_array = {
         let args: &mut [Value] = if let Some(length) = length {
             &mut [
-                buffer.into().unbind(),
+                buffer.unbind().into(),
                 Number::from_usize(agent, byte_offset, gc.nogc())
                     .into()
                     .unbind(),
-                Number::from_usize(agent, length, gc.nogc())
-                    .into()
-                    .unbind(),
+                Number::from_usize(agent, length, gc.nogc()).into().unbind(),
             ]
         } else {
             &mut [
-                buffer.into().unbind(),
+                buffer.unbind().into(),
                 Number::from_usize(agent, byte_offset, gc.nogc())
                     .into()
                     .unbind(),
@@ -1152,7 +1149,7 @@ pub(crate) fn typed_array_species_create_with_length<'gc>(
     // 2. Let constructor be ? SpeciesConstructor(exemplar, defaultConstructor).
     let constructor = species_constructor(
         agent,
-        exemplar.into().unbind(),
+        exemplar.unbind().into(),
         default_constructor,
         gc.reborrow(),
     )
@@ -1198,7 +1195,7 @@ pub(crate) fn typed_array_species_create_with_buffer<'a>(
     // 2. Let constructor be ? SpeciesConstructor(exemplar, defaultConstructor).
     let constructor = species_constructor(
         agent,
-        exemplar.into().unbind(),
+        exemplar.unbind().into(),
         default_constructor,
         gc.reborrow(),
     )

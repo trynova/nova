@@ -148,8 +148,8 @@ use crate::{
     heap::{
         CompactionLists, HeapMarkAndSweep, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes,
         IntrinsicObjectIndexes, IntrinsicObjectShapes, IntrinsicPrimitiveObjectIndexes, WorkQueues,
-        indexes::BaseIndex, intrinsic_function_count, intrinsic_object_count,
-        intrinsic_primitive_object_count,
+        indexes::{BaseIndex, HeapIndexHandle},
+        intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
     },
 };
 #[derive(Debug, Clone)]

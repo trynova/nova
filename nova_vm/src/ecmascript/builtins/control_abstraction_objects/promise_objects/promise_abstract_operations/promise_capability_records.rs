@@ -21,7 +21,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::Scopable,
     },
-    heap::{CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues},
+    heap::{ArenaAccess, CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues},
 };
 
 use super::promise_jobs::new_promise_resolve_thenable_job;
@@ -217,7 +217,7 @@ impl<'a> PromiseCapability<'a> {
                 promise: promise.get(agent),
                 must_be_unresolved,
             }
-            .internal_fulfill(agent, resolution.into().unbind(), gc.nogc());
+            .internal_fulfill(agent, resolution.unbind().into(), gc.nogc());
             // b. Return undefined.
             return;
         };
@@ -411,7 +411,7 @@ macro_rules! if_abrupt_reject_promise_m {
                 // a. Perform ? Call(capability.[[Reject]], undefined, « value.[[Value]] »).
                 $capability.reject($agent, err.value().unbind(), $gc.nogc());
                 // b. Return capability.[[Promise]].
-                return $capability.promise.unbind().bind($gc.into_nogc()).into();
+                return Ok($capability.promise.unbind().bind($gc.into_nogc()).into());
             }
             // 3. Else,
             Ok(value) => {

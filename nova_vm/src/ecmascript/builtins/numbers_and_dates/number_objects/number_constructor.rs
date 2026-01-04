@@ -24,7 +24,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::{CreateHeapData, IntrinsicConstructorIndexes},
+    heap::{ArenaAccess, CreateHeapData, IntrinsicConstructorIndexes},
 };
 
 /// ### [21.1.1.1 Number ( value )](https://tc39.es/ecma262/#sec-number-constructor-number-value)
@@ -118,7 +118,7 @@ impl NumberConstructor {
 
         // 3. If NewTarget is undefined, return n.
         let Some(new_target) = new_target else {
-            return Ok(n.into().unbind());
+            return Ok(n.unbind().into());
         };
 
         let n = n.scope(agent, gc.nogc());
@@ -263,7 +263,7 @@ impl NumberConstructor {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.MAX_VALUE.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, f64::MAX, gc).into().unbind()
+                        Number::from_f64(agent, f64::MAX, gc).unbind().into()
                     })
                     .with_configurable(false)
                     .with_enumerable(false)

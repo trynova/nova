@@ -19,9 +19,9 @@ use crate::{
     },
     engine::context::{Bindable, GcScope, NoGcScope},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues, arena_vec_access,
-        indexes::{BaseIndex, HeapIndexHandle},
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
+        arena_vec_access, indexes::BaseIndex,
     },
 };
 pub(crate) use abstract_operations::*;
@@ -74,7 +74,7 @@ impl<'a> RegExp<'a> {
             // call into JavaScript.
             let success = unwrap_try(ordinary_try_set(
                 agent,
-                self.into(),
+                self,
                 BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
                 last_index.get_value().unwrap().into(),
                 self.into(),
@@ -86,13 +86,13 @@ impl<'a> RegExp<'a> {
             if success {
                 // We successfully set the value, so set it in our direct
                 // data as well.
-                self.get(agent).last_index = last_index;
+                self.get_mut(agent).last_index = last_index;
             }
             success
         } else {
             // Note: lastIndex property is writable, so setting its value
             // always succeeds. We can just set this directly here.
-            self.get(agent).last_index = last_index;
+            self.get_mut(agent).last_index = last_index;
             true
         }
     }
@@ -142,12 +142,12 @@ impl<'a> InternalSlots<'a> for RegExp<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index
+        self.get(agent).object_index.unbind()
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
-            self.get(agent)
+            self.get_mut(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()
@@ -192,7 +192,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
     ) -> TryResult<'gc, TryHasResult<'gc>> {
         if property_key == BUILTIN_STRING_MEMORY.lastIndex.into() {
             // lastIndex always exists
-            TryHasResult::Custom(0, self.into().bind(gc)).into()
+            TryHasResult::Custom(0, self.bind(gc).into()).into()
         } else {
             ordinary_try_has_property(
                 agent,
@@ -304,7 +304,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
                 // call into JavaScript.
                 let success = unwrap_try(ordinary_try_set(
                     agent,
-                    self.into(),
+                    self,
                     property_key,
                     value,
                     receiver,
@@ -316,7 +316,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
                 if success {
                     // We successfully set the value, so set it in our direct
                     // data as well.
-                    self.get(agent).last_index = new_last_index;
+                    self.get_mut(agent).last_index = new_last_index;
                     SetResult::Done.into()
                 } else {
                     SetResult::Unwritable.into()
@@ -324,7 +324,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
             } else {
                 // Note: lastIndex property is writable, so setting its value
                 // always succeeds. We can just set this directly here.
-                self.get(agent).last_index = new_last_index;
+                self.get_mut(agent).last_index = new_last_index;
                 // If we we set a value that is not a valid index or undefined,
                 // we need to create the backing object and set the actual
                 // value there.

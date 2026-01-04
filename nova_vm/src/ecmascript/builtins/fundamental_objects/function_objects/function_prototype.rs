@@ -334,7 +334,7 @@ impl FunctionPrototype {
         );
         // 11. Return F.
 
-        Ok(f.into().unbind())
+        Ok(f.unbind().into())
     }
 
     fn call<'gc>(

@@ -2,10 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{
-    BigInt, BigIntHeapData, Number, Numeric, OrdinaryObject, Primitive, String, StringRecord,
-    Symbol, bigint::HeapBigInt, number::HeapNumber, string::HeapString,
-};
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
 #[cfg(feature = "proposal-float16array")]
@@ -74,7 +70,10 @@ use crate::{
             Agent, JsResult,
             agent::{TryResult, try_result_into_js},
         },
-        types::{BUILTIN_STRING_MEMORY, Object},
+        types::{
+            BUILTIN_STRING_MEMORY, BigInt, HeapNumber, HeapString, Number, Numeric, Object,
+            OrdinaryObject, Primitive, String, Symbol, bigint::HeapBigInt,
+        },
     },
     engine::{
         Scoped,
@@ -83,13 +82,15 @@ use crate::{
         small_bigint::SmallBigInt,
         small_f64::SmallF64,
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, indexes::HeapIndexHandle},
+    heap::{
+        ArenaAccess, CompactionLists, HeapMarkAndSweep, PrimitiveHeapAccess, WorkQueues,
+        indexes::HeapIndexHandle,
+    },
 };
 
 use core::{
     hash::{Hash, Hasher},
     mem::size_of,
-    ops::Index,
 };
 
 /// ## [6.1 ECMAScript Language Types](https://tc39.es/ecma262/#sec-ecmascript-language-types)
@@ -754,7 +755,7 @@ impl<'a> Value<'a> {
     /// # [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
     pub fn to_real<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, f64> {
         Ok(match self {
-            Value::Number(n) => n.get(agent),
+            Value::Number(n) => *n.get(agent),
             Value::Integer(i) => i.into_i64() as f64,
             Value::SmallF64(f) => f.into_f64(),
             // NOTE: Converting to a number should give us a nice error message.
@@ -765,9 +766,7 @@ impl<'a> Value<'a> {
     pub(crate) fn hash<H, A>(self, arena: &A, hasher: &mut H)
     where
         H: Hasher,
-        A: Index<HeapString<'a>, Output = StringRecord>
-            + Index<HeapNumber<'a>, Output = f64>
-            + Index<HeapBigInt<'a>, Output = BigIntHeapData>,
+        A: PrimitiveHeapAccess,
     {
         let discriminant = core::mem::discriminant(&self);
         match self {
@@ -779,7 +778,7 @@ impl<'a> Value<'a> {
             }
             Value::String(data) => {
                 // Skip discriminant hashing in strings
-                arena[data].data.hash(hasher);
+                data.get(arena).data.hash(hasher);
             }
             Value::SmallString(data) => {
                 data.as_wtf8().hash(hasher);
@@ -790,7 +789,7 @@ impl<'a> Value<'a> {
             }
             Value::Number(data) => {
                 // Skip discriminant hashing in numbers
-                arena[data].to_bits().hash(hasher);
+                data.get(arena).to_bits().hash(hasher);
             }
             Value::Integer(data) => {
                 data.into_i64().hash(hasher);
@@ -800,7 +799,7 @@ impl<'a> Value<'a> {
             }
             Value::BigInt(data) => {
                 // Skip dsciriminant hashing in bigint numbers
-                arena[data].data.hash(hasher);
+                data.get(arena).hash(hasher);
             }
             Value::SmallBigInt(data) => {
                 data.into_i64().hash(hasher);
@@ -1562,30 +1561,9 @@ macro_rules! value_handle {
         crate::ecmascript::types::value_handle!($name, $name);
     };
     ($name: ident, $variant: ident) => {
-        crate::engine::context::bindable_handle!($name);
-
-        impl crate::heap::indexes::HeapIndexHandle for $name<'_> {
-            const _DEF: Self = Self(crate::heap::indexes::BaseIndex::MAX);
-
-            #[inline]
-            fn from_index_u32(index: u32) -> Self {
-                Self(crate::heap::indexes::BaseIndex::from_index_u32(index))
-            }
-
-            #[inline]
-            fn get_index_u32(self) -> u32 {
-                self.0.get_index_u32()
-            }
-        }
+        crate::heap::indexes::index_handle!($name, $variant);
 
         impl<'a> From<$name<'a>> for crate::ecmascript::types::Value<'a> {
-            #[inline(always)]
-            fn from(value: $name<'a>) -> Self {
-                Self::$variant(value)
-            }
-        }
-
-        impl<'a> From<$name<'a>> for crate::engine::rootable::HeapRootData {
             #[inline(always)]
             fn from(value: $name<'a>) -> Self {
                 Self::$variant(value)
@@ -1599,18 +1577,6 @@ macro_rules! value_handle {
             fn try_from(value: crate::ecmascript::types::Value<'a>) -> Result<Self, Self::Error> {
                 match value {
                     crate::ecmascript::types::Value::$variant(data) => Ok(data),
-                    _ => Err(()),
-                }
-            }
-        }
-
-        impl TryFrom<crate::engine::rootable::HeapRootData> for $name<'_> {
-            type Error = ();
-
-            #[inline]
-            fn try_from(value: crate::engine::rootable::HeapRootData) -> Result<Self, Self::Error> {
-                match value {
-                    crate::engine::rootable::HeapRootData::$variant(data) => Ok(data),
                     _ => Err(()),
                 }
             }

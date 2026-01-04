@@ -110,8 +110,7 @@ pub(super) fn get_template_object<'a>(
             alloc_counter,
             quasi.value.raw.as_str(),
             gc,
-        )
-        .into();
+        );
         // c. Perform ! DefinePropertyOrThrow(template, prop,
         //    PropertyDescriptor {
         //        [[Value]]: cookedValue,
@@ -127,7 +126,7 @@ pub(super) fn get_template_object<'a>(
         // e. Perform ! DefinePropertyOrThrow(rawObj, prop,
         //    PropertyDescriptor {
         //        [[Value]]: rawValue,
-        raw_obj_values[prop] = Some(raw_value.unbind());
+        raw_obj_values[prop] = Some(raw_value.unbind().into());
         //        [[Writable]]: false,
         //        [[Enumerable]]: true,
         //        [[Configurable]]: false

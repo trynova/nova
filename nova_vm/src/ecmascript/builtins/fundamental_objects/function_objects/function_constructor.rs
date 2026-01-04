@@ -16,7 +16,7 @@ use crate::{
         },
         execution::{Agent, Environment, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
         scripts_and_modules::source_code::{ParseResult, SourceCode, SourceCodeType},
-        types::{BUILTIN_STRING_MEMORY, Function,  Object, Primitive, String, Value},
+        types::{BUILTIN_STRING_MEMORY, Function, Object, Primitive, String, Value},
     },
     engine::{
         context::{Bindable, GcScope},
@@ -75,7 +75,7 @@ impl FunctionConstructor {
         //   a. Perform MakeConstructor(F).
         make_constructor(agent, f.unbind(), None, None, gc.nogc());
 
-        Ok(f.into().unbind())
+        Ok(f.unbind().into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {

@@ -18,10 +18,7 @@ use crate::{
             Agent, JsResult, Realm,
             agent::{ExceptionType, try_result_into_js, try_result_into_option_js},
         },
-        types::{
-            BUILTIN_STRING_MEMORY,  Number, Object, String, Value,
-            try_get_result_into_value,
-        },
+        types::{BUILTIN_STRING_MEMORY, Number, Object, String, Value, try_get_result_into_value},
     },
     engine::{
         context::{Bindable, GcScope},
@@ -110,7 +107,7 @@ impl RegExpStringIteratorPrototype {
             // b. Return CreateIteratorResultObject(match, false).
             return create_iter_result_object(
                 agent,
-                r#match.into().unbind(),
+                r#match.unbind().into(),
                 false,
                 gc.into_nogc(),
             )
@@ -177,7 +174,7 @@ impl RegExpStringIteratorPrototype {
             r#match = unsafe { scoped_match.take(agent) }.bind(gc.nogc());
         }
         // 14. Return CreateIteratorResultObject(match, false).
-        create_iter_result_object(agent, r#match.into().unbind(), false, gc.into_nogc())
+        create_iter_result_object(agent, r#match.unbind().into(), false, gc.into_nogc())
             .map(|o| o.into())
     }
 

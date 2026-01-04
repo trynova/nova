@@ -23,8 +23,8 @@ use crate::{
         small_bigint::SmallBigInt,
     },
     heap::{
-        ArenaAccess, CompactionLists, CreateHeapData, DirectArenaAccess, Heap, HeapMarkAndSweep,
-        WorkQueues, arena_vec_access, indexes::BaseIndex,
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        arena_vec_access, indexes::BaseIndex,
     },
 };
 use core::ops::Neg;
@@ -39,7 +39,7 @@ use std::ops::{BitAnd, BitOr, BitXor};
 #[repr(transparent)]
 pub struct HeapBigInt<'a>(BaseIndex<'a, BigIntHeapData>);
 primitive_handle!(HeapBigInt, BigInt);
-arena_vec_access!(HeapBigInt, BigIntHeapData, bigints, num_bigint::BigInt);
+arena_vec_access!(HeapBigInt, BigIntHeapData, bigints, BigIntHeapData);
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum BigIntMathematicalValue {
@@ -114,12 +114,6 @@ impl<'a> TryFrom<BigInt<'a>> for SmallBigInt {
             BigInt::SmallBigInt(b) => Ok(b),
             _ => Err(()),
         }
-    }
-}
-
-impl From<SmallBigInt> for Value<'static> {
-    fn from(value: SmallBigInt) -> Self {
-        Self::SmallBigInt(value)
     }
 }
 
@@ -214,7 +208,7 @@ impl<'a> BigInt<'a> {
 
     pub fn try_into_i64(self, agent: &Agent) -> Result<i64, TryFromBigIntError<()>> {
         match self {
-            BigInt::BigInt(b) => i64::try_from(b.get(agent)),
+            BigInt::BigInt(b) => i64::try_from(&b.get(agent).data),
             BigInt::SmallBigInt(b) => Ok(b.into_i64()),
         }
     }
@@ -241,7 +235,7 @@ impl<'a> BigInt<'a> {
             // It's possible to overflow SmallBigInt limits with negation.
             BigInt::SmallBigInt(x) => Self::from_i64(agent, -x.into_i64()),
             // But it's likewise possible to "de-overflow"!
-            BigInt::BigInt(x) => Self::from_num_bigint(agent, -&x.get(agent)),
+            BigInt::BigInt(x) => Self::from_num_bigint(agent, -&x.get(agent).data),
         }
     }
 
@@ -255,7 +249,7 @@ impl<'a> BigInt<'a> {
         match x {
             BigInt::SmallBigInt(x) => BigInt::SmallBigInt(!x),
             BigInt::BigInt(x) => agent.heap.create(BigIntHeapData {
-                data: !x.get(agent),
+                data: !&x.get(agent).data,
             }),
         }
     }
@@ -274,7 +268,7 @@ impl<'a> BigInt<'a> {
         // 1. If exponent < 0ℤ, throw a RangeError exception.
         if match exponent {
             BigInt::SmallBigInt(x) if x.into_i64() < 0 => true,
-            BigInt::BigInt(x) => x.get(agent) < &0.into(),
+            BigInt::BigInt(x) => x.get(agent).data.sign() == Sign::Minus,
             _ => false,
         } {
             return Err(agent.throw_exception_with_static_message(
@@ -361,11 +355,11 @@ impl<'a> BigInt<'a> {
                 0 => BigInt::SmallBigInt(x),
                 1 => BigInt::BigInt(y),
                 x => agent.heap.create(BigIntHeapData {
-                    data: x * y.get(agent),
+                    data: x * &y.get(agent).data,
                 }),
             },
             (BigInt::BigInt(x), BigInt::BigInt(y)) => agent.heap.create(BigIntHeapData {
-                data: x.get(agent) * y.get(agent),
+                data: &x.get(agent).data * &y.get(agent).data,
             }),
         }
     }
@@ -396,7 +390,10 @@ impl<'a> BigInt<'a> {
                 if x == SmallBigInt::zero() {
                     return Ok(Self::SmallBigInt(SmallBigInt::zero()));
                 }
-                Ok(Self::from_num_bigint(agent, x.into_i64() / y.get(agent)))
+                Ok(Self::from_num_bigint(
+                    agent,
+                    x.into_i64() / &y.get(agent).data,
+                ))
             }
             (BigInt::BigInt(x), BigInt::SmallBigInt(y)) => {
                 let y = y.into_i64();
@@ -407,12 +404,13 @@ impl<'a> BigInt<'a> {
                         gc,
                     )),
                     1 => Ok(BigInt::BigInt(x)),
-                    y => Ok(Self::from_num_bigint(agent, x.get(agent) / y)),
+                    y => Ok(Self::from_num_bigint(agent, &x.get(agent).data / y)),
                 }
             }
-            (BigInt::BigInt(x), BigInt::BigInt(y)) => {
-                Ok(Self::from_num_bigint(agent, x.get(agent) / y.get(agent)))
-            }
+            (BigInt::BigInt(x), BigInt::BigInt(y)) => Ok(Self::from_num_bigint(
+                agent,
+                &x.get(agent).data / &y.get(agent).data,
+            )),
         }
     }
 
@@ -443,9 +441,10 @@ impl<'a> BigInt<'a> {
 
                 Ok(BigInt::SmallBigInt(SmallBigInt::try_from(result).unwrap()))
             }
-            (BigInt::SmallBigInt(n), BigInt::BigInt(d)) => {
-                Ok(Self::from_num_bigint(agent, n.into_i64() % d.get(agent)))
-            }
+            (BigInt::SmallBigInt(n), BigInt::BigInt(d)) => Ok(Self::from_num_bigint(
+                agent,
+                n.into_i64() % &d.get(agent).data,
+            )),
             (BigInt::BigInt(n), BigInt::SmallBigInt(d)) => {
                 if d == SmallBigInt::zero() {
                     return Err(agent.throw_exception_with_static_message(
@@ -457,14 +456,15 @@ impl<'a> BigInt<'a> {
                 Ok(Self::SmallBigInt(
                     SmallBigInt::try_from(
                         // Remainder can never be bigger than the divisor.
-                        i64::try_from(n.get(agent) % d.into_i64()).unwrap(),
+                        i64::try_from(&n.get(agent).data % d.into_i64()).unwrap(),
                     )
                     .unwrap(),
                 ))
             }
-            (BigInt::BigInt(n), BigInt::BigInt(d)) => {
-                Ok(Self::from_num_bigint(agent, n.get(agent) % d.get(agent)))
-            }
+            (BigInt::BigInt(n), BigInt::BigInt(d)) => Ok(Self::from_num_bigint(
+                agent,
+                &n.get(agent).data % &d.get(agent).data,
+            )),
         }
     }
 
@@ -482,13 +482,13 @@ impl<'a> BigInt<'a> {
                 x => {
                     // Note: Adding a heap bigint and a stack bigint can
                     // produce a stack bigint if the two have opposing signs.
-                    Self::from_num_bigint(agent, y.get(agent) + x)
+                    Self::from_num_bigint(agent, &y.get(agent).data + x)
                 }
             },
             (BigInt::BigInt(x), BigInt::BigInt(y)) => {
                 // Note: Adding two a heap bigints can produce a stack
                 // bigint if the two have opposing signs.
-                Self::from_num_bigint(agent, x.get(agent) + y.get(agent))
+                Self::from_num_bigint(agent, &x.get(agent).data + &y.get(agent).data)
             }
         }
     }
@@ -503,18 +503,18 @@ impl<'a> BigInt<'a> {
             }
             (BigInt::SmallBigInt(x), BigInt::BigInt(y)) => {
                 // Note: Subtract can produce a stack bigint.
-                Self::from_num_bigint(agent, x.into_i64() - y.get(agent))
+                Self::from_num_bigint(agent, x.into_i64() - y.get(agent).data.clone())
             }
             (BigInt::BigInt(x), BigInt::SmallBigInt(y)) => match y.into_i64() {
                 0 => BigInt::BigInt(x),
                 y => {
                     // Note: Subtract can produce a stack bigint.
-                    Self::from_num_bigint(agent, x.get(agent) - y)
+                    Self::from_num_bigint(agent, &x.get(agent).data - y)
                 }
             },
             (BigInt::BigInt(x), BigInt::BigInt(y)) => {
                 // Note: Subtract can produce a stack bigint.
-                Self::from_num_bigint(agent, x.get(agent) - y.get(agent))
+                Self::from_num_bigint(agent, &x.get(agent).data - &y.get(agent).data)
             }
         }
     }
@@ -537,16 +537,16 @@ impl<'a> BigInt<'a> {
                 left_shift_i64(agent, x.into_i64(), y.into_i64())
             }
             (BigInt::BigInt(x), BigInt::BigInt(y)) => {
-                let x = x.get(agent).clone();
-                let y = y.get(agent).clone();
+                let x = x.get(agent).data.clone();
+                let y = y.get(agent).data.clone();
                 left_shift_bigint(agent, &x, y)
             }
             (BigInt::BigInt(x), BigInt::SmallBigInt(y)) => {
-                let x = x.get(agent).clone();
+                let x = x.get(agent).data.clone();
                 left_shift_bigint(agent, &x, y.into_i64())
             }
             (BigInt::SmallBigInt(x), BigInt::BigInt(y)) => {
-                let y = y.get(agent).clone();
+                let y = y.get(agent).data.clone();
                 left_shift_i64(agent, x.into_i64(), y)
             }
         } {
@@ -575,16 +575,16 @@ impl<'a> BigInt<'a> {
                 right_shift_i64(agent, x.into_i64(), y.into_i64())
             }
             (BigInt::BigInt(x), BigInt::BigInt(y)) => {
-                let x = x.get(agent).clone();
-                let y = y.get(agent).clone();
+                let x = x.get(agent).data.clone();
+                let y = y.get(agent).data.clone();
                 right_shift_bigint(agent, &x, y)
             }
             (BigInt::BigInt(x), BigInt::SmallBigInt(y)) => {
-                let x = x.get(agent).clone();
+                let x = x.get(agent).data.clone();
                 right_shift_bigint(agent, &x, y.into_i64())
             }
             (BigInt::SmallBigInt(x), BigInt::BigInt(y)) => {
-                let y = y.get(agent).clone();
+                let y = y.get(agent).data.clone();
                 right_shift_i64(agent, x.into_i64(), y)
             }
         } {
@@ -621,15 +621,13 @@ impl<'a> BigInt<'a> {
     /// and y (a BigInt) and returns a Boolean.
     pub(crate) fn less_than<T>(agent: &'a T, x: Self, y: Self) -> bool
     where
-        HeapBigInt<'a>: ArenaAccess<T, Output = num_bigint::BigInt>,
-        T: AsRef<Vec<<HeapBigInt<'a> as DirectArenaAccess>::Data>>
-            + AsMut<Vec<<HeapBigInt<'a> as DirectArenaAccess>::Data>>,
+        HeapBigInt<'a>: ArenaAccess<T, Output = BigIntHeapData>,
     {
         // 1. If ℝ(x) < ℝ(y), return true; otherwise return false.
         match (x, y) {
             (BigInt::BigInt(_), BigInt::SmallBigInt(_)) => false,
             (BigInt::SmallBigInt(_), BigInt::BigInt(_)) => true,
-            (BigInt::BigInt(b1), BigInt::BigInt(b2)) => b1.get(agent) < b2.get(agent),
+            (BigInt::BigInt(b1), BigInt::BigInt(b2)) => &b1.get(agent).data < &b2.get(agent).data,
             (BigInt::SmallBigInt(b1), BigInt::SmallBigInt(b2)) => b1.into_i64() < b2.into_i64(),
         }
     }
@@ -640,13 +638,13 @@ impl<'a> BigInt<'a> {
     /// (a BigInt) and returns a Boolean.
     pub(crate) fn equal<T>(agent: &'a T, x: Self, y: Self) -> bool
     where
-        HeapBigInt<'a>: ArenaAccess<T, Output = num_bigint::BigInt>,
-        T: AsRef<Vec<<HeapBigInt<'a> as DirectArenaAccess>::Data>>
-            + AsMut<Vec<<HeapBigInt<'a> as DirectArenaAccess>::Data>>,
+        HeapBigInt<'a>: ArenaAccess<T, Output = BigIntHeapData>,
     {
         // 1. If ℝ(x) = ℝ(y), return true; otherwise return false.
         match (x, y) {
-            (BigInt::BigInt(x), BigInt::BigInt(y)) => x == y || x.get(agent) == y.get(agent),
+            (BigInt::BigInt(x), BigInt::BigInt(y)) => {
+                x == y || &x.get(agent).data == &y.get(agent).data
+            }
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => x == y,
             _ => false,
         }

@@ -22,9 +22,9 @@ use crate::{
         small_f64::SmallF64,
     },
     heap::{
-        ArenaAccess, CompactionLists, CreateHeapData, DirectArenaAccess, Heap, HeapMarkAndSweep,
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         WorkQueues, arena_vec_access,
-        indexes::{BaseIndex, HeapIndexHandle},
+        indexes::{BaseIndex},
     },
 };
 
@@ -135,8 +135,6 @@ impl<'a> Number<'a> {
     pub fn is_nan<T>(self, agent: &'a T) -> bool
     where
         HeapNumber<'a>: ArenaAccess<T, Output = f64>,
-        T: AsRef<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>
-            + AsMut<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>,
     {
         match self {
             Number::Number(n) => n.get(agent).is_nan(),
@@ -148,8 +146,6 @@ impl<'a> Number<'a> {
     pub fn is_pos_zero<T>(self, agent: &'a T) -> bool
     where
         HeapNumber<'a>: ArenaAccess<T, Output = f64>,
-        T: AsRef<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>
-            + AsMut<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>,
     {
         match self {
             Number::Number(n) => f64::to_bits(0.0) == f64::to_bits(*n.get(agent)),
@@ -161,8 +157,6 @@ impl<'a> Number<'a> {
     pub fn is_neg_zero<T>(self, agent: &'a T) -> bool
     where
         HeapNumber<'a>: ArenaAccess<T, Output = f64>,
-        T: AsRef<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>
-            + AsMut<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>,
     {
         match self {
             Number::Number(n) => f64::to_bits(-0.0) == f64::to_bits(*n.get(agent)),
@@ -174,11 +168,9 @@ impl<'a> Number<'a> {
     pub fn is_pos_infinity<T>(self, agent: &'a T) -> bool
     where
         HeapNumber<'a>: ArenaAccess<T, Output = f64>,
-        T: AsRef<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>
-            + AsMut<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>,
     {
         match self {
-            Number::Number(n) => n.get(agent) == f64::INFINITY,
+            Number::Number(n) => *n.get(agent) == f64::INFINITY,
             Number::Integer(_) => false,
             Number::SmallF64(n) => n.into_f64() == f64::INFINITY,
         }
@@ -187,11 +179,9 @@ impl<'a> Number<'a> {
     pub fn is_neg_infinity<T>(self, agent: &'a T) -> bool
     where
         HeapNumber<'a>: ArenaAccess<T, Output = f64>,
-        T: AsRef<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>
-            + AsMut<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>,
     {
         match self {
-            Number::Number(n) => n.get(agent) == f64::NEG_INFINITY,
+            Number::Number(n) => *n.get(agent) == f64::NEG_INFINITY,
             Number::Integer(_) => false,
             Number::SmallF64(n) => n.into_f64() == f64::NEG_INFINITY,
         }
@@ -200,8 +190,6 @@ impl<'a> Number<'a> {
     pub fn is_finite<T>(self, agent: &'a T) -> bool
     where
         HeapNumber<'a>: ArenaAccess<T, Output = f64>,
-        T: AsRef<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>
-            + AsMut<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>,
     {
         match self {
             Number::Number(n) => n.get(agent).is_finite(),
@@ -213,8 +201,6 @@ impl<'a> Number<'a> {
     pub fn is_integer<T>(self, agent: &'a T) -> bool
     where
         HeapNumber<'a>: ArenaAccess<T, Output = f64>,
-        T: AsRef<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>
-            + AsMut<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>,
     {
         match self {
             Number::Number(n) => n.get(agent).fract() == 0.0,
@@ -226,11 +212,9 @@ impl<'a> Number<'a> {
     pub fn is_nonzero<T>(self, agent: &'a T) -> bool
     where
         HeapNumber<'a>: ArenaAccess<T, Output = f64>,
-        T: AsRef<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>
-            + AsMut<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>,
     {
         match self {
-            Number::Number(n) => 0.0 != n.get(agent),
+            Number::Number(n) => &0.0 != n.get(agent),
             Number::Integer(n) => 0i64 != n.into_i64(),
             Number::SmallF64(n) => !n.into_f64().is_zero(),
         }
@@ -239,8 +223,6 @@ impl<'a> Number<'a> {
     pub fn is_pos_one<T>(self, agent: &'a T) -> bool
     where
         HeapNumber<'a>: ArenaAccess<T, Output = f64>,
-        T: AsRef<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>
-            + AsMut<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>,
     {
         // NOTE: Only the integer variant should ever return true, if any other
         // variant returns true, that's a bug as it means that our variants are
@@ -248,7 +230,7 @@ impl<'a> Number<'a> {
         match self {
             Number::Integer(n) => 1i64 == n.into_i64(),
             Number::Number(n) => {
-                debug_assert_ne!(n.get(agent), 1.0);
+                debug_assert_ne!(*n.get(agent), 1.0);
                 false
             }
             Number::SmallF64(n) => {
@@ -261,13 +243,11 @@ impl<'a> Number<'a> {
     pub fn is_neg_one<T>(self, agent: &'a T) -> bool
     where
         HeapNumber<'a>: ArenaAccess<T, Output = f64>,
-        T: AsRef<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>
-            + AsMut<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>,
     {
         match self {
             Number::Integer(n) => -1i64 == n.into_i64(),
             Number::Number(n) => {
-                debug_assert_ne!(n.get(agent), -1.0);
+                debug_assert_ne!(*n.get(agent), -1.0);
                 false
             }
             Number::SmallF64(n) => {
@@ -280,8 +260,6 @@ impl<'a> Number<'a> {
     pub fn is_sign_positive<T>(self, agent: &'a T) -> bool
     where
         HeapNumber<'a>: ArenaAccess<T, Output = f64>,
-        T: AsRef<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>
-            + AsMut<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>,
     {
         match self {
             Number::Number(n) => n.get(agent).is_sign_positive(),
@@ -293,8 +271,6 @@ impl<'a> Number<'a> {
     pub fn is_sign_negative<T>(self, agent: &'a T) -> bool
     where
         HeapNumber<'a>: ArenaAccess<T, Output = f64>,
-        T: AsRef<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>
-            + AsMut<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>,
     {
         match self {
             Number::Number(n) => n.get(agent).is_sign_negative(),
@@ -318,8 +294,6 @@ impl<'a> Number<'a> {
     pub fn into_f64<T>(self, agent: &'a T) -> f64
     where
         HeapNumber<'a>: ArenaAccess<T, Output = f64>,
-        T: AsRef<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>
-            + AsMut<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>,
     {
         match self {
             Number::Number(n) => *n.get(agent),
@@ -331,8 +305,6 @@ impl<'a> Number<'a> {
     pub fn into_f32<T>(self, agent: &'a T) -> f32
     where
         HeapNumber<'a>: ArenaAccess<T, Output = f64>,
-        T: AsRef<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>
-            + AsMut<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>,
     {
         match self {
             Number::Number(n) => *n.get(agent) as f32,
@@ -345,8 +317,6 @@ impl<'a> Number<'a> {
     pub fn into_f16<T>(self, agent: &'a T) -> f16
     where
         HeapNumber<'a>: ArenaAccess<T, Output = f64>,
-        T: AsRef<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>
-            + AsMut<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>,
     {
         match self {
             Number::Number(n) => n.get(agent) as f16,
@@ -364,8 +334,6 @@ impl<'a> Number<'a> {
     pub fn into_i64<T>(self, agent: &'a T) -> i64
     where
         HeapNumber<'a>: ArenaAccess<T, Output = f64>,
-        T: AsRef<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>
-            + AsMut<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>,
     {
         match self {
             Number::Number(n) => *n.get(agent) as i64,
@@ -383,8 +351,6 @@ impl<'a> Number<'a> {
     pub fn into_usize<T>(self, agent: &'a T) -> usize
     where
         HeapNumber<'a>: ArenaAccess<T, Output = f64>,
-        T: AsRef<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>
-            + AsMut<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>,
     {
         match self {
             Number::Number(n) => *n.get(agent) as usize,
@@ -408,8 +374,6 @@ impl<'a> Number<'a> {
     fn is<T>(agent: &'a T, x: Self, y: Self) -> bool
     where
         HeapNumber<'a>: ArenaAccess<T, Output = f64>,
-        T: AsRef<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>
-            + AsMut<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>,
     {
         match (x, y) {
             // Optimisation: First compare by-reference; only read from heap if needed.
@@ -440,7 +404,7 @@ impl<'a> Number<'a> {
             }
             (Number::SmallF64(x), Number::Number(y)) => {
                 // Optimisation: f32s should never be allocated into the heap
-                debug_assert!(x.into_f64() != y.get(agent));
+                debug_assert!(&x.into_f64() != y.get(agent));
                 false
             }
             (Number::SmallF64(x), Number::Integer(y)) => {
@@ -1061,8 +1025,6 @@ impl<'a> Number<'a> {
     pub fn equal<T>(agent: &'a T, x: Self, y: Self) -> bool
     where
         HeapNumber<'a>: ArenaAccess<T, Output = f64>,
-        T: AsRef<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>
-            + AsMut<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>,
     {
         // 1. If x is NaN, return false.
         if x.is_nan(agent) {
@@ -1097,8 +1059,6 @@ impl<'a> Number<'a> {
     pub fn same_value<T>(agent: &'a T, x: Self, y: Self) -> bool
     where
         HeapNumber<'a>: ArenaAccess<T, Output = f64>,
-        T: AsRef<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>
-            + AsMut<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>,
     {
         // 1. If x is NaN and y is NaN, return true.
         if x.is_nan(agent) && y.is_nan(agent) {
@@ -1128,8 +1088,6 @@ impl<'a> Number<'a> {
     pub fn same_value_zero<T>(agent: &'a T, x: Self, y: Self) -> bool
     where
         HeapNumber<'a>: ArenaAccess<T, Output = f64>,
-        T: AsRef<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>
-            + AsMut<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>,
     {
         // 1. If x is NaN and y is NaN, return true.
         if x.is_nan(agent) && y.is_nan(agent) {
@@ -1260,7 +1218,7 @@ impl<'a> Number<'a> {
         match x {
             Number::Number(x) => {
                 let mut buffer = ryu_js::Buffer::new();
-                String::from_string(agent, buffer.format(x.get(agent)).to_string(), gc)
+                String::from_string(agent, buffer.format(*x.get(agent)).to_string(), gc)
             }
             Number::Integer(x) => String::from_string(agent, x.into_i64().to_string(), gc),
             Number::SmallF64(x) => {
@@ -1274,8 +1232,6 @@ impl<'a> Number<'a> {
     pub(crate) fn to_real<T>(self, agent: &'a T) -> f64
     where
         HeapNumber<'a>: ArenaAccess<T, Output = f64>,
-        T: AsRef<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>
-            + AsMut<Vec<<HeapNumber<'a> as DirectArenaAccess>::Data>>,
     {
         match self {
             Self::Number(n) => *n.get(agent),

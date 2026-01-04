@@ -28,7 +28,7 @@ use crate::{
         context::{Bindable, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
-    heap::{CompactionLists, HeapMarkAndSweep, PropertyKeyHeapIndexable, WorkQueues},
+    heap::{ArenaAccess, CompactionLists, HeapMarkAndSweep, PropertyKeyHeapAccess, WorkQueues},
 };
 
 const PRIVATE_NAME_DISCRIMINANT: u8 = SYMBOL_DISCRIMINANT + 0b1000_0000;
@@ -235,7 +235,7 @@ impl<'a> PropertyKey<'a> {
         matches!(self, PropertyKey::PrivateName(_))
     }
 
-    pub(crate) fn heap_hash(self, agent: &impl PropertyKeyHeapIndexable) -> u64 {
+    pub(crate) fn heap_hash(self, agent: &impl PropertyKeyHeapAccess) -> u64 {
         let mut hasher = AHasher::default();
         match self {
             PropertyKey::Symbol(sym) => {

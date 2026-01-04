@@ -234,20 +234,18 @@ impl AtomicsObject {
                     // a. Let expected be ? ToBigInt(expectedValue).
                     // b. Let replacement be ? ToBigInt(replacementValue).
                     (
-                        BigInt::try_from(expected_value).map(|value| value.into_numeric()),
-                        BigInt::try_from(replacement_value).map(|value| value.into_numeric()),
+                        BigInt::try_from(expected_value).map(|value| value.into()),
+                        BigInt::try_from(replacement_value).map(|value| value.into()),
                     )
                 } else {
                     // a. Let expected be 𝔽(? ToIntegerOrInfinity(expectedValue)).
                     // b. Let replacement be 𝔽(? ToIntegerOrInfinity(replacementValue)).
                     (
                         Number::try_from(expected_value).map(|value| {
-                            number_convert_to_integer_or_infinity(agent, value, gc.nogc())
-                                .into_numeric()
+                            number_convert_to_integer_or_infinity(agent, value, gc.nogc()).into()
                         }),
                         Number::try_from(replacement_value).map(|value| {
-                            number_convert_to_integer_or_infinity(agent, value, gc.nogc())
-                                .into_numeric()
+                            number_convert_to_integer_or_infinity(agent, value, gc.nogc()).into()
                         }),
                     )
                 },
@@ -1130,10 +1128,10 @@ fn handle_typed_array_index_value<'gc>(
         if let (Some(byte_index_in_buffer), Ok(value)) = (
             byte_index_in_buffer,
             if ta_record.object.is_bigint() {
-                BigInt::try_from(value).map(|value| value.into_numeric())
+                BigInt::try_from(value).map(|value| value.into())
             } else {
                 Number::try_from(value).map(|value| {
-                    number_convert_to_integer_or_infinity(agent, value, gc.nogc()).into_numeric()
+                    number_convert_to_integer_or_infinity(agent, value, gc.nogc()).into()
                 })
             },
         ) {
@@ -1186,13 +1184,13 @@ fn handle_typed_array_index_value_slow<'gc>(
         to_big_int(agent, value.unbind(), gc.reborrow())
             .unbind()?
             .bind(gc.nogc())
-            .into_numeric()
+            .into()
     } else {
         // 3. Otherwise, let v be 𝔽(? ToIntegerOrInfinity(value)).
         to_integer_number_or_infinity(agent, value.unbind(), gc.reborrow())
             .unbind()?
             .bind(gc.nogc())
-            .into_numeric()
+            .into()
     };
     let v = v.unbind();
     let gc = gc.into_nogc();
@@ -1242,10 +1240,8 @@ fn handle_typed_array_index_two_values_slow<'gc>(
         .unbind()?
         .bind(gc.nogc());
         (
-            unsafe { expected.take(agent) }
-                .bind(gc.nogc())
-                .into_numeric(),
-            replacement.into_numeric(),
+            unsafe { expected.take(agent) }.bind(gc.nogc()).into(),
+            replacement.into(),
         )
     } else {
         // 5. Else,
@@ -1266,10 +1262,8 @@ fn handle_typed_array_index_two_values_slow<'gc>(
         .unbind()?
         .bind(gc.nogc());
         (
-            unsafe { expected.take(agent) }
-                .bind(gc.nogc())
-                .into_numeric(),
-            replacement.into_numeric(),
+            unsafe { expected.take(agent) }.bind(gc.nogc()).into(),
+            replacement.into(),
         )
     };
     let expected = expected.unbind();

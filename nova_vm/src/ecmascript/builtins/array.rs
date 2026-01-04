@@ -210,17 +210,17 @@ impl<'a> Array<'a> {
     /// JavaScript. This does not necessarily mean that all the slots in the
     /// array contain a Value; some may be None but those slots are setters
     /// without a matching getter and accessing them returns `undefined`.
-    pub(crate) fn is_dense(self, agent: &impl ArrayHeapIndexable<'a>) -> bool {
+    pub(crate) fn is_dense(self, agent: &impl ArrayHeapAccess<'a>) -> bool {
         self.get_elements(agent).is_dense(agent)
     }
 
     /// An array is simple if it contains no element accessor descriptors.
-    pub(crate) fn is_simple(self, agent: &impl ArrayHeapIndexable<'a>) -> bool {
+    pub(crate) fn is_simple(self, agent: &impl ArrayHeapAccess<'a>) -> bool {
         self.get_elements(agent).is_simple(agent)
     }
 
     /// An array is trivial if it contains no element descriptors.
-    pub(crate) fn is_trivial(self, agent: &impl ArrayHeapIndexable<'a>) -> bool {
+    pub(crate) fn is_trivial(self, agent: &impl ArrayHeapAccess<'a>) -> bool {
         self.get_elements(agent).is_trivial(agent)
     }
 
@@ -296,21 +296,20 @@ impl<'a> Array<'a> {
     }
 
     #[inline]
-    pub(crate) fn as_slice(self, arena: &impl ArrayHeapIndexable<'a>) -> &[Option<Value<'a>>] {
+    pub(crate) fn as_slice(self, arena: &impl ArrayHeapAccess<'a>) -> &[Option<Value<'a>>] {
+        let elvec = self.get_elements(arena);
         let elements: &ElementArrays = arena.as_ref();
-        &elements[self.get_elements(arena)]
+        elements.get_values(elvec)
     }
 
     #[inline]
     pub(crate) fn as_mut_slice(self, agent: &mut Agent) -> &mut [Option<Value<'static>>] {
-        let elements = self.get_elements(&agent.heap.arrays);
-        &mut agent.heap.elements[elements]
+        let elvec = self.get_elements(&agent.heap.arrays);
+        let elements = &mut agent.heap.elements;
+        elements.get_values_mut(elvec)
     }
 
-    pub(crate) fn get_storage(
-        self,
-        arena: &impl ArrayHeapIndexable<'a>,
-    ) -> ElementStorageRef<'_, 'a> {
+    pub(crate) fn get_storage(self, arena: &impl ArrayHeapAccess<'a>) -> ElementStorageRef<'_, 'a> {
         self.get_elements(arena).get_storage(arena)
     }
 
@@ -1168,7 +1167,7 @@ fn insert_data_descriptor(
         insert_element_descriptor(agent, elements, index, descriptor_value, descriptor);
     } else {
         agent.heap.alloc_counter += core::mem::size_of::<Option<Value>>();
-        elements.get(agent)[index as usize] =
+        agent.heap.elements.get_values_mut(elements)[index as usize] =
             Some(descriptor_value.unwrap_or(Value::Undefined).unbind());
     }
 }
@@ -1204,21 +1203,22 @@ fn insert_element_descriptor(
 
 /// A partial view to the Agent's Heap that allows accessing array heap data.
 pub(crate) struct ArrayHeap<'a> {
-    elements: &'a ElementArrays,
-    arrays: &'a SoAVec<ArrayHeapData<'static>>,
+    elements: &'a mut ElementArrays,
+    arrays: &'a mut SoAVec<ArrayHeapData<'static>>,
 }
 
 impl ArrayHeap<'_> {
     #[inline(always)]
     pub(crate) fn new<'a>(
-        elements: &'a ElementArrays,
-        arrays: &'a SoAVec<ArrayHeapData<'static>>,
+        elements: &'a mut ElementArrays,
+        arrays: &'a mut SoAVec<ArrayHeapData<'static>>,
     ) -> ArrayHeap<'a> {
         ArrayHeap { elements, arrays }
     }
 }
 
 impl AsRef<SoAVec<ArrayHeapData<'static>>> for ArrayHeap<'_> {
+    #[inline(always)]
     fn as_ref(&self) -> &SoAVec<ArrayHeapData<'static>> {
         self.arrays
     }
@@ -1231,10 +1231,27 @@ impl AsRef<ElementArrays> for ArrayHeap<'_> {
     }
 }
 
+impl AsMut<SoAVec<ArrayHeapData<'static>>> for ArrayHeap<'_> {
+    #[inline(always)]
+    fn as_mut(&mut self) -> &mut SoAVec<ArrayHeapData<'static>> {
+        self.arrays
+    }
+}
+
+impl AsMut<ElementArrays> for ArrayHeap<'_> {
+    #[inline(always)]
+    fn as_mut(&mut self) -> &mut ElementArrays {
+        self.elements
+    }
+}
+
 /// Helper trait for array indexing.
-pub(crate) trait ArrayHeapIndexable<'a>:
-    AsRef<SoAVec<ArrayHeapData<'static>>> + AsRef<ElementArrays>
+pub(crate) trait ArrayHeapAccess<'a>:
+    AsRef<SoAVec<ArrayHeapData<'static>>>
+    + AsRef<ElementArrays>
+    + AsMut<SoAVec<ArrayHeapData<'static>>>
+    + AsMut<ElementArrays>
 {
 }
-impl ArrayHeapIndexable<'_> for ArrayHeap<'_> {}
-impl ArrayHeapIndexable<'_> for Agent {}
+impl ArrayHeapAccess<'_> for ArrayHeap<'_> {}
+impl ArrayHeapAccess<'_> for Agent {}

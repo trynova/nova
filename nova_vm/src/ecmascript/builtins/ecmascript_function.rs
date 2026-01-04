@@ -43,8 +43,8 @@ use crate::{
         rootable::Scopable,
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, arena_vec_access, indexes::BaseIndex,
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, WorkQueues, arena_vec_access, indexes::BaseIndex,
     },
     ndt,
 };
@@ -317,6 +317,11 @@ impl<'a> ECMAScriptFunction<'a> {
         self.get(agent).ecmascript_function.source_code
     }
 
+    /// ### \[\[Realm]]
+    pub fn realm(self, agent: &Agent) -> Realm<'a> {
+        self.get(agent).ecmascript_function.realm
+    }
+
     /// Get a function's AST reference. This binds to the GC lifetime and is
     /// thus guaranteed to be safe.
     #[inline]
@@ -366,7 +371,7 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
 
     #[inline(always)]
     fn get_function_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index
+        self.get(agent).object_index.unbind()
     }
 
     fn set_function_backing_object(
@@ -664,7 +669,7 @@ pub(crate) fn prepare_for_ordinary_call<'a>(
             source_code,
         }),
         // 3. Set the Function of calleeContext to F.
-        function: Some(f.into().unbind()),
+        function: Some(f.unbind().into()),
         // 5. Set the Realm of calleeContext to calleeRealm.
         realm: callee_realm,
         // 6. Set the ScriptOrModule of calleeContext to F.[[ScriptOrModule]].
@@ -985,7 +990,7 @@ pub(crate) fn make_constructor<'a>(
                 // PropertyDescriptor {
                 PropertyDescriptor {
                     // [[Value]]: F,
-                    value: Some(function.into().unbind()),
+                    value: Some(function.unbind().into()),
                     // [[Writable]]: writablePrototype,
                     writable: Some(writable_prototype),
                     // [[Enumerable]]: false,
@@ -1015,7 +1020,7 @@ pub(crate) fn make_constructor<'a>(
             // PropertyDescriptor {
             PropertyDescriptor {
                 // [[Value]]: prototype,
-                value: Some(prototype.into().unbind()),
+                value: Some(prototype.unbind().into()),
                 // [[Writable]]: writablePrototype,
                 writable: Some(writable_prototype),
                 // [[Enumerable]]: false,

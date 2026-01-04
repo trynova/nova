@@ -59,10 +59,10 @@ use crate::{
         types::{InternalMethods, Object, Reference, SetResult, String, TryHasResult, Value},
     },
     engine::{
-        context::{Bindable, GcScope, GcToken, NoGcScope, bindable_handle},
+        context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, indexes::HeapIndexHandle},
 };
 
 use super::{
@@ -94,61 +94,16 @@ macro_rules! create_environment_index {
         /// stored in an [`Option`].
         #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
         #[repr(transparent)]
-        pub struct $index<'a>(NonZeroU32, PhantomData<$record>, PhantomData<&'a GcToken>);
+        pub struct $index<'a>(crate::heap::indexes::BaseIndex<'a, $record>);
+        crate::heap::indexes::index_handle!($index);
 
         impl core::fmt::Debug for $index<'_> {
             fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-                write!(f, "$index({:?})", self.get_index_u32())
-            }
-        }
-
-        impl $index<'_> {
-            /// Creates a new index from a u32.
-            ///
-            /// ## Panics
-            /// - If the value is equal to 0.
-            pub(crate) const fn from_u32(value: u32) -> Self {
-                assert!(value != 0);
-                // SAFETY: Number is not 0 and will not overflow to zero.
-                // This check is done manually to allow const context.
-                Self(
-                    unsafe { NonZeroU32::new_unchecked(value) },
-                    PhantomData,
-                    PhantomData,
+                write!(
+                    f,
+                    "$index({:?})",
+                    crate::heap::indexes::HeapIndexHandle::get_index_u32(*self)
                 )
-            }
-
-            pub(crate) const fn into_index(self) -> usize {
-                self.0.get() as usize - 1
-            }
-
-            pub(crate) const fn get_index_u32(self) -> u32 {
-                self.0.get() - 1
-            }
-        }
-
-        bindable_handle!($index);
-
-        impl Rootable for $index<'_> {
-            type RootRepr = HeapRootRef;
-
-            fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-                Err(HeapRootData::$index(value.unbind()))
-            }
-
-            fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-                Err(*value)
-            }
-
-            fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-                heap_ref
-            }
-
-            fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-                match heap_data {
-                    HeapRootData::$index(object) => Some(object),
-                    _ => None,
-                }
             }
         }
     };
@@ -989,7 +944,7 @@ impl Environments {
         _: NoGcScope<'a, '_>,
     ) -> DeclarativeEnvironment<'a> {
         self.declarative.push(env);
-        DeclarativeEnvironment::from_u32(self.declarative.len() as u32)
+        DeclarativeEnvironment::from_index_u32(self.declarative.len() as u32 - 1)
     }
 
     pub(crate) fn push_function_environment<'a>(
@@ -998,7 +953,7 @@ impl Environments {
         _: NoGcScope<'a, '_>,
     ) -> FunctionEnvironment<'a> {
         self.function.push(env);
-        FunctionEnvironment::from_u32(self.function.len() as u32)
+        FunctionEnvironment::from_index_u32(self.function.len() as u32 - 1)
     }
 
     pub(crate) fn push_global_environment<'a>(
@@ -1007,7 +962,7 @@ impl Environments {
         _: NoGcScope<'a, '_>,
     ) -> GlobalEnvironment<'a> {
         self.global.push(env);
-        GlobalEnvironment::from_u32(self.global.len() as u32)
+        GlobalEnvironment::from_index_u32(self.global.len() as u32 - 1)
     }
 
     pub(crate) fn push_module_environment<'a>(
@@ -1016,7 +971,7 @@ impl Environments {
         _: NoGcScope<'a, '_>,
     ) -> ModuleEnvironment<'a> {
         self.module.push(env);
-        ModuleEnvironment::from_u32(self.module.len() as u32)
+        ModuleEnvironment::from_index_u32(self.module.len() as u32 - 1)
     }
 
     pub(crate) fn push_object_environment<'a>(
@@ -1028,8 +983,8 @@ impl Environments {
         self.object.push(env);
         self.declarative.push(decl_env);
         (
-            ObjectEnvironment::from_u32(self.object.len() as u32),
-            DeclarativeEnvironment::from_u32(self.declarative.len() as u32),
+            ObjectEnvironment::from_index_u32(self.object.len() as u32 - 1),
+            DeclarativeEnvironment::from_index_u32(self.declarative.len() as u32 - 1),
         )
     }
 
@@ -1039,7 +994,7 @@ impl Environments {
         _: NoGcScope<'a, '_>,
     ) -> PrivateEnvironment<'a> {
         self.private.push(env);
-        PrivateEnvironment::from_u32(self.private.len() as u32)
+        PrivateEnvironment::from_index_u32(self.private.len() as u32 - 1)
     }
 
     pub(crate) fn get_declarative_environment(
@@ -1047,7 +1002,7 @@ impl Environments {
         index: DeclarativeEnvironment,
     ) -> &DeclarativeEnvironmentRecord {
         self.declarative
-            .get(index.into_index())
+            .get(index.get_index())
             .expect("DeclarativeEnvironment did not match to any vector index")
     }
 
@@ -1056,7 +1011,7 @@ impl Environments {
         index: DeclarativeEnvironment,
     ) -> &mut DeclarativeEnvironmentRecord {
         self.declarative
-            .get_mut(index.into_index())
+            .get_mut(index.get_index())
             .expect("DeclarativeEnvironment did not match to any vector index")
     }
 
@@ -1066,7 +1021,7 @@ impl Environments {
         index: FunctionEnvironment,
     ) -> &FunctionEnvironmentRecord {
         self.function
-            .get(index.into_index())
+            .get(index.get_index())
             .expect("FunctionEnvironment did not match to any vector index")
     }
 
@@ -1076,7 +1031,7 @@ impl Environments {
         index: FunctionEnvironment,
     ) -> &mut FunctionEnvironmentRecord {
         self.function
-            .get_mut(index.into_index())
+            .get_mut(index.get_index())
             .expect("FunctionEnvironment did not match to any vector index")
     }
 
@@ -1085,7 +1040,7 @@ impl Environments {
         index: ModuleEnvironment,
     ) -> &ModuleEnvironmentRecord {
         self.module
-            .get(index.into_index())
+            .get(index.get_index())
             .expect("ModuleEnvironment did not match to any vector index")
     }
 
@@ -1094,7 +1049,7 @@ impl Environments {
         index: ModuleEnvironment,
     ) -> &mut ModuleEnvironmentRecord {
         self.module
-            .get_mut(index.into_index())
+            .get_mut(index.get_index())
             .expect("ModuleEnvironment did not match to any vector index")
     }
 
@@ -1104,7 +1059,7 @@ impl Environments {
         index: GlobalEnvironment,
     ) -> &GlobalEnvironmentRecord {
         self.global
-            .get(index.into_index())
+            .get(index.get_index())
             .expect("GlobalEnvironment did not match to any vector index")
     }
 
@@ -1114,7 +1069,7 @@ impl Environments {
         index: GlobalEnvironment,
     ) -> &mut GlobalEnvironmentRecord {
         self.global
-            .get_mut(index.into_index())
+            .get_mut(index.get_index())
             .expect("GlobalEnvironment did not match to any vector index")
     }
 
@@ -1124,7 +1079,7 @@ impl Environments {
         index: ObjectEnvironment,
     ) -> &ObjectEnvironmentRecord {
         self.object
-            .get(index.into_index())
+            .get(index.get_index())
             .expect("ObjectEnvironment did not match to any vector index")
     }
 
@@ -1134,7 +1089,7 @@ impl Environments {
         index: ObjectEnvironment,
     ) -> &mut ObjectEnvironmentRecord {
         self.object
-            .get_mut(index.into_index())
+            .get_mut(index.get_index())
             .expect("ObjectEnvironment did not match to any vector index")
     }
 
@@ -1143,7 +1098,7 @@ impl Environments {
         index: PrivateEnvironment,
     ) -> &PrivateEnvironmentRecord {
         self.private
-            .get(index.into_index())
+            .get(index.get_index())
             .expect("PrivateEnvironment did not match to any vector index")
     }
 
@@ -1152,7 +1107,7 @@ impl Environments {
         index: PrivateEnvironment,
     ) -> &mut PrivateEnvironmentRecord {
         self.private
-            .get_mut(index.into_index())
+            .get_mut(index.get_index())
             .expect("PrivateEnvironment did not match to any vector index")
     }
 }

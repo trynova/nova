@@ -28,7 +28,7 @@ use crate::{
             agent::{ExceptionType, JsError, TryError, TryResult},
         },
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods,  Object, OrdinaryObject, PropertyKey,
+            BUILTIN_STRING_MEMORY, InternalMethods, Object, OrdinaryObject, PropertyKey,
             PropertyKeySet, TryGetResult, Value,
         },
     },
@@ -854,7 +854,7 @@ impl<'a> GenericIterator<'a> {
             call_function(
                 agent,
                 next_method.unbind(),
-                iterator.into().unbind(),
+                iterator.unbind().into(),
                 Some(ArgumentsList::from_mut_value(&mut value.unbind())),
                 gc,
             )
@@ -863,7 +863,7 @@ impl<'a> GenericIterator<'a> {
             call_function(
                 agent,
                 next_method.unbind(),
-                iterator.into().unbind(),
+                iterator.unbind().into(),
                 None,
                 gc,
             )
@@ -882,7 +882,7 @@ impl<'a> GenericIterator<'a> {
         let result = call_function(
             agent,
             next_method.unbind(),
-            iterator.into().unbind(),
+            iterator.unbind().into(),
             None,
             gc.reborrow(),
         )
@@ -941,7 +941,7 @@ impl<'a> GenericIterator<'a> {
             Ok(Some(call_function(
                 agent,
                 throw.unbind(),
-                iterator.into().unbind(),
+                iterator.unbind().into(),
                 // SAFETY: not shared.
                 Some(ArgumentsList::from_mut_value(&mut unsafe {
                     received_value.take(agent)
@@ -988,7 +988,7 @@ impl<'a> GenericIterator<'a> {
             Ok(Some(call_function(
                 agent,
                 r#return.unbind(),
-                iterator.into().unbind(),
+                iterator.unbind().into(),
                 value.as_mut().map(ArgumentsList::from_mut_value),
                 gc,
             )?))

@@ -1470,6 +1470,117 @@ impl<'a> CreateHeapData<ObjectRecord<'a>, OrdinaryObject<'a>> for Heap {
     }
 }
 
+impl From<Object<'_>> for HeapRootData {
+    #[inline]
+    fn from(value: Object<'_>) -> Self {
+        match value {
+            Object::Object(d) => Self::Object(d.unbind()),
+            Object::BoundFunction(d) => Self::BoundFunction(d.unbind()),
+            Object::BuiltinFunction(d) => Self::BuiltinFunction(d.unbind()),
+            Object::ECMAScriptFunction(d) => Self::ECMAScriptFunction(d.unbind()),
+            Object::BuiltinConstructorFunction(d) => Self::BuiltinConstructorFunction(d.unbind()),
+            Object::BuiltinPromiseResolvingFunction(d) => {
+                Self::BuiltinPromiseResolvingFunction(d.unbind())
+            }
+            Object::BuiltinPromiseFinallyFunction(d) => {
+                Self::BuiltinPromiseFinallyFunction(d.unbind())
+            }
+            Object::BuiltinPromiseCollectorFunction => Self::BuiltinPromiseCollectorFunction,
+            Object::BuiltinProxyRevokerFunction => Self::BuiltinProxyRevokerFunction,
+            Object::PrimitiveObject(d) => Self::PrimitiveObject(d.unbind()),
+            Object::Arguments(d) => Self::Arguments(d.unbind()),
+            Object::Array(d) => Self::Array(d.unbind()),
+            #[cfg(feature = "date")]
+            Object::Date(d) => Self::Date(d.unbind()),
+            Object::Error(d) => Self::Error(d.unbind()),
+            Object::FinalizationRegistry(d) => Self::FinalizationRegistry(d.unbind()),
+            Object::Map(d) => Self::Map(d.unbind()),
+            Object::Promise(d) => Self::Promise(d.unbind()),
+            Object::Proxy(d) => Self::Proxy(d.unbind()),
+            #[cfg(feature = "regexp")]
+            Object::RegExp(d) => Self::RegExp(d.unbind()),
+            #[cfg(feature = "set")]
+            Object::Set(d) => Self::Set(d.unbind()),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakMap(d) => Self::WeakMap(d.unbind()),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakRef(d) => Self::WeakRef(d.unbind()),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakSet(d) => Self::WeakSet(d.unbind()),
+
+            #[cfg(feature = "array-buffer")]
+            Object::ArrayBuffer(d) => Self::ArrayBuffer(d.unbind()),
+            #[cfg(feature = "array-buffer")]
+            Object::DataView(d) => Self::DataView(d.unbind()),
+            #[cfg(feature = "array-buffer")]
+            Object::Int8Array(d) => Self::Int8Array(d.unbind()),
+            #[cfg(feature = "array-buffer")]
+            Object::Uint8Array(d) => Self::Uint8Array(d.unbind()),
+            #[cfg(feature = "array-buffer")]
+            Object::Uint8ClampedArray(d) => Self::Uint8ClampedArray(d.unbind()),
+            #[cfg(feature = "array-buffer")]
+            Object::Int16Array(d) => Self::Int16Array(d.unbind()),
+            #[cfg(feature = "array-buffer")]
+            Object::Uint16Array(d) => Self::Uint16Array(d.unbind()),
+            #[cfg(feature = "array-buffer")]
+            Object::Int32Array(d) => Self::Int32Array(d.unbind()),
+            #[cfg(feature = "array-buffer")]
+            Object::Uint32Array(d) => Self::Uint32Array(d.unbind()),
+            #[cfg(feature = "array-buffer")]
+            Object::BigInt64Array(d) => Self::BigInt64Array(d.unbind()),
+            #[cfg(feature = "array-buffer")]
+            Object::BigUint64Array(d) => Self::BigUint64Array(d.unbind()),
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(d) => Self::Float16Array(d.unbind()),
+            #[cfg(feature = "array-buffer")]
+            Object::Float32Array(d) => Self::Float32Array(d.unbind()),
+            #[cfg(feature = "array-buffer")]
+            Object::Float64Array(d) => Self::Float64Array(d.unbind()),
+
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedArrayBuffer(d) => Self::SharedArrayBuffer(d.unbind()),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedDataView(d) => Self::SharedDataView(d.unbind()),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedInt8Array(d) => Self::SharedInt8Array(d.unbind()),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedUint8Array(d) => Self::SharedUint8Array(d.unbind()),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedUint8ClampedArray(d) => Self::SharedUint8ClampedArray(d.unbind()),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedInt16Array(d) => Self::SharedInt16Array(d.unbind()),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedUint16Array(d) => Self::SharedUint16Array(d.unbind()),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedInt32Array(d) => Self::SharedInt32Array(d.unbind()),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedUint32Array(d) => Self::SharedUint32Array(d.unbind()),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedBigInt64Array(d) => Self::SharedBigInt64Array(d.unbind()),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedBigUint64Array(d) => Self::SharedBigUint64Array(d.unbind()),
+            #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+            Object::SharedFloat16Array(d) => Self::SharedFloat16Array(d.unbind()),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedFloat32Array(d) => Self::SharedFloat32Array(d.unbind()),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedFloat64Array(d) => Self::SharedFloat64Array(d.unbind()),
+
+            Object::AsyncGenerator(d) => Self::AsyncGenerator(d.unbind()),
+            Object::ArrayIterator(d) => Self::ArrayIterator(d.unbind()),
+            #[cfg(feature = "set")]
+            Object::SetIterator(d) => Self::SetIterator(d.unbind()),
+            Object::MapIterator(d) => Self::MapIterator(d.unbind()),
+            Object::StringIterator(d) => Self::StringIterator(d.unbind()),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(d) => Self::RegExpStringIterator(d.unbind()),
+            Object::Generator(d) => Self::Generator(d.unbind()),
+            Object::Module(d) => Self::Module(d.unbind()),
+            Object::EmbedderObject(d) => Self::EmbedderObject(d.unbind()),
+        }
+    }
+}
+
 impl TryFrom<HeapRootData> for Object<'_> {
     type Error = ();
 

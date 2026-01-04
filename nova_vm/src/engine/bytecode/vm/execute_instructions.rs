@@ -122,7 +122,7 @@ pub(super) fn execute_array_elision<'gc>(
         unreachable!();
     };
     let length = array.len(agent) + 1;
-    let array = array.into().unbind();
+    let array = array.unbind().into();
     with_vm_gc(
         agent,
         vm,
@@ -155,7 +155,7 @@ pub(super) fn execute_bitwise_not<'gc>(
     // 3. If oldValue is a Number, then
     if let Ok(old_value) = Number::try_from(old_value) {
         // a. Return Number::bitwiseNOT(oldValue).
-        vm.result = Some(Number::bitwise_not(agent, old_value).into().unbind());
+        vm.result = Some(Number::bitwise_not(agent, old_value).unbind().into());
     } else {
         // 4. Else,
         // a. Assert: oldValue is a BigInt.
@@ -164,7 +164,7 @@ pub(super) fn execute_bitwise_not<'gc>(
         };
 
         // b. Return BigInt::bitwiseNOT(oldValue).
-        vm.result = Some(BigInt::bitwise_not(agent, old_value).into().unbind());
+        vm.result = Some(BigInt::bitwise_not(agent, old_value).unbind().into());
     }
     Ok(())
 }
@@ -311,7 +311,7 @@ pub(super) fn execute_to_number<'gc>(
         let arg0 = arg0.unbind();
         with_vm_gc(agent, vm, |agent, gc| to_number(agent, arg0, gc), gc)
     };
-    vm.result = Some(result?.into().unbind());
+    vm.result = Some(result?.unbind().into());
     Ok(())
 }
 
@@ -327,7 +327,7 @@ pub(super) fn execute_to_numeric<'gc>(
     } else {
         execute_to_numeric_cold(agent, vm, arg0.unbind(), gc)
     };
-    vm.result = Some(result?.into().unbind());
+    vm.result = Some(result?.unbind().into());
     Ok(())
 }
 
@@ -347,7 +347,7 @@ pub(super) fn execute_to_object<'gc>(
     vm: &mut Vm,
     gc: NoGcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    vm.result = Some(to_object(agent, vm.result.unwrap(), gc)?.into().unbind());
+    vm.result = Some(to_object(agent, vm.result.unwrap(), gc)?.unbind().into());
     Ok(())
 }
 
@@ -502,7 +502,7 @@ pub(super) fn execute_object_define_method<'gc>(
     //      [[Configurable]]: true
     // }.
     let desc = PropertyDescriptor {
-        value: Some(closure.into().unbind()),
+        value: Some(closure.unbind().into()),
         writable: Some(true),
         enumerable: Some(enumerable),
         configurable: Some(true),
@@ -592,7 +592,7 @@ pub(super) fn execute_object_define_getter<'gc>(
     // a. Let desc be the PropertyDescriptor {
     let desc = PropertyDescriptor {
         // [[Get]]: closure,
-        get: Some(Some(closure.into().unbind())),
+        get: Some(Some(closure.unbind().into())),
         // [[Enumerable]]: enumerable,
         enumerable: Some(enumerable),
         // [[Configurable]]: true
@@ -677,7 +677,7 @@ pub(super) fn execute_object_define_setter<'gc>(
     // a. Let desc be the PropertyDescriptor {
     let desc = PropertyDescriptor {
         // [[Set]]: closure,
-        set: Some(Some(closure.into().unbind())),
+        set: Some(Some(closure.unbind().into())),
         // [[Enumerable]]: enumerable,
         enumerable: Some(enumerable),
         // [[Configurable]]: true
@@ -867,7 +867,7 @@ pub(super) fn execute_typeof<'gc>(
 
 pub(super) fn execute_object_create(agent: &mut Agent, vm: &mut Vm, gc: NoGcScope) {
     let object = ordinary_object_create_with_intrinsics(agent, ProtoIntrinsics::Object, None, gc);
-    vm.stack.push(object.into().unbind());
+    vm.stack.push(object.unbind().into());
 }
 
 pub(super) fn execute_object_create_with_shape(
@@ -930,7 +930,7 @@ pub(super) fn execute_copy_data_properties_into_object<'gc>(
     if let TryResult::Continue(result) =
         try_copy_data_properties_into_object(agent, from, &excluded_items, gc.nogc())
     {
-        vm.result = Some(result.into().unbind());
+        vm.result = Some(result.unbind().into());
     } else {
         let from = from.unbind();
         let excluded_items = excluded_items.scope(agent, gc.nogc());
@@ -940,7 +940,7 @@ pub(super) fn execute_copy_data_properties_into_object<'gc>(
             |agent, gc| copy_data_properties_into_object(agent, from, excluded_items, gc),
             gc,
         )?;
-        vm.result = Some(result.into().unbind());
+        vm.result = Some(result.unbind().into());
     }
     Ok(())
 }
@@ -1021,7 +1021,7 @@ pub(super) fn execute_instantiate_arrow_function_expression<'gc>(
         pk.bind(gc.nogc())
     };
     set_function_name(agent, function, name, None, gc.nogc());
-    vm.result = Some(function.into().unbind());
+    vm.result = Some(function.unbind().into());
     Ok(())
 }
 
@@ -1123,7 +1123,7 @@ pub(super) fn execute_instantiate_ordinary_function_expression<'gc>(
             function,
             BUILTIN_STRING_MEMORY.prototype.to_property_key(),
             PropertyDescriptor {
-                value: Some(prototype.into().unbind()),
+                value: Some(prototype.unbind().into()),
                 writable: Some(true),
                 get: None,
                 set: None,
@@ -1145,7 +1145,7 @@ pub(super) fn execute_instantiate_ordinary_function_expression<'gc>(
         unwrap_try(env.try_initialize_binding(agent, name, None, function.into(), gc.nogc()));
     }
 
-    vm.result = Some(function.into().unbind());
+    vm.result = Some(function.unbind().into());
     Ok(())
 }
 
@@ -1210,7 +1210,7 @@ pub(super) fn execute_class_define_constructor<'gc>(
         agent,
         BUILTIN_STRING_MEMORY.constructor.into(),
         PropertyDescriptor {
-            value: Some(function.into().unbind()),
+            value: Some(function.unbind().into()),
             writable: Some(true),
             enumerable: Some(false),
             configurable: Some(true),
@@ -1220,7 +1220,7 @@ pub(super) fn execute_class_define_constructor<'gc>(
         gc.nogc(),
     ));
 
-    vm.result = Some(function.into().unbind());
+    vm.result = Some(function.unbind().into());
     Ok(())
 }
 
@@ -1276,7 +1276,7 @@ pub(super) fn execute_class_define_default_constructor<'gc>(
         agent,
         BUILTIN_STRING_MEMORY.constructor.into(),
         PropertyDescriptor {
-            value: Some(function.into().unbind()),
+            value: Some(function.unbind().into()),
             writable: Some(true),
             enumerable: Some(false),
             configurable: Some(true),
@@ -1286,7 +1286,7 @@ pub(super) fn execute_class_define_default_constructor<'gc>(
         gc.nogc(),
     ));
 
-    vm.result = Some(function.into().unbind());
+    vm.result = Some(function.unbind().into());
     Ok(())
 }
 
@@ -1361,7 +1361,7 @@ pub(super) fn execute_class_define_private_method<'gc>(
     if is_static {
         let desc = PropertyDescriptor {
             value: if !is_getter && !is_setter {
-                Some(closure.into().unbind())
+                Some(closure.unbind().into())
             } else {
                 None
             },
@@ -1371,12 +1371,12 @@ pub(super) fn execute_class_define_private_method<'gc>(
                 None
             },
             get: if is_getter {
-                Some(Some(closure.into().unbind()))
+                Some(Some(closure.unbind().into()))
             } else {
                 None
             },
             set: if is_setter {
-                Some(Some(closure.into().unbind()))
+                Some(Some(closure.unbind().into()))
             } else {
                 None
             },
@@ -1670,7 +1670,7 @@ pub(super) fn execute_evaluate_super<'gc>(
     let arg_list = vm.get_call_args(instr, gc.nogc());
     // 5. If IsConstructor(func) is false, throw a TypeError exception.
     let Some(func) = func.and_then(|func| is_constructor(agent, func)) else {
-        let constructor = func.map_or(Value::Null, |f| f.into().unbind());
+        let constructor = func.map_or(Value::Null, |f| f.unbind().into());
         let error_message = with_vm_gc(
             agent,
             vm,
@@ -1726,7 +1726,7 @@ pub(super) fn execute_evaluate_super<'gc>(
     };
     // 11. Perform ? InitializeInstanceElements(result, F).
     // 12. Return result.
-    vm.result = Some(result.into().unbind());
+    vm.result = Some(result.unbind().into());
     Ok(())
 }
 
@@ -2413,7 +2413,7 @@ pub(super) fn execute_string_concat<'gc>(
                 to_string_primitive(agent, Primitive::try_from(*arg).unwrap(), gc).unwrap();
             length += string.len(agent);
             // Note: We write String into each arg.
-            *arg = string.into().unbind();
+            *arg = string.unbind().into();
         }
         let args = &*args;
         // SAFETY: String is a sub-enum of Value and we've written
@@ -2458,7 +2458,7 @@ pub(super) fn execute_string_concat<'gc>(
         concat_string_from_slice(agent, &args, length, gc)
     };
     vm.stack.truncate(first_arg_index);
-    vm.result = Some(string.into().unbind());
+    vm.result = Some(string.unbind().into());
     Ok(())
 }
 
@@ -2910,7 +2910,7 @@ pub(super) fn execute_create_unmapped_arguments_object<'gc>(
     };
     match create_unmapped_arguments_object(agent, slice, gc) {
         Ok(o) => {
-            vm.result = Some(o.into().unbind());
+            vm.result = Some(o.unbind().into());
             Ok(())
         }
         Err(err) => Err(agent.throw_allocation_exception(err, gc)),
@@ -2996,7 +2996,7 @@ pub(super) fn execute_import_meta(agent: &mut Agent, vm: &mut Vm, gc: NoGcScope)
             import_meta
         }
     };
-    vm.result = Some(import_meta.into().unbind());
+    vm.result = Some(import_meta.unbind().into());
 }
 
 /// ### [13.5.1.2 Runtime Semantics: Evaluation](https://tc39.es/ecma262/#sec-delete-operator-runtime-semantics-evaluation)

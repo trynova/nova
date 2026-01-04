@@ -30,7 +30,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::CreateHeapData,
+    heap::{ArenaAccess, CreateHeapData},
 };
 
 use super::{
@@ -146,15 +146,12 @@ impl PromiseReactionJob {
         let reaction = reaction.take(agent).bind(gc.nogc());
         let argument = argument.take(agent).bind(gc.nogc());
 
-        let (handler_result, promise_capability) = match reaction.get(agent).handler {
+        let reaction_data = reaction.get(agent);
+
+        let (handler_result, promise_capability) = match reaction_data.handler {
             PromiseReactionHandler::Empty => {
-                let capability = reaction
-                    .get(agent)
-                    .capability
-                    .clone()
-                    .unwrap()
-                    .bind(gc.nogc());
-                match reaction.get(agent).reaction_type {
+                let capability = reaction_data.capability.clone().unwrap();
+                match reaction_data.reaction_type {
                     PromiseReactionType::Fulfill => {
                         // d.i.1. Let handlerResult be NormalCompletion(argument).
                         (Ok(argument), capability)
@@ -193,16 +190,16 @@ impl PromiseReactionJob {
                 )
             }
             PromiseReactionHandler::Await(await_reaction) => {
-                assert!(reaction.get(agent).capability.is_none());
-                let reaction_type = reaction.get(agent).reaction_type;
+                assert!(reaction_data.capability.is_none());
+                let reaction_type = reaction_data.reaction_type;
                 await_reaction.resume(agent, reaction_type, argument.unbind(), gc.reborrow());
                 // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
                 // 5. f. Return undefined.
                 return Ok(());
             }
             PromiseReactionHandler::AsyncGenerator(async_generator) => {
-                assert!(reaction.get(agent).capability.is_none());
-                let reaction_type = reaction.get(agent).reaction_type;
+                assert!(reaction_data.capability.is_none());
+                let reaction_type = reaction_data.reaction_type;
                 async_generator.resume_await(
                     agent,
                     reaction_type,
@@ -212,12 +209,7 @@ impl PromiseReactionJob {
                 return Ok(());
             }
             PromiseReactionHandler::AsyncFromSyncIterator { done } => {
-                let capability = reaction
-                    .get(agent)
-                    .capability
-                    .clone()
-                    .unwrap()
-                    .bind(gc.nogc());
+                let capability = reaction_data.capability.clone().unwrap().bind(gc.nogc());
                 // 9. Let unwrap be a new Abstract Closure with parameters (v)
                 //    that captures done and performs the following steps when
                 //    called:
@@ -249,8 +241,8 @@ impl PromiseReactionJob {
                 (Err(err), capability)
             }
             PromiseReactionHandler::AsyncModule(module) => {
-                assert!(reaction.get(agent).capability.is_none());
-                match reaction.get(agent).reaction_type {
+                assert!(reaction_data.capability.is_none());
+                match reaction_data.reaction_type {
                     PromiseReactionType::Fulfill => {
                         // a. Perform AsyncModuleExecutionFulfilled(module).
                         async_module_execution_fulfilled(agent, module.unbind(), gc);
@@ -270,8 +262,8 @@ impl PromiseReactionJob {
                 return Ok(());
             }
             PromiseReactionHandler::DynamicImport { promise, module } => {
-                assert!(reaction.get(agent).capability.is_none());
-                match reaction.get(agent).reaction_type {
+                assert!(reaction_data.capability.is_none());
+                match reaction_data.reaction_type {
                     PromiseReactionType::Fulfill => {
                         link_and_evaluate(agent, promise.unbind(), module.unbind(), gc);
                         return Ok(());
@@ -287,8 +279,8 @@ impl PromiseReactionJob {
                 }
             }
             PromiseReactionHandler::DynamicImportEvaluate { promise, module } => {
-                assert!(reaction.get(agent).capability.is_none());
-                match reaction.get(agent).reaction_type {
+                assert!(reaction_data.capability.is_none());
+                match reaction_data.reaction_type {
                     PromiseReactionType::Fulfill => {
                         import_get_module_namespace(
                             agent,
@@ -308,7 +300,7 @@ impl PromiseReactionJob {
                 promise_group,
                 index,
             } => {
-                let reaction_type = reaction.get(agent).reaction_type;
+                let reaction_type = reaction_data.reaction_type;
                 promise_group.settle(
                     agent,
                     reaction_type,

@@ -40,11 +40,16 @@ arena_vec_access!(
     bound_functions
 );
 
-impl BoundFunction<'_> {
+impl<'f> BoundFunction<'f> {
     pub fn is_constructor(self, agent: &Agent) -> bool {
         // A bound function has the [[Construct]] method if the target function
         // does.
         self.get(agent).bound_target_function.is_constructor(agent)
+    }
+
+    /// ### \[\[BoundTargetFunction]]
+    pub fn bound_target_function(self, agent: &Agent) -> Function<'f> {
+        self.get(agent).bound_target_function
     }
 }
 
@@ -98,8 +103,8 @@ pub(crate) fn bound_function_create<'a>(
     elements.len = u32::try_from(bound_args.len()).unwrap();
     // SAFETY: Option<Value> is an extra variant of the Value enum.
     // The transmute effectively turns Value into Some(Value).
-    &elements
-        .get(agent)
+    elements
+        .get_mut(agent)
         .copy_from_slice(unsafe { core::mem::transmute::<&[Value], &[Option<Value>]>(bound_args) });
     let data = BoundFunctionHeapData {
         object_index: None,
@@ -141,7 +146,7 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
         backing_object: OrdinaryObject<'static>,
     ) {
         assert!(
-            self.get(agent)
+            self.get_mut(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()

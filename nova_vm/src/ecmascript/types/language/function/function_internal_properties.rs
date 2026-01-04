@@ -30,12 +30,15 @@ use crate::{
 /// These are used when the function hasn't had a backing object created.
 pub(crate) trait FunctionInternalProperties<'a>
 where
-    Self: Sized
+    Self: 'a
+        + Sized
         + Copy
-        + Into<Object<'a>>
-        + TryFrom<Object<'a>>
         + Into<Function<'a>>
         + TryFrom<Function<'a>>
+        + Into<Object<'a>>
+        + TryFrom<Object<'a>>
+        + Into<Value<'a>>
+        + TryFrom<Value<'a>>
         + core::fmt::Debug,
 {
     /// Value of the 'name' property.
@@ -113,7 +116,7 @@ impl<'a, T: 'a + FunctionInternalProperties<'a>> InternalSlots<'a> for T {
         let name_entry = ObjectEntry {
             key: BUILTIN_STRING_MEMORY.name.into(),
             value: ObjectEntryPropertyDescriptor::Data {
-                value: self.get_name(agent).into(),
+                value: (*self.get_name(agent)).into(),
                 writable: false,
                 enumerable: false,
                 configurable: true,
@@ -140,9 +143,10 @@ impl<'a, T: 'a + FunctionInternalProperties<'a>> InternalMethods<'a> for T {
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         if let Some(backing_object) = self.get_backing_object(agent) {
+            let o: Object = self.into();
             TryResult::Continue(ordinary_get_own_property(
                 agent,
-                self.into().bind(gc),
+                o.bind(gc),
                 backing_object,
                 property_key,
                 cache,
@@ -158,7 +162,7 @@ impl<'a, T: 'a + FunctionInternalProperties<'a>> InternalMethods<'a> for T {
             }))
         } else if property_key == BUILTIN_STRING_MEMORY.name.into() {
             TryResult::Continue(Some(PropertyDescriptor {
-                value: Some(self.get_name(agent).into().bind(gc)),
+                value: Some(self.get_name(agent).bind(gc).into()),
                 writable: Some(false),
                 enumerable: Some(false),
                 configurable: Some(true),
@@ -209,7 +213,8 @@ impl<'a, T: 'a + FunctionInternalProperties<'a>> InternalMethods<'a> for T {
             } else {
                 1
             };
-            TryHasResult::Custom(index, self.into().bind(gc)).into()
+            let o: Object = self.into();
+            TryHasResult::Custom(index, o.bind(gc)).into()
         } else {
             ordinary_try_has_property(agent, self.into(), backing_object, property_key, cache, gc)
         }
@@ -259,7 +264,7 @@ impl<'a, T: 'a + FunctionInternalProperties<'a>> InternalMethods<'a> for T {
         if backing_object.is_none() && property_key == BUILTIN_STRING_MEMORY.length.into() {
             TryGetResult::Value(self.get_length(agent).into()).into()
         } else if backing_object.is_none() && property_key == BUILTIN_STRING_MEMORY.name.into() {
-            TryGetResult::Value(self.get_name(agent).into().bind(gc)).into()
+            TryGetResult::Value(self.get_name(agent).bind(gc).into()).into()
         } else {
             ordinary_try_get(
                 agent,
@@ -286,7 +291,7 @@ impl<'a, T: 'a + FunctionInternalProperties<'a>> InternalMethods<'a> for T {
         } else if property_key == BUILTIN_STRING_MEMORY.length.into() {
             Ok(self.get_length(agent).into())
         } else if property_key == BUILTIN_STRING_MEMORY.name.into() {
-            Ok(self.get_name(agent).into().bind(gc.into_nogc()))
+            Ok((*self.get_name(agent)).bind(gc.into_nogc()).into())
         } else {
             // Note: Getting a function's prototype never calls JavaScript.
             let parent = unwrap_try(self.try_get_prototype_of(agent, gc.nogc()));

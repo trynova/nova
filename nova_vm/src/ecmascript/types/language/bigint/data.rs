@@ -9,6 +9,7 @@ use crate::heap::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 use num_bigint::{BigInt, Sign};
 
 #[derive(Debug, Clone)]
+#[repr(transparent)]
 pub struct BigIntHeapData {
     pub(crate) data: BigInt,
 }

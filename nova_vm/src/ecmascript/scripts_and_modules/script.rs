@@ -24,14 +24,17 @@ use crate::{
     },
     engine::{
         Executable, Vm,
-        context::{Bindable, GcScope, GcToken, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
+        context::{Bindable, GcScope, NoGcScope, bindable_handle},
+        rootable::Scopable,
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+    heap::{
+        ArenaAccess, CompactionLists, HeapMarkAndSweep, WorkQueues, arena_vec_access,
+        indexes::{BaseIndex, HeapIndexHandle, index_handle},
+    },
     ndt,
 };
 use ahash::AHashSet;
-use core::{any::Any, marker::PhantomData};
+use core::any::Any;
 use oxc_ast::ast;
 use oxc_diagnostics::OxcDiagnostic;
 use oxc_ecmascript::BoundNames;
@@ -49,15 +52,13 @@ pub type HostDefined = Rc<dyn Any>;
 /// ## [16.1 Scripts](https://tc39.es/ecma262/#sec-scripts)
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Script<'a>(
-    u32,
-    PhantomData<ScriptRecord<'static>>,
-    PhantomData<&'a GcToken>,
-);
+pub struct Script<'a>(BaseIndex<'a, ScriptRecord<'static>>);
+index_handle!(Script);
+arena_vec_access!(Script, 'a, ScriptRecord, scripts);
 
 impl core::fmt::Debug for Script<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "Script({:?})", self.into_u32())
+        write!(f, "Script({:?})", self.get_index_u32())
     }
 }
 
@@ -88,31 +89,8 @@ impl Script<'_> {
         self.get(agent).source_code.bind(gc)
     }
 
-    /// Creates a script identififer from a usize.
-    ///
-    /// ## Panics
-    /// If the given index is greater than `u32::MAX`.
-    pub(crate) const fn from_index(value: usize) -> Self {
-        assert!(value <= u32::MAX as usize);
-        Self::from_u32(value as u32)
-    }
-
-    /// Creates a module identififer from a u32.
-    pub(crate) const fn from_u32(value: u32) -> Self {
-        Self(value, PhantomData, PhantomData)
-    }
-
     pub(crate) fn last(scripts: &[ScriptRecord]) -> Self {
-        let index = scripts.len() - 1;
-        Self::from_index(index)
-    }
-
-    pub(crate) const fn into_index(self) -> usize {
-        self.0 as usize
-    }
-
-    pub(crate) const fn into_u32(self) -> u32 {
-        self.0
+        Self::from_index(scripts.len() - 1)
     }
 
     /// ### \[\[Realm]]
@@ -132,9 +110,9 @@ impl Script<'_> {
         module: AbstractModule,
     ) {
         let requests = &agent.heap.module_request_records;
-        agent.heap.scripts[self]
+        self.get_mut(&mut agent.heap.scripts)
             .loaded_modules
-            .insert_loaded_module(requests, request.unbind(), module.unbind());
+            .insert_loaded_module(requests, request, module);
     }
 }
 
@@ -144,7 +122,7 @@ impl HeapMarkAndSweep for Script<'static> {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        compactions.scripts.shift_u32_index(&mut self.0);
+        compactions.scripts.shift_index(&mut self.0);
     }
 }
 
@@ -196,31 +174,6 @@ pub struct ScriptRecord<'a> {
 unsafe impl Send for ScriptRecord<'_> {}
 
 pub type ScriptOrErrors<'a> = Result<Script<'a>, Vec<OxcDiagnostic>>;
-
-bindable_handle!(Script);
-
-impl Rootable for Script<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::Script(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::Script(script) => Some(script),
-            _ => None,
-        }
-    }
-}
 
 bindable_handle!(ScriptRecord);
 
@@ -342,7 +295,7 @@ pub fn script_evaluation<'a>(
         id = create_id(agent, script, gc.nogc());
         id
     });
-    let script_record = &script.get(agent);
+    let script_record = script.get(agent);
     let realm_id = script_record.realm;
     let is_strict_mode = script_record.is_strict;
     let source_code = script_record.source_code;
@@ -357,7 +310,7 @@ pub fn script_evaluation<'a>(
         function: None,
 
         // 4. Set the Realm of scriptContext to scriptRecord.[[Realm]].
-        realm: realm_id,
+        realm: realm_id.unbind(),
 
         // 5. Set the ScriptOrModule of scriptContext to scriptRecord.
         script_or_module: Some(ScriptOrModule::Script(script.unbind())),
@@ -374,7 +327,7 @@ pub fn script_evaluation<'a>(
 
             is_strict_mode,
 
-            source_code,
+            source_code: source_code.unbind(),
         }),
     };
 
@@ -464,14 +417,12 @@ unsafe fn global_declaration_instantiation<'a>(
     let env = env.bind(gc.nogc());
     let scoped_env = env.scope(agent, gc.nogc());
     // 11. Let script be scriptRecord.[[ECMAScriptCode]].
-    // SAFETY: Analysing the script cannot cause the environment to move even though we change other parts of the Heap.
     let (lex_names, var_names, var_declarations, lex_declarations) = {
-        let body = script.get(agent).ecmascript_code;
         // SAFETY: The caller promises that Script is rooted, meaning that its
         // backing SourceCode cannot be dropped during this call. Hence, we can
         // take the body slice reference and keep it alive for the duration of
         // this call.
-        let body = unsafe { body.as_ref() };
+        let body = unsafe { script.unbind().get(agent).ecmascript_code.as_ref() };
 
         // 1. Let lexNames be the LexicallyDeclaredNames of script.
         let lex_names = script_lexically_declared_names(body);
@@ -691,7 +642,7 @@ unsafe fn global_declaration_instantiation<'a>(
             .create_global_function_binding(
                 agent,
                 function_name.unbind(),
-                fo.into().unbind(),
+                fo.unbind().into(),
                 false,
                 gc.reborrow(),
             )
@@ -739,6 +690,7 @@ mod test {
             context::{Bindable, GcScope},
             rootable::Scopable,
         },
+        heap::ArenaAccess,
     };
 
     #[test]
@@ -1237,7 +1189,7 @@ mod test {
             &mut agent,
             global.unbind(),
             key.unbind(),
-            func.into().unbind(),
+            func.unbind().into(),
             gc.reborrow(),
         )
         .unwrap();
@@ -1471,7 +1423,7 @@ mod test {
         assert_eq!(
             object
                 .unbind()
-                .internal_get(&mut agent, pk.unbind(), object.into().unbind(), gc)
+                .internal_get(&mut agent, pk.unbind(), object.unbind().into(), gc)
                 .unwrap(),
             Value::Integer(SmallInteger::from(42))
         );
@@ -1842,7 +1794,7 @@ mod test {
         let Value::Error(result) = result else {
             unreachable!()
         };
-        assert_eq!(result.get(agent).kind, ExceptionType::TypeError);
+        assert_eq!(result.get(&agent).kind, ExceptionType::TypeError);
 
         // let realm = agent.current_realm_id(gc.nogc());
         let source_text = String::from_static_str(&mut agent, "+Symbol('foo')", gc.nogc());
@@ -1852,7 +1804,7 @@ mod test {
         let Value::Error(result) = result else {
             unreachable!()
         };
-        assert_eq!(result.get(agent).kind, ExceptionType::TypeError);
+        assert_eq!(result.get(&agent).kind, ExceptionType::TypeError);
 
         let source_text = String::from_static_str(&mut agent, "String(Symbol())", gc.nogc());
         let result = agent

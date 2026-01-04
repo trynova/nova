@@ -153,7 +153,7 @@ impl<'a> PropertyDescriptor<'a> {
 
     pub fn new_prototype_method_descriptor(function: impl Into<Function<'a>>) -> Self {
         Self {
-            value: Some(function.into().into().unbind()),
+            value: Some(function.into().unbind().into()),
             writable: Some(true),
             enumerable: Some(false),
             configurable: Some(true),

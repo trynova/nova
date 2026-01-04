@@ -303,26 +303,26 @@ pub(crate) fn set_view_value<'gc, T: Viewable>(
     // 4. If IsBigIntElementType(type) is true, let numberValue be ? ToBigInt(value).
     let number_value = if T::IS_BIGINT {
         if let Ok(v) = BigInt::try_from(value) {
-            v.into_numeric()
+            v.into()
         } else {
             let scoped_view = view.scope(agent, gc.nogc());
             let v = to_big_int(agent, value, gc.reborrow())
                 .unbind()?
-                .into_numeric()
-                .bind(gc.nogc());
+                .bind(gc.nogc())
+                .into();
             view = scoped_view.get(agent).bind(gc.nogc());
             v
         }
     } else {
         // 5. Otherwise, let numberValue be ? ToNumber(value).
         if let Ok(v) = Number::try_from(value) {
-            v.into_numeric()
+            v.into()
         } else {
             let scoped_view = view.scope(agent, gc.nogc());
             let v = to_number(agent, value, gc.reborrow())
                 .unbind()?
-                .into_numeric()
-                .bind(gc.nogc());
+                .bind(gc.nogc())
+                .into();
             view = scoped_view.get(agent).bind(gc.nogc());
             v
         }

@@ -22,8 +22,8 @@ use crate::{
         rootable::HeapRootCollectionData,
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, ObjectEntry,
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, ObjectEntry,
         ObjectEntryPropertyDescriptor, WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
@@ -454,7 +454,7 @@ arena_vec_access!(
     builtin_functions
 );
 
-impl BuiltinFunction<'_> {
+impl<'f> BuiltinFunction<'f> {
     /// Allocate a a new uninitialised (None) BuiltinFunction and return its reference.
     pub(crate) fn new_uninitialised(agent: &mut Agent) -> Self {
         agent
@@ -468,6 +468,11 @@ impl BuiltinFunction<'_> {
         // A builtin function has the [[Construct]] method if its behaviour is
         // a constructor behaviour.
         self.get(agent).behaviour.is_constructor()
+    }
+
+    /// ### \[\[Realm]]
+    pub fn realm(self, agent: &Agent) -> Realm<'f> {
+        self.get(agent).realm
     }
 }
 function_handle!(BuiltinFunction);
@@ -623,7 +628,7 @@ fn builtin_call_or_construct<'gc>(
         // 8. Perform any necessary implementation-defined initialization of calleeContext.
         ecmascript_code: None,
         // 4. Set the Function of calleeContext to F.
-        function: Some(f.into().unbind()),
+        function: Some(f.unbind().into()),
         // 6. Set the Realm of calleeContext to calleeRealm.
         realm: callee_realm,
         // 7. Set the ScriptOrModule of calleeContext to null.
@@ -655,7 +660,7 @@ fn builtin_call_or_construct<'gc>(
             agent,
             this_argument.unwrap_or(Value::Undefined).unbind(),
             arguments_list.unbind(),
-            new_target.map(|target| target.into().unbind()),
+            new_target.map(|target| target.unbind().into()),
             gc,
         ),
     };

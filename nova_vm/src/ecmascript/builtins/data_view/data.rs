@@ -13,7 +13,7 @@ use crate::{
         types::OrdinaryObject,
     },
     engine::context::bindable_handle,
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, indexes::HeapIndexHandle},
 };
 
 #[derive(Debug)]
@@ -34,7 +34,7 @@ impl Default for DataViewRecord<'_> {
     fn default() -> Self {
         Self {
             object_index: None,
-            viewed_array_buffer: ArrayBuffer::_def(),
+            viewed_array_buffer: ArrayBuffer::_DEF,
             byte_length: ViewedArrayBufferByteLength::default(),
             byte_offset: ViewedArrayBufferByteOffset::default(),
         }

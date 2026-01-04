@@ -11,12 +11,12 @@ use crate::{
         },
         execution::{Agent, Realm},
         types::{
-            BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData,  Object, OrdinaryObject,
-            PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, Object, OrdinaryObject, PropertyKey,
+            String, Value,
         },
     },
     engine::context::Bindable,
-    heap::element_array::ElementDescriptor,
+    heap::{element_array::ElementDescriptor, indexes::HeapIndexHandle},
 };
 
 use super::{

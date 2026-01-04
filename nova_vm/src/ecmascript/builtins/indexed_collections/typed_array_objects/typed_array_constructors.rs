@@ -839,7 +839,7 @@ fn typed_array_constructor<'gc, T: Viewable>(
             unsafe { obj.initialise_data(agent, buffer, 0, Some((byte_length, element_length))) };
             obj.set_from_typed_array(agent, 0, source, 0, element_length, gc.nogc())
                 .unbind()?;
-            return Ok(obj.into().unbind());
+            return Ok(obj.unbind().into());
         } else if let Ok(source_buffer) = AnyArrayBuffer::try_from(first_argument) {
             // iii. Else if firstArgument has an [[ArrayBufferData]] internal
             //      slot, then

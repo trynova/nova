@@ -669,7 +669,7 @@ fn try_handle_primitive_get_value<'a>(
         return throw_no_private_name_error(agent, gc).into();
     }
     // Primitive value. annoying stuff.
-    let prototype = match receiver {
+    let prototype: Object = match receiver {
         Value::Undefined | Value::Null => {
             return throw_read_undefined_or_null_error(
                 agent,
@@ -957,9 +957,7 @@ pub(crate) fn put_value<'a>(
                 // throw a TypeError exception.
                 // SAFETY: not shared.
                 let base_obj_repr = unsafe {
-                    base_obj
-                        .take(agent)
-                        .into()
+                    Value::from(base_obj.take(agent))
                         .string_repr(agent, gc.reborrow())
                         .unbind()
                         .bind(gc.nogc())
@@ -968,7 +966,7 @@ pub(crate) fn put_value<'a>(
                 let referenced_name = unsafe { scoped_referenced_name.take(agent) }.bind(gc.nogc());
                 return Err(throw_cannot_set_property(
                     agent,
-                    base_obj_repr.into().unbind(),
+                    base_obj_repr.unbind().into(),
                     referenced_name.unbind(),
                     gc.into_nogc(),
                 ));
@@ -1037,7 +1035,7 @@ pub(crate) fn put_value<'a>(
                 let referenced_name = unsafe { scoped_referenced_name.take(agent) }.bind(gc.nogc());
                 return Err(throw_cannot_set_property(
                     agent,
-                    base_obj_repr.into().unbind(),
+                    base_obj_repr.unbind().into(),
                     referenced_name.unbind(),
                     gc.into_nogc(),
                 ));

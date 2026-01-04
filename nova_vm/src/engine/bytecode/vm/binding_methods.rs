@@ -424,7 +424,7 @@ pub(super) fn execute_simple_object_binding<'a>(
                 )
                 .unbind()?;
                 let stack_slot = instr.get_first_index();
-                vm.stack[stack_slot] = rest_obj.into().unbind();
+                vm.stack[stack_slot] = rest_obj.unbind().into();
                 break;
             }
             Instruction::FinishBindingPattern => break,

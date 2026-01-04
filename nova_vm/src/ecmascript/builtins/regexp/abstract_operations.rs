@@ -410,8 +410,8 @@ fn reg_exp_exec_prepare<'a>(
         let result = call_function(
             agent,
             exec.unbind(),
-            r.into().unbind(),
-            Some(ArgumentsList::from_mut_value(&mut s.into().unbind())),
+            r.unbind().into(),
+            Some(ArgumentsList::from_mut_value(&mut s.unbind().into())),
             gc.reborrow(),
         )
         .unbind();

@@ -23,7 +23,7 @@ use crate::{
         Executable, SuspendedVm, context::{Bindable, GcScope, NoGcScope, bindable_handle}, rootable::Scopable
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access, indexes::{BaseIndex, HeapIndexHandle}
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access, indexes::{BaseIndex, HeapIndexHandle}
     },
 };
 

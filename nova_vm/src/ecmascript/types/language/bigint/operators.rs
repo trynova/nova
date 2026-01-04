@@ -117,11 +117,11 @@ macro_rules! bigint_bitwise_op {
     ($agent:ident, $x:ident, $y:ident, $op:expr) => {
         match ($x, $y) {
             (BigInt::BigInt(x), BigInt::BigInt(y)) => {
-                BigInt::from_num_bigint($agent, $op(x.get($agent), y.get($agent)))
+                BigInt::from_num_bigint($agent, $op(&x.get($agent).data, &y.get($agent).data))
             }
             (BigInt::BigInt(x), BigInt::SmallBigInt(y))
             | (BigInt::SmallBigInt(y), BigInt::BigInt(x)) => {
-                let x = x.get($agent);
+                let x = &x.get($agent).data;
                 let sign = x.sign();
                 // Take the least significant digit
                 let x = x.iter_u64_digits().next().unwrap_or(0) as i128;

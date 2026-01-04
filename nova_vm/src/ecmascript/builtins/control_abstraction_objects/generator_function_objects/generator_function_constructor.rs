@@ -95,7 +95,7 @@ impl GeneratorFunctionConstructor {
             // PropertyDescriptor {
             PropertyDescriptor {
                 // [[Value]]: prototype,
-                value: Some(prototype.into().unbind()),
+                value: Some(prototype.unbind().into()),
                 // [[Writable]]: true,
                 writable: Some(true),
                 // [[Enumerable]]: false,

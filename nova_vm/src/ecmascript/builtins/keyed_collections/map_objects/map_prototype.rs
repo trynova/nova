@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::{hash::Hasher, ops::Index};
+use core::hash::Hasher;
 
 use ahash::AHasher;
 
@@ -26,7 +26,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::{Heap, IntrinsicFunctionIndexes, PrimitiveHeap, WellKnownSymbolIndexes},
+    heap::{ArenaAccess, Heap, IntrinsicFunctionIndexes, PrimitiveHeap, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct MapPrototype;
@@ -280,7 +280,7 @@ impl MapPrototype {
                     Some(ArgumentsList::from_mut_slice(&mut [
                         v.unbind(),
                         k.unbind(),
-                        m.into().unbind(),
+                        m.unbind().into(),
                     ])),
                     gc.reborrow(),
                 )
@@ -309,21 +309,6 @@ impl MapPrototype {
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
         let m = require_map_data_internal_slot(agent, this_value, gc)?;
 
-        // 3. Set key to CanonicalizeKeyedCollectionKey(key).
-        let key = canonicalize_keyed_collection_key(&agent.heap.numbers, key);
-        let key_hash = {
-            let Heap {
-                bigints,
-                numbers,
-                strings,
-                ..
-            } = &agent.heap;
-            let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
-            let mut hasher = AHasher::default();
-            key.hash(&primitive_heap, &mut hasher);
-            hasher.finish()
-        };
-
         let Heap {
             bigints,
             numbers,
@@ -332,6 +317,14 @@ impl MapPrototype {
             ..
         } = &mut agent.heap;
         let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+
+        // 3. Set key to CanonicalizeKeyedCollectionKey(key).
+        let key = canonicalize_keyed_collection_key(&agent.heap.numbers, key);
+        let key_hash = {
+            let mut hasher = AHasher::default();
+            key.hash(&primitive_heap, &mut hasher);
+            hasher.finish()
+        };
 
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
         let MapHeapDataMut {
@@ -580,10 +573,10 @@ fn require_map_data_internal_slot<'a>(
 /// ### [24.5.1 CanonicalizeKeyedCollectionKey ( key )](https://tc39.es/ecma262/#sec-canonicalizekeyedcollectionkey)
 /// The abstract operation CanonicalizeKeyedCollectionKey takes argument key
 /// (an ECMAScript language value) and returns an ECMAScript language value.
-pub(crate) fn canonicalize_keyed_collection_key<'gc>(
-    agent: &impl Index<HeapNumber<'gc>, Output = f64>,
-    key: Value<'gc>,
-) -> Value<'gc> {
+pub(crate) fn canonicalize_keyed_collection_key<'gc, T>(agent: &T, key: Value<'gc>) -> Value<'gc>
+where
+    HeapNumber<'gc>: ArenaAccess<T, Output = f64>,
+{
     // 1. If key is -0𝔽, return +0𝔽.
     if let Value::SmallF64(key) = key {
         // Note: Only f32 should hold -0.
@@ -591,7 +584,7 @@ pub(crate) fn canonicalize_keyed_collection_key<'gc>(
             return 0.into();
         }
     } else if let Value::Number(key) = key {
-        debug_assert_ne!(key.get(agent), -0.0, "HeapNumber should never be -0.0");
+        debug_assert_ne!(*key.get(agent), -0.0, "HeapNumber should never be -0.0");
     }
     // 2. Return key.
     key

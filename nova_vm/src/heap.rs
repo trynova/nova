@@ -625,7 +625,13 @@ where
     /// Access data beloning to a handle.
     #[inline]
     fn get<'agent>(self, agent: &'agent T) -> &'agent <Self as DirectArenaAccess>::Output {
-        self.get_direct(agent.as_ref())
+        // SAFETY: HeapIndexHandle guarantees that the lifetime of the output is
+        // safe when agent is safe.
+        unsafe {
+            core::mem::transmute::<_, &'agent <Self as DirectArenaAccess>::Output>(
+                self.get_direct(agent.as_ref()),
+            )
+        }
     }
 
     /// Access data beloning to a handle as mutable.
@@ -634,7 +640,13 @@ where
         self,
         agent: &'agent mut T,
     ) -> &'agent mut <Self as DirectArenaAccess>::Output {
-        self.get_direct_mut(agent.as_mut())
+        // SAFETY: HeapIndexHandle guarantees that the lifetime of the output is
+        // safe when agent is safe.
+        unsafe {
+            core::mem::transmute::<_, &'agent mut <Self as DirectArenaAccess>::Output>(
+                self.get_direct_mut(agent.as_mut()),
+            )
+        }
     }
 }
 
@@ -741,7 +753,7 @@ impl PrimitiveHeap<'_> {
 }
 
 /// Helper trait for primitive heap data indexing.
-pub(crate) trait PrimitiveHeapIndexable:
+pub(crate) trait PrimitiveHeapAccess:
     AsRef<Vec<BigIntHeapData>>
     + AsMut<Vec<BigIntHeapData>>
     + AsRef<Vec<NumberHeapData>>
@@ -751,19 +763,19 @@ pub(crate) trait PrimitiveHeapIndexable:
 {
 }
 
-impl PrimitiveHeapIndexable for PrimitiveHeap<'_> {}
+impl PrimitiveHeapAccess for PrimitiveHeap<'_> {}
 
 /// A partial view to the Agent's heap that allows accessing PropertyKey heap
 /// data.
 pub(crate) struct PropertyKeyHeap<'a> {
-    pub(crate) strings: &'a Vec<StringRecord>,
-    pub(crate) symbols: &'a Vec<SymbolHeapData<'static>>,
+    pub(crate) strings: &'a mut Vec<StringRecord>,
+    pub(crate) symbols: &'a mut Vec<SymbolHeapData<'static>>,
 }
 
 impl PropertyKeyHeap<'_> {
     pub(crate) fn new<'a>(
-        strings: &'a Vec<StringRecord>,
-        symbols: &'a Vec<SymbolHeapData<'static>>,
+        strings: &'a mut Vec<StringRecord>,
+        symbols: &'a mut Vec<SymbolHeapData<'static>>,
     ) -> PropertyKeyHeap<'a> {
         PropertyKeyHeap { strings, symbols }
     }
@@ -796,16 +808,27 @@ impl AsMut<Vec<SymbolHeapData<'static>>> for PropertyKeyHeap<'_> {
 }
 
 /// Helper trait for primitive heap data indexing.
-pub(crate) trait PropertyKeyHeapIndexable:
-    AsRef<Vec<StringRecord>>
+pub(crate) trait PropertyKeyHeapAccess:
+    StringHeapAccess
+    + AsRef<Vec<StringRecord>>
     + AsMut<Vec<StringRecord>>
     + AsRef<Vec<SymbolHeapData<'static>>>
     + AsMut<Vec<SymbolHeapData<'static>>>
 {
 }
 
-impl PropertyKeyHeapIndexable for PropertyKeyHeap<'_> {}
-impl PropertyKeyHeapIndexable for Agent {}
+impl PropertyKeyHeapAccess for PropertyKeyHeap<'_> {}
+impl PropertyKeyHeapAccess for Agent {}
+
+pub(crate) trait StringHeapAccess:
+    AsRef<Vec<StringRecord>> + AsMut<Vec<StringRecord>>
+{
+}
+
+impl StringHeapAccess for Vec<StringRecord> {}
+impl StringHeapAccess for PrimitiveHeap<'_> {}
+impl StringHeapAccess for PropertyKeyHeap<'_> {}
+impl StringHeapAccess for Agent {}
 
 #[test]
 fn init_heap() {

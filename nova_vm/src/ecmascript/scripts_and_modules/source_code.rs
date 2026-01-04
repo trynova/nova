@@ -21,18 +21,19 @@ use crate::{
         execution::Agent,
         types::{HeapString, String},
     },
-    engine::{
-        context::{Bindable, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
+    engine::context::{Bindable, NoGcScope, bindable_handle},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, indexes::BaseIndex,
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        arena_vec_access,
+        indexes::{BaseIndex, HeapIndexHandle, index_handle},
     },
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct SourceCode<'a>(BaseIndex<'a, SourceCodeHeapData<'static>>);
+index_handle!(SourceCode);
+arena_vec_access!(SourceCode, 'a, SourceCodeHeapData, source_codes);
 
 impl core::fmt::Debug for SourceCode<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -302,17 +303,16 @@ impl<'a> SourceCode<'a> {
     }
 
     /// Access the Scoping information of the SourceCode.
-    pub(crate) fn get_scoping(self, agent: &Agent) -> &Scoping {
+    pub(crate) fn get_scoping<'agent>(self, agent: &'agent Agent) -> &'agent Scoping
+    where
+        'a: 'agent,
+    {
         &self.get(agent).scoping
     }
 
     /// Access the AstNodes information of the SourceCode.
-    pub(crate) fn get_nodes(self, agent: &Agent) -> &AstNodes<'a> {
+    pub(crate) fn get_nodes<'agent>(self, agent: &'agent Agent) -> &'agent AstNodes<'a> {
         &self.get(agent).nodes
-    }
-
-    pub(crate) fn get_index(self) -> usize {
-        self.0.into_index()
     }
 }
 
@@ -338,31 +338,6 @@ impl Debug for SourceCodeHeapData<'_> {
             .field("source", &self.source)
             .field("allocator", &"[binary data]")
             .finish()
-    }
-}
-
-bindable_handle!(SourceCode);
-
-impl Rootable for SourceCode<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::SourceCode(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::SourceCode(object) => Some(object),
-            _ => None,
-        }
     }
 }
 

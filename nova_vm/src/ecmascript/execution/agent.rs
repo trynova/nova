@@ -59,8 +59,8 @@ use crate::{
         rootable::{HeapRootCollectionData, HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeapIndexable,
-        WorkQueues, heap_gc::heap_gc,
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeapAccess,
+        WorkQueues, heap_gc::heap_gc, indexes::HeapIndexHandle,
     },
     ndt,
 };
@@ -1004,7 +1004,7 @@ impl Agent {
     /// Get current Realm's global environment.
     pub fn current_global_env<'a>(&self, gc: NoGcScope<'a, '_>) -> GlobalEnvironment<'a> {
         let realm = self.current_realm(gc);
-        let Some(e) = self[realm].global_env.bind(gc) else {
+        let Some(e) = realm.get(self).global_env else {
             panic_corrupted_agent()
         };
         e
@@ -1012,8 +1012,7 @@ impl Agent {
 
     /// Get current Realm's global object.
     pub fn current_global_object<'a>(&self, gc: NoGcScope<'a, '_>) -> Object<'a> {
-        let realm = self.current_realm(gc);
-        self[realm].global_object.bind(gc)
+        self.current_realm(gc).get(self).global_object
     }
 
     /// Get the [current Realm](https://tc39.es/ecma262/#current-realm).
@@ -1047,11 +1046,11 @@ impl Agent {
     }
 
     pub(crate) fn get_realm_record_by_id<'r>(&self, id: Realm<'r>) -> &RealmRecord<'r> {
-        &self[id]
+        id.get(self)
     }
 
-    fn get_realm_record_by_id_mut(&mut self, id: Realm) -> &mut RealmRecord<'static> {
-        &mut self[id]
+    fn get_realm_record_by_id_mut<'r>(&mut self, id: Realm<'r>) -> &mut RealmRecord<'r> {
+        id.get_mut(self)
     }
 
     #[must_use]
@@ -1115,8 +1114,8 @@ impl Agent {
         JsError(
             self.heap
                 .create(ErrorHeapData::new(kind, Some(message.unbind()), None))
-                .into()
-                .bind(gc),
+                .bind(gc)
+                .into(),
         )
     }
 
@@ -1533,7 +1532,7 @@ impl TryFrom<u16> for ExceptionType {
     }
 }
 
-impl PrimitiveHeapIndexable for Agent {}
+impl PrimitiveHeapAccess for Agent {}
 
 impl HeapMarkAndSweep for Agent {
     fn mark_values(&self, queues: &mut WorkQueues) {

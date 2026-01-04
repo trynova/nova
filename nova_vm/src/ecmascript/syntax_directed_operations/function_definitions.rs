@@ -42,7 +42,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::CreateHeapData,
+    heap::{ArenaAccess, CreateHeapData},
 };
 use oxc_ast::ast::{self};
 
@@ -172,7 +172,7 @@ pub(crate) fn instantiate_ordinary_function_object<'a>(
             BUILTIN_STRING_MEMORY.prototype.to_property_key(),
             PropertyDescriptor {
                 // [[Value]]: prototype,
-                value: Some(prototype.into().unbind()),
+                value: Some(prototype.unbind().into()),
                 // [[Writable]]: true,
                 writable: Some(true),
                 // [[Enumerable]]: false,
@@ -238,7 +238,7 @@ pub(crate) fn evaluate_function_body<'gc>(
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object, gc.nogc());
         let exe = Executable::compile_function_body(agent, data, gc.nogc());
-        function_object.get(agent).compiled_bytecode = Some(exe.unbind());
+        function_object.get_mut(agent).compiled_bytecode = Some(exe.unbind());
         exe
     };
     let exe = exe.scope(agent, gc.nogc());
@@ -273,7 +273,7 @@ pub(crate) fn evaluate_async_function_body<'a>(
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object, gc.nogc());
         let exe = Executable::compile_function_body(agent, data, gc.nogc());
-        function_object.get(agent).compiled_bytecode = Some(exe.unbind());
+        function_object.get_mut(agent).compiled_bytecode = Some(exe.unbind());
         exe
     };
     let exe = exe.scope(agent, gc.nogc());
@@ -367,7 +367,7 @@ pub(crate) fn evaluate_generator_body<'gc>(
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object, gc.nogc());
         let exe = Executable::compile_function_body(agent, data, gc.nogc());
-        function_object.get(agent).compiled_bytecode = Some(exe.unbind());
+        function_object.get_mut(agent).compiled_bytecode = Some(exe.unbind());
         exe.scope(agent, gc.nogc())
     };
 
@@ -412,7 +412,7 @@ pub(crate) fn evaluate_generator_body<'gc>(
         .bind(gc.nogc());
     ordinary_populate_from_constructor(
         agent,
-        g.into().unbind(),
+        g.unbind().into(),
         // SAFETY: not shared.
         unsafe { function_object.take(agent) }.into(),
         ProtoIntrinsics::Generator,
@@ -441,7 +441,7 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object, gc.nogc());
         let exe = Executable::compile_function_body(agent, data, gc.nogc());
-        function_object.get(agent).compiled_bytecode = Some(exe.unbind());
+        function_object.get_mut(agent).compiled_bytecode = Some(exe.unbind());
         exe.scope(agent, gc.nogc())
     };
 
@@ -489,7 +489,7 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
         .bind(gc.nogc());
     ordinary_populate_from_constructor(
         agent,
-        generator.into().unbind(),
+        generator.unbind().into(),
         // SAFETY: not shared.
         unsafe { function_object.take(agent) }.into(),
         ProtoIntrinsics::AsyncGenerator,

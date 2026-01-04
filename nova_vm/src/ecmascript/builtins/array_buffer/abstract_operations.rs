@@ -18,6 +18,7 @@ use crate::{
         },
     },
     engine::context::{Bindable, GcScope, NoGcScope},
+    heap::ArenaAccess,
 };
 
 // TODO: Implement the contents of the `DetachKey` struct?
@@ -84,7 +85,7 @@ pub(crate) fn allocate_array_buffer<'a>(
     };
     // 6. Set obj.[[ArrayBufferData]] to block.
     // 7. Set obj.[[ArrayBufferByteLength]] to byteLength.
-    obj.get(agent).buffer = buffer;
+    obj.get_mut(agent).buffer = buffer;
     // 9. Return obj.
     Ok(obj)
 }
@@ -126,7 +127,7 @@ pub(crate) fn detach_array_buffer<'a>(
 
     // 4. Set arrayBuffer.[[ArrayBufferData]] to null.
     // 5. Set arrayBuffer.[[ArrayBufferByteLength]] to 0.
-    array_buffer.get(agent).buffer.detach();
+    array_buffer.get_mut(agent).buffer.detach();
     // 6. Return UNUSED.
     Ok(())
 }
@@ -405,7 +406,7 @@ pub(crate) fn set_value_in_buffer<T: Viewable>(
             let _ = order;
             let _ = is_typed_array;
             // 4. Let block be arrayBuffer.[[ArrayBufferData]].
-            let block = ab.get(agent).get_data_block_mut();
+            let block = ab.get_mut(agent).get_data_block_mut();
             // a. Store the individual bytes of rawBytes into block, starting at block[byteIndex].
             block.set_offset_by_byte::<T>(byte_index, raw_bytes);
         }

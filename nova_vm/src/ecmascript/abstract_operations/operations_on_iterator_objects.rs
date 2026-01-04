@@ -489,7 +489,7 @@ pub(crate) fn iterator_close_with_value<'a>(
             call_function(
                 agent,
                 return_function.unbind(),
-                iterator.into().unbind(),
+                iterator.unbind().into(),
                 None,
                 gc.reborrow(),
             )
@@ -563,7 +563,7 @@ pub(crate) fn iterator_close_with_error<'a>(
         let _ = call_function(
             agent,
             r#return.unbind(),
-            iterator.into().unbind(),
+            iterator.unbind().into(),
             None,
             gc.reborrow(),
         );

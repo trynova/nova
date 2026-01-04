@@ -19,7 +19,7 @@ use crate::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         IntrinsicObjectShapes, PropertyKeyHeap, WeakReference, WorkQueues,
         element_array::{ElementArrayKey, ElementArrays},
-        indexes::PropertyKeyIndex,
+        indexes::{HeapIndexHandle, PropertyKeyIndex},
     },
 };
 
@@ -289,7 +289,7 @@ impl<'a> ObjectShape<'a> {
         self_transitions.insert(
             key,
             child,
-            &PropertyKeyHeap::new(&agent.heap.strings, &agent.heap.symbols),
+            &PropertyKeyHeap::new(&mut agent.heap.strings, &mut agent.heap.symbols),
         );
     }
 
@@ -882,7 +882,7 @@ impl<'a> ObjectShapeRecord<'a> {
     /// This record has a `null` prototype and no keys.
     pub(crate) const NULL: Self = Self {
         prototype: None,
-        keys: PropertyKeyIndex::from_index(0),
+        keys: PropertyKeyIndex::ZERO,
         keys_cap: ElementArrayKey::Empty,
         len: 0,
         values_cap: ElementArrayKey::Empty,
@@ -893,7 +893,7 @@ impl<'a> ObjectShapeRecord<'a> {
     pub(crate) fn create_root(prototype: Object<'a>) -> Self {
         Self {
             prototype: Some(prototype),
-            keys: PropertyKeyIndex::from_index(0),
+            keys: PropertyKeyIndex::ZERO,
             keys_cap: ElementArrayKey::Empty,
             len: 0,
             values_cap: ElementArrayKey::Empty,
@@ -1098,7 +1098,7 @@ impl<'a> CreateHeapData<(ObjectShapeRecord<'a>, ObjectShapeTransitionMap<'a>), O
                 "Object Shape has zero capacity but non-zero length"
             );
             debug_assert_eq!(
-                record.keys.into_index(),
+                record.keys.get_index(),
                 0,
                 "Object Shape has zero capacity but non-zero keys index"
             );

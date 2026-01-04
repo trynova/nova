@@ -30,8 +30,8 @@ use crate::{
             agent::{ExceptionType, TryResult, try_result_into_js, unwrap_try},
         },
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots,  Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, Object, OrdinaryObject,
+            PropertyDescriptor, PropertyKey, String, Value,
         },
     },
     engine::{
@@ -329,7 +329,7 @@ impl ObjectConstructor {
         let to = to_object(agent, target, nogc).unbind()?.bind(nogc);
         // 2. If only one argument was passed, return to.
         if arguments.len() <= 1 {
-            return Ok(to.into().unbind());
+            return Ok(to.unbind().into());
         }
         let sources = arguments[1..]
             .iter()
@@ -444,11 +444,11 @@ impl ObjectConstructor {
         };
         if properties != Value::Undefined {
             Ok(
-                object_define_properties(agent, obj.into().unbind(), properties.unbind(), gc)?
+                object_define_properties(agent, obj.unbind().into(), properties.unbind(), gc)?
                     .into(),
             )
         } else {
-            Ok(obj.into().unbind())
+            Ok(obj.unbind().into())
         }
     }
 
@@ -719,7 +719,7 @@ impl ObjectConstructor {
                             return Err(agent.throw_allocation_exception(err, gc.into_nogc()));
                         }
                     };
-                    return Ok(object.into().unbind());
+                    return Ok(object.unbind().into());
                 }
             }
         }
@@ -847,7 +847,7 @@ impl ObjectConstructor {
             )
         } else {
             // 5. Return descriptors.
-            Ok(descriptors.into().unbind())
+            Ok(descriptors.unbind().into())
         }
     }
 
@@ -1479,7 +1479,7 @@ fn get_own_symbol_property_keys<'gc>(
     for next_key in keys {
         // a. If nextKey is a Symbol and type is SYMBOL then
         if let PropertyKey::Symbol(next_key) = next_key {
-            name_list.push(next_key.into().unbind())
+            name_list.push(next_key.unbind().into())
         }
     }
     // 5. Return nameList.

@@ -98,7 +98,7 @@ impl StringConstructor {
         };
         // 3. If NewTarget is undefined, return s.
         let Some(new_target) = new_target else {
-            return Ok(s.into().unbind());
+            return Ok(s.unbind().into());
         };
         // 4. Return StringCreate(s, ? GetPrototypeFromConstructor(NewTarget, "%String.prototype%")).
         let value = s.scope(agent, gc.nogc());
@@ -133,7 +133,7 @@ impl StringConstructor {
         // 7. Let length be the length of value.
         // 8. Perform ! DefinePropertyOrThrow(S, "length", PropertyDescriptor { [[Value]]: 𝔽(length), [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: false }).
         // 9. Return S.
-        Ok(s.into().unbind())
+        Ok(s.unbind().into())
     }
 
     /// ### [22.1.2.1 String.fromCharCode ( ...`codeUnits` )](https://262.ecma-international.org/15.0/index.html#sec-string.fromcharcode)

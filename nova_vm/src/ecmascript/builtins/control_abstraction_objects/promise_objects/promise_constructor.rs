@@ -612,7 +612,7 @@ impl PromiseConstructor {
             }
         };
         // 7. Return promiseCapability.[[Promise]].
-        Ok(promise.into().unbind())
+        Ok(promise.unbind().into())
     }
 
     /// ### [27.2.4.9 Promise.withResolvers ( )](https://tc39.es/ecma262/#sec-promise.withResolvers)
@@ -638,22 +638,16 @@ impl PromiseConstructor {
         // 1. Let C be the this value.
         // 2. Let promiseCapability be ? NewPromiseCapability(C).
         let promise_capability = PromiseCapability::new(agent, gc);
-        let resolve_function = agent
-            .heap
-            .create(PromiseResolvingFunctionHeapData {
-                object_index: None,
-                promise_capability: promise_capability.clone(),
-                resolve_type: PromiseResolvingFunctionType::Resolve,
-            })
-            .into();
-        let reject_function = agent
-            .heap
-            .create(PromiseResolvingFunctionHeapData {
-                object_index: None,
-                promise_capability: promise_capability.clone(),
-                resolve_type: PromiseResolvingFunctionType::Reject,
-            })
-            .into();
+        let resolve_function = agent.heap.create(PromiseResolvingFunctionHeapData {
+            object_index: None,
+            promise_capability: promise_capability.clone(),
+            resolve_type: PromiseResolvingFunctionType::Resolve,
+        });
+        let reject_function = agent.heap.create(PromiseResolvingFunctionHeapData {
+            object_index: None,
+            promise_capability: promise_capability.clone(),
+            resolve_type: PromiseResolvingFunctionType::Reject,
+        });
 
         // 3. Let obj be OrdinaryObjectCreate(%Object.prototype%).
         // 4. Perform ! CreateDataPropertyOrThrow(obj, "promise", promiseCapability.[[Promise]]).
@@ -881,7 +875,7 @@ fn handle_promise_group_result<'gc>(
         Ok(result) => result,
     };
     // 9. Return ! result.
-    Ok(result.into().unbind())
+    Ok(result.unbind().into())
 }
 
 /// ### [27.2.4.1.2 PerformPromiseAll ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiseall)
@@ -968,7 +962,7 @@ fn perform_promise_group<'gc>(
                 };
                 result_capability.unbind().resolve(
                     agent,
-                    values_array.into().unbind(),
+                    values_array.unbind().into(),
                     gc.reborrow(),
                 );
             }

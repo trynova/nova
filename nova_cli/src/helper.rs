@@ -337,7 +337,7 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
             Some(initialize_global_object_with_internals),
             gc,
         );
-        Ok(realm.global_object(agent).into().unbind())
+        Ok(realm.global_object(agent).unbind().into())
     }
 
     /// `detachArrayBuffer` function
@@ -660,7 +660,7 @@ fn initialize_child_global_object(agent: &mut Agent, global: Object, mut gc: GcS
 
         let _ = cb
             .unbind()
-            .call(agent, Value::Null, &mut [sab.into().unbind()], gc);
+            .call(agent, Value::Null, &mut [sab.unbind().into()], gc);
 
         Ok(Value::Undefined)
     }

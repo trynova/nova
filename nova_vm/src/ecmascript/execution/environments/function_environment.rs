@@ -16,7 +16,7 @@ use crate::{
         types::{Function, InternalMethods, Object, String, Value},
     },
     engine::context::{Bindable, NoGcScope},
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+    heap::{ArenaAccess, CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -123,7 +123,7 @@ pub(crate) fn new_function_environment<'a>(
         .environments
         .push_declarative_environment(dcl_env, gc);
     // 2. Set env.[[FunctionObject]] to F.
-    let function_object = f.into().unbind();
+    let function_object = f.unbind().into();
     // 3. If F.[[ThisMode]] is LEXICAL, set env.[[ThisBindingStatus]] to LEXICAL.
     let this_binding_status = if this_mode == ThisMode::Lexical {
         ThisBindingStatus::Lexical
@@ -171,7 +171,7 @@ pub(crate) fn new_class_static_element_environment<'a>(
         .push_declarative_environment(dcl_env, gc);
 
     let env = FunctionEnvironmentRecord {
-        this_value: Some(class_constructor.into().unbind()),
+        this_value: Some(class_constructor.unbind().into()),
 
         function_object: class_constructor.unbind(),
 
@@ -204,7 +204,7 @@ pub(crate) fn new_class_field_initializer_environment<'a>(
         + core::mem::size_of::<Option<DeclarativeEnvironmentRecord>>();
     agent.heap.environments.push_function_environment(
         FunctionEnvironmentRecord {
-            this_value: Some(class_instance.into().unbind()),
+            this_value: Some(class_instance.unbind().into()),
             this_binding_status: ThisBindingStatus::Initialized,
             function_object: class_constructor.unbind(),
             new_target: None,
@@ -482,8 +482,6 @@ impl HeapMarkAndSweep for FunctionEnvironment<'static> {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        compactions
-            .function_environments
-            .shift_non_zero_u32_index(&mut self.0);
+        compactions.function_environments.shift_index(&mut self.0);
     }
 }
