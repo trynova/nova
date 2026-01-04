@@ -595,6 +595,17 @@ impl Default for Heap {
     }
 }
 
+pub(crate) trait HeapAccess<'a, T: 'a + ?Sized>: Copy {
+    type OutputRef;
+    type OutputMut;
+
+    /// Access heap data beloning to a handle.
+    fn get(self, source: &'a T) -> Self::OutputRef;
+
+    /// Access heap data beloning to a handle as mutable.
+    fn get_mut(self, source: &'a mut T) -> Self::OutputMut;
+}
+
 /// A partial view to the Agent's heap that allows accessing primitive value
 /// heap data.
 pub(crate) struct PrimitiveHeap<'a> {

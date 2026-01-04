@@ -454,7 +454,7 @@ pub mod private {
 pub use global::Global;
 pub use scoped::{Scopable, ScopableCollection, Scoped, ScopedCollection};
 
-use super::{Executable, context::Bindable};
+use super::Executable;
 
 pub trait Rootable: Copy + RootableSealed {
     type RootRepr: Sized + Clone;
@@ -478,13 +478,13 @@ pub trait Rootable: Copy + RootableSealed {
     fn from_heap_data(heap_data: HeapRootData) -> Option<Self>;
 }
 
-// Blanket impl for Objects
-impl<'a, T: Copy + RootableSealed + Into<Object<'a>> + TryFrom<HeapRootData>> Rootable for T {
+// Blanket impl for heap references.
+impl<'a, T: Copy + RootableSealed + Into<HeapRootData> + TryFrom<HeapRootData>> Rootable for T {
     type RootRepr = HeapRootRef;
 
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(value.into().unbind().into())
+        Err(value.into())
     }
 
     #[inline]

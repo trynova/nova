@@ -25,7 +25,7 @@ pub(crate) use value_vec::*;
 
 pub use bigint::BigInt;
 pub use function::Function;
-pub use numeric::Numeric;
+pub use numeric::*;
 pub use primitive::Primitive;
 pub use string::{BUILTIN_STRING_MEMORY, BUILTIN_STRINGS_LIST, HeapString, String, StringRecord};
 pub use symbol::{Symbol, SymbolHeapData};

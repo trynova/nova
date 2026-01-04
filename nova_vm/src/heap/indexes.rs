@@ -169,7 +169,7 @@ impl PropertyKeyIndex<'_> {
 
 /// Trait for working with index-based heap handles. The handles are internally
 /// limited to 32 bit unsigned values.
-pub(crate) trait HeapIndexHandle: Sized {
+pub(crate) trait HeapIndexHandle: Copy + Sized {
     /// Constant-time value used for discriminant checking only.
     const _DEF: Self;
 
@@ -192,6 +192,8 @@ pub(crate) trait HeapIndexHandle: Sized {
 }
 
 impl<T: ?Sized> HeapIndexHandle for BaseIndex<'_, T> {
+    const _DEF: Self = Self(NonZeroU32::new(u32::MAX).unwrap(), PhantomData, PhantomData);
+
     #[inline(always)]
     fn from_index_u32(index: u32) -> Self {
         assert!(index != u32::MAX);
@@ -208,19 +210,4 @@ impl<T: ?Sized> HeapIndexHandle for BaseIndex<'_, T> {
     fn get_index_u32(&self) -> u32 {
         self.0.get() - 1
     }
-}
-
-pub(crate) trait HeapAccess<T: ?Sized>: HeapIndexHandle {
-    type OutputRef<'a>
-    where
-        Self: 'a;
-    type OutputMut<'a>
-    where
-        Self: 'a;
-
-    /// Access heap data beloning to a handle.
-    fn get<'a>(self, source: &'a T) -> Self::OutputRef<'a>;
-
-    /// Access heap data beloning to a handle as mutable.
-    fn get_mut<'a>(self, source: &'a mut T) -> Self::OutputMut<'a>;
 }
