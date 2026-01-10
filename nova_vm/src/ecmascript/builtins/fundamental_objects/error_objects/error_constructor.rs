@@ -22,7 +22,7 @@ use crate::{
         context::{Bindable, GcScope},
         rootable::Scopable,
     },
-    heap::IntrinsicConstructorIndexes,
+    heap::{ArenaAccess, IntrinsicConstructorIndexes},
 };
 
 pub(crate) struct ErrorConstructor;

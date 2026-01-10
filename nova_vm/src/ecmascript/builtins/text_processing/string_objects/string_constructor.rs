@@ -24,7 +24,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::IntrinsicConstructorIndexes,
+    heap::{ArenaAccess, IntrinsicConstructorIndexes},
 };
 
 pub struct StringConstructor;
@@ -123,7 +123,7 @@ impl StringConstructor {
         // 2. Set S.[[Prototype]] to prototype.
         // 3. Set S.[[StringData]] to value.
         let value = value.get(agent).bind(gc.nogc());
-        s.get(agent).data = match value {
+        s.get_mut(agent).data = match value {
             String::String(data) => PrimitiveObjectData::String(data.unbind()),
             String::SmallString(data) => PrimitiveObjectData::SmallString(data),
         };

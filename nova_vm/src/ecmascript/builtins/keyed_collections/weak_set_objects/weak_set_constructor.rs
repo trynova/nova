@@ -27,7 +27,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::IntrinsicConstructorIndexes,
+    heap::{DirectArenaAccess, IntrinsicConstructorIndexes},
 };
 
 pub(crate) struct WeakSetConstructor;
@@ -196,7 +196,8 @@ fn weak_set_add_trivially_iterable_array_elements<'a>(
     iterable: Array,
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
-    let array_heap = ArrayHeap::new(&agent.heap.elements, &agent.heap.arrays);
+    let array_heap = ArrayHeap::new(&mut agent.heap.elements, &mut agent.heap.arrays);
+    let weak_set_data = set.get_direct_mut(&mut agent.heap.weak_sets);
     let slice = iterable.as_slice(&array_heap);
 
     let mut weak_keys = Vec::new();
@@ -209,7 +210,6 @@ fn weak_set_add_trivially_iterable_array_elements<'a>(
         weak_keys.push(weak_key);
     }
 
-    let weak_set_data = &mut agent.heap.weak_sets[set];
     for weak_key in weak_keys {
         weak_set_data.add(weak_key);
     }

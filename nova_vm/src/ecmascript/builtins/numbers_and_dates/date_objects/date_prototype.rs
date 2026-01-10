@@ -1362,8 +1362,8 @@ impl DatePrototype {
         // 6. Return ? OrdinaryToPrimitive(O, tryFirst).
         Ok(ordinary_to_primitive(agent, o, try_first, gc.reborrow())
             .unbind()?
-            .into()
-            .bind(gc.into_nogc()))
+            .bind(gc.into_nogc())
+            .into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {

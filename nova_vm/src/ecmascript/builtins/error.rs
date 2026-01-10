@@ -22,8 +22,7 @@ use crate::{
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         HeapSweepWeakReference, ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
-        arena_vec_access,
-        indexes::{BaseIndex, HeapIndexHandle},
+        arena_vec_access, indexes::BaseIndex,
     },
 };
 
@@ -48,7 +47,7 @@ impl<'a> InternalSlots<'a> for Error<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index
+        self.get(agent).object_index.unbind()
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
@@ -90,7 +89,8 @@ impl<'a> InternalSlots<'a> for Error<'a> {
             } else {
                 OrdinaryObject::create_object(agent, Some(prototype), &[])
             }
-            .expect("Should perform GC here");
+            .expect("Should perform GC here")
+            .unbind();
         self.set_backing_object(agent, backing_object);
         backing_object
     }
@@ -156,6 +156,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
                     enumerable: Some(false),
                     configurable: Some(true),
                 }))
+                .unbind()
             }
         }
     }
@@ -240,7 +241,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
             None
         };
         if let Some(property_value) = property_value {
-            return TryGetResult::Value(property_value).into();
+            return TryGetResult::Value(property_value.unbind()).into();
         }
         ordinary_try_get(
             agent,
@@ -275,7 +276,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
                         None
                     };
                 if let Some(property_value) = property_value {
-                    Ok(property_value)
+                    Ok(property_value.unbind())
                 } else {
                     self.internal_prototype(agent).unwrap().internal_get(
                         agent,

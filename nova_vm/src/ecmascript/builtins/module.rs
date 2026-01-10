@@ -29,7 +29,7 @@ use crate::{
         rootable::Scopable,
     },
     heap::{
-        CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference,
+        ArenaAccess, CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference,
         WellKnownSymbolIndexes, WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
@@ -746,9 +746,6 @@ impl HeapMarkAndSweep for Module<'static> {
 
 impl HeapSweepWeakReference for Module<'static> {
     fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
-        compactions
-            .modules
-            .shift_weak_index(self.0)
-            .map(Self::from_u32)
+        compactions.modules.shift_weak_index(self.0).map(Self)
     }
 }

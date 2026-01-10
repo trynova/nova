@@ -37,7 +37,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
+    heap::{ArenaAccess, CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
 
 use super::TryHasBindingContinue;
@@ -472,7 +472,7 @@ impl<'e> ObjectEnvironment<'e> {
                 agent,
                 &SetCachedProps {
                     p: n.bind(gc),
-                    receiver: binding_object.into().bind(gc),
+                    receiver: binding_object.bind(gc).into(),
                     cache: cache.bind(gc),
                     value: v.bind(gc),
                 },
@@ -636,10 +636,8 @@ impl<'e> ObjectEnvironment<'e> {
 
         // 3. If stillExists is false and S is true, throw a ReferenceError exception.
         if !still_exists && s {
-            let binding_object_repr = scoped_binding_object
-                .get(agent)
-                .into()
-                .string_repr(agent, gc.reborrow());
+            let binding_object_repr =
+                Value::from(scoped_binding_object.get(agent)).string_repr(agent, gc.reborrow());
             Err(Self::throw_property_doesnt_exist_error(
                 agent,
                 binding_object_repr.unbind(),
@@ -865,8 +863,6 @@ impl HeapMarkAndSweep for ObjectEnvironment<'static> {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        compactions
-            .object_environments
-            .shift_non_zero_u32_index(&mut self.0);
+        compactions.object_environments.shift_index(&mut self.0);
     }
 }

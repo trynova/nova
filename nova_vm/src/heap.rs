@@ -754,12 +754,7 @@ impl PrimitiveHeap<'_> {
 
 /// Helper trait for primitive heap data indexing.
 pub(crate) trait PrimitiveHeapAccess:
-    AsRef<Vec<BigIntHeapData>>
-    + AsMut<Vec<BigIntHeapData>>
-    + AsRef<Vec<NumberHeapData>>
-    + AsMut<Vec<NumberHeapData>>
-    + AsRef<Vec<StringRecord>>
-    + AsMut<Vec<StringRecord>>
+    StringHeapAccess + NumberHeapAccess + AsRef<Vec<BigIntHeapData>> + AsMut<Vec<BigIntHeapData>>
 {
 }
 
@@ -829,6 +824,15 @@ impl StringHeapAccess for Vec<StringRecord> {}
 impl StringHeapAccess for PrimitiveHeap<'_> {}
 impl StringHeapAccess for PropertyKeyHeap<'_> {}
 impl StringHeapAccess for Agent {}
+
+pub(crate) trait NumberHeapAccess:
+    AsRef<Vec<NumberHeapData>> + AsMut<Vec<NumberHeapData>>
+{
+}
+
+impl NumberHeapAccess for Vec<NumberHeapData> {}
+impl NumberHeapAccess for PrimitiveHeap<'_> {}
+impl NumberHeapAccess for Agent {}
 
 #[test]
 fn init_heap() {

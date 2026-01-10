@@ -113,7 +113,7 @@ impl SetPrototype {
         let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
         // 3. Set value to CanonicalizeKeyedCollectionKey(value).
-        let value = canonicalize_keyed_collection_key(numbers, value);
+        let value = canonicalize_keyed_collection_key(&primitive_heap.numbers, value);
 
         let set_heap_data = s.get_direct_mut(sets);
         let values = set_heap_data.values;
@@ -370,7 +370,7 @@ impl SetPrototype {
             strings,
             sets,
             ..
-        } = &agent.heap;
+        } = &mut agent.heap;
         let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
         let set_heap_data = s.get_direct(sets);
         let values = set_heap_data.values;

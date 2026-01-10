@@ -28,7 +28,7 @@ use crate::{
         context::{Bindable, GcScope},
         rootable::Scopable,
     },
-    heap::WellKnownSymbolIndexes,
+    heap::{ArenaAccess, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct ArrayIteratorPrototype;
@@ -114,7 +114,7 @@ impl ArrayIteratorPrototype {
 
         // iii. If index ≥ len, return NormalCompletion(undefined).
         if iterator.get(agent).next_index >= len {
-            iterator.get(agent).array = None;
+            iterator.get_mut(agent).array = None;
             return create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
                 .map(|o| o.into());
         }
@@ -122,7 +122,7 @@ impl ArrayIteratorPrototype {
         // iv. Let indexNumber be 𝔽(index).
         let index = iterator.get(agent).next_index;
         // viii. Set index to index + 1.
-        iterator.get(agent).next_index += 1;
+        iterator.get_mut(agent).next_index += 1;
 
         let result = match iterator.get(agent).kind {
             // v. If kind is key, then

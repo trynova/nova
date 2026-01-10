@@ -397,7 +397,7 @@ impl<'e> FunctionEnvironment<'e> {
         value: Value,
         gc: NoGcScope<'a, '_>,
     ) -> JsResult<'a, Value<'a>> {
-        let env_rec = &mut self.get(agent);
+        let env_rec = self.get_mut(agent);
         // 1. Assert: envRec.[[ThisBindingStatus]] is not LEXICAL.
         debug_assert!(env_rec.this_binding_status != ThisBindingStatus::Lexical);
 

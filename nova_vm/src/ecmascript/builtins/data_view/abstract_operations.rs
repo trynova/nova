@@ -11,7 +11,7 @@ use crate::{
             Agent, JsResult,
             agent::{ExceptionType, try_result_into_js},
         },
-        types::{BigInt, Number, Value, Viewable},
+        types::{BigInt, Number, Numeric, Value, Viewable},
     },
     engine::{
         context::{Bindable, GcScope},
@@ -301,17 +301,16 @@ pub(crate) fn set_view_value<'gc, T: Viewable>(
     };
 
     // 4. If IsBigIntElementType(type) is true, let numberValue be ? ToBigInt(value).
-    let number_value = if T::IS_BIGINT {
+    let number_value: Numeric = if T::IS_BIGINT {
         if let Ok(v) = BigInt::try_from(value) {
             v.into()
         } else {
             let scoped_view = view.scope(agent, gc.nogc());
             let v = to_big_int(agent, value, gc.reborrow())
                 .unbind()?
-                .bind(gc.nogc())
-                .into();
+                .bind(gc.nogc());
             view = scoped_view.get(agent).bind(gc.nogc());
-            v
+            v.into()
         }
     } else {
         // 5. Otherwise, let numberValue be ? ToNumber(value).
@@ -321,10 +320,9 @@ pub(crate) fn set_view_value<'gc, T: Viewable>(
             let scoped_view = view.scope(agent, gc.nogc());
             let v = to_number(agent, value, gc.reborrow())
                 .unbind()?
-                .bind(gc.nogc())
-                .into();
+                .bind(gc.nogc());
             view = scoped_view.get(agent).bind(gc.nogc());
-            v
+            v.into()
         }
     };
     let view = view.unbind();

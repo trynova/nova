@@ -58,7 +58,7 @@ pub(crate) fn create_unmapped_arguments_object<'a, 'b>(
     let arguments_non_null_slice = unsafe { arguments_list.as_non_null_slice(agent) };
     debug_assert!(len < u32::MAX as usize);
     let len = len as u32;
-    let len_value = Number::from(len).into();
+    let len_value = Number::from(len);
     // 2. Let obj be OrdinaryObjectCreate(%Object.prototype%, « [[ParameterMap]] »).
     let prototype = agent.current_realm_record().intrinsics().object_prototype();
     let mut shape = ObjectShape::get_shape_for_prototype(agent, Some(prototype.into()));
@@ -74,13 +74,11 @@ pub(crate) fn create_unmapped_arguments_object<'a, 'b>(
         .current_realm_record()
         .intrinsics()
         .array_prototype_values()
-        .bind(gc)
-        .into();
+        .bind(gc);
     let throw_type_error = agent
         .current_realm_record()
         .intrinsics()
         .throw_type_error()
-        .into()
         .bind(gc);
     let storage = obj.get_elements_storage_mut(agent);
     let values = storage.values;
@@ -95,19 +93,19 @@ pub(crate) fn create_unmapped_arguments_object<'a, 'b>(
     // }).
 
     // "length"
-    values[0] = Some(len_value.unbind());
+    values[0] = Some(len_value.unbind().into());
     // "callee"
     values[1] = None;
     // Iterator
-    values[2] = Some(array_prototype_values.unbind());
+    values[2] = Some(array_prototype_values.unbind().into());
     // "length"
     descriptors.insert(0, ElementDescriptor::WritableUnenumerableConfigurableData);
     // "callee"
     descriptors.insert(
         1,
         ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor {
-            get: throw_type_error.unbind(),
-            set: throw_type_error.unbind(),
+            get: throw_type_error.unbind().into(),
+            set: throw_type_error.unbind().into(),
         },
     );
     // Iterator

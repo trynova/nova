@@ -113,9 +113,6 @@ impl DateConstructor {
                         .bind(gc.nogc());
                     // ii. If v is a String, then
                     if let Ok(v) = String::try_from(v) {
-                        if let String::String(s) = v {
-                            let foo = s.get(agent);
-                        }
                         // 1. Assert: The next step never returns an abrupt completion because v is a String.
                         // 2. Let tv be the result of parsing v as a date, in exactly the same manner as for the parse method (21.4.3.2).
                         parse_date::parse(agent, &v.to_string_lossy(agent))

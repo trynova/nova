@@ -9,7 +9,7 @@ use crate::{
     },
     heap::{
         CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
-        indexes::{BaseIndex, HeapIndexHandle},
+        indexes::{BaseIndex},
     },
 };
 

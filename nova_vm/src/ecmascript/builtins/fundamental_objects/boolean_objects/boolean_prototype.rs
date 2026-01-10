@@ -13,6 +13,7 @@ use crate::{
         types::{BUILTIN_STRING_MEMORY, String, Value},
     },
     engine::context::{GcScope, NoGcScope},
+    heap::{ArenaAccess, indexes::HeapIndexHandle},
 };
 
 pub(crate) struct BooleanPrototype;

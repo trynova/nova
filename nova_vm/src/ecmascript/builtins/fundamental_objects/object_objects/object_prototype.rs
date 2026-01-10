@@ -23,7 +23,7 @@ use crate::{
         },
     },
     engine::context::{Bindable, GcScope},
-    heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+    heap::{ArenaAccess, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct ObjectPrototype;

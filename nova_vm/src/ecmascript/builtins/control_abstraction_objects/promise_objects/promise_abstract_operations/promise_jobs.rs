@@ -58,36 +58,30 @@ impl PromiseResolveThenableJob {
         // out later, lest we start leaking memory here.
         let promise = promise_to_resolve.get(agent, gc.nogc()).bind(gc.nogc());
         let promise_capability = PromiseCapability::from_promise(promise, false);
-        let resolve_function = agent
-            .heap
-            .create(PromiseResolvingFunctionHeapData {
-                object_index: None,
-                promise_capability: promise_capability.clone(),
-                resolve_type: PromiseResolvingFunctionType::Resolve,
-            })
-            .into();
-        let reject_function = agent
-            .heap
-            .create(PromiseResolvingFunctionHeapData {
-                object_index: None,
-                promise_capability: promise_capability.clone(),
-                resolve_type: PromiseResolvingFunctionType::Reject,
-            })
-            .into();
+        let resolve_function = agent.heap.create(PromiseResolvingFunctionHeapData {
+            object_index: None,
+            promise_capability: promise_capability.clone(),
+            resolve_type: PromiseResolvingFunctionType::Resolve,
+        });
+        let reject_function = agent.heap.create(PromiseResolvingFunctionHeapData {
+            object_index: None,
+            promise_capability: promise_capability.clone(),
+            resolve_type: PromiseResolvingFunctionType::Reject,
+        });
 
         // b. Let thenCallResult be Completion(HostCallJobCallback(then, thenable, « resolvingFunctions.[[Resolve]], resolvingFunctions.[[Reject]] »)).
         // TODO: Add the HostCallJobCallback host hook. For now we're using its default
         // implementation, which is calling the thenable, since only browsers should use a different
         // implementation.
         let then = then.take(agent).bind(gc.nogc());
-        let thenable = thenable.take(agent).bind(gc.nogc()).into();
+        let thenable = thenable.take(agent).bind(gc.nogc());
         let then_call_result = call_function(
             agent,
             then.unbind(),
-            thenable.unbind(),
+            thenable.unbind().into(),
             Some(ArgumentsList::from_mut_slice(&mut [
-                resolve_function.unbind(),
-                reject_function.unbind(),
+                resolve_function.unbind().into(),
+                reject_function.unbind().into(),
             ])),
             gc.reborrow(),
         )
@@ -192,7 +186,12 @@ impl PromiseReactionJob {
             PromiseReactionHandler::Await(await_reaction) => {
                 assert!(reaction_data.capability.is_none());
                 let reaction_type = reaction_data.reaction_type;
-                await_reaction.resume(agent, reaction_type, argument.unbind(), gc.reborrow());
+                await_reaction.unbind().resume(
+                    agent,
+                    reaction_type,
+                    argument.unbind(),
+                    gc.reborrow(),
+                );
                 // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
                 // 5. f. Return undefined.
                 return Ok(());
@@ -200,7 +199,7 @@ impl PromiseReactionJob {
             PromiseReactionHandler::AsyncGenerator(async_generator) => {
                 assert!(reaction_data.capability.is_none());
                 let reaction_type = reaction_data.reaction_type;
-                async_generator.resume_await(
+                async_generator.unbind().resume_await(
                     agent,
                     reaction_type,
                     argument.unbind(),
@@ -301,7 +300,7 @@ impl PromiseReactionJob {
                 index,
             } => {
                 let reaction_type = reaction_data.reaction_type;
-                promise_group.settle(
+                promise_group.unbind().settle(
                     agent,
                     reaction_type,
                     index,

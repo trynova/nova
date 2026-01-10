@@ -31,7 +31,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+    heap::{ArenaAccess, CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 use super::TryHasBindingContinue;
@@ -551,7 +551,7 @@ impl<'e> GlobalEnvironment<'e> {
             let status = obj_rec.try_delete_binding(agent, name, gc)?;
             // b. If status is true and envRec.[[VarNames]] contains N, then
             if status {
-                let env_rec = &mut env.get(agent);
+                let env_rec = env.get_mut(agent);
                 if env_rec.var_names.contains(&name) {
                     // i. Remove N from envRec.[[VarNames]].
                     env_rec.var_names.remove(&name.unbind());
@@ -611,7 +611,7 @@ impl<'e> GlobalEnvironment<'e> {
             // b. If status is true and envRec.[[VarNames]] contains N, then
             if status {
                 let name = scoped_name.get(agent);
-                let env_rec = &mut env.get(agent);
+                let env_rec = env.get_mut(agent);
                 if env_rec.var_names.contains(&name) {
                     // i. Remove N from envRec.[[VarNames]].
                     env_rec.var_names.remove(&name);
@@ -850,7 +850,7 @@ impl<'e> GlobalEnvironment<'e> {
         let name = unsafe { name.take(agent) };
         // 6. If envRec.[[VarNames]] does not contain N, then
         //    a. Append N to envRec.[[VarNames]].
-        env.get(agent).var_names.insert(name);
+        env.get_mut(agent).var_names.insert(name);
 
         // 7. Return UNUSED.
         Ok(())
@@ -941,7 +941,7 @@ impl<'e> GlobalEnvironment<'e> {
         // a. Append N to envRec.[[VarNames]].
         // SAFETY: Name of a global function cannot be a numeric string.
         let n = unsafe { String::try_from(name.into_value_unchecked()).unwrap() };
-        env.get(agent).var_names.insert(n);
+        env.get_mut(agent).var_names.insert(n);
         // 9. Return UNUSED.
         Ok(())
         // NOTE
@@ -960,8 +960,6 @@ impl HeapMarkAndSweep for GlobalEnvironment<'static> {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        compactions
-            .global_environments
-            .shift_non_zero_u32_index(&mut self.0);
+        compactions.global_environments.shift_index(&mut self.0);
     }
 }

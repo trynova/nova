@@ -17,7 +17,7 @@ use crate::{
         types::{BUILTIN_STRING_MEMORY, String, Value},
     },
     engine::context::{Bindable, GcScope},
-    heap::WellKnownSymbolIndexes,
+    heap::{ArenaAccess, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct MapIteratorPrototype;

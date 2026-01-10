@@ -196,7 +196,7 @@ impl Default for ArrayBufferHeapData<'_> {
 
 unsafe impl Send for ArrayBufferHeapData<'_> {}
 
-impl ArrayBufferHeapData<'_> {
+impl<'a> ArrayBufferHeapData<'a> {
     pub(crate) fn new_fixed_length(db: DataBlock) -> Self {
         Self {
             object_index: None,
@@ -207,14 +207,14 @@ impl ArrayBufferHeapData<'_> {
     /// Returns the contained DataBlock.
     ///
     /// Panics if the buffer is detached.
-    pub(crate) fn get_data_block(&self) -> &DataBlock {
+    pub(crate) fn get_data_block<'b>(&'b self) -> &'b DataBlock {
         &self.buffer.data_block
     }
 
     /// Returns the contained DataBlock.
     ///
     /// Panics if the buffer is detached.
-    pub(crate) fn get_data_block_mut(&mut self) -> &mut DataBlock {
+    pub(crate) fn get_data_block_mut<'b>(&'b mut self) -> &'b mut DataBlock {
         &mut self.buffer.data_block
     }
 

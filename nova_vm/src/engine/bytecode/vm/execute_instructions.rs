@@ -67,7 +67,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::ObjectEntry,
+    heap::{ArenaAccess, ObjectEntry},
 };
 
 use super::{

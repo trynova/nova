@@ -191,22 +191,16 @@ impl PromiseConstructor {
 
         // 8. Let resolvingFunctions be CreateResolvingFunctions(promise).
         let promise_capability = PromiseCapability::from_promise(promise, true);
-        let resolve_function = agent
-            .heap
-            .create(PromiseResolvingFunctionHeapData {
-                object_index: None,
-                promise_capability: promise_capability.clone(),
-                resolve_type: PromiseResolvingFunctionType::Resolve,
-            })
-            .into();
-        let reject_function = agent
-            .heap
-            .create(PromiseResolvingFunctionHeapData {
-                object_index: None,
-                promise_capability: promise_capability.clone(),
-                resolve_type: PromiseResolvingFunctionType::Reject,
-            })
-            .into();
+        let resolve_function = agent.heap.create(PromiseResolvingFunctionHeapData {
+            object_index: None,
+            promise_capability: promise_capability.clone(),
+            resolve_type: PromiseResolvingFunctionType::Resolve,
+        });
+        let reject_function = agent.heap.create(PromiseResolvingFunctionHeapData {
+            object_index: None,
+            promise_capability: promise_capability.clone(),
+            resolve_type: PromiseResolvingFunctionType::Reject,
+        });
 
         // 9. Let completion be Completion(Call(executor, undefined, « resolvingFunctions.[[Resolve]], resolvingFunctions.[[Reject]] »)).
         // 10. If completion is an abrupt completion, then
@@ -215,8 +209,8 @@ impl PromiseConstructor {
             executor.get(agent),
             Value::Undefined,
             Some(ArgumentsList::from_mut_slice(&mut [
-                resolve_function.unbind(),
-                reject_function.unbind(),
+                resolve_function.unbind().into(),
+                reject_function.unbind().into(),
             ])),
             gc.reborrow(),
         ) {

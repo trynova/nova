@@ -147,10 +147,10 @@ impl MapPrototype {
             maps,
             ..
         } = &mut agent.heap;
-        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
         // 3. Set key to CanonicalizeKeyedCollectionKey(key).
         let key = canonicalize_keyed_collection_key(numbers, key);
+        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
         let key_hash = {
             let mut hasher = AHasher::default();
             key.hash(&primitive_heap, &mut hasher);
@@ -316,10 +316,10 @@ impl MapPrototype {
             maps,
             ..
         } = &mut agent.heap;
-        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
         // 3. Set key to CanonicalizeKeyedCollectionKey(key).
-        let key = canonicalize_keyed_collection_key(&agent.heap.numbers, key);
+        let key = canonicalize_keyed_collection_key(numbers, key);
+        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
         let key_hash = {
             let mut hasher = AHasher::default();
             key.hash(&primitive_heap, &mut hasher);
@@ -369,10 +369,10 @@ impl MapPrototype {
             maps,
             ..
         } = &mut agent.heap;
-        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
         // 3. Set key to CanonicalizeKeyedCollectionKey(key).
         let key = canonicalize_keyed_collection_key(numbers, key);
+        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
         let key_hash = {
             let mut hasher = AHasher::default();
             key.hash(&primitive_heap, &mut hasher);
@@ -432,7 +432,6 @@ impl MapPrototype {
             maps,
             ..
         } = &mut agent.heap;
-        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
         let MapHeapDataMut {
             keys,
@@ -442,15 +441,16 @@ impl MapPrototype {
         } = m.get_direct_mut(maps);
         let map_data = map_data.get_mut();
 
+        // 3. Set key to CanonicalizeKeyedCollectionKey(key).
+        let key = canonicalize_keyed_collection_key(numbers, key);
+        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
         let hasher = |value: Value| {
             let mut hasher = AHasher::default();
             value.hash(&primitive_heap, &mut hasher);
             hasher.finish()
         };
-
-        // 3. Set key to CanonicalizeKeyedCollectionKey(key).
-        let key = canonicalize_keyed_collection_key(numbers, key);
         let key_hash = hasher(key);
+
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
         // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, then
         let entry = map_data.entry(

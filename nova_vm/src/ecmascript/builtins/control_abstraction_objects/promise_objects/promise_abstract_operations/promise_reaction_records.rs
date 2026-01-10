@@ -15,10 +15,7 @@ use crate::{
         },
         types::{Function, Object},
     },
-    engine::{
-        context::{Bindable, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
+    engine::context::{Bindable, bindable_handle},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, arena_vec_access,
         indexes::{BaseIndex, index_handle},
@@ -142,6 +139,7 @@ pub struct PromiseReactionRecord<'a> {
     /// \[\[Type\]\] will be used instead.
     pub(crate) handler: PromiseReactionHandler<'a>,
 }
+bindable_handle!(PromiseReactionRecord);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]

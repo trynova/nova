@@ -15,7 +15,7 @@ use crate::{
         types::{BUILTIN_STRING_MEMORY, Function, Object, String, Value},
     },
     engine::context::{Bindable, GcScope},
-    heap::IntrinsicConstructorIndexes,
+    heap::{ArenaAccess, IntrinsicConstructorIndexes},
 };
 
 pub(crate) struct BooleanConstructor;

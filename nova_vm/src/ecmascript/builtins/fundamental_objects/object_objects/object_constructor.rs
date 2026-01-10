@@ -864,8 +864,8 @@ impl ObjectConstructor {
             .unbind()?
             .bind(gc.nogc());
         Ok(create_array_from_list(agent, &keys.unbind(), gc.nogc())
-            .into()
-            .unbind())
+            .unbind()
+            .into())
     }
 
     /// ### [20.1.2.11 Object.getOwnPropertySymbols ( O )](https://tc39.es/ecma262/#sec-object.getownpropertysymbols)
@@ -881,8 +881,8 @@ impl ObjectConstructor {
             .unbind()?
             .bind(gc.nogc());
         Ok(create_array_from_list(agent, &keys.unbind(), gc.nogc())
-            .into()
-            .unbind())
+            .unbind()
+            .into())
     }
 
     /// ### [20.1.2.12 Object.getPrototypeOf ( O )](https://tc39.es/ecma262/#sec-object.getprototypeof)
@@ -1032,11 +1032,11 @@ impl ObjectConstructor {
             .unbind()?
             .iter()
             .map(|p| p.convert_to_value(agent, gc.nogc()).into())
-            .collect::<Vec<_>>();
+            .collect::<Vec<Value>>();
         // 3. Return CreateArrayFromList(keyList).
         Ok(create_array_from_list(agent, &key_list.unbind(), gc.nogc())
-            .into()
-            .unbind())
+            .unbind()
+            .into())
     }
 
     /// ### [20.1.2.20 Object.preventExtensions ( O )](https://tc39.es/ecma262/#sec-object.preventextensions)
@@ -1172,8 +1172,8 @@ impl ObjectConstructor {
         // 3. Return CreateArrayFromList(valueList).
         Ok(
             create_array_from_list(agent, &value_list.unbind(), gc.nogc())
-                .into()
-                .unbind(),
+                .unbind()
+                .into(),
         )
     }
 
@@ -1318,7 +1318,10 @@ pub fn add_entries_from_iterable_from_entries<'a>(
     // the target but will later be reused for each repeat of the loop. We
     // cannot reuse the scoped target below for this, as the value held in the
     // scoped_next will change on each loop.
-    let mut scoped_next = target.into().scope(agent, gc.nogc());
+    let mut scoped_next = {
+        let target: Object = target.into();
+        target.scope(agent, gc.nogc())
+    };
     let target = target.scope(agent, gc.nogc());
     let iterable = iterable.scope(agent, gc.nogc());
     // 1. Let iteratorRecord be ? GetIterator(iterable, SYNC).

@@ -10,7 +10,7 @@ use crate::{
         types::{BUILTIN_STRING_MEMORY, PropertyKey, String, Symbol, Value},
     },
     engine::context::{Bindable, GcScope, NoGcScope},
-    heap::WellKnownSymbolIndexes,
+    heap::{ArenaAccess, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct SymbolPrototype;
@@ -90,6 +90,7 @@ impl SymbolPrototype {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
+        let this_value = this_value.bind(gc);
         // 1. Let sym be ? ThisSymbolValue(this value).
         let symb = this_symbol_value(agent, this_value, gc)?;
         // 2. Return SymbolDescriptiveString(sym).
@@ -103,8 +104,10 @@ impl SymbolPrototype {
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        let gc = gc.into_nogc();
+        let this_value = this_value.bind(gc);
         // 1. Return ? ThisSymbolValue(this value).
-        this_symbol_value(agent, this_value, gc.into_nogc()).map(|res| res.into())
+        this_symbol_value(agent, this_value, gc).map(|res| res.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -135,7 +138,7 @@ impl SymbolPrototype {
 #[inline(always)]
 fn this_symbol_value<'a>(
     agent: &mut Agent,
-    value: Value,
+    value: Value<'a>,
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, Symbol<'a>> {
     match value {

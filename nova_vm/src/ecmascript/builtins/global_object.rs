@@ -38,7 +38,7 @@ use crate::{
         rootable::Scopable,
         string_literal_to_wtf8,
     },
-    heap::IntrinsicFunctionIndexes,
+    heap::{ArenaAccess, IntrinsicFunctionIndexes, indexes::HeapIndexHandle},
     ndt,
 };
 
@@ -182,7 +182,7 @@ pub(crate) fn perform_eval<'gc>(
     // 5. Perform ? HostEnsureCanCompileStrings(evalRealm, « », x, direct).
     agent
         .host_hooks
-        .ensure_can_compile_strings(&mut eval_realm.get(agent), gc.nogc())
+        .ensure_can_compile_strings(eval_realm.get_mut(agent), gc.nogc())
         .unbind()?;
 
     let mut id = 0;
@@ -434,7 +434,7 @@ pub(crate) fn perform_eval<'gc>(
 fn create_id(x: String) -> u64 {
     match x {
         String::String(s) => {
-            let s = s.get_index() as u32;
+            let s = s.get_index_u32();
             let [a, b, c, d] = s.to_ne_bytes();
             u64::from_ne_bytes([STRING_DISCRIMINANT, 0, 0, 0, a, b, c, d])
         }
@@ -738,9 +738,7 @@ fn eval_declaration_instantiation<'a>(
             scoped_lex_env.get(agent).bind(gc.nogc()),
             private_env.as_ref().map(|v| v.get(agent).bind(gc.nogc())),
             gc.nogc(),
-        )
-        .into()
-        .unbind();
+        );
 
         // c. If varEnv is a Global Environment Record, then
         if let Environment::Global(var_env) = scoped_var_env.get(agent).bind(gc.nogc()) {
@@ -752,13 +750,14 @@ fn eval_declaration_instantiation<'a>(
                 .create_global_function_binding(
                     agent,
                     function_name.unbind(),
-                    fo.unbind(),
+                    fo.unbind().into(),
                     true,
                     gc.reborrow(),
                 )
                 .unbind()?
                 .bind(gc.nogc());
         } else {
+            let fo = fo.scope(agent, gc.nogc());
             // d. Else,
             // i. Let bindingExists be ! varEnv.HasBinding(fn).
             let function_name = String::from_str(agent, function_name.unwrap().as_str(), gc.nogc())
@@ -788,7 +787,8 @@ fn eval_declaration_instantiation<'a>(
                         agent,
                         function_name.get(agent).unbind(),
                         None,
-                        fo,
+                        // SAFETY: not shared.
+                        unsafe { fo.take(agent) }.into(),
                         gc.reborrow(),
                     )
                     .unwrap();
@@ -803,7 +803,8 @@ fn eval_declaration_instantiation<'a>(
                         agent,
                         function_name.unbind(),
                         Some(cache.unbind()),
-                        fo,
+                        // SAFETY: not shared.
+                        unsafe { fo.take(agent) }.into(),
                         false,
                         gc.reborrow(),
                     )

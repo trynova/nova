@@ -105,7 +105,7 @@ impl SetConstructor {
         // 5. Let adder be ? Get(set, "add").
         let adder = get(
             agent,
-            set.unbind().into(),
+            set.unbind(),
             BUILTIN_STRING_MEMORY.add.into(),
             gc.reborrow(),
         )

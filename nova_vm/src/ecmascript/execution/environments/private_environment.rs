@@ -10,10 +10,13 @@ use crate::{
     ecmascript::{
         builtins::ECMAScriptFunction,
         execution::Agent,
-        types::{ PrivateName, String, Value},
+        types::{PrivateName, String, Value},
     },
     engine::context::{Bindable, NoGcScope, bindable_handle},
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, element_array::ElementDescriptor},
+    heap::{
+        ArenaAccess, CompactionLists, HeapMarkAndSweep, WorkQueues,
+        element_array::ElementDescriptor,
+    },
 };
 
 use super::PrivateEnvironment;
@@ -420,9 +423,7 @@ impl HeapMarkAndSweep for PrivateEnvironment<'static> {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        compactions
-            .private_environments
-            .shift_non_zero_u32_index(&mut self.0);
+        compactions.private_environments.shift_index(&mut self.0);
     }
 }
 

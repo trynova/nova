@@ -41,7 +41,7 @@ pub struct ArrayBuffer<'a>(BaseIndex<'a, ArrayBufferHeapData<'static>>);
 array_buffer_handle!(ArrayBuffer);
 arena_vec_access!(ArrayBuffer, 'a, ArrayBufferHeapData, array_buffers);
 
-impl ArrayBuffer<'_> {
+impl<'ab> ArrayBuffer<'ab> {
     pub fn new<'gc>(
         agent: &mut Agent,
         byte_length: usize,
@@ -117,7 +117,7 @@ impl ArrayBuffer<'_> {
     /// keep in mind that if JavaScript is called into the contents of the
     /// ArrayBuffer may be rewritten or reallocated.
     #[inline]
-    pub fn as_slice<'a>(self, agent: &'a Agent) -> &'a [u8] {
+    pub fn as_slice(self, agent: &'ab Agent) -> &'ab [u8] {
         self.get(agent).get_data_block()
     }
 
@@ -131,8 +131,8 @@ impl ArrayBuffer<'_> {
     /// keep in mind that if JavaScript is called into the contents of the
     /// ArrayBuffer may be rewritten or reallocated.
     #[inline]
-    pub fn as_mut_slice(self, agent: &mut Agent) -> &mut [u8] {
-        self.get(agent).buffer.get_data_block_mut()
+    pub fn as_mut_slice(self, agent: &'ab mut Agent) -> &'ab mut [u8] {
+        self.get_mut(agent).buffer.get_data_block_mut()
     }
 
     /// Create a T slice from an ArrayBuffer and byte offset and length values.
@@ -140,10 +140,10 @@ impl ArrayBuffer<'_> {
     /// This method should be used when looping over items of a TypedArray.
     pub(crate) fn as_viewable_slice<T: Viewable>(
         self,
-        agent: &Agent,
+        agent: &'ab Agent,
         byte_offset: usize,
         byte_length: Option<usize>,
-    ) -> &[T] {
+    ) -> &'ab [T] {
         let byte_slice = self.as_slice(agent);
         let byte_limit = byte_length.map(|byte_length| byte_offset.saturating_add(byte_length));
         if byte_limit.unwrap_or(byte_offset) > byte_slice.len() {
@@ -169,10 +169,10 @@ impl ArrayBuffer<'_> {
     /// This method should be used when looping over items of a TypedArray.
     pub(crate) fn as_mut_viewable_slice<T: Viewable>(
         self,
-        agent: &mut Agent,
+        agent: &'ab mut Agent,
         byte_offset: usize,
         byte_length: Option<usize>,
-    ) -> &mut [T] {
+    ) -> &'ab mut [T] {
         let byte_slice = self.as_mut_slice(agent);
         let byte_limit = byte_length.map(|byte_length| byte_offset.saturating_add(byte_length));
         if byte_limit.unwrap_or(byte_offset) > byte_slice.len() {
@@ -223,12 +223,12 @@ impl<'a> InternalSlots<'a> for ArrayBuffer<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index
+        self.get(agent).object_index.unbind()
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
-            self.get(agent)
+            self.get_mut(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()

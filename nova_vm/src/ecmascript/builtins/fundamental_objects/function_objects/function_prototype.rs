@@ -34,7 +34,7 @@ use crate::{
         rootable::Scopable,
     },
     heap::{
-        IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, ObjectEntry,
+        ArenaAccess, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, ObjectEntry,
         ObjectEntryPropertyDescriptor, WellKnownSymbolIndexes,
     },
 };

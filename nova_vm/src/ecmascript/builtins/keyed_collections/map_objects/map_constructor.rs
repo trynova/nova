@@ -47,7 +47,8 @@ use crate::{
         rootable::Scopable,
     },
     heap::{
-        CreateHeapData, Heap, IntrinsicConstructorIndexes, PrimitiveHeap, WellKnownSymbolIndexes,
+        ArenaAccess, CreateHeapData, Heap, IntrinsicConstructorIndexes, PrimitiveHeap,
+        WellKnownSymbolIndexes,
     },
 };
 

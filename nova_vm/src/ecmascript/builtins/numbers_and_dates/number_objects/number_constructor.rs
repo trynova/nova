@@ -139,7 +139,7 @@ impl NumberConstructor {
         .unwrap();
         let n = n.get(agent).unbind();
         // 5. Set O.[[NumberData]] to n.
-        o.get(agent).data = match n {
+        o.get_mut(agent).data = match n {
             Number::Number(d) => PrimitiveObjectData::Number(d),
             Number::Integer(d) => PrimitiveObjectData::Integer(d),
             Number::SmallF64(d) => PrimitiveObjectData::SmallF64(d),

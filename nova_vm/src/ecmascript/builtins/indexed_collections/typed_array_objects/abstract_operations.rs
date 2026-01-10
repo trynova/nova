@@ -1018,12 +1018,12 @@ pub(crate) fn typed_array_create_from_constructor_with_length<'a>(
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, AnyTypedArray<'a>> {
     let constructor = constructor.bind(gc.nogc());
-    let arg0 = Number::from_i64(agent, length, gc.nogc()).into();
+    let arg0 = Number::from_i64(agent, length, gc.nogc());
     // 1. Let newTypedArray be ? Construct(constructor, argumentList).
     let new_typed_array = construct(
         agent,
         constructor.unbind(),
-        Some(ArgumentsList::from_mut_value(&mut arg0.unbind())),
+        Some(ArgumentsList::from_mut_value(&mut arg0.unbind().into())),
         None,
         gc.reborrow(),
     )
@@ -1058,16 +1058,16 @@ pub(crate) fn typed_array_create_from_constructor_with_buffer<'a>(
             &mut [
                 buffer.unbind().into(),
                 Number::from_usize(agent, byte_offset, gc.nogc())
-                    .into()
-                    .unbind(),
-                Number::from_usize(agent, length, gc.nogc()).into().unbind(),
+                    .unbind()
+                    .into(),
+                Number::from_usize(agent, length, gc.nogc()).unbind().into(),
             ]
         } else {
             &mut [
                 buffer.unbind().into(),
                 Number::from_usize(agent, byte_offset, gc.nogc())
-                    .into()
-                    .unbind(),
+                    .unbind()
+                    .into(),
             ]
         };
 

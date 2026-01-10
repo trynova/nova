@@ -231,11 +231,13 @@ pub(crate) fn set<'a>(
     throw: bool,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
+    let o = o.bind(gc.nogc());
     let p = p.bind(gc.nogc());
     let scoped_p = p.scope(agent, gc.nogc());
     // 1. Let success be ? O.[[Set]](P, V, O).
     let success = o
-        .internal_set(agent, p.unbind(), v, o.into(), gc.reborrow())
+        .unbind()
+        .internal_set(agent, p.unbind(), v, o.unbind().into(), gc.reborrow())
         .unbind()?;
     // SAFETY: p is not shared.
     let p = unsafe { scoped_p.take(agent) }.bind(gc.nogc());

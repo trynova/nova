@@ -1024,9 +1024,7 @@ pub(crate) fn put_value<'a>(
                 // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
                 // SAFETY: not shared.
                 let base_obj_repr = unsafe {
-                    scoped_base_obj
-                        .take(agent)
-                        .into()
+                    Value::from(scoped_base_obj.take(agent))
                         .string_repr(agent, gc.reborrow())
                         .unbind()
                         .bind(gc.nogc())

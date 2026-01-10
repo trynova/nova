@@ -24,7 +24,6 @@
 //! functions will have as their outer Environment Record the Environment Record
 //! of the current evaluation of the surrounding function.
 
-use core::{marker::PhantomData, num::NonZeroU32};
 use std::ops::ControlFlow;
 
 mod declarative_environment;
@@ -104,6 +103,42 @@ macro_rules! create_environment_index {
                     "$index({:?})",
                     crate::heap::indexes::HeapIndexHandle::get_index_u32(*self)
                 )
+            }
+        }
+
+        impl<'a> crate::heap::DirectArenaAccess for $index<'a> {
+            type Data = $record;
+            type Output = $record;
+
+            #[inline]
+            fn get_direct<'agent>(self, source: &'agent Vec<Self::Data>) -> &'agent Self::Output {
+                source
+                    .get(crate::heap::indexes::HeapIndexHandle::get_index(self))
+                    .expect("Invalid environment handle")
+            }
+
+            #[inline]
+            fn get_direct_mut<'agent>(
+                self,
+                source: &'agent mut Vec<Self::Data>,
+            ) -> &'agent mut Self::Output {
+                source
+                    .get_mut(crate::heap::indexes::HeapIndexHandle::get_index(self))
+                    .expect("Invalid environment handle")
+            }
+        }
+
+        impl AsRef<Vec<$record>> for crate::ecmascript::execution::Agent {
+            #[inline(always)]
+            fn as_ref(&self) -> &Vec<$record> {
+                &self.heap.environments.$entry
+            }
+        }
+
+        impl AsMut<Vec<$record>> for crate::ecmascript::execution::Agent {
+            #[inline(always)]
+            fn as_mut(&mut self) -> &mut Vec<$record> {
+                &mut self.heap.environments.$entry
             }
         }
     };

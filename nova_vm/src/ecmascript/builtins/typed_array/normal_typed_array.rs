@@ -1980,15 +1980,15 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
             if error.is_some() {
                 return std::cmp::Ordering::Equal;
             }
-            let a_val = a.into_ne_value(agent, gc.nogc()).into();
-            let b_val = b.into_ne_value(agent, gc.nogc()).into();
+            let a_val = a.into_ne_value(agent, gc.nogc());
+            let b_val = b.into_ne_value(agent, gc.nogc());
             let result = call_function(
                 agent,
                 comparator.get(agent),
                 Value::Undefined,
                 Some(ArgumentsList::from_mut_slice(&mut [
-                    a_val.unbind(),
-                    b_val.unbind(),
+                    a_val.unbind().into(),
+                    b_val.unbind().into(),
                 ])),
                 gc.reborrow(),
             )

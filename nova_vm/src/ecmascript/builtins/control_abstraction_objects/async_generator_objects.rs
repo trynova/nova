@@ -150,7 +150,7 @@ impl AsyncGenerator<'_> {
     }
 
     pub(crate) fn transition_to_draining_queue(self, agent: &mut Agent) {
-        let async_generator_state = &mut self.get(agent).async_generator_state;
+        let async_generator_state = self.get_mut(agent).async_generator_state;
         let state = async_generator_state.take().unwrap();
         let queue = match state {
             AsyncGeneratorState::SuspendedStart { queue, .. }
@@ -163,7 +163,7 @@ impl AsyncGenerator<'_> {
     }
 
     pub(crate) fn transition_to_complete(self, agent: &mut Agent) {
-        let async_generator_state = &mut self.get(agent).async_generator_state;
+        let async_generator_state = self.get_mut(agent).async_generator_state;
         let state = async_generator_state.take().unwrap();
         let queue = match state {
             AsyncGeneratorState::SuspendedStart { queue, .. }
@@ -183,7 +183,7 @@ impl AsyncGenerator<'_> {
         kind: AsyncGeneratorAwaitKind,
         execution_context: ExecutionContext,
     ) {
-        let async_generator_state = &mut self.get(agent).async_generator_state;
+        let async_generator_state = self.get_mut(agent).async_generator_state;
         let AsyncGeneratorState::Executing(queue) = async_generator_state.take().unwrap() else {
             unreachable!()
         };
@@ -200,7 +200,7 @@ impl AsyncGenerator<'_> {
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
     ) -> (SuspendedVm, ExecutionContext, Executable<'gc>) {
-        let async_generator_state = &mut self.get(agent).async_generator_state;
+        let async_generator_state = self.get_mut(agent).async_generator_state;
         let (vm, execution_context, queue) = match async_generator_state.take() {
             Some(AsyncGeneratorState::SuspendedStart {
                 vm,
@@ -224,7 +224,7 @@ impl AsyncGenerator<'_> {
         vm: SuspendedVm,
         execution_context: ExecutionContext,
     ) {
-        let async_generator_state = &mut self.get(agent).async_generator_state;
+        let async_generator_state = self.get_mut(agent).async_generator_state;
         let AsyncGeneratorState::Executing(queue) = async_generator_state.take().unwrap() else {
             unreachable!()
         };
@@ -316,12 +316,12 @@ impl<'a> InternalSlots<'a> for AsyncGenerator<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index
+        self.get(agent).object_index.unbind()
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
-            self.get(agent)
+            self.get_mut(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()

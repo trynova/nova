@@ -9,9 +9,9 @@ use crate::{
     },
     engine::context::{Bindable, bindable_handle},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, arena_vec_access,
-        indexes::{BaseIndex, HeapIndexHandle},
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, WorkQueues, arena_vec_access,
+        indexes::{BaseIndex},
     },
 };
 
@@ -41,12 +41,12 @@ impl<'a> InternalSlots<'a> for ArrayIterator<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index
+        self.get(agent).object_index.unbind()
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
-            self.get(agent)
+            self.get_mut(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()

@@ -17,7 +17,7 @@ use crate::{
         types::{BUILTIN_STRING_MEMORY, String, Value},
     },
     engine::context::{Bindable, GcScope},
-    heap::WellKnownSymbolIndexes,
+    heap::{ArenaAccess, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct SetIteratorPrototype;
@@ -64,7 +64,7 @@ impl SetIteratorPrototype {
             // i. Let e be entries[index].
             // ii. Set index to index + 1.
             let index = iterator.get(agent).next_index;
-            iterator.get(agent).next_index += 1;
+            iterator.get_mut(agent).next_index += 1;
 
             // iii. if e is not EMPTY, then
             let Some(e) = set.get(agent).values[index] else {
@@ -94,7 +94,7 @@ impl SetIteratorPrototype {
         debug_assert_eq!(iterator.get(agent).next_index, set.get(agent).values.len());
 
         // e. Return undefined.
-        iterator.get(agent).set = None;
+        iterator.get_mut(agent).set = None;
         create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc()).map(|o| o.into())
     }
 

@@ -23,7 +23,8 @@ use crate::{
     },
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, WorkQueues, arena_vec_access, indexes::BaseIndex,
+        HeapSweepWeakReference, WorkQueues, arena_vec_access, element_array::ElementsVector,
+        indexes::BaseIndex,
     },
 };
 
@@ -44,12 +45,22 @@ impl<'f> BoundFunction<'f> {
     pub fn is_constructor(self, agent: &Agent) -> bool {
         // A bound function has the [[Construct]] method if the target function
         // does.
-        self.get(agent).bound_target_function.is_constructor(agent)
+        self.bound_target_function(agent).is_constructor(agent)
     }
 
     /// ### \[\[BoundTargetFunction]]
-    pub fn bound_target_function(self, agent: &Agent) -> Function<'f> {
+    pub(crate) fn bound_target_function(self, agent: &Agent) -> Function<'f> {
         self.get(agent).bound_target_function
+    }
+
+    /// ### \[\[BoundThis]]
+    pub(crate) fn bound_this(self, agent: &Agent) -> Value<'f> {
+        self.get(agent).bound_this
+    }
+
+    /// ### \[\[BoundArguments]]
+    pub(crate) fn bound_arguments(self, agent: &Agent) -> ElementsVector<'f> {
+        self.get(agent).bound_arguments
     }
 }
 
@@ -171,16 +182,22 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
         let f = self.bind(gc.nogc());
         let arguments_list = arguments_list.bind(gc.nogc());
         // 1. Let target be F.[[BoundTargetFunction]].
-        let target = f.get(agent).bound_target_function;
+        let target = f.bound_target_function(agent);
         // 2. Let boundThis be F.[[BoundThis]].
-        let bound_this = f.get(agent).bound_this;
+        let bound_this = f.bound_this(agent);
         // 3. Let boundArgs be F.[[BoundArguments]].
-        let bound_args = &f.get(agent).bound_arguments;
+        let bound_args = f.bound_arguments(agent);
         // 4. Let args be the list-concatenation of boundArgs and argumentsList.
         if bound_args.is_empty() {
             // Optimisation: If only `this` is bound, then we can pass the
             // arguments list without changes to the bound function.
-            call_function(agent, target, bound_this, Some(arguments_list.unbind()), gc)
+            call_function(
+                agent,
+                target.unbind(),
+                bound_this.unbind(),
+                Some(arguments_list.unbind()),
+                gc,
+            )
         } else {
             // Note: We cannot optimise against an empty arguments list, as we
             // must create a Vec from the bound_args ElementsVector in any case
@@ -198,8 +215,8 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
             // 5. Return ? Call(target, boundThis, args).
             call_function(
                 agent,
-                target,
-                bound_this,
+                target.unbind(),
+                bound_this.unbind(),
                 Some(ArgumentsList::from_mut_slice(&mut args)),
                 gc,
             )
@@ -223,17 +240,14 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
         let arguments_list = arguments_list.bind(gc.nogc());
         let new_target = new_target.bind(gc.nogc());
         // 1. Let target be F.[[BoundTargetFunction]].
-        let target = self.get(agent).bound_target_function.bind(gc.nogc());
+        let target = self.bound_target_function(agent).bind(gc.nogc());
         // 2. Assert: IsConstructor(target) is true.
         assert!(is_constructor(agent, target).is_some());
         // 3. Let boundArgs be F.[[BoundArguments]].
         let bound_args = &self.get(agent).bound_arguments;
         // 5. If SameValue(F, newTarget) is true, set newTarget to target.
-        let new_target = if self.into() == new_target {
-            target
-        } else {
-            new_target
-        };
+        let f: Function = self.into();
+        let new_target = if f == new_target { target } else { new_target };
         // 4. Let args be the list-concatenation of boundArgs and argumentsList.
         // Note: We currently cannot optimise against an empty arguments
         // list, as we must create a Vec from the bound_args ElementsVector

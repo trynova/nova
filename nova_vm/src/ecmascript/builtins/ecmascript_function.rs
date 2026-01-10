@@ -380,7 +380,7 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
         backing_object: OrdinaryObject<'static>,
     ) {
         assert!(
-            self.get(agent)
+            self.get_mut(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()
@@ -666,14 +666,14 @@ pub(crate) fn prepare_for_ordinary_call<'a>(
             variable_environment: Environment::Function(local_env.unbind()),
             private_environment: private_environment.unbind(),
             is_strict_mode,
-            source_code,
+            source_code: source_code.unbind(),
         }),
         // 3. Set the Function of calleeContext to F.
         function: Some(f.unbind().into()),
         // 5. Set the Realm of calleeContext to calleeRealm.
-        realm: callee_realm,
+        realm: callee_realm.unbind(),
         // 6. Set the ScriptOrModule of calleeContext to F.[[ScriptOrModule]].
-        script_or_module: Some(script_or_module),
+        script_or_module: Some(script_or_module.unbind()),
     };
     // 11. If callerContext is not already suspended, suspend callerContext.
     // 12. Push calleeContext onto the execution context stack; calleeContext is now the running execution context.
@@ -950,7 +950,7 @@ pub(crate) fn make_constructor<'a>(
         Function::BoundFunction(_) => unreachable!(),
         // 1. If F is an ECMAScript function object, then
         Function::ECMAScriptFunction(idx) => {
-            let data = &mut idx.get(agent);
+            let data = idx.get_mut(agent);
             // a. Assert: IsConstructor(F) is false.
             debug_assert!(!data.ecmascript_function.constructor_status.is_constructor());
             // b. Assert: F is an extensible object that does not have a "prototype" own property.
@@ -978,6 +978,7 @@ pub(crate) fn make_constructor<'a>(
             gc,
         ))
         .unwrap();
+        let f: Value = function.into();
         // b. Perform ! DefinePropertyOrThrow(
         prototype
             .property_storage()
@@ -990,7 +991,7 @@ pub(crate) fn make_constructor<'a>(
                 // PropertyDescriptor {
                 PropertyDescriptor {
                     // [[Value]]: F,
-                    value: Some(function.unbind().into()),
+                    value: Some(f.unbind()),
                     // [[Writable]]: writablePrototype,
                     writable: Some(writable_prototype),
                     // [[Enumerable]]: false,
@@ -1045,7 +1046,7 @@ pub(crate) fn make_constructor<'a>(
 pub(crate) fn make_method(agent: &mut Agent, f: ECMAScriptFunction, home_object: Object) {
     // 1. Assert: homeObject is an ordinary object.
     // 2. Set F.[[HomeObject]] to homeObject.
-    f.get(agent).ecmascript_function.home_object = Some(home_object.unbind());
+    f.get_mut(agent).ecmascript_function.home_object = Some(home_object.unbind());
     // 3. Return unused.
 }
 
@@ -1140,7 +1141,7 @@ pub(crate) fn set_function_name<'a>(
 
     match function.into() {
         Function::BoundFunction(idx) => {
-            let function = &mut idx.get(agent);
+            let function = idx.get_mut(agent);
             // Note: It's possible that the bound function targeted a function
             // with a non-default prototype. In that case, object_index is
             // already set.
@@ -1149,7 +1150,7 @@ pub(crate) fn set_function_name<'a>(
         }
         Function::BuiltinFunction(_idx) => unreachable!(),
         Function::ECMAScriptFunction(idx) => {
-            let function = &mut idx.get(agent);
+            let function = idx.get_mut(agent);
             // 1. Assert: F is an extensible object that does not have a "name" own property.
             assert!(function.name.is_none());
             // 6. Perform ! DefinePropertyOrThrow(F, "name", PropertyDescriptor { [[Value]]: name, [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }).

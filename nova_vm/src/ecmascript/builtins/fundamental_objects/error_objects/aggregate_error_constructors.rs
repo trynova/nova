@@ -25,7 +25,7 @@ use crate::{
         context::{Bindable, GcScope},
         rootable::Scopable,
     },
-    heap::IntrinsicConstructorIndexes,
+    heap::{ArenaAccess, IntrinsicConstructorIndexes},
 };
 
 use super::error_constructor::get_error_cause;
@@ -112,8 +112,8 @@ impl AggregateErrorConstructor {
             // [[Value]]: CreateArrayFromList(errorsList)
             value: Some(
                 create_array_from_scoped_list(agent, errors_list, gc.nogc())
-                    .into()
-                    .unbind(),
+                    .unbind()
+                    .into(),
             ),
             ..Default::default()
         };

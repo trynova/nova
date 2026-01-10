@@ -296,7 +296,8 @@ pub(crate) fn ordinary_get_own_property<'a>(
         .caches
         .take_current_cache_to_populate(property_key)
     {
-        let is_receiver = object.into() == receiver;
+        let ov: Value = object.into();
+        let is_receiver = ov == receiver;
         if is_receiver {
             cache.insert_lookup_offset(agent, shape, offset);
         } else {
@@ -656,7 +657,8 @@ pub(crate) fn ordinary_try_has_property<'gc>(
             .caches
             .take_current_cache_to_populate(property_key)
         {
-            let is_receiver = object.into() == receiver;
+            let ov: Value = object.into();
+            let is_receiver = ov == receiver;
             if is_receiver {
                 cache.insert_lookup_offset(agent, shape, offset);
             } else {
@@ -740,7 +742,8 @@ pub(crate) fn ordinary_has_property<'a>(
             .caches
             .take_current_cache_to_populate(property_key)
         {
-            let is_receiver = object.into() == receiver;
+            let ov: Value = object.into();
+            let is_receiver = ov == receiver;
             if is_receiver {
                 cache.insert_lookup_offset(agent, shape, offset);
             } else {
@@ -1050,6 +1053,8 @@ fn ordinary_try_set_with_own_descriptor<'gc, 'o>(
     cache: Option<PropertyLookupCache>,
     gc: NoGcScope<'gc, '_>,
 ) -> TryResult<'gc, SetResult<'gc>> {
+    let ov: Value = object.into();
+    let is_receiver = ov == receiver;
     let own_descriptor = if let Some(own_descriptor) = own_descriptor {
         own_descriptor
     } else {
@@ -1065,7 +1070,7 @@ fn ordinary_try_set_with_own_descriptor<'gc, 'o>(
         }
         // c. Else,
         else {
-            if object.into() == receiver {
+            if is_receiver {
                 // No property set and the receiver is the object itself; this
                 // means that the property does not exist on object and the
                 // property is not a custom property of the object type (eg.
@@ -1109,7 +1114,7 @@ fn ordinary_try_set_with_own_descriptor<'gc, 'o>(
         // c. Let existingDescriptor be ? Receiver.[[GetOwnProperty]](P).
         // Note: Here again we do not have guarantees; the receiver could be a
         // Proxy.
-        let existing_descriptor = if object.into() == receiver {
+        let existing_descriptor = if is_receiver {
             // Direct [[Set]] call on our receiver; we already know that the
             // existingDescriptor is going to equal ownDescriptor.
             Some(own_descriptor)
@@ -1339,6 +1344,9 @@ pub(crate) fn ordinary_set_at_offset<'a>(
     let v = props.value.bind(gc);
     let receiver = props.receiver.bind(gc);
 
+    let ov: Value = o.into();
+    let is_receiver = ov == receiver;
+
     if offset.is_unset() {
         // 1.c.i. Set ownDesc to PropertyDescriptor {
         //   [[Value]]: undefined,
@@ -1349,7 +1357,8 @@ pub(crate) fn ordinary_set_at_offset<'a>(
         if bo.is_some_and(|bo| !ordinary_is_extensible(agent, bo)) {
             return SetResult::Unwritable.into();
         }
-        if o.into() == receiver {
+
+        if is_receiver {
             // ## 2.e.
             // Fast path for growing an object when we know property does not
             // exist on its shape.
@@ -1393,7 +1402,8 @@ pub(crate) fn ordinary_set_at_offset<'a>(
         if !writable {
             return SetResult::Unwritable.into();
         }
-        if o.into() == receiver {
+        let ov: Value = o.into();
+        if is_receiver {
             // ## 2.d.
             // iii. Let valueDesc be the PropertyDescriptor { [[Value]]: V }.
             // iv. Return ? Receiver.[[DefineOwnProperty]](P, valueDesc).

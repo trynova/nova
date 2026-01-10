@@ -39,7 +39,7 @@ use crate::{
         context::{Bindable, GcScope},
         rootable::{Rootable, Scopable},
     },
-    heap::{Heap, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+    heap::{Heap, IntrinsicFunctionIndexes, WellKnownSymbolIndexes, indexes::HeapIndexHandle},
 };
 
 use super::array_iterator_objects::array_iterator::{ArrayIterator, CollectionIteratorKind};
@@ -3858,8 +3858,8 @@ impl ArrayPrototype {
                 .current_realm_record()
                 .intrinsics()
                 .object_prototype_to_string()
-                .into()
                 .bind(gc.nogc())
+                .into()
         });
         // 4. Return ? Call(func, array).
         call_function(agent, func.unbind(), array.get(agent).into(), None, gc)
@@ -4052,7 +4052,7 @@ impl ArrayPrototype {
             // Fast path: Set new value in cloned array.
             let cloned_array = array.to_cloned(agent);
             cloned_array.as_mut_slice(agent)[actual_index as usize] = Some(value.unbind());
-            return Ok(cloned_array.unbind().into().bind(gc.into_nogc()));
+            return Ok(cloned_array.unbind().bind(gc.into_nogc()).into());
         }
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value, nogc)

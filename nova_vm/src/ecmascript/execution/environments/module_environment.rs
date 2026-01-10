@@ -16,7 +16,7 @@ use crate::{
         types::{String, Value},
     },
     engine::context::{Bindable, NoGcScope},
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+    heap::{ArenaAccess, CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 use super::{
@@ -429,9 +429,7 @@ impl HeapMarkAndSweep for ModuleEnvironment<'static> {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        compactions
-            .module_environments
-            .shift_non_zero_u32_index(&mut self.0);
+        compactions.module_environments.shift_index(&mut self.0);
     }
 }
 

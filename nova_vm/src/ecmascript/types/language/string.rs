@@ -356,7 +356,7 @@ impl<'a> String<'a> {
     }
 
     /// Byte length of the string.
-    pub fn len(self, agent: &'a impl StringHeapAccess) -> usize {
+    pub fn len(self, agent: &impl StringHeapAccess) -> usize {
         match self {
             String::String(s) => s.get(agent).len(),
             String::SmallString(s) => s.len(),
@@ -364,21 +364,21 @@ impl<'a> String<'a> {
     }
 
     /// UTF-16 length of the string.
-    pub fn utf16_len(self, agent: &'a impl StringHeapAccess) -> usize {
+    pub fn utf16_len(self, agent: &impl StringHeapAccess) -> usize {
         match self {
             String::String(s) => s.get(agent).utf16_len(),
             String::SmallString(s) => s.utf16_len(),
         }
     }
 
-    pub fn char_code_at(self, agent: &'a impl StringHeapAccess, idx: usize) -> CodePoint {
+    pub fn char_code_at(self, agent: &impl StringHeapAccess, idx: usize) -> CodePoint {
         match self {
             String::String(s) => s.get(agent).char_code_at(idx),
             String::SmallString(s) => s.char_code_at(idx),
         }
     }
 
-    pub fn code_point_at(self, agent: &'a impl StringHeapAccess, utf16_idx: usize) -> CodePoint {
+    pub fn code_point_at(self, agent: &impl StringHeapAccess, utf16_idx: usize) -> CodePoint {
         match self {
             String::String(s) => s.get(agent).code_point_at(utf16_idx),
             String::SmallString(s) => s.code_point_at(utf16_idx),
@@ -393,7 +393,7 @@ impl<'a> String<'a> {
     ///
     /// This function panics if `utf16_idx` is greater (but not equal) than the
     /// UTF-16 string length.
-    pub fn utf8_index(self, agent: &'a impl StringHeapAccess, utf16_idx: usize) -> Option<usize> {
+    pub fn utf8_index(self, agent: &impl StringHeapAccess, utf16_idx: usize) -> Option<usize> {
         match self {
             String::String(s) => s.get(agent).utf8_index(utf16_idx),
             String::SmallString(s) => s.utf8_index(utf16_idx),
@@ -407,7 +407,7 @@ impl<'a> String<'a> {
     ///
     /// This function panics if `utf8_idx` isn't at a UTF-8 code point boundary,
     /// or if it is past the end (but not *at* the end) of the UTF-8 string.
-    pub fn utf16_index(self, agent: &'a impl StringHeapAccess, utf8_idx: usize) -> usize {
+    pub fn utf16_index(self, agent: &impl StringHeapAccess, utf8_idx: usize) -> usize {
         match self {
             String::String(s) => s.get(agent).utf16_index(utf8_idx),
             String::SmallString(s) => s.utf16_index(utf8_idx),
@@ -428,7 +428,7 @@ impl<'a> String<'a> {
     /// If the string has not been properly bound (and is not internally a
     /// static string) then garbage collection may deallocate the backing data,
     /// causing the string slice to dangle.
-    pub fn to_string_lossy(&self, agent: &'a impl StringHeapAccess) -> Cow<'_, str> {
+    pub fn to_string_lossy(&self, agent: &impl StringHeapAccess) -> Cow<'_, str> {
         match self {
             // SAFETY: Assuming that user has properly bound the String, the
             // backing string data is guaranteed to never be accessed as
@@ -442,7 +442,7 @@ impl<'a> String<'a> {
         }
     }
 
-    pub fn as_str(&self, agent: &'a impl StringHeapAccess) -> Option<&str> {
+    pub fn as_str(&self, agent: &impl StringHeapAccess) -> Option<&str> {
         match self {
             // SAFETY: Assuming that user has properly bound the String, the
             // backing string data is guaranteed to never be accessed as
@@ -456,7 +456,7 @@ impl<'a> String<'a> {
         }
     }
 
-    pub fn as_wtf8(&self, agent: &'a impl StringHeapAccess) -> &Wtf8 {
+    pub fn as_wtf8(&self, agent: &impl StringHeapAccess) -> &Wtf8 {
         match self {
             // SAFETY: Assuming that user has properly bound the String, the
             // backing string data is guaranteed to never be accessed as
@@ -470,7 +470,7 @@ impl<'a> String<'a> {
         }
     }
 
-    pub fn as_bytes(&self, agent: &'a impl StringHeapAccess) -> &[u8] {
+    pub fn as_bytes(&self, agent: &impl StringHeapAccess) -> &[u8] {
         match self {
             // SAFETY: Assuming that user has properly bound the String, the
             // backing string data is guaranteed to never be accessed as
@@ -486,7 +486,7 @@ impl<'a> String<'a> {
 
     /// If x and y have the same length and the same code units in the same
     /// positions, return true; otherwise, return false.
-    pub fn eq(agent: &'a impl StringHeapAccess, x: Self, y: Self) -> bool {
+    pub fn eq(agent: &impl StringHeapAccess, x: Self, y: Self) -> bool {
         match (x, y) {
             (Self::String(x), Self::String(y)) => {
                 let x = &x.unbind().get(agent);

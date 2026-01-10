@@ -1002,7 +1002,7 @@ impl TypedArrayPrototype {
             relative_end @ Value::Integer(_) | relative_end @ Value::Undefined,
         ) = (Primitive::try_from(value), start, end)
         {
-            let value = if ta_record.object.is_bigint() {
+            let value: Numeric = if ta_record.object.is_bigint() {
                 to_big_int_primitive(agent, value, gc.nogc())
                     .unbind()?
                     .bind(gc.nogc())
@@ -1069,7 +1069,7 @@ impl TypedArrayPrototype {
         let end = end.scope(agent, gc.nogc());
         let value = value.bind(gc.nogc());
         // 4. If O.[[ContentType]] is bigint,
-        let value = if is_bigint {
+        let value: Numeric = if is_bigint {
             // set value to ? ToBigInt(value).
             to_big_int(agent, value.unbind(), gc.reborrow())
                 .unbind()?
@@ -1222,7 +1222,7 @@ impl TypedArrayPrototype {
         let o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
         let len = ta_record.typed_array_length(agent) as u64;
-        let o = o.into().scope(agent, gc.nogc());
+        let o = o.scope(agent, gc.nogc());
         // 4. Let findRec be ? FindViaPredicate(O, len, ascending, predicate, thisArg).
         let find_rec = find_via_predicate(agent, o, len, true, predicate, this_arg, gc)?;
         // 5. Return findRec.[[Index]].
@@ -1279,7 +1279,7 @@ impl TypedArrayPrototype {
         let o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
         let len = ta_record.typed_array_length(agent) as u64;
-        let o = o.into().scope(agent, gc.nogc());
+        let o = o.scope(agent, gc.nogc());
         // 4. Let findRec be ? FindViaPredicate(O, len, descending, predicate, thisArg).
         let find_rec = find_via_predicate(agent, o, len, false, predicate, this_arg, gc)?;
         // 5. Return findRec.[[Index]].
@@ -2912,7 +2912,7 @@ impl TypedArrayPrototype {
             if let (Value::Integer(index), Ok(value)) = (index, Primitive::try_from(value)) {
                 let relative_index = index.into_i64();
                 // 7. If O.[[ContentType]] is BIGINT, let numericValue be ? ToBigInt(value).
-                let numeric_value = if is_bigint {
+                let numeric_value: Numeric = if is_bigint {
                     to_big_int_primitive(agent, value, gc.nogc())
                         .unbind()?
                         .bind(gc.nogc())

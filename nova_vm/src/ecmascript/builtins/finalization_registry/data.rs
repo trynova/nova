@@ -11,7 +11,10 @@ use crate::{
         types::{Function, OrdinaryObject, Value},
     },
     engine::context::{Bindable, bindable_handle},
-    heap::{CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues},
+    heap::{
+        CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
+        indexes::HeapIndexHandle,
+    },
 };
 
 /// \[\[Cells]]
@@ -81,7 +84,7 @@ impl Default for CleanupRecord<'_> {
             cleanup_queue: Default::default(),
             // Note: impossible value currently.
             callback: Function::BuiltinPromiseCollectorFunction,
-            realm: const { Realm::from_u32(u32::MAX - 1) },
+            realm: const { Realm::from_index_u32(u32::MAX - 1) },
             cleanup_requested: false,
         }
     }
@@ -102,7 +105,7 @@ impl<'fr> CleanupRecord<'fr> {
     ///
     /// FinalizationRegistry must be previously uninitialised.
     pub(super) unsafe fn initialise(&mut self, realm: Realm, cleanup_callback: Function) {
-        debug_assert_eq!(self.realm, const { Realm::from_u32(u32::MAX - 1) });
+        debug_assert_eq!(self.realm, const { Realm::from_index_u32(u32::MAX - 1) });
         debug_assert_eq!(self.callback, Function::BuiltinPromiseCollectorFunction);
         self.realm = realm.unbind();
         self.callback = cleanup_callback.unbind();

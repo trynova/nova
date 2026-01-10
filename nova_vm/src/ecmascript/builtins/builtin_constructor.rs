@@ -62,7 +62,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinConstructorFunction<'a> {
 
     #[inline(always)]
     fn get_function_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).backing_object
+        self.get(agent).backing_object.unbind()
     }
 
     fn set_function_backing_object(
@@ -71,7 +71,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinConstructorFunction<'a> {
         backing_object: OrdinaryObject<'static>,
     ) {
         assert!(
-            self.get(agent)
+            self.get_mut(agent)
                 .backing_object
                 .replace(backing_object)
                 .is_none()
@@ -164,7 +164,7 @@ fn builtin_call_or_construct<'a>(
         // 4. Set the Function of calleeContext to F.
         function: Some(f.unbind().into()),
         // 6. Set the Realm of calleeContext to calleeRealm.
-        realm: callee_realm,
+        realm: callee_realm.unbind(),
         // 7. Set the ScriptOrModule of calleeContext to null.
         script_or_module: None,
     };
