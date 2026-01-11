@@ -238,7 +238,7 @@ pub(crate) fn is_integral_number<'a>(
     };
 
     // 2. If argument is not finite, return false.
-    if !argument.is_finite(agent) {
+    if !argument.is_finite_(agent) {
         return false;
     }
 
@@ -263,7 +263,7 @@ pub(crate) fn same_value<'a, V1: Copy + Into<Value<'a>>, V2: Copy + Into<Value<'
     // 2. If x is a Number, then
     if let (Ok(x), Ok(y)) = (Number::try_from(x.into()), Number::try_from(y.into())) {
         // a. Return Number::sameValue(x, y).
-        return Number::same_value(agent, x, y);
+        return Number::same_value_(agent, x, y);
     }
 
     // 3. Return SameValueNonNumber(x, y).
@@ -295,7 +295,7 @@ pub(crate) fn same_value_zero<'a>(
     // type-safety.
     if let (Ok(x), Ok(y)) = (Number::try_from(x), Number::try_from(y)) {
         // a. Return Number::sameValueZero(x, y).
-        return Number::same_value_zero(agent, x, y);
+        return Number::same_value_zero_(agent, x, y);
     }
 
     // 3. Return SameValueNonNumber(x, y).
@@ -328,7 +328,7 @@ pub(crate) fn same_value_non_number<'a, T: Copy + Into<Value<'a>>>(
     // 4. If x is a String, then
     if let (Ok(x), Ok(y)) = (String::try_from(x), String::try_from(y)) {
         // a. If x and y have the same length and the same code units in the same positions, return true; otherwise, return false.
-        return String::eq(agent, x, y);
+        return String::eq_(agent, x, y);
     }
 
     // 5. If x is a Boolean, then
@@ -439,14 +439,14 @@ pub(crate) fn is_less_than<'a, const LEFT_FIRST: bool>(
         // d. If lx < ly, return true. Otherwise, return false.
         let sx = String::try_from(px).unwrap();
         let sy = String::try_from(py).unwrap();
-        if let (Some(sx), Some(sy)) = (sx.as_str(agent), sy.as_str(agent)) {
+        if let (Some(sx), Some(sy)) = (sx.as_str_(agent), sy.as_str_(agent)) {
             Ok(Some(sx < sy))
         } else {
-            let lx = sx.utf16_len(agent);
-            let ly = sy.utf16_len(agent);
+            let lx = sx.utf16_len_(agent);
+            let ly = sy.utf16_len_(agent);
             let l = lx.min(ly);
-            let mut sx = sx.as_wtf8(agent).to_ill_formed_utf16();
-            let mut sy = sy.as_wtf8(agent).to_ill_formed_utf16();
+            let mut sx = sx.as_wtf8_(agent).to_ill_formed_utf16();
+            let mut sy = sy.as_wtf8_(agent).to_ill_formed_utf16();
             for _ in 0..l {
                 // i. Let cx be the numeric value of the code unit at index i within px.
                 let cx = sx.next().unwrap();
@@ -616,7 +616,7 @@ pub(crate) fn is_loosely_equal<'a>(
         // IsStrictlyEqual, which calls Number::equal.
         let gc = gc.into_nogc();
         let y = string_to_number(agent, y, gc);
-        return Ok(Number::equal(agent, x.bind(gc), y.bind(gc)));
+        return Ok(Number::equal_(agent, x.bind(gc), y.bind(gc)));
     }
 
     // 6. If x is a String and y is a Number, return ! IsLooselyEqual(! ToNumber(x), y).
@@ -626,7 +626,7 @@ pub(crate) fn is_loosely_equal<'a>(
         // IsStrictlyEqual, which calls Number::equal.
         let gc = gc.into_nogc();
         let x = string_to_number(agent, x, gc);
-        return Ok(Number::equal(agent, x.bind(gc), y.bind(gc)));
+        return Ok(Number::equal_(agent, x.bind(gc), y.bind(gc)));
     }
 
     // 7. If x is a BigInt and y is a String, then
@@ -702,7 +702,7 @@ pub(crate) fn is_loosely_equal<'a>(
     } {
         // a. If x is not finite or y is not finite, return false.
         // Note: BigInt is always finite.
-        if !b.is_finite(agent) {
+        if !b.is_finite_(agent) {
             return Ok(false);
         }
 
@@ -742,7 +742,7 @@ pub(crate) fn is_strictly_equal<'a>(
     // type-safety.
     if let (Ok(x), Ok(y)) = (Number::try_from(x), Number::try_from(y)) {
         // a. Return Number::equal(x, y).
-        return Number::equal(agent, x, y);
+        return Number::equal_(agent, x, y);
     }
 
     // 3. Return SameValueNonNumber(x, y).

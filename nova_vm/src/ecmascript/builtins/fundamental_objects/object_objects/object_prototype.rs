@@ -288,7 +288,7 @@ impl ObjectPrototype {
         };
         if let Ok(tag) = String::try_from(tag) {
             // 17. Return the string-concatenation of "[object ", tag, and "]".
-            let str = format!("[object {}]", tag.to_string_lossy(agent));
+            let str = format!("[object {}]", tag.to_string_lossy_(agent));
             Ok(Value::from_string(agent, str, gc.into_nogc()))
         } else {
             // 16. If tag is not a String, set tag to builtinTag.

@@ -28,7 +28,8 @@ use crate::{
         rootable::Scopable,
     },
     heap::{
-        ArenaAccess, CompactionLists, HeapMarkAndSweep, WorkQueues, arena_vec_access,
+        ArenaAccess, ArenaAccessMut, CompactionLists, HeapMarkAndSweep, WorkQueues,
+        arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle, index_handle},
     },
     ndt,
@@ -469,7 +470,7 @@ unsafe fn global_declaration_instantiation<'a>(
         if env.has_lexical_declaration(agent, name) {
             let error_message = format!(
                 "Redeclaration of lexical binding '{}'.",
-                name.to_string_lossy(agent)
+                name.to_string_lossy_(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::SyntaxError,
@@ -552,7 +553,7 @@ unsafe fn global_declaration_instantiation<'a>(
                     if !vn_definable {
                         let error_message = format!(
                             "Cannot declare global variable '{}'.",
-                            vn.to_string_lossy(agent)
+                            vn.to_string_lossy_(agent)
                         );
                         return Err(agent.throw_exception(
                             ExceptionType::TypeError,

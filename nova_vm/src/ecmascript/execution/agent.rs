@@ -59,8 +59,8 @@ use crate::{
         rootable::{HeapRootCollectionData, HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
-        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeapAccess,
-        WorkQueues, heap_gc::heap_gc, indexes::HeapIndexHandle,
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        PrimitiveHeapAccess, WorkQueues, heap_gc::heap_gc, indexes::HeapIndexHandle,
     },
     ndt,
 };

@@ -1039,7 +1039,7 @@ fn concat_string_from_slice<'gc>(
 ) -> String<'gc> {
     let mut result_string = Wtf8Buf::with_capacity(string_length);
     for string in slice.iter() {
-        result_string.push_wtf8(string.as_wtf8(agent));
+        result_string.push_wtf8(string.as_wtf8_(agent));
     }
     String::from_wtf8_buf(agent, result_string, gc)
 }
@@ -1399,7 +1399,7 @@ pub(crate) fn instanceof_operator<'a, 'b>(
             Value::from(target)
                 .unbind()
                 .string_repr(agent, gc.reborrow())
-                .to_string_lossy(agent)
+                .to_string_lossy_(agent)
         );
         return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.into_nogc()));
     };
@@ -1450,7 +1450,7 @@ pub(crate) fn instanceof_operator<'a, 'b>(
                 Value::from(target)
                     .unbind()
                     .string_repr(agent, gc.reborrow())
-                    .to_string_lossy(agent)
+                    .to_string_lossy_(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
@@ -1641,7 +1641,7 @@ fn throw_error_in_target_not_object<'a>(
 ) -> JsError<'a> {
     let error_message = format!(
         "right-hand side of 'in' should be an object, got {}.",
-        typeof_operator(agent, value, gc).to_string_lossy(agent)
+        typeof_operator(agent, value, gc).to_string_lossy_(agent)
     );
     agent.throw_exception(ExceptionType::TypeError, error_message, gc)
 }

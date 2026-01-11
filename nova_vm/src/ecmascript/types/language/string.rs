@@ -276,7 +276,7 @@ impl<'a> String<'a> {
         }
         let strings = strings.as_ref();
         let mut status = if strings.len() > 1 {
-            let len = strings.iter().fold(0usize, |a, s| a + s.len(agent));
+            let len = strings.iter().fold(0usize, |a, s| a + s.len_(agent));
             if len > 7 {
                 Status::String(Wtf8Buf::with_capacity(len))
             } else {
@@ -314,13 +314,14 @@ impl<'a> String<'a> {
                 }
                 Status::ExistingString(s) => {
                     let s = *s;
-                    let mut result = Wtf8Buf::with_capacity(s.get(agent).len() + string.len(agent));
+                    let mut result =
+                        Wtf8Buf::with_capacity(s.get(agent).len() + string.len_(agent));
                     result.push_wtf8(s.get(agent).as_wtf8());
                     push_string_to_wtf8(agent, &mut result, *string);
                     status = Status::String(result)
                 }
                 Status::SmallString { data, len } => {
-                    let string_len = string.len(agent);
+                    let string_len = string.len_(agent);
                     if *len + string_len <= 7 {
                         let String::SmallString(smstr) = string else {
                             unreachable!()
@@ -356,7 +357,12 @@ impl<'a> String<'a> {
     }
 
     /// Byte length of the string.
-    pub fn len(self, agent: &impl StringHeapAccess) -> usize {
+    #[inline(always)]
+    pub fn len(self, agent: &Agent) -> usize {
+        self.len_(agent)
+    }
+
+    pub(crate) fn len_(self, agent: &impl StringHeapAccess) -> usize {
         match self {
             String::String(s) => s.get(agent).len(),
             String::SmallString(s) => s.len(),
@@ -364,21 +370,40 @@ impl<'a> String<'a> {
     }
 
     /// UTF-16 length of the string.
-    pub fn utf16_len(self, agent: &impl StringHeapAccess) -> usize {
+    #[inline(always)]
+    pub fn utf16_len(self, agent: &Agent) -> usize {
+        self.utf16_len_(agent)
+    }
+
+    pub(crate) fn utf16_len_(self, agent: &impl StringHeapAccess) -> usize {
         match self {
             String::String(s) => s.get(agent).utf16_len(),
             String::SmallString(s) => s.utf16_len(),
         }
     }
 
-    pub fn char_code_at(self, agent: &impl StringHeapAccess, idx: usize) -> CodePoint {
+    #[inline(always)]
+    pub fn char_code_at(self, agent: &Agent, idx: usize) -> CodePoint {
+        self.char_code_at_(agent, idx)
+    }
+
+    pub(crate) fn char_code_at_(self, agent: &impl StringHeapAccess, idx: usize) -> CodePoint {
         match self {
             String::String(s) => s.get(agent).char_code_at(idx),
             String::SmallString(s) => s.char_code_at(idx),
         }
     }
 
-    pub fn code_point_at(self, agent: &impl StringHeapAccess, utf16_idx: usize) -> CodePoint {
+    #[inline(always)]
+    pub fn code_point_at(self, agent: &Agent, utf16_idx: usize) -> CodePoint {
+        self.code_point_at_(agent, utf16_idx)
+    }
+
+    pub(crate) fn code_point_at_(
+        self,
+        agent: &impl StringHeapAccess,
+        utf16_idx: usize,
+    ) -> CodePoint {
         match self {
             String::String(s) => s.get(agent).code_point_at(utf16_idx),
             String::SmallString(s) => s.code_point_at(utf16_idx),
@@ -393,7 +418,16 @@ impl<'a> String<'a> {
     ///
     /// This function panics if `utf16_idx` is greater (but not equal) than the
     /// UTF-16 string length.
-    pub fn utf8_index(self, agent: &impl StringHeapAccess, utf16_idx: usize) -> Option<usize> {
+    #[inline(always)]
+    pub fn utf8_index(self, agent: &Agent, utf16_idx: usize) -> Option<usize> {
+        self.utf8_index_(agent, utf16_idx)
+    }
+
+    pub(crate) fn utf8_index_(
+        self,
+        agent: &impl StringHeapAccess,
+        utf16_idx: usize,
+    ) -> Option<usize> {
         match self {
             String::String(s) => s.get(agent).utf8_index(utf16_idx),
             String::SmallString(s) => s.utf8_index(utf16_idx),
@@ -407,7 +441,12 @@ impl<'a> String<'a> {
     ///
     /// This function panics if `utf8_idx` isn't at a UTF-8 code point boundary,
     /// or if it is past the end (but not *at* the end) of the UTF-8 string.
-    pub fn utf16_index(self, agent: &impl StringHeapAccess, utf8_idx: usize) -> usize {
+    #[inline(always)]
+    pub fn utf16_index(self, agent: &Agent, utf8_idx: usize) -> usize {
+        self.utf16_index_(agent, utf8_idx)
+    }
+
+    pub(crate) fn utf16_index_(self, agent: &impl StringHeapAccess, utf8_idx: usize) -> usize {
         match self {
             String::String(s) => s.get(agent).utf16_index(utf8_idx),
             String::SmallString(s) => s.utf16_index(utf8_idx),
@@ -428,7 +467,12 @@ impl<'a> String<'a> {
     /// If the string has not been properly bound (and is not internally a
     /// static string) then garbage collection may deallocate the backing data,
     /// causing the string slice to dangle.
-    pub fn to_string_lossy(&self, agent: &impl StringHeapAccess) -> Cow<'_, str> {
+    #[inline(always)]
+    pub fn to_string_lossy(&self, agent: &Agent) -> Cow<'_, str> {
+        self.to_string_lossy_(agent)
+    }
+
+    pub(crate) fn to_string_lossy_(&self, agent: &impl StringHeapAccess) -> Cow<'_, str> {
         match self {
             // SAFETY: Assuming that user has properly bound the String, the
             // backing string data is guaranteed to never be accessed as
@@ -442,7 +486,12 @@ impl<'a> String<'a> {
         }
     }
 
-    pub fn as_str(&self, agent: &impl StringHeapAccess) -> Option<&str> {
+    #[inline(always)]
+    pub fn as_str(&self, agent: &Agent) -> Option<&str> {
+        self.as_str_(agent)
+    }
+
+    pub(crate) fn as_str_(&self, agent: &impl StringHeapAccess) -> Option<&str> {
         match self {
             // SAFETY: Assuming that user has properly bound the String, the
             // backing string data is guaranteed to never be accessed as
@@ -456,7 +505,12 @@ impl<'a> String<'a> {
         }
     }
 
-    pub fn as_wtf8(&self, agent: &impl StringHeapAccess) -> &Wtf8 {
+    #[inline(always)]
+    pub fn as_wtf8(&self, agent: &Agent) -> &Wtf8 {
+        self.as_wtf8_(agent)
+    }
+
+    pub(crate) fn as_wtf8_(&self, agent: &impl StringHeapAccess) -> &Wtf8 {
         match self {
             // SAFETY: Assuming that user has properly bound the String, the
             // backing string data is guaranteed to never be accessed as
@@ -470,7 +524,12 @@ impl<'a> String<'a> {
         }
     }
 
-    pub fn as_bytes(&self, agent: &impl StringHeapAccess) -> &[u8] {
+    #[inline(always)]
+    pub fn as_bytes(&self, agent: &Agent) -> &[u8] {
+        self.as_bytes_(agent)
+    }
+
+    pub(crate) fn as_bytes_(&self, agent: &impl StringHeapAccess) -> &[u8] {
         match self {
             // SAFETY: Assuming that user has properly bound the String, the
             // backing string data is guaranteed to never be accessed as
@@ -486,7 +545,12 @@ impl<'a> String<'a> {
 
     /// If x and y have the same length and the same code units in the same
     /// positions, return true; otherwise, return false.
-    pub fn eq(agent: &impl StringHeapAccess, x: Self, y: Self) -> bool {
+    #[inline(always)]
+    pub fn eq(agent: &Agent, x: Self, y: Self) -> bool {
+        Self::eq_(agent, x, y)
+    }
+
+    pub(crate) fn eq_(agent: &impl StringHeapAccess, x: Self, y: Self) -> bool {
         match (x, y) {
             (Self::String(x), Self::String(y)) => {
                 let x = &x.unbind().get(agent);
@@ -506,7 +570,7 @@ impl<'a> String<'a> {
         property_key: PropertyKey,
     ) -> Option<PropertyDescriptor<'static>> {
         if property_key == BUILTIN_STRING_MEMORY.length.into() {
-            let smi = SmallInteger::try_from(self.utf16_len(agent) as u64)
+            let smi = SmallInteger::try_from(self.utf16_len_(agent) as u64)
                 .expect("String length is over MAX_SAFE_INTEGER");
             Some(PropertyDescriptor {
                 value: Some(super::Number::from(smi).into()),
@@ -518,8 +582,8 @@ impl<'a> String<'a> {
             })
         } else if let PropertyKey::Integer(index) = property_key {
             let index = index.into_i64();
-            if index >= 0 && (index as usize) < self.utf16_len(agent) {
-                let ch = self.char_code_at(agent, index as usize);
+            if index >= 0 && (index as usize) < self.utf16_len_(agent) {
+                let ch = self.char_code_at_(agent, index as usize);
                 Some(PropertyDescriptor {
                     value: Some(SmallString::from_code_point(ch).into()),
                     writable: Some(false),
@@ -542,13 +606,13 @@ impl<'a> String<'a> {
         property_key: PropertyKey,
     ) -> Option<Value<'a>> {
         if property_key == BUILTIN_STRING_MEMORY.length.into() {
-            let smi = SmallInteger::try_from(self.utf16_len(agent) as u64)
+            let smi = SmallInteger::try_from(self.utf16_len_(agent) as u64)
                 .expect("String length is over MAX_SAFE_INTEGER");
             Some(super::Number::from(smi).into())
         } else if let PropertyKey::Integer(index) = property_key {
             let index = index.into_i64();
-            if index >= 0 && (index as usize) < self.utf16_len(agent) {
-                let ch = self.char_code_at(agent, index as usize);
+            if index >= 0 && (index as usize) < self.utf16_len_(agent) {
+                let ch = self.char_code_at_(agent, index as usize);
                 Some(SmallString::from_code_point(ch).into())
             } else {
                 None

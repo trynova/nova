@@ -170,7 +170,7 @@ fn symbol_descriptive_string<'gc>(
     if let Some(desc) = desc {
         // 3. Assert: desc is a String.
         // 4. Return the string-concatenation of "Symbol(", desc, and ")".
-        let result = format!("Symbol({})", desc.to_string_lossy(agent));
+        let result = format!("Symbol({})", desc.to_string_lossy_(agent));
         String::from_string(agent, result, gc)
     } else {
         BUILTIN_STRING_MEMORY.Symbol__

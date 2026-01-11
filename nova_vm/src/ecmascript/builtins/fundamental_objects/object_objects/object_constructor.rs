@@ -422,7 +422,7 @@ impl ObjectConstructor {
                 "{} is not an object or null",
                 o.unbind()
                     .string_repr(agent, gc.reborrow())
-                    .to_string_lossy(agent)
+                    .to_string_lossy_(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
@@ -471,7 +471,7 @@ impl ObjectConstructor {
                 "{} is not an object",
                 o.unbind()
                     .string_repr(agent, gc.reborrow())
-                    .to_string_lossy(agent)
+                    .to_string_lossy_(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
@@ -504,7 +504,7 @@ impl ObjectConstructor {
                 "{} is not an object",
                 o.unbind()
                     .string_repr(agent, gc.reborrow())
-                    .to_string_lossy(agent)
+                    .to_string_lossy_(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
@@ -1122,7 +1122,7 @@ impl ObjectConstructor {
                 proto
                     .unbind()
                     .string_repr(agent, gc.reborrow())
-                    .to_string_lossy(agent)
+                    .to_string_lossy_(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
@@ -1366,7 +1366,7 @@ pub fn add_entries_from_iterable_from_entries<'a>(
                 "Invalid iterator next return value: {} is not an object",
                 next.unbind()
                     .string_repr(agent, gc.reborrow())
-                    .to_string_lossy(agent)
+                    .to_string_lossy_(agent)
             );
             let error = agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc());
             // ii. Return ? IteratorClose(iteratorRecord, error).

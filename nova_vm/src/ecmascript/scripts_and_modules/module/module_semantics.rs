@@ -155,10 +155,10 @@ impl<'r> ModuleRequest<'r> {
         gc: NoGcScope<'r, '_>,
     ) -> Self {
         let mut state = AHasher::default();
-        specifier.to_string_lossy(agent).hash(&mut state);
+        specifier.to_string_lossy_(agent).hash(&mut state);
         for attribute in attributes.iter() {
-            attribute.key.to_string_lossy(agent).hash(&mut state);
-            attribute.value.to_string_lossy(agent).hash(&mut state);
+            attribute.key.to_string_lossy_(agent).hash(&mut state);
+            attribute.value.to_string_lossy_(agent).hash(&mut state);
         }
         let hash = state.finish();
         let index = agent.heap.module_request_records.len() as u32;
@@ -546,7 +546,7 @@ pub(crate) fn all_import_attributes_supported(
     let supported = agent.host_hooks.get_supported_import_attributes();
     // 2. For each ImportAttribute Record attribute of attributes, do
     for attribute in attributes {
-        let key = attribute.key.to_string_lossy(agent);
+        let key = attribute.key.to_string_lossy_(agent);
         // a. If supported does not contain attribute.[[Key]], return false.
         if !supported.contains(&key.as_ref()) {
             return false;

@@ -20,7 +20,7 @@ use crate::{
     },
     engine::context::{Bindable, GcScope, NoGcScope},
     heap::{
-        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         HeapSweepWeakReference, ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
         arena_vec_access, indexes::BaseIndex,
     },

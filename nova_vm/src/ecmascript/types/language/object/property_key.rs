@@ -274,7 +274,7 @@ impl core::fmt::Display for DisplayablePropertyKey<'_, '_, '_> {
             PropertyKey::String(data) => data.to_string_lossy(self.agent).fmt(f),
             PropertyKey::Symbol(data) => {
                 if let Some(descriptor) = data.get(self.agent).descriptor {
-                    let descriptor = descriptor.to_string_lossy(self.agent);
+                    let descriptor = descriptor.to_string_lossy_(self.agent);
                     f.debug_tuple("Symbol").field(&descriptor).finish()
                 } else {
                     "Symbol()".fmt(f)

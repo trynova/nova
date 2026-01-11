@@ -574,29 +574,29 @@ impl<'a> Value<'a> {
     }
 
     pub fn is_pos_zero(self, agent: &Agent) -> bool {
-        Number::try_from(self).is_ok_and(|n| n.is_pos_zero(agent))
+        Number::try_from(self).is_ok_and(|n| n.is_pos_zero_(agent))
             || BigInt::try_from(self).is_ok_and(|n| n.is_zero(agent))
     }
 
     pub fn is_neg_zero(self, agent: &Agent) -> bool {
-        Number::try_from(self).is_ok_and(|n| n.is_neg_zero(agent))
+        Number::try_from(self).is_ok_and(|n| n.is_neg_zero_(agent))
     }
 
     pub fn is_pos_infinity(self, agent: &Agent) -> bool {
         Number::try_from(self)
-            .map(|n| n.is_pos_infinity(agent))
+            .map(|n| n.is_pos_infinity_(agent))
             .unwrap_or(false)
     }
 
     pub fn is_neg_infinity(self, agent: &Agent) -> bool {
         Number::try_from(self)
-            .map(|n| n.is_neg_infinity(agent))
+            .map(|n| n.is_neg_infinity_(agent))
             .unwrap_or(false)
     }
 
     pub fn is_nan(self, agent: &Agent) -> bool {
         Number::try_from(self)
-            .map(|n| n.is_nan(agent))
+            .map(|n| n.is_nan_(agent))
             .unwrap_or(false)
     }
 
@@ -759,7 +759,7 @@ impl<'a> Value<'a> {
             Value::Integer(i) => i.into_i64() as f64,
             Value::SmallF64(f) => f.into_f64(),
             // NOTE: Converting to a number should give us a nice error message.
-            _ => to_number(agent, self, gc)?.into_f64(agent),
+            _ => to_number(agent, self, gc)?.into_f64_(agent),
         })
     }
 

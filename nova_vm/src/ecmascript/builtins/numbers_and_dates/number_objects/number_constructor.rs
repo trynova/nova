@@ -24,7 +24,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::{ArenaAccess, CreateHeapData, IntrinsicConstructorIndexes},
+    heap::{ArenaAccessMut, CreateHeapData, IntrinsicConstructorIndexes},
 };
 
 /// ### [21.1.1.1 Number ( value )](https://tc39.es/ecma262/#sec-number-constructor-number-value)
@@ -165,7 +165,7 @@ impl NumberConstructor {
 
         // 2. If number is not finite, return false.
         // 3. Otherwise, return true.
-        Ok(number.is_finite(agent).into())
+        Ok(number.is_finite_(agent).into())
     }
 
     /// ### [21.1.2.3 Number.isInteger ( number )](https://tc39.es/ecma262/#sec-number.isinteger)
@@ -199,7 +199,7 @@ impl NumberConstructor {
 
         // 2. If number is NaN, return true.
         // 3. Otherwise, return false.
-        Ok(number.is_nan(agent).into())
+        Ok(number.is_nan_(agent).into())
     }
 
     /// ### [21.1.2.5 Number.isSafeInteger ( number )](https://tc39.es/ecma262/#sec-number.issafeinteger)

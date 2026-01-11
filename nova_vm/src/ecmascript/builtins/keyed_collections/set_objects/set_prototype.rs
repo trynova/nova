@@ -29,7 +29,10 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::{Heap, IntrinsicFunctionIndexes, PrimitiveHeap, WellKnownSymbolIndexes},
+    heap::{
+        ArenaAccessSoA, ArenaAccessSoAMut, DirectArenaAccessSoA, DirectArenaAccessSoAMut, Heap,
+        IntrinsicFunctionIndexes, PrimitiveHeap, WellKnownSymbolIndexes,
+    },
 };
 
 pub(crate) struct SetPrototype;
@@ -140,7 +143,7 @@ impl SetPrototype {
             // 5. Append value to S.[[SetData]].
             let index = u32::try_from(values.len()).unwrap();
             entry.insert(index);
-            values.push(Some(value));
+            values.push(Some(value.unbind()));
         }
         // i. Return S.
         // 6. Return S.

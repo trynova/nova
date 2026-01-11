@@ -116,7 +116,9 @@ macro_rules! create_environment_index {
                     .get(crate::heap::indexes::HeapIndexHandle::get_index(self))
                     .expect("Invalid environment handle")
             }
+        }
 
+        impl<'a> crate::heap::DirectArenaAccessMut for $index<'a> {
             #[inline]
             fn get_direct_mut<'agent>(
                 self,

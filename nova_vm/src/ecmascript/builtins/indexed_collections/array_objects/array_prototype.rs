@@ -1761,12 +1761,12 @@ impl ArrayPrototype {
                     .unbind()?
                     .bind(gc.nogc());
                 // ii. Set R to the string-concatenation of R and S.
-                r.push_wtf8(s.as_wtf8(agent));
+                r.push_wtf8(s.as_wtf8_(agent));
             }
         }
         for k in 1..len {
             // a. If k > 0, set R to the string-concatenation of R and sep.
-            r.push_wtf8(separator.get(agent).as_wtf8(agent));
+            r.push_wtf8(separator.get(agent).as_wtf8_(agent));
             // b. Let element be ? Get(O, ! ToString(𝔽(k))).
             let element = get(
                 agent,
@@ -1783,7 +1783,7 @@ impl ArrayPrototype {
                     .unbind()?
                     .bind(gc.nogc());
                 // ii. Set R to the string-concatenation of R and S.
-                r.push_wtf8(s.as_wtf8(agent));
+                r.push_wtf8(s.as_wtf8_(agent));
             }
             // d. Set k to k + 1.
         }
@@ -3564,7 +3564,7 @@ impl ArrayPrototype {
                     .unbind()?
                     .bind(gc.nogc());
                 //  ii. Set R to the string-concatenation of R and S.
-                r.push_wtf8(s.as_wtf8(agent));
+                r.push_wtf8(s.as_wtf8_(agent));
             };
             // d. Set k to k + 1.
             k += 1;
@@ -4686,11 +4686,11 @@ fn compare_array_elements<'a>(
             .bind(gc.nogc());
         // b. If v is NaN, return +0𝔽.
         // c. Return v.
-        if v.is_nan(agent) {
+        if v.is_nan_(agent) {
             Ok(Ordering::Equal)
-        } else if v.is_sign_positive(agent) {
+        } else if v.is_sign_positive_(agent) {
             Ok(Ordering::Greater)
-        } else if v.is_sign_negative(agent) {
+        } else if v.is_sign_negative_(agent) {
             Ok(Ordering::Less)
         } else {
             Ok(Ordering::Equal)
@@ -4701,7 +4701,7 @@ fn compare_array_elements<'a>(
     } else if let (Ok(x), Ok(y)) = (Number::try_from(x), Number::try_from(y)) {
         // Fast path: Avoid string conversions for numbers.
         // Note: This is probably not correct for NaN's.
-        Ok(x.into_f64(agent).total_cmp(&y.into_f64(agent)))
+        Ok(x.into_f64_(agent).total_cmp(&y.into_f64_(agent)))
     } else {
         // 5. Let xString be ? ToString(x).
         let (x, y) = if let Some(x) = try_result_into_js(try_to_string(agent, x, gc.nogc()))
@@ -4734,6 +4734,6 @@ fn compare_array_elements<'a>(
         // 10. If ySmaller is true, return 1𝔽.
         // 11. Return +0𝔽.
         // TODO: this gives UTF-8 lexicographic ordering, not UTF-16.
-        Ok(x.as_wtf8(agent).cmp(y.as_wtf8(agent)))
+        Ok(x.as_wtf8_(agent).cmp(y.as_wtf8_(agent)))
     }
 }

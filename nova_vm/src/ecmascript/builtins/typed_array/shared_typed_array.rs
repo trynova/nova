@@ -11,7 +11,7 @@ use ecmascript_atomics::{Ordering, RacySlice};
 
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::types::SHARED_FLOAT_16_ARRAY_DISCRIMINANT;
-use crate::heap::ArenaAccess;
+use crate::heap::{ArenaAccess, ArenaAccessMut, DirectArenaAccessMut};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -290,46 +290,7 @@ impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
 /// type.
 pub(crate) type SharedVoidArray<'a> = GenericSharedTypedArray<'a, ()>;
 
-impl<'gc> SharedVoidArray<'gc> {
-    #[inline(always)]
-    fn get<'a>(self, agent: &'a Agent) -> &'a SharedTypedArrayRecord<'gc> {
-        self.get_direct(&agent.heap.shared_typed_arrays)
-    }
-
-    #[inline(always)]
-    fn get_mut<'a>(self, agent: &'a mut Agent) -> &'a mut SharedTypedArrayRecord<'gc> {
-        self.get_direct_mut(&mut agent.heap.shared_typed_arrays)
-    }
-
-    #[inline(always)]
-    fn get_direct<'a>(
-        self,
-        shared_typed_arrays: &'a [SharedTypedArrayRecord<'static>],
-    ) -> &'a SharedTypedArrayRecord<'gc> {
-        shared_typed_arrays
-            .get(self.get_index())
-            .expect("Invalid TypedArray reference")
-    }
-
-    #[inline(always)]
-    fn get_direct_mut<'a>(
-        self,
-        shared_typed_arrays: &'a mut [SharedTypedArrayRecord<'static>],
-    ) -> &'a mut SharedTypedArrayRecord<'gc> {
-        // SAFETY: Lifetime transmute to thread GC lifetime to temporary heap
-        // reference.
-        unsafe {
-            core::mem::transmute::<
-                &'a mut SharedTypedArrayRecord<'static>,
-                &'a mut SharedTypedArrayRecord<'gc>,
-            >(
-                shared_typed_arrays
-                    .get_mut(self.get_index())
-                    .expect("Invalid TypedArray reference"),
-            )
-        }
-    }
-}
+impl<'gc> SharedVoidArray<'gc> {}
 
 pub type SharedUint8Array<'a> = GenericSharedTypedArray<'a, u8>;
 pub type SharedUint8ClampedArray<'a> = GenericSharedTypedArray<'a, U8Clamped>;
@@ -1981,11 +1942,11 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
                     return std::cmp::Ordering::Equal;
                 }
             };
-            if num.is_nan(agent) {
+            if num.is_nan_(agent) {
                 std::cmp::Ordering::Equal
-            } else if num.is_sign_positive(agent) {
+            } else if num.is_sign_positive_(agent) {
                 std::cmp::Ordering::Greater
-            } else if num.is_sign_negative(agent) {
+            } else if num.is_sign_negative_(agent) {
                 std::cmp::Ordering::Less
             } else {
                 std::cmp::Ordering::Equal
@@ -2293,8 +2254,10 @@ impl<'a, T: Viewable> DirectArenaAccess for GenericSharedTypedArray<'a, T> {
     fn get_direct<'agent>(self, source: &'agent Vec<Self::Data>) -> &'agent Self::Output {
         source
             .get(HeapIndexHandle::get_index(self))
-            .expect("Invalid handle")
+            .unwrap_or_else(|| panic!("Invalid handle {:?}", self))
     }
+}
+impl<'a, T: Viewable> DirectArenaAccessMut for GenericSharedTypedArray<'a, T> {
     #[inline]
     fn get_direct_mut<'agent>(
         self,
@@ -2307,7 +2270,7 @@ impl<'a, T: Viewable> DirectArenaAccess for GenericSharedTypedArray<'a, T> {
             >(
                 source
                     .get_mut(HeapIndexHandle::get_index(self))
-                    .expect("Invalid handle"),
+                    .unwrap_or_else(|| panic!("Invalid handle {:?}", self)),
             )
         }
     }

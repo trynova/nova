@@ -8,7 +8,7 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin},
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY,  Object, PropertyKey, String, Value},
+        types::{BUILTIN_STRING_MEMORY, Object, PropertyKey, String, Value},
     },
     engine::{
         context::{Bindable, GcScope},
@@ -101,8 +101,8 @@ impl ErrorPrototype {
             // 9. Return the string-concatenation of name, the code unit 0x003A (COLON), the code unit 0x0020 (SPACE), and msg.
             let result = format!(
                 "{}: {}",
-                name.to_string_lossy(agent),
-                msg.to_string_lossy(agent)
+                name.to_string_lossy_(agent),
+                msg.to_string_lossy_(agent)
             );
             Ok(String::from_string(agent, result, gc).into())
         }

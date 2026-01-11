@@ -100,7 +100,7 @@ impl NumberPrototype {
         // 3. Assert: If fractionDigits is undefined, then f is 0.
         debug_assert!(!fraction_digits_is_undefined || f.into_i64() == 0);
         // 4. If x is not finite, return Number::toString(x, 10).
-        if !x.is_finite(agent) {
+        if !x.is_finite_(agent) {
             return Ok(Number::to_string_radix_10(agent, x, gc).into());
         }
         let f = f.into_i64();
@@ -115,7 +115,7 @@ impl NumberPrototype {
         let f = f as usize;
 
         // 6. Set x to ℝ(x).
-        let mut x = x.into_f64(agent);
+        let mut x = x.into_f64_(agent);
         // This gets rid of -0.0
         if x == 0.0 {
             x = 0.0;
@@ -178,11 +178,11 @@ impl NumberPrototype {
             ));
         }
         // 6. If x is not finite, return Number::toString(x, 10).
-        if !x.is_finite(agent) {
+        if !x.is_finite_(agent) {
             return Ok(Number::to_string_radix_10(agent, x, gc).into());
         }
         // 7. Set x to ℝ(x).
-        let x = x.into_f64(agent);
+        let x = x.into_f64_(agent);
         let mut buffer = ryu_js::Buffer::new();
         let string = buffer.format_to_fixed(x, f as u8);
         Ok(Value::from_str(agent, string, gc))
@@ -235,7 +235,7 @@ impl NumberPrototype {
         let x = x.get(agent).bind(gc);
 
         // 4. If x is not finite, return Number::toString(x, 10).
-        if !x.is_finite(agent) {
+        if !x.is_finite_(agent) {
             return Ok(Number::to_string_radix_10(agent, x, gc).into());
         }
 
@@ -251,7 +251,7 @@ impl NumberPrototype {
         let precision = precision as u8;
 
         // 6. Set x to ℝ(x).
-        let mut x_f64 = x.into_f64(agent);
+        let mut x_f64 = x.into_f64_(agent);
 
         // 7. Let s be the empty String.
         let mut s = std::string::String::new();

@@ -204,9 +204,9 @@ impl RegExpConstructor {
             ));
         };
         // 2. Let escaped be the empty String.
-        let mut escaped = std::string::String::with_capacity(s.len(agent));
+        let mut escaped = std::string::String::with_capacity(s.len_(agent));
         // 3. Let cpList be StringToCodePoints(S).
-        let mut cp_list = s.as_wtf8(agent).code_points();
+        let mut cp_list = s.as_wtf8_(agent).code_points();
         // 4. For each code point cp of cpList, do
         let Some(first_cp) = cp_list.next() else {
             return Ok(String::EMPTY_STRING.into());

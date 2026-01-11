@@ -11,7 +11,7 @@ use crate::{
         types::{String, Value},
     },
     engine::context::{Bindable, NoGcScope},
-    heap::{ArenaAccess, CompactionLists, HeapMarkAndSweep, WorkQueues},
+    heap::{ArenaAccess, ArenaAccessMut, CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 /// ### [9.1.1.1 Declarative Environment Records](https://tc39.es/ecma262/#sec-declarative-environment-records)
@@ -290,7 +290,7 @@ impl<'e> DeclarativeEnvironment<'e> {
             if is_strict {
                 let error_message = format!(
                     "Cannot assign to nonexisting binding '{}'.",
-                    name.to_string_lossy(agent)
+                    name.to_string_lossy_(agent)
                 );
                 return Err(agent.throw_exception(
                     ExceptionType::ReferenceError,
@@ -319,7 +319,7 @@ impl<'e> DeclarativeEnvironment<'e> {
             // a. Throw a ReferenceError exception.
             let error_message = format!(
                 "Identifier '{}' has not been initialized.",
-                name.to_string_lossy(agent)
+                name.to_string_lossy_(agent)
             );
             return Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc));
         }
@@ -338,7 +338,7 @@ impl<'e> DeclarativeEnvironment<'e> {
             if is_strict {
                 let error_message = format!(
                     "invalid assignment to const '{}'",
-                    name.to_string_lossy(agent)
+                    name.to_string_lossy_(agent)
                 );
                 return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc));
             }
@@ -372,7 +372,7 @@ impl<'e> DeclarativeEnvironment<'e> {
                 // a ReferenceError exception.
                 let error_message = format!(
                     "Could not get value of binding '{}': binding is uninitialized.",
-                    name.to_string_lossy(agent)
+                    name.to_string_lossy_(agent)
                 );
                 Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc))
             }

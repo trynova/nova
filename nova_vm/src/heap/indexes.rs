@@ -198,14 +198,15 @@ impl PropertyKeyIndex<'_> {
 
 /// Trait for working with index-based heap handles. The handles are internally
 /// limited to 32 bit unsigned values.
-pub(crate) trait HeapIndexHandle: Copy + Sized {
+pub(crate) trait HeapIndexHandle: Copy + Sized + core::fmt::Debug {
     /// Constant-time value used for discriminant checking only.
     const _DEF: Self;
 
     /// Convert an index into a heap handle.
     fn from_index(index: usize) -> Self {
         Self::from_index_u32(
-            u32::try_from(index).expect(&format!("{} index out of bounds", type_name::<Self>())),
+            u32::try_from(index)
+                .unwrap_or_else(|_| panic!("{} index out of bounds", type_name::<Self>())),
         )
     }
     /// Convert a 32-bit index into a heap handle.

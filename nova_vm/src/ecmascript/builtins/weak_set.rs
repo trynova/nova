@@ -10,9 +10,8 @@ use crate::{
     },
     engine::context::Bindable,
     heap::{
-        ArenaAccess, CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, arena_vec_access,
-        indexes::{BaseIndex},
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, HeapMarkAndSweep,
+        HeapSweepWeakReference, WorkQueues, arena_vec_access, indexes::BaseIndex,
     },
 };
 

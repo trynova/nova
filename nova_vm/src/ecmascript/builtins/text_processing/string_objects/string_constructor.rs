@@ -24,7 +24,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::{ArenaAccess, IntrinsicConstructorIndexes},
+    heap::{ArenaAccessMut, IntrinsicConstructorIndexes},
 };
 
 pub struct StringConstructor;
@@ -373,7 +373,7 @@ impl StringConstructor {
                         .bind(gc.nogc());
 
                     // c. Set R to the string-concatenation of R and nextLiteral.
-                    r.push_wtf8(next_literal.as_wtf8(agent));
+                    r.push_wtf8(next_literal.as_wtf8_(agent));
 
                     // d. If nextIndex + 1 = literalCount, return R.
                     // Note: this branch is now below the loop.
@@ -389,7 +389,7 @@ impl StringConstructor {
                             .bind(gc.nogc());
 
                         // iii. Set R to the string-concatenation of R and nextSub.
-                        r.push_wtf8(next_sub.as_wtf8(agent));
+                        r.push_wtf8(next_sub.as_wtf8_(agent));
                     }
 
                     // f. Set nextIndex to nextIndex + 1.

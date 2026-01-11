@@ -131,7 +131,12 @@ impl<'a> Number<'a> {
         Self::from(f32::NEG_INFINITY)
     }
 
-    pub fn is_nan<T>(self, agent: &'a T) -> bool
+    #[inline(always)]
+    pub fn is_nan(self, agent: &Agent) -> bool {
+        self.is_nan_(agent)
+    }
+
+    pub(crate) fn is_nan_<T>(self, agent: &'a T) -> bool
     where
         T: NumberHeapAccess,
     {
@@ -142,7 +147,12 @@ impl<'a> Number<'a> {
         }
     }
 
-    pub fn is_pos_zero<T>(self, agent: &'a T) -> bool
+    #[inline(always)]
+    pub fn is_pos_zero(self, agent: &Agent) -> bool {
+        self.is_pos_zero_(agent)
+    }
+
+    pub(crate) fn is_pos_zero_<T>(self, agent: &'a T) -> bool
     where
         T: NumberHeapAccess,
     {
@@ -153,7 +163,12 @@ impl<'a> Number<'a> {
         }
     }
 
-    pub fn is_neg_zero<T>(self, agent: &'a T) -> bool
+    #[inline(always)]
+    pub fn is_neg_zero(self, agent: &Agent) -> bool {
+        self.is_neg_zero_(agent)
+    }
+
+    pub(crate) fn is_neg_zero_<T>(self, agent: &'a T) -> bool
     where
         T: NumberHeapAccess,
     {
@@ -164,7 +179,12 @@ impl<'a> Number<'a> {
         }
     }
 
-    pub fn is_pos_infinity<T>(self, agent: &'a T) -> bool
+    #[inline(always)]
+    pub fn is_pos_infinity(self, agent: &Agent) -> bool {
+        self.is_pos_infinity_(agent)
+    }
+
+    pub(crate) fn is_pos_infinity_<T>(self, agent: &'a T) -> bool
     where
         T: NumberHeapAccess,
     {
@@ -175,7 +195,12 @@ impl<'a> Number<'a> {
         }
     }
 
-    pub fn is_neg_infinity<T>(self, agent: &'a T) -> bool
+    #[inline(always)]
+    pub fn is_neg_infinity(self, agent: &Agent) -> bool {
+        self.is_neg_infinity_(agent)
+    }
+
+    pub(crate) fn is_neg_infinity_<T>(self, agent: &'a T) -> bool
     where
         T: NumberHeapAccess,
     {
@@ -186,7 +211,12 @@ impl<'a> Number<'a> {
         }
     }
 
-    pub fn is_finite<T>(self, agent: &'a T) -> bool
+    #[inline(always)]
+    pub fn is_finite(self, agent: &Agent) -> bool {
+        self.is_finite_(agent)
+    }
+
+    pub(crate) fn is_finite_<T>(self, agent: &'a T) -> bool
     where
         T: NumberHeapAccess,
     {
@@ -197,7 +227,12 @@ impl<'a> Number<'a> {
         }
     }
 
-    pub fn is_integer<T>(self, agent: &'a T) -> bool
+    #[inline(always)]
+    pub fn is_integer(self, agent: &Agent) -> bool {
+        self.is_integer_(agent)
+    }
+
+    pub(crate) fn is_integer_<T>(self, agent: &'a T) -> bool
     where
         T: NumberHeapAccess,
     {
@@ -208,7 +243,12 @@ impl<'a> Number<'a> {
         }
     }
 
-    pub fn is_nonzero<T>(self, agent: &'a T) -> bool
+    #[inline(always)]
+    pub fn is_nonzero(self, agent: &Agent) -> bool {
+        self.is_nonzero_(agent)
+    }
+
+    pub(crate) fn is_nonzero_<T>(self, agent: &'a T) -> bool
     where
         T: NumberHeapAccess,
     {
@@ -219,7 +259,12 @@ impl<'a> Number<'a> {
         }
     }
 
-    pub fn is_pos_one<T>(self, agent: &'a T) -> bool
+    #[inline(always)]
+    pub fn is_pos_one(self, agent: &Agent) -> bool {
+        self.is_pos_one_(agent)
+    }
+
+    pub(crate) fn is_pos_one_<T>(self, agent: &'a T) -> bool
     where
         T: NumberHeapAccess,
     {
@@ -239,7 +284,12 @@ impl<'a> Number<'a> {
         }
     }
 
-    pub fn is_neg_one<T>(self, agent: &'a T) -> bool
+    #[inline(always)]
+    pub fn is_neg_one(self, agent: &Agent) -> bool {
+        self.is_neg_one_(agent)
+    }
+
+    pub(crate) fn is_neg_one_<T>(self, agent: &'a T) -> bool
     where
         T: NumberHeapAccess,
     {
@@ -256,7 +306,12 @@ impl<'a> Number<'a> {
         }
     }
 
-    pub fn is_sign_positive<T>(self, agent: &'a T) -> bool
+    #[inline(always)]
+    pub fn is_sign_positive(self, agent: &Agent) -> bool {
+        self.is_sign_positive_(agent)
+    }
+
+    pub(crate) fn is_sign_positive_<T>(self, agent: &'a T) -> bool
     where
         T: NumberHeapAccess,
     {
@@ -267,7 +322,12 @@ impl<'a> Number<'a> {
         }
     }
 
-    pub fn is_sign_negative<T>(self, agent: &'a T) -> bool
+    #[inline(always)]
+    pub fn is_sign_negative(self, agent: &Agent) -> bool {
+        self.is_sign_negative_(agent)
+    }
+
+    pub(crate) fn is_sign_negative_<T>(self, agent: &'a T) -> bool
     where
         T: NumberHeapAccess,
     {
@@ -290,7 +350,12 @@ impl<'a> Number<'a> {
         }
     }
 
-    pub fn into_f64<T>(self, agent: &'a T) -> f64
+    #[inline(always)]
+    pub fn into_f64(self, agent: &Agent) -> f64 {
+        self.into_f64_(agent)
+    }
+
+    pub(crate) fn into_f64_<T>(self, agent: &'a T) -> f64
     where
         T: NumberHeapAccess,
     {
@@ -301,7 +366,12 @@ impl<'a> Number<'a> {
         }
     }
 
-    pub fn into_f32<T>(self, agent: &'a T) -> f32
+    #[inline(always)]
+    pub fn into_f32(self, agent: &Agent) -> f32 {
+        self.into_f32_(agent)
+    }
+
+    pub(crate) fn into_f32_<T>(self, agent: &'a T) -> f32
     where
         T: NumberHeapAccess,
     {
@@ -313,7 +383,13 @@ impl<'a> Number<'a> {
     }
 
     #[cfg(feature = "proposal-float16array")]
-    pub fn into_f16<T>(self, agent: &'a T) -> f16
+    #[inline(always)]
+    pub fn into_f16(self, agent: &Agent) -> bool {
+        self.into_f16_(agent)
+    }
+
+    #[cfg(feature = "proposal-float16array")]
+    pub(crate) fn into_f16_<T>(self, agent: &'a T) -> f16
     where
         T: NumberHeapAccess,
     {
@@ -330,7 +406,12 @@ impl<'a> Number<'a> {
     /// - NaN becomes 0.
     /// - Numbers are clamped between [`i64::MIN`] and [`i64::MAX`].
     /// - All other numbers round towards zero.
-    pub fn into_i64<T>(self, agent: &'a T) -> i64
+    #[inline(always)]
+    pub fn into_i64(self, agent: &Agent) -> i64 {
+        self.into_i64_(agent)
+    }
+
+    pub(crate) fn into_i64_<T>(self, agent: &'a T) -> i64
     where
         T: NumberHeapAccess,
     {
@@ -347,7 +428,12 @@ impl<'a> Number<'a> {
     /// - NaN becomes 0.
     /// - Numbers are clamped between 0 and [`usize::MAX`].
     /// - All other numbers round towards zero.
-    pub fn into_usize<T>(self, agent: &'a T) -> usize
+    #[inline(always)]
+    pub fn into_usize(self, agent: &Agent) -> usize {
+        self.into_usize_(agent)
+    }
+
+    pub(crate) fn into_usize_<T>(self, agent: &'a T) -> usize
     where
         T: NumberHeapAccess,
     {
@@ -495,22 +581,22 @@ impl<'a> Number<'a> {
     /// ### [6.1.6.1.3 Number::exponentiate ( base, exponent )](https://tc39.es/ecma262/#sec-numeric-types-number-exponentiate)
     pub fn exponentiate(agent: &mut Agent, base: Self, exponent: Self) -> Self {
         // 1. If exponent is NaN, return NaN.
-        if exponent.is_nan(agent) {
+        if exponent.is_nan_(agent) {
             return Number::nan();
         }
 
         // 2. If exponent is either +0𝔽 or -0𝔽, return 1𝔽.
-        if exponent.is_pos_zero(agent) || exponent.is_neg_zero(agent) {
+        if exponent.is_pos_zero_(agent) || exponent.is_neg_zero_(agent) {
             return Number::from(1);
         }
 
         // 3. If base is NaN, return NaN.
-        if base.is_nan(agent) {
+        if base.is_nan_(agent) {
             return Number::nan();
         }
 
         // 4. If base is +∞𝔽, then
-        if base.is_pos_infinity(agent) {
+        if base.is_pos_infinity_(agent) {
             // a. If exponent > +0𝔽, return +∞𝔽. Otherwise, return +0𝔽.
             return if Number::greater_than(agent, exponent, Number::from(0)).unwrap_or(false) {
                 Number::pos_inf()
@@ -520,7 +606,7 @@ impl<'a> Number<'a> {
         }
 
         // 5. If base is -∞𝔽, then
-        if base.is_neg_infinity(agent) {
+        if base.is_neg_infinity_(agent) {
             // a. If exponent > +0𝔽, then
             return if Number::greater_than(agent, exponent, 0.into()).unwrap_or(false) {
                 // i. If exponent is an odd integral Number, return -∞𝔽. Otherwise, return +∞𝔽.
@@ -542,7 +628,7 @@ impl<'a> Number<'a> {
         }
 
         // 6. If base is +0𝔽, then
-        if base.is_pos_zero(agent) {
+        if base.is_pos_zero_(agent) {
             // a. If exponent > +0𝔽, return +0𝔽. Otherwise, return +∞𝔽.
             return if Number::greater_than(agent, exponent, Number::pos_zero()).unwrap_or(false) {
                 Number::pos_zero()
@@ -552,7 +638,7 @@ impl<'a> Number<'a> {
         }
 
         // 7. If base is -0𝔽, then
-        if base.is_neg_zero(agent) {
+        if base.is_neg_zero_(agent) {
             // a. If exponent > +0𝔽, then
             return if Number::greater_than(agent, exponent, Number::pos_zero()).unwrap_or(false) {
                 // i. If exponent is an odd integral Number, return -0𝔽. Otherwise, return +0𝔽.
@@ -574,10 +660,10 @@ impl<'a> Number<'a> {
         }
 
         // 8. Assert: base is finite and is neither +0𝔽 nor -0𝔽.
-        debug_assert!(base.is_finite(agent) && base.is_nonzero(agent));
+        debug_assert!(base.is_finite_(agent) && base.is_nonzero_(agent));
 
         // 9. If exponent is +∞𝔽, then
-        if exponent.is_pos_infinity(agent) {
+        if exponent.is_pos_infinity_(agent) {
             let base = base.abs(agent);
 
             // a. If abs(ℝ(base)) > 1, return +∞𝔽.
@@ -595,8 +681,8 @@ impl<'a> Number<'a> {
         }
 
         // 10. If exponent is -∞𝔽, then
-        if exponent.is_neg_infinity(agent) {
-            let base = base.into_f64(agent).abs();
+        if exponent.is_neg_infinity_(agent) {
+            let base = base.into_f64_(agent).abs();
 
             // a. If abs(ℝ(base)) > 1, return +0𝔽.
             return if base > 1.0 {
@@ -613,7 +699,7 @@ impl<'a> Number<'a> {
         }
 
         // 11. Assert: exponent is finite and is neither +0𝔽 nor -0𝔽.
-        debug_assert!(exponent.is_finite(agent) && exponent.is_nonzero(agent));
+        debug_assert!(exponent.is_finite_(agent) && exponent.is_nonzero_(agent));
 
         // 12. If base < -0𝔽 and exponent is not an integral Number, return NaN.
         if Number::less_than(agent, base, Number::neg_zero()).unwrap_or(false)
@@ -625,7 +711,7 @@ impl<'a> Number<'a> {
         // 13. Return an implementation-approximated Number value representing the result of raising ℝ(base) to the ℝ(exponent) power.
         agent
             .heap
-            .create(base.into_f64(agent).powf(exponent.into_f64(agent)))
+            .create(base.into_f64_(agent).powf(exponent.into_f64_(agent)))
     }
 
     /// ### [6.1.6.1.4 Number::multiply ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-multiply)
@@ -653,56 +739,56 @@ impl<'a> Number<'a> {
             return Self::from_f64(agent, x as f64 * y as f64, gc);
         }
         // 1. If x is NaN or y is NaN, return NaN.
-        if x.is_nan(agent) || y.is_nan(agent) {
+        if x.is_nan_(agent) || y.is_nan_(agent) {
             return Self::nan();
         }
         // 2. If x is either +∞𝔽 or -∞𝔽, then
-        if x.is_pos_infinity(agent) || x.is_neg_infinity(agent) {
+        if x.is_pos_infinity_(agent) || x.is_neg_infinity_(agent) {
             // a. If y is either +0𝔽 or -0𝔽, return NaN.
-            if y.is_pos_zero(agent) || y.is_neg_zero(agent) {
+            if y.is_pos_zero_(agent) || y.is_neg_zero_(agent) {
                 return Self::nan();
             }
             // b. If y > +0𝔽, return x.
-            if y.is_sign_positive(agent) {
+            if y.is_sign_positive_(agent) {
                 return x;
             }
             // c. Return -x.
-            return if x.is_pos_infinity(agent) {
+            return if x.is_pos_infinity_(agent) {
                 Self::neg_inf()
             } else {
                 Self::pos_inf()
             };
         }
         // 3. If y is either +∞𝔽 or -∞𝔽, then
-        if y.is_pos_infinity(agent) || y.is_neg_infinity(agent) {
+        if y.is_pos_infinity_(agent) || y.is_neg_infinity_(agent) {
             // a. If x is either +0𝔽 or -0𝔽, return NaN.
-            if x.is_pos_zero(agent) || x.is_neg_zero(agent) {
+            if x.is_pos_zero_(agent) || x.is_neg_zero_(agent) {
                 return Self::nan();
             }
             // b. If x > +0𝔽, return y.
-            if x.is_sign_positive(agent) {
+            if x.is_sign_positive_(agent) {
                 return y;
             }
             // c. Return -y.
-            return if y.is_pos_infinity(agent) {
+            return if y.is_pos_infinity_(agent) {
                 Self::neg_inf()
             } else {
                 Self::pos_inf()
             };
         }
         // 4. If x is -0𝔽, then
-        if x.is_neg_zero(agent) {
+        if x.is_neg_zero_(agent) {
             // a. If y is -0𝔽 or y < -0𝔽, return +0𝔽.
-            if y.is_neg_zero(agent) || y.is_sign_negative(agent) {
+            if y.is_neg_zero_(agent) || y.is_sign_negative_(agent) {
                 return Self::pos_zero();
             }
             // b. Else, return -0𝔽.
             return Self::neg_zero();
         }
         // 5. If y is -0𝔽, then
-        if y.is_neg_zero(agent) {
+        if y.is_neg_zero_(agent) {
             // a. If x < -0𝔽, return +0𝔽.
-            if x.is_sign_negative(agent) {
+            if x.is_sign_negative_(agent) {
                 return Self::pos_zero();
             }
             // b. Else, return -0𝔽.
@@ -721,48 +807,48 @@ impl<'a> Number<'a> {
     /// divisor.
     pub fn divide(agent: &mut Agent, x: Self, y: Self, gc: NoGcScope<'a, '_>) -> Self {
         // 1. If x is NaN or y is NaN, return NaN.
-        if x.is_nan(agent) || y.is_nan(agent) {
+        if x.is_nan_(agent) || y.is_nan_(agent) {
             return Number::nan();
         }
         // 2. If x is either +∞𝔽 or -∞𝔽, then
-        if x.is_pos_infinity(agent) || x.is_neg_infinity(agent) {
+        if x.is_pos_infinity_(agent) || x.is_neg_infinity_(agent) {
             // a. If y is either +∞𝔽 or -∞𝔽, return NaN.
-            if y.is_pos_infinity(agent) || y.is_neg_infinity(agent) {
+            if y.is_pos_infinity_(agent) || y.is_neg_infinity_(agent) {
                 return Number::nan();
             }
             // b. If y is +0𝔽 or y > +0𝔽, return x.
-            if y.is_pos_zero(agent) || y.to_real(agent) > 0.0 {
+            if y.is_pos_zero_(agent) || y.to_real(agent) > 0.0 {
                 return x;
             }
             // c. Return -x.
-            return if x.is_pos_infinity(agent) {
+            return if x.is_pos_infinity_(agent) {
                 Number::neg_inf()
             } else {
                 Number::pos_inf()
             };
         }
         // 3. If y is +∞𝔽, then
-        if y.is_pos_infinity(agent) {
+        if y.is_pos_infinity_(agent) {
             // a. If x is +0𝔽 or x > +0𝔽, return +0𝔽. Otherwise, return -0𝔽.
-            if x.is_pos_zero(agent) || x.to_real(agent) > 0.0 {
+            if x.is_pos_zero_(agent) || x.to_real(agent) > 0.0 {
                 return Number::pos_zero();
             } else {
                 return Number::neg_zero();
             }
         }
         // 4. If y is -∞𝔽, then
-        if y.is_neg_infinity(agent) {
+        if y.is_neg_infinity_(agent) {
             // a. If x is +0𝔽 or x > +0𝔽, return -0𝔽. Otherwise, return +0𝔽.
-            if x.is_pos_zero(agent) || x.to_real(agent) > 0.0 {
+            if x.is_pos_zero_(agent) || x.to_real(agent) > 0.0 {
                 return Number::neg_zero();
             } else {
                 return Number::pos_zero();
             }
         }
         // 5. If x is either +0𝔽 or -0𝔽, then
-        if x.is_pos_zero(agent) || x.is_neg_zero(agent) {
+        if x.is_pos_zero_(agent) || x.is_neg_zero_(agent) {
             // a. If y is either +0𝔽 or -0𝔽, return NaN.
-            if y.is_pos_zero(agent) || y.is_neg_zero(agent) {
+            if y.is_pos_zero_(agent) || y.is_neg_zero_(agent) {
                 return Number::nan();
             }
             // b. If y > +0𝔽, return x.
@@ -770,14 +856,14 @@ impl<'a> Number<'a> {
                 return x;
             }
             // c. Return -x.
-            return if x.is_pos_zero(agent) {
+            return if x.is_pos_zero_(agent) {
                 Number::neg_zero()
             } else {
                 Number::pos_zero()
             };
         }
         // 6. If y is +0𝔽, then
-        if y.is_pos_zero(agent) {
+        if y.is_pos_zero_(agent) {
             // a. If x > +0𝔽, return +∞𝔽. Otherwise, return -∞𝔽.
             return if x.to_real(agent) > 0.0 {
                 Number::pos_inf()
@@ -786,7 +872,7 @@ impl<'a> Number<'a> {
             };
         }
         // 7. If y is -0𝔽, then
-        if y.is_neg_zero(agent) {
+        if y.is_neg_zero_(agent) {
             // a. If x > +0𝔽, return -∞𝔽. Otherwise, return +∞𝔽.
             return if x.to_real(agent) > 0.0 {
                 Number::neg_inf()
@@ -807,35 +893,35 @@ impl<'a> Number<'a> {
     /// divisor.
     pub fn remainder(agent: &mut Agent, n: Self, d: Self, gc: NoGcScope<'a, '_>) -> Self {
         // 1. If n is NaN or d is NaN, return NaN.
-        if n.is_nan(agent) || d.is_nan(agent) {
+        if n.is_nan_(agent) || d.is_nan_(agent) {
             return Self::nan();
         }
 
         // 2. If n is either +∞𝔽 or -∞𝔽, return NaN.
-        if n.is_pos_infinity(agent) || n.is_neg_infinity(agent) {
+        if n.is_pos_infinity_(agent) || n.is_neg_infinity_(agent) {
             return Self::nan();
         }
 
         // 3. If d is either +∞𝔽 or -∞𝔽, return n.
-        if d.is_pos_infinity(agent) || d.is_neg_infinity(agent) {
+        if d.is_pos_infinity_(agent) || d.is_neg_infinity_(agent) {
             return n;
         }
 
         // 4. If d is either +0𝔽 or -0𝔽, return NaN.
-        if d.is_pos_zero(agent) || d.is_neg_zero(agent) {
+        if d.is_pos_zero_(agent) || d.is_neg_zero_(agent) {
             return Self::nan();
         }
 
         // 5. If n is either +0𝔽 or -0𝔽, return n.
-        if n.is_pos_zero(agent) || n.is_neg_zero(agent) {
+        if n.is_pos_zero_(agent) || n.is_neg_zero_(agent) {
             return n;
         }
 
         // 6. Assert: n and d are finite and non-zero.
-        debug_assert!(n.is_finite(agent) && n.is_nonzero(agent));
+        debug_assert!(n.is_finite_(agent) && n.is_nonzero_(agent));
 
-        let n = n.into_f64(agent);
-        let d = d.into_f64(agent);
+        let n = n.into_f64_(agent);
+        let d = d.into_f64_(agent);
 
         // 7. Let quotient be ℝ(n) / ℝ(d).
         let quotient = n / d;
@@ -863,40 +949,40 @@ impl<'a> Number<'a> {
     /// the sum of its arguments.
     pub(crate) fn add(agent: &mut Agent, x: Self, y: Self) -> Self {
         // 1. If x is NaN or y is NaN, return NaN.
-        if x.is_nan(agent) || y.is_nan(agent) {
+        if x.is_nan_(agent) || y.is_nan_(agent) {
             return Number::nan();
         }
 
         // 2. If x is +∞𝔽 and y is -∞𝔽, return NaN.
-        if x.is_pos_infinity(agent) && y.is_neg_infinity(agent) {
+        if x.is_pos_infinity_(agent) && y.is_neg_infinity_(agent) {
             return Number::nan();
         }
 
         // 3. If x is -∞𝔽 and y is +∞𝔽, return NaN.
-        if x.is_neg_infinity(agent) && y.is_pos_infinity(agent) {
+        if x.is_neg_infinity_(agent) && y.is_pos_infinity_(agent) {
             return Number::nan();
         }
 
         // 4. If x is either +∞𝔽 or -∞𝔽, return x.
-        if x.is_pos_infinity(agent) || x.is_neg_infinity(agent) {
+        if x.is_pos_infinity_(agent) || x.is_neg_infinity_(agent) {
             return x;
         }
 
         // 5. If y is either +∞𝔽 or -∞𝔽, return y.
-        if y.is_pos_infinity(agent) || y.is_neg_infinity(agent) {
+        if y.is_pos_infinity_(agent) || y.is_neg_infinity_(agent) {
             return y;
         }
 
         // 6. Assert: x and y are both finite.
-        debug_assert!(x.is_finite(agent) && y.is_finite(agent));
+        debug_assert!(x.is_finite_(agent) && y.is_finite_(agent));
 
         // 7. If x is -0𝔽 and y is -0𝔽, return -0𝔽.
-        if x.is_neg_zero(agent) && y.is_neg_zero(agent) {
+        if x.is_neg_zero_(agent) && y.is_neg_zero_(agent) {
             return Number::neg_zero();
         }
 
         // 8. Return 𝔽(ℝ(x) + ℝ(y)).
-        agent.heap.create(x.into_f64(agent) + y.into_f64(agent))
+        agent.heap.create(x.into_f64_(agent) + y.into_f64_(agent))
     }
 
     /// ### [6.1.6.1.8 Number::subtract ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-subtract)
@@ -959,12 +1045,12 @@ impl<'a> Number<'a> {
     /// ### [6.1.6.1.12 Number::lessThan ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-lessThan)
     pub fn less_than(agent: &Agent, x: Self, y: Self) -> Option<bool> {
         // 1. If x is NaN, return undefined.
-        if x.is_nan(agent) {
+        if x.is_nan_(agent) {
             return None;
         }
 
         // 2. If y is NaN, return undefined.
-        if y.is_nan(agent) {
+        if y.is_nan_(agent) {
             return None;
         }
 
@@ -974,37 +1060,37 @@ impl<'a> Number<'a> {
         }
 
         // 4. If x is +0𝔽 and y is -0𝔽, return false.
-        if x.is_pos_zero(agent) && y.is_neg_zero(agent) {
+        if x.is_pos_zero_(agent) && y.is_neg_zero_(agent) {
             return Some(false);
         }
 
         // 5. If x is -0𝔽 and y is +0𝔽, return false.
-        if x.is_neg_zero(agent) && y.is_pos_zero(agent) {
+        if x.is_neg_zero_(agent) && y.is_pos_zero_(agent) {
             return Some(false);
         }
 
         // 6. If x is +∞𝔽, return false.
-        if x.is_pos_infinity(agent) {
+        if x.is_pos_infinity_(agent) {
             return Some(false);
         }
 
         // 7. If y is +∞𝔽, return true.
-        if y.is_pos_infinity(agent) {
+        if y.is_pos_infinity_(agent) {
             return Some(true);
         }
 
         // 8. If y is -∞𝔽, return false.
-        if y.is_neg_infinity(agent) {
+        if y.is_neg_infinity_(agent) {
             return Some(false);
         }
 
         // 9. If x is -∞𝔽, return true.
-        if x.is_neg_infinity(agent) {
+        if x.is_neg_infinity_(agent) {
             return Some(true);
         }
 
         // 10. Assert: x and y are finite.
-        assert!(x.is_finite(agent) && y.is_finite(agent));
+        assert!(x.is_finite_(agent) && y.is_finite_(agent));
 
         // 11. If ℝ(x) < ℝ(y), return true. Otherwise, return false.
         Some(match (x, y) {
@@ -1021,17 +1107,22 @@ impl<'a> Number<'a> {
     }
 
     /// ### [6.1.6.1.13 Number::equal ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-equal)
-    pub fn equal<T>(agent: &'a T, x: Self, y: Self) -> bool
+    #[inline(always)]
+    pub fn equal<T>(agent: &'a Agent, x: Self, y: Self) -> bool {
+        Self::equal_(agent, x, y)
+    }
+
+    pub(crate) fn equal_<T>(agent: &'a T, x: Self, y: Self) -> bool
     where
         T: NumberHeapAccess,
     {
         // 1. If x is NaN, return false.
-        if x.is_nan(agent) {
+        if x.is_nan_(agent) {
             return false;
         }
 
         // 2. If y is NaN, return false.
-        if y.is_nan(agent) {
+        if y.is_nan_(agent) {
             return false;
         }
 
@@ -1041,12 +1132,12 @@ impl<'a> Number<'a> {
         }
 
         // 4. If x is +0𝔽 and y is -0𝔽, return true.
-        if x.is_pos_zero(agent) && y.is_neg_zero(agent) {
+        if x.is_pos_zero_(agent) && y.is_neg_zero_(agent) {
             return true;
         }
 
         // 5. If x is -0𝔽 and y is +0𝔽, return true.
-        if x.is_neg_zero(agent) && y.is_pos_zero(agent) {
+        if x.is_neg_zero_(agent) && y.is_pos_zero_(agent) {
             return true;
         }
 
@@ -1055,22 +1146,27 @@ impl<'a> Number<'a> {
     }
 
     /// ### [6.1.6.1.14 Number::sameValue ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-sameValue)
-    pub fn same_value<T>(agent: &'a T, x: Self, y: Self) -> bool
+    #[inline(always)]
+    pub fn same_value<T>(agent: &'a Agent, x: Self, y: Self) -> bool {
+        Self::same_value_(agent, x, y)
+    }
+
+    pub(crate) fn same_value_<T>(agent: &'a T, x: Self, y: Self) -> bool
     where
         T: NumberHeapAccess,
     {
         // 1. If x is NaN and y is NaN, return true.
-        if x.is_nan(agent) && y.is_nan(agent) {
+        if x.is_nan_(agent) && y.is_nan_(agent) {
             return true;
         }
 
         // 2. If x is +0𝔽 and y is -0𝔽, return false.
-        if x.is_pos_zero(agent) && y.is_neg_zero(agent) {
+        if x.is_pos_zero_(agent) && y.is_neg_zero_(agent) {
             return false;
         }
 
         // 3. If x is -0𝔽 and y is +0𝔽, return false.
-        if x.is_neg_zero(agent) && y.is_pos_zero(agent) {
+        if x.is_neg_zero_(agent) && y.is_pos_zero_(agent) {
             return false;
         }
 
@@ -1084,22 +1180,27 @@ impl<'a> Number<'a> {
     }
 
     /// ### [6.1.6.1.15 Number::sameValueZero ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-sameValueZero)
-    pub fn same_value_zero<T>(agent: &'a T, x: Self, y: Self) -> bool
+    #[inline(always)]
+    pub fn same_value_zero<T>(agent: &'a Agent, x: Self, y: Self) -> bool {
+        Self::same_value_zero_(agent, x, y)
+    }
+
+    pub(crate) fn same_value_zero_<T>(agent: &'a T, x: Self, y: Self) -> bool
     where
         T: NumberHeapAccess,
     {
         // 1. If x is NaN and y is NaN, return true.
-        if x.is_nan(agent) && y.is_nan(agent) {
+        if x.is_nan_(agent) && y.is_nan_(agent) {
             return true;
         }
 
         // 2. If x is +0𝔽 and y is -0𝔽, return true.
-        if x.is_pos_zero(agent) && y.is_neg_zero(agent) {
+        if x.is_pos_zero_(agent) && y.is_neg_zero_(agent) {
             return true;
         }
 
         // 3. If x is -0𝔽 and y is +0𝔽, return true.
-        if x.is_neg_zero(agent) && y.is_pos_zero(agent) {
+        if x.is_neg_zero_(agent) && y.is_pos_zero_(agent) {
             return true;
         }
 

@@ -17,9 +17,8 @@ use crate::{
         rootable::HeapRootData,
     },
     heap::{
-        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, WorkQueues, arena_vec_access,
-        indexes::{BaseIndex, HeapIndexHandle},
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, WorkQueues, arena_vec_access, indexes::BaseIndex,
     },
 };
 
@@ -139,39 +138,6 @@ impl<'gc> DataView<'gc> {
                 .insert(self.unbind(), byte_offset);
         }
     }
-
-    #[inline(always)]
-    fn get<'a>(self, agent: &'a Agent) -> &'a DataViewRecord<'gc> {
-        self.get_direct(&agent.heap.data_views)
-    }
-
-    #[inline(always)]
-    fn get_mut<'a>(self, agent: &'a mut Agent) -> &'a mut DataViewRecord<'gc> {
-        self.get_direct_mut(&mut agent.heap.data_views)
-    }
-
-    #[inline(always)]
-    fn get_direct<'a>(self, data_views: &'a [DataViewRecord<'static>]) -> &'a DataViewRecord<'gc> {
-        data_views
-            .get(self.get_index())
-            .expect("Invalid DataView reference")
-    }
-
-    #[inline(always)]
-    fn get_direct_mut<'a>(
-        self,
-        data_views: &'a mut [DataViewRecord<'static>],
-    ) -> &'a mut DataViewRecord<'gc> {
-        // SAFETY: Lifetime transmute to thread GC lifetime to temporary heap
-        // reference.
-        unsafe {
-            core::mem::transmute::<&'a mut DataViewRecord<'static>, &'a mut DataViewRecord<'gc>>(
-                data_views
-                    .get_mut(self.get_index())
-                    .expect("Invalid DataView reference"),
-            )
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -284,45 +250,6 @@ impl<'gc> SharedDataView<'gc> {
                 .heap
                 .shared_data_view_byte_offsets
                 .insert(self.unbind(), byte_offset);
-        }
-    }
-
-    #[inline(always)]
-    fn get<'a>(self, agent: &'a Agent) -> &'a SharedDataViewRecord<'gc> {
-        self.get_direct(&agent.heap.shared_data_views)
-    }
-
-    #[inline(always)]
-    fn get_mut<'a>(self, agent: &'a mut Agent) -> &'a mut SharedDataViewRecord<'gc> {
-        self.get_direct_mut(&mut agent.heap.shared_data_views)
-    }
-
-    #[inline(always)]
-    fn get_direct<'a>(
-        self,
-        shared_data_views: &'a [SharedDataViewRecord<'static>],
-    ) -> &'a SharedDataViewRecord<'gc> {
-        shared_data_views
-            .get(self.get_index())
-            .expect("Invalid DataView reference")
-    }
-
-    #[inline(always)]
-    fn get_direct_mut<'a>(
-        self,
-        shared_data_views: &'a mut [SharedDataViewRecord<'static>],
-    ) -> &'a mut SharedDataViewRecord<'gc> {
-        // SAFETY: Lifetime transmute to thread GC lifetime to temporary heap
-        // reference.
-        unsafe {
-            core::mem::transmute::<
-                &'a mut SharedDataViewRecord<'static>,
-                &'a mut SharedDataViewRecord<'gc>,
-            >(
-                shared_data_views
-                    .get_mut(self.get_index())
-                    .expect("Invalid DataView reference"),
-            )
         }
     }
 }

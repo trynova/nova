@@ -38,7 +38,7 @@ use crate::{
         rootable::Scopable,
         string_literal_to_wtf8,
     },
-    heap::{ArenaAccess, IntrinsicFunctionIndexes, indexes::HeapIndexHandle},
+    heap::{ArenaAccess, ArenaAccessMut, IntrinsicFunctionIndexes, indexes::HeapIndexHandle},
     ndt,
 };
 
@@ -487,7 +487,7 @@ fn eval_declaration_instantiation<'a>(
                         ExceptionType::SyntaxError,
                         format!(
                             "Redeclaration of lexical declaration '{}'",
-                            name.to_string_lossy(agent)
+                            name.to_string_lossy_(agent)
                         ),
                         gc.into_nogc(),
                     ));
@@ -884,7 +884,7 @@ impl GlobalObject {
             .bind(gc.nogc());
         // 2. If num is not finite, return false.
         // 3. Otherwise, return true.
-        Ok(num.is_finite(agent).into())
+        Ok(num.is_finite_(agent).into())
     }
 
     /// ### [19.2.3 isNaN ( number )](https://tc39.es/ecma262/#sec-isnan-number)
@@ -907,7 +907,7 @@ impl GlobalObject {
             .bind(gc.nogc());
         // 2. If num is NaN, return true.
         // 3. Otherwise, return false.
-        Ok(num.is_nan(agent).into())
+        Ok(num.is_nan_(agent).into())
     }
 
     /// ### [19.2.4 parseFloat ( string )](https://tc39.es/ecma262/#sec-parsefloat-string)
@@ -932,7 +932,7 @@ impl GlobalObject {
             .bind(gc.nogc());
 
         // 2. Let trimmedString be ! TrimString(inputString, start).
-        let trimmed_string = input_string.to_string_lossy(agent);
+        let trimmed_string = input_string.to_string_lossy_(agent);
         let trimmed_string = trimmed_string.trim_start_matches(is_trimmable_whitespace);
 
         // 3. Let trimmed be StringToCodePoints(trimmedString).
@@ -1036,7 +1036,7 @@ impl GlobalObject {
         };
 
         // 2. Let S be ! TrimString(inputString, start).
-        let s = s.to_string_lossy(agent);
+        let s = s.to_string_lossy_(agent);
         let s = s.trim_start_matches(is_trimmable_whitespace);
 
         // 3. Let sign be 1.
@@ -1330,8 +1330,8 @@ impl GlobalObject {
         let gc = gc.into_nogc();
         let string = string.bind(gc);
         // 2. Let len be the length of string.
-        let string_wtf8 = string.as_wtf8(agent);
-        let bytes = string.as_bytes(agent);
+        let string_wtf8 = string.as_wtf8_(agent);
+        let bytes = string.as_bytes_(agent);
         // 3. Let R be the empty String.
         // 4. Let unescapedSet be the string-concatenation of the ASCII word
         //    characters and "@*+-./".
@@ -1412,8 +1412,8 @@ impl GlobalObject {
         let string = to_string(agent, string.unbind(), gc.reborrow()).unbind()?;
         let gc = gc.into_nogc();
         let string = string.bind(gc);
-        let string_wtf8 = string.as_wtf8(agent);
-        let bytes = string.as_bytes(agent);
+        let string_wtf8 = string.as_wtf8_(agent);
+        let bytes = string.as_bytes_(agent);
         // 2. Let len be the length of string.
         let len = bytes.len();
         // 3. Let R be the empty String.
@@ -1531,8 +1531,8 @@ fn encode<'a, const EXTRA_UNESCAPED: bool>(
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, String<'a>> {
     // 1. Let len be the length of string.
-    let len = string.len(agent);
-    let Some(s) = string.as_str(agent) else {
+    let len = string.len_(agent);
+    let Some(s) = string.as_str_(agent) else {
         // i. Let cp be CodePointAt(string, k).
         // ii. If cp.[[IsUnpairedSurrogate]] is true, throw a URIError exception.
         return Err(agent.throw_exception_with_static_message(
@@ -1615,9 +1615,9 @@ where
     F: Fn(u8) -> bool,
 {
     // 1. Let strLen be the length of string.
-    let str_len = string.utf16_len(agent);
+    let str_len = string.utf16_len_(agent);
     // 2. Let R be the empty String.
-    let mut r = Wtf8Buf::with_capacity(string.len(agent));
+    let mut r = Wtf8Buf::with_capacity(string.len_(agent));
     let mut octets = Vec::with_capacity(4);
 
     // 3. Let k be 0.
@@ -1630,7 +1630,7 @@ where
         }
 
         // b. Let C be the code unit at index k within string.
-        let c = string.char_code_at(agent, k);
+        let c = string.char_code_at_(agent, k);
 
         // c. If C is not the code unit 0x0025 (PERCENT SIGN), then
         if c != CodePoint::from_char('%') {
@@ -1654,8 +1654,8 @@ where
             // hexadecimal digits, throw a URIError exception.
             // iv. Let B be the 8-bit value represented by the two hexadecimal digits at index (k + 1) and (k + 2).
             let Some(b) = decode_hex_byte(
-                string.char_code_at(agent, k + 1),
-                string.char_code_at(agent, k + 2),
+                string.char_code_at_(agent, k + 1),
+                string.char_code_at_(agent, k + 2),
             ) else {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::UriError,
@@ -1681,9 +1681,9 @@ where
                 } else {
                     // 3. Else,
                     // a. Let S be the substring of string from start to k + 1.
-                    let start = string.utf8_index(agent, start).unwrap();
-                    let k = string.utf8_index(agent, k).unwrap();
-                    r.push_str(&string.to_string_lossy(agent)[start..=k])
+                    let start = string.utf8_index_(agent, start).unwrap();
+                    let k = string.utf8_index_(agent, k).unwrap();
+                    r.push_str(&string.to_string_lossy_(agent)[start..=k])
                 }
             } else {
                 // viii. Else,
@@ -1715,7 +1715,7 @@ where
                     k += 1;
 
                     // b. If the code unit at index k within string is not the code unit 0x0025 (PERCENT SIGN), throw a URIError exception.
-                    if string.char_code_at(agent, k) != CodePoint::from_char('%') {
+                    if string.char_code_at_(agent, k) != CodePoint::from_char('%') {
                         return Err(agent.throw_exception_with_static_message(
                             ExceptionType::UriError,
                             "escape characters must be preceded with a % sign",
@@ -1726,8 +1726,8 @@ where
                     // c. If the code units at index (k + 1) and (k + 2) within string do not represent hexadecimal digits, throw a URIError exception.
                     // d. Let B be the 8-bit value represented by the two hexadecimal digits at index (k + 1) and (k + 2).
                     let Some(b) = decode_hex_byte(
-                        string.char_code_at(agent, k + 1),
-                        string.char_code_at(agent, k + 2),
+                        string.char_code_at_(agent, k + 1),
+                        string.char_code_at_(agent, k + 2),
                     ) else {
                         return Err(agent.throw_exception_with_static_message(
                             ExceptionType::UriError,

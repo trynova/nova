@@ -67,7 +67,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::{ArenaAccess, ObjectEntry},
+    heap::{ArenaAccessMut, ObjectEntry},
 };
 
 use super::{
@@ -1343,7 +1343,7 @@ pub(super) fn execute_class_define_private_method<'gc>(
     // 7. Perform MakeMethod(closure, object).
     make_method(agent, closure, object.into());
     // 8. Perform SetFunctionName(closure, propKey).
-    let function_name = format!("#{}", description.to_string_lossy(agent));
+    let function_name = format!("#{}", description.to_string_lossy_(agent));
     let function_name = String::from_string(agent, function_name, gc.nogc());
     set_function_name(
         agent,
@@ -1621,7 +1621,7 @@ pub(super) fn execute_evaluate_new<'gc>(
         };
         let error_message = format!(
             "'{}' is not a constructor.",
-            constructor_string.to_string_lossy(agent)
+            constructor_string.to_string_lossy_(agent)
         );
         return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.into_nogc()));
     };
@@ -1679,7 +1679,7 @@ pub(super) fn execute_evaluate_super<'gc>(
             |agent, gc| {
                 format!(
                     "'{}' is not a constructor.",
-                    constructor.string_repr(agent, gc).to_string_lossy(agent)
+                    constructor.string_repr(agent, gc).to_string_lossy_(agent)
                 )
             },
             gc.reborrow(),
@@ -2410,7 +2410,7 @@ pub(super) fn execute_string_concat<'gc>(
         for arg in args.iter_mut() {
             let string: String<'_> =
                 to_string_primitive(agent, Primitive::try_from(*arg).unwrap(), gc).unwrap();
-            length += string.len(agent);
+            length += string.len_(agent);
             // Note: We write String into each arg.
             *arg = string.unbind().into();
         }
@@ -2438,7 +2438,7 @@ pub(super) fn execute_string_concat<'gc>(
                     let string = to_string(agent, maybe_string.unbind(), gc.reborrow())
                         .unbind()?
                         .bind(gc.nogc());
-                    length += string.len(agent);
+                    length += string.len_(agent);
                     let string: Value = string.into();
                     // SAFETY: args are never shared
                     unsafe { ele.replace(agent, string.unbind()) };

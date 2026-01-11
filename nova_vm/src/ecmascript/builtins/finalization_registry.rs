@@ -2,13 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use soavec::SoAVec;
-
 use crate::{
     ecmascript::{
-        builtins::finalization_registry::data::{
-            FinalizationRegistryRecordMut, FinalizationRegistryRecordRef,
-        },
         execution::{
             Agent, FinalizationRegistryCleanupJob, ProtoIntrinsics, Realm, WeakKey,
             agent::{InnerJob, Job},
@@ -17,8 +12,8 @@ use crate::{
     },
     engine::context::Bindable,
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, arena_vec_access,
+        ArenaAccessSoA, ArenaAccessSoAMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -50,7 +45,10 @@ impl<'fr> FinalizationRegistry<'fr> {
         if queue.is_empty() {
             return;
         }
-        let do_request_cleanup = self.get_mut(agent).cleanup.push_cleanup_queue(queue);
+        let do_request_cleanup = self
+            .get_mut(agent)
+            .cleanup
+            .push_cleanup_queue(queue.unbind());
         if do_request_cleanup {
             agent
                 .host_hooks
@@ -123,45 +121,6 @@ impl<'fr> FinalizationRegistry<'fr> {
 
     pub(crate) fn unregister(self, agent: &mut Agent, unregister_token: WeakKey<'fr>) -> bool {
         self.get_mut(agent).cells.unregister(unregister_token)
-    }
-
-    #[inline(always)]
-    fn get<'a>(self, agent: &'a Agent) -> FinalizationRegistryRecordRef<'a, 'fr> {
-        self.get_direct(&agent.heap.finalization_registrys)
-    }
-
-    #[inline(always)]
-    fn get_mut<'a>(self, agent: &'a mut Agent) -> FinalizationRegistryRecordMut<'a, 'fr> {
-        self.get_direct_mut(&mut agent.heap.finalization_registrys)
-    }
-
-    #[inline(always)]
-    fn get_direct<'a>(
-        self,
-        finalization_registrys: &'a SoAVec<FinalizationRegistryRecord<'static>>,
-    ) -> FinalizationRegistryRecordRef<'a, 'fr> {
-        finalization_registrys
-            .get(self.0.get_index_u32())
-            .expect("Invalid FinalizationRegistry reference")
-    }
-
-    #[inline(always)]
-    fn get_direct_mut<'a>(
-        self,
-        finalization_registrys: &'a mut SoAVec<FinalizationRegistryRecord<'static>>,
-    ) -> FinalizationRegistryRecordMut<'a, 'fr> {
-        // SAFETY: Lifetime transmute to thread GC lifetime to temporary heap
-        // reference.
-        unsafe {
-            core::mem::transmute::<
-                FinalizationRegistryRecordMut<'a, 'static>,
-                FinalizationRegistryRecordMut<'a, 'fr>,
-            >(
-                finalization_registrys
-                    .get_mut(self.0.get_index_u32())
-                    .expect("Invalid FinalizationRegistry reference"),
-            )
-        }
     }
 }
 

@@ -31,7 +31,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::{ArenaAccess, CompactionLists, HeapMarkAndSweep, WorkQueues},
+    heap::{ArenaAccess, ArenaAccessMut, CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 use super::TryHasBindingContinue;
@@ -242,7 +242,7 @@ impl<'e> GlobalEnvironment<'e> {
         if dcl_rec.has_binding(agent, name) {
             let error_message = format!(
                 "Redeclaration of global binding '{}'.",
-                name.to_string_lossy(agent)
+                name.to_string_lossy_(agent)
             );
             Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc))
         } else {
@@ -276,7 +276,7 @@ impl<'e> GlobalEnvironment<'e> {
         if dcl_rec.has_binding(agent, name) {
             let error_message = format!(
                 "Redeclaration of global binding '{}'.",
-                name.to_string_lossy(agent)
+                name.to_string_lossy_(agent)
             );
             Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc))
         } else {

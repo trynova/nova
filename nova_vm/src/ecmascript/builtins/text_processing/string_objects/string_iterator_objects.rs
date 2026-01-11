@@ -41,7 +41,7 @@ impl<'a> StringIterator<'a> {
         // c. Repeat, while position < len,
         // d. Return undefined.
         let StringIteratorHeapData { s, position, .. } = self.get_data(agent);
-        let len = s.len(agent);
+        let len = s.len_(agent);
         *position >= len
     }
 
@@ -141,7 +141,7 @@ impl StringIteratorPrototype {
         // 3. Assert: state is either suspended-start or suspended-yield.
         // i. Let cp be CodePointAt(s, position).
         let cp = s
-            .as_wtf8(agent)
+            .as_wtf8_(agent)
             .slice_from(position)
             .code_points()
             .next()
@@ -149,7 +149,7 @@ impl StringIteratorPrototype {
         // iii. Let resultString be the substring of s from position to nextIndex.
         let result_string = String::from_code_point(cp);
         // ii. Let nextIndex be position + cp.[[CodeUnitCount]].
-        let next_index = position + result_string.len(agent);
+        let next_index = position + result_string.len_(agent);
         // iv. Set position to nextIndex.
         generator.get_data_mut(agent).position = next_index;
         // v. Perform ? GeneratorYield(CreateIteratorResultObject(resultString, false)).

@@ -79,7 +79,7 @@ impl BigIntConstructor {
         // 3. If prim is a Number,
         if let Ok(prim) = Number::try_from(prim) {
             // return ? NumberToBigInt(prim).
-            if !prim.is_integer(agent) {
+            if !prim.is_integer_(agent) {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::RangeError,
                     "Can't convert number to BigInt because it isn't an integer",
@@ -87,7 +87,7 @@ impl BigIntConstructor {
                 ));
             }
 
-            Ok(BigInt::from_i64(agent, prim.into_i64(agent)).into())
+            Ok(BigInt::from_i64(agent, prim.into_i64_(agent)).into())
         } else {
             // 4. Otherwise, return ? ToBigInt(prim).
             to_big_int_primitive(agent, prim.unbind(), gc.into_nogc()).map(|result| result.into())

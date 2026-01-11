@@ -111,7 +111,7 @@ impl JSONObject {
 
         // 2. Parse StringToCodePoints(jsonString) as a JSON text as specified in ECMA-404. Throw a SyntaxError exception if it is not a valid JSON text as defined in that specification.
         let json_value =
-            match sonic_rs::from_str::<sonic_rs::Value>(&json_string.to_string_lossy(agent)) {
+            match sonic_rs::from_str::<sonic_rs::Value>(&json_string.to_string_lossy_(agent)) {
                 Ok(value) => value,
                 Err(error) => {
                     return Err(agent.throw_exception(
@@ -379,7 +379,7 @@ impl JSONObject {
                 " ".repeat(space_mv as usize).into()
             } else if let Ok(space) = String::try_from(space) {
                 // 8. Else if space is a String, then
-                let space = space.to_string_lossy(agent);
+                let space = space.to_string_lossy_(agent);
                 // a. If the length of space ≤ 10, let gap be space; otherwise let gap be the substring of space from 0 to 10.
                 if space.len() <= 10 {
                     space.into()
@@ -828,9 +828,9 @@ fn serialize_json_property_value<'a, 'b>(
         Value::Number(_) | Value::SmallF64(_) | Value::Integer(_) => {
             let value = Number::try_from(value).unwrap();
             // a. If value is finite, return ! ToString(value).
-            if value.is_finite(agent) {
+            if value.is_finite_(agent) {
                 let mut buffer = ryu_js::Buffer::new();
-                let value = buffer.format(value.into_f64(agent));
+                let value = buffer.format(value.into_f64_(agent));
                 state.result.push_str(value);
             } else {
                 // b. Return "null".
@@ -863,12 +863,12 @@ fn serialize_json_property_value<'a, 'b>(
 /// escapes certain other code units within it. This operation interprets value
 /// as a sequence of UTF-16 encoded code points, as described in 6.1.4.
 fn quote_json_string(agent: &Agent, product: &mut Wtf8Buf, value: String) {
-    product.reserve(value.len(agent) + 2);
+    product.reserve(value.len_(agent) + 2);
     // 1. Let product be the String value consisting solely of the code unit
     //    0x0022 (QUOTATION MARK).
     product.push(CodePoint::from_char('"'));
     // 2. For each code point C of StringToCodePoints(value), do
-    for c in value.as_wtf8(agent).code_points() {
+    for c in value.as_wtf8_(agent).code_points() {
         match c.to_u32() {
             // a. If C is listed in the “Code Point” column of Table 81, then
             // i. Set product to the string-concatenation of product and the

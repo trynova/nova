@@ -13,7 +13,7 @@ use crate::{
     },
     engine::context::Bindable,
     heap::{
-        CreateHeapData,
+        ArenaAccessMut, CreateHeapData,
         element_array::{ElementDescriptor, ElementsVector},
     },
 };

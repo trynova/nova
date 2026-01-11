@@ -29,7 +29,10 @@ use crate::{
         context::{Bindable, GcScope},
         rootable::Scopable,
     },
-    heap::{Heap, IntrinsicConstructorIndexes, PrimitiveHeap, WellKnownSymbolIndexes},
+    heap::{
+        DirectArenaAccessSoAMut, Heap, IntrinsicConstructorIndexes, PrimitiveHeap,
+        WellKnownSymbolIndexes,
+    },
 };
 
 pub(crate) struct SetConstructor;
@@ -180,7 +183,7 @@ impl SetConstructor {
                             }
                             hashbrown::hash_table::Entry::Vacant(vacant) => {
                                 vacant.insert(next_index);
-                                values.push(Some(value));
+                                values.push(Some(value.unbind()));
                             }
                         }
                     });

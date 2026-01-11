@@ -225,7 +225,7 @@ pub(crate) fn array_set_length<'a>(
     .unbind()?
     .bind(gc.nogc());
     // 5. If SameValueZero(newLen, numberLen) is false, throw a RangeError exception.
-    if !Number::same_value_zero(agent, number_len, new_len.into()) {
+    if !Number::same_value_zero_(agent, number_len, new_len.into()) {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::RangeError,
             "invalid array length",
@@ -266,7 +266,7 @@ pub(crate) fn array_try_set_length<'gc>(
     };
     let new_len = to_uint32_number(agent, number_len);
     // 5. If SameValueZero(newLen, numberLen) is false, throw a RangeError exception.
-    if !Number::same_value_zero(agent, number_len, new_len.into()) {
+    if !Number::same_value_zero_(agent, number_len, new_len.into()) {
         return TryError::GcError.into();
     }
     // 6. Set newLenDesc.[[Value]] to newLen.

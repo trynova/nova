@@ -493,7 +493,7 @@ impl RegExpPrototype {
             .unbind()?
             .bind(gc.nogc());
         // 5. If flags does not contain "g", then
-        if !flags.to_string_lossy(agent).contains("g") {
+        if !flags.to_string_lossy_(agent).contains("g") {
             // a. Return ? RegExpExec(rx, S).
             reg_exp_exec(
                 agent,
@@ -508,8 +508,8 @@ impl RegExpPrototype {
             // 6. Else,
             // a. If flags contains "u" or flags contains "v", let fullUnicode
             //    be true. Otherwise, let fullUnicode be false.
-            let full_unicode = flags.to_string_lossy(agent).contains("u")
-                || flags.to_string_lossy(agent).contains("v");
+            let full_unicode = flags.to_string_lossy_(agent).contains("u")
+                || flags.to_string_lossy_(agent).contains("v");
             // b. Perform ? Set(rx, "lastIndex", +0𝔽, true).
             set(
                 agent,
@@ -698,7 +698,7 @@ impl RegExpPrototype {
         .unbind()?
         .bind(gc.nogc());
         let flags = scoped_flags.get(agent).bind(gc.nogc());
-        let flags = flags.as_bytes(agent);
+        let flags = flags.as_bytes_(agent);
         // 9. If flags contains "g", let global be true.
         // 10. Else, let global be false.
         let global = flags.contains(&b'g');
@@ -762,7 +762,7 @@ impl RegExpPrototype {
             .unbind()?
             .scope(agent, gc.nogc());
         // 4. Let lengthS be the length of S.
-        let length_s = s.get(agent).utf16_len(agent);
+        let length_s = s.get(agent).utf16_len_(agent);
         #[derive(Clone)]
         enum ReplaceValue<'a> {
             Functional(Scoped<'a, Function<'static>>),
@@ -804,7 +804,7 @@ impl RegExpPrototype {
             .unbind()?
             .bind(gc.nogc());
         // 8. If flags contains "g", let global be true; otherwise let global be false.
-        let flags = flags.as_bytes(agent);
+        let flags = flags.as_bytes_(agent);
         let global = flags.contains(&b'g');
         // b. If flags contains "u" or flags contains "v", let fullUnicode be
         //    true; otherwise let fullUnicode be false.
@@ -906,7 +906,7 @@ impl RegExpPrototype {
                 .unbind()?
                 .bind(gc.nogc());
             // d. Let matchLength be the length of matched.
-            let match_length = matched.utf16_len(agent);
+            let match_length = matched.utf16_len_(agent);
             let matched = matched.scope(agent, gc.nogc());
             // e. Let position be ? ToIntegerOrInfinity(? Get(result, "index")).
             let position = get(
@@ -1045,13 +1045,13 @@ impl RegExpPrototype {
                 //     accumulatedResult, the substring of S from
                 //     nextSourcePosition to position, and replacementString.
                 let s = s.get(agent).bind(gc.nogc());
-                let next_source_position_utf8 = s.utf8_index(agent, next_source_position).unwrap();
-                let position_utf8 = s.utf8_index(agent, position).unwrap();
+                let next_source_position_utf8 = s.utf8_index_(agent, next_source_position).unwrap();
+                let position_utf8 = s.utf8_index_(agent, position).unwrap();
                 accumulated_result.push_wtf8(
-                    s.as_wtf8(agent)
+                    s.as_wtf8_(agent)
                         .slice(next_source_position_utf8, position_utf8),
                 );
-                accumulated_result.push_wtf8(replacement_string.as_wtf8(agent));
+                accumulated_result.push_wtf8(replacement_string.as_wtf8_(agent));
                 // iii. Set nextSourcePosition to position + matchLength.
                 next_source_position = position + match_length;
             }
@@ -1061,8 +1061,8 @@ impl RegExpPrototype {
             // 17. Return the string-concatenation of accumulatedResult and the
             // substring of S from nextSourcePosition.
             let s = s.get(agent).bind(gc.nogc());
-            let next_source_position_utf8 = s.utf8_index(agent, next_source_position).unwrap();
-            accumulated_result.push_wtf8(s.as_wtf8(agent).slice_from(next_source_position_utf8));
+            let next_source_position_utf8 = s.utf8_index_(agent, next_source_position).unwrap();
+            accumulated_result.push_wtf8(s.as_wtf8_(agent).slice_from(next_source_position_utf8));
         }
         Ok(String::from_wtf8_buf(agent, accumulated_result, gc.into_nogc()).into())
     }
@@ -1289,7 +1289,7 @@ impl RegExpPrototype {
         let flags = to_string(agent, flags.unbind(), gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
-        let flag_bytes = flags.as_bytes(agent);
+        let flag_bytes = flags.as_bytes_(agent);
         // 6. If flags contains "u" or flags contains "v", let unicodeMatching be true.
         // 7. Else, let unicodeMatching be false.
         let unicode_matching = flag_bytes.contains(&b'u') | flag_bytes.contains(&b'v');
@@ -1299,7 +1299,7 @@ impl RegExpPrototype {
         } else {
             // 9. Else, let newFlags be the string-concatenation of flags and "y".
             let mut buf = Wtf8Buf::with_capacity(flag_bytes.len() + 1);
-            buf.push_wtf8(flags.as_wtf8(agent));
+            buf.push_wtf8(flags.as_wtf8_(agent));
             buf.push_char('y');
             String::from_wtf8_buf(agent, buf, gc.nogc())
         };
@@ -1361,7 +1361,7 @@ impl RegExpPrototype {
             return Ok(a.into());
         }
         // 16. Let size be the length of S.
-        let size = s.get(agent).utf16_len(agent);
+        let size = s.get(agent).utf16_len_(agent);
         // 17. Let p be 0.
         let mut p = 0;
         // 18. Let q be p.
@@ -1412,13 +1412,13 @@ impl RegExpPrototype {
                     let s_local = s.get(agent).bind(gc.nogc());
                     let a_local = a.get(agent).bind(gc.nogc());
                     let p_utf8 = s_local
-                        .utf8_index(agent, p)
+                        .utf8_index_(agent, p)
                         .expect("p splits two surrogates into unmatched pairs");
                     let q_utf8 = s_local
-                        .utf8_index(agent, q)
+                        .utf8_index_(agent, q)
                         .expect("q splits two surrogates into unmatched pairs");
                     // 1. Let T be the substring of S from p to q.
-                    let t = s_local.as_wtf8(agent).slice(p_utf8, q_utf8);
+                    let t = s_local.as_wtf8_(agent).slice(p_utf8, q_utf8);
                     let mut t_buf = Wtf8Buf::with_capacity(t.len());
                     t_buf.push_wtf8(t);
                     let t = String::from_wtf8_buf(agent, t_buf, gc.nogc());
@@ -1484,10 +1484,10 @@ impl RegExpPrototype {
         } else {
             let s = unsafe { s.take(agent) }.bind(gc);
             let p_utf8 = s
-                .utf8_index(agent, p)
+                .utf8_index_(agent, p)
                 .expect("p splits two surrogates into unmatched pairs");
             // 20. Let T be the substring of S from p to size.
-            let t = s.as_wtf8(agent).slice(p_utf8, size);
+            let t = s.as_wtf8_(agent).slice(p_utf8, size);
             let mut t_buf = Wtf8Buf::with_capacity(t.len());
             t_buf.push_wtf8(t);
             let t = String::from_wtf8_buf(agent, t_buf, gc);
@@ -1593,7 +1593,7 @@ impl RegExpPrototype {
                 this_value
                     .unbind()
                     .string_repr(agent, gc.reborrow())
-                    .to_string_lossy(agent)
+                    .to_string_lossy_(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
@@ -1637,8 +1637,8 @@ impl RegExpPrototype {
         // 5. Let result be the string-concatenation of "/", pattern, "/", and flags.
         let result = format!(
             "/{}/{}",
-            pattern.get(agent).bind(gc.nogc()).to_string_lossy(agent),
-            flags.to_string_lossy(agent)
+            pattern.get(agent).bind(gc.nogc()).to_string_lossy_(agent),
+            flags.to_string_lossy_(agent)
         );
         let result = String::from_string(agent, result, gc.into_nogc());
         // 6. Return result.
@@ -1804,7 +1804,7 @@ fn escape_reg_exp_pattern<'a>(
     //    is the empty String, this specification can be met by letting S be
     //    "(?:)".
 
-    let p_wtf8 = p.as_wtf8(agent);
+    let p_wtf8 = p.as_wtf8_(agent);
     let byte_length = p_wtf8.len();
     let mut s = Wtf8Buf::with_capacity(byte_length + (byte_length >> 4));
     for cp in p_wtf8.code_points() {

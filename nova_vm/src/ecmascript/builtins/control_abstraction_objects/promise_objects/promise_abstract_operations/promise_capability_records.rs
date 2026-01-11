@@ -21,7 +21,9 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::Scopable,
     },
-    heap::{ArenaAccess, CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues},
+    heap::{
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues,
+    },
 };
 
 use super::promise_jobs::new_promise_resolve_thenable_job;

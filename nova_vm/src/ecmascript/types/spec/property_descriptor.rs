@@ -303,7 +303,7 @@ impl<'a> PropertyDescriptor<'a> {
             let obj_repr = obj.unbind().string_repr(agent, gc.reborrow());
             let error_message = format!(
                 "Property descriptor must be an object, got '{}'.",
-                obj_repr.to_string_lossy(agent)
+                obj_repr.to_string_lossy_(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,

@@ -341,7 +341,7 @@ pub(crate) fn string_to_number<'gc>(
     // 1. Let literal be ParseText(str, StringNumericLiteral).
     // 2. If literal is a List of errors, return NaN.
     // 3. Return the StringNumericValue of literal.
-    let str = str.to_string_lossy(agent);
+    let str = str.to_string_lossy_(agent);
     let str = str.trim_matches(is_trimmable_whitespace);
     match str {
         "+Infinity" | "Infinity" => {
@@ -541,22 +541,22 @@ pub(crate) fn to_integer_or_infinity_number(agent: &Agent, number: Number) -> In
     }
 
     // 2. If number is one of NaN, +0𝔽, or -0𝔽, return 0.
-    if number.is_nan(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
+    if number.is_nan_(agent) || number.is_pos_zero_(agent) || number.is_neg_zero_(agent) {
         return IntegerOrInfinity(0);
     }
 
     // 3. If number is +∞𝔽, return +∞.
-    if number.is_pos_infinity(agent) {
+    if number.is_pos_infinity_(agent) {
         return IntegerOrInfinity::POS_INFINITY;
     }
 
     // 4. If number is -∞𝔽, return -∞.
-    if number.is_neg_infinity(agent) {
+    if number.is_neg_infinity_(agent) {
         return IntegerOrInfinity::NEG_INFINITY;
     }
 
     // 5. Return truncate(ℝ(number)).
-    let number = number.into_f64(agent).trunc() as i64;
+    let number = number.into_f64_(agent).trunc() as i64;
     // Note: Make sure converting the f64 didn't take us to our sentinel
     // values.
     let number = if number == i64::MAX {
@@ -617,17 +617,17 @@ pub(crate) fn to_integer_number_or_infinity<'a>(
     }
 
     // 2. If number is one of NaN, +0𝔽, or -0𝔽, return 0.
-    if number.is_nan(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
+    if number.is_nan_(agent) || number.is_pos_zero_(agent) || number.is_neg_zero_(agent) {
         return Ok(Number::from(0));
     }
 
     // 3. If number is +∞𝔽, return +∞.
-    if number.is_pos_infinity(agent) {
+    if number.is_pos_infinity_(agent) {
         return Ok(Number::pos_inf());
     }
 
     // 4. If number is -∞𝔽, return -∞.
-    if number.is_neg_infinity(agent) {
+    if number.is_neg_infinity_(agent) {
         return Ok(Number::neg_inf());
     }
 
@@ -648,17 +648,17 @@ pub(crate) fn number_convert_to_integer_or_infinity<'a>(
     }
 
     // 2. If number is one of NaN, +0𝔽, or -0𝔽, return 0.
-    if number.is_nan(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
+    if number.is_nan_(agent) || number.is_pos_zero_(agent) || number.is_neg_zero_(agent) {
         return Number::from(0);
     }
 
     // 3. If number is +∞𝔽, return +∞.
-    if number.is_pos_infinity(agent) {
+    if number.is_pos_infinity_(agent) {
         return Number::pos_inf();
     }
 
     // 4. If number is -∞𝔽, return -∞.
-    if number.is_neg_infinity(agent) {
+    if number.is_neg_infinity_(agent) {
         return Number::neg_inf();
     }
 
@@ -694,14 +694,14 @@ pub(crate) fn to_int32_number(agent: &Agent, number: Number) -> i32 {
     }
 
     // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
-    if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
+    if !number.is_finite_(agent) || number.is_pos_zero_(agent) || number.is_neg_zero_(agent) {
         return 0;
     }
 
     // 3. Let int be truncate(ℝ(number)).
     // 4. Let int32bit be int modulo 2^32.
     // 5. If int32bit ≥ 2^31, return 𝔽(int32bit - 2^32); otherwise return 𝔽(int32bit).
-    number.into_f64(agent).trunc() as i64 as i32
+    number.into_f64_(agent).trunc() as i64 as i32
 }
 
 /// ### [7.1.7 ToUint32 ( argument )](https://tc39.es/ecma262/#sec-touint32)
@@ -733,14 +733,14 @@ pub(crate) fn to_uint32_number(agent: &Agent, number: Number) -> u32 {
     }
 
     // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
-    if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
+    if !number.is_finite_(agent) || number.is_pos_zero_(agent) || number.is_neg_zero_(agent) {
         return 0;
     }
 
     // 3. Let int be truncate(ℝ(number)).
     // 4. Let int32bit be int modulo 2^32.
     // 5. Return 𝔽(int32bit).
-    number.into_f64(agent).trunc() as i64 as u32
+    number.into_f64_(agent).trunc() as i64 as u32
 }
 
 /// ### [7.1.8 ToInt16 ( argument )](https://tc39.es/ecma262/#sec-toint16)
@@ -769,14 +769,14 @@ pub(crate) fn to_int16_number(agent: &Agent, number: Number) -> i16 {
     }
 
     // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
-    if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
+    if !number.is_finite_(agent) || number.is_pos_zero_(agent) || number.is_neg_zero_(agent) {
         return 0;
     }
 
     // 3. Let int be truncate(ℝ(number)).
     // 4. Let int16bit be int modulo 2^16.
     // 5. If int16bit ≥ 2^15, return 𝔽(int16bit - 2^16); otherwise return 𝔽(int16bit).
-    number.into_f64(agent).trunc() as i64 as i16
+    number.into_f64_(agent).trunc() as i64 as i16
 }
 
 /// ### [7.1.9 ToUint16 ( argument )](https://tc39.es/ecma262/#sec-touint16)
@@ -805,14 +805,14 @@ pub(crate) fn to_uint16_number(agent: &Agent, number: Number) -> u16 {
     }
 
     // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
-    if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
+    if !number.is_finite_(agent) || number.is_pos_zero_(agent) || number.is_neg_zero_(agent) {
         return 0;
     }
 
     // 3. Let int be truncate(ℝ(number)).
     // 4. Let int16bit be int modulo 2^16.
     // Return 𝔽(int16bit).
-    number.into_f64(agent).trunc() as i64 as u16
+    number.into_f64_(agent).trunc() as i64 as u16
 }
 
 /// ### [7.1.10 ToInt8 ( argument )](https://tc39.es/ecma262/#sec-toint8)
@@ -841,14 +841,14 @@ pub(crate) fn to_int8_number(agent: &Agent, number: Number) -> i8 {
     }
 
     // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
-    if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
+    if !number.is_finite_(agent) || number.is_pos_zero_(agent) || number.is_neg_zero_(agent) {
         return 0;
     }
 
     // 3. Let int be truncate(ℝ(number)).
     // 4. Let int8bit be int modulo 2^8.
     // 5. If int8bit ≥ 2^7, return 𝔽(int8bit - 2^8); otherwise return 𝔽(int8bit).
-    number.into_f64(agent).trunc() as i64 as i8
+    number.into_f64_(agent).trunc() as i64 as i8
 }
 
 /// ### [7.1.11 ToUint8 ( argument )](https://tc39.es/ecma262/#sec-touint8)
@@ -877,14 +877,14 @@ pub(crate) fn to_uint8_number(agent: &Agent, number: Number) -> u8 {
     }
 
     // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
-    if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
+    if !number.is_finite_(agent) || number.is_pos_zero_(agent) || number.is_neg_zero_(agent) {
         return 0;
     }
 
     // 3. Let int be truncate(ℝ(number)).
     // 4. Let int8bit be int modulo 2^8.
     // 5. Return 𝔽(int8bit).
-    number.into_f64(agent).trunc() as i64 as u8
+    number.into_f64_(agent).trunc() as i64 as u8
 }
 
 /// ### [7.1.12 ToUint8Clamp ( argument )](https://tc39.es/ecma262/#sec-touint8clamp)
@@ -912,12 +912,12 @@ pub(crate) fn to_uint8_clamp_number(agent: &Agent, number: Number) -> u8 {
     }
 
     // 2. If number is NaN, return +0𝔽.
-    if number.is_nan(agent) {
+    if number.is_nan_(agent) {
         return 0;
     }
 
     // 3. Let mv be the extended mathematical value of number.
-    let mv = number.into_f64(agent);
+    let mv = number.into_f64_(agent);
 
     // 4. Let clamped be the result of clamping mv between 0 and 255.
     // 5. Let f be floor(clamped).
@@ -1000,7 +1000,7 @@ pub(crate) fn string_to_big_int<'a>(
     // StringIntegerLiteral is either whitespace only or a StrIntegerLiteral surrounded by
     // optional whitespace.
 
-    let literal = argument.to_string_lossy(agent); // Extra line literally just for displaying error
+    let literal = argument.to_string_lossy_(agent); // Extra line literally just for displaying error
 
     // 4. Let mv be the MV of literal.
     // 5. Assert: mv is an integer.

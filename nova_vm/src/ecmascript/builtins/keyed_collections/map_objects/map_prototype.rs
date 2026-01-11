@@ -17,7 +17,7 @@ use crate::{
             ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
             indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
             keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
-            map::{Map, data::MapHeapDataMut},
+            map::Map,
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, HeapNumber, PropertyKey, String, Value},
@@ -26,7 +26,10 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::{ArenaAccess, Heap, IntrinsicFunctionIndexes, PrimitiveHeap, WellKnownSymbolIndexes},
+    heap::{
+        ArenaAccess, ArenaAccessSoA, Heap, IntrinsicFunctionIndexes, PrimitiveHeap,
+        WellKnownSymbolIndexes,
+    },
 };
 
 pub(crate) struct MapPrototype;
@@ -157,13 +160,7 @@ impl MapPrototype {
             hasher.finish()
         };
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
-        let MapHeapDataMut {
-            values,
-            keys,
-            map_data,
-            ..
-        } = m.get_direct_mut(maps);
-        let map_data = map_data.get_mut();
+        let (map_data, keys, values) = m.get_map_data_mut(maps, &primitive_heap);
 
         // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, then
         if let Ok(entry) = map_data.find_entry(key_hash, |hash_equal_index| {
@@ -253,7 +250,7 @@ impl MapPrototype {
 
         // 4. Let entries be M.[[MapData]].
         // 5. Let numEntries be the number of elements in entries.
-        let mut num_entries = m.get(agent).values.len();
+        let mut num_entries = m.entries_len(agent);
 
         let this_arg = this_arg.scope(agent, nogc);
         let callback_fn = callback_fn.scope(agent, nogc);
@@ -264,14 +261,14 @@ impl MapPrototype {
         // 7. Repeat, while index < numEntries,
         while index < num_entries {
             // a. Let e be entries[index].
-            let data = &m.get(agent);
+            let (keys, values) = m.get_entries(agent);
             let entry_index = index;
             // b. Set index to index + 1.
             index += 1;
-            let k = data.keys[entry_index];
+            let k = keys[entry_index as usize];
             // c. If e.[[Key]] is not EMPTY, then
             if let Some(k) = k {
-                let v = data.values[entry_index].unwrap();
+                let v = values[entry_index as usize].unwrap();
                 // i. Perform ? Call(callbackfn, thisArg, « e.[[Value]], e.[[Key]], M »).
                 call_function(
                     agent,
@@ -289,7 +286,7 @@ impl MapPrototype {
                 //     increased during execution of callbackfn.
                 // iii. Set numEntries to the number of elements in entries.
                 m = scoped_m.get(agent).bind(gc.nogc());
-                num_entries = m.get(agent).values.len();
+                num_entries = m.entries_len(agent);
             }
         }
         // 8. Return undefined.
@@ -327,13 +324,7 @@ impl MapPrototype {
         };
 
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
-        let MapHeapDataMut {
-            values,
-            keys,
-            map_data,
-            ..
-        } = m.get_direct_mut(maps);
-        let map_data = map_data.borrow();
+        let (map_data, keys, values) = m.get_map_data_mut(maps, &primitive_heap);
 
         // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, return p.[[Value]].
         let found = map_data.find(key_hash, |hash_equal_index| {
@@ -379,8 +370,7 @@ impl MapPrototype {
             hasher.finish()
         };
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
-        let MapHeapDataMut { keys, map_data, .. } = m.get_direct_mut(maps);
-        let map_data = map_data.get_mut();
+        let (map_data, keys, _) = m.get_map_data(maps, &primitive_heap);
 
         // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, return true.
         // 5. Return false.
@@ -432,18 +422,11 @@ impl MapPrototype {
             maps,
             ..
         } = &mut agent.heap;
-
-        let MapHeapDataMut {
-            keys,
-            values,
-            map_data,
-            ..
-        } = m.get_direct_mut(maps);
-        let map_data = map_data.get_mut();
+        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+        let (map_data, keys, values) = m.get_map_data_mut(maps, &primitive_heap);
 
         // 3. Set key to CanonicalizeKeyedCollectionKey(key).
         let key = canonicalize_keyed_collection_key(numbers, key);
-        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
         let hasher = |value: Value| {
             let mut hasher = AHasher::default();
             value.hash(&primitive_heap, &mut hasher);

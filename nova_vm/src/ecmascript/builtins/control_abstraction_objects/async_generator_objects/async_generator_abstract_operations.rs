@@ -27,7 +27,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::ArenaAccess,
+    heap::ArenaAccessMut,
 };
 
 use super::{

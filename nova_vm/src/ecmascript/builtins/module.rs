@@ -30,8 +30,7 @@ use crate::{
     },
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference,
-        WellKnownSymbolIndexes, WorkQueues, arena_vec_access,
-        indexes::{BaseIndex},
+        WellKnownSymbolIndexes, WorkQueues, arena_vec_access, indexes::BaseIndex,
     },
 };
 
@@ -594,7 +593,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     let Some(target_env) = target_env else {
                         return Err(agent.throw_exception(
                             ExceptionType::ReferenceError,
-                            format!("Could not resolve module '{}'.", key.to_string_lossy(agent)),
+                            format!("Could not resolve module '{}'.", key.to_string_lossy_(agent)),
                             gc,
                         ));
                     };
@@ -725,7 +724,7 @@ pub(crate) fn module_namespace_create<'a>(
     // 6. Let sortedExports be a List whose elements are the elements of
     //    exports, sorted according to lexicographic code unit order.
     // TODO: this implements UTF-8 lexicographic order, not UTF-16.
-    exports.sort_by(|a, b| a.as_wtf8(agent).cmp(b.as_wtf8(agent)));
+    exports.sort_by(|a, b| a.as_wtf8_(agent).cmp(b.as_wtf8_(agent)));
     // 7. Set M.[[Exports]] to sortedExports.
     // 8. Create own properties of M corresponding to the definitions in 28.3.
     let m = agent.heap.create(ModuleHeapData { module, exports });

@@ -9,11 +9,11 @@ pub use data::SymbolHeapData;
 use crate::{
     ecmascript::{
         execution::Agent,
-        types::{String, primitive_handle},
+        types::{Primitive, String, Value},
     },
     engine::{
-        context::{Bindable, NoGcScope},
-        rootable::HeapRootRef,
+        context::{Bindable, NoGcScope, bindable_handle},
+        rootable::{HeapRootData, HeapRootRef},
     },
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
@@ -27,7 +27,7 @@ use super::{BUILTIN_STRING_MEMORY, PropertyKey};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Symbol<'a>(BaseIndex<'a, SymbolHeapData<'static>>);
-primitive_handle!(Symbol);
+bindable_handle!(Symbol);
 arena_vec_access!(
     Symbol,
     'a,
@@ -68,7 +68,7 @@ impl<'a> Symbol<'a> {
         if let Some(descriptor) = self.get(agent).descriptor {
             // c. Else, set name to the string-concatenation of
             //    "[", description, and "]".
-            let description = descriptor.to_string_lossy(agent);
+            let description = descriptor.to_string_lossy_(agent);
             String::from_string(agent, format!("[{description}]"), gc)
         } else {
             // b. If description is undefined, set name to the empty String.
@@ -129,3 +129,74 @@ impl<'a> CreateHeapData<SymbolHeapData<'a>, Symbol<'a>> for Heap {
         Symbol(BaseIndex::last(&self.symbols))
     }
 }
+
+// === OUTPUT OF primitive_handle! MACRO ADAPTED FOR Symbol ===
+impl HeapIndexHandle for Symbol<'_> {
+    const _DEF: Self = Self(BaseIndex::MAX);
+    #[inline]
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_index_u32(index))
+    }
+    #[inline]
+    fn get_index_u32(self) -> u32 {
+        self.0.get_index_u32()
+    }
+}
+impl Rootable for Symbol<'_> {
+    type RootRepr = SymbolRootRepr;
+
+    #[inline]
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {}
+
+    #[inline]
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {}
+
+    #[inline]
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {}
+
+    #[inline]
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {}
+}
+impl TryFrom<HeapRootData> for Symbol<'_> {
+    type Error = ();
+    #[inline]
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        match value {
+            HeapRootData::Symbol(data) => Ok(data),
+            _ => Err(()),
+        }
+    }
+}
+impl<'a> From<Symbol<'a>> for Value<'a> {
+    #[inline(always)]
+    fn from(value: Symbol<'a>) -> Self {
+        Self::Symbol(value)
+    }
+}
+impl<'a> TryFrom<Value<'a>> for Symbol<'a> {
+    type Error = ();
+    #[inline]
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Value::Symbol(data) => Ok(data),
+            _ => Err(()),
+        }
+    }
+}
+impl<'a> From<Symbol<'a>> for Primitive<'a> {
+    #[inline(always)]
+    fn from(value: Symbol<'a>) -> Self {
+        Self::Symbol(value)
+    }
+}
+impl<'a> TryFrom<Primitive<'a>> for Symbol<'a> {
+    type Error = ();
+    #[inline]
+    fn try_from(value: Primitive<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Primitive::Symbol(data) => Ok(data),
+            _ => Err(()),
+        }
+    }
+}
+// === END ===

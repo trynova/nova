@@ -60,31 +60,31 @@ impl Numeric<'_> {
 
     pub fn is_pos_zero(self, agent: &mut Agent) -> bool {
         Number::try_from(self)
-            .map(|n| n.is_pos_zero(agent))
+            .map(|n| n.is_pos_zero_(agent))
             .unwrap_or(false)
     }
 
     pub fn is_neg_zero(self, agent: &mut Agent) -> bool {
         Number::try_from(self)
-            .map(|n| n.is_neg_zero(agent))
+            .map(|n| n.is_neg_zero_(agent))
             .unwrap_or(false)
     }
 
     pub fn is_pos_infinity(self, agent: &mut Agent) -> bool {
         Number::try_from(self)
-            .map(|n| n.is_pos_infinity(agent))
+            .map(|n| n.is_pos_infinity_(agent))
             .unwrap_or(false)
     }
 
     pub fn is_neg_infinity(self, agent: &mut Agent) -> bool {
         Number::try_from(self)
-            .map(|n| n.is_neg_infinity(agent))
+            .map(|n| n.is_neg_infinity_(agent))
             .unwrap_or(false)
     }
 
     pub fn is_nan(self, agent: &mut Agent) -> bool {
         Number::try_from(self)
-            .map(|n| n.is_nan(agent))
+            .map(|n| n.is_nan_(agent))
             .unwrap_or(false)
     }
 }

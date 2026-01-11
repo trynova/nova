@@ -24,7 +24,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
     },
     heap::{
-        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         HeapSweepWeakReference, ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
         arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
@@ -117,7 +117,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinConstructorFunction<'a> {
         let mut id = 0;
         ndt::builtin_constructor_start!(|| {
             id = create_id(agent, self);
-            let name = self.get_name(agent).to_string_lossy(agent);
+            let name = self.get_name(agent).to_string_lossy_(agent);
             (name, id)
         });
         // 1. Return ? BuiltinCallOrConstruct(F, uninitialized, argumentsList, newTarget).

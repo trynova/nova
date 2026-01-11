@@ -495,7 +495,7 @@ pub(crate) fn get_value<'gc>(
             let gc = gc.into_nogc();
             let error_message = format!(
                 "Cannot access undeclared variable '{}'.",
-                referenced_name.to_string_lossy(agent)
+                referenced_name.to_string_lossy_(agent)
             );
             Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc))
         }
@@ -646,7 +646,7 @@ pub(crate) fn throw_read_undefined_or_null_error<'a>(
         "Cannot read property '{}' of {}.",
         referenced_value
             .try_string_repr(agent, gc)
-            .to_string_lossy(agent),
+            .to_string_lossy_(agent),
         if value.is_undefined() {
             "undefined"
         } else {
@@ -789,7 +789,7 @@ pub(crate) fn try_get_value<'gc>(
         | Reference::UnresolvableStrict(referenced_name) => {
             let error_message = format!(
                 "Cannot access undeclared variable '{}'.",
-                referenced_name.to_string_lossy(agent)
+                referenced_name.to_string_lossy_(agent)
             );
             agent
                 .throw_exception(ExceptionType::ReferenceError, error_message, gc)
@@ -913,7 +913,7 @@ pub(crate) fn put_value<'a>(
             // a. If V.[[Strict]] is true, throw a ReferenceError exception.
             let error_message = format!(
                 "Cannot assign to undeclared variable '{}'.",
-                referenced_name.to_string_lossy(agent)
+                referenced_name.to_string_lossy_(agent)
             );
             Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc.into_nogc()))
         }
@@ -1105,7 +1105,7 @@ pub(crate) fn try_put_value<'gc>(
             // a. If V.[[Strict]] is true, throw a ReferenceError exception.
             let error_message = format!(
                 "Cannot assign to undeclared variable '{}'.",
-                referenced_name.to_string_lossy(agent)
+                referenced_name.to_string_lossy_(agent)
             );
             agent
                 .throw_exception(ExceptionType::ReferenceError, error_message, gc)
@@ -1193,7 +1193,7 @@ pub(crate) fn throw_cannot_set_property<'a>(
     let error_message = format!(
         "Could not set property '{}' of {}.",
         property_key.as_display(agent),
-        base.to_string_lossy(agent)
+        base.to_string_lossy_(agent)
     );
     agent.throw_exception(ExceptionType::TypeError, error_message, gc)
 }

@@ -65,8 +65,8 @@ use crate::{
         rootable::{HeapRootData, Scopable},
     },
     heap::{
-        ArenaAccess, CompactionLists, CreateHeapData, DirectArenaAccess, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, WorkQueues,
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, DirectArenaAccess,
+        DirectArenaAccessMut, Heap, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
@@ -213,7 +213,7 @@ impl<'ta, T: Viewable> GenericTypedArray<'ta, T> {
     }
 
     #[inline(always)]
-    pub(crate) fn as_mut_slice(self, agent: &'ta mut Agent) -> &mut [T] {
+    pub(crate) fn as_mut_slice(self, agent: &'ta mut Agent) -> &'ta mut [T] {
         Self::check_not_void_array();
 
         let key = self.into_void_array();
@@ -321,42 +321,6 @@ impl<'gc> VoidArray<'gc> {
     /// TypedArray.
     pub(crate) unsafe fn cast<T: Viewable>(self) -> GenericTypedArray<'gc, T> {
         GenericTypedArray(self.0, PhantomData)
-    }
-
-    #[inline(always)]
-    fn get<'a>(self, agent: &'a Agent) -> &'a TypedArrayRecord<'gc> {
-        self.get_direct(&agent.heap.typed_arrays)
-    }
-
-    #[inline(always)]
-    fn get_mut<'a>(self, agent: &'a mut Agent) -> &'a mut TypedArrayRecord<'gc> {
-        self.get_direct_mut(&mut agent.heap.typed_arrays)
-    }
-
-    #[inline(always)]
-    fn get_direct<'a>(
-        self,
-        typed_arrays: &'a [TypedArrayRecord<'static>],
-    ) -> &'a TypedArrayRecord<'gc> {
-        typed_arrays
-            .get(self.get_index())
-            .expect("Invalid TypedArray reference")
-    }
-
-    #[inline(always)]
-    fn get_direct_mut<'a>(
-        self,
-        typed_arrays: &'a mut [TypedArrayRecord<'static>],
-    ) -> &'a mut TypedArrayRecord<'gc> {
-        // SAFETY: Lifetime transmute to thread GC lifetime to temporary heap
-        // reference.
-        unsafe {
-            core::mem::transmute::<&'a mut TypedArrayRecord<'static>, &'a mut TypedArrayRecord<'gc>>(
-                typed_arrays
-                    .get_mut(self.get_index())
-                    .expect("Invalid TypedArray reference"),
-            )
-        }
     }
 }
 
@@ -2001,11 +1965,11 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
                     return std::cmp::Ordering::Equal;
                 }
             };
-            if num.is_nan(agent) {
+            if num.is_nan_(agent) {
                 std::cmp::Ordering::Equal
-            } else if num.is_sign_positive(agent) {
+            } else if num.is_sign_positive_(agent) {
                 std::cmp::Ordering::Greater
-            } else if num.is_sign_negative(agent) {
+            } else if num.is_sign_negative_(agent) {
                 std::cmp::Ordering::Less
             } else {
                 std::cmp::Ordering::Equal
@@ -2016,10 +1980,12 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
         }
         // SAFETY: not shared.
         let ta = unsafe { ta.take(agent) }.bind(gc.into_nogc());
-        let slice = ta.as_mut_slice(agent);
-        let len = len.min(slice.len());
-        let slice = &mut slice[..len];
-        slice.copy_from_slice(&items[..len]);
+        if !ta.is_detached(agent) {
+            let slice = ta.as_mut_slice(agent);
+            let len = len.min(slice.len());
+            let slice = &mut slice[..len];
+            slice.copy_from_slice(&items[..len]);
+        }
         Ok(())
     }
 
@@ -2266,8 +2232,10 @@ impl<'a, T: Viewable> DirectArenaAccess for GenericTypedArray<'a, T> {
     fn get_direct<'agent>(self, source: &'agent Vec<Self::Data>) -> &'agent Self::Output {
         source
             .get(HeapIndexHandle::get_index(self))
-            .expect("Invalid handle")
+            .unwrap_or_else(|| panic!("Invalid handle {:?}", self))
     }
+}
+impl<'a, T: Viewable> DirectArenaAccessMut for GenericTypedArray<'a, T> {
     #[inline]
     fn get_direct_mut<'agent>(
         self,
@@ -2280,7 +2248,7 @@ impl<'a, T: Viewable> DirectArenaAccess for GenericTypedArray<'a, T> {
             >(
                 source
                     .get_mut(HeapIndexHandle::get_index(self))
-                    .expect("Invalid handle"),
+                    .unwrap_or_else(|| panic!("Invalid handle {:?}", self)),
             )
         }
     }

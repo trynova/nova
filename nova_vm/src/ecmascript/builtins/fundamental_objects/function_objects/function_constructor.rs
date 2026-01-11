@@ -199,12 +199,12 @@ pub(crate) fn create_dynamic_function<'a>(
         // format!("{} anonymous({}\n) {{\n{}\n}}", kind.prefix(), parameters, body_arg)
         let str_len = kind.prefix().len()
             + 18
-            + body_string.len(agent)
+            + body_string.len_(agent)
             + if !parameter_strings_slice.is_empty() {
                 // Separated by a single comma character
                 parameter_strings_slice
                     .iter()
-                    .map(|str| str.len(agent) + 1)
+                    .map(|str| str.len_(agent) + 1)
                     .sum::<usize>()
                     - 1
             } else {
@@ -217,10 +217,10 @@ pub(crate) fn create_dynamic_function<'a>(
             if i != 0 {
                 string.push_char(',');
             }
-            string.push_wtf8(parameter.as_wtf8(agent));
+            string.push_wtf8(parameter.as_wtf8_(agent));
         }
         string.push_str("\n) {\n");
-        string.push_wtf8(body_string.as_wtf8(agent));
+        string.push_wtf8(body_string.as_wtf8_(agent));
         string.push_str("\n}");
 
         debug_assert_eq!(string.len(), str_len);

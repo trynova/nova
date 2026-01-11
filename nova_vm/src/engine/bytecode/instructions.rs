@@ -1039,11 +1039,11 @@ fn debug_print_constant(
 ) -> std::string::String {
     let constant = exe.fetch_constant(agent, index, gc);
     if let Ok(string_constant) = String::try_from(constant) {
-        format!("\"{}\"", string_constant.to_string_lossy(agent))
+        format!("\"{}\"", string_constant.to_string_lossy_(agent))
     } else {
         constant
             .try_string_repr(agent, gc)
-            .to_string_lossy(agent)
+            .to_string_lossy_(agent)
             .to_string()
     }
 }

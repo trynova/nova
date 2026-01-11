@@ -28,7 +28,7 @@ use crate::{
         context::{Bindable, GcScope},
         rootable::Scopable,
     },
-    heap::{ArenaAccess, WellKnownSymbolIndexes},
+    heap::{ArenaAccess, ArenaAccessMut, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct ArrayIteratorPrototype;

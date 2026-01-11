@@ -10,7 +10,7 @@ use crate::{
         rootable::Scopable,
     },
     heap::{
-        ArenaAccess, arena_vec_access,
+        ArenaAccess, ArenaAccessMut, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle, index_handle},
     },
 };

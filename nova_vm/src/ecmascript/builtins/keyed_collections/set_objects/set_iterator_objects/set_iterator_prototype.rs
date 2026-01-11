@@ -17,7 +17,7 @@ use crate::{
         types::{BUILTIN_STRING_MEMORY, String, Value},
     },
     engine::context::{Bindable, GcScope},
-    heap::{ArenaAccess, WellKnownSymbolIndexes},
+    heap::{ArenaAccess, ArenaAccessMut, ArenaAccessSoA, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct SetIteratorPrototype;

@@ -28,9 +28,9 @@ use crate::{
         small_f64::SmallF64,
     },
     heap::{
-        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         HeapSweepWeakReference, IntrinsicPrimitiveObjectIndexes, WorkQueues, arena_vec_access,
-        indexes::{BaseIndex},
+        indexes::BaseIndex,
     },
 };
 use small_string::SmallString;
@@ -394,7 +394,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
                 return TryResult::Continue(false);
             } else if let PropertyKey::Integer(index) = property_key {
                 let index = index.into_i64();
-                if index >= 0 && (index as usize) < string.utf16_len(agent) {
+                if index >= 0 && (index as usize) < string.utf16_len_(agent) {
                     return TryResult::Continue(false);
                 }
             }
@@ -419,7 +419,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, Vec<PropertyKey<'gc>>> {
         if let Ok(string) = String::try_from(self.get(agent).data) {
-            let len = string.utf16_len(agent);
+            let len = string.utf16_len_(agent);
             let mut keys = Vec::with_capacity(len + 1);
 
             // Insert keys for every index into the string.

@@ -199,7 +199,7 @@ pub(crate) fn evaluate_import_call<'gc>(
             //    of UTF-16 code unit values. NOTE: This sorting is observable only
             //    in that hosts are prohibited from changing behaviour based on the
             //    order in which attributes are enumerated.
-            attributes.sort_by(|a, b| a.key.as_wtf8(agent).cmp(b.key.as_wtf8(agent)));
+            attributes.sort_by(|a, b| a.key.as_wtf8_(agent).cmp(b.key.as_wtf8_(agent)));
             let specifier = unsafe { specifier.take(agent) }.bind(gc);
             (promise, specifier, attributes.into_boxed_slice(), gc)
         } else {
@@ -254,7 +254,7 @@ fn reject_import_not_object_or_undefined<'gc>(
     // i. Perform ! Call(promiseCapability.[[Reject]], undefined, « a newly created TypeError object »).
     let message = format!(
         "import: expected object or undefined, got {}",
-        typeof_operator(agent, value, gc).to_string_lossy(agent)
+        typeof_operator(agent, value, gc).to_string_lossy_(agent)
     );
     let error = agent.throw_exception(ExceptionType::TypeError, message, gc);
     promise_capability.reject(agent, error.value(), gc);
@@ -273,7 +273,7 @@ fn reject_unsupported_import_attribute<'gc>(
     // i. Perform ! Call(promiseCapability.[[Reject]], undefined, « a newly created TypeError object »).
     let message = format!(
         "Unsupported import attribute: {}",
-        key.to_string_lossy(agent)
+        key.to_string_lossy_(agent)
     );
     let error = agent.throw_exception(ExceptionType::TypeError, message, gc);
     promise_capability.reject(agent, error.value(), gc);

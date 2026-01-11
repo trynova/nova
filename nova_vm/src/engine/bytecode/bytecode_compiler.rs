@@ -283,7 +283,7 @@ impl<'s, 'gc> Place<'s, 'gc> {
                     //    exception.
                     let message = format!(
                         "invalid assignment to const '{}'",
-                        name.to_string_lossy(ctx.get_agent())
+                        name.to_string_lossy_(ctx.get_agent())
                     );
                     let message = ctx.create_string_from_owned(message);
                     ctx.add_instruction_with_constant(Instruction::StoreConstant, message);

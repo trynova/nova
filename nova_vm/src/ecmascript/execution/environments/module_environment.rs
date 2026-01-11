@@ -194,7 +194,7 @@ impl<'e> ModuleEnvironment<'e> {
         if env_rec.has_indirect_binding(name) {
             let error_message = format!(
                 "Cannot assign to immutable binding '{}'.",
-                name.to_string_lossy(agent)
+                name.to_string_lossy_(agent)
             );
             return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc));
         }
@@ -283,7 +283,7 @@ pub(crate) fn throw_uninitialized_binding<'a>(
     name: String,
     gc: NoGcScope<'a, '_>,
 ) -> JsError<'a> {
-    let name = name.to_string_lossy(agent);
+    let name = name.to_string_lossy_(agent);
     agent.throw_exception(
         ExceptionType::ReferenceError,
         format!("attempted to access uninitialized binding {name}"),

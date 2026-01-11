@@ -620,7 +620,7 @@ impl DatePrototype {
                 .to_number(agent, gc.reborrow())
                 .unbind()?
                 .bind(gc.nogc())
-                .into_f64(agent)
+                .into_f64_(agent)
         };
         // 7. If date is not present, let dt be DateFromTime(t); otherwise, let dt be ? ToNumber(date).
         let dt = if arguments.len() < 3 {
@@ -630,7 +630,7 @@ impl DatePrototype {
                 .to_number(agent, gc.reborrow())
                 .unbind()?
                 .bind(gc.nogc())
-                .into_f64(agent)
+                .into_f64_(agent)
         };
         // 8. Let newDate be MakeDate(MakeDay(y, m, dt), TimeWithinDay(t)).
         let new_date = make_date(make_day(y, m, dt), time_within_day(t));
@@ -1070,7 +1070,7 @@ impl DatePrototype {
             .bind(gc.nogc());
         // 3. If tv is a Number and tv is not finite, return null.
         if let Ok(tv) = Number::try_from(tv)
-            && !tv.is_finite(agent)
+            && !tv.is_finite_(agent)
         {
             return Ok(Value::Null);
         }
@@ -1326,7 +1326,7 @@ impl DatePrototype {
                 "{} is not an object",
                 this_value
                     .string_repr(agent, gc.reborrow())
-                    .to_string_lossy(agent)
+                    .to_string_lossy_(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
@@ -1351,7 +1351,7 @@ impl DatePrototype {
                 "Expected 'hint' to be \"string\", \"default\", or \"number\", got {}",
                 hint.unbind()
                     .string_repr(agent, gc.reborrow())
-                    .to_string_lossy(agent)
+                    .to_string_lossy_(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,

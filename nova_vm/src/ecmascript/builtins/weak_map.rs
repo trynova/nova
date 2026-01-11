@@ -10,9 +10,8 @@ use crate::{
     },
     engine::context::Bindable,
     heap::{
-        CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
-        arena_vec_access,
-        indexes::{BaseIndex, HeapIndexHandle},
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, HeapMarkAndSweep,
+        HeapSweepWeakReference, WorkQueues, arena_vec_access, indexes::BaseIndex,
     },
 };
 
@@ -41,42 +40,6 @@ impl<'m> WeakMap<'m> {
 
     pub(crate) fn set(self, agent: &mut Agent, key: WeakKey<'m>, value: Value<'m>) {
         self.get_mut(agent).set(key, value)
-    }
-
-    #[inline(always)]
-    pub(crate) fn get<'a>(self, agent: &'a Agent) -> &'a WeakMapRecord<'m> {
-        self.get_direct(&agent.heap.weak_maps)
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_mut<'a>(self, agent: &'a mut Agent) -> &'a mut WeakMapRecord<'m> {
-        self.get_direct_mut(&mut agent.heap.weak_maps)
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_direct<'a>(
-        self,
-        weak_maps: &'a [WeakMapRecord<'static>],
-    ) -> &'a WeakMapRecord<'m> {
-        weak_maps
-            .get(self.get_index())
-            .expect("Invalid WeakMap reference")
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_direct_mut<'a>(
-        self,
-        weak_maps: &'a mut [WeakMapRecord<'static>],
-    ) -> &'a mut WeakMapRecord<'m> {
-        // SAFETY: Lifetime transmute to thread GC lifetime to temporary heap
-        // reference.
-        unsafe {
-            core::mem::transmute::<&'a mut WeakMapRecord<'static>, &'a mut WeakMapRecord<'m>>(
-                weak_maps
-                    .get_mut(self.get_index())
-                    .expect("Invalid WeakMap reference"),
-            )
-        }
     }
 }
 

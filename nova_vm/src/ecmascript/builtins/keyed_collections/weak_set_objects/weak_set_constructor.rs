@@ -27,7 +27,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::{DirectArenaAccess, IntrinsicConstructorIndexes},
+    heap::{DirectArenaAccessMut, IntrinsicConstructorIndexes},
 };
 
 pub(crate) struct WeakSetConstructor;

@@ -10,14 +10,13 @@ use crate::{
     },
     engine::context::Bindable,
     heap::{
-        CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
-        arena_vec_access,
+        ArenaAccessSoA, ArenaAccessSoAMut, CompactionLists, CreateHeapData, HeapMarkAndSweep,
+        HeapSweepWeakReference, WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
 use self::data::{SetHeapData, SetHeapDataMut, SetHeapDataRef};
-use soavec::SoAVec;
 
 pub mod data;
 
@@ -27,41 +26,7 @@ pub struct Set<'a>(BaseIndex<'a, SetHeapData<'static>>);
 object_handle!(Set);
 arena_vec_access!(soa: Set, 'a, SetHeapData, sets, SetHeapDataRef, SetHeapDataMut);
 
-impl<'gc> Set<'gc> {
-    #[inline(always)]
-    pub(crate) fn get<'a>(self, agent: &'a Agent) -> SetHeapDataRef<'a, 'gc> {
-        self.get_direct(&agent.heap.sets)
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_mut<'a>(self, agent: &'a mut Agent) -> SetHeapDataMut<'a, 'gc> {
-        self.get_direct_mut(&mut agent.heap.sets)
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_direct<'a>(
-        self,
-        sets: &'a SoAVec<SetHeapData<'static>>,
-    ) -> SetHeapDataRef<'a, 'gc> {
-        sets.get(self.0.get_index_u32())
-            .expect("Invalid Set reference")
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_direct_mut<'a>(
-        self,
-        sets: &'a mut SoAVec<SetHeapData<'static>>,
-    ) -> SetHeapDataMut<'a, 'gc> {
-        // SAFETY: Lifetime transmute to thread GC lifetime to temporary heap
-        // reference.
-        unsafe {
-            core::mem::transmute::<SetHeapDataMut<'a, 'static>, SetHeapDataMut<'a, 'gc>>(
-                sets.get_mut(self.0.get_index_u32())
-                    .expect("Invalid Set reference"),
-            )
-        }
-    }
-}
+impl<'gc> Set<'gc> {}
 
 impl<'a> InternalSlots<'a> for Set<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Set;

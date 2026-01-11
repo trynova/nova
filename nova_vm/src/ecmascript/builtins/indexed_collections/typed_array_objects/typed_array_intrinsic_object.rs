@@ -1572,7 +1572,7 @@ impl TypedArrayPrototype {
                 // If TypedArray is out of bounds then every Get(O, k) returns
                 // undefined. The result is a string comprising only of
                 // separators.
-                let sep = sep_string.as_wtf8(agent).to_owned();
+                let sep = sep_string.as_wtf8_(agent).to_owned();
                 let count = len.saturating_sub(1);
                 let byte_count = count * sep.len();
                 let mut buf = Wtf8Buf::with_capacity(byte_count);
@@ -1592,7 +1592,7 @@ impl TypedArrayPrototype {
             return Ok(String::EMPTY_STRING.into());
         }
 
-        let sep = sep_string.as_wtf8(agent).to_owned();
+        let sep = sep_string.as_wtf8_(agent).to_owned();
         // 6. Let R be the empty String.
         let mut r = Wtf8Buf::with_capacity(after_len * 3);
         // 7. Let k be 0.
@@ -1616,7 +1616,7 @@ impl TypedArrayPrototype {
             // i. Let S be ! ToString(element).
             let s = unwrap_try(try_to_string(agent, element, gc));
             // ii. Set R to the string-concatenation of R and S.
-            r.push_wtf8(s.as_wtf8(agent));
+            r.push_wtf8(s.as_wtf8_(agent));
             // d. Set k to k + 1.
         }
         // 9. Return R.
@@ -2763,7 +2763,7 @@ impl TypedArrayPrototype {
                     .unbind()?
                     .bind(gc.nogc());
                 //  ii. Set R to the string-concatenation of R and S.
-                r.push_wtf8(s.as_wtf8(agent));
+                r.push_wtf8(s.as_wtf8_(agent));
             };
             // d. Set k to k + 1.
             k += 1;

@@ -43,7 +43,7 @@ use crate::{
         rootable::Scopable,
     },
     heap::{
-        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         HeapSweepWeakReference, WorkQueues, arena_vec_access, indexes::BaseIndex,
     },
     ndt,
@@ -595,7 +595,7 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
                 value
                     .unbind()
                     .string_repr(agent, gc.reborrow())
-                    .to_string_lossy(agent)
+                    .to_string_lossy_(agent)
             );
             let message = String::from_string(agent, message, gc.nogc());
             Err(agent.throw_exception_with_message(
@@ -628,7 +628,7 @@ fn create_name_and_id<'a>(agent: &'a Agent, f: ECMAScriptFunction<'a>) -> (Cow<'
         .get(agent)
         .compiled_bytecode
         .map_or(0, |b| b.get(agent).instructions.as_ptr() as u64);
-    let name = f.get_name(agent).to_string_lossy(agent);
+    let name = f.get_name(agent).to_string_lossy_(agent);
     (name, id)
 }
 
@@ -1096,7 +1096,7 @@ pub(crate) fn set_function_name<'a>(
             symbol_data
                 .descriptor
                 .map_or(String::EMPTY_STRING, |descriptor| {
-                    let descriptor = descriptor.to_string_lossy(agent);
+                    let descriptor = descriptor.to_string_lossy_(agent);
                     String::from_string(
                         agent,
                         format!("{}[{descriptor}]", prefix_into_str(prefix)),

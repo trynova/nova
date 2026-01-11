@@ -22,7 +22,7 @@ use crate::{
         rootable::Scopable,
     },
     heap::{
-        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         HeapSweepWeakReference, WorkQueues, arena_vec_access, element_array::ElementsVector,
         indexes::BaseIndex,
     },

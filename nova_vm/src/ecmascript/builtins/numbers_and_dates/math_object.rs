@@ -357,7 +357,7 @@ impl MathObject {
         let n = to_number(agent, arguments.get(0), gc.reborrow())
             .unbind()?
             .bind(gc.nogc())
-            .into_f64(agent);
+            .into_f64_(agent);
         // 2. If n is NaN, n > 1𝔽, or n < -1𝔽, return NaN.
         // 3. If n is 1𝔽, return +0𝔽.
         // 4. Return an implementation-approximated Number value representing the result of the inverse cosine of ℝ(n).
@@ -376,16 +376,16 @@ impl MathObject {
             .bind(gc.nogc());
 
         // 2. If n is either NaN or +∞𝔽, return n.
-        if n.is_nan(agent) || n.is_pos_infinity(agent) {
+        if n.is_nan_(agent) || n.is_pos_infinity_(agent) {
             return Ok(n.unbind().into());
         }
 
         // 3. If n is 1𝔽, return +0𝔽.
-        if n.is_pos_one(agent) {
+        if n.is_pos_one_(agent) {
             return Ok(Value::pos_zero());
         }
 
-        let n = n.into_f64(agent);
+        let n = n.into_f64_(agent);
 
         // 4. If n < 1𝔽, return NaN.
         // 5. Return an implementation-approximated Number value representing the result of the inverse hyperbolic cosine of ℝ(n).
@@ -404,11 +404,11 @@ impl MathObject {
             .bind(gc.nogc());
 
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
-        if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
+        if n.is_nan_(agent) || n.is_pos_zero_(agent) || n.is_neg_zero_(agent) {
             return Ok(n.unbind().into());
         }
 
-        let n = n.into_f64(agent);
+        let n = n.into_f64_(agent);
 
         // 3. If n > 1𝔽 or n < -1𝔽, return NaN.
         if !(-1.0..=1.0).contains(&n) {
@@ -431,12 +431,12 @@ impl MathObject {
             .bind(gc.nogc());
 
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
-        if !n.is_finite(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
+        if !n.is_finite_(agent) || n.is_pos_zero_(agent) || n.is_neg_zero_(agent) {
             return Ok(n.unbind().into());
         }
 
         // 3. Return an implementation-approximated Number value representing the result of the inverse hyperbolic sine of ℝ(n).
-        let result = n.into_f64(agent).asinh();
+        let result = n.into_f64_(agent).asinh();
         Ok(Value::from_f64(agent, result, gc.into_nogc()))
     }
 
@@ -452,22 +452,22 @@ impl MathObject {
             .bind(gc.nogc());
 
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
-        if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
+        if n.is_nan_(agent) || n.is_pos_zero_(agent) || n.is_neg_zero_(agent) {
             return Ok(n.unbind().into());
         }
 
         // 3. If n is +∞𝔽, return an implementation-approximated Number value representing π / 2.
-        if n.is_pos_infinity(agent) {
+        if n.is_pos_infinity_(agent) {
             return Ok(Value::from_f64(agent, consts::FRAC_PI_2, gc.into_nogc()));
         }
 
         // 4. If n is -∞𝔽, return an implementation-approximated Number value representing -π / 2.
-        if n.is_neg_infinity(agent) {
+        if n.is_neg_infinity_(agent) {
             return Ok(Value::from_f64(agent, -consts::FRAC_PI_2, gc.into_nogc()));
         }
 
         // 5. Return an implementation-approximated Number value representing the result of the inverse tangent of ℝ(n).
-        let result = n.into_f64(agent).atan();
+        let result = n.into_f64_(agent).atan();
         Ok(Value::from_f64(agent, result, gc.into_nogc()))
     }
 
@@ -483,21 +483,21 @@ impl MathObject {
             .bind(gc.nogc());
 
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
-        if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
+        if n.is_nan_(agent) || n.is_pos_zero_(agent) || n.is_neg_zero_(agent) {
             return Ok(n.unbind().into());
         }
 
         // 4. If n is 1𝔽, return +∞𝔽.
-        if n.is_pos_one(agent) {
+        if n.is_pos_one_(agent) {
             return Ok(Value::pos_inf());
         }
 
         // 5. If n is -1𝔽, return -∞𝔽.
-        if n.is_neg_one(agent) {
+        if n.is_neg_one_(agent) {
             return Ok(Value::neg_inf());
         }
 
-        let n = n.into_f64(agent);
+        let n = n.into_f64_(agent);
 
         // 3. If n > 1𝔽 or n < -1𝔽, return NaN.
         if !(-1.0..=1.0).contains(&n) {
@@ -519,11 +519,11 @@ impl MathObject {
         // 1. Let ny be ? ToNumber(y).
         let ny = to_number(agent, x.unbind(), gc.reborrow())
             .unbind()?
-            .into_f64(agent);
+            .into_f64_(agent);
         // 2. Let nx be ? ToNumber(x).
         let nx = to_number(agent, y.get(agent), gc.reborrow())
             .unbind()?
-            .into_f64(agent);
+            .into_f64_(agent);
 
         // 3. If ny is NaN or nx is NaN, return NaN.
         if ny.is_nan() || nx.is_nan() {
@@ -669,12 +669,12 @@ impl MathObject {
         let n = n.bind(gc);
 
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
-        if !n.is_finite(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
+        if !n.is_finite_(agent) || n.is_pos_zero_(agent) || n.is_neg_zero_(agent) {
             return Ok(n.into());
         }
 
         // 3. Return an implementation-approximated Number value representing the result of the cube root of ℝ(n).
-        Ok(Value::from_f64(agent, n.into_f64(agent).cbrt(), gc))
+        Ok(Value::from_f64(agent, n.into_f64_(agent).cbrt(), gc))
     }
 
     fn ceil<'gc>(
@@ -695,16 +695,16 @@ impl MathObject {
             .bind(gc.nogc());
 
         // 4. If n is an integral Number, return n.
-        if n.is_integer(agent) {
+        if n.is_integer_(agent) {
             return Ok(n.unbind().into());
         }
 
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
-        if !n.is_finite(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
+        if !n.is_finite_(agent) || n.is_pos_zero_(agent) || n.is_neg_zero_(agent) {
             return Ok(n.unbind().into());
         }
 
-        let n = n.into_f64(agent);
+        let n = n.into_f64_(agent);
 
         // 3. If n < -0𝔽 and n > -1𝔽, return -0𝔽.
         if n < -0.0 && n > -1.0 {
@@ -740,7 +740,7 @@ impl MathObject {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())
             .unbind()?
-            .into_f64(agent);
+            .into_f64_(agent);
 
         // 2. If n is not finite, return NaN.
         if !n.is_finite() {
@@ -765,7 +765,7 @@ impl MathObject {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())
             .unbind()?
-            .into_f64(agent);
+            .into_f64_(agent);
 
         // 2. If n is NaN, return NaN.
         if n.is_nan() {
@@ -798,11 +798,11 @@ impl MathObject {
             .bind(gc.nogc());
 
         //2. If n is either NaN or +∞𝔽, return n.
-        if n.is_nan(agent) || n.is_pos_infinity(agent) {
+        if n.is_nan_(agent) || n.is_pos_infinity_(agent) {
             return Ok(n.unbind().into());
         }
 
-        let n = n.into_f64(agent);
+        let n = n.into_f64_(agent);
 
         //3. If n is either +0𝔽 or -0𝔽, return 1𝔽.
         if n == 0.0 {
@@ -830,15 +830,15 @@ impl MathObject {
             .bind(gc.nogc());
 
         // 2. If n is one of NaN, +0𝔽, -0𝔽, or +∞𝔽, return n.
-        if n.is_nan(agent)
-            || n.is_pos_zero(agent)
-            || n.is_neg_zero(agent)
-            || n.is_pos_infinity(agent)
+        if n.is_nan_(agent)
+            || n.is_pos_zero_(agent)
+            || n.is_neg_zero_(agent)
+            || n.is_pos_infinity_(agent)
         {
             return Ok(n.unbind().into());
         }
 
-        let n = n.into_f64(agent);
+        let n = n.into_f64_(agent);
 
         // 3. If n is -∞𝔽, return -1𝔽.
         if n.is_infinite() {
@@ -868,16 +868,16 @@ impl MathObject {
             .bind(gc.nogc());
 
         // 4. If n is an integral Number, return n.
-        if n.is_integer(agent) {
+        if n.is_integer_(agent) {
             return Ok(n.unbind().into());
         }
 
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
-        if !n.is_finite(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
+        if !n.is_finite_(agent) || n.is_pos_zero_(agent) || n.is_neg_zero_(agent) {
             return Ok(n.unbind().into());
         }
 
-        let n = n.into_f64(agent);
+        let n = n.into_f64_(agent);
 
         // 3. If n < 1𝔽 and n > +0𝔽, return +0𝔽.
         if n < 1.0 && n > 0.0 {
@@ -900,21 +900,21 @@ impl MathObject {
             .bind(gc.nogc());
 
         // 2. If n is NaN, return NaN.
-        if n.is_nan(agent) {
+        if n.is_nan_(agent) {
             return Ok(Value::nan());
         }
 
         // 3. If n is one of +0𝔽, -0𝔽, +∞𝔽, or -∞𝔽, return n.
-        if n.is_pos_zero(agent)
-            || n.is_neg_zero(agent)
-            || n.is_pos_infinity(agent)
-            || n.is_neg_infinity(agent)
+        if n.is_pos_zero_(agent)
+            || n.is_neg_zero_(agent)
+            || n.is_pos_infinity_(agent)
+            || n.is_neg_infinity_(agent)
         {
             return Ok(n.unbind().into());
         }
 
         // 4. Let n32 be the result of converting n to IEEE 754-2019 binary32 format using roundTiesToEven mode.
-        let n32 = n.into_f32(agent);
+        let n32 = n.into_f32_(agent);
 
         // 5. Let n64 be the result of converting n32 to IEEE 754-2019 binary64 format.
         let n64 = n32 as f64;
@@ -941,7 +941,7 @@ impl MathObject {
             // a. Let n be ? ToNumber(arg).
             let n = to_number(agent, arg, gc.reborrow())
                 .unbind()?
-                .into_f64(agent);
+                .into_f64_(agent);
 
             // 3. For each element number of coerced, do
             if n.is_infinite() {
@@ -1015,7 +1015,7 @@ impl MathObject {
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
-        let n = n_number.into_f64(agent);
+        let n = n_number.into_f64_(agent);
 
         // 2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan() || n == f64::INFINITY {
@@ -1051,7 +1051,7 @@ impl MathObject {
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
-        let n = n_number.into_f64(agent);
+        let n = n_number.into_f64_(agent);
         // 2. If n is one of NaN, +0𝔽, -0𝔽, or +∞𝔽, return n.
         if n.is_nan() || n == 0.0 || n == f64::INFINITY {
             return Ok(n_number.unbind().into());
@@ -1078,7 +1078,7 @@ impl MathObject {
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
-        let n = n_number.into_f64(agent);
+        let n = n_number.into_f64_(agent);
         // 2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan() || n == f64::INFINITY {
             return Ok(n_number.unbind().into());
@@ -1110,7 +1110,7 @@ impl MathObject {
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
-        let n = n_number.into_f64(agent);
+        let n = n_number.into_f64_(agent);
         // 2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan() || n == f64::INFINITY {
             return Ok(n_number.unbind().into());
@@ -1175,7 +1175,7 @@ impl MathObject {
                 } else {
                     only_ints = false;
 
-                    let value = number.into_f64(agent);
+                    let value = number.into_f64_(agent);
                     if value.is_nan() {
                         contained_nan = true;
                     } else {
@@ -1281,7 +1281,7 @@ impl MathObject {
                 } else {
                     only_ints = false;
 
-                    let number = number.into_f64(agent);
+                    let number = number.into_f64_(agent);
                     // a. If number is NaN, return NaN.
                     if number.is_nan() {
                         contained_nan = true;
@@ -1435,11 +1435,11 @@ impl MathObject {
             .bind(gc.nogc());
 
         // 2. If n is not finite or n is an integral Number, return n.
-        if !n.is_finite(agent) || n.is_integer(agent) {
+        if !n.is_finite_(agent) || n.is_integer_(agent) {
             return Ok(n.unbind().into());
         }
 
-        let n = n.into_f64(agent);
+        let n = n.into_f64_(agent);
 
         // 3. If n < 0.5𝔽 and n > +0𝔽, return +0𝔽.
         if n < 0.5 && n > 0.0 {
@@ -1466,11 +1466,11 @@ impl MathObject {
             .unbind()?
             .bind(gc.nogc());
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
-        if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
+        if n.is_nan_(agent) || n.is_pos_zero_(agent) || n.is_neg_zero_(agent) {
             return Ok(n.unbind().into());
         }
         // 3. If n < -0𝔽, return -1𝔽.
-        if n.is_sign_negative(agent) {
+        if n.is_sign_negative_(agent) {
             return Ok(Value::from(-1));
         }
         // 4. Return 1𝔽.
@@ -1487,7 +1487,7 @@ impl MathObject {
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
-        let n = n_number.into_f64(agent);
+        let n = n_number.into_f64_(agent);
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan() || n == 0.0 {
             return Ok(n_number.unbind().into());
@@ -1510,7 +1510,7 @@ impl MathObject {
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
-        let n = n_number.into_f64(agent);
+        let n = n_number.into_f64_(agent);
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
         if !n.is_finite() || n == 0.0 {
             return Ok(n_number.unbind().into());
@@ -1529,7 +1529,7 @@ impl MathObject {
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
-        let n = n_number.into_f64(agent);
+        let n = n_number.into_f64_(agent);
         // 2. If n is one of NaN, +0𝔽, -0𝔽, or +∞𝔽, return n.
         if n.is_nan() || n == 0.0 || n == f64::INFINITY {
             return Ok(n_number.unbind().into());
@@ -1552,7 +1552,7 @@ impl MathObject {
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
-        let n = n_number.into_f64(agent);
+        let n = n_number.into_f64_(agent);
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan() || n == 0.0 {
             return Ok(n_number.unbind().into());
@@ -1575,7 +1575,7 @@ impl MathObject {
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
-        let n = n_number.into_f64(agent);
+        let n = n_number.into_f64_(agent);
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan() || n == 0.0 {
             return Ok(n_number.unbind().into());
@@ -1602,7 +1602,7 @@ impl MathObject {
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
-        let n = n_number.into_f64(agent);
+        let n = n_number.into_f64_(agent);
 
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
         if !n.is_finite() || n == 0.0 {
@@ -1670,7 +1670,7 @@ impl MathObject {
         }
 
         // 4. Let n16 be the result of converting n to IEEE 754-2019 binary16 format using roundTiesToEven mode.
-        let n16 = n.into_f16(agent);
+        let n16 = n.into_f16_(agent);
 
         // 5. Let n64 be the result of converting n16 to IEEE 754-2019 binary64 format.
         let n64 = n16 as f64;
@@ -1813,7 +1813,7 @@ impl MathObject {
                 //     b. Set sum to sum + ℝ(n).
 
                 // xsum handles all of this
-                sum.add(n.into_f64(agent));
+                sum.add(n.into_f64_(agent));
             } else {
                 // iv. If next is not a Number, then
                 // 1. Let error be ThrowCompletion(a newly created TypeError object).
@@ -2119,13 +2119,13 @@ fn max_slow_path<'a>(
 
             // 4. For each element number of coerced, do
             // a. If n is NaN, return NaN.
-            if n.is_nan(agent) {
+            if n.is_nan_(agent) {
                 contained_nan = true;
             } else {
                 // b. If n is +0𝔽 and highest is -0𝔽, set highest to +0𝔽.
                 // Note: This is handled automatically as +0 is integer.
                 // c. If n > highest, set highest to n.
-                *highest_f64 = (*highest_f64).max(n.into_f64(agent));
+                *highest_f64 = (*highest_f64).max(n.into_f64_(agent));
             }
         }
     }
@@ -2163,7 +2163,7 @@ fn min_slow_path<'a>(
         } else {
             *only_ints = false;
 
-            let number = number.into_f64(agent);
+            let number = number.into_f64_(agent);
             // a. If number is NaN, return NaN.
             if number.is_nan() {
                 contained_nan = true;

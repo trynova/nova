@@ -133,14 +133,15 @@ use crate::{
         rootable::HeapRootData,
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        IntrinsicConstructorIndexes, IntrinsicObjectIndexes, IntrinsicPrimitiveObjectIndexes,
-        ObjectEntry, WorkQueues, arena_vec_access,
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, DirectArenaAccess, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, IntrinsicConstructorIndexes,
+        IntrinsicObjectIndexes, IntrinsicPrimitiveObjectIndexes, ObjectEntry, WorkQueues,
+        arena_vec_access,
         element_array::{
             ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementStorageUninit,
             ElementsVector, PropertyStorageMut, PropertyStorageRef,
         },
-        indexes::{BaseIndex, HeapIndexHandle},
+        indexes::BaseIndex,
     },
 };
 
@@ -307,35 +308,6 @@ impl<'a> OrdinaryObject<'a> {
     pub(crate) fn new_uninitialised(agent: &mut Agent) -> Self {
         agent.heap.objects.push(ObjectRecord::BLANK);
         OrdinaryObject(BaseIndex::last(&agent.heap.objects))
-    }
-
-    #[inline(always)]
-    pub(crate) fn get(self, agent: &Agent) -> &ObjectRecord<'a> {
-        self.get_direct(&agent.heap.objects)
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_mut(self, agent: &mut Agent) -> &mut ObjectRecord<'a> {
-        self.get_direct_mut(&mut agent.heap.objects)
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_direct<'o>(self, objects: &'o [ObjectRecord<'a>]) -> &'o ObjectRecord<'a> {
-        &objects[self.get_index()]
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_direct_mut<'o>(
-        self,
-        objects: &'o mut [ObjectRecord<'static>],
-    ) -> &'o mut ObjectRecord<'a> {
-        // SAFETY: Lifetime transmute to thread GC lifetime to temporary heap
-        // reference.
-        unsafe {
-            core::mem::transmute::<&mut ObjectRecord<'static>, &mut ObjectRecord<'a>>(
-                &mut objects[self.get_index()],
-            )
-        }
     }
 
     /// Returns true if the Object has no properties.

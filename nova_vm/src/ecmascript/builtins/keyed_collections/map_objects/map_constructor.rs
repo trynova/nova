@@ -29,7 +29,7 @@ use crate::{
             },
             map::{
                 Map,
-                data::{MapHeapData, MapHeapDataMut},
+                data::{MapHeapData},
             },
             ordinary::ordinary_create_from_constructor,
         },
@@ -47,8 +47,8 @@ use crate::{
         rootable::Scopable,
     },
     heap::{
-        ArenaAccess, CreateHeapData, Heap, IntrinsicConstructorIndexes, PrimitiveHeap,
-        WellKnownSymbolIndexes,
+        ArenaAccess, CreateHeapData, Heap, IntrinsicConstructorIndexes,
+        PrimitiveHeap, WellKnownSymbolIndexes,
     },
 };
 
@@ -221,13 +221,7 @@ impl MapConstructor {
         } = &mut agent.heap;
         let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
-        let MapHeapDataMut {
-            keys,
-            values,
-            map_data,
-            ..
-        } = map.get_direct_mut(maps);
-        let map_data = map_data.get_mut();
+        let (map_data, keys, values) = map.get_map_data_mut(maps, &primitive_heap);
         let hasher = |value: Value| {
             let mut hasher = AHasher::default();
             value.hash(&primitive_heap, &mut hasher);
@@ -363,13 +357,8 @@ pub fn add_entries_from_iterable_map_constructor<'a>(
                     // Trivial, dense array of trivial, dense arrays of two elements.
                     let gc = gc.nogc();
                     let length = arr_elements.len();
-                    let MapHeapDataMut {
-                        keys,
-                        values,
-                        map_data,
-                        ..
-                    } = target.get_direct_mut(maps);
-                    let map_data = map_data.get_mut();
+                    let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+                    let (map_data, keys, values) = target.get_map_data_mut(maps, &primitive_heap);
 
                     let length = length as usize;
                     keys.reserve(length);
@@ -377,7 +366,6 @@ pub fn add_entries_from_iterable_map_constructor<'a>(
                     // Note: The Map is empty at this point, we don't need the hasher function.
                     assert!(map_data.is_empty());
                     map_data.reserve(length, |_| 0);
-                    let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
                     let hasher = |value: Value| {
                         let mut hasher = AHasher::default();
                         value.hash(&primitive_heap, &mut hasher);

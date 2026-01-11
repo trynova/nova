@@ -13,7 +13,7 @@ use crate::{
         types::{BUILTIN_STRING_MEMORY, String, Value},
     },
     engine::context::{Bindable, GcScope, NoGcScope},
-    heap::{ArenaAccess, WellKnownSymbolIndexes},
+    heap::{ArenaAccess, ArenaAccessMut, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct WeakSetPrototype;

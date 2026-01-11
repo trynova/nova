@@ -26,7 +26,8 @@ use crate::{
         rootable::Scopable,
     },
     heap::{
-        ArenaAccess, CompactionLists, HeapMarkAndSweep, WorkQueues, arena_vec_access,
+        ArenaAccess, ArenaAccessMut, CompactionLists, HeapMarkAndSweep, WorkQueues,
+        arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle, index_handle},
     },
 };
@@ -653,7 +654,7 @@ pub(crate) fn initialize_host_defined_realm(
             .map_err(|err| {
                 err.value()
                     .string_repr(agent, gc.reborrow())
-                    .to_string_lossy(agent)
+                    .to_string_lossy_(agent)
                     .to_string()
             })
             .unwrap()

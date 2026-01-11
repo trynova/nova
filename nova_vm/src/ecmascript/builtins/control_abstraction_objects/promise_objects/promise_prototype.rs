@@ -27,7 +27,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::{ArenaAccess, CreateHeapData, WellKnownSymbolIndexes},
+    heap::{ArenaAccessMut, CreateHeapData, WellKnownSymbolIndexes},
 };
 
 use super::promise_abstract_operations::{

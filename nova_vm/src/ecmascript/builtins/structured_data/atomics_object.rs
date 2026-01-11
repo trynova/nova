@@ -1608,15 +1608,15 @@ fn do_wait_slow<'gc>(
     let gc = gc.into_nogc();
     let q = q.bind(gc);
     // 9. If q is either NaN or +∞𝔽,
-    let t = if q.is_nan(agent) || q.is_pos_infinity(agent) {
+    let t = if q.is_nan_(agent) || q.is_pos_infinity_(agent) {
         // let t be +∞;
         u64::MAX
-    } else if q.is_neg_infinity(agent) {
+    } else if q.is_neg_infinity_(agent) {
         // else if q is -∞𝔽, let t be 0;
         0
     } else {
         // else let t be max(ℝ(q), 0).
-        q.into_i64(agent).max(0) as u64
+        q.into_i64_(agent).max(0) as u64
     };
     Ok((unsafe { scoped_typed_array.take(agent) }.bind(gc), i, v, t))
 }

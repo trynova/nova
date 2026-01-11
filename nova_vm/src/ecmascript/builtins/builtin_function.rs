@@ -19,7 +19,7 @@ use crate::{
         rootable::HeapRootCollectionData,
     },
     heap::{
-        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         HeapSweepWeakReference, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, ObjectEntry,
         ObjectEntryPropertyDescriptor, WorkQueues, arena_vec_access, indexes::BaseIndex,
     },
@@ -586,7 +586,7 @@ fn create_name_and_id<'a>(agent: &'a Agent, f: BuiltinFunction<'a>) -> (Cow<'a, 
         Behaviour::Regular(f) => f as usize as u64,
         Behaviour::Constructor(f) => f as usize as u64,
     };
-    let name = f.get_name(agent).to_string_lossy(agent);
+    let name = f.get_name(agent).to_string_lossy_(agent);
     (name, id)
 }
 

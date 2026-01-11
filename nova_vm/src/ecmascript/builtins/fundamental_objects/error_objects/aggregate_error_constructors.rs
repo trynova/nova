@@ -25,7 +25,7 @@ use crate::{
         context::{Bindable, GcScope},
         rootable::Scopable,
     },
-    heap::{ArenaAccess, IntrinsicConstructorIndexes},
+    heap::{ArenaAccessMut, IntrinsicConstructorIndexes},
 };
 
 use super::error_constructor::get_error_cause;

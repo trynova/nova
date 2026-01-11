@@ -18,7 +18,7 @@ use crate::{
         },
     },
     engine::context::{Bindable, GcScope, NoGcScope},
-    heap::ArenaAccess,
+    heap::{ArenaAccess, ArenaAccessMut},
 };
 
 // TODO: Implement the contents of the `DetachKey` struct?

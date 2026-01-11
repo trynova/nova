@@ -34,8 +34,8 @@ use crate::{
         rootable::Scopable,
     },
     heap::{
-        ArenaAccess, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, ObjectEntry,
-        ObjectEntryPropertyDescriptor, WellKnownSymbolIndexes,
+        ArenaAccess, ArenaAccessMut, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes,
+        ObjectEntry, ObjectEntryPropertyDescriptor, WellKnownSymbolIndexes,
     },
 };
 
@@ -269,10 +269,10 @@ impl FunctionPrototype {
                     }
                     _ => {
                         // i. If targetLen is +∞𝔽, then
-                        if target_len.is_pos_infinity(agent) {
+                        if target_len.is_pos_infinity_(agent) {
                             // 1. Set L to +∞.
                             l = usize::MAX;
-                        } else if target_len.is_neg_infinity(agent) {
+                        } else if target_len.is_neg_infinity_(agent) {
                             // ii. Else if targetLen is -∞𝔽, then
                             // 1. Set L to 0.
                             l = 0;

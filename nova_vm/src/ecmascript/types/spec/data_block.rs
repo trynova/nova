@@ -60,13 +60,12 @@ trivially_bindable!(DataBlock);
 
 impl core::fmt::Debug for DataBlock {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let slice = if let Some(ptr) = self.ptr {
+        if let Some(ptr) = self.ptr {
             // SAFETY: ptr points to a valid allocation of byte_length bytes.
-            unsafe { core::slice::from_raw_parts(ptr.as_ptr(), self.byte_length) }
+            unsafe { core::slice::from_raw_parts(ptr.as_ptr(), self.byte_length) }.fmt(f)
         } else {
-            &[]
-        };
-        slice.fmt(f)
+            f.write_str("<detached>")
+        }
     }
 }
 
@@ -2553,7 +2552,7 @@ impl Viewable for f32 {
         let Ok(value) = Number::try_from(value) else {
             return None;
         };
-        let value = value.into_f64(agent);
+        let value = value.into_f64_(agent);
         if value.is_nan() {
             return Some(f32::NAN);
         }
@@ -2686,7 +2685,7 @@ impl Viewable for f64 {
         let Ok(value) = Number::try_from(value) else {
             return None;
         };
-        Some(value.into_f64(agent))
+        Some(value.into_f64_(agent))
     }
 
     fn default() -> Self {

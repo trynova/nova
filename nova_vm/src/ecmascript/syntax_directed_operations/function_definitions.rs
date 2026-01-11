@@ -42,7 +42,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::{ArenaAccess, CreateHeapData},
+    heap::{ArenaAccess, ArenaAccessMut, CreateHeapData},
 };
 use oxc_ast::ast::{self};
 

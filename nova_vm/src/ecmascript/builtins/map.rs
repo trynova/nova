@@ -2,22 +2,25 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use hashbrown::HashTable;
+use soavec::SoAVec;
+
 use crate::{
     Heap,
     ecmascript::{
+        builtins::map::data::MapHeapDataMut,
         execution::{Agent, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, OrdinaryObject, object_handle},
+        types::{InternalMethods, InternalSlots, OrdinaryObject, Value, object_handle},
     },
     engine::context::Bindable,
     heap::{
-        CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, PrimitiveHeap,
-        WorkQueues, arena_vec_access,
+        ArenaAccessSoA, ArenaAccessSoAMut, CompactionLists, CreateHeapData, HeapMarkAndSweep,
+        HeapSweepWeakReference, PrimitiveHeapAccess, WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
-use self::data::{MapHeapData, MapHeapDataMut, MapHeapDataRef};
-use soavec::SoAVec;
+use self::data::MapHeapData;
 
 pub mod data;
 
@@ -36,56 +39,64 @@ arena_vec_access!(
 );
 
 impl<'gc> Map<'gc> {
-    #[inline(always)]
-    pub(crate) fn get<'a>(self, agent: &'a Agent) -> MapHeapDataRef<'a, 'gc> {
-        self.get_direct(&agent.heap.maps)
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_mut<'a>(self, agent: &'a mut Agent) -> MapHeapDataMut<'a, 'gc> {
-        let Heap {
-            bigints,
-            numbers,
-            strings,
-            maps,
-            ..
-        } = &mut agent.heap;
-        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
-        let mut data = self.get_direct_mut(maps);
-        data.rehash_if_needed_mut(&primitive_heap);
-        data
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_direct<'a>(
-        self,
-        maps: &'a SoAVec<MapHeapData<'static>>,
-    ) -> MapHeapDataRef<'a, 'gc> {
-        maps.get(self.0.get_index_u32())
-            .expect("Invalid Map reference")
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_direct_mut<'a>(
-        self,
-        maps: &'a mut SoAVec<MapHeapData<'static>>,
-    ) -> MapHeapDataMut<'a, 'gc> {
-        // SAFETY: Lifetime transmute to thread GC lifetime to temporary heap
-        // reference.
-        unsafe {
-            core::mem::transmute::<MapHeapDataMut<'a, 'static>, MapHeapDataMut<'a, 'gc>>(
-                maps.get_mut(self.0.get_index_u32())
-                    .expect("Invalid Map reference"),
-            )
-        }
-    }
-
-    pub(crate) fn len(&self, agent: &mut Agent) -> u32 {
+    pub(crate) fn len(self, agent: &mut Agent) -> u32 {
         self.get(agent).size()
     }
 
-    pub(crate) fn clear(&self, agent: &mut Agent) {
+    pub(crate) fn entries_len(self, agent: &Agent) -> u32 {
+        self.get(agent).entries_len()
+    }
+
+    pub(crate) fn clear(self, agent: &mut Agent) {
         self.get_mut(agent).clear();
+    }
+
+    pub(crate) fn get_entries(
+        self,
+        agent: &Agent,
+    ) -> (&[Option<Value<'gc>>], &[Option<Value<'gc>>]) {
+        let data = self.get(agent);
+        (&data.keys, &data.values)
+    }
+
+    pub(crate) fn get_map_data<'soa>(
+        self,
+        maps: &'soa mut SoAVec<MapHeapData<'static>>,
+        arena: &impl PrimitiveHeapAccess,
+    ) -> (
+        &'soa HashTable<u32>,
+        &'soa [Option<Value<'gc>>],
+        &'soa [Option<Value<'gc>>],
+    ) {
+        let mut data = self.get_mut(maps);
+        data.rehash_if_needed_mut(arena);
+        let MapHeapDataMut {
+            map_data,
+            keys,
+            values,
+            ..
+        } = data;
+        (map_data.get_mut(), keys, values)
+    }
+
+    pub(crate) fn get_map_data_mut<'soa>(
+        self,
+        maps: &'soa mut SoAVec<MapHeapData<'static>>,
+        arena: &impl PrimitiveHeapAccess,
+    ) -> (
+        &'soa mut HashTable<u32>,
+        &'soa mut Vec<Option<Value<'static>>>,
+        &'soa mut Vec<Option<Value<'static>>>,
+    ) {
+        let mut data = self.get_mut(maps);
+        data.rehash_if_needed_mut(arena);
+        let MapHeapDataMut {
+            map_data,
+            keys,
+            values,
+            ..
+        } = data;
+        (map_data.get_mut(), keys, values)
     }
 }
 
