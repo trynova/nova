@@ -8,7 +8,10 @@ use crate::{
         types::String,
     },
     engine::context::{Bindable, bindable_handle},
-    heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
+    heap::{
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        indexes::HeapIndexHandle,
+    },
 };
 
 use super::Module;

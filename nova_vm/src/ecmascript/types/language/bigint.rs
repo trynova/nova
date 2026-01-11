@@ -729,8 +729,8 @@ impl<'a> TryFrom<Value<'a>> for BigInt<'a> {
     type Error = ();
     fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
-            Value::BigInt(x) => Ok(BigInt::BigInt(x)),
-            Value::SmallBigInt(x) => Ok(BigInt::SmallBigInt(x)),
+            Value::BigInt(x) => Ok(Self::BigInt(x)),
+            Value::SmallBigInt(x) => Ok(Self::SmallBigInt(x)),
             _ => Err(()),
         }
     }
@@ -740,8 +740,8 @@ impl<'a> TryFrom<Primitive<'a>> for BigInt<'a> {
     type Error = ();
     fn try_from(value: Primitive<'a>) -> Result<Self, Self::Error> {
         match value {
-            Primitive::BigInt(x) => Ok(BigInt::BigInt(x)),
-            Primitive::SmallBigInt(x) => Ok(BigInt::SmallBigInt(x)),
+            Primitive::BigInt(x) => Ok(Self::BigInt(x)),
+            Primitive::SmallBigInt(x) => Ok(Self::SmallBigInt(x)),
             _ => Err(()),
         }
     }
@@ -751,27 +751,36 @@ impl<'a> TryFrom<Numeric<'a>> for BigInt<'a> {
     type Error = ();
     fn try_from(value: Numeric<'a>) -> Result<Self, Self::Error> {
         match value {
-            Numeric::BigInt(x) => Ok(BigInt::BigInt(x)),
-            Numeric::SmallBigInt(x) => Ok(BigInt::SmallBigInt(x)),
+            Numeric::BigInt(x) => Ok(Self::BigInt(x)),
+            Numeric::SmallBigInt(x) => Ok(Self::SmallBigInt(x)),
             _ => Err(()),
         }
     }
 }
 
 impl<'a> From<BigInt<'a>> for Primitive<'a> {
-    fn from(value: BigInt<'a>) -> Primitive<'a> {
+    fn from(value: BigInt<'a>) -> Self {
         match value {
-            BigInt::BigInt(x) => Primitive::BigInt(x.unbind()),
-            BigInt::SmallBigInt(x) => Primitive::SmallBigInt(x),
+            BigInt::BigInt(x) => Self::BigInt(x.unbind()),
+            BigInt::SmallBigInt(x) => Self::SmallBigInt(x),
         }
     }
 }
 
 impl<'a> From<BigInt<'a>> for Numeric<'a> {
-    fn from(value: BigInt<'a>) -> Numeric<'a> {
+    fn from(value: BigInt<'a>) -> Self {
         match value {
-            BigInt::BigInt(x) => Numeric::BigInt(x),
-            BigInt::SmallBigInt(x) => Numeric::SmallBigInt(x),
+            BigInt::BigInt(x) => Self::BigInt(x),
+            BigInt::SmallBigInt(x) => Self::SmallBigInt(x),
+        }
+    }
+}
+
+impl<'a> From<BigInt<'a>> for Value<'a> {
+    fn from(value: BigInt<'a>) -> Self {
+        match value {
+            BigInt::BigInt(x) => Value::BigInt(x),
+            BigInt::SmallBigInt(x) => Value::SmallBigInt(x),
         }
     }
 }

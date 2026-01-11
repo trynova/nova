@@ -1402,7 +1402,6 @@ pub(crate) fn ordinary_set_at_offset<'a>(
         if !writable {
             return SetResult::Unwritable.into();
         }
-        let ov: Value = o.into();
         if is_receiver {
             // ## 2.d.
             // iii. Let valueDesc be the PropertyDescriptor { [[Value]]: V }.

@@ -642,8 +642,8 @@ impl IntrinsicObjectIndexes {
         self,
         base: BaseIndex<'a, ObjectRecord<'static>>,
     ) -> OrdinaryObject<'a> {
-        OrdinaryObject(BaseIndex::from_index_u32(
-            self as u32 + base.get_index_u32() + Self::OBJECT_INDEX_OFFSET,
+        OrdinaryObject(BaseIndex::from_index_u32_const(
+            self as u32 + base.get_index_u32_const() + Self::OBJECT_INDEX_OFFSET,
         ))
     }
 }
@@ -653,8 +653,8 @@ impl IntrinsicConstructorIndexes {
         self,
         base: BaseIndex<'a, ObjectRecord<'static>>,
     ) -> OrdinaryObject<'a> {
-        OrdinaryObject(BaseIndex::from_index_u32(
-            self as u32 + base.get_index_u32() + Self::OBJECT_INDEX_OFFSET,
+        OrdinaryObject(BaseIndex::from_index_u32_const(
+            self as u32 + base.get_index_u32_const() + Self::OBJECT_INDEX_OFFSET,
         ))
     }
 }
@@ -664,8 +664,8 @@ impl IntrinsicPrimitiveObjectIndexes {
         self,
         base: BaseIndex<'a, ObjectRecord<'static>>,
     ) -> OrdinaryObject<'a> {
-        OrdinaryObject(BaseIndex::from_index_u32(
-            self as u32 + base.get_index_u32() + Self::OBJECT_INDEX_OFFSET,
+        OrdinaryObject(BaseIndex::from_index_u32_const(
+            self as u32 + base.get_index_u32_const() + Self::OBJECT_INDEX_OFFSET,
         ))
     }
 }

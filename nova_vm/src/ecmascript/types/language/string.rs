@@ -121,8 +121,8 @@ impl<'a> From<String<'a>> for Option<HeapRootData> {
     #[inline(always)]
     fn from(value: String<'a>) -> Self {
         match value {
-            String::String(s) => Some(HeapRootData::String(s)),
-            String::SmallString(s) => None,
+            String::String(s) => Some(HeapRootData::String(s.unbind())),
+            String::SmallString(_) => None,
         }
     }
 }

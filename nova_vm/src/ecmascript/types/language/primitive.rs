@@ -269,7 +269,7 @@ macro_rules! primitive_value {
         crate::ecmascript::types::primitive_value!($name, $name);
     };
     ($name: ident, $variant: ident) => {
-        impl From<$name> for crate::ecmascript::types::Primitive<'static> {
+        impl From<$name> for crate::ecmascript::types::Primitive<'_> {
             #[inline(always)]
             fn from(value: $name) -> Self {
                 Self::$variant(value)
@@ -288,7 +288,7 @@ macro_rules! primitive_value {
             }
         }
 
-        impl From<$name> for crate::ecmascript::types::Value<'static> {
+        impl From<$name> for crate::ecmascript::types::Value<'_> {
             #[inline(always)]
             fn from(value: $name) -> Self {
                 Self::$variant(value)

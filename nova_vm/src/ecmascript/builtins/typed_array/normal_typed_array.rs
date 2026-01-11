@@ -184,7 +184,7 @@ impl<'ta, T: Viewable> GenericTypedArray<'ta, T> {
     }
 
     #[inline(always)]
-    pub(crate) fn as_slice(self, agent: &Agent) -> &[T] {
+    pub(crate) fn as_slice(self, agent: &'ta Agent) -> &'ta [T] {
         Self::check_not_void_array();
 
         let key = self.into_void_array();
@@ -213,7 +213,7 @@ impl<'ta, T: Viewable> GenericTypedArray<'ta, T> {
     }
 
     #[inline(always)]
-    pub(crate) fn as_mut_slice(self, agent: &mut Agent) -> &mut [T] {
+    pub(crate) fn as_mut_slice(self, agent: &'ta mut Agent) -> &mut [T] {
         Self::check_not_void_array();
 
         let key = self.into_void_array();
@@ -2653,19 +2653,19 @@ impl<'a> From<TypedArray<'a>> for HeapRootData {
     #[inline(always)]
     fn from(value: TypedArray<'a>) -> Self {
         match value {
-            TypedArray::Int8Array(ta) => Self::Int8Array(ta),
-            TypedArray::Uint8Array(ta) => Self::Uint8Array(ta),
-            TypedArray::Uint8ClampedArray(ta) => Self::Uint8ClampedArray(ta),
-            TypedArray::Int16Array(ta) => Self::Int16Array(ta),
-            TypedArray::Uint16Array(ta) => Self::Uint16Array(ta),
-            TypedArray::Int32Array(ta) => Self::Int32Array(ta),
-            TypedArray::Uint32Array(ta) => Self::Uint32Array(ta),
-            TypedArray::BigInt64Array(ta) => Self::BigInt64Array(ta),
-            TypedArray::BigUint64Array(ta) => Self::BigUint64Array(ta),
+            TypedArray::Int8Array(ta) => Self::Int8Array(ta.unbind()),
+            TypedArray::Uint8Array(ta) => Self::Uint8Array(ta.unbind()),
+            TypedArray::Uint8ClampedArray(ta) => Self::Uint8ClampedArray(ta.unbind()),
+            TypedArray::Int16Array(ta) => Self::Int16Array(ta.unbind()),
+            TypedArray::Uint16Array(ta) => Self::Uint16Array(ta.unbind()),
+            TypedArray::Int32Array(ta) => Self::Int32Array(ta.unbind()),
+            TypedArray::Uint32Array(ta) => Self::Uint32Array(ta.unbind()),
+            TypedArray::BigInt64Array(ta) => Self::BigInt64Array(ta.unbind()),
+            TypedArray::BigUint64Array(ta) => Self::BigUint64Array(ta.unbind()),
             #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(ta) => Self::Float16Array(ta),
-            TypedArray::Float32Array(ta) => Self::Float32Array(ta),
-            TypedArray::Float64Array(ta) => Self::Float64Array(ta),
+            TypedArray::Float16Array(ta) => Self::Float16Array(ta.unbind()),
+            TypedArray::Float32Array(ta) => Self::Float32Array(ta.unbind()),
+            TypedArray::Float64Array(ta) => Self::Float64Array(ta.unbind()),
         }
     }
 }

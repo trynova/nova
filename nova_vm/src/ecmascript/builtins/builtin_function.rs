@@ -2,10 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::{
-    marker::PhantomData,
-    ops::{Deref, Index},
-};
+use core::{marker::PhantomData, ops::Deref};
 use std::{borrow::Cow, hint::unreachable_unchecked, ptr::NonNull};
 
 use crate::{
@@ -24,8 +21,7 @@ use crate::{
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         HeapSweepWeakReference, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, ObjectEntry,
-        ObjectEntryPropertyDescriptor, WorkQueues, arena_vec_access,
-        indexes::{BaseIndex, HeapIndexHandle},
+        ObjectEntryPropertyDescriptor, WorkQueues, arena_vec_access, indexes::BaseIndex,
     },
     ndt,
 };
@@ -482,8 +478,8 @@ impl IntrinsicFunctionIndexes {
         self,
         base: BaseIndex<'a, BuiltinFunctionHeapData<'static>>,
     ) -> BuiltinFunction<'a> {
-        BuiltinFunction(BaseIndex::from_index_u32(
-            self as u32 + base.get_index_u32() + Self::BUILTIN_FUNCTION_INDEX_OFFSET,
+        BuiltinFunction(BaseIndex::from_index_u32_const(
+            self as u32 + base.get_index_u32_const() + Self::BUILTIN_FUNCTION_INDEX_OFFSET,
         ))
     }
 }
@@ -493,8 +489,8 @@ impl IntrinsicConstructorIndexes {
         self,
         base: BaseIndex<'a, BuiltinFunctionHeapData<'static>>,
     ) -> BuiltinFunction<'a> {
-        BuiltinFunction(BaseIndex::from_index_u32(
-            self as u32 + base.get_index_u32() + Self::BUILTIN_FUNCTION_INDEX_OFFSET,
+        BuiltinFunction(BaseIndex::from_index_u32_const(
+            self as u32 + base.get_index_u32_const() + Self::BUILTIN_FUNCTION_INDEX_OFFSET,
         ))
     }
 }
@@ -630,7 +626,7 @@ fn builtin_call_or_construct<'gc>(
         // 4. Set the Function of calleeContext to F.
         function: Some(f.unbind().into()),
         // 6. Set the Realm of calleeContext to calleeRealm.
-        realm: callee_realm,
+        realm: callee_realm.unbind(),
         // 7. Set the ScriptOrModule of calleeContext to null.
         script_or_module: None,
     };

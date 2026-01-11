@@ -96,6 +96,7 @@ impl AwaitReaction<'_> {
                     .get(agent)
                     .return_promise_capability
                     .clone()
+                    .unbind()
                     .resolve(agent, result.unbind(), gc);
             }
             ExecutionResult::Throw(err) => {
@@ -113,9 +114,10 @@ impl AwaitReaction<'_> {
             ExecutionResult::Await { vm, awaited_value } => {
                 // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
                 // 8. Remove asyncContext from the execution context stack and restore the execution context that is at the top of the execution context stack as the running execution context.
+                let execution_context = agent.pop_execution_context().unwrap();
                 let data = reaction.get_mut(agent);
                 data.vm = Some(vm);
-                data.execution_context = Some(agent.pop_execution_context().unwrap());
+                data.execution_context = Some(execution_context);
 
                 // `handler` corresponds to the `fulfilledClosure` and `rejectedClosure` functions,
                 // which resume execution of the function.

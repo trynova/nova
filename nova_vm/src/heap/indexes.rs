@@ -25,14 +25,30 @@ pub struct BaseIndex<'a, T: ?Sized>(NonZeroU32, PhantomData<T>, PhantomData<&'a 
 
 impl<T: ?Sized> BaseIndex<'_, T> {
     pub(crate) const fn from_index_const(index: usize) -> Self {
+        assert!(index < u32::MAX as usize);
+        // SAFETY: Number is not max value and will not overflow to zero.
+        // This check is done manually to allow const context.
         Self(
-            u32::try_from(index)
-                .ok()
-                .and_then(NonZeroU32::new)
-                .expect("BaseIndex overflow"),
+            unsafe { NonZeroU32::new_unchecked(index as u32 + 1) },
             PhantomData,
             PhantomData,
         )
+    }
+
+    pub(crate) const fn from_index_u32_const(index: u32) -> Self {
+        assert!(index != u32::MAX);
+        // SAFETY: Number is not max value and will not overflow to zero.
+        // This check is done manually to allow const context.
+        Self(
+            unsafe { NonZeroU32::new_unchecked(index + 1) },
+            PhantomData,
+            PhantomData,
+        )
+    }
+
+    #[inline(always)]
+    pub(crate) const fn get_index_u32_const(self) -> u32 {
+        self.0.get() - 1
     }
 }
 
@@ -209,19 +225,12 @@ impl<T: ?Sized> HeapIndexHandle for BaseIndex<'_, T> {
 
     #[inline(always)]
     fn from_index_u32(index: u32) -> Self {
-        assert!(index != u32::MAX);
-        // SAFETY: Number is not max value and will not overflow to zero.
-        // This check is done manually to allow const context.
-        Self(
-            unsafe { NonZeroU32::new_unchecked(index + 1) },
-            PhantomData,
-            PhantomData,
-        )
+        Self::from_index_u32_const(index)
     }
 
     #[inline(always)]
     fn get_index_u32(self) -> u32 {
-        self.0.get() - 1
+        self.get_index_u32_const()
     }
 }
 
@@ -249,7 +258,7 @@ macro_rules! index_handle {
         impl<'a> From<$name<'a>> for crate::engine::rootable::HeapRootData {
             #[inline(always)]
             fn from(value: $name<'a>) -> Self {
-                Self::$variant(value)
+                Self::$variant(crate::engine::context::Bindable::unbind(value))
             }
         }
 

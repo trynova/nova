@@ -10,7 +10,7 @@ use crate::{
         execution::Agent,
         types::{OrdinaryObject, Value},
     },
-    engine::context::NoGcScope,
+    engine::context::{NoGcScope, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -19,6 +19,7 @@ pub struct PromiseHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) promise_state: PromiseState<'a>,
 }
+bindable_handle!(PromiseHeapData);
 
 #[derive(Debug, Clone)]
 pub(crate) enum PromiseState<'a> {

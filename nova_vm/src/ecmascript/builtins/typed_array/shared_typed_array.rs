@@ -1218,7 +1218,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericSharedTypedArray<'a, T> {
             }
         }
         // 2. Return ? OrdinarySet(O, P, V, Receiver).
-        ordinary_set(agent, o.into(), property_key, value, receiver, gc)
+        ordinary_set(agent, o.unbind().into(), property_key, value, receiver, gc)
     }
 
     /// ### [10.4.5.7 Infallible \[\[Delete\]\] ( P )](https://tc39.es/ecma262/#sec-typedarray-delete)
@@ -1556,7 +1556,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
 
                 if byte_offset == 0 && !is_resizable && byte_length == expected_byte_length {
                     // User cannot detect the switcharoo!
-                    let db = ab.get(agent).get_data_block_mut();
+                    let db = ab.get_mut(agent).get_data_block_mut();
                     core::mem::swap(db, &mut kept);
                 } else {
                     // SAFETY: All viewable types are trivially transmutable.
@@ -2882,19 +2882,21 @@ impl<'a> From<SharedTypedArray<'a>> for HeapRootData {
     #[inline(always)]
     fn from(value: SharedTypedArray<'a>) -> Self {
         match value {
-            SharedTypedArray::SharedInt8Array(ta) => Self::SharedInt8Array(ta),
-            SharedTypedArray::SharedUint8Array(ta) => Self::SharedUint8Array(ta),
-            SharedTypedArray::SharedUint8ClampedArray(ta) => Self::SharedUint8ClampedArray(ta),
-            SharedTypedArray::SharedInt16Array(ta) => Self::SharedInt16Array(ta),
-            SharedTypedArray::SharedUint16Array(ta) => Self::SharedUint16Array(ta),
-            SharedTypedArray::SharedInt32Array(ta) => Self::SharedInt32Array(ta),
-            SharedTypedArray::SharedUint32Array(ta) => Self::SharedUint32Array(ta),
-            SharedTypedArray::SharedBigInt64Array(ta) => Self::SharedBigInt64Array(ta),
-            SharedTypedArray::SharedBigUint64Array(ta) => Self::SharedBigUint64Array(ta),
+            SharedTypedArray::SharedInt8Array(ta) => Self::SharedInt8Array(ta.unbind()),
+            SharedTypedArray::SharedUint8Array(ta) => Self::SharedUint8Array(ta.unbind()),
+            SharedTypedArray::SharedUint8ClampedArray(ta) => {
+                Self::SharedUint8ClampedArray(ta.unbind())
+            }
+            SharedTypedArray::SharedInt16Array(ta) => Self::SharedInt16Array(ta.unbind()),
+            SharedTypedArray::SharedUint16Array(ta) => Self::SharedUint16Array(ta.unbind()),
+            SharedTypedArray::SharedInt32Array(ta) => Self::SharedInt32Array(ta.unbind()),
+            SharedTypedArray::SharedUint32Array(ta) => Self::SharedUint32Array(ta.unbind()),
+            SharedTypedArray::SharedBigInt64Array(ta) => Self::SharedBigInt64Array(ta.unbind()),
+            SharedTypedArray::SharedBigUint64Array(ta) => Self::SharedBigUint64Array(ta.unbind()),
             #[cfg(feature = "proposal-float16array")]
-            SharedTypedArray::SharedFloat16Array(ta) => Self::SharedFloat16Array(ta),
-            SharedTypedArray::SharedFloat32Array(ta) => Self::SharedFloat32Array(ta),
-            SharedTypedArray::SharedFloat64Array(ta) => Self::SharedFloat64Array(ta),
+            SharedTypedArray::SharedFloat16Array(ta) => Self::SharedFloat16Array(ta.unbind()),
+            SharedTypedArray::SharedFloat32Array(ta) => Self::SharedFloat32Array(ta.unbind()),
+            SharedTypedArray::SharedFloat64Array(ta) => Self::SharedFloat64Array(ta.unbind()),
         }
     }
 }

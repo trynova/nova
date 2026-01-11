@@ -38,7 +38,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::Scopable,
     },
-    heap::CreateHeapData,
+    heap::{ArenaAccess, CreateHeapData, DirectArenaAccess},
 };
 
 use super::{RegExp, RegExpHeapData, data::RegExpLastIndex};
@@ -55,7 +55,7 @@ pub(crate) fn reg_exp_create<'a>(
     gc: GcScope<'a, '_>,
 ) -> JsResult<'a, RegExp<'a>> {
     let f = f.map_or(Ok(RegExpFlags::empty()), |f| {
-        Err(f.into().scope(agent, gc.nogc()))
+        Err(Value::from(f).scope(agent, gc.nogc()))
     });
     // 1. Let obj be ! RegExpAlloc(%RegExp%).
     let obj = agent.heap.create(RegExpHeapData::default()).bind(gc.nogc());
@@ -235,13 +235,16 @@ pub(crate) fn reg_exp_initialize<'a>(
     // 19. Let rer be the RegExp Record { [[IgnoreCase]]: i, [[Multiline]]: m, [[DotAll]]: s, [[Unicode]]: u, [[UnicodeSets]]: v, [[CapturingGroupsCount]]: capturingGroupsCount }.
     // 21. Set obj.[[RegExpMatcher]] to CompilePattern of parseResult with argument rer.
     let reg_exp_matcher = RegExpHeapData::compile_pattern(&p.to_string_lossy(agent), f);
-    // 16. Set obj.[[OriginalSource]] to P.
-    obj.get(agent).original_source = p.unbind();
-    // 17. Set obj.[[OriginalFlags]] to F.
-    obj.get(agent).original_flags = f;
-    // 20. Set obj.[[RegExpRecord]] to rer.
-    // 21. Set obj.[[RegExpMatcher]] to CompilePattern of parseResult with argument rer.
-    obj.get(agent).reg_exp_matcher = reg_exp_matcher;
+    {
+        let data = obj.get_mut(agent);
+        // 16. Set obj.[[OriginalSource]] to P.
+        data.original_source = p.unbind();
+        // 17. Set obj.[[OriginalFlags]] to F.
+        data.original_flags = f;
+        // 20. Set obj.[[RegExpRecord]] to rer.
+        // 21. Set obj.[[RegExpMatcher]] to CompilePattern of parseResult with argument rer.
+        data.reg_exp_matcher = reg_exp_matcher;
+    }
 
     // 22. Perform ? Set(obj, "lastIndex", +0𝔽, true).
     if !obj.set_last_index(agent, RegExpLastIndex::ZERO, gc.nogc()) {
@@ -588,7 +591,7 @@ pub(crate) fn reg_exp_builtin_exec<'a>(
     } = result.bind(gc);
     // 1. Let length be the length of S.
     let length = s.len(agent);
-    let r_data = &mut agent.heap.regexps[r];
+    let r_data = r.get_direct_mut(&mut agent.heap.regexps);
     let s_bytes = s.as_bytes(&agent.heap.strings);
     // 8. Let matcher be R.[[RegExpMatcher]].
     // SAFETY: reg_exp_builtin_exec_base checks that the matcher is set.
@@ -790,7 +793,7 @@ pub(crate) fn reg_exp_builtin_test<'a>(
 
     // 1. Let length be the length of S.
     let length = s.len(agent);
-    let r_data = &mut agent.heap.regexps[r];
+    let r_data = r.get_direct_mut(&mut agent.heap.regexps);
     if last_index > length {
         // i. If global is true or sticky is true, then
         if global || sticky {

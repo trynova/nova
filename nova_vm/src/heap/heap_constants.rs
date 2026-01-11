@@ -393,7 +393,7 @@ pub(crate) enum WellKnownSymbolIndexes {
     Unscopables,
 }
 
-impl From<WellKnownSymbolIndexes> for Value<'static> {
+impl From<WellKnownSymbolIndexes> for Value<'_> {
     fn from(value: WellKnownSymbolIndexes) -> Self {
         Value::Symbol(value.into())
     }

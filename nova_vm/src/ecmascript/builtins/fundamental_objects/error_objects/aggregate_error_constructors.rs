@@ -86,7 +86,7 @@ impl AggregateErrorConstructor {
             .bind(gc.nogc());
         // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
         let message = message.map(|message| message.get(agent).bind(gc.nogc()));
-        let heap_data = &mut o.get(agent);
+        let heap_data = o.get_mut(agent);
         heap_data.kind = ExceptionType::AggregateError;
         heap_data.message = message.unbind();
         heap_data.cause = cause.unbind();

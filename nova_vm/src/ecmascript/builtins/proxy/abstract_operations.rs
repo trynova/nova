@@ -8,6 +8,7 @@ use crate::{
         types::Object,
     },
     engine::context::{Bindable, NoGcScope, bindable_handle},
+    heap::ArenaAccess,
 };
 
 use super::{Proxy, data::ProxyHeapData};

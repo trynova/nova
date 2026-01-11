@@ -16,7 +16,7 @@ use crate::{
         types::{String, Value},
     },
     engine::context::{Bindable, NoGcScope},
-    heap::{ArenaAccess, CompactionLists, HeapMarkAndSweep, WorkQueues},
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 use super::{

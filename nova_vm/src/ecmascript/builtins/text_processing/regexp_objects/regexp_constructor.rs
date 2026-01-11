@@ -94,7 +94,7 @@ impl RegExpConstructor {
                 // SAFETY: not shared.
                 let new_target = unsafe { new_target.take(agent) }.bind(gc.nogc());
                 // ii. If SameValue(newTarget, patternConstructor) is true, return pattern.
-                if new_target.into() == pattern_constructor {
+                if Value::from(new_target) == pattern_constructor {
                     return Ok(scoped_pattern.get(agent));
                 }
                 new_target.into()

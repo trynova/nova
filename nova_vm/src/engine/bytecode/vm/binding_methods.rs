@@ -98,7 +98,8 @@ pub(super) fn execute_simple_array_binding<'a>(
                             }
                             iterator_is_done = true;
                             // SAFETY: rest is not shared
-                            JsResult::Ok(unsafe { rest.take(agent).into() })
+                            let rest: Value = unsafe { rest.take(agent).into() };
+                            JsResult::Ok(rest)
                         },
                         gc.reborrow(),
                     )
@@ -383,17 +384,17 @@ pub(super) fn execute_simple_object_binding<'a>(
                             gc.reborrow(),
                         )
                         .unbind()?
-                        .bind(gc.nogc())
-                        .into();
+                        .bind(gc.nogc());
                         // 4. If environment is undefined, return ? PutValue(lhs, restObj).
                         // 5. Return ? InitializeReferencedBinding(lhs, restObj).
                         if environment.is_none() {
-                            put_value(agent, &lhs, rest_obj.unbind(), gc.reborrow()).unbind()?;
+                            put_value(agent, &lhs, rest_obj.unbind().into(), gc.reborrow())
+                                .unbind()?;
                         } else {
                             initialize_referenced_binding(
                                 agent,
                                 lhs,
-                                rest_obj.unbind(),
+                                rest_obj.unbind().into(),
                                 gc.reborrow(),
                             )
                             .unbind()?;

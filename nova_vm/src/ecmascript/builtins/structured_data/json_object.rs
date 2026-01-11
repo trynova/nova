@@ -31,8 +31,8 @@ use crate::{
             agent::{ExceptionType, unwrap_try},
         },
         types::{
-            BUILTIN_STRING_MEMORY, Function, InternalMethods, Number, Object, PropertyDescriptor,
-            PropertyKey, ScopedPropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, Function, InternalMethods, Number, Object, Primitive,
+            PropertyDescriptor, PropertyKey, ScopedPropertyKey, String, Value,
         },
     },
     engine::{
@@ -40,7 +40,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::WellKnownSymbolIndexes,
+    heap::{ArenaAccess, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct JSONObject;
@@ -173,7 +173,7 @@ impl JSONObject {
             ));
 
             // d. Return ? InternalizeJSONProperty(root, rootName, reviver).
-            let root = root.unbind().into().scope(agent, gc.nogc());
+            let root = Object::from(root).unbind().scope(agent, gc.nogc());
             let reviver = reviver.unbind().scope(agent, gc.nogc());
             return internalize_json_property(agent, root, root_name, reviver, gc);
         }
@@ -338,15 +338,15 @@ impl JSONObject {
         // SAFETY: space is not shared.
         let space = unsafe { space.take(agent) }.bind(gc.nogc());
         // 6. If space is an Object, then
-        let space = if let Ok(space) = PrimitiveObject::try_from(space) {
+        let space: Option<Primitive> = if let Ok(space) = PrimitiveObject::try_from(space) {
             if space.is_number_object(agent) {
                 // a. If space has a [[NumberData]] internal slot, then
                 // i. Set space to ? ToNumber(space).
                 Some(
                     to_number(agent, space.unbind(), gc.reborrow())
                         .unbind()?
-                        .into()
-                        .bind(gc.nogc()),
+                        .bind(gc.nogc())
+                        .into(),
                 )
             } else if space.is_string_object(agent) {
                 // b. Else if space has a [[StringData]] internal slot, then
@@ -354,8 +354,8 @@ impl JSONObject {
                 Some(
                     to_string(agent, space.unbind(), gc.reborrow())
                         .unbind()?
-                        .into()
-                        .bind(gc.nogc()),
+                        .bind(gc.nogc())
+                        .into(),
                 )
             } else {
                 None
@@ -613,7 +613,7 @@ fn internalize_json_property<'a>(
         // SAFETY: scoped_val was shared to other internalise calls as the
         // holder object but those calls have finished and do not store
         // scoped_val anywhere.
-        unsafe { scoped_val.take(agent) }.into().bind(gc.nogc())
+        unsafe { scoped_val.take(agent) }.bind(gc.nogc()).into()
     } else {
         val
     };
@@ -756,16 +756,16 @@ fn get_serializable_json_property_value<'a>(
             | PrimitiveObjectData::SmallF64(_) => {
                 value = to_number(agent, obj.unbind(), gc.reborrow())
                     .unbind()?
-                    .into()
                     .bind(gc.nogc())
+                    .into()
             }
             // b. Else if value has a [[StringData]] internal slot, then
             // i. Set value to ? ToString(value).
             PrimitiveObjectData::String(_) | PrimitiveObjectData::SmallString(_) => {
                 value = to_string(agent, obj.unbind(), gc.reborrow())
                     .unbind()?
-                    .into()
                     .bind(gc.nogc())
+                    .into()
             }
             // c. Else if value has a [[BooleanData]] internal slot, then
             // i. Set value to value.[[BooleanData]].

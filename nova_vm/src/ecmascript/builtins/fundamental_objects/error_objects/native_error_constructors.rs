@@ -156,7 +156,7 @@ impl NativeErrorConstructors {
         let o = Error::try_from(o.get(agent).bind(gc)).unwrap();
         // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
         let msg = msg.map(|msg| msg.get(agent).bind(gc));
-        let heap_data = &mut o.get(agent);
+        let heap_data = o.get_mut(agent);
         heap_data.kind = error_kind;
         heap_data.message = msg.unbind();
         heap_data.cause = cause.unbind();

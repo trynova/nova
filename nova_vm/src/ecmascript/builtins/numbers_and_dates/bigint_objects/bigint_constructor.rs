@@ -19,7 +19,7 @@ use crate::{
         rootable::Scopable,
         small_bigint::SmallBigInt,
     },
-    heap::IntrinsicConstructorIndexes,
+    heap::{ArenaAccess, IntrinsicConstructorIndexes},
 };
 
 /// ### [21.1.2.1 BigInt ( value )](https://tc39.es/ecma262/#sec-bigint-constructor)

@@ -35,9 +35,8 @@ use crate::{
         rootable::Scopable,
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, arena_vec_access,
-        indexes::{BaseIndex, HeapIndexHandle},
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, WorkQueues, arena_vec_access, indexes::BaseIndex,
     },
 };
 
@@ -65,7 +64,7 @@ impl Proxy<'_> {
                     // Proxies.
                     proxy_target.is_callable(agent, gc)
                 } else {
-                    is_callable(proxy_target, gc).is_some()
+                    is_callable(*proxy_target, gc).is_some()
                 }
             }
             ProxyHeapData::RevokedCallable => true,

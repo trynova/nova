@@ -12,7 +12,10 @@ use crate::{
         types::{OrdinaryObject, String, Value},
     },
     engine::{Executable, context::bindable_handle},
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, element_array::ElementsVector},
+    heap::{
+        CompactionLists, HeapMarkAndSweep, WorkQueues, element_array::ElementsVector,
+        indexes::HeapIndexHandle,
+    },
 };
 
 use super::Function;
@@ -58,7 +61,7 @@ impl BuiltinFunctionHeapData<'_> {
     pub(crate) const BLANK: Self = Self {
         object_index: None,
         length: 0,
-        realm: Realm::from_u32(u32::MAX - 1),
+        realm: Realm::_DEF,
         initial_name: None,
         behaviour: Behaviour::Regular(|_, _, _, _| Ok(Value::Undefined)),
     };

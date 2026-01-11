@@ -23,7 +23,7 @@ use crate::{
         Executable, SuspendedVm, context::{Bindable, GcScope, NoGcScope, bindable_handle}, rootable::Scopable
     },
     heap::{
-        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access, indexes::{BaseIndex, HeapIndexHandle}
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access, indexes::{BaseIndex}
     },
 };
 
@@ -39,9 +39,9 @@ impl AsyncGenerator<'_> {
     pub(crate) fn get_executable<'gc>(
         self,
         agent: &Agent,
-        _: NoGcScope<'gc, '_>,
+        gc: NoGcScope<'gc, '_>,
     ) -> Executable<'gc> {
-        self.get(agent).executable.unwrap()
+        self.get(agent).executable.unwrap().bind(gc)
     }
 
     /// Returns true if the state of the AsyncGenerator is DRAINING-QUEUE or
@@ -111,9 +111,15 @@ impl AsyncGenerator<'_> {
     pub(crate) fn peek_first<'a, 'gc>(
         self,
         agent: &'a mut Agent,
-        _gc: NoGcScope<'gc, '_>,
+        gc: NoGcScope<'gc, '_>,
     ) -> &'a AsyncGeneratorRequest<'gc> {
-        match self.get(agent).async_generator_state.as_mut().unwrap() {
+        match self
+            .bind(gc)
+            .get_mut(agent)
+            .async_generator_state
+            .as_mut()
+            .unwrap()
+        {
             AsyncGeneratorState::ExecutingAwait { queue, .. }
             | AsyncGeneratorState::SuspendedStart { queue, .. }
             | AsyncGeneratorState::SuspendedYield { queue, .. }
@@ -128,7 +134,7 @@ impl AsyncGenerator<'_> {
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
     ) -> AsyncGeneratorRequest<'gc> {
-        match self.get(agent).async_generator_state.as_mut().unwrap() {
+        match self.get_mut(agent).async_generator_state.as_mut().unwrap() {
             AsyncGeneratorState::ExecutingAwait { queue, .. }
             | AsyncGeneratorState::SuspendedStart { queue, .. }
             | AsyncGeneratorState::SuspendedYield { queue, .. }
@@ -139,7 +145,7 @@ impl AsyncGenerator<'_> {
     }
 
     pub(crate) fn append_to_queue(self, agent: &mut Agent, request: AsyncGeneratorRequest<'_>) {
-        match self.get(agent).async_generator_state.as_mut().unwrap() {
+        match self.get_mut(agent).async_generator_state.as_mut().unwrap() {
             AsyncGeneratorState::ExecutingAwait { queue, .. }
             | AsyncGeneratorState::SuspendedStart { queue, .. }
             | AsyncGeneratorState::SuspendedYield { queue, .. }
@@ -150,7 +156,7 @@ impl AsyncGenerator<'_> {
     }
 
     pub(crate) fn transition_to_draining_queue(self, agent: &mut Agent) {
-        let async_generator_state = self.get_mut(agent).async_generator_state;
+        let async_generator_state = &mut self.get_mut(agent).async_generator_state;
         let state = async_generator_state.take().unwrap();
         let queue = match state {
             AsyncGeneratorState::SuspendedStart { queue, .. }
@@ -163,7 +169,7 @@ impl AsyncGenerator<'_> {
     }
 
     pub(crate) fn transition_to_complete(self, agent: &mut Agent) {
-        let async_generator_state = self.get_mut(agent).async_generator_state;
+        let async_generator_state = &mut self.get_mut(agent).async_generator_state;
         let state = async_generator_state.take().unwrap();
         let queue = match state {
             AsyncGeneratorState::SuspendedStart { queue, .. }
@@ -183,7 +189,7 @@ impl AsyncGenerator<'_> {
         kind: AsyncGeneratorAwaitKind,
         execution_context: ExecutionContext,
     ) {
-        let async_generator_state = self.get_mut(agent).async_generator_state;
+        let async_generator_state = &mut self.get_mut(agent).async_generator_state;
         let AsyncGeneratorState::Executing(queue) = async_generator_state.take().unwrap() else {
             unreachable!()
         };
@@ -200,7 +206,7 @@ impl AsyncGenerator<'_> {
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
     ) -> (SuspendedVm, ExecutionContext, Executable<'gc>) {
-        let async_generator_state = self.get_mut(agent).async_generator_state;
+        let async_generator_state = &mut self.get_mut(agent).async_generator_state;
         let (vm, execution_context, queue) = match async_generator_state.take() {
             Some(AsyncGeneratorState::SuspendedStart {
                 vm,
@@ -224,7 +230,7 @@ impl AsyncGenerator<'_> {
         vm: SuspendedVm,
         execution_context: ExecutionContext,
     ) {
-        let async_generator_state = self.get_mut(agent).async_generator_state;
+        let async_generator_state = &mut self.get_mut(agent).async_generator_state;
         let AsyncGeneratorState::Executing(queue) = async_generator_state.take().unwrap() else {
             unreachable!()
         };
@@ -257,7 +263,7 @@ impl AsyncGenerator<'_> {
             return;
         }
         // 1. Assert: generator.[[AsyncGeneratorState]] is either suspended-start or suspended-yield.
-        let state = self.get(agent).async_generator_state.take().unwrap();
+        let state = self.get_mut(agent).async_generator_state.take().unwrap();
         let (vm, execution_context, queue, kind) = match state {
             AsyncGeneratorState::SuspendedYield {
                 vm,
@@ -273,7 +279,7 @@ impl AsyncGenerator<'_> {
             _ => unreachable!(),
         };
         agent.push_execution_context(execution_context);
-        self.get(agent).async_generator_state = Some(AsyncGeneratorState::Executing(queue));
+        self.get_mut(agent).async_generator_state = Some(AsyncGeneratorState::Executing(queue));
         let scoped_generator = self.scope(agent, gc.nogc());
         let execution_result = match kind {
             AsyncGeneratorAwaitKind::Await => {

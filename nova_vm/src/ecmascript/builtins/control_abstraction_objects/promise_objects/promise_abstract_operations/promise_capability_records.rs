@@ -87,7 +87,7 @@ impl<'a> PromiseCapability<'a> {
     pub(crate) fn internal_fulfill(&self, agent: &mut Agent, value: Value, gc: NoGcScope) {
         // 1. Assert: The value of promise.[[PromiseState]] is pending.
         // 2. Let reactions be promise.[[PromiseFulfillReactions]].
-        let promise_state = &mut self.promise.get(agent).promise_state;
+        let promise_state = &mut self.promise.get_mut(agent).promise_state;
         let reactions = match promise_state {
             PromiseState::Pending {
                 fulfill_reactions, ..
@@ -111,7 +111,7 @@ impl<'a> PromiseCapability<'a> {
     fn internal_reject(&self, agent: &mut Agent, reason: Value, gc: NoGcScope) {
         // 1. Assert: The value of promise.[[PromiseState]] is pending.
         // 2. Let reactions be promise.[[PromiseRejectReactions]].
-        let promise_state = &mut self.promise.get(agent).promise_state;
+        let promise_state = &mut self.promise.get_mut(agent).promise_state;
         let reactions = match promise_state {
             PromiseState::Pending {
                 reject_reactions, ..
@@ -256,7 +256,7 @@ impl<'a> PromiseCapability<'a> {
             return TryResult::Continue(());
         }
         // 6. Set alreadyResolved.[[Value]] to true.
-        match &mut self.promise.get(agent).promise_state {
+        match &mut self.promise.get_mut(agent).promise_state {
             PromiseState::Pending { is_resolved, .. } => *is_resolved = true,
             _ => unreachable!(),
         };
@@ -411,7 +411,7 @@ macro_rules! if_abrupt_reject_promise_m {
                 // a. Perform ? Call(capability.[[Reject]], undefined, « value.[[Value]] »).
                 $capability.reject($agent, err.value().unbind(), $gc.nogc());
                 // b. Return capability.[[Promise]].
-                return Ok($capability.promise.unbind().bind($gc.into_nogc()).into());
+                return $capability.promise.unbind().bind($gc.into_nogc()).into();
             }
             // 3. Else,
             Ok(value) => {

@@ -338,7 +338,6 @@ pub fn add_entries_from_iterable_map_constructor<'a>(
                     ..
                 } = &mut agent.heap;
                 let array_heap = ArrayHeap::new(elements, arrays);
-                let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
                 let arr_elements = arr_iterable.get_elements(&array_heap);
                 // Iterable uses the normal Array iterator of this realm.
@@ -378,6 +377,7 @@ pub fn add_entries_from_iterable_map_constructor<'a>(
                     // Note: The Map is empty at this point, we don't need the hasher function.
                     assert!(map_data.is_empty());
                     map_data.reserve(length, |_| 0);
+                    let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
                     let hasher = |value: Value| {
                         let mut hasher = AHasher::default();
                         value.hash(&primitive_heap, &mut hasher);

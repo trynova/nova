@@ -13,7 +13,7 @@ use crate::{
         types::{BUILTIN_STRING_MEMORY, String, Value},
     },
     engine::context::{Bindable, GcScope, NoGcScope},
-    heap::WellKnownSymbolIndexes,
+    heap::{ArenaAccess, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct WeakSetPrototype;
@@ -62,7 +62,7 @@ impl WeakSetPrototype {
         // i. Return S.
         // 5. Append value to S.[[WeakSetData]].
         // 6. Return S.
-        s.get(agent).add(value);
+        s.get_mut(agent).add(value);
         Ok(s.unbind().into())
     }
 
@@ -95,7 +95,7 @@ impl WeakSetPrototype {
         // i. Replace the element of S.[[WeakSetData]] whose value is e with an
         //    element whose value is empty.
         // ii. Return true.
-        let deleted = s.get(agent).delete(value);
+        let deleted = s.get_mut(agent).delete(value);
         // 5. Return false.
         Ok(deleted.into())
     }

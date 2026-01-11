@@ -30,7 +30,7 @@ use crate::{
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         HeapSweepWeakReference, IntrinsicPrimitiveObjectIndexes, WorkQueues, arena_vec_access,
-        indexes::{BaseIndex, HeapIndexHandle},
+        indexes::{BaseIndex},
     },
 };
 use small_string::SmallString;
@@ -51,8 +51,8 @@ impl IntrinsicPrimitiveObjectIndexes {
         self,
         base: BaseIndex<'a, PrimitiveObjectRecord<'static>>,
     ) -> PrimitiveObject<'a> {
-        PrimitiveObject(BaseIndex::from_index_u32(
-            self as u32 + base.get_index_u32() + Self::PRIMITIVE_OBJECT_INDEX_OFFSET,
+        PrimitiveObject(BaseIndex::from_index_u32_const(
+            self as u32 + base.get_index_u32_const() + Self::PRIMITIVE_OBJECT_INDEX_OFFSET,
         ))
     }
 }
@@ -478,6 +478,7 @@ pub(crate) enum PrimitiveObjectData<'a> {
     BigInt(HeapBigInt<'a>) = BIGINT_DISCRIMINANT,
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
+bindable_handle!(PrimitiveObjectData);
 
 impl<'a> TryFrom<PrimitiveObjectData<'a>> for BigInt<'a> {
     type Error = ();

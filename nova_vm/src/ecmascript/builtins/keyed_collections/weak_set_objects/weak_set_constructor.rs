@@ -14,7 +14,7 @@ use crate::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
             ArgumentsList, Array, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            array::ArrayHeap, ordinary::ordinary_create_from_constructor, weak_set::WeakSet,
+            ordinary::ordinary_create_from_constructor, weak_set::WeakSet,
         },
         execution::{
             Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType, can_be_held_weakly,
@@ -196,9 +196,8 @@ fn weak_set_add_trivially_iterable_array_elements<'a>(
     iterable: Array,
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
-    let array_heap = ArrayHeap::new(&mut agent.heap.elements, &mut agent.heap.arrays);
-    let weak_set_data = set.get_direct_mut(&mut agent.heap.weak_sets);
-    let slice = iterable.as_slice(&array_heap);
+    let elvec = iterable.get_elements(&agent.heap.arrays);
+    let slice = agent.heap.elements.get_values(elvec);
 
     let mut weak_keys = Vec::new();
     for value in slice {
@@ -210,6 +209,7 @@ fn weak_set_add_trivially_iterable_array_elements<'a>(
         weak_keys.push(weak_key);
     }
 
+    let weak_set_data = set.get_direct_mut(&mut agent.heap.weak_sets);
     for weak_key in weak_keys {
         weak_set_data.add(weak_key);
     }

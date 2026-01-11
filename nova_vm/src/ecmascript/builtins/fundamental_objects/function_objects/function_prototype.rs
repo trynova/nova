@@ -292,7 +292,7 @@ impl FunctionPrototype {
             }
         }
         // 7. Perform SetFunctionLength(F, L).
-        f.get(agent).length = u8::try_from(l).unwrap_or(u8::MAX);
+        f.get_mut(agent).length = u8::try_from(l).unwrap_or(u8::MAX);
         // 8. Let targetName be ? Get(Target, "name").
         let target_name = try_get(
             agent,
@@ -526,7 +526,7 @@ impl ThrowTypeError {
         let throw_type_error =
             BuiltinFunctionBuilder::new_intrinsic_function::<ThrowTypeError>(agent, realm).build();
         let backing_object = create_throw_type_error_backing_object(agent, realm);
-        throw_type_error.get(agent).object_index = Some(backing_object);
+        throw_type_error.get_mut(agent).object_index = Some(backing_object);
     }
 }
 

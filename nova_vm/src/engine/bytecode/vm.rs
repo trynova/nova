@@ -52,6 +52,7 @@ use crate::{
         abstract_operations::{
             operations_on_objects::{
                 call_function, copy_data_properties_into_object, get_method, ordinary_has_instance,
+                try_get_object_method,
             },
             testing_and_comparison::is_callable,
             type_conversion::{
@@ -62,7 +63,7 @@ use crate::{
         builtins::{ArgumentsList, ScopedArgumentsList, array_create},
         execution::{
             Agent, Environment, JsResult,
-            agent::{ExceptionType, JsError, resolve_binding},
+            agent::{ExceptionType, JsError, resolve_binding, try_result_into_option_js},
         },
         types::{
             BUILTIN_STRING_MEMORY, BigInt, Number, Object, Primitive, Reference, String, Value,
@@ -1389,33 +1390,52 @@ pub(crate) fn instanceof_operator<'a, 'b>(
     target: impl Into<Value<'b>>,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, bool> {
+    let mut value = value.into().bind(gc.nogc());
+    let target = target.into().bind(gc.nogc());
     // 1. If target is not an Object, throw a TypeError exception.
-    let Ok(target) = Object::try_from(target.into()) else {
+    let Ok(mut target) = Object::try_from(target) else {
         let error_message = format!(
             "Invalid instanceof target {}.",
-            target
-                .into()
+            Value::from(target)
+                .unbind()
                 .string_repr(agent, gc.reborrow())
                 .to_string_lossy(agent)
         );
         return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.into_nogc()));
     };
     // 2. Let instOfHandler be ? GetMethod(target, @@hasInstance).
-    let inst_of_handler = get_method(
+    let inst_of_handler = if let Some(handler) = try_result_into_option_js(try_get_object_method(
         agent,
-        target.into(),
+        target,
         WellKnownSymbolIndexes::HasInstance.into(),
-        gc.reborrow(),
-    )
-    .unbind()?
-    .bind(gc.nogc());
+        gc.nogc(),
+    )) {
+        handler.unbind()?.bind(gc.nogc())
+    } else {
+        let scoped_value = value.scope(agent, gc.nogc());
+        let scoped_target = target.scope(agent, gc.nogc());
+        let inst_of_handler = get_method(
+            agent,
+            target.unbind().into(),
+            WellKnownSymbolIndexes::HasInstance.into(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        // SAFETY: not shared.
+        value = unsafe { scoped_value.take(agent) }.bind(gc.nogc());
+        // SAFETY: not shared.
+        target = unsafe { scoped_target.take(agent) }.bind(gc.nogc());
+        inst_of_handler
+    };
     // 3. If instOfHandler is not undefined, then
     if let Some(inst_of_handler) = inst_of_handler {
+        let value: Value = value.into();
         // a. Return ToBoolean(? Call(instOfHandler, target, « V »)).
         let result = call_function(
             agent,
             inst_of_handler.unbind(),
-            target.into(),
+            target.unbind().into(),
             Some(ArgumentsList::from_mut_slice(&mut [value.unbind().into()])),
             gc.reborrow(),
         )
@@ -1427,8 +1447,8 @@ pub(crate) fn instanceof_operator<'a, 'b>(
         let Some(target) = is_callable(target, gc.nogc()) else {
             let error_message = format!(
                 "Invalid instanceof target {} is not a function.",
-                target
-                    .into()
+                Value::from(target)
+                    .unbind()
                     .string_repr(agent, gc.reborrow())
                     .to_string_lossy(agent)
             );
@@ -1439,7 +1459,12 @@ pub(crate) fn instanceof_operator<'a, 'b>(
             ));
         };
         // 5. Return ? OrdinaryHasInstance(target, V).
-        Ok(ordinary_has_instance(agent, target.unbind(), value, gc)?)
+        Ok(ordinary_has_instance(
+            agent,
+            target.unbind(),
+            value.unbind(),
+            gc,
+        )?)
     }
 }
 

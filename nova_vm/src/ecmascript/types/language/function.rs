@@ -637,14 +637,16 @@ impl<'a> From<Function<'a>> for HeapRootData {
     #[inline(always)]
     fn from(value: Function<'a>) -> Self {
         match value {
-            Function::BoundFunction(d) => Self::BoundFunction(d),
-            Function::BuiltinFunction(d) => Self::BuiltinFunction(d),
-            Function::ECMAScriptFunction(d) => Self::ECMAScriptFunction(d),
-            Function::BuiltinConstructorFunction(d) => Self::BuiltinConstructorFunction(d),
+            Function::BoundFunction(d) => Self::BoundFunction(d.unbind()),
+            Function::BuiltinFunction(d) => Self::BuiltinFunction(d.unbind()),
+            Function::ECMAScriptFunction(d) => Self::ECMAScriptFunction(d.unbind()),
+            Function::BuiltinConstructorFunction(d) => Self::BuiltinConstructorFunction(d.unbind()),
             Function::BuiltinPromiseResolvingFunction(d) => {
-                Self::BuiltinPromiseResolvingFunction(d)
+                Self::BuiltinPromiseResolvingFunction(d.unbind())
             }
-            Function::BuiltinPromiseFinallyFunction(d) => Self::BuiltinPromiseFinallyFunction(d),
+            Function::BuiltinPromiseFinallyFunction(d) => {
+                Self::BuiltinPromiseFinallyFunction(d.unbind())
+            }
             Function::BuiltinPromiseCollectorFunction => Self::BuiltinPromiseCollectorFunction,
             Function::BuiltinProxyRevokerFunction => Self::BuiltinProxyRevokerFunction,
         }

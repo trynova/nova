@@ -64,7 +64,7 @@ impl MapIteratorPrototype {
             // i. Let e be entries[index].
             // ii. Set index to index + 1.
             let index = iterator.get(agent).next_index;
-            iterator.get(agent).next_index += 1;
+            iterator.get_mut(agent).next_index += 1;
 
             let result = match iterator.get(agent).kind {
                 CollectionIteratorKind::Key => {
@@ -106,7 +106,7 @@ impl MapIteratorPrototype {
         debug_assert_eq!(iterator.get(agent).next_index, map.get(agent).keys.len());
 
         // e. Return undefined.
-        iterator.get(agent).map = None;
+        iterator.get_mut(agent).map = None;
         create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc()).map(|o| o.into())
     }
 

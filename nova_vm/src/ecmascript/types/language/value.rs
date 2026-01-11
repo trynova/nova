@@ -858,7 +858,7 @@ where
     }
 }
 
-impl TryFrom<&str> for Value<'static> {
+impl TryFrom<&str> for Value<'_> {
     type Error = ();
     fn try_from(value: &str) -> Result<Self, ()> {
         if let Ok(data) = value.try_into() {
@@ -869,20 +869,20 @@ impl TryFrom<&str> for Value<'static> {
     }
 }
 
-impl TryFrom<f64> for Value<'static> {
+impl TryFrom<f64> for Value<'_> {
     type Error = ();
     fn try_from(value: f64) -> Result<Self, ()> {
         Number::try_from(value).map(|v| v.into())
     }
 }
 
-impl From<f32> for Value<'static> {
+impl From<f32> for Value<'_> {
     fn from(value: f32) -> Self {
         Value::SmallF64(SmallF64::from(value))
     }
 }
 
-impl TryFrom<i64> for Value<'static> {
+impl TryFrom<i64> for Value<'_> {
     type Error = ();
     fn try_from(value: i64) -> Result<Self, ()> {
         Ok(Value::Integer(SmallInteger::try_from(value)?))

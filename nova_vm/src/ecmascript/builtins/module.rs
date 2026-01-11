@@ -31,7 +31,7 @@ use crate::{
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference,
         WellKnownSymbolIndexes, WorkQueues, arena_vec_access,
-        indexes::{BaseIndex, HeapIndexHandle},
+        indexes::{BaseIndex},
     },
 };
 
@@ -410,7 +410,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                 let exports: &[String] = &self.get(agent).exports;
                 // 3. If exports contains P, return true.
                 if exports.contains(&p) {
-                    TryHasResult::Custom(1, self.into().bind(gc)).into()
+                    TryHasResult::Custom(1, self.bind(gc).into()).into()
                 } else {
                     // 4. Return false.
                     TryHasResult::Unset.into()
@@ -419,7 +419,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
             PropertyKey::Symbol(symbol) => {
                 // 1. If P is a Symbol, return ! OrdinaryHasProperty(O, P).
                 if symbol == WellKnownSymbolIndexes::ToStringTag.into() {
-                    TryHasResult::Custom(0, self.into().bind(gc)).into()
+                    TryHasResult::Custom(0, self.bind(gc).into()).into()
                 } else {
                     TryHasResult::Unset.into()
                 }
@@ -675,10 +675,11 @@ impl<'a> InternalMethods<'a> for Module<'a> {
     fn try_own_property_keys<'gc>(
         self,
         agent: &mut Agent,
-        _gc: NoGcScope<'gc, '_>,
+        gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, Vec<PropertyKey<'gc>>> {
         // 1. Let exports be O.[[Exports]].
         let exports = self
+            .bind(gc)
             .get(agent)
             .exports
             .iter()

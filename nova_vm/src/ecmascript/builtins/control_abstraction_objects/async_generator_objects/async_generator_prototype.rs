@@ -8,6 +8,7 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin,
+            promise::Promise,
             promise_objects::promise_abstract_operations::promise_capability_records::{
                 PromiseCapability, if_abrupt_reject_promise, if_abrupt_reject_promise_m,
             },
@@ -183,55 +184,58 @@ impl AsyncGeneratorPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        let exception = arguments.get(0).bind(gc.nogc());
-        // 1. Let generator be the this value.
-        let generator = this_value.bind(gc.nogc());
-        // 2. Let promiseCapability be ! NewPromiseCapability(%Promise%).
-        let promise_capability = PromiseCapability::new(agent, gc.nogc());
-        let mut promise = promise_capability.promise().bind(gc.nogc());
-        // 3. Let result be Completion(AsyncGeneratorValidate(generator, empty)).
-        let result = async_generator_validate(agent, generator, (), gc.nogc());
-        // 4. IfAbruptRejectPromise(result, promiseCapability).
-        let generator = if_abrupt_reject_promise_m!(agent, result, promise_capability, gc);
-        // 5. Let state be generator.[[AsyncGeneratorState]].
-        // 6. If state is suspended-start, then
-        let mut completed = false;
-        if generator.is_suspended_start(agent) {
-            // a. Set generator.[[AsyncGeneratorState]] to completed.
-            generator.transition_to_complete(agent);
-            // b. Set state to completed.
-            completed = true;
-        }
-        // 7. If state is completed, then
-        if completed || generator.is_completed(agent) {
-            // a. Perform ! Call(promiseCapability.[[Reject]], undefined, « exception »).
-            promise_capability.reject(agent, exception, gc.nogc());
-            // b. Return promiseCapability.[[Promise]].
-            return Ok(promise.unbind().into());
-        }
-        // 8. Let completion be ThrowCompletion(exception).
-        let completion =
-            AsyncGeneratorRequestCompletion::Err(JsError::new(exception.unbind())).bind(gc.nogc());
-        // 9. Perform AsyncGeneratorEnqueue(generator, completion, promiseCapability).
-        async_generator_enqueue(agent, generator, completion, promise_capability);
-        // 10. If state is suspended-yield, then
-        if generator.is_suspended_yield(agent) {
-            // a. Perform AsyncGeneratorResume(generator, completion).
-            let scoped_promise = promise.scope(agent, gc.nogc());
-            async_generator_resume(
-                agent,
-                generator.unbind(),
-                completion.unbind(),
-                gc.reborrow(),
-            );
-            promise = scoped_promise.get(agent).bind(gc.nogc());
-        } else {
-            // 11. Else,
-            // a. Assert: state is either executing or draining-queue.
-            assert!(generator.is_executing(agent) || generator.is_draining_queue(agent));
-        }
-        // 12. Return promiseCapability.[[Promise]].
-        Ok(promise.unbind().into())
+        let result: Promise = (|| {
+            let exception = arguments.get(0).bind(gc.nogc());
+            // 1. Let generator be the this value.
+            let generator = this_value.bind(gc.nogc());
+            // 2. Let promiseCapability be ! NewPromiseCapability(%Promise%).
+            let promise_capability = PromiseCapability::new(agent, gc.nogc());
+            let mut promise = promise_capability.promise().bind(gc.nogc());
+            // 3. Let result be Completion(AsyncGeneratorValidate(generator, empty)).
+            let result = async_generator_validate(agent, generator, (), gc.nogc());
+            // 4. IfAbruptRejectPromise(result, promiseCapability).
+            let generator = if_abrupt_reject_promise_m!(agent, result, promise_capability, gc);
+            // 5. Let state be generator.[[AsyncGeneratorState]].
+            // 6. If state is suspended-start, then
+            let mut completed = false;
+            if generator.is_suspended_start(agent) {
+                // a. Set generator.[[AsyncGeneratorState]] to completed.
+                generator.transition_to_complete(agent);
+                // b. Set state to completed.
+                completed = true;
+            }
+            // 7. If state is completed, then
+            if completed || generator.is_completed(agent) {
+                // a. Perform ! Call(promiseCapability.[[Reject]], undefined, « exception »).
+                promise_capability.reject(agent, exception, gc.nogc());
+                // b. Return promiseCapability.[[Promise]].
+                return promise.unbind();
+            }
+            // 8. Let completion be ThrowCompletion(exception).
+            let completion = AsyncGeneratorRequestCompletion::Err(JsError::new(exception.unbind()))
+                .bind(gc.nogc());
+            // 9. Perform AsyncGeneratorEnqueue(generator, completion, promiseCapability).
+            async_generator_enqueue(agent, generator, completion, promise_capability);
+            // 10. If state is suspended-yield, then
+            if generator.is_suspended_yield(agent) {
+                // a. Perform AsyncGeneratorResume(generator, completion).
+                let scoped_promise = promise.scope(agent, gc.nogc());
+                async_generator_resume(
+                    agent,
+                    generator.unbind(),
+                    completion.unbind(),
+                    gc.reborrow(),
+                );
+                promise = scoped_promise.get(agent).bind(gc.nogc());
+            } else {
+                // 11. Else,
+                // a. Assert: state is either executing or draining-queue.
+                assert!(generator.is_executing(agent) || generator.is_draining_queue(agent));
+            }
+            // 12. Return promiseCapability.[[Promise]].
+            promise.unbind()
+        })();
+        Ok(result.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {

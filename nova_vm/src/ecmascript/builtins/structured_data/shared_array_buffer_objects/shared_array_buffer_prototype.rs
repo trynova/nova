@@ -281,8 +281,8 @@ impl SharedArrayBufferPrototype {
         // 15. Let new be ? Construct(ctor, « 𝔽(newLen) »).
         let new = {
             let mut new_len = Number::from_i64(agent, new_len as i64, gc.nogc())
-                .into()
-                .unbind();
+                .unbind()
+                .into();
             let args = ArgumentsList::from_mut_value(&mut new_len);
             construct(agent, ctor.unbind(), Some(args), None, gc.reborrow())
                 .unbind()?

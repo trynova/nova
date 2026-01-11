@@ -1179,7 +1179,7 @@ fn handle_typed_array_index_value_slow<'gc>(
     let value = unsafe { value.take(agent) }.bind(gc.nogc());
 
     // 2. If typedArray.[[ContentType]] is bigint,
-    let v = if is_bigint {
+    let v: Numeric = if is_bigint {
         // let v be ? ToBigInt(value).
         to_big_int(agent, value.unbind(), gc.reborrow())
             .unbind()?
@@ -1223,7 +1223,7 @@ fn handle_typed_array_index_two_values_slow<'gc>(
             .bind(gc.nogc());
 
     // 4. If typedArray.[[ContentType]] is bigint, then
-    let (expected, replacement) = if is_bigint {
+    let (expected, replacement): (Numeric, Numeric) = if is_bigint {
         // a. Let expected be ? ToBigInt(expectedValue).
         let expected = to_big_int(agent, expected_value.get(agent), gc.reborrow())
             .unbind()?

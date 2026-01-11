@@ -658,8 +658,8 @@ impl RegExpPrototype {
                 .current_realm_record()
                 .intrinsics()
                 .reg_exp()
-                .into()
                 .bind(gc.nogc())
+                .into()
         };
         // 6. Let matcher be ? Construct(C, « R, flags »).
         let matcher = construct(
@@ -973,7 +973,7 @@ impl RegExpPrototype {
                     let mut replacer_args = captures
                         .into_iter()
                         .map(|s| {
-                            s.map_or(Value::Undefined, |s| s.get(agent).into().bind(gc.nogc()))
+                            s.map_or(Value::Undefined, |s| s.get(agent).bind(gc.nogc()).into())
                         })
                         .collect::<Vec<_>>();
                     replacer_args.insert(0, matched.get(agent).into());
@@ -1606,8 +1606,8 @@ impl RegExpPrototype {
             // does not take into account prototype mutations.
             let regexp_string = r.create_regexp_string(agent);
             return Ok(String::from_wtf8_buf(agent, regexp_string, nogc)
-                .into()
-                .unbind());
+                .unbind()
+                .into());
         }
         let scoped_r = r.scope(agent, nogc);
         // 3. Let pattern be ? ToString(? Get(R, "source")).

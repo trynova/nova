@@ -84,8 +84,8 @@ pub(super) fn execute_array_create<'gc>(
     instr: Instr,
     gc: NoGcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let result = array_create(agent, 0, instr.get_first_index(), None, gc)?.into();
-    vm.result = Some(result.unbind());
+    let result = array_create(agent, 0, instr.get_first_index(), None, gc)?;
+    vm.result = Some(result.unbind().into());
     Ok(())
 }
 
@@ -284,7 +284,7 @@ pub(super) fn execute_unary_minus(agent: &mut Agent, vm: &mut Vm, gc: NoGcScope)
     let old_value = vm.result.unwrap().bind(gc);
 
     // 3. If oldValue is a Number, then
-    let result = if let Ok(old_value) = Number::try_from(old_value) {
+    let result: Value = if let Ok(old_value) = Number::try_from(old_value) {
         // a. Return Number::unaryMinus(oldValue).
         Number::unary_minus(agent, old_value).into()
     }
@@ -1087,7 +1087,7 @@ pub(super) fn execute_instantiate_ordinary_function_expression<'gc>(
         compiled_bytecode, ..
     } = executable.fetch_function_expression(agent, instr.get_first_index(), gc.nogc());
     if let Some(compiled_bytecode) = compiled_bytecode {
-        function.get(agent).compiled_bytecode = Some(compiled_bytecode.unbind());
+        function.get_mut(agent).compiled_bytecode = Some(compiled_bytecode.unbind());
     }
     set_function_name(agent, function, name, None, gc.nogc());
     if !function_expression.r#async && !function_expression.generator {
@@ -1194,17 +1194,19 @@ pub(super) fn execute_class_define_constructor<'gc>(
     };
     let function = ordinary_function_create(agent, params, gc.nogc());
     if let Some(compiled_bytecode) = compiled_bytecode {
-        function.get(agent).compiled_bytecode = Some(compiled_bytecode.unbind());
+        function.get_mut(agent).compiled_bytecode = Some(compiled_bytecode.unbind());
     }
     set_function_name(agent, function, class_name.into(), None, gc.nogc());
     make_constructor(agent, function, Some(false), Some(proto), gc.nogc());
-    function.get(agent).ecmascript_function.home_object = Some(proto.into());
-    function.get(agent).ecmascript_function.constructor_status =
-        if has_constructor_parent || is_null_derived_class {
-            ConstructorStatus::DerivedClass
-        } else {
-            ConstructorStatus::BaseClass
-        };
+    function.get_mut(agent).ecmascript_function.home_object = Some(proto.into());
+    function
+        .get_mut(agent)
+        .ecmascript_function
+        .constructor_status = if has_constructor_parent || is_null_derived_class {
+        ConstructorStatus::DerivedClass
+    } else {
+        ConstructorStatus::BaseClass
+    };
 
     unwrap_try(proto.try_define_own_property(
         agent,
@@ -1677,10 +1679,7 @@ pub(super) fn execute_evaluate_super<'gc>(
             |agent, gc| {
                 format!(
                     "'{}' is not a constructor.",
-                    constructor
-                        .into()
-                        .string_repr(agent, gc)
-                        .to_string_lossy(agent)
+                    constructor.string_repr(agent, gc).to_string_lossy(agent)
                 )
             },
             gc.reborrow(),
@@ -1928,7 +1927,7 @@ pub(super) fn execute_increment(agent: &mut Agent, vm: &mut Vm, gc: NoGcScope) {
     let lhs = vm.result.take().unwrap().bind(gc);
     // Note: This is done by the previous instruction.
     let old_value = Numeric::try_from(lhs).unwrap();
-    let new_value = if let Ok(old_value) = Number::try_from(old_value) {
+    let new_value: Value = if let Ok(old_value) = Number::try_from(old_value) {
         Number::add(agent, old_value, 1.into()).into()
     } else {
         let old_value = BigInt::try_from(old_value).unwrap();
@@ -1941,7 +1940,7 @@ pub(super) fn execute_decrement(agent: &mut Agent, vm: &mut Vm, gc: NoGcScope) {
     let lhs = vm.result.take().unwrap().bind(gc);
     // Note: This is done by the previous instruction.
     let old_value = Numeric::try_from(lhs).unwrap();
-    let new_value = if let Ok(old_value) = Number::try_from(old_value) {
+    let new_value: Value = if let Ok(old_value) = Number::try_from(old_value) {
         Number::subtract(agent, old_value, 1.into()).into()
     } else {
         let old_value = BigInt::try_from(old_value).unwrap();
@@ -2440,7 +2439,7 @@ pub(super) fn execute_string_concat<'gc>(
                         .unbind()?
                         .bind(gc.nogc());
                     length += string.len(agent);
-                    let string = string.into();
+                    let string: Value = string.into();
                     // SAFETY: args are never shared
                     unsafe { ele.replace(agent, string.unbind()) };
                 }
@@ -2946,8 +2945,8 @@ pub(super) fn execute_import_call(agent: &mut Agent, vm: &mut Vm, gc: GcScope) {
                 |agent, gc| evaluate_import_call(agent, specifier, options, gc),
                 gc,
             )
-            .into()
-            .unbind(),
+            .unbind()
+            .into(),
         )
     };
 }

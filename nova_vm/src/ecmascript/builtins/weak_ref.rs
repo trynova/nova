@@ -9,9 +9,9 @@ use crate::{
     },
     engine::context::Bindable,
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, arena_vec_access,
-        indexes::{BaseIndex, HeapIndexHandle},
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, WorkQueues, arena_vec_access,
+        indexes::{BaseIndex},
     },
 };
 
@@ -27,18 +27,18 @@ arena_vec_access!(WeakRef, 'a, WeakRefHeapData, weak_refs);
 
 impl<'a> WeakRef<'a> {
     pub(crate) fn set_target(self, agent: &mut Agent, target: WeakKey) {
-        self.get(agent).weak_ref_target = Some(target.unbind());
+        self.get_mut(agent).weak_ref_target = Some(target.unbind());
         // Note: WeakRefTarget is set only from the constructor, and it also
         // adds the WeakRef into the [[KeptAlive]] list; hence we set the
         // boolean here.
-        self.get(agent).kept_alive = true;
+        self.get_mut(agent).kept_alive = true;
     }
 
     pub(crate) fn get_target(self, agent: &mut Agent) -> Option<WeakKey<'a>> {
         let target = self.get(agent).weak_ref_target;
         if target.is_some() {
             // When observed, WeakRef gets added to [[KeptAlive]] list.
-            self.get(agent).kept_alive = true;
+            self.get_mut(agent).kept_alive = true;
         }
         target
     }

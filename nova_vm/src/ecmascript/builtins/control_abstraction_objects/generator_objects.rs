@@ -18,8 +18,7 @@ use crate::{
     },
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, WorkQueues, arena_vec_access,
-        indexes::{BaseIndex, HeapIndexHandle},
+        HeapSweepWeakReference, WorkQueues, arena_vec_access, indexes::BaseIndex,
     },
 };
 
@@ -64,7 +63,7 @@ impl Generator<'_> {
             executable,
             execution_context,
         } = match generator
-            .get(agent)
+            .get_mut(agent)
             .generator_state
             .replace(GeneratorState::Executing)
         {
@@ -110,7 +109,7 @@ impl Generator<'_> {
                 // h. NOTE: Once a generator enters the completed state it never leaves it and its
                 // associated execution context is never resumed. Any execution state associated
                 // with acGenerator can be discarded at this point.
-                generator.get(agent).generator_state = Some(GeneratorState::Completed);
+                generator.get_mut(agent).generator_state = Some(GeneratorState::Completed);
                 // i. If result is a normal completion, then
                 //    i. Let resultValue be undefined.
                 // j. Else if result is a return completion, then
@@ -125,7 +124,7 @@ impl Generator<'_> {
                 // h. NOTE: Once a generator enters the completed state it never leaves it and its
                 // associated execution context is never resumed. Any execution state associated
                 // with acGenerator can be discarded at this point.
-                generator.get(agent).generator_state = Some(GeneratorState::Completed);
+                generator.get_mut(agent).generator_state = Some(GeneratorState::Completed);
                 // k. i. Assert: result is a throw completion.
                 //    ii. Return ? result.
                 Err(err.unbind())
@@ -136,7 +135,7 @@ impl Generator<'_> {
                 // GeneratorYield:
                 // 3. Let generator be the value of the Generator component of genContext.
                 // 5. Set generator.[[GeneratorState]] to suspended-yield.
-                generator.get(agent).generator_state =
+                generator.get_mut(agent).generator_state =
                     Some(GeneratorState::SuspendedYield(SuspendedGeneratorState {
                         vm,
                         executable: executable.get(agent),
@@ -168,7 +167,7 @@ impl Generator<'_> {
                 // b. NOTE: Once a generator enters the completed state it never leaves it and its
                 // associated execution context is never resumed. Any execution state associated
                 // with generator can be discarded at this point.
-                generator.get(agent).generator_state = Some(GeneratorState::Completed);
+                generator.get_mut(agent).generator_state = Some(GeneratorState::Completed);
                 // c. Set state to completed.
 
                 // 3. If state is completed, then
@@ -198,7 +197,7 @@ impl Generator<'_> {
             executable,
             execution_context,
         })) = generator
-            .get(agent)
+            .get_mut(agent)
             .generator_state
             .replace(GeneratorState::Executing)
         else {
@@ -239,16 +238,16 @@ impl Generator<'_> {
         // 12. Return ? result.
         match execution_result {
             ExecutionResult::Return(result) => {
-                generator.get(agent).generator_state = Some(GeneratorState::Completed);
+                generator.get_mut(agent).generator_state = Some(GeneratorState::Completed);
                 create_iter_result_object(agent, result.unbind(), true, gc.into_nogc())
                     .map(|o| o.into())
             }
             ExecutionResult::Throw(err) => {
-                generator.get(agent).generator_state = Some(GeneratorState::Completed);
+                generator.get_mut(agent).generator_state = Some(GeneratorState::Completed);
                 Err(err)
             }
             ExecutionResult::Yield { vm, yielded_value } => {
-                generator.get(agent).generator_state =
+                generator.get_mut(agent).generator_state =
                     Some(GeneratorState::SuspendedYield(SuspendedGeneratorState {
                         vm,
                         executable: executable.unbind(),
@@ -278,7 +277,7 @@ impl Generator<'_> {
                 // b. NOTE: Once a generator enters the completed state it never leaves it and its
                 // associated execution context is never resumed. Any execution state associated
                 // with generator can be discarded at this point.
-                generator.get(agent).generator_state = Some(GeneratorState::Completed);
+                generator.get_mut(agent).generator_state = Some(GeneratorState::Completed);
                 // c. Set state to completed.
 
                 // 3. If abruptCompletion is a return completion, then
@@ -321,7 +320,7 @@ impl Generator<'_> {
             executable,
             execution_context,
         })) = generator
-            .get(agent)
+            .get_mut(agent)
             .generator_state
             .replace(GeneratorState::Executing)
         else {
@@ -368,15 +367,15 @@ impl Generator<'_> {
         // 12. Return ? result.
         match execution_result {
             ExecutionResult::Return(result) => {
-                generator.get(agent).generator_state = Some(GeneratorState::Completed);
+                generator.get_mut(agent).generator_state = Some(GeneratorState::Completed);
                 create_iter_result_object(agent, result, true, gc.into_nogc()).map(|o| o.into())
             }
             ExecutionResult::Throw(err) => {
-                generator.get(agent).generator_state = Some(GeneratorState::Completed);
+                generator.get_mut(agent).generator_state = Some(GeneratorState::Completed);
                 Err(err)
             }
             ExecutionResult::Yield { vm, yielded_value } => {
-                generator.get(agent).generator_state =
+                generator.get_mut(agent).generator_state =
                     Some(GeneratorState::SuspendedYield(SuspendedGeneratorState {
                         vm,
                         executable: executable.unbind(),

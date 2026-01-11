@@ -14,9 +14,8 @@ use crate::{
         rootable::Scopable,
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, arena_vec_access,
-        indexes::{BaseIndex, HeapIndexHandle},
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, WorkQueues, arena_vec_access, indexes::BaseIndex,
     },
 };
 
@@ -74,7 +73,7 @@ impl<'a> Promise<'a> {
     }
 
     pub(crate) fn set_already_resolved(self, agent: &mut Agent) {
-        match self.get_mut(agent).promise_state {
+        match &mut self.get_mut(agent).promise_state {
             PromiseState::Pending { is_resolved, .. } => *is_resolved = true,
             _ => unreachable!(),
         };

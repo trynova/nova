@@ -14,7 +14,7 @@ use crate::{
     },
     engine::context::{Bindable, NoGcScope, bindable_handle},
     heap::{
-        ArenaAccess, CompactionLists, HeapMarkAndSweep, WorkQueues,
+        CompactionLists, HeapMarkAndSweep, WorkQueues,
         element_array::ElementDescriptor,
     },
 };

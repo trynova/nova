@@ -198,7 +198,7 @@ impl DateConstructor {
         )?)
         .unwrap();
         // 7. Set O.[[DateValue]] to dv.
-        o.get(agent).date = dv;
+        o.get_mut(agent).date = dv;
         // 8. Return O.
         Ok(o.into())
     }
