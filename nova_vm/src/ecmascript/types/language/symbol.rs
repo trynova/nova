@@ -13,7 +13,7 @@ use crate::{
     },
     engine::{
         context::{Bindable, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef},
+        rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
@@ -146,16 +146,32 @@ impl Rootable for Symbol<'_> {
     type RootRepr = SymbolRootRepr;
 
     #[inline]
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {}
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        WellKnownSymbolIndexes::try_from(value)
+            .map(|s| SymbolRootRepr(SymbolRootReprInner::WellKnown(s)))
+            .map_err(|_| HeapRootData::Symbol(value.unbind()))
+    }
 
     #[inline]
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {}
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        match value.0 {
+            SymbolRootReprInner::WellKnown(well_known) => Ok(Symbol::from(well_known)),
+            SymbolRootReprInner::HeapRef(heap_root_ref) => Err(heap_root_ref),
+        }
+    }
 
     #[inline]
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {}
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        SymbolRootRepr(SymbolRootReprInner::HeapRef(heap_ref))
+    }
 
     #[inline]
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {}
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::Symbol(s) => Some(s),
+            _ => None,
+        }
+    }
 }
 impl TryFrom<HeapRootData> for Symbol<'_> {
     type Error = ();
