@@ -31,20 +31,20 @@
 //! backing object if it exists.
 
 pub(crate) mod arguments;
-mod array;
+pub(crate) mod array;
 #[cfg(feature = "array-buffer")]
-pub mod array_buffer;
-pub mod bound_function;
-mod builtin_constructor;
-mod builtin_function;
+pub(crate) mod array_buffer;
+pub(crate) mod bound_function;
+pub(crate) mod builtin_constructor;
+pub(crate) mod builtin_function;
 pub(crate) mod control_abstraction_objects;
 #[cfg(feature = "array-buffer")]
 pub(crate) mod data_view;
 #[cfg(feature = "date")]
-pub mod date;
-mod ecmascript_function;
+pub(crate) mod date;
+pub(crate) mod ecmascript_function;
 pub(crate) mod embedder_object;
-pub mod error;
+pub(crate) mod error;
 pub(crate) mod finalization_registry;
 pub(crate) mod fundamental_objects;
 pub(crate) mod global_object;
@@ -54,7 +54,7 @@ pub(crate) mod managing_memory;
 pub(crate) mod map;
 pub(crate) mod module;
 pub(crate) mod numbers_and_dates;
-pub mod ordinary;
+pub(crate) mod ordinary;
 pub(crate) mod primitive_objects;
 pub(crate) mod promise;
 pub(crate) mod proxy;
@@ -77,24 +77,29 @@ pub(crate) mod weak_ref;
 pub(crate) mod weak_set;
 
 pub(crate) use arguments::*;
-pub use array::Array;
-pub(crate) use array::ArrayHeapData;
 pub(crate) use array::abstract_operations::*;
+pub(crate) use array::*;
+#[cfg(feature = "array-buffer")]
+pub(crate) use array_buffer::*;
+pub(crate) use builtin_constructor::*;
+pub(crate) use builtin_function::*;
+pub(crate) use control_abstraction_objects::*;
+pub(crate) use ecmascript_function::*;
+#[cfg(feature = "array-buffer")]
+pub(crate) use typed_array::*;
+
+pub use array::Array;
 #[cfg(feature = "array-buffer")]
 pub use array_buffer::ArrayBuffer;
-#[cfg(feature = "array-buffer")]
-pub(crate) use array_buffer::ArrayBufferHeapData;
-pub use builtin_constructor::BuiltinConstructorFunction;
-pub(crate) use builtin_constructor::{BuiltinConstructorArgs, create_builtin_constructor};
+pub use bound_function::BoundFunction;
 pub use builtin_function::{
     ArgumentsList, Behaviour, Builtin, BuiltinFunction, BuiltinFunctionArgs, BuiltinGetter,
-    BuiltinSetter, ConstructorFn, RegularFn as JsFunction, RegularFn, ScopedArgumentsList,
-    create_builtin_function,
+    BuiltinSetter, ConstructorFn, RegularFn, ScopedArgumentsList, create_builtin_function,
 };
-pub(crate) use builtin_function::{BuiltinIntrinsic, BuiltinIntrinsicConstructor};
-pub use control_abstraction_objects::*;
-pub(crate) use ecmascript_function::*;
+pub use ecmascript_function::ECMAScriptFunction;
 #[cfg(feature = "shared-array-buffer")]
 pub use shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "array-buffer")]
-pub use typed_array::*;
+pub use typed_array::{
+    AnyTypedArray, GenericSharedTypedArray, GenericTypedArray, SharedTypedArray, TypedArray,
+};

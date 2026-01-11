@@ -119,7 +119,7 @@ impl HeapMarkAndSweep for PromiseReactionHandler<'static> {
 }
 
 #[derive(Debug, Clone)]
-pub struct PromiseReactionRecord<'a> {
+pub(crate) struct PromiseReactionRecord<'a> {
     /// \[\[Capability\]\]
     ///
     /// a PromiseCapability Record or undefined

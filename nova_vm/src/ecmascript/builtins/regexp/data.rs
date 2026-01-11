@@ -119,7 +119,7 @@ impl From<usize> for RegExpLastIndex {
 }
 
 #[derive(Debug)]
-pub struct RegExpHeapData<'a> {
+pub(crate) struct RegExpHeapData<'a> {
     pub(super) object_index: Option<OrdinaryObject<'a>>,
     pub(super) reg_exp_matcher: Result<Regex, regex::Error>,
     pub(super) original_source: String<'a>,

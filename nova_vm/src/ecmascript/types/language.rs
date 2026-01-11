@@ -17,16 +17,18 @@ mod value_vec;
 
 pub(crate) use bigint::*;
 pub(crate) use function::*;
-pub use number::*;
-pub use object::*;
 pub(crate) use primitive::*;
+pub(crate) use string::*;
+pub(crate) use symbol::*;
 pub(crate) use value::*;
 pub(crate) use value_vec::*;
 
 pub use bigint::BigInt;
 pub use function::Function;
+pub use number::*;
 pub use numeric::*;
+pub use object::*;
 pub use primitive::Primitive;
-pub use string::{BUILTIN_STRING_MEMORY, BUILTIN_STRINGS_LIST, HeapString, String, StringRecord};
-pub use symbol::{Symbol, SymbolHeapData};
+pub use string::{BUILTIN_STRING_MEMORY, BUILTIN_STRINGS_LIST, HeapString, String};
+pub use symbol::Symbol;
 pub use value::Value;

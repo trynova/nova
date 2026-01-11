@@ -29,7 +29,7 @@ use crate::{
     },
 };
 
-pub use data::StringRecord;
+pub(crate) use data::StringRecord;
 use hashbrown::HashTable;
 use wtf8::{CodePoint, Wtf8, Wtf8Buf};
 

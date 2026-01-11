@@ -130,7 +130,7 @@ impl Rootable for Numeric<'_> {
     }
 }
 
-// === OUTOUT OF primitive_handle! MACRO ADAPTED FOR Numeric ===
+// === OUTPUT OF primitive_handle! MACRO ADAPTED FOR Numeric ===
 
 impl<'a> From<Numeric<'a>> for Value<'a> {
     #[inline(always)]

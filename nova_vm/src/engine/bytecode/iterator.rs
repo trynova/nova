@@ -550,7 +550,7 @@ impl<'a> ObjectPropertiesIterator<'a> {
 }
 
 #[derive(Debug)]
-pub struct ObjectPropertiesIteratorRecord<'a> {
+pub(crate) struct ObjectPropertiesIteratorRecord<'a> {
     object: Object<'a>,
     visited_keys: PropertyKeySet<'a>,
     remaining_keys: Option<Vec<PropertyKey<'a>>>,
@@ -762,7 +762,7 @@ impl<'a> ArrayValuesIterator<'a> {
 }
 
 #[derive(Debug)]
-pub struct ArrayValuesIteratorRecord<'a> {
+pub(crate) struct ArrayValuesIteratorRecord<'a> {
     array: Array<'a>,
     index: u32,
 }

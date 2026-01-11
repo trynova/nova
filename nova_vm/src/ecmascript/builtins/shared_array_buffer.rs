@@ -45,8 +45,6 @@ impl<'sab> SharedArrayBuffer<'sab> {
             .bind(gc))
     }
 
-    /// Constant to be used only for creating a build-time Self.
-
     pub(crate) fn as_slice(self, agent: &Agent) -> RacySlice<'_, u8> {
         self.get_data_block(agent).as_racy_slice()
     }

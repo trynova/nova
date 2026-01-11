@@ -12,7 +12,7 @@ use core::{
     ops::{Index, IndexMut},
 };
 use core::{marker::PhantomData, mem::size_of, num::NonZeroU32};
-use std::{any::type_name, u32};
+use std::any::type_name;
 
 /// A struct containing a non-zero index into an array or
 /// vector of `T`s. Due to the non-zero value, the offset
@@ -21,7 +21,7 @@ use std::{any::type_name, u32};
 /// This index implies a tracing reference count from this
 /// struct to T at the given index.
 #[repr(transparent)]
-pub struct BaseIndex<'a, T: ?Sized>(NonZeroU32, PhantomData<T>, PhantomData<&'a GcToken>);
+pub(crate) struct BaseIndex<'a, T: ?Sized>(NonZeroU32, PhantomData<T>, PhantomData<&'a GcToken>);
 
 impl<T: ?Sized> BaseIndex<'_, T> {
     pub(crate) const fn from_index_const(index: usize) -> Self {
@@ -138,8 +138,8 @@ impl<T> Default for BaseIndex<'_, T> {
     }
 }
 
-pub type ElementIndex<'a> = BaseIndex<'a, [Option<Value<'static>>]>;
-pub type PropertyKeyIndex<'a> = BaseIndex<'a, [PropertyKey<'static>]>;
+pub(crate) type ElementIndex<'a> = BaseIndex<'a, [Option<Value<'static>>]>;
+pub(crate) type PropertyKeyIndex<'a> = BaseIndex<'a, [PropertyKey<'static>]>;
 
 // Implement Default for ElementIndex: This is done to support Default
 // constructor of ElementsVector.

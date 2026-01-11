@@ -1529,7 +1529,7 @@ impl StringPrototype {
         match unicode_normalize(&s.to_string_lossy_(agent), f) {
             // 7. Return ns.
             None => Ok(s.unbind().into()),
-            Some(ns) => Ok(Value::from_string(agent, ns, gc.into_nogc()).into()),
+            Some(ns) => Ok(Value::from_string(agent, ns, gc.into_nogc())),
         }
     }
 
@@ -2193,7 +2193,7 @@ impl StringPrototype {
                 return call_function(
                     agent,
                     splitter.unbind(),
-                    scoped_separator.get(agent).into(),
+                    scoped_separator.get(agent),
                     Some(ArgumentsList::from_mut_slice(&mut [
                         o.get(agent),
                         limit.get(agent),

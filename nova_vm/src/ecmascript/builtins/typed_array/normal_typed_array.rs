@@ -2229,7 +2229,7 @@ impl<'a, T: Viewable> DirectArenaAccess for GenericTypedArray<'a, T> {
     type Data = TypedArrayRecord<'static>;
     type Output = TypedArrayRecord<'a>;
     #[inline]
-    fn get_direct<'agent>(self, source: &'agent Vec<Self::Data>) -> &'agent Self::Output {
+    fn get_direct(self, source: &Vec<Self::Data>) -> &Self::Output {
         source
             .get(HeapIndexHandle::get_index(self))
             .unwrap_or_else(|| panic!("Invalid handle {:?}", self))

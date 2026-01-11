@@ -108,7 +108,7 @@ impl PromisePrototype {
         // 3. Let C be ? SpeciesConstructor(promise, %Promise%).
         let c = species_constructor(
             agent,
-            promise.unbind().into(),
+            promise.unbind(),
             ProtoIntrinsics::Promise,
             gc.reborrow(),
         )

@@ -2,7 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::{builtins::typed_array::Float16Array, types::FLOAT_16_ARRAY_DISCRIMINANT};
 #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
@@ -68,6 +67,10 @@ use crate::{
 /// In Nova engine, TypedArrays viewing a [`SharedArrayBuffer`] are represented
 /// by a [`SharedTypedArray`], and TypedArrays viewing an [`ArrayBuffer`] are
 /// represented by a [`TypedArray`].
+///
+/// [`ArrayBuffer`]: crate::ecmascript::builtins::ArrayBuffer
+/// [`SharedArrayBuffer`]: crate::ecmascript::builtins::SharedArrayBuffer
+/// [`SharedTypedArray`]: crate::ecmascript::builtins::SharedTypedArray
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]

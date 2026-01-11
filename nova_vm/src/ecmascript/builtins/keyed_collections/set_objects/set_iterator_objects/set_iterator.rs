@@ -82,7 +82,7 @@ impl HeapSweepWeakReference for SetIterator<'static> {
 bindable_handle!(SetIteratorHeapData);
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct SetIteratorHeapData<'a> {
+pub(crate) struct SetIteratorHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) set: Option<Set<'a>>,
     pub(crate) next_index: usize,

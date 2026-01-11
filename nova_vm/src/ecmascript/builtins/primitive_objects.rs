@@ -545,7 +545,7 @@ impl<'a> From<PrimitiveObjectData<'a>> for Primitive<'a> {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PrimitiveObjectRecord<'a> {
+pub(crate) struct PrimitiveObjectRecord<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) data: PrimitiveObjectData<'a>,
 }

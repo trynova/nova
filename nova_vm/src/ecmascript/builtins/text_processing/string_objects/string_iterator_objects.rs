@@ -180,7 +180,7 @@ impl StringIteratorPrototype {
 }
 
 #[derive(Debug)]
-pub struct StringIteratorHeapData<'a> {
+pub(crate) struct StringIteratorHeapData<'a> {
     backing_object: Option<OrdinaryObject<'a>>,
     s: String<'a>,
     /// UTF-8 index into s.

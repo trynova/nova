@@ -40,7 +40,7 @@ use super::{
 /// NOTE: There is no data-wise difference between a DeclarativeEnvironment and
 /// a ModuleEnvironment, so we treat them exactly the same way.
 #[derive(Debug)]
-pub struct ModuleEnvironmentRecord {
+pub(crate) struct ModuleEnvironmentRecord {
     /// Module Environment Records support all of the Declarative Environment
     /// Record methods listed in [Table 16](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     /// and share the same specifications for all of those methods except for

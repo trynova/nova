@@ -359,7 +359,7 @@ pub(crate) enum IntrinsicObjectShapes {
 impl IntrinsicObjectShapes {
     pub(crate) const fn get_object_shape_index(self, base: ObjectShape) -> ObjectShape<'static> {
         ObjectShape::from_non_zero(
-            NonZeroU32::new(self as u32 + base.get_index_u32_const() as u32 + 1).unwrap(),
+            NonZeroU32::new(self as u32 + base.get_index_u32_const() + 1).unwrap(),
         )
     }
 

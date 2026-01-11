@@ -12,7 +12,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub struct ErrorHeapData<'a> {
+pub(crate) struct ErrorHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) kind: ExceptionType,
     pub(crate) message: Option<String<'a>>,

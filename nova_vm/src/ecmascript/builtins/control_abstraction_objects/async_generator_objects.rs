@@ -346,7 +346,7 @@ impl<'a> CreateHeapData<AsyncGeneratorHeapData<'a>, AsyncGenerator<'a>> for Heap
 }
 
 #[derive(Debug, Default)]
-pub struct AsyncGeneratorHeapData<'a> {
+pub(crate) struct AsyncGeneratorHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) async_generator_state: Option<AsyncGeneratorState<'a>>,
     pub(crate) executable: Option<Executable<'a>>,

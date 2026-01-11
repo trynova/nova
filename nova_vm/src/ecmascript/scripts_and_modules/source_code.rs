@@ -316,7 +316,7 @@ impl<'a> SourceCode<'a> {
     }
 }
 
-pub struct SourceCodeHeapData<'a> {
+pub(crate) struct SourceCodeHeapData<'a> {
     /// The source JavaScript string data the eval was called with. The string
     /// is known and required to be a HeapString because functions created
     /// in the eval call may keep references to the string data. If the eval

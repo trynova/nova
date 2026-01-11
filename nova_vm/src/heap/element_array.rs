@@ -94,7 +94,7 @@ impl<'a, 'gc> PropertyStorageMut<'a, 'gc> {
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub enum ElementArrayKey {
+pub(crate) enum ElementArrayKey {
     #[default]
     Empty,
     /// Uniquely owned zero-sized elements array

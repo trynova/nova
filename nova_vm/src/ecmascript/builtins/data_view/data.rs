@@ -17,7 +17,7 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct DataViewRecord<'a> {
+pub(crate) struct DataViewRecord<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     // TODO: Add a helper function for a u32::MAX value which signifies an a under-construction value:
     // See https://github.com/trynova/nova/pull/447#discussion_r1806247107 for reference.
@@ -43,7 +43,7 @@ impl Default for DataViewRecord<'_> {
 
 #[cfg(feature = "shared-array-buffer")]
 #[derive(Debug)]
-pub struct SharedDataViewRecord<'a> {
+pub(crate) struct SharedDataViewRecord<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     // TODO: Add a helper function for a u32::MAX value which signifies an a under-construction value:
     // See https://github.com/trynova/nova/pull/447#discussion_r1806247107 for reference.

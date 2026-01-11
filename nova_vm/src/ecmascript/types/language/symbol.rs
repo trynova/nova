@@ -4,7 +4,7 @@
 
 mod data;
 
-pub use data::SymbolHeapData;
+pub(crate) use data::SymbolHeapData;
 
 use crate::{
     ecmascript::{

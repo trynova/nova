@@ -1396,7 +1396,7 @@ pub(crate) fn instanceof_operator<'a, 'b>(
     let Ok(mut target) = Object::try_from(target) else {
         let error_message = format!(
             "Invalid instanceof target {}.",
-            Value::from(target)
+            target
                 .unbind()
                 .string_repr(agent, gc.reborrow())
                 .to_string_lossy_(agent)
@@ -1430,13 +1430,12 @@ pub(crate) fn instanceof_operator<'a, 'b>(
     };
     // 3. If instOfHandler is not undefined, then
     if let Some(inst_of_handler) = inst_of_handler {
-        let value: Value = value.into();
         // a. Return ToBoolean(? Call(instOfHandler, target, « V »)).
         let result = call_function(
             agent,
             inst_of_handler.unbind(),
             target.unbind().into(),
-            Some(ArgumentsList::from_mut_slice(&mut [value.unbind().into()])),
+            Some(ArgumentsList::from_mut_slice(&mut [value.unbind()])),
             gc.reborrow(),
         )
         .unbind()?

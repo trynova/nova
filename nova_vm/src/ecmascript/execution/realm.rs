@@ -116,7 +116,7 @@ impl HeapMarkAndSweep for Realm<'static> {
 /// within the scope of that global environment, and other associated state and
 /// resources.
 #[derive(Debug)]
-pub struct RealmRecord<'a> {
+pub(crate) struct RealmRecord<'a> {
     /// ### \[\[AgentSignifier]]
     ///
     /// The agent that owns this realm

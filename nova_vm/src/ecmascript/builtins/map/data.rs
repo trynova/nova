@@ -20,7 +20,7 @@ use hashbrown::{HashTable, hash_table::Entry};
 use soavec_derive::SoAble;
 
 #[derive(Debug, Default, SoAble)]
-pub struct MapHeapData<'a> {
+pub(crate) struct MapHeapData<'a> {
     /// Low-level hash table pointing to keys-values indexes.
     pub(super) map_data: RefCell<HashTable<u32>>,
     // TODO: Use a ParallelVec to remove one unnecessary allocation.

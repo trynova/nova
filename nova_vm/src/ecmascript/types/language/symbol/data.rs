@@ -9,7 +9,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub struct SymbolHeapData<'a> {
+pub(crate) struct SymbolHeapData<'a> {
     pub(crate) descriptor: Option<String<'a>>,
 }
 

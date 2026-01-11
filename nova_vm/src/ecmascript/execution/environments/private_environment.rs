@@ -13,10 +13,7 @@ use crate::{
         types::{PrivateName, String, Value},
     },
     engine::context::{Bindable, NoGcScope, bindable_handle},
-    heap::{
-        CompactionLists, HeapMarkAndSweep, WorkQueues,
-        element_array::ElementDescriptor,
-    },
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, element_array::ElementDescriptor},
 };
 
 use super::PrivateEnvironment;
@@ -126,7 +123,7 @@ bindable_handle!(PrivateField);
 /// evaluated, a new PrivateEnvironment Record is created to record the Private
 /// Names declared by that class.
 #[derive(Debug)]
-pub struct PrivateEnvironmentRecord {
+pub(crate) struct PrivateEnvironmentRecord {
     /// ### \[\[OuterPrivateEnvironment\]\]
     ///
     /// The PrivateEnvironment Record of the nearest containing class. null if

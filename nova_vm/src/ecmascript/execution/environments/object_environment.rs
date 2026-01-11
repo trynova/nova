@@ -58,7 +58,7 @@ use super::TryHasBindingContinue;
 /// if the Writable attribute of the corresponding property is false. Immutable
 /// bindings do not exist for Object Environment Records.
 #[derive(Debug, Clone)]
-pub struct ObjectEnvironmentRecord {
+pub(crate) struct ObjectEnvironmentRecord {
     /// ### \[\[BindingObject\]\]
     ///
     /// The binding object of this Environment Record.

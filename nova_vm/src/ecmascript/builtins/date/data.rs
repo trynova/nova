@@ -84,7 +84,7 @@ impl<'a> From<DateValue> for Value<'a> {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct DateHeapData<'a> {
+pub(crate) struct DateHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) date: DateValue,
 }

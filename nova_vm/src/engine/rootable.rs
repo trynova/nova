@@ -130,7 +130,7 @@ use crate::{
     heap::HeapMarkAndSweep,
 };
 
-pub mod private {
+pub(crate) mod private {
     use std::ptr::NonNull;
 
     #[cfg(feature = "date")]
@@ -479,7 +479,7 @@ pub trait Rootable: Copy + RootableSealed {
 }
 
 // Blanket impl for heap references.
-impl<'a, T: Copy + RootableSealed + Into<HeapRootData> + TryFrom<HeapRootData>> Rootable for T {
+impl<T: Copy + RootableSealed + Into<HeapRootData> + TryFrom<HeapRootData>> Rootable for T {
     type RootRepr = HeapRootRef;
 
     #[inline]

@@ -79,7 +79,7 @@ enum Command {
         #[arg(short, long)]
         module: bool,
 
-        /// Sets the [[CanBlock]] value of the Agent Record to false.
+        /// Sets the \[\[CanBlock]] value of the Agent Record to false.
         #[arg(long)]
         no_block: bool,
 

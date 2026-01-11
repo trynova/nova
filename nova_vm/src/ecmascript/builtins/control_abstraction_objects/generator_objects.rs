@@ -433,7 +433,7 @@ impl HeapSweepWeakReference for Generator<'static> {
 }
 
 #[derive(Debug, Default)]
-pub struct GeneratorHeapData<'a> {
+pub(crate) struct GeneratorHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) generator_state: Option<GeneratorState>,
 }

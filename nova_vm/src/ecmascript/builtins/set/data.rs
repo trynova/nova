@@ -17,7 +17,7 @@ use hashbrown::HashTable;
 use soavec_derive::SoAble;
 
 #[derive(Debug, Default, SoAble)]
-pub struct SetHeapData<'a> {
+pub(crate) struct SetHeapData<'a> {
     pub(crate) set_data: RefCell<HashTable<u32>>,
     pub(crate) values: Vec<Option<Value<'a>>>,
     pub(crate) object_index: Option<OrdinaryObject<'a>>,

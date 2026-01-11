@@ -29,7 +29,7 @@ use crate::{
 
 use abstract_operations::detach_array_buffer;
 pub(crate) use abstract_operations::*;
-pub use data::*;
+pub(crate) use data::*;
 use ecmascript_atomics::Ordering;
 
 #[cfg(feature = "shared-array-buffer")]

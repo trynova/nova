@@ -774,16 +774,13 @@ pub fn call_proxy_set<'a>(
     if strict {
         let scoped_p = p.scope(agent, gc.nogc());
         let scoped_o = receiver.scope(agent, gc.nogc());
-        let succeeded = proxy.internal_set(agent, p, value, receiver.into(), gc.reborrow());
+        let succeeded = proxy.internal_set(agent, p, value, receiver, gc.reborrow());
         // SAFETY: not shared.
         let o = unsafe { scoped_o.take(agent) };
         let succeeded = succeeded.unbind()?;
         if !succeeded {
             // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
-            let o = Value::from(o)
-                .string_repr(agent, gc.reborrow())
-                .unbind()
-                .bind(gc.nogc());
+            let o = o.string_repr(agent, gc.reborrow()).unbind().bind(gc.nogc());
             // SAFETY: not shared.
             let p = unsafe { scoped_p.take(agent) }.bind(gc.nogc());
             return Err(throw_cannot_set_property(
@@ -795,7 +792,7 @@ pub fn call_proxy_set<'a>(
         }
     } else {
         // In sloppy mode we don't care about the result.
-        let _ = proxy.internal_set(agent, p, value, receiver.into(), gc)?;
+        let _ = proxy.internal_set(agent, p, value, receiver, gc)?;
     }
     Ok(())
 }

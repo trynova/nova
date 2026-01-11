@@ -38,7 +38,7 @@ pub(crate) enum ThisBindingStatus {
 /// Record also contains the state that is used to perform super method
 /// invocations from within the function.
 #[derive(Debug)]
-pub struct FunctionEnvironmentRecord {
+pub(crate) struct FunctionEnvironmentRecord {
     /// ### \[\[ThisValue\]\]
     ///
     /// This is the this value used for this invocation of the function.
@@ -459,7 +459,7 @@ impl<'e> FunctionEnvironment<'e> {
     /// envRec takes no arguments and returns either a normal completion
     /// containing either an Object, null, or undefined.
     pub(crate) fn get_super_base<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Value<'a> {
-        let env_rec: &FunctionEnvironmentRecord = &self.get(agent);
+        let env_rec: &FunctionEnvironmentRecord = self.get(agent);
 
         // 1. Let home be envRec.[[FunctionObject]].[[HomeObject]].
         let home = match env_rec.function_object {

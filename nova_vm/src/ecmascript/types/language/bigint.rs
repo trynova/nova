@@ -627,7 +627,7 @@ impl<'a> BigInt<'a> {
         match (x, y) {
             (BigInt::BigInt(_), BigInt::SmallBigInt(_)) => false,
             (BigInt::SmallBigInt(_), BigInt::BigInt(_)) => true,
-            (BigInt::BigInt(b1), BigInt::BigInt(b2)) => &b1.get(agent).data < &b2.get(agent).data,
+            (BigInt::BigInt(b1), BigInt::BigInt(b2)) => b1.get(agent).data < b2.get(agent).data,
             (BigInt::SmallBigInt(b1), BigInt::SmallBigInt(b2)) => b1.into_i64() < b2.into_i64(),
         }
     }
@@ -643,7 +643,7 @@ impl<'a> BigInt<'a> {
         // 1. If ℝ(x) = ℝ(y), return true; otherwise return false.
         match (x, y) {
             (BigInt::BigInt(x), BigInt::BigInt(y)) => {
-                x == y || &x.get(agent).data == &y.get(agent).data
+                x == y || x.get(agent).data == y.get(agent).data
             }
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => x == y,
             _ => false,

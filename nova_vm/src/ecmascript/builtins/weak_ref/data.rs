@@ -9,7 +9,7 @@ use crate::{
 };
 
 #[derive(Default, Debug, Clone)]
-pub struct WeakRefHeapData<'a> {
+pub(crate) struct WeakRefHeapData<'a> {
     pub(super) object_index: Option<OrdinaryObject<'a>>,
     /// ### \[\[WeakRefTarget]]
     pub(super) weak_ref_target: Option<WeakKey<'a>>,

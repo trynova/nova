@@ -56,7 +56,7 @@ impl<'gc> Map<'gc> {
         agent: &Agent,
     ) -> (&[Option<Value<'gc>>], &[Option<Value<'gc>>]) {
         let data = self.get(agent);
-        (&data.keys, &data.values)
+        (data.keys, data.values)
     }
 
     pub(crate) fn get_map_data<'soa>(

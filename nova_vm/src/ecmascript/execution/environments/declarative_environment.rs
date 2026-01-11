@@ -21,7 +21,7 @@ use crate::{
 /// VariableDeclarations, and Catch clauses that directly associate identifier
 /// bindings with ECMAScript language values.
 #[derive(Debug, Clone)]
-pub struct DeclarativeEnvironmentRecord {
+pub(crate) struct DeclarativeEnvironmentRecord {
     /// ### \[\[OuterEnv\]\]
     ///
     /// See [OuterEnv].

@@ -577,7 +577,7 @@ pub(super) fn execute_object_define_getter<'gc>(
     let object = Object::try_from(*vm.stack.last().unwrap())
         .unwrap()
         .bind(gc.nogc());
-    make_method(agent, closure, object.into());
+    make_method(agent, closure, object);
     // 8. Perform SetFunctionName(closure, propKey, "get").
     set_function_name(
         agent,
@@ -662,7 +662,7 @@ pub(super) fn execute_object_define_setter<'gc>(
     let object = Object::try_from(*vm.stack.last().unwrap())
         .unwrap()
         .bind(gc.nogc());
-    make_method(agent, closure, object.into());
+    make_method(agent, closure, object);
     // 7. Perform SetFunctionName(closure, propKey, "set").
     set_function_name(
         agent,
@@ -1341,7 +1341,7 @@ pub(super) fn execute_class_define_private_method<'gc>(
     //  ).
     let closure = ordinary_function_create(agent, params, gc.nogc());
     // 7. Perform MakeMethod(closure, object).
-    make_method(agent, closure, object.into());
+    make_method(agent, closure, object);
     // 8. Perform SetFunctionName(closure, propKey).
     let function_name = format!("#{}", description.to_string_lossy_(agent));
     let function_name = String::from_string(agent, function_name, gc.nogc());

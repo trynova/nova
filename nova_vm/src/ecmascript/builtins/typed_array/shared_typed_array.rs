@@ -619,6 +619,10 @@ impl<'a> InternalMethods<'a> for SharedTypedArray<'a> {
 ///
 /// In Nova engine, SharedTypedArrays view a [`SharedArrayBuffer`]. TypedArrays
 /// viewing an [`ArrayBuffer`] are represented by a [`TypedArray`].
+///
+/// [`ArrayBuffer`]: crate::ecmascript::builtins::ArrayBuffer
+/// [`SharedArrayBuffer`]: crate::ecmascript::builtins::SharedArrayBuffer
+/// [`TypedArray`]: crate::ecmascript::builtins::TypedArray
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
@@ -2251,7 +2255,7 @@ impl<'a, T: Viewable> DirectArenaAccess for GenericSharedTypedArray<'a, T> {
     type Data = SharedTypedArrayRecord<'static>;
     type Output = SharedTypedArrayRecord<'a>;
     #[inline]
-    fn get_direct<'agent>(self, source: &'agent Vec<Self::Data>) -> &'agent Self::Output {
+    fn get_direct(self, source: &Vec<Self::Data>) -> &Self::Output {
         source
             .get(HeapIndexHandle::get_index(self))
             .unwrap_or_else(|| panic!("Invalid handle {:?}", self))

@@ -131,7 +131,7 @@ impl HeapMarkAndSweep for Script<'static> {
 ///
 /// A Script Record encapsulates information about a script being evaluated.
 #[derive(Debug)]
-pub struct ScriptRecord<'a> {
+pub(crate) struct ScriptRecord<'a> {
     /// ### \[\[Realm]]
     ///
     /// The realm within which this script was created. undefined if not yet

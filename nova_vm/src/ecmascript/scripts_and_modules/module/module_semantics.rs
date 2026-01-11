@@ -47,7 +47,7 @@ pub mod source_text_module_records;
 /// A ModuleRequest Record represents the request to import a module with given
 /// import attributes.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ModuleRequestRecord<'a> {
+pub(crate) struct ModuleRequestRecord<'a> {
     /// ### \[\[Specifier]]
     ///
     /// a String

@@ -599,34 +599,30 @@ pub(crate) trait DirectArenaAccess: HeapIndexHandle {
     type Data;
     type Output;
 
-    /// Access arena data beloning to a handle.
-    fn get_direct<'agent>(self, agent: &'agent Vec<Self::Data>) -> &'agent Self::Output;
+    /// Access arena data belonging to a handle.
+    fn get_direct(self, agent: &Vec<Self::Data>) -> &Self::Output;
 }
 
 pub(crate) trait DirectArenaAccessMut: DirectArenaAccess {
-    /// Access arena data beloning to a handle as mutable.
-    fn get_direct_mut<'agent>(self, agent: &'agent mut Vec<Self::Data>)
-    -> &'agent mut Self::Output;
+    /// Access arena data belonging to a handle as mutable.
+    fn get_direct_mut(self, agent: &mut Vec<Self::Data>) -> &mut Self::Output;
 }
 
 pub(crate) trait ArenaAccess<T>: DirectArenaAccess {
-    /// Access data beloning to a handle.
-    fn get<'agent>(self, agent: &'agent T) -> &'agent <Self as DirectArenaAccess>::Output;
+    /// Access data belonging to a handle.
+    fn get(self, agent: &T) -> &<Self as DirectArenaAccess>::Output;
 }
 
 pub(crate) trait ArenaAccessMut<T>: DirectArenaAccessMut {
-    /// Access data beloning to a handle as mutable.
-    fn get_mut<'agent>(
-        self,
-        agent: &'agent mut T,
-    ) -> &'agent mut <Self as DirectArenaAccess>::Output;
+    /// Access data belonging to a handle as mutable.
+    fn get_mut(self, agent: &mut T) -> &mut <Self as DirectArenaAccess>::Output;
 }
 
 impl<K: DirectArenaAccess, T> ArenaAccess<T> for K
 where
     T: AsRef<Vec<K::Data>>,
 {
-    /// Access data beloning to a handle.
+    /// Access data belonging to a handle.
     #[inline]
     fn get<'agent>(self, agent: &'agent T) -> &'agent <Self as DirectArenaAccess>::Output {
         // SAFETY: HeapIndexHandle guarantees that the lifetime of the output is
@@ -643,7 +639,7 @@ impl<K: DirectArenaAccessMut, T> ArenaAccessMut<T> for K
 where
     T: AsMut<Vec<K::Data>>,
 {
-    /// Access data beloning to a handle as mutable.
+    /// Access data belonging to a handle as mutable.
     #[inline]
     fn get_mut<'agent>(
         self,
@@ -662,15 +658,12 @@ where
 pub(crate) trait DirectArenaAccessSoA: HeapIndexHandle {
     type Data: SoAble;
 
-    /// Access arena data beloning to a handle.
-    fn get_direct<'agent>(
-        self,
-        source: &'agent SoAVec<Self::Data>,
-    ) -> <Self::Data as SoAble>::Ref<'agent>;
+    /// Access arena data belonging to a handle.
+    fn get_direct(self, source: &SoAVec<Self::Data>) -> <Self::Data as SoAble>::Ref<'_>;
 }
 
 pub(crate) trait DirectArenaAccessSoAMut: DirectArenaAccessSoA {
-    /// Access arena data beloning to a handle as mutable.
+    /// Access arena data belonging to a handle as mutable.
     fn get_direct_mut<'agent>(
         self,
         source: &'agent mut SoAVec<Self::Data>,
@@ -678,12 +671,12 @@ pub(crate) trait DirectArenaAccessSoAMut: DirectArenaAccessSoA {
 }
 
 pub(crate) trait ArenaAccessSoA<T>: DirectArenaAccessSoA {
-    /// Access data beloning to a handle.
+    /// Access data belonging to a handle.
     fn get<'a>(self, agent: &'a T) -> <Self::Data as SoAble>::Ref<'a>;
 }
 
 pub(crate) trait ArenaAccessSoAMut<T>: DirectArenaAccessSoAMut {
-    /// Access data beloning to a handle as mutable.
+    /// Access data belonging to a handle as mutable.
     fn get_mut<'a>(self, agent: &'a mut T) -> <Self::Data as SoAble>::Mut<'a>;
 }
 
@@ -691,7 +684,7 @@ impl<K: DirectArenaAccessSoA, T> ArenaAccessSoA<T> for K
 where
     T: AsRef<SoAVec<K::Data>>,
 {
-    /// Access data beloning to a handle.
+    /// Access data belonging to a handle.
     #[inline]
     fn get<'a>(self, agent: &'a T) -> <Self::Data as SoAble>::Ref<'a> {
         self.get_direct(agent.as_ref())
@@ -702,7 +695,7 @@ impl<K: DirectArenaAccessSoAMut, T> ArenaAccessSoAMut<T> for K
 where
     T: AsMut<SoAVec<K::Data>>,
 {
-    /// Access data beloning to a handle as mutable.
+    /// Access data belonging to a handle as mutable.
     #[inline]
     fn get_mut<'a>(self, agent: &'a mut T) -> <Self::Data as SoAble>::Mut<'a> {
         self.get_direct_mut(agent.as_mut())
@@ -720,21 +713,21 @@ pub(crate) struct PrimitiveHeap<'a> {
 impl AsRef<Vec<BigIntHeapData>> for PrimitiveHeap<'_> {
     #[inline]
     fn as_ref(&self) -> &Vec<BigIntHeapData> {
-        &self.bigints
+        self.bigints
     }
 }
 
 impl AsRef<Vec<NumberHeapData>> for PrimitiveHeap<'_> {
     #[inline]
     fn as_ref(&self) -> &Vec<NumberHeapData> {
-        &self.numbers
+        self.numbers
     }
 }
 
 impl AsRef<Vec<StringRecord>> for PrimitiveHeap<'_> {
     #[inline]
     fn as_ref(&self) -> &Vec<StringRecord> {
-        &self.strings
+        self.strings
     }
 }
 
@@ -779,14 +772,14 @@ impl PropertyKeyHeap<'_> {
 impl AsRef<Vec<StringRecord>> for PropertyKeyHeap<'_> {
     #[inline]
     fn as_ref(&self) -> &Vec<StringRecord> {
-        &self.strings
+        self.strings
     }
 }
 
 impl AsRef<Vec<SymbolHeapData<'static>>> for PropertyKeyHeap<'_> {
     #[inline]
     fn as_ref(&self) -> &Vec<SymbolHeapData<'static>> {
-        &self.symbols
+        self.symbols
     }
 }
 
@@ -823,10 +816,10 @@ macro_rules! arena_vec_access {
             type Data = $data<'static>;
 
             #[inline]
-            fn get_direct<'agent>(
+            fn get_direct(
                 self,
-                source: &'agent soavec::SoAVec<Self::Data>,
-            ) -> <Self::Data as soavec::SoAble>::Ref<'agent> {
+                source: &soavec::SoAVec<Self::Data>,
+            ) -> <Self::Data as soavec::SoAble>::Ref<'_> {
                 source
                     .get(self.get_index_u32())
                     .unwrap_or_else(|| panic!("Invalid handle {:?}", self))
@@ -879,7 +872,7 @@ macro_rules! arena_vec_access {
             type Output = $data<$lt>;
 
             #[inline]
-            fn get_direct<'agent>(self, source: &'agent Vec<Self::Data>) -> &'agent Self::Output {
+            fn get_direct(self, source: &Vec<Self::Data>) -> &Self::Output {
                 source
                     .get(crate::heap::indexes::HeapIndexHandle::get_index(self))
                     .unwrap_or_else(|| panic!("Invalid handle {:?}", self))
@@ -888,13 +881,10 @@ macro_rules! arena_vec_access {
 
         impl<$lt> crate::heap::DirectArenaAccessMut for $name<$lt> {
             #[inline]
-            fn get_direct_mut<'agent>(
-                self,
-                source: &'agent mut Vec<Self::Data>,
-            ) -> &'agent mut Self::Output {
+            fn get_direct_mut(self, source: &mut Vec<Self::Data>) -> &mut Self::Output {
                 // SAFETY: GC handles are always safe within the arena.
                 unsafe {
-                    core::mem::transmute::<&'agent mut $data<'static>, &'agent mut $data<$lt>>(
+                    core::mem::transmute::<&mut $data<'static>, &mut $data<$lt>>(
                         source
                             .get_mut(crate::heap::indexes::HeapIndexHandle::get_index(self))
                             .unwrap_or_else(|| panic!("Invalid handle {:?}", self)),
@@ -923,7 +913,7 @@ macro_rules! arena_vec_access {
             type Output = $output;
 
             #[inline]
-            fn get_direct<'agent>(self, source: &'agent Vec<Self::Data>) -> &'agent Self::Output {
+            fn get_direct(self, source: &Vec<Self::Data>) -> &Self::Output {
                 source
                     .get(crate::heap::indexes::HeapIndexHandle::get_index(self))
                     .unwrap_or_else(|| panic!("Invalid handle {:?}", self))
@@ -932,10 +922,7 @@ macro_rules! arena_vec_access {
 
         impl crate::heap::DirectArenaAccessMut for $name<'_> {
             #[inline]
-            fn get_direct_mut<'agent>(
-                self,
-                source: &'agent mut Vec<Self::Data>,
-            ) -> &'agent mut Self::Output {
+            fn get_direct_mut(self, source: &mut Vec<Self::Data>) -> &mut Self::Output {
                 source
                     .get_mut(crate::heap::indexes::HeapIndexHandle::get_index(self))
                     .unwrap_or_else(|| panic!("Invalid handle {:?}", self))

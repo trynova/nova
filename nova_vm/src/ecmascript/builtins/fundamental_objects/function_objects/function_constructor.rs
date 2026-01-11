@@ -140,7 +140,7 @@ pub(crate) fn create_dynamic_function<'a>(
     // 11. Perform ? HostEnsureCanCompileStrings(currentRealm, parameterStrings, bodyString, false).
     agent
         .host_hooks
-        .ensure_can_compile_strings(agent.current_realm_record_mut(), gc.nogc())
+        .ensure_can_compile_strings(agent.current_realm(gc.nogc()), gc.nogc())
         .unbind()?;
 
     let source_string = {

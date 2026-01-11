@@ -80,7 +80,7 @@ impl HeapSweepWeakReference for MapIterator<'static> {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct MapIteratorHeapData<'a> {
+pub(crate) struct MapIteratorHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) map: Option<Map<'a>>,
     pub(crate) next_index: usize,

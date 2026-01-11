@@ -59,7 +59,7 @@ use crate::{
         rootable::{HeapRootCollectionData, HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         PrimitiveHeapAccess, WorkQueues, heap_gc::heap_gc, indexes::HeapIndexHandle,
     },
     ndt,
@@ -341,7 +341,7 @@ pub trait HostHooks: core::fmt::Debug {
     #[allow(unused_variables)]
     fn ensure_can_compile_strings<'a>(
         &self,
-        callee_realm: &mut RealmRecord,
+        callee_realm: Realm<'a>,
         gc: NoGcScope<'a, '_>,
     ) -> JsResult<'a, ()> {
         // The default implementation of HostEnsureCanCompileStrings is to return NormalCompletion(unused).
@@ -1041,16 +1041,8 @@ impl Agent {
         self.get_realm_record_by_id(self.current_realm_id_internal())
     }
 
-    pub(crate) fn current_realm_record_mut(&mut self) -> &mut RealmRecord<'static> {
-        self.get_realm_record_by_id_mut(self.current_realm_id_internal())
-    }
-
     pub(crate) fn get_realm_record_by_id<'r>(&self, id: Realm<'r>) -> &RealmRecord<'r> {
         id.get(self)
-    }
-
-    fn get_realm_record_by_id_mut<'r>(&mut self, id: Realm<'r>) -> &mut RealmRecord<'r> {
-        id.get_mut(self)
     }
 
     #[must_use]

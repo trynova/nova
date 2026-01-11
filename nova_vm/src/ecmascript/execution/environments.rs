@@ -111,7 +111,7 @@ macro_rules! create_environment_index {
             type Output = $record;
 
             #[inline]
-            fn get_direct<'agent>(self, source: &'agent Vec<Self::Data>) -> &'agent Self::Output {
+            fn get_direct(self, source: &Vec<Self::Data>) -> &Self::Output {
                 source
                     .get(crate::heap::indexes::HeapIndexHandle::get_index(self))
                     .expect("Invalid environment handle")
@@ -120,10 +120,7 @@ macro_rules! create_environment_index {
 
         impl<'a> crate::heap::DirectArenaAccessMut for $index<'a> {
             #[inline]
-            fn get_direct_mut<'agent>(
-                self,
-                source: &'agent mut Vec<Self::Data>,
-            ) -> &'agent mut Self::Output {
+            fn get_direct_mut(self, source: &mut Vec<Self::Data>) -> &mut Self::Output {
                 source
                     .get_mut(crate::heap::indexes::HeapIndexHandle::get_index(self))
                     .expect("Invalid environment handle")

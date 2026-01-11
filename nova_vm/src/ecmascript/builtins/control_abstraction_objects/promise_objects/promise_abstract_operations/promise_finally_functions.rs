@@ -48,7 +48,7 @@ enum PromiseFinallyFunctionType<'a> {
 ///
 /// The "length" property of a promise reject function is 1𝔽.
 #[derive(Debug, Clone)]
-pub struct PromiseFinallyFunctionHeapData<'a> {
+pub(crate) struct PromiseFinallyFunctionHeapData<'a> {
     backing_object: Option<OrdinaryObject<'a>>,
     resolve_type: PromiseFinallyFunctionType<'a>,
 }

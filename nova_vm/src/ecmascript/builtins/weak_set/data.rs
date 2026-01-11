@@ -11,7 +11,7 @@ use crate::{
 };
 
 #[derive(Debug, Default)]
-pub struct WeakSetHeapData<'a> {
+pub(crate) struct WeakSetHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     /// ### \[\[WeakSetData]]
     weak_set_data: AHashSet<WeakKey<'a>>,

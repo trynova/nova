@@ -178,7 +178,7 @@ impl InternalBuffer {
 }
 
 #[derive(Debug)]
-pub struct ArrayBufferHeapData<'a> {
+pub(crate) struct ArrayBufferHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(super) buffer: InternalBuffer,
     // detach_key
@@ -207,14 +207,14 @@ impl<'a> ArrayBufferHeapData<'a> {
     /// Returns the contained DataBlock.
     ///
     /// Panics if the buffer is detached.
-    pub(crate) fn get_data_block<'b>(&'b self) -> &'b DataBlock {
+    pub(crate) fn get_data_block(&self) -> &DataBlock {
         &self.buffer.data_block
     }
 
     /// Returns the contained DataBlock.
     ///
     /// Panics if the buffer is detached.
-    pub(crate) fn get_data_block_mut<'b>(&'b mut self) -> &'b mut DataBlock {
+    pub(crate) fn get_data_block_mut(&mut self) -> &mut DataBlock {
         &mut self.buffer.data_block
     }
 

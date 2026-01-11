@@ -93,7 +93,7 @@ impl<'a> ObjectShape<'a> {
     /// Get the PropertyKeys of the Object Shape as a slice.
     pub(crate) fn keys<'e>(
         self,
-        object_shapes: &Vec<ObjectShapeRecord<'static>>,
+        object_shapes: &[ObjectShapeRecord<'static>],
         elements: &'e ElementArrays,
     ) -> &'e [PropertyKey<'a>] {
         let data = &object_shapes[self.get_index()];
@@ -187,7 +187,7 @@ impl<'a> ObjectShape<'a> {
     }
 
     /// Get an Object Shape pointing to the last Object Shape Record.
-    pub(crate) fn last(shapes: &Vec<ObjectShapeRecord<'static>>) -> Self {
+    pub(crate) fn last(shapes: &[ObjectShapeRecord<'static>]) -> Self {
         debug_assert!(!shapes.is_empty());
 
         ObjectShape::from_non_zero(
@@ -817,7 +817,7 @@ const fn handle_object_shape_count_overflow() -> ! {
 /// repeated, the code can check if the object shape matches and skip the
 /// property search entirely if a match is found.
 #[derive(Debug)]
-pub struct ObjectShapeRecord<'a> {
+pub(crate) struct ObjectShapeRecord<'a> {
     /// Prototype of the object shape.
     ///
     /// This takes the place of the \[\[Prototype]] internal slot for (most)
@@ -1064,7 +1064,7 @@ impl<'a> DirectArenaAccess for ObjectShape<'a> {
 
     /// Get the Object Shape record as mutable.
     #[inline(always)]
-    fn get_direct<'r>(self, object_shapes: &'r Vec<Self::Data>) -> &'r Self::Output {
+    fn get_direct(self, object_shapes: &Vec<Self::Data>) -> &Self::Output {
         &object_shapes[self.get_index()]
     }
 }
@@ -1072,7 +1072,7 @@ impl<'a> DirectArenaAccess for ObjectShape<'a> {
 impl<'a> DirectArenaAccessMut for ObjectShape<'a> {
     /// Get the Object Shape record as mutable.
     #[inline(always)]
-    fn get_direct_mut<'r>(self, object_shapes: &'r mut Vec<Self::Data>) -> &'r mut Self::Output {
+    fn get_direct_mut(self, object_shapes: &mut Vec<Self::Data>) -> &mut Self::Output {
         // SAFETY: we can transmute the GC lifetime from 'static to a local bound lifetime.
         unsafe { core::mem::transmute(&mut object_shapes[self.get_index()]) }
     }

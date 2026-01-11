@@ -26,14 +26,14 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub enum PromiseGroupType {
+pub(crate) enum PromiseGroupType {
     All,
     AllSettled,
     Any,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PromiseGroupRecord<'a> {
+pub(crate) struct PromiseGroupRecord<'a> {
     pub(crate) promise_group_type: PromiseGroupType,
     pub(crate) remaining_elements_count: u32,
     pub(crate) result_array: Array<'a>,
@@ -219,7 +219,7 @@ impl<'a> PromiseGroup<'a> {
         obj.unbind().into()
     }
 
-    pub fn get(self, agent: &Agent) -> &PromiseGroupRecord<'a> {
+    pub(crate) fn get(self, agent: &Agent) -> &PromiseGroupRecord<'a> {
         agent
             .heap
             .promise_group_records
@@ -227,7 +227,7 @@ impl<'a> PromiseGroup<'a> {
             .expect("PromiseGroupRecord not found")
     }
 
-    pub fn get_mut(self, agent: &mut Agent) -> &mut PromiseGroupRecord<'static> {
+    pub(crate) fn get_mut(self, agent: &mut Agent) -> &mut PromiseGroupRecord<'static> {
         agent
             .heap
             .promise_group_records

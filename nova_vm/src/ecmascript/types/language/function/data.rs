@@ -21,7 +21,7 @@ use crate::{
 use super::Function;
 
 #[derive(Debug, Clone)]
-pub struct BoundFunctionHeapData<'a> {
+pub(crate) struct BoundFunctionHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) length: u8,
     /// ### \[\[BoundTargetFunction\]\]
@@ -43,7 +43,7 @@ pub struct BoundFunctionHeapData<'a> {
 bindable_handle!(BoundFunctionHeapData);
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct BuiltinFunctionHeapData<'a> {
+pub(crate) struct BuiltinFunctionHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) length: u8,
     /// #### \[\[Realm]]
@@ -68,7 +68,7 @@ impl BuiltinFunctionHeapData<'_> {
 }
 
 #[derive(Debug, Clone)]
-pub struct BuiltinConstructorRecord<'a> {
+pub(crate) struct BuiltinConstructorRecord<'a> {
     pub(crate) backing_object: Option<OrdinaryObject<'a>>,
     /// #### \[\[Realm]]
     /// A Realm Record that represents the realm in which the function was
@@ -103,7 +103,7 @@ pub struct BuiltinConstructorRecord<'a> {
 }
 
 #[derive(Debug)]
-pub struct ECMAScriptFunctionHeapData<'a> {
+pub(crate) struct ECMAScriptFunctionHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) length: u8,
     pub(crate) ecmascript_function: ECMAScriptFunctionObjectHeapData<'a>,

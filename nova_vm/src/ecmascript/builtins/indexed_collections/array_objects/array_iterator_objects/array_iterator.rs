@@ -91,7 +91,7 @@ pub(crate) enum CollectionIteratorKind {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct ArrayIteratorHeapData<'a> {
+pub(crate) struct ArrayIteratorHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) array: Option<Object<'a>>,
     pub(crate) next_index: i64,

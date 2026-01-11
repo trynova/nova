@@ -859,7 +859,7 @@ impl MathObject {
 
         // 4. If n is an integral Number, return n.
         if n.is_integer() {
-            return Ok(n.unbind().into());
+            return Ok(n.unbind());
         }
 
         // 1. Let n be ? ToNumber(x).

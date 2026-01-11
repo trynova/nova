@@ -8,7 +8,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub struct EmbedderObjectHeapData<'a> {
+pub(crate) struct EmbedderObjectHeapData<'a> {
     backing_object: Option<OrdinaryObject<'a>>,
 }
 

@@ -38,7 +38,7 @@ use crate::{
         rootable::Scopable,
         string_literal_to_wtf8,
     },
-    heap::{ArenaAccess, ArenaAccessMut, IntrinsicFunctionIndexes, indexes::HeapIndexHandle},
+    heap::{ArenaAccess, IntrinsicFunctionIndexes, indexes::HeapIndexHandle},
     ndt,
 };
 
@@ -182,7 +182,7 @@ pub(crate) fn perform_eval<'gc>(
     // 5. Perform ? HostEnsureCanCompileStrings(evalRealm, « », x, direct).
     agent
         .host_hooks
-        .ensure_can_compile_strings(eval_realm.get_mut(agent), gc.nogc())
+        .ensure_can_compile_strings(eval_realm, gc.nogc())
         .unbind()?;
 
     let mut id = 0;

@@ -31,7 +31,7 @@ pub(crate) enum PromiseResolvingFunctionType {
 ///
 /// The "length" property of a promise reject function is 1𝔽.
 #[derive(Debug, Clone)]
-pub struct PromiseResolvingFunctionHeapData<'a> {
+pub(crate) struct PromiseResolvingFunctionHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) promise_capability: PromiseCapability<'a>,
     pub(crate) resolve_type: PromiseResolvingFunctionType,

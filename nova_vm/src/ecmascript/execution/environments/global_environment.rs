@@ -44,7 +44,7 @@ use super::TryHasBindingContinue;
 /// built-in globals (clause 19), properties of the global object, and for all
 /// top-level declarations (8.2.9, 8.2.11) that occur within a Script.
 #[derive(Debug, Clone)]
-pub struct GlobalEnvironmentRecord {
+pub(crate) struct GlobalEnvironmentRecord {
     /// ### \[\[ObjectRecord\]\]
     ///
     /// Binding object is the global object. It contains global built-in

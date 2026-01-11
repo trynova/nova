@@ -10,7 +10,7 @@ use num_bigint::{BigInt, Sign};
 
 #[derive(Debug, Clone)]
 #[repr(transparent)]
-pub struct BigIntHeapData {
+pub(crate) struct BigIntHeapData {
     pub(crate) data: BigInt,
 }
 

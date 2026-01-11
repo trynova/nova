@@ -17,7 +17,7 @@ use crate::{
 use super::Module;
 
 #[derive(Debug, Clone)]
-pub struct ModuleHeapData<'a> {
+pub(crate) struct ModuleHeapData<'a> {
     pub(super) module: AbstractModule<'a>,
     pub(super) exports: Box<[String<'a>]>,
 }

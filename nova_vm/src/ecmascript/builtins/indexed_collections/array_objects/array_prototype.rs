@@ -2963,7 +2963,7 @@ impl ArrayPrototype {
                 // 15. Perform ? Set(A, "length", 𝔽(n), true).
                 set(
                     agent,
-                    a.get(agent).into(),
+                    a.get(agent),
                     BUILTIN_STRING_MEMORY.length.into(),
                     n.into(),
                     true,
