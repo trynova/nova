@@ -93,7 +93,7 @@ use crate::{
                 array_iterator_objects::array_iterator_prototype::ArrayIteratorPrototype,
                 array_prototype::ArrayPrototype,
             },
-            iteration::iterator_constructor::IteratorConstructor,
+            control_abstraction_objects::iteration::iterator_constructor::IteratorConstructor,
             keyed_collections::map_objects::{
                 map_constructor::MapConstructor,
                 map_iterator_objects::map_iterator_prototype::MapIteratorPrototype,

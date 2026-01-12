@@ -8,7 +8,7 @@ use crate::{
         builtins::{
             ECMAScriptFunction,
             promise::Promise,
-            promise_objects::{
+            control_abstraction_objects::promise_objects::{
                 promise_abstract_operations::{
                     promise_capability_records::PromiseCapability,
                     promise_reaction_records::PromiseReactionHandler,

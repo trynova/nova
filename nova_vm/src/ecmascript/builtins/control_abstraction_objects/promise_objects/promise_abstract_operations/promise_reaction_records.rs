@@ -5,10 +5,10 @@
 use crate::{
     ecmascript::{
         builtins::{
-            async_generator_objects::AsyncGenerator,
+            control_abstraction_objects::async_generator_objects::AsyncGenerator,
             control_abstraction_objects::async_function_objects::await_reaction::AwaitReaction,
             promise::Promise,
-            promise_objects::promise_abstract_operations::promise_group_record::PromiseGroup,
+            control_abstraction_objects::promise_objects::promise_abstract_operations::promise_group_record::PromiseGroup,
         },
         scripts_and_modules::module::module_semantics::{
             abstract_module_records::AbstractModule, source_text_module_records::SourceTextModule,

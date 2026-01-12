@@ -16,9 +16,10 @@ use crate::{
     },
 };
 
-use self::data::{SetHeapData, SetHeapDataMut, SetHeapDataRef};
+pub(crate) use self::data::SetHeapData;
+use self::data::{SetHeapDataMut, SetHeapDataRef};
 
-pub mod data;
+mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]

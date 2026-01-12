@@ -19,7 +19,7 @@ use crate::{
         builtins::{
             ArgumentsList,
             promise::Promise,
-            promise_objects::{
+            control_abstraction_objects::promise_objects::{
                 promise_abstract_operations::{
                     promise_capability_records::{PromiseCapability, if_abrupt_reject_promise_m},
                     promise_reaction_records::PromiseReactionHandler,
@@ -31,7 +31,7 @@ use crate::{
             Agent,
             agent::{ExceptionType, unwrap_try},
         },
-        types::{BUILTIN_STRING_MEMORY,  Object, Value},
+        types::{BUILTIN_STRING_MEMORY, Object, Value},
     },
     engine::{
         VmIteratorRecord,

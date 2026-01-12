@@ -32,7 +32,7 @@ use crate::{
                 make_typed_array_with_buffer_witness_record, validate_typed_array,
             },
             promise::Promise,
-            promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
+            control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
             shared_array_buffer::SharedArrayBuffer,
             typed_array::{AnyTypedArray, SharedTypedArray, for_any_typed_array},
         },

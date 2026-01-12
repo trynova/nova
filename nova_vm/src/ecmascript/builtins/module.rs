@@ -34,14 +34,14 @@ use crate::{
     },
 };
 
-use self::data::ModuleHeapData;
+pub(crate) use self::data::ModuleHeapData;
 
 use super::ordinary::{
     caches::{PropertyLookupCache, PropertyOffset},
     shape::ObjectShape,
 };
 
-pub mod data;
+mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
@@ -593,7 +593,10 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     let Some(target_env) = target_env else {
                         return Err(agent.throw_exception(
                             ExceptionType::ReferenceError,
-                            format!("Could not resolve module '{}'.", key.to_string_lossy_(agent)),
+                            format!(
+                                "Could not resolve module '{}'.",
+                                key.to_string_lossy_(agent)
+                            ),
                             gc,
                         ));
                     };

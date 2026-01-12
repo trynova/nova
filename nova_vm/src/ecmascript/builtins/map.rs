@@ -8,7 +8,6 @@ use soavec::SoAVec;
 use crate::{
     Heap,
     ecmascript::{
-        builtins::map::data::MapHeapDataMut,
         execution::{Agent, ProtoIntrinsics},
         types::{InternalMethods, InternalSlots, OrdinaryObject, Value, object_handle},
     },
@@ -20,9 +19,10 @@ use crate::{
     },
 };
 
-use self::data::MapHeapData;
+pub(crate) use self::data::MapHeapData;
+use self::data::MapHeapDataMut;
 
-pub mod data;
+mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]

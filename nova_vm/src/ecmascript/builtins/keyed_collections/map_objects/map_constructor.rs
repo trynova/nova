@@ -27,10 +27,7 @@ use crate::{
             keyed_collections::map_objects::map_prototype::{
                 MapPrototypeSet, canonicalize_keyed_collection_key,
             },
-            map::{
-                Map,
-                data::{MapHeapData},
-            },
+            map::{Map, MapHeapData},
             ordinary::ordinary_create_from_constructor,
         },
         execution::{
@@ -47,8 +44,8 @@ use crate::{
         rootable::Scopable,
     },
     heap::{
-        ArenaAccess, CreateHeapData, Heap, IntrinsicConstructorIndexes,
-        PrimitiveHeap, WellKnownSymbolIndexes,
+        ArenaAccess, CreateHeapData, Heap, IntrinsicConstructorIndexes, PrimitiveHeap,
+        WellKnownSymbolIndexes,
     },
 };
 

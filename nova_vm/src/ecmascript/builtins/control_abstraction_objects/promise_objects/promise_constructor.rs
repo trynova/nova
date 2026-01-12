@@ -16,18 +16,18 @@ use crate::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
-            array_create,
-            ordinary::ordinary_create_from_constructor,
-            promise::{
-                Promise,
-                data::{PromiseHeapData, PromiseState},
-            },
-            promise_objects::{
+            array::abstract_operations::array_create,
+            control_abstraction_objects::promise_objects::{
                 promise_abstract_operations::{
                     promise_group_record::{PromiseGroupRecord, PromiseGroupType},
                     promise_reaction_records::PromiseReactionHandler,
                 },
                 promise_prototype::inner_promise_then,
+            },
+            ordinary::ordinary_create_from_constructor,
+            promise::{
+                Promise,
+                {PromiseHeapData, PromiseState},
             },
         },
         execution::{

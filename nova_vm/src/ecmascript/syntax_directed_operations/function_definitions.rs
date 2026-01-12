@@ -9,8 +9,9 @@ use crate::{
         abstract_operations::operations_on_objects::try_define_property_or_throw,
         builtins::{
             ArgumentsList, ECMAScriptFunction, FunctionAstRef, OrdinaryFunctionCreateParams,
-            ThisMode,
-            async_generator_objects::{AsyncGeneratorHeapData, AsyncGeneratorState},
+            control_abstraction_objects::async_generator_objects::{
+                AsyncGeneratorHeapData, AsyncGeneratorState,
+            },
             control_abstraction_objects::{
                 async_function_objects::await_reaction::AwaitReactionRecord,
                 generator_objects::GeneratorState,
@@ -22,14 +23,15 @@ use crate::{
                     promise_prototype::inner_promise_then,
                 },
             },
-            generator_objects::{GeneratorHeapData, SuspendedGeneratorState},
-            make_constructor,
+            ecmascript_function::ThisMode,
+            control_abstraction_objects::generator_objects::{GeneratorHeapData, SuspendedGeneratorState},
+            ecmascript_function::make_constructor,
             ordinary::{
                 ordinary_object_create_with_intrinsics, ordinary_populate_from_constructor,
             },
-            ordinary_function_create,
+            ecmascript_function::ordinary_function_create,
             promise::Promise,
-            set_function_name,
+            ecmascript_function::set_function_name,
         },
         execution::{
             Agent, Environment, JsResult, PrivateEnvironment, ProtoIntrinsics, agent::unwrap_try,

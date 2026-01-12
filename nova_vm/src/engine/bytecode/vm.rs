@@ -60,7 +60,7 @@ use crate::{
                 to_property_key, to_string_primitive,
             },
         },
-        builtins::{ArgumentsList, ScopedArgumentsList, array_create},
+        builtins::{ArgumentsList, ScopedArgumentsList, array::abstract_operations::array_create},
         execution::{
             Agent, Environment, JsResult,
             agent::{ExceptionType, JsError, resolve_binding, try_result_into_option_js},

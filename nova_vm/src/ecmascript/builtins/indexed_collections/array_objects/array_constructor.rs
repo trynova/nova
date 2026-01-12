@@ -20,7 +20,7 @@ use crate::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
-            array_create, ordinary::get_prototype_from_constructor,
+            array::abstract_operations::array_create, ordinary::get_prototype_from_constructor,
         },
         execution::{
             Agent, JsResult, ProtoIntrinsics, Realm,

@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 
 use abstract_operations::{NonRevokedProxy, validate_non_revoked_proxy};
 use ahash::AHashSet;
-use data::ProxyHeapData;
+pub(crate) use data::ProxyHeapData;
 
 use crate::{
     ecmascript::{
@@ -47,7 +47,7 @@ use super::ordinary::{
 };
 
 pub(crate) mod abstract_operations;
-pub mod data;
+mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]

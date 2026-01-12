@@ -79,8 +79,8 @@ use crate::{
     ecmascript::{
         builtins::{
             Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
-            async_generator_objects::AsyncGenerator,
             bound_function::BoundFunction,
+            control_abstraction_objects::async_generator_objects::AsyncGenerator,
             control_abstraction_objects::{
                 generator_objects::Generator,
                 promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction,
@@ -94,7 +94,7 @@ use crate::{
             module::Module,
             primitive_objects::PrimitiveObject,
             promise::Promise,
-            promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
+            control_abstraction_objects::promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
             proxy::Proxy,
             text_processing::string_objects::string_iterator_objects::StringIterator,
         },

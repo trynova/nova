@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use data::PromiseState;
+mod data;
 
 use crate::{
     ecmascript::{
@@ -19,11 +19,9 @@ use crate::{
     },
 };
 
-use self::data::PromiseHeapData;
+pub(crate) use data::{PromiseHeapData, PromiseReactions, PromiseState};
 
-use super::control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability;
-
-pub mod data;
+pub use super::control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]

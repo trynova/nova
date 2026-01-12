@@ -34,7 +34,7 @@ use crate::{
             error::ErrorHeapData,
             ordinary::caches::PropertyLookupCache,
             promise::Promise,
-            promise_objects::promise_abstract_operations::promise_jobs::{
+            control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{
                 PromiseReactionJob, PromiseResolveThenableJob,
             },
         },
@@ -59,8 +59,8 @@ use crate::{
         rootable::{HeapRootCollectionData, HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
-        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        PrimitiveHeapAccess, WorkQueues, heap_gc::heap_gc, indexes::HeapIndexHandle,
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeapAccess,
+        WorkQueues, heap_gc::heap_gc, indexes::HeapIndexHandle,
     },
     ndt,
 };

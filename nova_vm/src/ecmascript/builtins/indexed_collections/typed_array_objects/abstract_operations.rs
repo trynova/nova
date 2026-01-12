@@ -7,7 +7,7 @@ use std::hint::assert_unchecked;
 use ecmascript_atomics::Ordering;
 
 #[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::builtins::{GenericSharedTypedArray, data::SharedTypedArrayRecord};
+use crate::ecmascript::builtins::{GenericSharedTypedArray, typed_array::SharedTypedArrayRecord};
 use crate::{
     SmallInteger,
     ecmascript::{
@@ -19,16 +19,15 @@ use crate::{
             type_conversion::{to_index, try_to_index},
         },
         builtins::{
-            ArgumentsList, ArrayBuffer, ArrayBufferHeapData,
+            AnyArrayBuffer, AnyTypedArray, ArgumentsList, ArrayBuffer, GenericTypedArray,
+            TypedArray, VoidArray,
             array_buffer::{
-                AnyArrayBuffer, get_value_from_buffer, is_fixed_length_array_buffer,
+                ArrayBufferHeapData, get_value_from_buffer, is_fixed_length_array_buffer,
                 set_value_in_buffer,
             },
             indexed_collections::typed_array_objects::typed_array_intrinsic_object::require_internal_slot_typed_array,
             ordinary::get_prototype_from_constructor,
-            typed_array::{
-                AnyTypedArray, GenericTypedArray, TypedArray, VoidArray, data::TypedArrayRecord,
-            },
+            typed_array::TypedArrayRecord,
         },
         execution::{
             Agent, JsResult,

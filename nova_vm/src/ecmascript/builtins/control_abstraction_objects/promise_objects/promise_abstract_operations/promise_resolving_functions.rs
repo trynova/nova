@@ -6,7 +6,7 @@ use crate::{
     ecmascript::{
         builtins::{
             ArgumentsList,
-            promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
+            control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
         },
         execution::{Agent, JsResult},
         types::{FunctionInternalProperties, OrdinaryObject, String, Value, function_handle},

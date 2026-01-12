@@ -15,11 +15,11 @@ use crate::{
     },
 };
 
-use self::data::WeakSetHeapData;
+pub(crate) use self::data::WeakSetHeapData;
 
 use super::{Behaviour, keyed_collections::weak_set_objects::weak_set_prototype::WeakSetPrototype};
 
-pub mod data;
+mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]

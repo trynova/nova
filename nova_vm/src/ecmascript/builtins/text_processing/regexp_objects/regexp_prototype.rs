@@ -20,7 +20,7 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             ArgumentsList, Array, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
-            array_create,
+            array::abstract_operations::array_create,
             ordinary::caches::PropertyLookupCache,
             regexp::{
                 advance_string_index, reg_exp_builtin_exec, reg_exp_builtin_test, reg_exp_exec,

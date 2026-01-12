@@ -18,9 +18,9 @@ use crate::{
     },
 };
 
-use self::data::FinalizationRegistryRecord;
+pub(crate) use self::data::FinalizationRegistryRecord;
 
-pub mod data;
+mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]

@@ -18,7 +18,7 @@ use crate::{
         },
         builtins::{
             ArgumentsList, Array, ScopedArgumentsList,
-            iteration::async_from_sync_iterator_objects::{
+            control_abstraction_objects::iteration::async_from_sync_iterator_objects::{
                 AsyncFromSyncIteratorPrototype, create_async_from_sync_iterator,
             },
             promise::Promise,

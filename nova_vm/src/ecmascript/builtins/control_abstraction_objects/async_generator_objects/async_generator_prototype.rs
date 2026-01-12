@@ -9,7 +9,7 @@ use crate::{
         builtins::{
             ArgumentsList, Behaviour, Builtin,
             promise::Promise,
-            promise_objects::promise_abstract_operations::promise_capability_records::{
+            control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::{
                 PromiseCapability, if_abrupt_reject_promise, if_abrupt_reject_promise_m,
             },
         },

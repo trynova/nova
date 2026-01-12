@@ -22,7 +22,7 @@ use crate::{
         builtins::{
             Array,
             promise::Promise,
-            promise_objects::{
+            control_abstraction_objects::promise_objects::{
                 promise_abstract_operations::{
                     promise_capability_records::{PromiseCapability, if_abrupt_reject_promise_m},
                     promise_reaction_records::PromiseReactionHandler,

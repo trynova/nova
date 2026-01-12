@@ -9,13 +9,13 @@ use crate::{
     },
     heap::{
         CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
-        indexes::{BaseIndex},
+        indexes::BaseIndex,
     },
 };
 
-use self::data::EmbedderObjectHeapData;
+pub(crate) use self::data::EmbedderObjectHeapData;
 
-pub mod data;
+mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]

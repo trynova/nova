@@ -18,7 +18,7 @@ use crate::{
         builtins::{
             ArgumentsList, Behaviour, Builtin, BuiltinFunction, BuiltinIntrinsic,
             BuiltinIntrinsicConstructor, SetFunctionNamePrefix,
-            bound_function::bound_function_create, set_function_name,
+            bound_function::bound_function_create, ecmascript_function::set_function_name,
         },
         execution::{
             Agent, JsResult, Realm,

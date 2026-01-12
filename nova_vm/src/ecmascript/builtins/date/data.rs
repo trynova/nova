@@ -29,9 +29,9 @@ use crate::{
 pub(crate) struct DateValue(i64);
 
 impl DateValue {
-    pub const NAN: Self = Self(i64::MAX);
+    pub(crate) const NAN: Self = Self(i64::MAX);
 
-    pub fn get_i64(self) -> Option<i64> {
+    pub(crate) fn get_i64(self) -> Option<i64> {
         if self.0 == i64::MAX {
             None
         } else {
@@ -39,11 +39,11 @@ impl DateValue {
         }
     }
 
-    pub fn get_f64(self) -> Option<f64> {
+    pub(crate) fn get_f64(self) -> Option<f64> {
         self.get_i64().map(|v| v as f64)
     }
 
-    pub fn now() -> Self {
+    pub(crate) fn now() -> Self {
         let now = SystemTime::now();
         let now = now
             .duration_since(SystemTime::UNIX_EPOCH)
@@ -51,25 +51,25 @@ impl DateValue {
             .as_millis();
         Self(now as i64)
     }
-}
 
-/// ### [21.4.1.31 TimeClip ( time )](https://tc39.es/ecma262/#sec-timeclip)
-///
-/// The abstract operation TimeClip takes argument time (a Number) and returns
-/// a Number. It calculates a number of milliseconds.
-pub(crate) fn time_clip(time: f64) -> DateValue {
-    // 1. If time is not finite, return NaN.
-    if !time.is_finite() {
-        return DateValue::NAN;
+    /// ### [21.4.1.31 TimeClip ( time )](https://tc39.es/ecma262/#sec-timeclip)
+    ///
+    /// The abstract operation TimeClip takes argument time (a Number) and returns
+    /// a Number. It calculates a number of milliseconds.
+    pub(crate) fn time_clip(time: f64) -> DateValue {
+        // 1. If time is not finite, return NaN.
+        if !time.is_finite() {
+            return DateValue::NAN;
+        }
+
+        // 2. If abs(ℝ(time)) > 8.64 × 10**15, return NaN.
+        if time.abs() > 8.64e15 {
+            return DateValue::NAN;
+        }
+
+        // 3. Return 𝔽(! ToIntegerOrInfinity(time)).
+        DateValue(time.trunc() as i64)
     }
-
-    // 2. If abs(ℝ(time)) > 8.64 × 10**15, return NaN.
-    if time.abs() > 8.64e15 {
-        return DateValue::NAN;
-    }
-
-    // 3. Return 𝔽(! ToIntegerOrInfinity(time)).
-    DateValue(time.trunc() as i64)
 }
 
 impl<'a> From<DateValue> for Value<'a> {

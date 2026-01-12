@@ -7,10 +7,7 @@
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::{get, try_get},
-        builtins::promise::{
-            Promise,
-            data::{PromiseHeapData, PromiseState},
-        },
+        builtins::promise::{Promise, PromiseHeapData, PromiseState},
         execution::{
             Agent, JsResult,
             agent::{ExceptionType, PromiseRejectionTrackerOperation, TryError, TryResult},

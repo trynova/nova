@@ -22,9 +22,9 @@ use crate::{
     },
 };
 
-use self::data::DataViewRecord;
+pub(crate) use self::data::DataViewRecord;
 #[cfg(feature = "shared-array-buffer")]
-use self::data::SharedDataViewRecord;
+pub(crate) use self::data::SharedDataViewRecord;
 
 #[cfg(feature = "shared-array-buffer")]
 use super::SharedArrayBuffer;
@@ -34,7 +34,7 @@ use super::{
 };
 
 pub(crate) mod abstract_operations;
-pub mod data;
+mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]

@@ -4,7 +4,7 @@
 
 use crate::{
     ecmascript::{
-        builtins::{ECMAScriptFunction, ThisMode},
+        builtins::{ECMAScriptFunction, ecmascript_function::ThisMode},
         execution::{
             Agent, JsResult,
             agent::{ExceptionType, unwrap_try},

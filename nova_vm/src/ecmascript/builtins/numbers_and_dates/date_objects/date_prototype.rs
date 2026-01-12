@@ -17,10 +17,7 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic,
-            date::{
-                Date,
-                data::{DateValue, time_clip},
-            },
+            date::{Date, DateValue},
             text_processing::string_objects::string_prototype::to_zero_padded_decimal_string,
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
@@ -570,7 +567,7 @@ impl DatePrototype {
             time_within_day(t),
         );
         // 8. Let u be TimeClip(UTC(newDate)).
-        let u = time_clip(utc(agent, new_date));
+        let u = DateValue::time_clip(utc(agent, new_date));
         // 9. Set dateObject.[[DateValue]] to u.
         date_object.get(agent).set_date_value(agent, u);
         // 10. Return u.
@@ -635,7 +632,7 @@ impl DatePrototype {
         // 8. Let newDate be MakeDate(MakeDay(y, m, dt), TimeWithinDay(t)).
         let new_date = make_date(make_day(y, m, dt), time_within_day(t));
         // 9. Let u be TimeClip(UTC(newDate)).
-        let u = time_clip(utc(agent, new_date));
+        let u = DateValue::time_clip(utc(agent, new_date));
         // 10. Set dateObject.[[DateValue]] to u.
         date_object.get(agent).set_date_value(agent, u);
         // 11. Return u.
@@ -718,7 +715,7 @@ impl DatePrototype {
         // 13. Let date be MakeDate(Day(t), MakeTime(h, m, s, milli)).
         let date = make_date(day(t), make_time(h, m, s, milli));
         // 14. Let u be TimeClip(UTC(date)).
-        let u = time_clip(utc(agent, date));
+        let u = DateValue::time_clip(utc(agent, date));
         // 15. Set dateObject.[[DateValue]] to u.
         date_object.get(agent).set_date_value(agent, u);
         // 16. Return u.
@@ -759,7 +756,7 @@ impl DatePrototype {
             ms,
         );
         // 8. Let u be TimeClip(UTC(MakeDate(Day(t), time))).
-        let u = time_clip(utc(agent, make_date(day(t), time)));
+        let u = DateValue::time_clip(utc(agent, make_date(day(t), time)));
         // 9. Set dateObject.[[DateValue]] to u.
         date_object.get(agent).set_date_value(agent, u);
         // 10. Return u.
@@ -827,7 +824,7 @@ impl DatePrototype {
         // 11. Let date be MakeDate(Day(t), MakeTime(HourFromTime(t), m, s, milli)).
         let date = make_date(day(t), make_time(hour_from_time(t) as f64, m, s, milli));
         // 12. Let u be TimeClip(UTC(date)).
-        let u = time_clip(utc(agent, date));
+        let u = DateValue::time_clip(utc(agent, date));
         // 13. Set dateObject.[[DateValue]] to u.
         date_object.get(agent).set_date_value(agent, u);
         // 14. Return u.
@@ -884,7 +881,7 @@ impl DatePrototype {
             time_within_day(t),
         );
         // 10. Let u be TimeClip(UTC(newDate)).
-        let u = time_clip(utc(agent, new_date));
+        let u = DateValue::time_clip(utc(agent, new_date));
         // 11. Set dateObject.[[DateValue]] to u.
         date_object.get(agent).set_date_value(agent, u);
         // 12. Return u.
@@ -941,7 +938,7 @@ impl DatePrototype {
             make_time(hour_from_time(t) as f64, min_from_time(t) as f64, s, milli),
         );
         // 10. Let u be TimeClip(UTC(date)).
-        let u = time_clip(utc(agent, date));
+        let u = DateValue::time_clip(utc(agent, date));
         // 11. Set dateObject.[[DateValue]] to u.
         date_object.get(agent).set_date_value(agent, u);
         // 12. Return u.
@@ -967,7 +964,7 @@ impl DatePrototype {
             .unbind()?
             .to_real(agent);
         // 4. Let v be TimeClip(t).
-        let v = time_clip(t);
+        let v = DateValue::time_clip(t);
         // 5. Set dateObject.[[DateValue]] to v.
         date_object.get(agent).set_date_value(agent, v);
         // 6. Return v.

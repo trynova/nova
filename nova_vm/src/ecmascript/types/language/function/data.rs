@@ -6,7 +6,7 @@ use oxc_span::Span;
 
 use crate::{
     ecmascript::{
-        builtins::{Behaviour, ECMAScriptFunctionObjectHeapData},
+        builtins::{Behaviour, ecmascript_function::ECMAScriptFunctionObjectHeapData},
         execution::{Environment, PrivateEnvironment, Realm},
         scripts_and_modules::source_code::SourceCode,
         types::{OrdinaryObject, String, Value},

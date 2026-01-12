@@ -18,7 +18,7 @@ use crate::{
             type_conversion::{to_length, to_string, try_to_length},
         },
         builtins::{
-            ArgumentsList, Array, array_create,
+            ArgumentsList, Array, array::abstract_operations::array_create,
             ordinary::{
                 caches::PropertyLookupCache, ordinary_create_from_constructor,
                 ordinary_object_create_null,

@@ -10,11 +10,7 @@ use crate::{
         abstract_operations::type_conversion::{to_number, to_primitive},
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            date::{
-                Date,
-                data::{DateValue, time_clip},
-            },
+            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor, Date, date::DateValue,
             ordinary::ordinary_create_from_constructor,
         },
         execution::{Agent, JsResult, ProtoIntrinsics, Realm},
@@ -126,7 +122,7 @@ impl DateConstructor {
                     }
                 };
                 // d. Let dv be TimeClip(tv).
-                time_clip(tv)
+                DateValue::time_clip(tv)
             }
             // 5. Else,
             _ => {
@@ -185,7 +181,7 @@ impl DateConstructor {
                 // j. Let finalDate be MakeDate(MakeDay(yr, m, dt), MakeTime(h, min, s, milli)).
                 let final_date = make_date(make_day(yr, m, dt), make_time(h, min, s, milli));
                 // k. Let dv be TimeClip(UTC(finalDate)).
-                time_clip(utc(agent, final_date))
+                DateValue::time_clip(utc(agent, final_date))
             }
         };
 
@@ -353,7 +349,10 @@ impl DateConstructor {
         // 8. Let yr be MakeFullYear(y).
         let yr = make_full_year(y);
         // 9. Return TimeClip(MakeDate(MakeDay(yr, m, dt), MakeTime(h, min, s, milli))).
-        Ok(time_clip(make_date(make_day(yr, m, dt), make_time(h, min, s, milli))).into())
+        Ok(
+            DateValue::time_clip(make_date(make_day(yr, m, dt), make_time(h, min, s, milli)))
+                .into(),
+        )
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -529,7 +528,7 @@ mod parse_date {
 
             let date = date + (self.offset as f64) * MS_PER_MINUTE;
 
-            time_clip(date).get_i64()
+            DateValue::time_clip(date).get_i64()
         }
 
         fn finish_local(&mut self) -> Option<i64> {
@@ -547,7 +546,7 @@ mod parse_date {
                 ),
             );
 
-            time_clip(utc(self.agent, date)).get_i64()
+            DateValue::time_clip(utc(self.agent, date)).get_i64()
         }
 
         fn parse(&mut self) -> Option<i64> {

@@ -14,7 +14,7 @@ use std::{
 use caches::{CacheToPopulate, Caches, PropertyLookupCache, PropertyOffset};
 
 #[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::builtins::data_view::data::SharedDataViewRecord;
+use crate::ecmascript::builtins::data_view::SharedDataViewRecord;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::types::try_get_result_into_value;
 use crate::{
@@ -52,34 +52,37 @@ use crate::{
 };
 
 #[cfg(feature = "date")]
-use super::date::data::DateHeapData;
+use super::date::DateHeapData;
 #[cfg(feature = "regexp")]
 use super::regexp::RegExpHeapData;
 #[cfg(feature = "shared-array-buffer")]
-use super::shared_array_buffer::data::SharedArrayBufferRecord;
-#[cfg(feature = "array-buffer")]
+use super::shared_array_buffer::SharedArrayBufferRecord;
 use super::{
-    ArrayBufferHeapData, data_view::data::DataViewRecord, typed_array::data::TypedArrayRecord,
-};
-use super::{
-    ArrayHeapData, async_generator_objects::AsyncGeneratorHeapData,
-    control_abstraction_objects::generator_objects::GeneratorHeapData, error::ErrorHeapData,
-    finalization_registry::data::FinalizationRegistryRecord,
+    array::ArrayHeapData,
+    control_abstraction_objects::{
+        async_generator_objects::AsyncGeneratorHeapData, generator_objects::GeneratorHeapData,
+    },
+    error::ErrorHeapData,
+    finalization_registry::FinalizationRegistryRecord,
     indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
     keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
-    map::data::MapHeapData, module::Module, primitive_objects::PrimitiveObjectRecord,
-    promise::data::PromiseHeapData,
+    map::MapHeapData,
+    module::Module,
+    primitive_objects::PrimitiveObjectRecord,
+    promise::PromiseHeapData,
     text_processing::string_objects::string_iterator_objects::StringIteratorHeapData,
+};
+#[cfg(feature = "array-buffer")]
+use super::{
+    array_buffer::ArrayBufferHeapData, data_view::DataViewRecord, typed_array::TypedArrayRecord,
 };
 #[cfg(feature = "set")]
 use super::{
     keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIteratorHeapData,
-    set::data::SetHeapData,
+    set::SetHeapData,
 };
 #[cfg(feature = "weak-refs")]
-use super::{
-    weak_map::data::WeakMapRecord, weak_ref::data::WeakRefHeapData, weak_set::data::WeakSetHeapData,
-};
+use super::{weak_map::WeakMapRecord, weak_ref::WeakRefHeapData, weak_set::WeakSetHeapData};
 
 /// ## [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
 impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {

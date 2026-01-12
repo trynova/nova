@@ -21,9 +21,9 @@ use crate::{
     },
 };
 
-use self::data::SharedArrayBufferRecord;
+pub(crate) use self::data::SharedArrayBufferRecord;
 
-pub mod data;
+mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]

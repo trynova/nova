@@ -11,7 +11,7 @@ use crate::{
             ArgumentsList, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
             bound_function::BoundFunction,
             ordinary::caches::{PropertyLookupCache, PropertyOffset},
-            promise_objects::promise_abstract_operations::{
+            control_abstraction_objects::promise_objects::promise_abstract_operations::{
                 promise_finally_functions::BuiltinPromiseFinallyFunction,
                 promise_resolving_functions::BuiltinPromiseResolvingFunction,
             },

@@ -22,7 +22,7 @@ use crate::{
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
-            ArgumentsList, Behaviour, Builtin, array_create,
+            ArgumentsList, Behaviour, Builtin, array::abstract_operations::array_create,
             ordinary::ordinary_object_create_with_intrinsics,
             primitive_objects::{PrimitiveObject, PrimitiveObjectData},
         },

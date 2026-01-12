@@ -10,12 +10,8 @@ use crate::{
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
-            ArgumentsList, Behaviour, Builtin,
-            promise::{
-                Promise,
-                data::{PromiseReactions, PromiseState},
-            },
-            promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
+            ArgumentsList, Behaviour, Builtin, BuiltinPromiseFinallyFunction, Promise,
+            promise::{PromiseReactions, PromiseState},
         },
         execution::{
             Agent, JsResult, ProtoIntrinsics, Realm,

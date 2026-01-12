@@ -4608,24 +4608,18 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::TSEnum
                 match initializer {
                     ast::Expression::StringLiteral(string_lit) => {
                         let string_value = ctx.create_string(string_lit.value.as_str());
-                        ctx.add_instruction_with_constant(
-                            Instruction::StoreConstant,
-                            string_value.into(),
-                        );
+                        ctx.add_instruction_with_constant(Instruction::StoreConstant, string_value);
                     }
                     ast::Expression::NumericLiteral(num_lit) => {
                         let number_value = ctx.create_number(num_lit.value);
-                        ctx.add_instruction_with_constant(
-                            Instruction::StoreConstant,
-                            number_value.into(),
-                        );
+                        ctx.add_instruction_with_constant(Instruction::StoreConstant, number_value);
                         current_numeric_value = num_lit.value + 1.0;
                     }
                     _ => unreachable!("Computed members should have been filtered out"),
                 }
             } else {
                 let number_value = ctx.create_number(current_numeric_value);
-                ctx.add_instruction_with_constant(Instruction::StoreConstant, number_value.into());
+                ctx.add_instruction_with_constant(Instruction::StoreConstant, number_value);
                 current_numeric_value += 1.0;
             }
             ctx.add_instruction(Instruction::Load);
@@ -4639,7 +4633,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::TSEnum
                     _ => "unknown",
                 };
                 let name_string = ctx.create_string(member_name);
-                ctx.add_instruction_with_constant(Instruction::StoreConstant, name_string.into());
+                ctx.add_instruction_with_constant(Instruction::StoreConstant, name_string);
                 ctx.add_instruction(Instruction::Load);
             }
         }
@@ -4671,7 +4665,7 @@ fn compile_enum_with_computed_members<'s>(
 
         // Push member name as property key onto stack
         let member_string = ctx.create_string(member_name);
-        ctx.add_instruction_with_constant(Instruction::LoadConstant, member_string.into());
+        ctx.add_instruction_with_constant(Instruction::LoadConstant, member_string);
 
         // Determine the value for this enum member
         if let Some(ref initializer) = member.initializer {
@@ -4679,17 +4673,11 @@ fn compile_enum_with_computed_members<'s>(
                 ast::Expression::StringLiteral(string_lit) => {
                     is_numeric_enum = false;
                     let string_value = ctx.create_string(string_lit.value.as_str());
-                    ctx.add_instruction_with_constant(
-                        Instruction::StoreConstant,
-                        string_value.into(),
-                    );
+                    ctx.add_instruction_with_constant(Instruction::StoreConstant, string_value);
                 }
                 ast::Expression::NumericLiteral(num_lit) => {
                     let number_value = ctx.create_number(num_lit.value);
-                    ctx.add_instruction_with_constant(
-                        Instruction::StoreConstant,
-                        number_value.into(),
-                    );
+                    ctx.add_instruction_with_constant(Instruction::StoreConstant, number_value);
                     current_numeric_value = num_lit.value + 1.0;
                 }
                 _ => {
@@ -4699,7 +4687,7 @@ fn compile_enum_with_computed_members<'s>(
             }
         } else {
             let number_value = ctx.create_number(current_numeric_value);
-            ctx.add_instruction_with_constant(Instruction::StoreConstant, number_value.into());
+            ctx.add_instruction_with_constant(Instruction::StoreConstant, number_value);
             current_numeric_value += 1.0;
         }
 
@@ -4731,10 +4719,10 @@ fn compile_enum_with_computed_members<'s>(
             };
 
             let key_number = ctx.create_number(reverse_key_value);
-            ctx.add_instruction_with_constant(Instruction::LoadConstant, key_number.into());
+            ctx.add_instruction_with_constant(Instruction::LoadConstant, key_number);
 
             let name_string = ctx.create_string(member_name);
-            ctx.add_instruction_with_constant(Instruction::StoreConstant, name_string.into());
+            ctx.add_instruction_with_constant(Instruction::StoreConstant, name_string);
 
             ctx.add_instruction(Instruction::ObjectDefineProperty);
         }

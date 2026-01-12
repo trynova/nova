@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 pub(crate) mod abstract_operations;
-pub(crate) mod data;
+mod data;
 
 use crate::{
     ecmascript::{

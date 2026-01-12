@@ -472,6 +472,7 @@ impl<'a> String<'a> {
         self.to_string_lossy_(agent)
     }
 
+    #[allow(clippy::wrong_self_convention)]
     pub(crate) fn to_string_lossy_(&self, agent: &impl StringHeapAccess) -> Cow<'_, str> {
         match self {
             // SAFETY: Assuming that user has properly bound the String, the

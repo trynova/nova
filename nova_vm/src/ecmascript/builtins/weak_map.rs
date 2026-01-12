@@ -15,9 +15,9 @@ use crate::{
     },
 };
 
-use self::data::WeakMapRecord;
+pub(crate) use self::data::WeakMapRecord;
 
-pub mod data;
+mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]

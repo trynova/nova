@@ -21,7 +21,8 @@ use crate::{
             },
         },
         builtins::{
-            ArgumentsList, Array, BuiltinConstructorFunction, array_create,
+            ArgumentsList, Array, BuiltinConstructorFunction,
+            array::abstract_operations::array_create,
             keyed_collections::map_objects::map_prototype::canonicalize_keyed_collection_key,
             ordinary::caches::PropertyLookupCache,
             proxy::abstract_operations::{

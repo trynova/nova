@@ -11,7 +11,7 @@ use oxc_ast::ast;
 
 use crate::{
     ecmascript::{
-        builtins::{Array, array_create},
+        builtins::{Array, array::abstract_operations::array_create},
         execution::{Agent, agent::unwrap_try},
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, OrdinaryObject, String, Value,

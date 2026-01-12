@@ -2,9 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-pub(crate) mod data;
-
-use data::DateValue;
+mod data;
 
 use crate::{
     ecmascript::{
@@ -18,7 +16,8 @@ use crate::{
     },
 };
 
-use self::data::DateHeapData;
+pub(crate) use self::data::DateHeapData;
+pub(super) use data::DateValue;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]

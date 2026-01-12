@@ -28,25 +28,25 @@ pub(crate) use self::heap_constants::{
 };
 pub(crate) use self::object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor};
 #[cfg(feature = "date")]
-use crate::ecmascript::builtins::date::data::DateHeapData;
+use crate::ecmascript::builtins::date::DateHeapData;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{
-    ArrayBuffer, ArrayBufferHeapData,
-    array_buffer::DetachKey,
-    data_view::{DataView, data::DataViewRecord},
+    ArrayBuffer,
+    array_buffer::{ArrayBufferHeapData, DetachKey},
+    data_view::{DataView, DataViewRecord},
+    typed_array::TypedArrayRecord,
     typed_array::VoidArray,
-    typed_array::data::TypedArrayRecord,
 };
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::{
-    data_view::{SharedDataView, data::SharedDataViewRecord},
-    shared_array_buffer::data::SharedArrayBufferRecord,
-    typed_array::{SharedVoidArray, data::SharedTypedArrayRecord},
+    data_view::{SharedDataView, SharedDataViewRecord},
+    shared_array_buffer::SharedArrayBufferRecord,
+    typed_array::{SharedTypedArrayRecord, SharedVoidArray},
 };
 #[cfg(feature = "set")]
 use crate::ecmascript::builtins::{
     keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIteratorHeapData,
-    set::data::SetHeapData,
+    set::SetHeapData,
 };
 #[cfg(feature = "regexp")]
 use crate::ecmascript::builtins::{
@@ -55,13 +55,12 @@ use crate::ecmascript::builtins::{
 };
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{
-    weak_map::data::WeakMapRecord, weak_ref::data::WeakRefHeapData, weak_set::data::WeakSetHeapData,
+    weak_map::WeakMapRecord, weak_ref::WeakRefHeapData, weak_set::WeakSetHeapData,
 };
 use crate::{
     ecmascript::{
         builtins::{
-            ArrayHeapData,
-            async_generator_objects::AsyncGeneratorHeapData,
+            array::ArrayHeapData,
             control_abstraction_objects::{
                 async_function_objects::await_reaction::AwaitReactionRecord,
                 generator_objects::GeneratorHeapData,
@@ -70,24 +69,27 @@ use crate::{
                     promise_resolving_functions::PromiseResolvingFunctionHeapData,
                 },
             },
-            embedder_object::data::EmbedderObjectHeapData,
+            control_abstraction_objects::{
+                async_generator_objects::AsyncGeneratorHeapData,
+                promise_objects::promise_abstract_operations::{
+                    promise_finally_functions::PromiseFinallyFunctionHeapData,
+                    promise_group_record::PromiseGroupRecord,
+                },
+            },
+            embedder_object::EmbedderObjectHeapData,
             error::ErrorHeapData,
-            finalization_registry::data::FinalizationRegistryRecord,
+            finalization_registry::FinalizationRegistryRecord,
             indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
             keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
-            map::data::MapHeapData,
-            module::data::ModuleHeapData,
+            map::MapHeapData,
+            module::ModuleHeapData,
             ordinary::{
                 caches::Caches,
                 shape::{ObjectShapeRecord, ObjectShapeTransitionMap, PrototypeShapeTable},
             },
             primitive_objects::PrimitiveObjectRecord,
-            promise::data::PromiseHeapData,
-            promise_objects::promise_abstract_operations::{
-                promise_finally_functions::PromiseFinallyFunctionHeapData,
-                promise_group_record::PromiseGroupRecord,
-            },
-            proxy::data::ProxyHeapData,
+            promise::PromiseHeapData,
+            proxy::ProxyHeapData,
             text_processing::string_objects::string_iterator_objects::StringIteratorHeapData,
         },
         execution::{Agent, Environments, Realm, RealmRecord},
@@ -600,6 +602,7 @@ pub(crate) trait DirectArenaAccess: HeapIndexHandle {
     type Output;
 
     /// Access arena data belonging to a handle.
+    #[allow(clippy::ptr_arg)]
     fn get_direct(self, agent: &Vec<Self::Data>) -> &Self::Output;
 }
 

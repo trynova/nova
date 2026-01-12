@@ -61,7 +61,7 @@ arena_vec_access!(
 );
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ConstructorStatus {
+pub(crate) enum ConstructorStatus {
     NonConstructor,
     ConstructorFunction,
     BaseClass,
@@ -69,22 +69,22 @@ pub enum ConstructorStatus {
 }
 
 impl ConstructorStatus {
-    pub fn is_constructor(self) -> bool {
+    pub(crate) fn is_constructor(self) -> bool {
         self != ConstructorStatus::NonConstructor
     }
-    pub fn is_class_constructor(self) -> bool {
+    pub(crate) fn is_class_constructor(self) -> bool {
         matches!(
             self,
             ConstructorStatus::BaseClass | ConstructorStatus::DerivedClass
         )
     }
-    pub fn is_derived_class(self) -> bool {
+    pub(crate) fn is_derived_class(self) -> bool {
         self == ConstructorStatus::DerivedClass
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ThisMode {
+pub(crate) enum ThisMode {
     Lexical,
     Strict,
     Global,
@@ -247,10 +247,10 @@ impl<'ast> FunctionAstRef<'ast> {
 #[derive(Debug)]
 pub(crate) struct ECMAScriptFunctionObjectHeapData<'a> {
     /// \[\[Environment]]
-    pub environment: Environment<'a>,
+    pub(crate) environment: Environment<'a>,
 
     /// \[\[PrivateEnvironment]]
-    pub private_environment: Option<PrivateEnvironment<'a>>,
+    pub(crate) private_environment: Option<PrivateEnvironment<'a>>,
 
     /// \[\[FormalParameters]]
     /// \[\[ECMAScriptCode]]
@@ -258,42 +258,42 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData<'a> {
 
     /// \[\[ConstructorKind]]
     /// \[\[IsClassConstructor]]
-    pub constructor_status: ConstructorStatus,
+    pub(crate) constructor_status: ConstructorStatus,
 
     /// \[\[Realm]]
-    pub realm: Realm<'a>,
+    pub(crate) realm: Realm<'a>,
 
     /// \[\[ScriptOrModule]]
-    pub script_or_module: ScriptOrModule<'a>,
+    pub(crate) script_or_module: ScriptOrModule<'a>,
 
     /// \[\[ThisMode]]
-    pub this_mode: ThisMode,
+    pub(crate) this_mode: ThisMode,
 
     /// \[\[Strict]]
-    pub strict: bool,
+    pub(crate) strict: bool,
 
     /// \[\[HomeObject]]
-    pub home_object: Option<Object<'a>>,
+    pub(crate) home_object: Option<Object<'a>>,
 
     ///  \[\[SourceText]]
-    pub source_text: Span,
+    pub(crate) source_text: Span,
 
     /// \[\[SourceCode]]
     ///
     /// Nova specific addition: This SourceCode is where \[\[SourceText]]
     /// refers to.
-    pub source_code: SourceCode<'a>,
+    pub(crate) source_code: SourceCode<'a>,
     // TODO: [[Fields]],  [[PrivateMethods]], [[ClassFieldInitializerName]]
 }
 
 pub(crate) struct OrdinaryFunctionCreateParams<'ast, 'gc> {
-    pub function_prototype: Option<Object<'gc>>,
-    pub source_code: Option<SourceCode<'gc>>,
-    pub source_text: Span,
-    pub ast: FunctionAstRef<'ast>,
-    pub lexical_this: bool,
-    pub env: Environment<'gc>,
-    pub private_env: Option<PrivateEnvironment<'gc>>,
+    pub(crate) function_prototype: Option<Object<'gc>>,
+    pub(crate) source_code: Option<SourceCode<'gc>>,
+    pub(crate) source_text: Span,
+    pub(crate) ast: FunctionAstRef<'ast>,
+    pub(crate) lexical_this: bool,
+    pub(crate) env: Environment<'gc>,
+    pub(crate) private_env: Option<PrivateEnvironment<'gc>>,
 }
 
 impl<'a> ECMAScriptFunction<'a> {

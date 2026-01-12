@@ -14,9 +14,9 @@ use crate::{
     },
 };
 
-use self::data::WeakRefHeapData;
+pub(crate) use self::data::WeakRefHeapData;
 
-pub mod data;
+mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]

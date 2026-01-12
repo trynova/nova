@@ -384,7 +384,7 @@ impl<'a> Number<'a> {
 
     #[cfg(feature = "proposal-float16array")]
     #[inline(always)]
-    pub fn into_f16(self, agent: &Agent) -> bool {
+    pub fn into_f16(self, agent: &Agent) -> f16 {
         self.into_f16_(agent)
     }
 
@@ -394,7 +394,7 @@ impl<'a> Number<'a> {
         T: NumberHeapAccess,
     {
         match self {
-            Number::Number(n) => n.get(agent) as f16,
+            Number::Number(n) => *n.get(agent) as f16,
             Number::Integer(n) => Into::<i64>::into(n) as f16,
             Number::SmallF64(n) => n.into_f64() as f16,
         }
