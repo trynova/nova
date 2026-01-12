@@ -10,7 +10,7 @@ use crate::{
             ArgumentsList, Behaviour, Builtin, finalization_registry::FinalizationRegistry,
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType, can_be_held_weakly},
-        types::{BUILTIN_STRING_MEMORY,  String, Value},
+        types::{BUILTIN_STRING_MEMORY, String, Value},
     },
     engine::context::{Bindable, GcScope, NoGcScope},
     heap::WellKnownSymbolIndexes,

@@ -10,7 +10,7 @@ use crate::{
             Agent, JsResult, Realm, agent::ExceptionType, can_be_held_weakly,
             throw_not_weak_key_error,
         },
-        types::{BUILTIN_STRING_MEMORY,  String, Value},
+        types::{BUILTIN_STRING_MEMORY, String, Value},
     },
     engine::context::{Bindable, GcScope, NoGcScope},
     heap::WellKnownSymbolIndexes,

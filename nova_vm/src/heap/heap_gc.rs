@@ -39,8 +39,8 @@ use crate::{
     ecmascript::{
         builtins::{
             Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
-            control_abstraction_objects::async_generator_objects::AsyncGenerator,
             bound_function::BoundFunction,
+            control_abstraction_objects::async_generator_objects::AsyncGenerator,
             control_abstraction_objects::promise_objects::promise_abstract_operations::{
                 promise_finally_functions::BuiltinPromiseFinallyFunction,
                 promise_group_record::PromiseGroup,

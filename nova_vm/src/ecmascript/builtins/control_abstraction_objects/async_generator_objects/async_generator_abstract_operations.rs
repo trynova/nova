@@ -7,7 +7,6 @@ use crate::{
         abstract_operations::operations_on_iterator_objects::create_iter_result_object,
         builtins::{
             ECMAScriptFunction,
-            promise::Promise,
             control_abstraction_objects::promise_objects::{
                 promise_abstract_operations::{
                     promise_capability_records::PromiseCapability,
@@ -15,6 +14,7 @@ use crate::{
                 },
                 promise_prototype::inner_promise_then,
             },
+            promise::Promise,
         },
         execution::{
             Agent, JsResult, Realm,

@@ -18,7 +18,6 @@ use crate::{
         },
         builtins::{
             ArgumentsList,
-            promise::Promise,
             control_abstraction_objects::promise_objects::{
                 promise_abstract_operations::{
                     promise_capability_records::{PromiseCapability, if_abrupt_reject_promise_m},
@@ -26,6 +25,7 @@ use crate::{
                 },
                 promise_prototype::inner_promise_then,
             },
+            promise::Promise,
         },
         execution::{
             Agent,

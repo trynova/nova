@@ -18,8 +18,7 @@ use crate::{
             agent::{ExceptionType, try_result_into_js},
         },
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods,  Object, PropertyDescriptor, String,
-            Value,
+            BUILTIN_STRING_MEMORY, InternalMethods, Object, PropertyDescriptor, String, Value,
         },
     },
     engine::{

@@ -15,7 +15,7 @@ use crate::{
             structured_data::array_buffer_objects::array_buffer_prototype::require_internal_slot_any_array_buffer,
         },
         execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Function,  Object, String, Value},
+        types::{BUILTIN_STRING_MEMORY, Function, Object, String, Value},
     },
     engine::{
         context::{Bindable, GcScope},

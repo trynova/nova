@@ -23,7 +23,8 @@ use crate::{
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic, array::abstract_operations::{array_create, array_species_create},
+            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic,
+            array::abstract_operations::{array_create, array_species_create},
         },
         execution::{
             Agent, JsResult, Realm,

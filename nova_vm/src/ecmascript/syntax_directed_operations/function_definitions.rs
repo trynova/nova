@@ -12,6 +12,9 @@ use crate::{
             control_abstraction_objects::async_generator_objects::{
                 AsyncGeneratorHeapData, AsyncGeneratorState,
             },
+            control_abstraction_objects::generator_objects::{
+                GeneratorHeapData, SuspendedGeneratorState,
+            },
             control_abstraction_objects::{
                 async_function_objects::await_reaction::AwaitReactionRecord,
                 generator_objects::GeneratorState,
@@ -24,14 +27,13 @@ use crate::{
                 },
             },
             ecmascript_function::ThisMode,
-            control_abstraction_objects::generator_objects::{GeneratorHeapData, SuspendedGeneratorState},
             ecmascript_function::make_constructor,
+            ecmascript_function::ordinary_function_create,
+            ecmascript_function::set_function_name,
             ordinary::{
                 ordinary_object_create_with_intrinsics, ordinary_populate_from_constructor,
             },
-            ecmascript_function::ordinary_function_create,
             promise::Promise,
-            ecmascript_function::set_function_name,
         },
         execution::{
             Agent, Environment, JsResult, PrivateEnvironment, ProtoIntrinsics, agent::unwrap_try,

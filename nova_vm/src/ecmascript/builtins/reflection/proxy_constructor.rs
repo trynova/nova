@@ -9,7 +9,7 @@ use crate::{
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor, proxy::proxy_create,
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY,  Object, String, Value},
+        types::{BUILTIN_STRING_MEMORY, Object, String, Value},
     },
     engine::context::{Bindable, GcScope},
     heap::IntrinsicConstructorIndexes,

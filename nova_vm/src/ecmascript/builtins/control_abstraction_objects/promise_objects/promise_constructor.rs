@@ -26,8 +26,7 @@ use crate::{
             },
             ordinary::ordinary_create_from_constructor,
             promise::{
-                Promise,
-                {PromiseHeapData, PromiseState},
+                Promise, {PromiseHeapData, PromiseState},
             },
         },
         execution::{

@@ -18,14 +18,12 @@ use oxc_ecmascript::BoundNames;
 use crate::{
     ecmascript::{
         builtins::{
-            PromiseCapability,
+            Module, Promise, PromiseCapability,
             control_abstraction_objects::async_function_objects::await_reaction::AwaitReactionRecord,
             control_abstraction_objects::promise_objects::{
                 promise_abstract_operations::promise_reaction_records::PromiseReactionHandler,
                 promise_prototype::inner_promise_then,
             },
-            Module,
-            Promise,
         },
         execution::{
             Agent, ECMAScriptCodeEvaluationState, ExecutionContext, JsResult, ModuleEnvironment,
