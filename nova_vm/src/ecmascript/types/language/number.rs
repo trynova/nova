@@ -1661,6 +1661,35 @@ pub(crate) enum BitwiseOp {
     Or,
 }
 
+macro_rules! number_value {
+    ($name: tt) => {
+        crate::ecmascript::types::number_value!($name, $name);
+    };
+    ($name: ident, $variant: ident) => {
+        crate::ecmascript::types::numeric_value!($name, $variant);
+
+        impl From<$name> for crate::ecmascript::types::Number<'static> {
+            #[inline(always)]
+            fn from(value: $name) -> Self {
+                Self::$variant(value)
+            }
+        }
+
+        impl TryFrom<crate::ecmascript::types::Number<'_>> for $name {
+            type Error = ();
+
+            #[inline]
+            fn try_from(value: crate::ecmascript::types::Number) -> Result<Self, Self::Error> {
+                match value {
+                    crate::ecmascript::types::Number::$variant(data) => Ok(data),
+                    _ => Err(()),
+                }
+            }
+        }
+    };
+}
+pub(crate) use number_value;
+
 #[cfg(test)]
 mod tests {
     use super::Number;
@@ -1706,32 +1735,3 @@ mod tests {
         agent.gc(gc);
     }
 }
-
-macro_rules! number_value {
-    ($name: tt) => {
-        crate::ecmascript::types::number_value!($name, $name);
-    };
-    ($name: ident, $variant: ident) => {
-        crate::ecmascript::types::numeric_value!($name, $variant);
-
-        impl From<$name> for crate::ecmascript::types::Number<'static> {
-            #[inline(always)]
-            fn from(value: $name) -> Self {
-                Self::$variant(value)
-            }
-        }
-
-        impl TryFrom<crate::ecmascript::types::Number<'_>> for $name {
-            type Error = ();
-
-            #[inline]
-            fn try_from(value: crate::ecmascript::types::Number) -> Result<Self, Self::Error> {
-                match value {
-                    crate::ecmascript::types::Number::$variant(data) => Ok(data),
-                    _ => Err(()),
-                }
-            }
-        }
-    };
-}
-pub(crate) use number_value;
