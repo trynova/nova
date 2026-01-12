@@ -14,10 +14,7 @@ use crate::{
         fundamental_objects::function_objects::function_constructor::{
             DynamicFunctionKind, create_dynamic_function,
         },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyDescriptor,
-            String, Value,
-        },
+        types::{BUILTIN_STRING_MEMORY, Function, Object, PropertyDescriptor, String, Value},
     },
     engine::context::{Bindable, GcScope},
     heap::IntrinsicConstructorIndexes,
@@ -46,7 +43,7 @@ impl GeneratorFunctionConstructor {
         let new_target = new_target.bind(gc.nogc());
         // 2. If bodyArg is not present, set bodyArg to the empty String.
         let (parameter_args, body_arg) = if arguments.is_empty() {
-            (&[] as &[Value], String::EMPTY_STRING.into_value())
+            (&[] as &[Value], String::EMPTY_STRING.into())
         } else {
             let (last, others) = arguments.split_last().unwrap();
             (others, last.bind(gc.nogc()))
@@ -84,7 +81,7 @@ impl GeneratorFunctionConstructor {
                     .current_realm_record()
                     .intrinsics()
                     .generator_prototype()
-                    .into_object(),
+                    .into(),
             ),
             gc,
         );
@@ -98,7 +95,7 @@ impl GeneratorFunctionConstructor {
             // PropertyDescriptor {
             PropertyDescriptor {
                 // [[Value]]: prototype,
-                value: Some(prototype.into_value().unbind()),
+                value: Some(prototype.unbind().into()),
                 // [[Writable]]: true,
                 writable: Some(true),
                 // [[Enumerable]]: false,
@@ -112,7 +109,7 @@ impl GeneratorFunctionConstructor {
         ));
         // }).
 
-        Ok(f.into_value())
+        Ok(f.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -123,7 +120,7 @@ impl GeneratorFunctionConstructor {
             agent, realm,
         )
         .with_property_capacity(1)
-        .with_prototype_property(generator_function_prototype.into_object())
+        .with_prototype_property(generator_function_prototype.into())
         .build();
     }
 }

@@ -49,9 +49,9 @@ use crate::{
             agent::{ExceptionType, try_result_into_js, unwrap_try},
         },
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, IntoNumeric, IntoObject, IntoValue, Number,
-            Numeric, Object, Primitive, PropertyKey, String, TryGetResult, Value,
-            unwrap_try_get_value, unwrap_try_get_value_or_unset,
+            BUILTIN_STRING_MEMORY, InternalMethods, Number, Numeric, Object, Primitive,
+            PropertyKey, String, TryGetResult, Value, unwrap_try_get_value,
+            unwrap_try_get_value_or_unset,
         },
     },
     engine::{
@@ -202,7 +202,7 @@ impl TypedArrayIntrinsicObject {
                 // ii. Let kValue be the first element of values.
                 // iii. Remove the first element from values.
                 let sk = SmallInteger::from(k as u32);
-                let fk = Number::from(sk).into_value();
+                let fk = Number::from(sk).into();
                 let pk = PropertyKey::from(sk);
                 //  iv. If mapping is true, then
                 let mapped_value = if let Some(mapper) = &mapping {
@@ -227,7 +227,7 @@ impl TypedArrayIntrinsicObject {
                 // vi. Perform ? Set(targetObj, Pk, mappedValue, true).
                 set(
                     agent,
-                    scoped_target_obj.get(agent).into_object(),
+                    scoped_target_obj.get(agent).into(),
                     pk,
                     mapped_value.unbind(),
                     true,
@@ -239,7 +239,7 @@ impl TypedArrayIntrinsicObject {
             // f. Assert: values is now an empty List.
             // g. Return targetObj.
             let target_obj = scoped_target_obj.get(agent);
-            return Ok(target_obj.into_value());
+            return Ok(target_obj.into());
         }
         // 7. NOTE: source is not an iterable object, so assume it is already an array-like object.
         // 8. Let arrayLike be ! ToObject(source).
@@ -264,7 +264,7 @@ impl TypedArrayIntrinsicObject {
         while k < len {
             let sk = SmallInteger::from(k as u32);
             // 𝔽(k)
-            let fk = Number::from(sk).into_value();
+            let fk = Number::from(sk).into();
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk = PropertyKey::from(sk);
             // b. Let kValue be ? Get(arrayLike, Pk).
@@ -291,7 +291,7 @@ impl TypedArrayIntrinsicObject {
             // e. Perform ? Set(targetObj, Pk, mappedValue, true).
             set(
                 agent,
-                scoped_target_obj.get(agent).into_object(),
+                scoped_target_obj.get(agent).into(),
                 pk,
                 mapped_value.unbind(),
                 true,
@@ -302,7 +302,7 @@ impl TypedArrayIntrinsicObject {
             k += 1;
         }
         let target_obj = scoped_target_obj.get(agent);
-        Ok(target_obj.into_value())
+        Ok(target_obj.into())
     }
 
     /// ### [23.2.2.2 %TypedArray%.of ( ...items )](https://tc39.es/ecma262/#sec-properties-of-the-%typedarray%-intrinsic-object)
@@ -353,7 +353,7 @@ impl TypedArrayIntrinsicObject {
                     // c. Perform ? Set(newObj, Pk, kValue, true).
                     set(
                         agent,
-                        scoped_new_obj.get(agent).into_object(),
+                        scoped_new_obj.get(agent).into(),
                         pk,
                         k_value.unbind(),
                         true,
@@ -363,7 +363,7 @@ impl TypedArrayIntrinsicObject {
                     // d. Set k to k + 1.
                 }
                 // 7. Return newObj.
-                Ok(scoped_new_obj.get(agent).into_value())
+                Ok(scoped_new_obj.get(agent).into())
             },
             gc,
         )
@@ -394,7 +394,7 @@ impl TypedArrayIntrinsicObject {
         .with_property_capacity(4)
         .with_builtin_function_property::<TypedArrayFrom>()
         .with_builtin_function_property::<TypedArrayOf>()
-        .with_prototype_property(typed_array_prototype.into_object())
+        .with_prototype_property(typed_array_prototype.into())
         .with_builtin_function_getter_property::<TypedArrayGetSpecies>()
         .build();
     }
@@ -700,7 +700,7 @@ impl TypedArrayPrototype {
         let o = require_internal_slot_typed_array(agent, this_value, gc)?;
 
         // 5. Return buffer.
-        Ok(o.viewed_array_buffer(agent).into_value())
+        Ok(o.viewed_array_buffer(agent).into())
     }
 
     /// ### [23.2.3.3 get %TypedArray%.prototype.byteLength](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype.bytelength)
@@ -826,7 +826,7 @@ impl TypedArrayPrototype {
             let count = count.min(new_len - start_index).min(new_len - target_index);
             o.copy_within(agent, start_index, target_index, count)
         }
-        Ok(o.into_value())
+        Ok(o.into())
     }
 
     #[cold]
@@ -901,10 +901,7 @@ impl TypedArrayPrototype {
         // 2. Perform ? ValidateTypedArray(O, seq-cst).
         let o = validate_typed_array(agent, this_value, Ordering::SeqCst, gc)?.object;
         // 3. Return CreateArrayIterator(O, key+value).
-        Ok(
-            ArrayIterator::from_object(agent, o.into_object(), CollectionIteratorKind::KeyAndValue)
-                .into_value(),
-        )
+        Ok(ArrayIterator::from_object(agent, o.into(), CollectionIteratorKind::KeyAndValue).into())
     }
 
     /// ### [23.2.3.8 %%TypedArray%.prototype.every ( callback \[ , thisArg \] )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.every)
@@ -956,8 +953,8 @@ impl TypedArrayPrototype {
                 this_arg.get(agent),
                 Some(ArgumentsList::from_mut_slice(&mut [
                     k_value.unbind(),
-                    Number::try_from(k).unwrap().into_value(),
-                    o.into_value().unbind(),
+                    Number::try_from(k).unwrap().into(),
+                    o.unbind().into(),
                 ])),
                 gc.reborrow(),
             )
@@ -1005,16 +1002,16 @@ impl TypedArrayPrototype {
             relative_end @ Value::Integer(_) | relative_end @ Value::Undefined,
         ) = (Primitive::try_from(value), start, end)
         {
-            let value = if ta_record.object.is_bigint() {
+            let value: Numeric = if ta_record.object.is_bigint() {
                 to_big_int_primitive(agent, value, gc.nogc())
                     .unbind()?
                     .bind(gc.nogc())
-                    .into_numeric()
+                    .into()
             } else {
                 to_number_primitive(agent, value, gc.nogc())
                     .unbind()?
                     .bind(gc.nogc())
-                    .into_numeric()
+                    .into()
             };
             let start_index = calculate_relative_index(relative_start.into_i64(), len);
             let end_index = if let Value::Integer(relative_end) = relative_end {
@@ -1053,7 +1050,7 @@ impl TypedArrayPrototype {
         }
 
         // 20. Return O.
-        Ok(o.into_value())
+        Ok(o.into())
     }
 
     #[cold]
@@ -1072,18 +1069,18 @@ impl TypedArrayPrototype {
         let end = end.scope(agent, gc.nogc());
         let value = value.bind(gc.nogc());
         // 4. If O.[[ContentType]] is bigint,
-        let value = if is_bigint {
+        let value: Numeric = if is_bigint {
             // set value to ? ToBigInt(value).
             to_big_int(agent, value.unbind(), gc.reborrow())
                 .unbind()?
                 .bind(gc.nogc())
-                .into_numeric()
+                .into()
         } else {
             // 5. Otherwise, set value to ? ToNumber(value).
             to_number(agent, value.unbind(), gc.reborrow())
                 .unbind()?
                 .bind(gc.nogc())
-                .into_numeric()
+                .into()
         };
 
         let start_temp = start.get(agent).bind(gc.nogc());
@@ -1225,11 +1222,11 @@ impl TypedArrayPrototype {
         let o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
         let len = ta_record.typed_array_length(agent) as u64;
-        let o = o.into_object().scope(agent, gc.nogc());
+        let o = o.scope(agent, gc.nogc());
         // 4. Let findRec be ? FindViaPredicate(O, len, ascending, predicate, thisArg).
         let find_rec = find_via_predicate(agent, o, len, true, predicate, this_arg, gc)?;
         // 5. Return findRec.[[Index]].
-        Ok(Number::try_from(find_rec.0).unwrap().into_value())
+        Ok(Number::try_from(find_rec.0).unwrap().into())
     }
 
     /// ### [23.2.3.13 %TypedArray%.prototype.findLast ( predicate \[ , thisArg \] )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.findlast)
@@ -1282,11 +1279,11 @@ impl TypedArrayPrototype {
         let o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
         let len = ta_record.typed_array_length(agent) as u64;
-        let o = o.into_object().scope(agent, gc.nogc());
+        let o = o.scope(agent, gc.nogc());
         // 4. Let findRec be ? FindViaPredicate(O, len, descending, predicate, thisArg).
         let find_rec = find_via_predicate(agent, o, len, false, predicate, this_arg, gc)?;
         // 5. Return findRec.[[Index]].
-        Ok(Number::try_from(find_rec.0).unwrap().into_value())
+        Ok(Number::try_from(find_rec.0).unwrap().into())
     }
 
     /// ### [23.2.3.15 %TypedArray%.prototype.forEach ( callback \[ , thisArg \] )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.foreach)
@@ -1341,7 +1338,7 @@ impl TypedArrayPrototype {
                 Some(ArgumentsList::from_mut_slice(&mut [
                     k_value.unbind(),
                     fk.unbind(),
-                    o.into_value().unbind(),
+                    o.unbind().into(),
                 ])),
                 gc.reborrow(),
             )
@@ -1575,14 +1572,14 @@ impl TypedArrayPrototype {
                 // If TypedArray is out of bounds then every Get(O, k) returns
                 // undefined. The result is a string comprising only of
                 // separators.
-                let sep = sep_string.as_wtf8(agent).to_owned();
+                let sep = sep_string.as_wtf8_(agent).to_owned();
                 let count = len.saturating_sub(1);
                 let byte_count = count * sep.len();
                 let mut buf = Wtf8Buf::with_capacity(byte_count);
                 for _ in 0..count {
                     buf.push_wtf8(sep);
                 }
-                return Ok(String::from_wtf8_buf(agent, buf, gc.into_nogc()).into_value());
+                return Ok(String::from_wtf8_buf(agent, buf, gc.into_nogc()).into());
             }
             (sep_string, len)
         };
@@ -1592,10 +1589,10 @@ impl TypedArrayPrototype {
         let o = o.bind(gc);
         let sep_string = sep_string.bind(gc);
         if len == 0 {
-            return Ok(String::EMPTY_STRING.into_value());
+            return Ok(String::EMPTY_STRING.into());
         }
 
-        let sep = sep_string.as_wtf8(agent).to_owned();
+        let sep = sep_string.as_wtf8_(agent).to_owned();
         // 6. Let R be the empty String.
         let mut r = Wtf8Buf::with_capacity(after_len * 3);
         // 7. Let k be 0.
@@ -1619,11 +1616,11 @@ impl TypedArrayPrototype {
             // i. Let S be ! ToString(element).
             let s = unwrap_try(try_to_string(agent, element, gc));
             // ii. Set R to the string-concatenation of R and S.
-            r.push_wtf8(s.as_wtf8(agent));
+            r.push_wtf8(s.as_wtf8_(agent));
             // d. Set k to k + 1.
         }
         // 9. Return R.
-        Ok(String::from_wtf8_buf(agent, r, gc).into_value().unbind())
+        Ok(String::from_wtf8_buf(agent, r, gc).unbind().into())
     }
 
     /// ### [23.2.3.19 %TypedArray%.prototype.keys ( )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.keys)
@@ -1638,10 +1635,7 @@ impl TypedArrayPrototype {
         // 2. Perform ? ValidateTypedArray(O, seq-cst).
         let o = validate_typed_array(agent, this_value, Ordering::SeqCst, gc)?.object;
         // 3. Return CreateArrayIterator(O, key).
-        Ok(
-            ArrayIterator::from_object(agent, o.into_object(), CollectionIteratorKind::Key)
-                .into_value(),
-        )
+        Ok(ArrayIterator::from_object(agent, o.into(), CollectionIteratorKind::Key).into())
     }
 
     /// ### [23.2.3.20 %TypedArray%.prototype.lastIndexOf ( searchElement \[ , fromIndex \] )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.lastindexof)
@@ -1881,8 +1875,8 @@ impl TypedArrayPrototype {
                 Some(ArgumentsList::from_mut_slice(&mut [
                     accumulator.get(agent),
                     k_value.unbind(),
-                    Number::from(k_int).into_value(),
-                    scoped_o.get(agent).into_value(),
+                    Number::from(k_int).into(),
+                    scoped_o.get(agent).into(),
                 ])),
                 gc.reborrow(),
             )
@@ -1982,8 +1976,8 @@ impl TypedArrayPrototype {
                 Some(ArgumentsList::from_mut_slice(&mut [
                     accumulator.get(agent),
                     k_value.unbind(),
-                    Number::from(k_int).into_value(),
-                    scoped_o.get(agent).into_value(),
+                    Number::from(k_int).into(),
+                    scoped_o.get(agent).into(),
                 ])),
                 gc.reborrow(),
             )
@@ -2020,7 +2014,7 @@ impl TypedArrayPrototype {
         let o = ta_record.object;
         o.reverse(agent, len);
         // 7. Return O.
-        Ok(o.into_value())
+        Ok(o.into())
     }
 
     /// ### [23.2.3.26 %TypedArray%.prototype.set ( source \[ , offset \] )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.set)
@@ -2112,10 +2106,7 @@ impl TypedArrayPrototype {
                 ));
             }
             // 8. Let srcLength be TypedArrayLength(srcRecord).
-            (
-                source.into_object(),
-                Some(src_record.typed_array_length(agent)),
-            )
+            (source.into(), Some(src_record.typed_array_length(agent)))
         } else {
             // 7. Else,
             // a. Perform ? SetTypedArrayFromArrayLike(target, targetOffset, source).
@@ -2210,12 +2201,12 @@ impl TypedArrayPrototype {
                     to_big_int(agent, value.unbind(), gc.reborrow())
                         .unbind()?
                         .bind(gc.nogc())
-                        .into_numeric()
+                        .into()
                 } else {
                     to_number(agent, value.unbind(), gc.reborrow())
                         .unbind()?
                         .bind(gc.nogc())
-                        .into_numeric()
+                        .into()
                 };
                 target
                     .get(agent)
@@ -2340,7 +2331,7 @@ impl TypedArrayPrototype {
             // 14. If countBytes > 0, then
             if count == 0 {
                 // 15. Return A.
-                return Ok(a.into_value());
+                return Ok(a.into());
             };
             // SAFETY: o is not shared.
             let o = unsafe { scoped_o.take(agent) }.bind(gc);
@@ -2366,7 +2357,7 @@ impl TypedArrayPrototype {
             a
         };
         // 15. Return A.
-        Ok(a.into_value())
+        Ok(a.into())
     }
 
     fn slice_slow_path<'gc>(
@@ -2454,8 +2445,8 @@ impl TypedArrayPrototype {
                 this_arg.get(agent),
                 Some(ArgumentsList::from_mut_slice(&mut [
                     k_value.unbind(),
-                    Number::try_from(k).unwrap().into_value().unbind(),
-                    o.into_value().unbind(),
+                    Number::try_from(k).unwrap().unbind().into(),
+                    o.unbind().into(),
                 ])),
                 gc.reborrow(),
             )
@@ -2532,12 +2523,12 @@ impl TypedArrayPrototype {
 
             // 10. Return obj.
             // SAFETY: not shared.
-            Ok(unsafe { scoped_obj.take(agent) }.into_value())
+            Ok(unsafe { scoped_obj.take(agent) }.into())
         } else {
             let obj = obj.unbind().bind(gc.into_nogc());
             obj.sort(agent, len);
 
-            Ok(obj.into_value())
+            Ok(obj.into())
         }
     }
 
@@ -2642,7 +2633,7 @@ impl TypedArrayPrototype {
             new_length,
             gc,
         )
-        .map(|ta| ta.into_value())
+        .map(|ta| ta.into())
     }
 
     fn subarray_slow_path<'gc>(
@@ -2772,13 +2763,13 @@ impl TypedArrayPrototype {
                     .unbind()?
                     .bind(gc.nogc());
                 //  ii. Set R to the string-concatenation of R and S.
-                r.push_wtf8(s.as_wtf8(agent));
+                r.push_wtf8(s.as_wtf8_(agent));
             };
             // d. Set k to k + 1.
             k += 1;
         }
         // 7. Return R.
-        Ok(String::from_wtf8_buf(agent, r, gc.into_nogc()).into_value())
+        Ok(String::from_wtf8_buf(agent, r, gc.into_nogc()).into())
     }
 
     /// ### [23.2.3.32 %TypedArray%.prototype.toReversed ( )](https://tc39.es/ecma262/#sec-array.prototype.tospliced)
@@ -2811,7 +2802,7 @@ impl TypedArrayPrototype {
             a.reverse(agent, length);
         }
         // 7. Return A.
-        Ok(a.into_value())
+        Ok(a.into())
     }
 
     /// ### [23.2.3.33 %TypedArray%.prototype.toSorted ( comparator )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.tosorted)
@@ -2876,7 +2867,7 @@ impl TypedArrayPrototype {
             // b. Set j to j + 1.
         }
         // 10. Return obj.
-        Ok(a.into_value().unbind())
+        Ok(a.unbind().into())
     }
 
     /// ### [23.2.3.35 %TypedArray%.prototype.values ( )](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype-%symbol.tostringtag%)
@@ -2891,10 +2882,7 @@ impl TypedArrayPrototype {
         // 2. Perform ? ValidateTypedArray(O, seq-cst).
         let o = validate_typed_array(agent, this_value, Ordering::SeqCst, gc)?.object;
         // 3. Return CreateArrayIterator(O, value).
-        Ok(
-            ArrayIterator::from_object(agent, o.into_object(), CollectionIteratorKind::Value)
-                .into_value(),
-        )
+        Ok(ArrayIterator::from_object(agent, o.into(), CollectionIteratorKind::Value).into())
     }
 
     /// ### [23.2.3.36 %TypedArray%.prototype.with ( index, value )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.with)
@@ -2924,17 +2912,17 @@ impl TypedArrayPrototype {
             if let (Value::Integer(index), Ok(value)) = (index, Primitive::try_from(value)) {
                 let relative_index = index.into_i64();
                 // 7. If O.[[ContentType]] is BIGINT, let numericValue be ? ToBigInt(value).
-                let numeric_value = if is_bigint {
+                let numeric_value: Numeric = if is_bigint {
                     to_big_int_primitive(agent, value, gc.nogc())
                         .unbind()?
                         .bind(gc.nogc())
-                        .into_numeric()
+                        .into()
                 } else {
                     // 8. Else, let numericValue be ? ToNumber(value).
                     to_number_primitive(agent, value, gc.nogc())
                         .unbind()?
                         .bind(gc.nogc())
-                        .into_numeric()
+                        .into()
                 };
                 (relative_index, numeric_value)
             } else {
@@ -2952,13 +2940,13 @@ impl TypedArrayPrototype {
                     to_big_int(agent, value.unbind(), gc.reborrow())
                         .unbind()?
                         .bind(gc.nogc())
-                        .into_numeric()
+                        .into()
                 } else {
                     // 8. Else, let numericValue be ? ToNumber(value).
                     to_number(agent, value.unbind(), gc.reborrow())
                         .unbind()?
                         .bind(gc.nogc())
-                        .into_numeric()
+                        .into()
                 };
                 // SAFETY: not shared.
                 o = unsafe { scoped_o.take(agent).bind(gc.nogc()) };
@@ -2992,17 +2980,10 @@ impl TypedArrayPrototype {
         //  d. Perform ! Set(A, Pk, fromValue, true).
         //  e. Set k to k + 1.
         let pk = PropertyKey::try_from(actual_index).unwrap();
-        let result = unwrap_try(a.try_set(
-            agent,
-            pk,
-            numeric_value.into_value(),
-            a.into_value(),
-            None,
-            gc,
-        ));
+        let result = unwrap_try(a.try_set(agent, pk, numeric_value.into(), a.into(), None, gc));
         debug_assert!(result.succeeded());
         // 13. Return A.
-        Ok(a.into_value())
+        Ok(a.into())
     }
 
     /// ### [23.2.3.38 get %TypedArray%.prototype \[ %Symbol.toStringTag% \]](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype-%symbol.tostringtag%)
@@ -3126,7 +3107,7 @@ impl TypedArrayPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.toString.into())
-                    .with_value(array_prototype_to_string.into_value())
+                    .with_value(array_prototype_to_string.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()
@@ -3137,7 +3118,7 @@ impl TypedArrayPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::Iterator.into())
-                    .with_value(typed_array_prototype_values.into_value())
+                    .with_value(typed_array_prototype_values.into())
                     .with_enumerable(TypedArrayPrototypeValues::ENUMERABLE)
                     .with_configurable(TypedArrayPrototypeValues::CONFIGURABLE)
                     .build()

@@ -178,7 +178,7 @@ impl InternalBuffer {
 }
 
 #[derive(Debug)]
-pub struct ArrayBufferHeapData<'a> {
+pub(crate) struct ArrayBufferHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(super) buffer: InternalBuffer,
     // detach_key
@@ -196,7 +196,7 @@ impl Default for ArrayBufferHeapData<'_> {
 
 unsafe impl Send for ArrayBufferHeapData<'_> {}
 
-impl ArrayBufferHeapData<'_> {
+impl<'a> ArrayBufferHeapData<'a> {
     pub(crate) fn new_fixed_length(db: DataBlock) -> Self {
         Self {
             object_index: None,

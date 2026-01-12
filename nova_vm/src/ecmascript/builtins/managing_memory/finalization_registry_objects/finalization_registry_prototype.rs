@@ -10,7 +10,7 @@ use crate::{
             ArgumentsList, Behaviour, Builtin, finalization_registry::FinalizationRegistry,
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType, can_be_held_weakly},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, String, Value},
+        types::{BUILTIN_STRING_MEMORY, String, Value},
     },
     engine::context::{Bindable, GcScope, NoGcScope},
     heap::WellKnownSymbolIndexes,
@@ -130,7 +130,7 @@ impl FinalizationRegistryPrototype {
         // 6. Return removed.
         Ok(finalization_registry
             .unregister(agent, unregister_token)
-            .into_value())
+            .into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -148,7 +148,7 @@ impl FinalizationRegistryPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.FinalizationRegistry.into_value())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.FinalizationRegistry.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()

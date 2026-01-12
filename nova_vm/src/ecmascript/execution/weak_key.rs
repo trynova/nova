@@ -79,8 +79,8 @@ use crate::{
     ecmascript::{
         builtins::{
             Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
-            async_generator_objects::AsyncGenerator,
             bound_function::BoundFunction,
+            control_abstraction_objects::async_generator_objects::AsyncGenerator,
             control_abstraction_objects::{
                 generator_objects::Generator,
                 promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction,
@@ -94,7 +94,7 @@ use crate::{
             module::Module,
             primitive_objects::PrimitiveObject,
             promise::Promise,
-            promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
+            control_abstraction_objects::promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
             proxy::Proxy,
             text_processing::string_objects::string_iterator_objects::StringIterator,
         },
@@ -106,9 +106,9 @@ use crate::{
             BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
             BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
             ECMASCRIPT_FUNCTION_DISCRIMINANT, EMBEDDER_OBJECT_DISCRIMINANT, ERROR_DISCRIMINANT,
-            FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, IntoValue,
-            MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, OBJECT_DISCRIMINANT,
-            Object, OrdinaryObject, PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT,
+            FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, MAP_DISCRIMINANT,
+            MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, OBJECT_DISCRIMINANT, Object,
+            OrdinaryObject, PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT,
             PROXY_DISCRIMINANT, STRING_ITERATOR_DISCRIMINANT, SYMBOL_DISCRIMINANT, Symbol, Value,
         },
     },
@@ -231,7 +231,8 @@ pub(crate) enum WeakKey<'a> {
 
 impl core::hash::Hash for WeakKey<'_> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.into_value().try_hash(state).unwrap()
+        let value: Value = (*self).into();
+        value.try_hash(state).unwrap()
     }
 }
 

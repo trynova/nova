@@ -7,7 +7,7 @@
 //! that the eval call defines functions. Those functions will refer to the
 //! SourceCode for their function source text.
 
-use core::{fmt::Debug, ops::Index};
+use core::fmt::Debug;
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast;
@@ -21,22 +21,23 @@ use crate::{
         execution::Agent,
         types::{HeapString, String},
     },
-    engine::{
-        context::{Bindable, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
+    engine::context::{Bindable, NoGcScope, bindable_handle},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, indexes::BaseIndex,
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        arena_vec_access,
+        indexes::{BaseIndex, HeapIndexHandle, index_handle},
     },
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct SourceCode<'a>(BaseIndex<'a, SourceCodeHeapData<'static>>);
+index_handle!(SourceCode);
+arena_vec_access!(SourceCode, 'a, SourceCodeHeapData, source_codes);
 
 impl core::fmt::Debug for SourceCode<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "SourceCode({:?})", self.0.into_u32_index())
+        write!(f, "SourceCode({:?})", self.0.get_index_u32())
     }
 }
 
@@ -292,25 +293,30 @@ impl<'a> SourceCode<'a> {
     pub(crate) fn get_source_text(self, agent: &Agent) -> &str {
         // SAFETY: parse_source will always copy non-UTF-8 source texts into
         // well-formed UTF-8.
-        unsafe { agent[agent[self].source].as_str().unwrap_unchecked() }
+        unsafe {
+            self.get(agent)
+                .source
+                .get(agent)
+                .as_str()
+                .unwrap_unchecked()
+        }
     }
 
     /// Access the Scoping information of the SourceCode.
-    pub(crate) fn get_scoping(self, agent: &Agent) -> &Scoping {
-        &agent[self].scoping
+    pub(crate) fn get_scoping<'agent>(self, agent: &'agent Agent) -> &'agent Scoping
+    where
+        'a: 'agent,
+    {
+        &self.get(agent).scoping
     }
 
     /// Access the AstNodes information of the SourceCode.
-    pub(crate) fn get_nodes(self, agent: &Agent) -> &AstNodes<'a> {
-        &agent[self].nodes
-    }
-
-    pub(crate) fn get_index(self) -> usize {
-        self.0.into_index()
+    pub(crate) fn get_nodes<'agent>(self, agent: &'agent Agent) -> &'agent AstNodes<'a> {
+        &self.get(agent).nodes
     }
 }
 
-pub struct SourceCodeHeapData<'a> {
+pub(crate) struct SourceCodeHeapData<'a> {
     /// The source JavaScript string data the eval was called with. The string
     /// is known and required to be a HeapString because functions created
     /// in the eval call may keep references to the string data. If the eval
@@ -332,42 +338,6 @@ impl Debug for SourceCodeHeapData<'_> {
             .field("source", &self.source)
             .field("allocator", &"[binary data]")
             .finish()
-    }
-}
-
-impl Index<SourceCode<'_>> for Agent {
-    type Output = SourceCodeHeapData<'static>;
-
-    fn index(&self, index: SourceCode) -> &Self::Output {
-        self.heap
-            .source_codes
-            .get(index.get_index())
-            .expect("SourceCode out of bounds")
-    }
-}
-
-bindable_handle!(SourceCode);
-
-impl Rootable for SourceCode<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::SourceCode(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::SourceCode(object) => Some(object),
-            _ => None,
-        }
     }
 }
 

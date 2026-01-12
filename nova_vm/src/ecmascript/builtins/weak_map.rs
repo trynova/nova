@@ -6,26 +6,24 @@ use crate::{
     Heap,
     ecmascript::{
         execution::{Agent, ProtoIntrinsics, WeakKey},
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
+        types::{InternalMethods, InternalSlots, OrdinaryObject, Value, object_handle},
     },
-    engine::{
-        context::{Bindable, bindable_handle},
-        rootable::HeapRootData,
-    },
+    engine::context::Bindable,
     heap::{
-        CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
-        indexes::BaseIndex,
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, HeapMarkAndSweep,
+        HeapSweepWeakReference, WorkQueues, arena_vec_access, indexes::BaseIndex,
     },
 };
 
-use self::data::WeakMapRecord;
+pub(crate) use self::data::WeakMapRecord;
 
-pub mod data;
+mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct WeakMap<'a>(BaseIndex<'a, WeakMapRecord<'static>>);
-bindable_handle!(WeakMap);
+object_handle!(WeakMap);
+arena_vec_access!(WeakMap, 'a, WeakMapRecord, weak_maps);
 
 impl<'m> WeakMap<'m> {
     pub(crate) fn delete(self, agent: &mut Agent, key: WeakKey<'m>) -> bool {
@@ -42,105 +40,6 @@ impl<'m> WeakMap<'m> {
 
     pub(crate) fn set(self, agent: &mut Agent, key: WeakKey<'m>, value: Value<'m>) {
         self.get_mut(agent).set(key, value)
-    }
-
-    pub(crate) const _DEF: Self = Self(BaseIndex::from_u32_index(u32::MAX - 1));
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
-    #[inline(always)]
-    pub(crate) fn get<'a>(self, agent: &'a Agent) -> &'a WeakMapRecord<'m> {
-        self.get_direct(&agent.heap.weak_maps)
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_mut<'a>(self, agent: &'a mut Agent) -> &'a mut WeakMapRecord<'m> {
-        self.get_direct_mut(&mut agent.heap.weak_maps)
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_direct<'a>(
-        self,
-        weak_maps: &'a [WeakMapRecord<'static>],
-    ) -> &'a WeakMapRecord<'m> {
-        weak_maps
-            .get(self.get_index())
-            .expect("Invalid WeakMap reference")
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_direct_mut<'a>(
-        self,
-        weak_maps: &'a mut [WeakMapRecord<'static>],
-    ) -> &'a mut WeakMapRecord<'m> {
-        // SAFETY: Lifetime transmute to thread GC lifetime to temporary heap
-        // reference.
-        unsafe {
-            core::mem::transmute::<&'a mut WeakMapRecord<'static>, &'a mut WeakMapRecord<'m>>(
-                weak_maps
-                    .get_mut(self.get_index())
-                    .expect("Invalid WeakMap reference"),
-            )
-        }
-    }
-}
-
-impl<'a> From<WeakMap<'a>> for Value<'a> {
-    fn from(value: WeakMap<'a>) -> Self {
-        Value::WeakMap(value)
-    }
-}
-
-impl<'a> From<WeakMap<'a>> for Object<'a> {
-    fn from(value: WeakMap<'a>) -> Self {
-        Object::WeakMap(value)
-    }
-}
-
-impl<'a> From<WeakMap<'a>> for HeapRootData {
-    fn from(value: WeakMap<'a>) -> Self {
-        HeapRootData::WeakMap(value.unbind())
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for WeakMap<'a> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        if let Value::WeakMap(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for WeakMap<'a> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        if let Object::WeakMap(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl TryFrom<HeapRootData> for WeakMap<'_> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        if let HeapRootData::WeakMap(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
     }
 }
 

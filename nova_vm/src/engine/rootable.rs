@@ -81,28 +81,17 @@ use crate::{
     ecmascript::{
         abstract_operations::keyed_group::KeyedGroup,
         builtins::{
-            Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
-            async_function_objects::await_reaction::AwaitReaction,
-            async_generator_objects::AsyncGenerator,
-            bound_function::BoundFunction,
-            embedder_object::EmbedderObject,
-            error::Error,
-            finalization_registry::FinalizationRegistry,
-            generator_objects::Generator,
-            indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
-            keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
-            map::Map,
-            module::Module,
-            ordinary::caches::PropertyLookupCache,
-            primitive_objects::PrimitiveObject,
-            promise::Promise,
-            promise_objects::promise_abstract_operations::{
-                promise_finally_functions::BuiltinPromiseFinallyFunction,
-                promise_group_record::PromiseGroup, promise_reaction_records::PromiseReaction,
-                promise_resolving_functions::BuiltinPromiseResolvingFunction,
+            Array, ArrayIterator, AsyncGenerator, BoundFunction, BuiltinConstructorFunction,
+            BuiltinFunction, BuiltinPromiseFinallyFunction, BuiltinPromiseResolvingFunction,
+            ECMAScriptFunction, EmbedderObject, Error, FinalizationRegistry, Generator, Map,
+            MapIterator, Module, PrimitiveObject, Promise, Proxy, StringIterator,
+            control_abstraction_objects::{
+                async_function_objects::await_reaction::AwaitReaction,
+                promise_objects::promise_abstract_operations::{
+                    promise_group_record::PromiseGroup, promise_reaction_records::PromiseReaction,
+                },
             },
-            proxy::Proxy,
-            text_processing::string_objects::string_iterator_objects::StringIterator,
+            ordinary::caches::PropertyLookupCache,
         },
         execution::{
             DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ModuleEnvironment,
@@ -121,16 +110,16 @@ use crate::{
             BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
             ECMASCRIPT_FUNCTION_DISCRIMINANT, EMBEDDER_OBJECT_DISCRIMINANT, ERROR_DISCRIMINANT,
             FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, HeapNumber, HeapString,
-            IntoObject, MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT,
-            NUMBER_DISCRIMINANT, OBJECT_DISCRIMINANT, Object, OrdinaryObject, PROMISE_DISCRIMINANT,
-            PROXY_DISCRIMINANT, PropertyKey, PropertyKeySet, STRING_DISCRIMINANT,
-            STRING_ITERATOR_DISCRIMINANT, SYMBOL_DISCRIMINANT, Symbol, Value, bigint::HeapBigInt,
+            MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, NUMBER_DISCRIMINANT,
+            OBJECT_DISCRIMINANT, OrdinaryObject, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT,
+            PropertyKey, PropertyKeySet, STRING_DISCRIMINANT, STRING_ITERATOR_DISCRIMINANT,
+            SYMBOL_DISCRIMINANT, Symbol, Value, bigint::HeapBigInt,
         },
     },
     heap::HeapMarkAndSweep,
 };
 
-pub mod private {
+pub(crate) mod private {
     use std::ptr::NonNull;
 
     #[cfg(feature = "date")]
@@ -171,14 +160,18 @@ pub mod private {
             abstract_operations::keyed_group::KeyedGroup,
             builtins::{
                 ArgumentsList, Array, BuiltinConstructorFunction, BuiltinFunction,
-                ECMAScriptFunction,
-                async_function_objects::await_reaction::AwaitReaction,
-                async_generator_objects::AsyncGenerator,
+                ECMAScriptFunction, Generator,
                 bound_function::BoundFunction,
+                control_abstraction_objects::async_function_objects::await_reaction::AwaitReaction,
+                control_abstraction_objects::async_generator_objects::AsyncGenerator,
+                control_abstraction_objects::promise_objects::promise_abstract_operations::{
+                    promise_finally_functions::BuiltinPromiseFinallyFunction,
+                    promise_group_record::PromiseGroup, promise_reaction_records::PromiseReaction,
+                    promise_resolving_functions::BuiltinPromiseResolvingFunction,
+                },
                 embedder_object::EmbedderObject,
                 error::Error,
                 finalization_registry::FinalizationRegistry,
-                generator_objects::Generator,
                 indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
                 keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
                 map::Map,
@@ -186,11 +179,6 @@ pub mod private {
                 ordinary::caches::PropertyLookupCache,
                 primitive_objects::PrimitiveObject,
                 promise::Promise,
-                promise_objects::promise_abstract_operations::{
-                    promise_finally_functions::BuiltinPromiseFinallyFunction,
-                    promise_group_record::PromiseGroup, promise_reaction_records::PromiseReaction,
-                    promise_resolving_functions::BuiltinPromiseResolvingFunction,
-                },
                 proxy::Proxy,
             },
             execution::{
@@ -454,7 +442,7 @@ pub mod private {
 pub use global::Global;
 pub use scoped::{Scopable, ScopableCollection, Scoped, ScopedCollection};
 
-use super::{Executable, context::Bindable};
+use super::Executable;
 
 pub trait Rootable: Copy + RootableSealed {
     type RootRepr: Sized + Clone;
@@ -478,13 +466,13 @@ pub trait Rootable: Copy + RootableSealed {
     fn from_heap_data(heap_data: HeapRootData) -> Option<Self>;
 }
 
-// Blanket impl for Objects
-impl<'a, T: RootableSealed + IntoObject<'a> + TryFrom<HeapRootData>> Rootable for T {
+// Blanket impl for heap references.
+impl<T: Copy + RootableSealed + Into<HeapRootData> + TryFrom<HeapRootData>> Rootable for T {
     type RootRepr = HeapRootRef;
 
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(value.into_object().unbind().into())
+        Err(value.into())
     }
 
     #[inline]
@@ -652,121 +640,6 @@ pub enum HeapRootData {
     ObjectEnvironment(ObjectEnvironment<'static>),
     PrivateEnvironment(PrivateEnvironment<'static>),
     PropertyLookupCache(PropertyLookupCache<'static>),
-}
-
-impl From<Object<'static>> for HeapRootData {
-    #[inline]
-    fn from(value: Object<'static>) -> Self {
-        match value {
-            Object::Object(ordinary_object) => Self::Object(ordinary_object),
-            Object::BoundFunction(bound_function) => Self::BoundFunction(bound_function),
-            Object::BuiltinFunction(builtin_function) => Self::BuiltinFunction(builtin_function),
-            Object::ECMAScriptFunction(ecmascript_function) => {
-                Self::ECMAScriptFunction(ecmascript_function)
-            }
-            Object::BuiltinConstructorFunction(builtin_constructor_function) => {
-                Self::BuiltinConstructorFunction(builtin_constructor_function)
-            }
-            Object::BuiltinPromiseResolvingFunction(builtin_promise_resolving_function) => {
-                Self::BuiltinPromiseResolvingFunction(builtin_promise_resolving_function)
-            }
-            Object::BuiltinPromiseFinallyFunction(f) => Self::BuiltinPromiseFinallyFunction(f),
-            Object::BuiltinPromiseCollectorFunction => Self::BuiltinPromiseCollectorFunction,
-            Object::BuiltinProxyRevokerFunction => Self::BuiltinProxyRevokerFunction,
-            Object::PrimitiveObject(primitive_object) => Self::PrimitiveObject(primitive_object),
-            Object::Arguments(ordinary_object) => Self::Arguments(ordinary_object),
-            Object::Array(array) => Self::Array(array),
-            #[cfg(feature = "date")]
-            Object::Date(date) => Self::Date(date),
-            Object::Error(error) => Self::Error(error),
-            Object::FinalizationRegistry(finalization_registry) => {
-                Self::FinalizationRegistry(finalization_registry)
-            }
-            Object::Map(map) => Self::Map(map),
-            Object::Promise(promise) => Self::Promise(promise),
-            Object::Proxy(proxy) => Self::Proxy(proxy),
-            #[cfg(feature = "regexp")]
-            Object::RegExp(reg_exp) => Self::RegExp(reg_exp),
-            #[cfg(feature = "set")]
-            Object::Set(set) => Self::Set(set),
-            #[cfg(feature = "weak-refs")]
-            Object::WeakMap(weak_map) => Self::WeakMap(weak_map),
-            #[cfg(feature = "weak-refs")]
-            Object::WeakRef(weak_ref) => Self::WeakRef(weak_ref),
-            #[cfg(feature = "weak-refs")]
-            Object::WeakSet(weak_set) => Self::WeakSet(weak_set),
-
-            #[cfg(feature = "array-buffer")]
-            Object::ArrayBuffer(ab) => Self::ArrayBuffer(ab),
-            #[cfg(feature = "array-buffer")]
-            Object::DataView(dv) => Self::DataView(dv),
-            #[cfg(feature = "array-buffer")]
-            Object::Int8Array(ta) => Self::Int8Array(ta),
-            #[cfg(feature = "array-buffer")]
-            Object::Uint8Array(ta) => Self::Uint8Array(ta),
-            #[cfg(feature = "array-buffer")]
-            Object::Uint8ClampedArray(ta) => Self::Uint8ClampedArray(ta),
-            #[cfg(feature = "array-buffer")]
-            Object::Int16Array(ta) => Self::Int16Array(ta),
-            #[cfg(feature = "array-buffer")]
-            Object::Uint16Array(ta) => Self::Uint16Array(ta),
-            #[cfg(feature = "array-buffer")]
-            Object::Int32Array(ta) => Self::Int32Array(ta),
-            #[cfg(feature = "array-buffer")]
-            Object::Uint32Array(ta) => Self::Uint32Array(ta),
-            #[cfg(feature = "array-buffer")]
-            Object::BigInt64Array(ta) => Self::BigInt64Array(ta),
-            #[cfg(feature = "array-buffer")]
-            Object::BigUint64Array(ta) => Self::BigUint64Array(ta),
-            #[cfg(feature = "proposal-float16array")]
-            Object::Float16Array(ta) => Self::Float16Array(ta),
-            #[cfg(feature = "array-buffer")]
-            Object::Float32Array(ta) => Self::Float32Array(ta),
-            #[cfg(feature = "array-buffer")]
-            Object::Float64Array(ta) => Self::Float64Array(ta),
-
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedArrayBuffer(sab) => Self::SharedArrayBuffer(sab),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedDataView(sta) => Self::SharedDataView(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedInt8Array(sta) => Self::SharedInt8Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedUint8Array(sta) => Self::SharedUint8Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedUint8ClampedArray(sta) => Self::SharedUint8ClampedArray(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedInt16Array(sta) => Self::SharedInt16Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedUint16Array(sta) => Self::SharedUint16Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedInt32Array(sta) => Self::SharedInt32Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedUint32Array(sta) => Self::SharedUint32Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedBigInt64Array(sta) => Self::SharedBigInt64Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedBigUint64Array(sta) => Self::SharedBigUint64Array(sta),
-            #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
-            Object::SharedFloat16Array(sta) => Self::SharedFloat16Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedFloat32Array(sta) => Self::SharedFloat32Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedFloat64Array(sta) => Self::SharedFloat64Array(sta),
-
-            Object::AsyncGenerator(r#gen) => Self::AsyncGenerator(r#gen),
-            Object::ArrayIterator(array_iterator) => Self::ArrayIterator(array_iterator),
-            #[cfg(feature = "set")]
-            Object::SetIterator(set_iterator) => Self::SetIterator(set_iterator),
-            Object::MapIterator(map_iterator) => Self::MapIterator(map_iterator),
-            Object::StringIterator(generator) => Self::StringIterator(generator),
-            #[cfg(feature = "regexp")]
-            Object::RegExpStringIterator(generator) => Self::RegExpStringIterator(generator),
-            Object::Generator(generator) => Self::Generator(generator),
-            Object::Module(module) => Self::Module(module),
-            Object::EmbedderObject(embedder_object) => Self::EmbedderObject(embedder_object),
-        }
-    }
 }
 
 /// Internal type that is used to refer from user-controlled memory (stack or

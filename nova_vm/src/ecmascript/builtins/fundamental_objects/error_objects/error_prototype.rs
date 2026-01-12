@@ -8,7 +8,7 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin},
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, Object, PropertyKey, String, Value},
+        types::{BUILTIN_STRING_MEMORY, Object, PropertyKey, String, Value},
     },
     engine::{
         context::{Bindable, GcScope},
@@ -93,18 +93,18 @@ impl ErrorPrototype {
             .bind(gc);
         if name.is_empty_string() {
             // 7. If name is the empty String, return msg.
-            Ok(msg.into_value())
+            Ok(msg.into())
         } else if msg.is_empty_string() {
             // 8. If msg is the empty String, return name.
-            Ok(name.into_value())
+            Ok(name.into())
         } else {
             // 9. Return the string-concatenation of name, the code unit 0x003A (COLON), the code unit 0x0020 (SPACE), and msg.
             let result = format!(
                 "{}: {}",
-                name.to_string_lossy(agent),
-                msg.to_string_lossy(agent)
+                name.to_string_lossy_(agent),
+                msg.to_string_lossy_(agent)
             );
-            Ok(String::from_string(agent, result, gc).into_value())
+            Ok(String::from_string(agent, result, gc).into())
         }
     }
 
@@ -122,7 +122,7 @@ impl ErrorPrototype {
                 builder
                     .with_enumerable(false)
                     .with_key(BUILTIN_STRING_MEMORY.message.into())
-                    .with_value(String::EMPTY_STRING.into_value())
+                    .with_value(String::EMPTY_STRING.into())
                     .build()
             })
             .with_property(|builder| {

@@ -2,12 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::{
-    num::NonZeroU32,
-    ops::{Index, IndexMut},
-};
-use std::marker::PhantomData;
-
 use crate::{
     ecmascript::{
         builtins::ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
@@ -22,10 +16,13 @@ use crate::{
     engine::{
         Scoped,
         bytecode::{CompileContext, NamedEvaluationParameter, instructions::Instr},
-        context::{Bindable, GcToken, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
+        context::{Bindable, NoGcScope, bindable_handle},
     },
-    heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
+    heap::{
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        arena_vec_access,
+        indexes::{BaseIndex, HeapIndexHandle, index_handle},
+    },
 };
 use oxc_ast::ast;
 
@@ -110,11 +107,9 @@ pub(crate) struct ArrowFunctionExpression {
 /// Reference to a heap-allocated executable VM bytecode.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Executable<'a>(
-    NonZeroU32,
-    PhantomData<ExecutableHeapData<'static>>,
-    PhantomData<&'a GcToken>,
-);
+pub struct Executable<'a>(BaseIndex<'a, ExecutableHeapData<'static>>);
+index_handle!(Executable);
+arena_vec_access!(Executable, 'a, ExecutableHeapData, executables);
 
 impl core::fmt::Debug for Executable<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -131,7 +126,7 @@ const EXECUTABLE_OPTION_SIZE_IS_U32: () =
 /// - This is inspired by and/or copied from Kiesel engine:
 ///   Copyright (c) 2023-2024 Linus Groh
 #[derive(Debug, Clone)]
-pub struct ExecutableHeapData<'a> {
+pub(crate) struct ExecutableHeapData<'a> {
     pub(crate) instructions: Box<[u8]>,
     pub(crate) caches: Box<[PropertyLookupCache<'a>]>,
     pub(crate) constants: Box<[Value<'a>]>,
@@ -245,27 +240,23 @@ impl<'gc> Executable<'gc> {
         }
     }
 
-    pub(crate) fn get_index(self) -> usize {
-        (self.0.get() - 1) as usize
-    }
-
     /// SAFETY: The returned reference is valid until the Executable is garbage
     /// collected.
     #[inline]
     fn get_instructions(self, agent: &Agent) -> &'static [u8] {
         // SAFETY: As long as we're alive the instructions Box lives, and it is
         // never accessed mutably.
-        unsafe { core::mem::transmute(&agent[self].instructions[..]) }
+        unsafe { core::mem::transmute(&self.get(agent).instructions[..]) }
     }
 
     #[inline]
     fn get_instruction(self, agent: &Agent, ip: &mut usize) -> Option<Instr> {
-        Instr::consume_instruction(&agent[self].instructions, ip)
+        Instr::consume_instruction(&self.get(agent).instructions, ip)
     }
 
     #[inline]
     fn get_constants<'a>(self, agent: &'a Agent, _: NoGcScope<'gc, '_>) -> &'a [Value<'gc>] {
-        &agent[self].constants[..]
+        &self.get(agent).constants[..]
     }
 
     #[inline]
@@ -275,17 +266,17 @@ impl<'gc> Executable<'gc> {
         index: usize,
         gc: NoGcScope<'gc, '_>,
     ) -> PropertyLookupCache<'gc> {
-        agent[self].caches[index].bind(gc)
+        self.get(agent).caches[index].bind(gc)
     }
 
     #[inline]
     fn fetch_constant(self, agent: &Agent, index: usize, gc: NoGcScope<'gc, '_>) -> Value<'gc> {
-        agent[self].constants[index].bind(gc)
+        self.get(agent).constants[index].bind(gc)
     }
 
     #[inline]
     fn fetch_identifier(self, agent: &Agent, index: usize, gc: NoGcScope<'gc, '_>) -> String<'gc> {
-        let value = agent[self].constants[index];
+        let value = self.get(agent).constants[index];
         let Ok(value) = String::try_from(value) else {
             handle_identifier_failure()
         };
@@ -299,7 +290,7 @@ impl<'gc> Executable<'gc> {
         index: usize,
         gc: NoGcScope<'gc, '_>,
     ) -> PropertyKey<'gc> {
-        let value = agent[self].constants[index];
+        let value = self.get(agent).constants[index];
         // SAFETY: caller wants a PropertyKey.
         unsafe { PropertyKey::from_value_unchecked(value).bind(gc) }
     }
@@ -310,15 +301,18 @@ impl<'gc> Executable<'gc> {
         index: usize,
         _: NoGcScope<'gc, '_>,
     ) -> &'a FunctionExpression<'gc> {
-        &agent[self].function_expressions[index]
+        &self.get(agent).function_expressions[index]
     }
 
-    fn fetch_arrow_function_expression(
+    fn fetch_arrow_function_expression<'a>(
         self,
-        agent: &Agent,
+        agent: &'a Agent,
         index: usize,
-    ) -> &ArrowFunctionExpression {
-        &agent[self].arrow_function_expressions[index]
+    ) -> &'a ArrowFunctionExpression
+    where
+        'gc: 'a,
+    {
+        &self.get(agent).arrow_function_expressions[index]
     }
 
     fn fetch_class_initializer_bytecode(
@@ -327,7 +321,7 @@ impl<'gc> Executable<'gc> {
         index: usize,
         _: NoGcScope<'gc, '_>,
     ) -> (Option<Executable<'gc>>, bool) {
-        agent[self].class_initializer_bytecodes[index]
+        self.get(agent).class_initializer_bytecodes[index]
     }
 
     fn fetch_object_shape(
@@ -336,7 +330,7 @@ impl<'gc> Executable<'gc> {
         index: usize,
         gc: NoGcScope<'gc, '_>,
     ) -> ObjectShape<'gc> {
-        agent[self].shapes[index].bind(gc)
+        self.get(agent).shapes[index].bind(gc)
     }
 }
 
@@ -444,62 +438,13 @@ impl Scoped<'_, Executable<'static>> {
     }
 }
 
-impl Index<Executable<'_>> for Agent {
-    type Output = ExecutableHeapData<'static>;
-
-    fn index(&self, index: Executable) -> &Self::Output {
-        self.heap
-            .executables
-            .get(index.get_index())
-            .expect("Executable out of bounds")
-    }
-}
-
-impl IndexMut<Executable<'_>> for Agent {
-    fn index_mut(&mut self, index: Executable) -> &mut Self::Output {
-        self.heap
-            .executables
-            .get_mut(index.get_index())
-            .expect("Executable out of bounds")
-    }
-}
-
-bindable_handle!(Executable);
-
-impl Rootable for Executable<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::Executable(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::Executable(object) => Some(object),
-            _ => None,
-        }
-    }
-}
-
 impl<'a> CreateHeapData<ExecutableHeapData<'a>, Executable<'a>> for Heap {
     fn create(&mut self, data: ExecutableHeapData<'a>) -> Executable<'a> {
+        let index = u32::try_from(self.executables.len()).expect("Executables overflowed");
         self.executables.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<ExecutableHeapData<'static>>();
-        let index = u32::try_from(self.executables.len()).expect("Executables overflowed");
         // SAFETY: After pushing to executables, the vector cannot be empty.
-        Executable(
-            unsafe { NonZeroU32::new_unchecked(index) },
-            PhantomData,
-            PhantomData,
-        )
+        Executable(BaseIndex::from_index_u32(index))
     }
 }
 
@@ -511,9 +456,7 @@ impl HeapMarkAndSweep for Executable<'static> {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        compactions
-            .executables
-            .shift_non_zero_u32_index(&mut self.0);
+        compactions.executables.shift_index(&mut self.0);
     }
 }
 

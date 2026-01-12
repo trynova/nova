@@ -8,7 +8,7 @@ use crate::{
         OrdinaryObject, STRING_DISCRIMINANT, Value, bigint::HeapBigInt,
     },
     engine::context::{Bindable, bindable_handle},
-    heap::{CompactionLists, HeapMarkAndSweep, PrimitiveHeapIndexable, WorkQueues},
+    heap::{CompactionLists, HeapMarkAndSweep, PrimitiveHeapAccess, WorkQueues},
 };
 use ahash::AHasher;
 use core::{
@@ -20,14 +20,14 @@ use hashbrown::{HashTable, hash_table::Entry};
 use soavec_derive::SoAble;
 
 #[derive(Debug, Default, SoAble)]
-pub struct MapHeapData<'a> {
+pub(crate) struct MapHeapData<'a> {
     /// Low-level hash table pointing to keys-values indexes.
-    pub(crate) map_data: RefCell<HashTable<u32>>,
+    pub(super) map_data: RefCell<HashTable<u32>>,
     // TODO: Use a ParallelVec to remove one unnecessary allocation.
-    // pub(crate) key_values: ParallelVec<Option<Value>, Option<Value>>
-    pub(crate) values: Vec<Option<Value<'a>>>,
-    pub(crate) keys: Vec<Option<Value<'a>>>,
-    pub(crate) object_index: Option<OrdinaryObject<'a>>,
+    // key_values: ParallelVec<Option<Value>, Option<Value>>
+    pub(super) values: Vec<Option<Value<'a>>>,
+    pub(super) keys: Vec<Option<Value<'a>>>,
+    pub(super) object_index: Option<OrdinaryObject<'a>>,
     /// Flag that lets the Map know if it needs to rehash its primitive keys.
     ///
     /// This happens when an object key needs to be moved in the map_data
@@ -35,10 +35,10 @@ pub struct MapHeapData<'a> {
     /// moving as well. The primitive key's hash cannot be calculated during
     /// garbage collection due to the heap data being concurrently sweeped on
     /// another thread.
-    pub(crate) needs_primitive_rehashing: AtomicBool,
+    needs_primitive_rehashing: AtomicBool,
     // TODO: When an non-terminal (start or end) iterator exists for the Map,
     // the items in the map cannot be compacted.
-    // pub(crate) observed: bool;
+    // observed: bool;
 }
 bindable_handle!(MapHeapData);
 
@@ -65,7 +65,7 @@ impl<'map, 'soa> MapHeapDataMut<'map, 'soa> {
         self.keys.fill(None);
     }
 
-    pub(crate) fn rehash_if_needed_mut(&mut self, arena: &impl PrimitiveHeapIndexable) {
+    pub(crate) fn rehash_if_needed_mut(&mut self, arena: &impl PrimitiveHeapAccess) {
         if !*self.needs_primitive_rehashing.get_mut() {
             return;
         }
@@ -82,19 +82,23 @@ impl<'map, 'soa> MapHeapDataRef<'map, 'soa> {
     /// The abstract operation MapDataSize takes argument setData (a List of either
     /// ECMAScript language values or EMPTY) and returns a non-negative integer.
     #[inline(always)]
-    pub fn size(&self) -> u32 {
+    pub(crate) fn size(&self) -> u32 {
         // 1. Let count be 0.
         // 2. For each element e of setData, do
         // a. If e is not EMPTY, set count to count + 1.
         // 3. Return count.
         self.map_data.borrow().len() as u32
     }
+
+    pub(crate) fn entries_len(&self) -> u32 {
+        self.values.len() as u32
+    }
 }
 
 fn rehash_map_data(
     keys: &[Option<Value>],
     map_data: &mut HashTable<u32>,
-    arena: &impl PrimitiveHeapIndexable,
+    arena: &impl PrimitiveHeapAccess,
 ) {
     let hasher = |value: Value| {
         let mut hasher = AHasher::default();

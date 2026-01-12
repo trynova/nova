@@ -13,6 +13,7 @@ use crate::{
         types::{BUILTIN_STRING_MEMORY, String, Value},
     },
     engine::context::{GcScope, NoGcScope},
+    heap::{ArenaAccess, indexes::HeapIndexHandle},
 };
 
 pub(crate) struct BooleanPrototype;
@@ -101,7 +102,7 @@ fn this_boolean_value<'a>(
         return Ok(value);
     } else if let Value::PrimitiveObject(value) = value {
         // 2. If value is an Object and value has a [[BooleanData]] internal slot, then
-        if let PrimitiveObjectData::Boolean(b) = agent[value].data {
+        if let PrimitiveObjectData::Boolean(b) = value.get(agent).data {
             // a. Let b be value.[[BooleanData]].
             // b. Assert: b is a Boolean.
             // c. Return b.

@@ -18,18 +18,18 @@ use crate::{
     },
     engine::{
         context::{Bindable, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
+        rootable::HeapRootData,
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, WorkQueues, arena_vec_access,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
 use abstract_operations::detach_array_buffer;
 pub(crate) use abstract_operations::*;
-use core::ops::{Index, IndexMut};
-pub use data::*;
+pub(crate) use data::*;
 use ecmascript_atomics::Ordering;
 
 #[cfg(feature = "shared-array-buffer")]
@@ -38,8 +38,10 @@ use super::shared_array_buffer::SharedArrayBuffer;
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct ArrayBuffer<'a>(BaseIndex<'a, ArrayBufferHeapData<'static>>);
+array_buffer_handle!(ArrayBuffer);
+arena_vec_access!(ArrayBuffer, 'a, ArrayBufferHeapData, array_buffers);
 
-impl ArrayBuffer<'_> {
+impl<'ab> ArrayBuffer<'ab> {
     pub fn new<'gc>(
         agent: &mut Agent,
         byte_length: usize,
@@ -54,22 +56,22 @@ impl ArrayBuffer<'_> {
 
     #[inline]
     pub fn is_detached(self, agent: &Agent) -> bool {
-        agent[self].is_detached()
+        self.get(agent).is_detached()
     }
 
     #[inline]
     pub fn is_resizable(self, agent: &Agent) -> bool {
-        agent[self].is_resizable()
+        self.get(agent).is_resizable()
     }
 
     #[inline]
     pub fn byte_length(self, agent: &Agent) -> usize {
-        agent[self].byte_length()
+        self.get(agent).byte_length()
     }
 
     #[inline]
     pub fn max_byte_length(self, agent: &Agent) -> usize {
-        agent[self].max_byte_length()
+        self.get(agent).max_byte_length()
     }
 
     #[inline]
@@ -103,7 +105,7 @@ impl ArrayBuffer<'_> {
     ///
     /// `new_byte_length` must be a safe integer.
     pub(crate) fn resize(self, agent: &mut Agent, new_byte_length: usize) {
-        agent[self].resize(new_byte_length);
+        self.get_mut(agent).resize(new_byte_length);
     }
 
     /// Get temporary access to an ArrayBuffer's backing data block as a slice
@@ -115,8 +117,8 @@ impl ArrayBuffer<'_> {
     /// keep in mind that if JavaScript is called into the contents of the
     /// ArrayBuffer may be rewritten or reallocated.
     #[inline]
-    pub fn as_slice(self, agent: &Agent) -> &[u8] {
-        agent[self].get_data_block()
+    pub fn as_slice(self, agent: &'ab Agent) -> &'ab [u8] {
+        self.get(agent).get_data_block()
     }
 
     /// Get temporary exclusive access to an ArrayBuffer's backing data block
@@ -129,8 +131,8 @@ impl ArrayBuffer<'_> {
     /// keep in mind that if JavaScript is called into the contents of the
     /// ArrayBuffer may be rewritten or reallocated.
     #[inline]
-    pub fn as_mut_slice(self, agent: &mut Agent) -> &mut [u8] {
-        agent[self].get_data_block_mut()
+    pub fn as_mut_slice(self, agent: &'ab mut Agent) -> &'ab mut [u8] {
+        self.get_mut(agent).buffer.get_data_block_mut()
     }
 
     /// Create a T slice from an ArrayBuffer and byte offset and length values.
@@ -138,10 +140,10 @@ impl ArrayBuffer<'_> {
     /// This method should be used when looping over items of a TypedArray.
     pub(crate) fn as_viewable_slice<T: Viewable>(
         self,
-        agent: &Agent,
+        agent: &'ab Agent,
         byte_offset: usize,
         byte_length: Option<usize>,
-    ) -> &[T] {
+    ) -> &'ab [T] {
         let byte_slice = self.as_slice(agent);
         let byte_limit = byte_length.map(|byte_length| byte_offset.saturating_add(byte_length));
         if byte_limit.unwrap_or(byte_offset) > byte_slice.len() {
@@ -167,10 +169,10 @@ impl ArrayBuffer<'_> {
     /// This method should be used when looping over items of a TypedArray.
     pub(crate) fn as_mut_viewable_slice<T: Viewable>(
         self,
-        agent: &mut Agent,
+        agent: &'ab mut Agent,
         byte_offset: usize,
         byte_length: Option<usize>,
-    ) -> &mut [T] {
+    ) -> &'ab mut [T] {
         let byte_slice = self.as_mut_slice(agent);
         let byte_limit = byte_length.map(|byte_length| byte_offset.saturating_add(byte_length));
         if byte_limit.unwrap_or(byte_offset) > byte_slice.len() {
@@ -214,69 +216,6 @@ impl ArrayBuffer<'_> {
         let target_data = target_data.buffer.get_data_block_mut();
         copy_data_block_bytes(target_data, 0, source_data, first, count);
     }
-
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-}
-
-bindable_handle!(ArrayBuffer);
-
-impl<'a> TryFrom<Value<'a>> for ArrayBuffer<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::ArrayBuffer(base_index) => Ok(base_index),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> From<ArrayBuffer<'a>> for Object<'a> {
-    fn from(value: ArrayBuffer) -> Self {
-        Self::ArrayBuffer(value.unbind())
-    }
-}
-
-impl<'a> From<ArrayBuffer<'a>> for Value<'a> {
-    fn from(value: ArrayBuffer<'a>) -> Self {
-        Self::ArrayBuffer(value)
-    }
-}
-
-impl Index<ArrayBuffer<'_>> for Agent {
-    type Output = ArrayBufferHeapData<'static>;
-
-    fn index(&self, index: ArrayBuffer) -> &Self::Output {
-        &self.heap.array_buffers[index]
-    }
-}
-
-impl IndexMut<ArrayBuffer<'_>> for Agent {
-    fn index_mut(&mut self, index: ArrayBuffer) -> &mut Self::Output {
-        &mut self.heap.array_buffers[index]
-    }
-}
-
-impl Index<ArrayBuffer<'_>> for Vec<ArrayBufferHeapData<'static>> {
-    type Output = ArrayBufferHeapData<'static>;
-
-    fn index(&self, index: ArrayBuffer) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("ArrayBuffer out of bounds")
-    }
-}
-
-impl IndexMut<ArrayBuffer<'_>> for Vec<ArrayBufferHeapData<'static>> {
-    fn index_mut(&mut self, index: ArrayBuffer) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("ArrayBuffer out of bounds")
-    }
 }
 
 impl<'a> InternalSlots<'a> for ArrayBuffer<'a> {
@@ -284,12 +223,12 @@ impl<'a> InternalSlots<'a> for ArrayBuffer<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        self.get(agent).object_index.unbind()
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
-            agent[self]
+            self.get_mut(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()
@@ -298,29 +237,6 @@ impl<'a> InternalSlots<'a> for ArrayBuffer<'a> {
 }
 
 impl<'a> InternalMethods<'a> for ArrayBuffer<'a> {}
-
-impl Rootable for ArrayBuffer<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::ArrayBuffer(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::ArrayBuffer(object) => Some(object),
-            _ => None,
-        }
-    }
-}
 
 impl HeapMarkAndSweep for ArrayBuffer<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
@@ -404,18 +320,14 @@ impl<'ab> AnyArrayBuffer<'ab> {
     }
 }
 
-impl<'a> From<ArrayBuffer<'a>> for AnyArrayBuffer<'a> {
+impl<'a> From<AnyArrayBuffer<'a>> for Object<'a> {
     #[inline(always)]
-    fn from(value: ArrayBuffer<'a>) -> Self {
-        Self::ArrayBuffer(value)
-    }
-}
-
-#[cfg(feature = "shared-array-buffer")]
-impl<'a> From<SharedArrayBuffer<'a>> for AnyArrayBuffer<'a> {
-    #[inline(always)]
-    fn from(value: SharedArrayBuffer<'a>) -> Self {
-        Self::SharedArrayBuffer(value)
+    fn from(value: AnyArrayBuffer<'a>) -> Self {
+        match value {
+            AnyArrayBuffer::ArrayBuffer(dv) => Self::ArrayBuffer(dv),
+            #[cfg(feature = "shared-array-buffer")]
+            AnyArrayBuffer::SharedArrayBuffer(sdv) => Self::SharedArrayBuffer(sdv),
+        }
     }
 }
 
@@ -430,13 +342,26 @@ impl<'a> From<AnyArrayBuffer<'a>> for Value<'a> {
     }
 }
 
-impl<'a> From<AnyArrayBuffer<'a>> for Object<'a> {
+impl<'a> From<AnyArrayBuffer<'a>> for HeapRootData {
     #[inline(always)]
     fn from(value: AnyArrayBuffer<'a>) -> Self {
         match value {
-            AnyArrayBuffer::ArrayBuffer(dv) => Self::ArrayBuffer(dv),
+            AnyArrayBuffer::ArrayBuffer(dv) => Self::ArrayBuffer(dv.unbind()),
             #[cfg(feature = "shared-array-buffer")]
-            AnyArrayBuffer::SharedArrayBuffer(sdv) => Self::SharedArrayBuffer(sdv),
+            AnyArrayBuffer::SharedArrayBuffer(sdv) => Self::SharedArrayBuffer(sdv.unbind()),
+        }
+    }
+}
+
+impl<'a> TryFrom<Object<'a>> for AnyArrayBuffer<'a> {
+    type Error = ();
+
+    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Object::ArrayBuffer(ab) => Ok(Self::ArrayBuffer(ab)),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedArrayBuffer(sab) => Ok(Self::SharedArrayBuffer(sab)),
+            _ => Err(()),
         }
     }
 }
@@ -467,3 +392,33 @@ impl TryFrom<HeapRootData> for AnyArrayBuffer<'_> {
         }
     }
 }
+
+macro_rules! array_buffer_handle {
+    ($name: ident) => {
+        crate::ecmascript::types::object_handle!($name);
+
+        impl<'a> From<$name<'a>> for crate::ecmascript::builtins::array_buffer::AnyArrayBuffer<'a> {
+            fn from(value: $name<'a>) -> Self {
+                Self::$name(value)
+            }
+        }
+
+        impl<'a> TryFrom<crate::ecmascript::builtins::array_buffer::AnyArrayBuffer<'a>>
+            for $name<'a>
+        {
+            type Error = ();
+
+            fn try_from(
+                value: crate::ecmascript::builtins::array_buffer::AnyArrayBuffer<'a>,
+            ) -> Result<Self, Self::Error> {
+                match value {
+                    crate::ecmascript::builtins::array_buffer::AnyArrayBuffer::$name(data) => {
+                        Ok(data)
+                    }
+                    _ => Err(()),
+                }
+            }
+        }
+    };
+}
+pub(crate) use array_buffer_handle;

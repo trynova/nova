@@ -64,6 +64,7 @@ use crate::{
     ecmascript::{
         builtins::{
             Array, BuiltinFunction,
+            control_abstraction_objects::iteration::iterator_constructor::IteratorConstructor,
             control_abstraction_objects::{
                 async_function_objects::{
                     async_function_constructor::AsyncFunctionConstructor,
@@ -93,7 +94,6 @@ use crate::{
                 array_iterator_objects::array_iterator_prototype::ArrayIteratorPrototype,
                 array_prototype::ArrayPrototype,
             },
-            iteration::iterator_constructor::IteratorConstructor,
             keyed_collections::map_objects::{
                 map_constructor::MapConstructor,
                 map_iterator_objects::map_iterator_prototype::MapIteratorPrototype,
@@ -148,8 +148,8 @@ use crate::{
     heap::{
         CompactionLists, HeapMarkAndSweep, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes,
         IntrinsicObjectIndexes, IntrinsicObjectShapes, IntrinsicPrimitiveObjectIndexes, WorkQueues,
-        indexes::BaseIndex, intrinsic_function_count, intrinsic_object_count,
-        intrinsic_primitive_object_count,
+        indexes::{BaseIndex, HeapIndexHandle},
+        intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
     },
 };
 #[derive(Debug, Clone)]

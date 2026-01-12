@@ -2,10 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{
-    BigInt, BigIntHeapData, IntoValue, Number, Numeric, OrdinaryObject, Primitive, String,
-    StringRecord, Symbol, bigint::HeapBigInt, number::HeapNumber, string::HeapString,
-};
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
 #[cfg(feature = "proposal-float16array")]
@@ -50,31 +46,19 @@ use crate::{
             to_numeric, to_string, to_uint8, to_uint8_clamp, to_uint16, to_uint32, try_to_string,
         },
         builtins::{
-            Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
-            async_generator_objects::AsyncGenerator,
-            bound_function::BoundFunction,
-            control_abstraction_objects::{
-                generator_objects::Generator,
-                promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction,
-            },
-            embedder_object::EmbedderObject,
-            error::Error,
-            finalization_registry::FinalizationRegistry,
-            indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
-            keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
-            map::Map,
-            module::Module,
-            primitive_objects::PrimitiveObject,
-            promise::Promise,
-            promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
-            proxy::Proxy,
-            text_processing::string_objects::string_iterator_objects::StringIterator,
+            Array, ArrayIterator, AsyncGenerator, BoundFunction, BuiltinConstructorFunction,
+            BuiltinFunction, BuiltinPromiseFinallyFunction, BuiltinPromiseResolvingFunction,
+            ECMAScriptFunction, EmbedderObject, Error, FinalizationRegistry, Generator, Map,
+            MapIterator, Module, PrimitiveObject, Promise, Proxy, StringIterator,
         },
         execution::{
             Agent, JsResult,
             agent::{TryResult, try_result_into_js},
         },
-        types::{BUILTIN_STRING_MEMORY, Object},
+        types::{
+            BUILTIN_STRING_MEMORY, BigInt, HeapNumber, HeapString, Number, Numeric, Object,
+            OrdinaryObject, Primitive, String, Symbol, bigint::HeapBigInt,
+        },
     },
     engine::{
         Scoped,
@@ -83,13 +67,15 @@ use crate::{
         small_bigint::SmallBigInt,
         small_f64::SmallF64,
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+    heap::{
+        ArenaAccess, CompactionLists, HeapMarkAndSweep, PrimitiveHeapAccess, WorkQueues,
+        indexes::HeapIndexHandle,
+    },
 };
 
 use core::{
     hash::{Hash, Hasher},
     mem::size_of,
-    ops::Index,
 };
 
 /// ## [6.1 ECMAScript Language Types](https://tc39.es/ecma262/#sec-ecmascript-language-types)
@@ -298,68 +284,67 @@ const fn value_discriminant(value: Value) -> u8 {
 pub(crate) const UNDEFINED_DISCRIMINANT: u8 = value_discriminant(Value::Undefined);
 pub(crate) const NULL_DISCRIMINANT: u8 = value_discriminant(Value::Null);
 pub(crate) const BOOLEAN_DISCRIMINANT: u8 = value_discriminant(Value::Boolean(true));
-pub(crate) const STRING_DISCRIMINANT: u8 = value_discriminant(Value::String(HeapString::_def()));
+pub(crate) const STRING_DISCRIMINANT: u8 = value_discriminant(Value::String(HeapString::_DEF));
 pub(crate) const SMALL_STRING_DISCRIMINANT: u8 =
     value_discriminant(Value::SmallString(SmallString::EMPTY));
-pub(crate) const SYMBOL_DISCRIMINANT: u8 = value_discriminant(Value::Symbol(Symbol::_def()));
-pub(crate) const NUMBER_DISCRIMINANT: u8 = value_discriminant(Value::Number(HeapNumber::_def()));
+pub(crate) const SYMBOL_DISCRIMINANT: u8 = value_discriminant(Value::Symbol(Symbol::_DEF));
+pub(crate) const NUMBER_DISCRIMINANT: u8 = value_discriminant(Value::Number(HeapNumber::_DEF));
 pub(crate) const INTEGER_DISCRIMINANT: u8 =
     value_discriminant(Value::Integer(SmallInteger::zero()));
-pub(crate) const FLOAT_DISCRIMINANT: u8 = value_discriminant(Value::SmallF64(SmallF64::_def()));
-pub(crate) const BIGINT_DISCRIMINANT: u8 = value_discriminant(Value::BigInt(HeapBigInt::_def()));
+pub(crate) const FLOAT_DISCRIMINANT: u8 = value_discriminant(Value::SmallF64(SmallF64::_DEF));
+pub(crate) const BIGINT_DISCRIMINANT: u8 = value_discriminant(Value::BigInt(HeapBigInt::_DEF));
 pub(crate) const SMALL_BIGINT_DISCRIMINANT: u8 =
     value_discriminant(Value::SmallBigInt(SmallBigInt::zero()));
-pub(crate) const OBJECT_DISCRIMINANT: u8 =
-    value_discriminant(Value::Object(OrdinaryObject::_def()));
-pub(crate) const ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Array(Array::_def()));
+pub(crate) const OBJECT_DISCRIMINANT: u8 = value_discriminant(Value::Object(OrdinaryObject::_DEF));
+pub(crate) const ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Array(Array::_DEF));
 #[cfg(feature = "date")]
-pub(crate) const DATE_DISCRIMINANT: u8 = value_discriminant(Value::Date(Date::_def()));
-pub(crate) const ERROR_DISCRIMINANT: u8 = value_discriminant(Value::Error(Error::_def()));
+pub(crate) const DATE_DISCRIMINANT: u8 = value_discriminant(Value::Date(Date::_DEF));
+pub(crate) const ERROR_DISCRIMINANT: u8 = value_discriminant(Value::Error(Error::_DEF));
 pub(crate) const BUILTIN_FUNCTION_DISCRIMINANT: u8 =
-    value_discriminant(Value::BuiltinFunction(BuiltinFunction::_def()));
+    value_discriminant(Value::BuiltinFunction(BuiltinFunction::_DEF));
 pub(crate) const ECMASCRIPT_FUNCTION_DISCRIMINANT: u8 =
-    value_discriminant(Value::ECMAScriptFunction(ECMAScriptFunction::_def()));
+    value_discriminant(Value::ECMAScriptFunction(ECMAScriptFunction::_DEF));
 pub(crate) const BOUND_FUNCTION_DISCRIMINANT: u8 =
-    value_discriminant(Value::BoundFunction(BoundFunction::_def()));
+    value_discriminant(Value::BoundFunction(BoundFunction::_DEF));
 #[cfg(feature = "regexp")]
-pub(crate) const REGEXP_DISCRIMINANT: u8 = value_discriminant(Value::RegExp(RegExp::_def()));
+pub(crate) const REGEXP_DISCRIMINANT: u8 = value_discriminant(Value::RegExp(RegExp::_DEF));
 
 pub(crate) const BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT: u8 = value_discriminant(
-    Value::BuiltinConstructorFunction(BuiltinConstructorFunction::_def()),
+    Value::BuiltinConstructorFunction(BuiltinConstructorFunction::_DEF),
 );
 pub(crate) const BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT: u8 = value_discriminant(
-    Value::BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction::_def()),
+    Value::BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction::_DEF),
 );
 pub(crate) const BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT: u8 = value_discriminant(
-    Value::BuiltinPromiseFinallyFunction(BuiltinPromiseFinallyFunction::_def()),
+    Value::BuiltinPromiseFinallyFunction(BuiltinPromiseFinallyFunction::_DEF),
 );
 pub(crate) const BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::BuiltinPromiseCollectorFunction);
 pub(crate) const BUILTIN_PROXY_REVOKER_FUNCTION: u8 =
     value_discriminant(Value::BuiltinProxyRevokerFunction);
 pub(crate) const PRIMITIVE_OBJECT_DISCRIMINANT: u8 =
-    value_discriminant(Value::PrimitiveObject(PrimitiveObject::_def()));
+    value_discriminant(Value::PrimitiveObject(PrimitiveObject::_DEF));
 pub(crate) const ARGUMENTS_DISCRIMINANT: u8 =
-    value_discriminant(Value::Arguments(OrdinaryObject::_def()));
+    value_discriminant(Value::Arguments(OrdinaryObject::_DEF));
 pub(crate) const FINALIZATION_REGISTRY_DISCRIMINANT: u8 =
     value_discriminant(Value::FinalizationRegistry(FinalizationRegistry::_DEF));
-pub(crate) const MAP_DISCRIMINANT: u8 = value_discriminant(Value::Map(Map::_def()));
-pub(crate) const PROMISE_DISCRIMINANT: u8 = value_discriminant(Value::Promise(Promise::_def()));
-pub(crate) const PROXY_DISCRIMINANT: u8 = value_discriminant(Value::Proxy(Proxy::_def()));
+pub(crate) const MAP_DISCRIMINANT: u8 = value_discriminant(Value::Map(Map::_DEF));
+pub(crate) const PROMISE_DISCRIMINANT: u8 = value_discriminant(Value::Promise(Promise::_DEF));
+pub(crate) const PROXY_DISCRIMINANT: u8 = value_discriminant(Value::Proxy(Proxy::_DEF));
 #[cfg(feature = "set")]
-pub(crate) const SET_DISCRIMINANT: u8 = value_discriminant(Value::Set(Set::_def()));
+pub(crate) const SET_DISCRIMINANT: u8 = value_discriminant(Value::Set(Set::_DEF));
 #[cfg(feature = "weak-refs")]
 pub(crate) const WEAK_MAP_DISCRIMINANT: u8 = value_discriminant(Value::WeakMap(WeakMap::_DEF));
 #[cfg(feature = "weak-refs")]
-pub(crate) const WEAK_REF_DISCRIMINANT: u8 = value_discriminant(Value::WeakRef(WeakRef::_def()));
+pub(crate) const WEAK_REF_DISCRIMINANT: u8 = value_discriminant(Value::WeakRef(WeakRef::_DEF));
 #[cfg(feature = "weak-refs")]
-pub(crate) const WEAK_SET_DISCRIMINANT: u8 = value_discriminant(Value::WeakSet(WeakSet::_def()));
+pub(crate) const WEAK_SET_DISCRIMINANT: u8 = value_discriminant(Value::WeakSet(WeakSet::_DEF));
 
 #[cfg(feature = "array-buffer")]
 pub(crate) const ARRAY_BUFFER_DISCRIMINANT: u8 =
-    value_discriminant(Value::ArrayBuffer(ArrayBuffer::_def()));
+    value_discriminant(Value::ArrayBuffer(ArrayBuffer::_DEF));
 #[cfg(feature = "array-buffer")]
-pub(crate) const DATA_VIEW_DISCRIMINANT: u8 = value_discriminant(Value::DataView(DataView::_def()));
+pub(crate) const DATA_VIEW_DISCRIMINANT: u8 = value_discriminant(Value::DataView(DataView::_DEF));
 #[cfg(feature = "array-buffer")]
 pub(crate) const INT_8_ARRAY_DISCRIMINANT: u8 =
     value_discriminant(Value::Int8Array(Int8Array::_DEF));
@@ -402,7 +387,7 @@ pub(crate) const SHARED_ARRAY_BUFFER_DISCRIMINANT: u8 =
     value_discriminant(Value::SharedArrayBuffer(SharedArrayBuffer::_DEF));
 #[cfg(feature = "shared-array-buffer")]
 pub(crate) const SHARED_DATA_VIEW_DISCRIMINANT: u8 =
-    value_discriminant(Value::SharedDataView(SharedDataView::_def()));
+    value_discriminant(Value::SharedDataView(SharedDataView::_DEF));
 #[cfg(feature = "shared-array-buffer")]
 pub(crate) const SHARED_INT_8_ARRAY_DISCRIMINANT: u8 =
     value_discriminant(Value::SharedInt8Array(SharedInt8Array::_DEF));
@@ -442,25 +427,24 @@ pub(crate) const SHARED_FLOAT_64_ARRAY_DISCRIMINANT: u8 =
     value_discriminant(Value::SharedFloat64Array(SharedFloat64Array::_DEF));
 
 pub(crate) const ASYNC_GENERATOR_DISCRIMINANT: u8 =
-    value_discriminant(Value::AsyncGenerator(AsyncGenerator::_def()));
+    value_discriminant(Value::AsyncGenerator(AsyncGenerator::_DEF));
 pub(crate) const ARRAY_ITERATOR_DISCRIMINANT: u8 =
-    value_discriminant(Value::ArrayIterator(ArrayIterator::_def()));
+    value_discriminant(Value::ArrayIterator(ArrayIterator::_DEF));
 #[cfg(feature = "set")]
 pub(crate) const SET_ITERATOR_DISCRIMINANT: u8 =
-    value_discriminant(Value::SetIterator(SetIterator::_def()));
+    value_discriminant(Value::SetIterator(SetIterator::_DEF));
 #[cfg(feature = "set")]
 pub(crate) const MAP_ITERATOR_DISCRIMINANT: u8 =
-    value_discriminant(Value::MapIterator(MapIterator::_def()));
+    value_discriminant(Value::MapIterator(MapIterator::_DEF));
 pub(crate) const STRING_ITERATOR_DISCRIMINANT: u8 =
-    value_discriminant(Value::StringIterator(StringIterator::_def()));
+    value_discriminant(Value::StringIterator(StringIterator::_DEF));
 #[cfg(feature = "regexp")]
 pub(crate) const REGEXP_STRING_ITERATOR_DISCRIMINANT: u8 =
-    value_discriminant(Value::RegExpStringIterator(RegExpStringIterator::_def()));
-pub(crate) const GENERATOR_DISCRIMINANT: u8 =
-    value_discriminant(Value::Generator(Generator::_def()));
-pub(crate) const MODULE_DISCRIMINANT: u8 = value_discriminant(Value::Module(Module::_def()));
+    value_discriminant(Value::RegExpStringIterator(RegExpStringIterator::_DEF));
+pub(crate) const GENERATOR_DISCRIMINANT: u8 = value_discriminant(Value::Generator(Generator::_DEF));
+pub(crate) const MODULE_DISCRIMINANT: u8 = value_discriminant(Value::Module(Module::_DEF));
 pub(crate) const EMBEDDER_OBJECT_DISCRIMINANT: u8 =
-    value_discriminant(Value::EmbedderObject(EmbedderObject::_def()));
+    value_discriminant(Value::EmbedderObject(EmbedderObject::_DEF));
 
 impl<'a> Value<'a> {
     /// Scope a stack-only Value. Stack-only Values are primitives that do not
@@ -488,7 +472,7 @@ impl<'a> Value<'a> {
     }
 
     pub fn from_str(agent: &mut Agent, str: &str, gc: NoGcScope<'a, '_>) -> Value<'a> {
-        String::from_str(agent, str, gc).into_value()
+        String::from_str(agent, str, gc).into()
     }
 
     pub fn from_string(
@@ -496,7 +480,7 @@ impl<'a> Value<'a> {
         string: std::string::String,
         gc: NoGcScope<'a, '_>,
     ) -> Value<'a> {
-        String::from_string(agent, string, gc).into_value()
+        String::from_string(agent, string, gc).into()
     }
 
     pub fn from_static_str(
@@ -504,35 +488,35 @@ impl<'a> Value<'a> {
         str: &'static str,
         gc: NoGcScope<'a, '_>,
     ) -> Value<'a> {
-        String::from_static_str(agent, str, gc).into_value()
+        String::from_static_str(agent, str, gc).into()
     }
 
     pub fn from_f64(agent: &mut Agent, value: f64, gc: NoGcScope<'a, '_>) -> Value<'a> {
-        Number::from_f64(agent, value, gc).into_value()
+        Number::from_f64(agent, value, gc).into()
     }
 
     pub fn from_i64(agent: &mut Agent, value: i64, gc: NoGcScope<'a, '_>) -> Value<'a> {
-        Number::from_i64(agent, value, gc).into_value()
+        Number::from_i64(agent, value, gc).into()
     }
 
     pub fn nan() -> Self {
-        Number::nan().into_value()
+        Number::nan().into()
     }
 
     pub fn pos_inf() -> Self {
-        Number::pos_inf().into_value()
+        Number::pos_inf().into()
     }
 
     pub fn neg_inf() -> Self {
-        Number::neg_inf().into_value()
+        Number::neg_inf().into()
     }
 
     pub fn pos_zero() -> Self {
-        Number::pos_zero().into_value()
+        Number::pos_zero().into()
     }
 
     pub fn neg_zero() -> Self {
-        Number::neg_zero().into_value()
+        Number::neg_zero().into()
     }
 
     pub fn is_true(self) -> bool {
@@ -575,29 +559,29 @@ impl<'a> Value<'a> {
     }
 
     pub fn is_pos_zero(self, agent: &Agent) -> bool {
-        Number::try_from(self).is_ok_and(|n| n.is_pos_zero(agent))
+        Number::try_from(self).is_ok_and(|n| n.is_pos_zero_(agent))
             || BigInt::try_from(self).is_ok_and(|n| n.is_zero(agent))
     }
 
     pub fn is_neg_zero(self, agent: &Agent) -> bool {
-        Number::try_from(self).is_ok_and(|n| n.is_neg_zero(agent))
+        Number::try_from(self).is_ok_and(|n| n.is_neg_zero_(agent))
     }
 
     pub fn is_pos_infinity(self, agent: &Agent) -> bool {
         Number::try_from(self)
-            .map(|n| n.is_pos_infinity(agent))
+            .map(|n| n.is_pos_infinity_(agent))
             .unwrap_or(false)
     }
 
     pub fn is_neg_infinity(self, agent: &Agent) -> bool {
         Number::try_from(self)
-            .map(|n| n.is_neg_infinity(agent))
+            .map(|n| n.is_neg_infinity_(agent))
             .unwrap_or(false)
     }
 
     pub fn is_nan(self, agent: &Agent) -> bool {
         Number::try_from(self)
-            .map(|n| n.is_nan(agent))
+            .map(|n| n.is_nan_(agent))
             .unwrap_or(false)
     }
 
@@ -756,20 +740,18 @@ impl<'a> Value<'a> {
     /// # [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
     pub fn to_real<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, f64> {
         Ok(match self {
-            Value::Number(n) => agent[n],
+            Value::Number(n) => *n.get(agent),
             Value::Integer(i) => i.into_i64() as f64,
             Value::SmallF64(f) => f.into_f64(),
             // NOTE: Converting to a number should give us a nice error message.
-            _ => to_number(agent, self, gc)?.into_f64(agent),
+            _ => to_number(agent, self, gc)?.into_f64_(agent),
         })
     }
 
     pub(crate) fn hash<H, A>(self, arena: &A, hasher: &mut H)
     where
         H: Hasher,
-        A: Index<HeapString<'a>, Output = StringRecord>
-            + Index<HeapNumber<'a>, Output = f64>
-            + Index<HeapBigInt<'a>, Output = BigIntHeapData>,
+        A: PrimitiveHeapAccess,
     {
         let discriminant = core::mem::discriminant(&self);
         match self {
@@ -781,7 +763,7 @@ impl<'a> Value<'a> {
             }
             Value::String(data) => {
                 // Skip discriminant hashing in strings
-                arena[data].data.hash(hasher);
+                data.get(arena).data.hash(hasher);
             }
             Value::SmallString(data) => {
                 data.as_wtf8().hash(hasher);
@@ -792,7 +774,7 @@ impl<'a> Value<'a> {
             }
             Value::Number(data) => {
                 // Skip discriminant hashing in numbers
-                arena[data].to_bits().hash(hasher);
+                data.get(arena).to_bits().hash(hasher);
             }
             Value::Integer(data) => {
                 data.into_i64().hash(hasher);
@@ -802,7 +784,7 @@ impl<'a> Value<'a> {
             }
             Value::BigInt(data) => {
                 // Skip dsciriminant hashing in bigint numbers
-                arena[data].data.hash(hasher);
+                data.get(arena).hash(hasher);
             }
             Value::SmallBigInt(data) => {
                 data.into_i64().hash(hasher);
@@ -850,12 +832,6 @@ impl<'a> Value<'a> {
     }
 }
 
-impl From<bool> for Value<'_> {
-    fn from(value: bool) -> Self {
-        Value::Boolean(value)
-    }
-}
-
 bindable_handle!(Value);
 
 impl<'a, T> From<Option<T>> for Value<'a>
@@ -867,7 +843,7 @@ where
     }
 }
 
-impl TryFrom<&str> for Value<'static> {
+impl TryFrom<&str> for Value<'_> {
     type Error = ();
     fn try_from(value: &str) -> Result<Self, ()> {
         if let Ok(data) = value.try_into() {
@@ -878,44 +854,23 @@ impl TryFrom<&str> for Value<'static> {
     }
 }
 
-impl TryFrom<f64> for Value<'static> {
+impl TryFrom<f64> for Value<'_> {
     type Error = ();
     fn try_from(value: f64) -> Result<Self, ()> {
         Number::try_from(value).map(|v| v.into())
     }
 }
 
-impl<'a> From<Number<'a>> for Value<'a> {
-    fn from(value: Number<'a>) -> Self {
-        match value {
-            Number::Number(idx) => Value::Number(idx.unbind()),
-            Number::Integer(data) => Value::Integer(data),
-            Number::SmallF64(data) => Value::SmallF64(data),
-        }
-    }
-}
-
-impl From<f32> for Value<'static> {
+impl From<f32> for Value<'_> {
     fn from(value: f32) -> Self {
         Value::SmallF64(SmallF64::from(value))
     }
 }
 
-impl TryFrom<i64> for Value<'static> {
+impl TryFrom<i64> for Value<'_> {
     type Error = ();
     fn try_from(value: i64) -> Result<Self, ()> {
         Ok(Value::Integer(SmallInteger::try_from(value)?))
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for bool {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::Boolean(bool) => Ok(bool),
-            _ => Err(()),
-        }
     }
 }
 
@@ -1585,3 +1540,32 @@ fn map_object_to_static_string_repr(value: Value) -> String<'static> {
         | Object::EmbedderObject(_) => BUILTIN_STRING_MEMORY._object_Object_,
     }
 }
+
+macro_rules! value_handle {
+    ($name: tt) => {
+        crate::ecmascript::types::value_handle!($name, $name);
+    };
+    ($name: ident, $variant: ident) => {
+        crate::heap::indexes::index_handle!($name, $variant);
+
+        impl<'a> From<$name<'a>> for crate::ecmascript::types::Value<'a> {
+            #[inline(always)]
+            fn from(value: $name<'a>) -> Self {
+                Self::$variant(value)
+            }
+        }
+
+        impl<'a> TryFrom<crate::ecmascript::types::Value<'a>> for $name<'a> {
+            type Error = ();
+
+            #[inline]
+            fn try_from(value: crate::ecmascript::types::Value<'a>) -> Result<Self, Self::Error> {
+                match value {
+                    crate::ecmascript::types::Value::$variant(data) => Ok(data),
+                    _ => Err(()),
+                }
+            }
+        }
+    };
+}
+pub(crate) use value_handle;

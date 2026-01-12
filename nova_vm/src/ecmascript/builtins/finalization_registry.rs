@@ -2,45 +2,41 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use soavec::SoAVec;
-
 use crate::{
     ecmascript::{
-        builtins::finalization_registry::data::{
-            FinalizationRegistryRecordMut, FinalizationRegistryRecordRef,
-        },
         execution::{
             Agent, FinalizationRegistryCleanupJob, ProtoIntrinsics, Realm, WeakKey,
             agent::{InnerJob, Job},
         },
-        types::{Function, InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
+        types::{Function, InternalMethods, InternalSlots, OrdinaryObject, Value, object_handle},
     },
-    engine::{
-        context::{Bindable, bindable_handle},
-        rootable::HeapRootData,
-    },
+    engine::context::Bindable,
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        ArenaAccessSoA, ArenaAccessSoAMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, WorkQueues, arena_vec_access,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
-use self::data::FinalizationRegistryRecord;
+pub(crate) use self::data::FinalizationRegistryRecord;
 
-pub mod data;
+mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct FinalizationRegistry<'a>(BaseIndex<'a, FinalizationRegistryRecord<'static>>);
-bindable_handle!(FinalizationRegistry);
+object_handle!(FinalizationRegistry);
+arena_vec_access!(
+    soa:
+    FinalizationRegistry,
+    'a,
+    FinalizationRegistryRecord,
+    finalization_registrys,
+    FinalizationRegistryRecordRef,
+    FinalizationRegistryRecordMut
+);
 
 impl<'fr> FinalizationRegistry<'fr> {
-    pub(crate) const _DEF: Self = Self(BaseIndex::from_u32_index(u32::MAX - 1));
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
     pub(crate) fn get_cleanup_queue(self, agent: &mut Agent) -> (Function<'fr>, Vec<Value<'fr>>) {
         self.get_mut(agent).cleanup.get_cleanup_queue()
     }
@@ -49,7 +45,10 @@ impl<'fr> FinalizationRegistry<'fr> {
         if queue.is_empty() {
             return;
         }
-        let do_request_cleanup = self.get_mut(agent).cleanup.push_cleanup_queue(queue);
+        let do_request_cleanup = self
+            .get_mut(agent)
+            .cleanup
+            .push_cleanup_queue(queue.unbind());
         if do_request_cleanup {
             agent
                 .host_hooks
@@ -73,7 +72,7 @@ impl<'fr> FinalizationRegistry<'fr> {
             .filter_map(|(i, record)| {
                 let i = i as u32;
                 if record.needs_cleanup() {
-                    Some(FinalizationRegistry(BaseIndex::from_u32_index(i)))
+                    Some(FinalizationRegistry(BaseIndex::from_index_u32(i)))
                 } else {
                     None
                 }
@@ -123,96 +122,6 @@ impl<'fr> FinalizationRegistry<'fr> {
     pub(crate) fn unregister(self, agent: &mut Agent, unregister_token: WeakKey<'fr>) -> bool {
         self.get_mut(agent).cells.unregister(unregister_token)
     }
-
-    #[inline(always)]
-    fn get<'a>(self, agent: &'a Agent) -> FinalizationRegistryRecordRef<'a, 'fr> {
-        self.get_direct(&agent.heap.finalization_registrys)
-    }
-
-    #[inline(always)]
-    fn get_mut<'a>(self, agent: &'a mut Agent) -> FinalizationRegistryRecordMut<'a, 'fr> {
-        self.get_direct_mut(&mut agent.heap.finalization_registrys)
-    }
-
-    #[inline(always)]
-    fn get_direct<'a>(
-        self,
-        finalization_registrys: &'a SoAVec<FinalizationRegistryRecord<'static>>,
-    ) -> FinalizationRegistryRecordRef<'a, 'fr> {
-        finalization_registrys
-            .get(self.0.into_u32_index())
-            .expect("Invalid FinalizationRegistry reference")
-    }
-
-    #[inline(always)]
-    fn get_direct_mut<'a>(
-        self,
-        finalization_registrys: &'a mut SoAVec<FinalizationRegistryRecord<'static>>,
-    ) -> FinalizationRegistryRecordMut<'a, 'fr> {
-        // SAFETY: Lifetime transmute to thread GC lifetime to temporary heap
-        // reference.
-        unsafe {
-            core::mem::transmute::<
-                FinalizationRegistryRecordMut<'a, 'static>,
-                FinalizationRegistryRecordMut<'a, 'fr>,
-            >(
-                finalization_registrys
-                    .get_mut(self.0.into_u32_index())
-                    .expect("Invalid FinalizationRegistry reference"),
-            )
-        }
-    }
-}
-
-impl<'a> From<FinalizationRegistry<'a>> for Value<'a> {
-    fn from(value: FinalizationRegistry<'a>) -> Self {
-        Value::FinalizationRegistry(value)
-    }
-}
-
-impl<'a> From<FinalizationRegistry<'a>> for Object<'a> {
-    fn from(value: FinalizationRegistry<'a>) -> Self {
-        Object::FinalizationRegistry(value)
-    }
-}
-
-impl From<FinalizationRegistry<'_>> for HeapRootData {
-    fn from(value: FinalizationRegistry<'_>) -> Self {
-        HeapRootData::FinalizationRegistry(value.unbind())
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for FinalizationRegistry<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::FinalizationRegistry(fr) => Ok(fr),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for FinalizationRegistry<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Object::FinalizationRegistry(fr) => Ok(fr),
-            _ => Err(()),
-        }
-    }
-}
-
-impl TryFrom<HeapRootData> for FinalizationRegistry<'_> {
-    type Error = ();
-
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        match value {
-            HeapRootData::FinalizationRegistry(fr) => Ok(fr),
-            _ => Err(()),
-        }
-    }
 }
 
 impl<'fr> InternalSlots<'fr> for FinalizationRegistry<'fr> {
@@ -242,7 +151,7 @@ impl<'a> CreateHeapData<FinalizationRegistryRecord<'a>, FinalizationRegistry<'a>
             .push(data.unbind())
             .expect("Failed to allocate FinalizationRegistry");
         self.alloc_counter += core::mem::size_of::<FinalizationRegistryRecord<'static>>();
-        FinalizationRegistry(BaseIndex::from_u32_index(i))
+        FinalizationRegistry(BaseIndex::from_index_u32(i))
     }
 }
 

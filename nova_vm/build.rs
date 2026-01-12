@@ -130,7 +130,8 @@ const fn get_index(n: &'static str) -> usize {
             struct_const.push_str(string);
             struct_const.push_str("\") }),\n");
         } else {
-            struct_const.push_str(": String::String(HeapString(BaseIndex::from_index(get_index(");
+            struct_const
+                .push_str(": String::String(HeapString(BaseIndex::from_index_const(get_index(");
             struct_const.push_str(&format!("\"{string}\")))),\n"));
         }
     }

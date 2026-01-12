@@ -6,7 +6,7 @@ use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         execution::{Agent, Realm},
-        types::{BUILTIN_STRING_MEMORY, IntoValue},
+        types::BUILTIN_STRING_MEMORY,
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -28,7 +28,7 @@ impl AsyncGeneratorFunctionPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.prototype.into())
-                    .with_value_readonly(async_generator_prototype.into_value())
+                    .with_value_readonly(async_generator_prototype.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()
@@ -36,7 +36,7 @@ impl AsyncGeneratorFunctionPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.AsyncGeneratorFunction.into_value())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.AsyncGeneratorFunction.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()

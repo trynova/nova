@@ -23,8 +23,7 @@ use crate::{
             get_global_object,
         },
         types::{
-            Function, InternalMethods, IntoObject, IntoValue, Object, PropertyKey, SetResult,
-            String, TryGetResult, Value,
+            Function, InternalMethods, Object, PropertyKey, SetResult, String, TryGetResult, Value,
         },
     },
     engine::{
@@ -291,8 +290,8 @@ impl<'a> Reference<'a> {
             Reference::SuperExpression(v) | Reference::SuperExpressionStrict(v) => v.this_value,
             Reference::Super(v) | Reference::SuperStrict(v) => v.this_value,
             Reference::Variable(v) | Reference::VariableStrict(v) => match v.base {
-                Environment::Global(e) => e.get_binding_object(agent).into_value(),
-                Environment::Object(e) => e.get_binding_object(agent).into_value(),
+                Environment::Global(e) => e.get_binding_object(agent).into(),
+                Environment::Object(e) => e.get_binding_object(agent).into(),
                 _ => unreachable!(),
             },
             _ => unreachable!(),
@@ -496,7 +495,7 @@ pub(crate) fn get_value<'gc>(
             let gc = gc.into_nogc();
             let error_message = format!(
                 "Cannot access undeclared variable '{}'.",
-                referenced_name.to_string_lossy(agent)
+                referenced_name.to_string_lossy_(agent)
             );
             Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc))
         }
@@ -647,7 +646,7 @@ pub(crate) fn throw_read_undefined_or_null_error<'a>(
         "Cannot read property '{}' of {}.",
         referenced_value
             .try_string_repr(agent, gc)
-            .to_string_lossy(agent),
+            .to_string_lossy_(agent),
         if value.is_undefined() {
             "undefined"
         } else {
@@ -670,7 +669,7 @@ fn try_handle_primitive_get_value<'a>(
         return throw_no_private_name_error(agent, gc).into();
     }
     // Primitive value. annoying stuff.
-    let prototype = match receiver {
+    let prototype: Object = match receiver {
         Value::Undefined | Value::Null => {
             return throw_read_undefined_or_null_error(
                 agent,
@@ -686,7 +685,7 @@ fn try_handle_primitive_get_value<'a>(
             .current_realm_record()
             .intrinsics()
             .boolean_prototype()
-            .into_object(),
+            .into(),
         Value::String(_) | Value::SmallString(_) => {
             let string = String::try_from(receiver).unwrap();
             if let Some(prop_desc) = string.get_property_descriptor(agent, referenced_name) {
@@ -696,23 +695,23 @@ fn try_handle_primitive_get_value<'a>(
                 .current_realm_record()
                 .intrinsics()
                 .string_prototype()
-                .into_object()
+                .into()
         }
         Value::Symbol(_) => agent
             .current_realm_record()
             .intrinsics()
             .symbol_prototype()
-            .into_object(),
+            .into(),
         Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => agent
             .current_realm_record()
             .intrinsics()
             .number_prototype()
-            .into_object(),
+            .into(),
         Value::BigInt(_) | Value::SmallBigInt(_) => agent
             .current_realm_record()
             .intrinsics()
             .big_int_prototype()
-            .into_object(),
+            .into(),
         _ => unreachable!(),
     };
     prototype
@@ -790,7 +789,7 @@ pub(crate) fn try_get_value<'gc>(
         | Reference::UnresolvableStrict(referenced_name) => {
             let error_message = format!(
                 "Cannot access undeclared variable '{}'.",
-                referenced_name.to_string_lossy(agent)
+                referenced_name.to_string_lossy_(agent)
             );
             agent
                 .throw_exception(ExceptionType::ReferenceError, error_message, gc)
@@ -841,7 +840,7 @@ pub(crate) fn try_get_value<'gc>(
                     try_private_get(agent, base_obj, referenced_name, gc).map_continue(|c| {
                         TryGetValueContinue::from_get_continue(
                             c,
-                            base_obj.into_value(),
+                            base_obj.into(),
                             referenced_name.into(),
                         )
                     })
@@ -914,7 +913,7 @@ pub(crate) fn put_value<'a>(
             // a. If V.[[Strict]] is true, throw a ReferenceError exception.
             let error_message = format!(
                 "Cannot assign to undeclared variable '{}'.",
-                referenced_name.to_string_lossy(agent)
+                referenced_name.to_string_lossy_(agent)
             );
             Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc.into_nogc()))
         }
@@ -958,9 +957,7 @@ pub(crate) fn put_value<'a>(
                 // throw a TypeError exception.
                 // SAFETY: not shared.
                 let base_obj_repr = unsafe {
-                    base_obj
-                        .take(agent)
-                        .into_value()
+                    Value::from(base_obj.take(agent))
                         .string_repr(agent, gc.reborrow())
                         .unbind()
                         .bind(gc.nogc())
@@ -969,7 +966,7 @@ pub(crate) fn put_value<'a>(
                 let referenced_name = unsafe { scoped_referenced_name.take(agent) }.bind(gc.nogc());
                 return Err(throw_cannot_set_property(
                     agent,
-                    base_obj_repr.into_value().unbind(),
+                    base_obj_repr.unbind().into(),
                     referenced_name.unbind(),
                     gc.into_nogc(),
                 ));
@@ -1027,9 +1024,7 @@ pub(crate) fn put_value<'a>(
                 // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
                 // SAFETY: not shared.
                 let base_obj_repr = unsafe {
-                    scoped_base_obj
-                        .take(agent)
-                        .into_value()
+                    Value::from(scoped_base_obj.take(agent))
                         .string_repr(agent, gc.reborrow())
                         .unbind()
                         .bind(gc.nogc())
@@ -1038,7 +1033,7 @@ pub(crate) fn put_value<'a>(
                 let referenced_name = unsafe { scoped_referenced_name.take(agent) }.bind(gc.nogc());
                 return Err(throw_cannot_set_property(
                     agent,
-                    base_obj_repr.into_value().unbind(),
+                    base_obj_repr.unbind().into(),
                     referenced_name.unbind(),
                     gc.into_nogc(),
                 ));
@@ -1110,7 +1105,7 @@ pub(crate) fn try_put_value<'gc>(
             // a. If V.[[Strict]] is true, throw a ReferenceError exception.
             let error_message = format!(
                 "Cannot assign to undeclared variable '{}'.",
-                referenced_name.to_string_lossy(agent)
+                referenced_name.to_string_lossy_(agent)
             );
             agent
                 .throw_exception(ExceptionType::ReferenceError, error_message, gc)
@@ -1135,13 +1130,8 @@ pub(crate) fn try_put_value<'gc>(
             // d. If succeeded is false and V.[[Strict]] is true,
             if result.failed() && reference.strict() {
                 // throw a TypeError exception.
-                return throw_cannot_set_property(
-                    agent,
-                    base_obj.into_value(),
-                    referenced_name,
-                    gc,
-                )
-                .into();
+                return throw_cannot_set_property(agent, base_obj.into(), referenced_name, gc)
+                    .into();
             }
             // e. Return UNUSED.
             result.into()
@@ -1169,13 +1159,8 @@ pub(crate) fn try_put_value<'gc>(
             )?;
             if result.failed() && reference.strict() {
                 // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
-                return throw_cannot_set_property(
-                    agent,
-                    base_obj.into_value(),
-                    referenced_name,
-                    gc,
-                )
-                .into();
+                return throw_cannot_set_property(agent, base_obj.into(), referenced_name, gc)
+                    .into();
             }
             // e. Return UNUSED.
             result.into()
@@ -1208,7 +1193,7 @@ pub(crate) fn throw_cannot_set_property<'a>(
     let error_message = format!(
         "Could not set property '{}' of {}.",
         property_key.as_display(agent),
-        base.to_string_lossy(agent)
+        base.to_string_lossy_(agent)
     );
     agent.throw_exception(ExceptionType::TypeError, error_message, gc)
 }

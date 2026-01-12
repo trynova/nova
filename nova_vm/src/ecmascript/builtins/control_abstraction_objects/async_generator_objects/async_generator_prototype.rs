@@ -8,18 +8,19 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin,
-            promise_objects::promise_abstract_operations::promise_capability_records::{
+            promise::Promise,
+            control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::{
                 PromiseCapability, if_abrupt_reject_promise, if_abrupt_reject_promise_m,
             },
         },
         execution::{Agent, JsResult, Realm, agent::JsError},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, String, Value},
+        types::{BUILTIN_STRING_MEMORY, String, Value},
     },
     engine::{
         context::{Bindable, GcScope},
         rootable::Scopable,
     },
-    heap::WellKnownSymbolIndexes,
+    heap::{ArenaAccess, WellKnownSymbolIndexes},
 };
 
 use super::{
@@ -78,11 +79,11 @@ impl AsyncGeneratorPrototype {
             match if_abrupt_reject_promise(agent, result, promise_capability.clone(), gc.nogc()) {
                 Ok(g) => g,
                 Err(p) => {
-                    return Ok(p.into_value().unbind());
+                    return Ok(p.unbind().into());
                 }
             };
         // 5. Let state be generator.[[AsyncGeneratorState]].
-        let state = agent[generator].async_generator_state.as_ref().unwrap();
+        let state = generator.get(agent).async_generator_state.as_ref().unwrap();
         // 6. If state is completed, then
         if state.is_completed() {
             // a. Let iteratorResult be CreateIteratorResultObject(undefined, true).
@@ -93,10 +94,10 @@ impl AsyncGeneratorPrototype {
             // b. Perform ! Call(promiseCapability.[[Resolve]], undefined, « iteratorResult »).
             promise_capability
                 .unbind()
-                .resolve(agent, iterator_result.into_value().unbind(), gc);
+                .resolve(agent, iterator_result.unbind().into(), gc);
             // c. Return promiseCapability.[[Promise]].
             // SAFETY: Promise has not been shared.
-            return Ok(unsafe { promise.take(agent).into_value() });
+            return Ok(unsafe { promise.take(agent).into() });
         }
         let state_is_suspended = state.is_suspended();
         let state_is_executing_or_draining = state.is_active();
@@ -114,7 +115,7 @@ impl AsyncGeneratorPrototype {
             assert!(state_is_executing_or_draining);
         }
         // 11. Return promiseCapability.[[Promise]].
-        Ok(unsafe { promise.take(agent).into_value() })
+        Ok(unsafe { promise.take(agent).into() })
     }
 
     /// ### [27.6.1.3 %AsyncGeneratorPrototype%.return ( value )](https://tc39.es/ecma262/#sec-asyncgenerator-prototype-return)
@@ -137,7 +138,7 @@ impl AsyncGeneratorPrototype {
             match if_abrupt_reject_promise(agent, result, promise_capability.clone(), gc.nogc()) {
                 Ok(g) => g,
                 Err(p) => {
-                    return Ok(p.into_value().unbind());
+                    return Ok(p.unbind().into());
                 }
             };
         // 5. Let completion be ReturnCompletion(value).
@@ -154,7 +155,7 @@ impl AsyncGeneratorPrototype {
             let generator = generator.scope(agent, gc.nogc());
             async_generator_await_return(agent, generator, gc.reborrow());
             // 11. Return promiseCapability.[[Promise]].
-            Ok(promise.get(agent).into_value())
+            Ok(promise.get(agent).into())
         } else if generator.is_suspended_yield(agent) {
             // 9. Else if state is suspended-yield, then
             let promise = promise.scope(agent, gc.nogc());
@@ -166,13 +167,13 @@ impl AsyncGeneratorPrototype {
                 gc.reborrow(),
             );
             // 11. Return promiseCapability.[[Promise]].
-            Ok(promise.get(agent).into_value())
+            Ok(promise.get(agent).into())
         } else {
             // 10. Else,
             // a. Assert: state is either executing or draining-queue.
             assert!(generator.is_active(agent));
             // 11. Return promiseCapability.[[Promise]].
-            Ok(promise.into_value().unbind())
+            Ok(promise.unbind().into())
         }
     }
 
@@ -183,55 +184,58 @@ impl AsyncGeneratorPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        let exception = arguments.get(0).bind(gc.nogc());
-        // 1. Let generator be the this value.
-        let generator = this_value.bind(gc.nogc());
-        // 2. Let promiseCapability be ! NewPromiseCapability(%Promise%).
-        let promise_capability = PromiseCapability::new(agent, gc.nogc());
-        let mut promise = promise_capability.promise().bind(gc.nogc());
-        // 3. Let result be Completion(AsyncGeneratorValidate(generator, empty)).
-        let result = async_generator_validate(agent, generator, (), gc.nogc());
-        // 4. IfAbruptRejectPromise(result, promiseCapability).
-        let generator = if_abrupt_reject_promise_m!(agent, result, promise_capability, gc);
-        // 5. Let state be generator.[[AsyncGeneratorState]].
-        // 6. If state is suspended-start, then
-        let mut completed = false;
-        if generator.is_suspended_start(agent) {
-            // a. Set generator.[[AsyncGeneratorState]] to completed.
-            generator.transition_to_complete(agent);
-            // b. Set state to completed.
-            completed = true;
-        }
-        // 7. If state is completed, then
-        if completed || generator.is_completed(agent) {
-            // a. Perform ! Call(promiseCapability.[[Reject]], undefined, « exception »).
-            promise_capability.reject(agent, exception, gc.nogc());
-            // b. Return promiseCapability.[[Promise]].
-            return Ok(promise.into_value().unbind());
-        }
-        // 8. Let completion be ThrowCompletion(exception).
-        let completion =
-            AsyncGeneratorRequestCompletion::Err(JsError::new(exception.unbind())).bind(gc.nogc());
-        // 9. Perform AsyncGeneratorEnqueue(generator, completion, promiseCapability).
-        async_generator_enqueue(agent, generator, completion, promise_capability);
-        // 10. If state is suspended-yield, then
-        if generator.is_suspended_yield(agent) {
-            // a. Perform AsyncGeneratorResume(generator, completion).
-            let scoped_promise = promise.scope(agent, gc.nogc());
-            async_generator_resume(
-                agent,
-                generator.unbind(),
-                completion.unbind(),
-                gc.reborrow(),
-            );
-            promise = scoped_promise.get(agent).bind(gc.nogc());
-        } else {
-            // 11. Else,
-            // a. Assert: state is either executing or draining-queue.
-            assert!(generator.is_executing(agent) || generator.is_draining_queue(agent));
-        }
-        // 12. Return promiseCapability.[[Promise]].
-        Ok(promise.into_value().unbind())
+        let result: Promise = (|| {
+            let exception = arguments.get(0).bind(gc.nogc());
+            // 1. Let generator be the this value.
+            let generator = this_value.bind(gc.nogc());
+            // 2. Let promiseCapability be ! NewPromiseCapability(%Promise%).
+            let promise_capability = PromiseCapability::new(agent, gc.nogc());
+            let mut promise = promise_capability.promise().bind(gc.nogc());
+            // 3. Let result be Completion(AsyncGeneratorValidate(generator, empty)).
+            let result = async_generator_validate(agent, generator, (), gc.nogc());
+            // 4. IfAbruptRejectPromise(result, promiseCapability).
+            let generator = if_abrupt_reject_promise_m!(agent, result, promise_capability, gc);
+            // 5. Let state be generator.[[AsyncGeneratorState]].
+            // 6. If state is suspended-start, then
+            let mut completed = false;
+            if generator.is_suspended_start(agent) {
+                // a. Set generator.[[AsyncGeneratorState]] to completed.
+                generator.transition_to_complete(agent);
+                // b. Set state to completed.
+                completed = true;
+            }
+            // 7. If state is completed, then
+            if completed || generator.is_completed(agent) {
+                // a. Perform ! Call(promiseCapability.[[Reject]], undefined, « exception »).
+                promise_capability.reject(agent, exception, gc.nogc());
+                // b. Return promiseCapability.[[Promise]].
+                return promise.unbind();
+            }
+            // 8. Let completion be ThrowCompletion(exception).
+            let completion = AsyncGeneratorRequestCompletion::Err(JsError::new(exception.unbind()))
+                .bind(gc.nogc());
+            // 9. Perform AsyncGeneratorEnqueue(generator, completion, promiseCapability).
+            async_generator_enqueue(agent, generator, completion, promise_capability);
+            // 10. If state is suspended-yield, then
+            if generator.is_suspended_yield(agent) {
+                // a. Perform AsyncGeneratorResume(generator, completion).
+                let scoped_promise = promise.scope(agent, gc.nogc());
+                async_generator_resume(
+                    agent,
+                    generator.unbind(),
+                    completion.unbind(),
+                    gc.reborrow(),
+                );
+                promise = scoped_promise.get(agent).bind(gc.nogc());
+            } else {
+                // 11. Else,
+                // a. Assert: state is either executing or draining-queue.
+                assert!(generator.is_executing(agent) || generator.is_draining_queue(agent));
+            }
+            // 12. Return promiseCapability.[[Promise]].
+            promise.unbind()
+        })();
+        Ok(result.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -246,7 +250,7 @@ impl AsyncGeneratorPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.constructor.into())
-                    .with_value_readonly(async_generator_function_prototype.into_value())
+                    .with_value_readonly(async_generator_function_prototype.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()
@@ -257,7 +261,7 @@ impl AsyncGeneratorPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.AsyncGenerator.into_value())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.AsyncGenerator.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()

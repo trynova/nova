@@ -10,7 +10,7 @@ use wtf8::{CodePoint, Wtf8, Wtf8Buf};
 use crate::heap::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 
 #[derive(Debug, Clone)]
-pub struct StringRecord {
+pub(crate) struct StringRecord {
     pub(crate) data: StringBuffer,
     pub(crate) mapping: OnceCell<IndexMapping>,
 }

@@ -23,15 +23,16 @@ use crate::{
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic, array_create, array_species_create,
+            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic,
+            array::abstract_operations::{array_create, array_species_create},
         },
         execution::{
             Agent, JsResult, Realm,
             agent::{ExceptionType, JsError, try_result_into_js, unwrap_try},
         },
         types::{
-            BUILTIN_STRING_MEMORY, Function, InternalMethods, IntoFunction, IntoObject, IntoValue,
-            Number, Object, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, Function, InternalMethods, Number, Object, PropertyKey, String,
+            Value,
         },
     },
     engine::{
@@ -39,7 +40,7 @@ use crate::{
         context::{Bindable, GcScope},
         rootable::{Rootable, Scopable},
     },
-    heap::{Heap, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+    heap::{Heap, IntrinsicFunctionIndexes, WellKnownSymbolIndexes, indexes::HeapIndexHandle},
 };
 
 use super::array_iterator_objects::array_iterator::{ArrayIterator, CollectionIteratorKind};
@@ -414,7 +415,7 @@ impl ArrayPrototype {
         let o_as_value = unsafe {
             scoped_o
                 .clone()
-                .replace_self(agent, scoped_o.get(agent).into_value())
+                .replace_self(agent, scoped_o.get(agent).into())
         };
         items.insert(0, o_as_value);
         // 5. For each element E of items, do
@@ -511,7 +512,7 @@ impl ArrayPrototype {
         )
         .unbind()?;
         // 7. Return A.
-        Ok(a.get(agent).into_value())
+        Ok(a.get(agent).into())
     }
 
     /// ### [23.1.3.4 Array.prototype.copyWithin ( target, start \[ , end \] )](https://tc39.es/ecma262/#sec-array.prototype.copywithin)
@@ -587,12 +588,12 @@ impl ArrayPrototype {
 
                 let count = (final_end - from).min(len as isize - to);
                 if count <= 0 {
-                    return Ok(array.into_value().unbind());
+                    return Ok(array.unbind().into());
                 }
                 let data = array.as_mut_slice(agent);
                 data.copy_within((from as usize)..((from + count) as usize), to as usize);
 
-                return Ok(array.into_value().unbind());
+                return Ok(array.unbind().into());
             }
         }
         // 1. Let O be ? ToObject(this value).
@@ -717,7 +718,7 @@ impl ArrayPrototype {
             count -= 1;
         }
         // 19. Return O.
-        Ok(o.get(agent).into_value())
+        Ok(o.get(agent).into())
     }
 
     /// ### [23.1.3.5 Array.prototype.entries ( )](https://tc39.es/ecma262/#sec-array.prototype.entries)
@@ -736,7 +737,7 @@ impl ArrayPrototype {
             ));
         };
         // 2. Return CreateArrayIterator(O, key+value).
-        Ok(ArrayIterator::from_object(agent, o, CollectionIteratorKind::KeyAndValue).into_value())
+        Ok(ArrayIterator::from_object(agent, o, CollectionIteratorKind::KeyAndValue).into())
     }
 
     /// ### [23.1.3.6 Array.prototype.every ( callbackfn \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.every)
@@ -817,7 +818,7 @@ impl ArrayPrototype {
                     .unbind()?
                     .bind(gc.nogc());
                 // ii. Let testResult be ToBoolean(? Call(callbackfn, thisArg, « kValue, 𝔽(k), O »)).
-                let f_k = Number::try_from(k).unwrap().into_value();
+                let f_k = Number::try_from(k).unwrap().into();
                 let test_result = call_function(
                     agent,
                     callback_fn.get(agent),
@@ -825,7 +826,7 @@ impl ArrayPrototype {
                     Some(ArgumentsList::from_mut_slice(&mut [
                         k_value.unbind(),
                         f_k,
-                        o.get(agent).into_value(),
+                        o.get(agent).into(),
                     ])),
                     gc.reborrow(),
                 )
@@ -914,7 +915,7 @@ impl ArrayPrototype {
                     let data = array.as_mut_slice(agent);
                     data[k..final_end].fill(Some(value.unbind()));
                 }
-                return Ok(array.into_value().unbind());
+                return Ok(array.unbind().into());
             }
         };
         let value = value.scope(agent, nogc);
@@ -977,7 +978,7 @@ impl ArrayPrototype {
             k += 1;
         }
         // 12. Return O.
-        Ok(o.get(agent).into_value())
+        Ok(o.get(agent).into())
     }
 
     /// ### [23.1.3.8 Array.prototype.filter ( callbackfn \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.filter)
@@ -1072,7 +1073,7 @@ impl ArrayPrototype {
                     Some(ArgumentsList::from_mut_slice(&mut [
                         k_value.unbind(),
                         k.try_into().unwrap(),
-                        o.get(agent).into_value(),
+                        o.get(agent).into(),
                     ])),
                     gc.reborrow(),
                 )
@@ -1098,7 +1099,7 @@ impl ArrayPrototype {
             k += 1;
         }
         // 8. Return A.
-        Ok(a.get(agent).into_value())
+        Ok(a.get(agent).into())
     }
 
     /// ### [23.1.3.9 Array.prototype.find ( predicate \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.find)
@@ -1178,7 +1179,7 @@ impl ArrayPrototype {
         // 3. Let findRec be ? FindViaPredicate(O, len, ascending, predicate, thisArg).
         let find_rec = find_via_predicate(agent, o, len, true, predicate, this_arg, gc)?;
         // 4. Return findRec.[[Index]].
-        Ok(Number::try_from(find_rec.0).unwrap().into_value())
+        Ok(Number::try_from(find_rec.0).unwrap().into())
     }
 
     /// ### [23.1.3.11 Array.prototype.findLast ( predicate \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.findlast)
@@ -1226,7 +1227,7 @@ impl ArrayPrototype {
         // 3. Let findRec be ? FindViaPredicate(O, len, descending, predicate, thisArg).
         let find_rec = find_via_predicate(agent, o, len, false, predicate, this_arg, gc)?;
         // 4. Return findRec.[[Index]].
-        Ok(Number::try_from(find_rec.0).unwrap().into_value())
+        Ok(Number::try_from(find_rec.0).unwrap().into())
     }
 
     /// ### [23.1.3.13 Array.prototype.flat ( \[ depth \] )](https://tc39.es/ecma262/#sec-array.prototype.flat)
@@ -1277,7 +1278,7 @@ impl ArrayPrototype {
         )
         .unbind()?;
         // 7. Return A.
-        Ok(a.get(agent).into_value())
+        Ok(a.get(agent).into())
     }
 
     /// ### [23.1.3.14 Array.prototype.flatMap ( mapperFunction \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.flatmap)
@@ -1329,7 +1330,7 @@ impl ArrayPrototype {
         )
         .unbind()?;
         // 6. Return A.
-        Ok(a.get(agent).into_value())
+        Ok(a.get(agent).into())
     }
 
     /// ### [23.1.3.15 Array.prototype.forEach ( callbackfn \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.foreach)
@@ -1417,7 +1418,7 @@ impl ArrayPrototype {
                     Some(ArgumentsList::from_mut_slice(&mut [
                         k_value.unbind(),
                         k.try_into().unwrap(),
-                        o.get(agent).into_value(),
+                        o.get(agent).into(),
                     ])),
                     gc.reborrow(),
                 )
@@ -1730,7 +1731,7 @@ impl ArrayPrototype {
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, o.get(agent), gc.reborrow()).unbind()?;
         if len == 0 {
-            return Ok(String::EMPTY_STRING.into_value());
+            return Ok(String::EMPTY_STRING.into());
         }
         let len = len as usize;
         // 3. If separator is undefined, let sep be ",".
@@ -1755,19 +1756,18 @@ impl ArrayPrototype {
                 .unbind()?
                 .bind(gc.nogc());
             // c. If element is neither undefined nor null, then
-            if !element.is_undefined() && !element.is_null() && element != o.get(agent).into_value()
-            {
+            if !element.is_undefined() && !element.is_null() && element != o.get(agent).into() {
                 // i. Let S be ? ToString(element).
                 let s = to_string(agent, element.unbind(), gc.reborrow())
                     .unbind()?
                     .bind(gc.nogc());
                 // ii. Set R to the string-concatenation of R and S.
-                r.push_wtf8(s.as_wtf8(agent));
+                r.push_wtf8(s.as_wtf8_(agent));
             }
         }
         for k in 1..len {
             // a. If k > 0, set R to the string-concatenation of R and sep.
-            r.push_wtf8(separator.get(agent).as_wtf8(agent));
+            r.push_wtf8(separator.get(agent).as_wtf8_(agent));
             // b. Let element be ? Get(O, ! ToString(𝔽(k))).
             let element = get(
                 agent,
@@ -1778,19 +1778,18 @@ impl ArrayPrototype {
             .unbind()?
             .bind(gc.nogc());
             // c. If element is neither undefined nor null, then
-            if !element.is_undefined() && !element.is_null() && element != o.get(agent).into_value()
-            {
+            if !element.is_undefined() && !element.is_null() && element != o.get(agent).into() {
                 // i. Let S be ? ToString(element).
                 let s = to_string(agent, element.unbind(), gc.reborrow())
                     .unbind()?
                     .bind(gc.nogc());
                 // ii. Set R to the string-concatenation of R and S.
-                r.push_wtf8(s.as_wtf8(agent));
+                r.push_wtf8(s.as_wtf8_(agent));
             }
             // d. Set k to k + 1.
         }
         // 8. Return R.
-        Ok(String::from_wtf8_buf(agent, r, gc.into_nogc()).into_value())
+        Ok(String::from_wtf8_buf(agent, r, gc.into_nogc()).into())
     }
 
     /// ### [23.1.3.19 Array.prototype.keys ( )](https://tc39.es/ecma262/#sec-array.prototype.keys)
@@ -1809,7 +1808,7 @@ impl ArrayPrototype {
             ));
         };
         // 2. Return CreateArrayIterator(O, key).
-        Ok(ArrayIterator::from_object(agent, o, CollectionIteratorKind::Key).into_value())
+        Ok(ArrayIterator::from_object(agent, o, CollectionIteratorKind::Key).into())
     }
 
     /// ### [23.1.3.20 Array.prototype.lastIndexOf ( searchElement \[ , fromIndex \] )](https://tc39.es/ecma262/#sec-array.prototype.lastindexof)
@@ -2030,7 +2029,7 @@ impl ArrayPrototype {
                     Some(ArgumentsList::from_mut_slice(&mut [
                         k_value.unbind(),
                         k.try_into().unwrap(),
-                        o.get(agent).into_value(),
+                        o.get(agent).into(),
                     ])),
                     gc.reborrow(),
                 )
@@ -2049,7 +2048,7 @@ impl ArrayPrototype {
             k += 1;
         }
         // 7. Return A.
-        Ok(a.get(agent).into_value())
+        Ok(a.get(agent).into())
     }
 
     /// ### [23.1.3.22 Array.prototype.pop ( )](https://tc39.es/ecma262/#sec-array.prototype.pop)
@@ -2377,8 +2376,8 @@ impl ArrayPrototype {
                     Some(ArgumentsList::from_mut_slice(&mut [
                         accumulator.get(agent),
                         k_value.unbind(),
-                        Number::from(k_int).into_value(),
-                        o.get(agent).into_value(),
+                        Number::from(k_int).into(),
+                        o.get(agent).into(),
                     ])),
                     gc.reborrow(),
                 )
@@ -2544,7 +2543,7 @@ impl ArrayPrototype {
                         accumulator.get(agent),
                         k_value.unbind(),
                         Number::try_from(k).unwrap().into(),
-                        o.get(agent).into_value(),
+                        o.get(agent).into(),
                     ])),
                     gc.reborrow(),
                 )
@@ -2582,7 +2581,7 @@ impl ArrayPrototype {
             // functions can thus be called by shift.
             if array.is_trivial(agent) && array.is_dense(agent) {
                 array.as_mut_slice(agent).reverse();
-                return Ok(array.into_value().unbind());
+                return Ok(array.unbind().into());
             }
         }
 
@@ -2700,7 +2699,7 @@ impl ArrayPrototype {
             lower += 1;
         }
         // 6. Return O.
-        Ok(o.get(agent).into_value())
+        Ok(o.get(agent).into())
     }
 
     /// ### [23.1.3.27 Array.prototype.shift ( )](https://tc39.es/ecma262/#sec-array.prototype.shift)
@@ -2725,7 +2724,7 @@ impl ArrayPrototype {
                     // This will throw
                     set(
                         agent,
-                        array.into_object().unbind(),
+                        array.unbind().into(),
                         BUILTIN_STRING_MEMORY.length.into(),
                         0.into(),
                         true,
@@ -2750,7 +2749,7 @@ impl ArrayPrototype {
                     // This will throw
                     set(
                         agent,
-                        array.into_object().unbind(),
+                        array.unbind().into(),
                         BUILTIN_STRING_MEMORY.length.into(),
                         (array.len(agent) - 1).into(),
                         true,
@@ -2899,14 +2898,9 @@ impl ArrayPrototype {
                 };
                 let array = array.scope(agent, nogc);
                 let count = end.saturating_sub(start);
-                let a = array_species_create(
-                    agent,
-                    array.get(agent).into_object(),
-                    count,
-                    gc.reborrow(),
-                )
-                .unbind()?
-                .scope(agent, gc.nogc());
+                let a = array_species_create(agent, array.get(agent).into(), count, gc.reborrow())
+                    .unbind()?
+                    .scope(agent, gc.nogc());
                 if count == 0 {
                     set(
                         agent,
@@ -2917,7 +2911,7 @@ impl ArrayPrototype {
                         gc.reborrow(),
                     )
                     .unbind()?;
-                    return Ok(a.get(agent).into_value());
+                    return Ok(a.get(agent).into());
                 }
                 if let Object::Array(a) = a.get(agent)
                     && a.len(agent) as usize == count
@@ -2935,14 +2929,14 @@ impl ArrayPrototype {
                     unsafe { core::ptr::copy_nonoverlapping(source_data, destination_data, count) };
                     set(
                         agent,
-                        a.into_object(),
+                        a.into(),
                         BUILTIN_STRING_MEMORY.length.into(),
-                        Number::try_from(count).unwrap().into_value(),
+                        Number::try_from(count).unwrap().into(),
                         true,
                         gc.reborrow(),
                     )
                     .unbind()?;
-                    return Ok(a.into_value());
+                    return Ok(a.into());
                 }
                 let mut k = start;
                 let mut n = 0u32;
@@ -2970,7 +2964,7 @@ impl ArrayPrototype {
                 // 15. Perform ? Set(A, "length", 𝔽(n), true).
                 set(
                     agent,
-                    a.get(agent).into_object(),
+                    a.get(agent),
                     BUILTIN_STRING_MEMORY.length.into(),
                     n.into(),
                     true,
@@ -2978,7 +2972,7 @@ impl ArrayPrototype {
                 )
                 .unbind()?;
                 // 16. Return A.
-                return Ok(a.get(agent).into_value());
+                return Ok(a.get(agent).into());
             }
         }
         let start = start.scope(agent, nogc);
@@ -3067,7 +3061,7 @@ impl ArrayPrototype {
         )
         .unbind()?;
         // 16. Return A.
-        Ok(a.get(agent).into_value())
+        Ok(a.get(agent).into())
     }
 
     /// ### 23.1.3.29 Array.prototype.some ( callbackfn \[ , thisArg \] )(https://tc39.es/ecma262/#sec-array.prototype.some)
@@ -3151,7 +3145,7 @@ impl ArrayPrototype {
                     Some(ArgumentsList::from_mut_slice(&mut [
                         k_value.unbind(),
                         k.try_into().unwrap(),
-                        o.get(agent).into_value(),
+                        o.get(agent).into(),
                     ])),
                     gc.reborrow(),
                 )
@@ -3257,7 +3251,7 @@ impl ArrayPrototype {
             // b. Set j to j + 1.
         }
         // 11. Return obj.
-        Ok(obj.get(agent).into_value())
+        Ok(obj.get(agent).into())
     }
 
     /// ### [23.1.3.31 Array.prototype.splice ( start, deleteCount, ...items )](https://tc39.es/ecma262/#sec-array.prototype.splice)
@@ -3494,7 +3488,7 @@ impl ArrayPrototype {
             gc,
         )?;
         // 21. Return A.
-        Ok(a.get(agent).into_value())
+        Ok(a.get(agent).into())
     }
 
     /// ### [23.1.3.32 Array.prototype.toLocaleString ( [ reserved1 [ , reserved2 ] ] )](https://tc39.es/ecma262/#sec-array.prototype.tolocalestring)
@@ -3571,13 +3565,13 @@ impl ArrayPrototype {
                     .unbind()?
                     .bind(gc.nogc());
                 //  ii. Set R to the string-concatenation of R and S.
-                r.push_wtf8(s.as_wtf8(agent));
+                r.push_wtf8(s.as_wtf8_(agent));
             };
             // d. Set k to k + 1.
             k += 1;
         }
         // 7. Return R.
-        Ok(String::from_wtf8_buf(agent, r, gc.into_nogc()).into_value())
+        Ok(String::from_wtf8_buf(agent, r, gc.into_nogc()).into())
     }
 
     /// ### [23.1.3.33 Array.prototype.toReversed ( )](https://tc39.es/ecma262/#sec-array.prototype.toreversed)
@@ -3595,7 +3589,7 @@ impl ArrayPrototype {
                 let array = array.unbind().bind(gc.into_nogc());
                 let cloned_array = array.to_cloned(agent);
                 cloned_array.as_mut_slice(agent).reverse();
-                return Ok(cloned_array.into_value());
+                return Ok(cloned_array.into());
             }
         }
 
@@ -3635,7 +3629,7 @@ impl ArrayPrototype {
             k += 1;
         }
         // 6. Return A.
-        Ok(a.get(agent).into_value())
+        Ok(a.get(agent).into())
     }
 
     /// ### [23.1.3.34 Array.prototype.toSorted ( comparator )](https://tc39.es/ecma262/#sec-array.prototype.tosorted)
@@ -3696,7 +3690,7 @@ impl ArrayPrototype {
         let slice = a.as_mut_slice(agent);
         slice.copy_from_slice(sorted_list_as_slice);
         // 9. Return A.
-        Ok(a.into_value())
+        Ok(a.into())
     }
 
     /// ### [23.1.3.35 Array.prototype.toSpliced ( start, skipCount, ...items )](https://tc39.es/ecma262/#sec-array.prototype.tospliced)
@@ -3835,7 +3829,7 @@ impl ArrayPrototype {
         }
         let a = scoped_a.get(agent);
         // 19. Return A.
-        Ok(a.into_value())
+        Ok(a.into())
     }
 
     /// ### [23.1.3.36 Array.prototype.toString ( )](https://tc39.es/ecma262/#sec-array.prototype.tostring)
@@ -3865,17 +3859,11 @@ impl ArrayPrototype {
                 .current_realm_record()
                 .intrinsics()
                 .object_prototype_to_string()
-                .into_function()
                 .bind(gc.nogc())
+                .into()
         });
         // 4. Return ? Call(func, array).
-        call_function(
-            agent,
-            func.unbind(),
-            array.get(agent).into_value(),
-            None,
-            gc,
-        )
+        call_function(agent, func.unbind(), array.get(agent).into(), None, gc)
     }
 
     /// ### [23.1.3.37 Array.prototype.unshift ( ...items )](https://tc39.es/ecma262/#sec-array.prototype.unshift)
@@ -4028,7 +4016,7 @@ impl ArrayPrototype {
             ));
         };
         // 2. Return CreateArrayIterator(O, value).
-        Ok(ArrayIterator::from_object(agent, o, CollectionIteratorKind::Value).into_value())
+        Ok(ArrayIterator::from_object(agent, o, CollectionIteratorKind::Value).into())
     }
 
     /// ### [23.1.3.39 Array.prototype.with ( index, value )](https://tc39.es/ecma262/#sec-array.prototype.with)
@@ -4065,7 +4053,7 @@ impl ArrayPrototype {
             // Fast path: Set new value in cloned array.
             let cloned_array = array.to_cloned(agent);
             cloned_array.as_mut_slice(agent)[actual_index as usize] = Some(value.unbind());
-            return Ok(cloned_array.into_value().unbind().bind(gc.into_nogc()));
+            return Ok(cloned_array.unbind().bind(gc.into_nogc()).into());
         }
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value, nogc)
@@ -4126,7 +4114,7 @@ impl ArrayPrototype {
             k += 1;
         }
         // 10. Return A.
-        Ok(a.get(agent).bind(gc.into_nogc()).into_value())
+        Ok(a.get(agent).bind(gc.into_nogc()).into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -4182,7 +4170,7 @@ impl ArrayPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::Iterator.into())
-                    .with_value(array_prototype_values.into_value())
+                    .with_value(array_prototype_values.into())
                     .with_enumerable(ArrayPrototypeValues::ENUMERABLE)
                     .with_configurable(ArrayPrototypeValues::CONFIGURABLE)
                     .build()
@@ -4219,7 +4207,7 @@ impl ArrayPrototype {
                             .with_data_property(BUILTIN_STRING_MEMORY.toSpliced.into(), true.into())
                             .with_data_property(BUILTIN_STRING_MEMORY.values.into(), true.into())
                             .build()
-                            .into_value()
+                            .into()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -4232,7 +4220,7 @@ impl ArrayPrototype {
         // has a "length" property whose initial value is +0𝔽 and whose
         // attributes are { [[Writable]]: true, [[Enumerable]]: false,
         // [[Configurable]]: false }.
-        debug_assert_eq!(data.elements.elements_index.into_u32_index(), 0);
+        debug_assert_eq!(data.elements.elements_index.get_index_u32(), 0);
         debug_assert_eq!(data.elements.cap.capacity(), 0);
         debug_assert_eq!(data.elements.len, 0);
         debug_assert!(data.elements.len_writable);
@@ -4362,8 +4350,8 @@ pub(crate) fn find_via_predicate<'gc, T: 'static + Rootable + InternalMethods<'s
             this_arg.get(agent),
             Some(ArgumentsList::from_mut_slice(&mut [
                 k_value.unbind(),
-                Number::try_from(k).unwrap().into_value(),
-                o.get(agent).into_value(),
+                Number::try_from(k).unwrap().into(),
+                o.get(agent).into(),
             ])),
             gc.reborrow(),
         )
@@ -4474,8 +4462,8 @@ fn flatten_into_array<'a>(
                 this_arg.as_ref().unwrap().get(agent),
                 Some(ArgumentsList::from_mut_slice(&mut [
                     element.unbind(),
-                    source_index_number.into_value(),
-                    source.get(agent).into_value(),
+                    source_index_number.into(),
+                    source.get(agent).into(),
                 ])),
                 gc.reborrow(),
             )
@@ -4699,11 +4687,11 @@ fn compare_array_elements<'a>(
             .bind(gc.nogc());
         // b. If v is NaN, return +0𝔽.
         // c. Return v.
-        if v.is_nan(agent) {
+        if v.is_nan_(agent) {
             Ok(Ordering::Equal)
-        } else if v.is_sign_positive(agent) {
+        } else if v.is_sign_positive_(agent) {
             Ok(Ordering::Greater)
-        } else if v.is_sign_negative(agent) {
+        } else if v.is_sign_negative_(agent) {
             Ok(Ordering::Less)
         } else {
             Ok(Ordering::Equal)
@@ -4714,7 +4702,7 @@ fn compare_array_elements<'a>(
     } else if let (Ok(x), Ok(y)) = (Number::try_from(x), Number::try_from(y)) {
         // Fast path: Avoid string conversions for numbers.
         // Note: This is probably not correct for NaN's.
-        Ok(x.into_f64(agent).total_cmp(&y.into_f64(agent)))
+        Ok(x.into_f64_(agent).total_cmp(&y.into_f64_(agent)))
     } else {
         // 5. Let xString be ? ToString(x).
         let (x, y) = if let Some(x) = try_result_into_js(try_to_string(agent, x, gc.nogc()))
@@ -4747,6 +4735,6 @@ fn compare_array_elements<'a>(
         // 10. If ySmaller is true, return 1𝔽.
         // 11. Return +0𝔽.
         // TODO: this gives UTF-8 lexicographic ordering, not UTF-16.
-        Ok(x.as_wtf8(agent).cmp(y.as_wtf8(agent)))
+        Ok(x.as_wtf8_(agent).cmp(y.as_wtf8_(agent)))
     }
 }

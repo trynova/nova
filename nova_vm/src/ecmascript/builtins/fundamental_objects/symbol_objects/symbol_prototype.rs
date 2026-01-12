@@ -7,10 +7,10 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter},
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, PropertyKey, String, Symbol, Value},
+        types::{BUILTIN_STRING_MEMORY, PropertyKey, String, Symbol, Value},
     },
     engine::context::{Bindable, GcScope, NoGcScope},
-    heap::WellKnownSymbolIndexes,
+    heap::{ArenaAccess, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct SymbolPrototype;
@@ -77,9 +77,9 @@ impl SymbolPrototype {
             .unbind()?
             .bind(gc.into_nogc());
         // 3. Return sym.[[Description]].
-        agent[sym]
+        sym.get(agent)
             .descriptor
-            .map_or_else(|| Ok(Value::Undefined), |desc| Ok(desc.into_value()))
+            .map_or_else(|| Ok(Value::Undefined), |desc| Ok(desc.into()))
     }
 
     /// ### [20.4.3.3 Symbol.prototype.toString ( )](https://tc39.es/ecma262/#sec-symbol.prototype.tostring)
@@ -90,10 +90,11 @@ impl SymbolPrototype {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         let gc = gc.into_nogc();
+        let this_value = this_value.bind(gc);
         // 1. Let sym be ? ThisSymbolValue(this value).
         let symb = this_symbol_value(agent, this_value, gc)?;
         // 2. Return SymbolDescriptiveString(sym).
-        Ok(symbol_descriptive_string(agent, symb, gc).into_value())
+        Ok(symbol_descriptive_string(agent, symb, gc).into())
     }
 
     /// ### [20.4.3.4 Symbol.prototype.valueOf ( )](https://tc39.es/ecma262/#sec-symbol.prototype.valueof)
@@ -103,8 +104,10 @@ impl SymbolPrototype {
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        let gc = gc.into_nogc();
+        let this_value = this_value.bind(gc);
         // 1. Return ? ThisSymbolValue(this value).
-        this_symbol_value(agent, this_value, gc.into_nogc()).map(|res| res.into_value())
+        this_symbol_value(agent, this_value, gc).map(|res| res.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -124,7 +127,7 @@ impl SymbolPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.Symbol.into_value())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.Symbol.into())
                     .with_enumerable(false)
                     .build()
             })
@@ -135,13 +138,13 @@ impl SymbolPrototype {
 #[inline(always)]
 fn this_symbol_value<'a>(
     agent: &mut Agent,
-    value: Value,
+    value: Value<'a>,
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, Symbol<'a>> {
     match value {
         Value::Symbol(symbol) => Ok(symbol.unbind()),
         Value::PrimitiveObject(object) if object.is_symbol_object(agent) => {
-            let s: Symbol = agent[object].data.try_into().unwrap();
+            let s: Symbol = object.get(agent).data.try_into().unwrap();
             Ok(s)
         }
         _ => Err(agent.throw_exception_with_static_message(
@@ -162,12 +165,12 @@ fn symbol_descriptive_string<'gc>(
     gc: NoGcScope<'gc, '_>,
 ) -> String<'gc> {
     // 1. Let desc be sym's [[Description]] value.
-    let desc = agent[sym].descriptor;
+    let desc = sym.get(agent).descriptor;
     // 2. If desc is undefined, set desc to the empty String.
     if let Some(desc) = desc {
         // 3. Assert: desc is a String.
         // 4. Return the string-concatenation of "Symbol(", desc, and ")".
-        let result = format!("Symbol({})", desc.to_string_lossy(agent));
+        let result = format!("Symbol({})", desc.to_string_lossy_(agent));
         String::from_string(agent, result, gc)
     } else {
         BUILTIN_STRING_MEMORY.Symbol__

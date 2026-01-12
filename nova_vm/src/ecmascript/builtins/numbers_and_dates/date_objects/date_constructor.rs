@@ -10,26 +10,20 @@ use crate::{
         abstract_operations::type_conversion::{to_number, to_primitive},
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            date::{
-                Date,
-                data::{DateValue, time_clip},
-            },
+            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor, Date, date::DateValue,
             ordinary::ordinary_create_from_constructor,
         },
         execution::{Agent, JsResult, ProtoIntrinsics, Realm},
         numbers_and_dates::date_objects::date_prototype::{
             make_date, make_day, make_full_year, make_time, utc,
         },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Number, Object, String, Value,
-        },
+        types::{BUILTIN_STRING_MEMORY, Function, Number, Object, String, Value},
     },
     engine::{
         context::{Bindable, GcScope},
         rootable::Scopable,
     },
-    heap::IntrinsicConstructorIndexes,
+    heap::{ArenaAccessMut, IntrinsicConstructorIndexes},
 };
 
 use super::date_prototype::{MS_PER_MINUTE, to_date_string};
@@ -117,7 +111,7 @@ impl DateConstructor {
                     if let Ok(v) = String::try_from(v) {
                         // 1. Assert: The next step never returns an abrupt completion because v is a String.
                         // 2. Let tv be the result of parsing v as a date, in exactly the same manner as for the parse method (21.4.3.2).
-                        parse_date::parse(agent, &v.to_string_lossy(agent))
+                        parse_date::parse(agent, &v.to_string_lossy_(agent))
                     }
                     // iii. Else,
                     else {
@@ -128,7 +122,7 @@ impl DateConstructor {
                     }
                 };
                 // d. Let dv be TimeClip(tv).
-                time_clip(tv)
+                DateValue::time_clip(tv)
             }
             // 5. Else,
             _ => {
@@ -187,7 +181,7 @@ impl DateConstructor {
                 // j. Let finalDate be MakeDate(MakeDay(yr, m, dt), MakeTime(h, min, s, milli)).
                 let final_date = make_date(make_day(yr, m, dt), make_time(h, min, s, milli));
                 // k. Let dv be TimeClip(UTC(finalDate)).
-                time_clip(utc(agent, final_date))
+                DateValue::time_clip(utc(agent, final_date))
             }
         };
 
@@ -200,9 +194,9 @@ impl DateConstructor {
         )?)
         .unwrap();
         // 7. Set O.[[DateValue]] to dv.
-        agent[o].date = dv;
+        o.get_mut(agent).date = dv;
         // 8. Return O.
-        Ok(o.into_value())
+        Ok(o.into())
     }
 
     /// ### [21.4.3.1 Date.now ( )](https://tc39.es/ecma262/#sec-date.now1)
@@ -222,7 +216,7 @@ impl DateConstructor {
         let time_value = time_value as u64;
         Ok(
             Number::from(SmallInteger::try_from(time_value).expect("SystemTime is beyond range"))
-                .into_value(),
+                .into(),
         )
     }
 
@@ -277,7 +271,7 @@ impl DateConstructor {
             .to_string(agent, gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
-        let parsed = parse_date::parse(agent, &input.to_string_lossy(agent));
+        let parsed = parse_date::parse(agent, &input.to_string_lossy_(agent));
         Ok(Value::from_f64(agent, parsed, gc.into_nogc()))
     }
 
@@ -355,7 +349,10 @@ impl DateConstructor {
         // 8. Let yr be MakeFullYear(y).
         let yr = make_full_year(y);
         // 9. Return TimeClip(MakeDate(MakeDay(yr, m, dt), MakeTime(h, min, s, milli))).
-        Ok(time_clip(make_date(make_day(yr, m, dt), make_time(h, min, s, milli))).into_value())
+        Ok(
+            DateValue::time_clip(make_date(make_day(yr, m, dt), make_time(h, min, s, milli)))
+                .into(),
+        )
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -366,7 +363,7 @@ impl DateConstructor {
             .with_property_capacity(4)
             .with_builtin_function_property::<DateNow>()
             .with_builtin_function_property::<DateParse>()
-            .with_prototype_property(date_prototype.into_object())
+            .with_prototype_property(date_prototype.into())
             .with_builtin_function_property::<DateUTC>()
             .build();
     }
@@ -531,7 +528,7 @@ mod parse_date {
 
             let date = date + (self.offset as f64) * MS_PER_MINUTE;
 
-            time_clip(date).get_i64()
+            DateValue::time_clip(date).get_i64()
         }
 
         fn finish_local(&mut self) -> Option<i64> {
@@ -549,7 +546,7 @@ mod parse_date {
                 ),
             );
 
-            time_clip(utc(self.agent, date)).get_i64()
+            DateValue::time_clip(utc(self.agent, date)).get_i64()
         }
 
         fn parse(&mut self) -> Option<i64> {

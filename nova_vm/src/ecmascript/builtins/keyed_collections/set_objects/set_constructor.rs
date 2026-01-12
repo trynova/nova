@@ -23,16 +23,16 @@ use crate::{
             ordinary::ordinary_create_from_constructor, set::Set,
         },
         execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        types::{
-            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyKey, String,
-            Value,
-        },
+        types::{BUILTIN_STRING_MEMORY, Function, Object, PropertyKey, String, Value},
     },
     engine::{
         context::{Bindable, GcScope},
         rootable::Scopable,
     },
-    heap::{Heap, IntrinsicConstructorIndexes, PrimitiveHeap, WellKnownSymbolIndexes},
+    heap::{
+        DirectArenaAccessSoAMut, Heap, IntrinsicConstructorIndexes, PrimitiveHeap,
+        WellKnownSymbolIndexes,
+    },
 };
 
 pub(crate) struct SetConstructor;
@@ -86,7 +86,7 @@ impl SetConstructor {
                 ProtoIntrinsics::Set,
                 gc,
             )
-            .map(|o| o.into_value());
+            .map(|o| o.into());
         }
         let scoped_iterable = iterable.scope(agent, nogc);
         let set = Set::try_from(
@@ -108,7 +108,7 @@ impl SetConstructor {
         // 5. Let adder be ? Get(set, "add").
         let adder = get(
             agent,
-            set.into_object().unbind(),
+            set.unbind(),
             BUILTIN_STRING_MEMORY.add.into(),
             gc.reborrow(),
         )
@@ -183,11 +183,11 @@ impl SetConstructor {
                             }
                             hashbrown::hash_table::Entry::Vacant(vacant) => {
                                 vacant.insert(next_index);
-                                values.push(Some(value));
+                                values.push(Some(value.unbind()));
                             }
                         }
                     });
-                return Ok(set.into_value().unbind());
+                return Ok(set.unbind().into());
             }
         }
         // 7. Let iteratorRecord be ? GetIterator(iterable, SYNC).
@@ -220,13 +220,13 @@ impl SetConstructor {
             .bind(gc.nogc());
             // b. If next is DONE, return set.
             let Some(next) = next else {
-                return Ok(scoped_set.get(agent).into_value());
+                return Ok(scoped_set.get(agent).into());
             };
             // c. Let status be Completion(Call(adder, set, « next »)).
             let status = call_function(
                 agent,
                 adder.get(agent),
-                scoped_set.get(agent).into_value(),
+                scoped_set.get(agent).into(),
                 Some(ArgumentsList::from_mut_slice(&mut [next.unbind()])),
                 gc.reborrow(),
             );
@@ -254,7 +254,7 @@ impl SetConstructor {
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<SetConstructor>(agent, realm)
             .with_property_capacity(2)
-            .with_prototype_property(set_prototype.into_object())
+            .with_prototype_property(set_prototype.into())
             .with_builtin_function_getter_property::<SetGetSpecies>()
             .build();
     }

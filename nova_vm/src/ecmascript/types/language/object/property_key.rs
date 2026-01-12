@@ -13,7 +13,7 @@ use crate::{
         abstract_operations::type_conversion::parse_string_to_integer_property_key,
         execution::Agent,
         types::{
-            IntoPrimitive, Primitive, PrivateName, String, Symbol, Value,
+            Primitive, PrivateName, String, Symbol, Value,
             language::{
                 string::HeapString,
                 value::{
@@ -28,10 +28,10 @@ use crate::{
         context::{Bindable, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
-    heap::{CompactionLists, HeapMarkAndSweep, PropertyKeyHeapIndexable, WorkQueues},
+    heap::{ArenaAccess, CompactionLists, HeapMarkAndSweep, PropertyKeyHeapAccess, WorkQueues},
 };
 
-const PRIVATE_NAME_DISCRIMINANT: u8 = SYMBOL_DISCRIMINANT & 0b1000_0000;
+const PRIVATE_NAME_DISCRIMINANT: u8 = SYMBOL_DISCRIMINANT + 0b1000_0000;
 
 /// # [Property key](https://tc39.es/ecma262/#property-key)
 ///
@@ -100,8 +100,7 @@ impl<'a> PropertyKey<'a> {
     ) -> Primitive<'gc> {
         match self {
             PropertyKey::Integer(small_integer) => {
-                String::from_string(agent, small_integer.into_i64().to_string(), gc)
-                    .into_primitive()
+                String::from_string(agent, small_integer.into_i64().to_string(), gc).into()
             }
             PropertyKey::SmallString(small_string) => Primitive::SmallString(small_string),
             PropertyKey::String(heap_string) => Primitive::String(heap_string.unbind()),
@@ -195,7 +194,7 @@ impl<'a> PropertyKey<'a> {
                 s1.as_wtf8() == s2.as_wtf8()
             }
             (PropertyKey::String(s), PropertyKey::Integer(n)) => {
-                let s = agent[s.unbind()].as_wtf8();
+                let s = s.unbind().get(agent).as_wtf8();
 
                 Self::is_str_eq_num(s, n.into_i64())
             }
@@ -236,7 +235,7 @@ impl<'a> PropertyKey<'a> {
         matches!(self, PropertyKey::PrivateName(_))
     }
 
-    pub(crate) fn heap_hash(self, heap: &impl PropertyKeyHeapIndexable) -> u64 {
+    pub(crate) fn heap_hash(self, agent: &impl PropertyKeyHeapAccess) -> u64 {
         let mut hasher = AHasher::default();
         match self {
             PropertyKey::Symbol(sym) => {
@@ -245,7 +244,7 @@ impl<'a> PropertyKey<'a> {
             }
             PropertyKey::String(s) => {
                 // Skip discriminant hashing in strings
-                heap[s.unbind()].data.hash(&mut hasher);
+                s.get(agent).data.hash(&mut hasher);
             }
             PropertyKey::SmallString(s) => {
                 s.as_wtf8().hash(&mut hasher);
@@ -274,8 +273,8 @@ impl core::fmt::Display for DisplayablePropertyKey<'_, '_, '_> {
             PropertyKey::SmallString(data) => data.to_string_lossy().fmt(f),
             PropertyKey::String(data) => data.to_string_lossy(self.agent).fmt(f),
             PropertyKey::Symbol(data) => {
-                if let Some(descriptor) = self.agent[*data].descriptor {
-                    let descriptor = descriptor.to_string_lossy(self.agent);
+                if let Some(descriptor) = data.get(self.agent).descriptor {
+                    let descriptor = descriptor.to_string_lossy_(self.agent);
                     f.debug_tuple("Symbol").field(&descriptor).finish()
                 } else {
                     "Symbol()".fmt(f)

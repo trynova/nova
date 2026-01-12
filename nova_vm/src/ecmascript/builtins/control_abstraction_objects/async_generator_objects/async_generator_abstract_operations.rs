@@ -7,26 +7,27 @@ use crate::{
         abstract_operations::operations_on_iterator_objects::create_iter_result_object,
         builtins::{
             ECMAScriptFunction,
-            promise::Promise,
-            promise_objects::{
+            control_abstraction_objects::promise_objects::{
                 promise_abstract_operations::{
                     promise_capability_records::PromiseCapability,
                     promise_reaction_records::PromiseReactionHandler,
                 },
                 promise_prototype::inner_promise_then,
             },
+            promise::Promise,
         },
         execution::{
             Agent, JsResult, Realm,
             agent::{ExceptionType, JsError, unwrap_try},
         },
-        types::{IntoValue, Value},
+        types::Value,
     },
     engine::{
         ExecutionResult, Scoped, SuspendedVm,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
+    heap::ArenaAccessMut,
 };
 
 use super::{
@@ -140,7 +141,7 @@ fn async_generator_complete_step(
         create_iter_result_object(agent, value, done, gc).expect("Should perform GC here")
     };
     // d. Perform ! Call(promiseCapability.[[Resolve]], undefined, « iteratorResult »).
-    unwrap_try(promise_capability.try_resolve(agent, iterator_result.into_value(), gc));
+    unwrap_try(promise_capability.try_resolve(agent, iterator_result.into(), gc));
     // 8. Return unused.
 }
 
@@ -512,18 +513,16 @@ fn async_generator_drain_queue(
     mut gc: GcScope,
 ) {
     let generator = scoped_generator.get(agent).bind(gc.nogc());
+    let data = generator.get_mut(agent);
     // Assert: generator.[[AsyncGeneratorState]] is draining-queue.
     // 2. Let queue be generator.[[AsyncGeneratorQueue]].
-    let Some(AsyncGeneratorState::DrainingQueue(queue)) =
-        &mut agent[generator].async_generator_state
-    else {
+    let Some(AsyncGeneratorState::DrainingQueue(queue)) = &mut data.async_generator_state else {
         unreachable!()
     };
     // 3. If queue is empty, then
     if queue.is_empty() {
         // a. Set generator.[[AsyncGeneratorState]] to completed.
-        agent[generator]
-            .async_generator_state
+        data.async_generator_state
             .replace(AsyncGeneratorState::Completed(Default::default()));
         // b. Return unused.
         return;
@@ -553,16 +552,15 @@ fn async_generator_drain_queue(
             };
             // ii. Perform AsyncGeneratorCompleteStep(generator, completion, true).
             async_generator_complete_step(agent, generator, completion, true, None, gc.nogc());
+            let data = generator.get_mut(agent);
             // iii. If queue is empty, then
-            let Some(AsyncGeneratorState::DrainingQueue(queue)) =
-                &mut agent[generator].async_generator_state
+            let Some(AsyncGeneratorState::DrainingQueue(queue)) = &mut data.async_generator_state
             else {
                 unreachable!()
             };
             if queue.is_empty() {
                 // 1. Set generator.[[AsyncGeneratorState]] to completed.
-                agent[generator]
-                    .async_generator_state
+                data.async_generator_state
                     .replace(AsyncGeneratorState::Completed(Default::default()));
                 // 2. Set done to true.
                 return;

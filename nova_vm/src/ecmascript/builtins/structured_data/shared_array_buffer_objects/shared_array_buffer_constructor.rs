@@ -11,7 +11,7 @@ use crate::{
             array_buffer::get_array_buffer_max_byte_length_option,
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoObject, IntoValue, Object, PropertyKey, String, Value},
+        types::{BUILTIN_STRING_MEMORY, Object, PropertyKey, String, Value},
     },
     engine::{
         context::{Bindable, GcScope},
@@ -91,7 +91,7 @@ impl SharedArrayBufferConstructor {
             requested_max_byte_length,
             gc,
         )
-        .map(|sab| sab.into_value())
+        .map(|sab| sab.into())
     }
 
     /// ### [25.2.4.2 get SharedArrayBuffer \[ %Symbol.species% \]](https://tc39.es/ecma262/#sec-sharedarraybuffer-%symbol.species%)
@@ -119,7 +119,7 @@ impl SharedArrayBufferConstructor {
             agent, realm,
         )
         .with_property_capacity(2)
-        .with_prototype_property(shared_array_buffer_prototype.into_object())
+        .with_prototype_property(shared_array_buffer_prototype.into())
         .with_builtin_function_getter_property::<SharedArrayBufferGetSpecies>()
         .build();
     }

@@ -12,6 +12,7 @@ use core::{
     ops::{Index, IndexMut},
 };
 use core::{marker::PhantomData, mem::size_of, num::NonZeroU32};
+use std::any::type_name;
 
 /// A struct containing a non-zero index into an array or
 /// vector of `T`s. Due to the non-zero value, the offset
@@ -20,7 +21,36 @@ use core::{marker::PhantomData, mem::size_of, num::NonZeroU32};
 /// This index implies a tracing reference count from this
 /// struct to T at the given index.
 #[repr(transparent)]
-pub struct BaseIndex<'a, T: ?Sized>(NonZeroU32, PhantomData<T>, PhantomData<&'a GcToken>);
+pub(crate) struct BaseIndex<'a, T: ?Sized>(NonZeroU32, PhantomData<T>, PhantomData<&'a GcToken>);
+
+impl<T: ?Sized> BaseIndex<'_, T> {
+    pub(crate) const fn from_index_const(index: usize) -> Self {
+        assert!(index < u32::MAX as usize);
+        // SAFETY: Number is not max value and will not overflow to zero.
+        // This check is done manually to allow const context.
+        Self(
+            unsafe { NonZeroU32::new_unchecked(index as u32 + 1) },
+            PhantomData,
+            PhantomData,
+        )
+    }
+
+    pub(crate) const fn from_index_u32_const(index: u32) -> Self {
+        assert!(index != u32::MAX);
+        // SAFETY: Number is not max value and will not overflow to zero.
+        // This check is done manually to allow const context.
+        Self(
+            unsafe { NonZeroU32::new_unchecked(index + 1) },
+            PhantomData,
+            PhantomData,
+        )
+    }
+
+    #[inline(always)]
+    pub(crate) const fn get_index_u32_const(self) -> u32 {
+        self.0.get() - 1
+    }
+}
 
 // SAFETY: Marker lifetime transmute.
 unsafe impl<T: ?Sized> Bindable for BaseIndex<'_, T> {
@@ -88,60 +118,8 @@ impl<T: ?Sized> Hash for BaseIndex<'_, T> {
 
 impl<T: ?Sized> BaseIndex<'_, T> {
     /// First valid BaseIndex.
-    pub(crate) const ZERO: Self = Self::from_u32_index(0);
-
-    #[inline(always)]
-    pub(crate) const fn into_index(self) -> usize {
-        self.0.get() as usize - 1
-    }
-
-    #[inline(always)]
-    pub(crate) const fn into_u32_index(self) -> u32 {
-        self.0.get() - 1
-    }
-
-    #[inline(always)]
-    pub(crate) const fn into_u32(self) -> u32 {
-        self.0.get()
-    }
-
-    #[inline(always)]
-    pub(crate) const fn from_index(value: usize) -> Self {
-        let value = value as u32;
-        assert!(value != u32::MAX);
-        // SAFETY: Number is not max value and will not overflow to zero.
-        // This check is done manually to allow const context.
-        Self(
-            unsafe { NonZeroU32::new_unchecked(value.wrapping_add(1)) },
-            PhantomData,
-            PhantomData,
-        )
-    }
-
-    #[inline(always)]
-    pub(crate) const fn from_u32_index(value: u32) -> Self {
-        assert!(value != u32::MAX);
-        // SAFETY: Number is not max value and will not overflow to zero.
-        // This check is done manually to allow const context.
-        Self(
-            unsafe { NonZeroU32::new_unchecked(value + 1) },
-            PhantomData,
-            PhantomData,
-        )
-    }
-
-    #[inline(always)]
-    pub(crate) const fn from_usize(value: usize) -> Self {
-        let value = value as u32;
-        assert!(value != 0);
-        // SAFETY: Number is not zero.
-        // This check is done manually to allow const context.
-        Self(
-            unsafe { NonZeroU32::new_unchecked(value) },
-            PhantomData,
-            PhantomData,
-        )
-    }
+    pub(crate) const ZERO: Self = Self(NonZeroU32::new(1).unwrap(), PhantomData, PhantomData);
+    pub(crate) const MAX: Self = Self(NonZeroU32::new(u32::MAX).unwrap(), PhantomData, PhantomData);
 
     #[inline(always)]
     pub(crate) fn last(vec: &[T]) -> Self
@@ -149,19 +127,19 @@ impl<T: ?Sized> BaseIndex<'_, T> {
         T: Sized,
     {
         assert!(!vec.is_empty());
-        Self::from_usize(vec.len())
+        Self::from_index(vec.len() - 1)
     }
 }
 
 impl<T> Default for BaseIndex<'_, T> {
     #[inline(always)]
     fn default() -> Self {
-        Self::from_u32_index(0)
+        Self::ZERO
     }
 }
 
-pub type ElementIndex<'a> = BaseIndex<'a, [Option<Value<'static>>]>;
-pub type PropertyKeyIndex<'a> = BaseIndex<'a, [PropertyKey<'static>]>;
+pub(crate) type ElementIndex<'a> = BaseIndex<'a, [Option<Value<'static>>]>;
+pub(crate) type PropertyKeyIndex<'a> = BaseIndex<'a, [PropertyKey<'static>]>;
 
 // Implement Default for ElementIndex: This is done to support Default
 // constructor of ElementsVector.
@@ -180,7 +158,7 @@ impl ElementIndex<'_> {
     #[inline(always)]
     pub fn last_element_index<const N: usize>(vec: &[[Option<Value>; N]]) -> Self {
         assert!(!vec.is_empty());
-        Self::from_usize(vec.len())
+        Self::from_index(vec.len() - 1)
     }
 }
 
@@ -188,14 +166,14 @@ impl<const N: usize> Index<ElementIndex<'_>> for Vec<[Option<Value<'static>>; N]
     type Output = [Option<Value<'static>>; N];
 
     fn index(&self, index: ElementIndex) -> &Self::Output {
-        self.get(index.into_index())
+        self.get(index.get_index())
             .expect("Invalid ElementsVector: No item at index")
     }
 }
 
 impl<const N: usize> IndexMut<ElementIndex<'_>> for Vec<[Option<Value<'static>>; N]> {
     fn index_mut(&mut self, index: ElementIndex<'_>) -> &mut Self::Output {
-        self.get_mut(index.into_index())
+        self.get_mut(index.get_index())
             .expect("Invalid ElementsVector: No item at index")
     }
 }
@@ -214,6 +192,88 @@ impl PropertyKeyIndex<'_> {
     #[inline(always)]
     pub fn last_property_key_index<const N: usize>(vec: &[[Option<PropertyKey>; N]]) -> Self {
         assert!(!vec.is_empty());
-        Self::from_usize(vec.len())
+        Self::from_index(vec.len() - 1)
     }
 }
+
+/// Trait for working with index-based heap handles. The handles are internally
+/// limited to 32 bit unsigned values.
+pub(crate) trait HeapIndexHandle: Copy + Sized + core::fmt::Debug {
+    /// Constant-time value used for discriminant checking only.
+    const _DEF: Self;
+
+    /// Convert an index into a heap handle.
+    fn from_index(index: usize) -> Self {
+        Self::from_index_u32(
+            u32::try_from(index)
+                .unwrap_or_else(|_| panic!("{} index out of bounds", type_name::<Self>())),
+        )
+    }
+    /// Convert a 32-bit index into a heap handle.
+    fn from_index_u32(index: u32) -> Self;
+
+    /// Get the handle's stored index.
+    fn get_index(self) -> usize {
+        self.get_index_u32() as usize
+    }
+
+    /// Get the handle's stored 32-bit index.
+    fn get_index_u32(self) -> u32;
+}
+
+impl<T: ?Sized> HeapIndexHandle for BaseIndex<'_, T> {
+    const _DEF: Self = Self(NonZeroU32::new(u32::MAX).unwrap(), PhantomData, PhantomData);
+
+    #[inline(always)]
+    fn from_index_u32(index: u32) -> Self {
+        Self::from_index_u32_const(index)
+    }
+
+    #[inline(always)]
+    fn get_index_u32(self) -> u32 {
+        self.get_index_u32_const()
+    }
+}
+
+macro_rules! index_handle {
+    ($name: tt) => {
+        crate::heap::indexes::index_handle!($name, $name);
+    };
+    ($name: ident, $variant: ident) => {
+        crate::engine::context::bindable_handle!($name);
+
+        impl crate::heap::indexes::HeapIndexHandle for $name<'_> {
+            const _DEF: Self = Self(crate::heap::indexes::BaseIndex::MAX);
+
+            #[inline]
+            fn from_index_u32(index: u32) -> Self {
+                Self(crate::heap::indexes::BaseIndex::from_index_u32(index))
+            }
+
+            #[inline]
+            fn get_index_u32(self) -> u32 {
+                self.0.get_index_u32()
+            }
+        }
+
+        impl<'a> From<$name<'a>> for crate::engine::rootable::HeapRootData {
+            #[inline(always)]
+            fn from(value: $name<'a>) -> Self {
+                Self::$variant(crate::engine::context::Bindable::unbind(value))
+            }
+        }
+
+        impl TryFrom<crate::engine::rootable::HeapRootData> for $name<'_> {
+            type Error = ();
+
+            #[inline]
+            fn try_from(value: crate::engine::rootable::HeapRootData) -> Result<Self, Self::Error> {
+                match value {
+                    crate::engine::rootable::HeapRootData::$variant(data) => Ok(data),
+                    _ => Err(()),
+                }
+            }
+        }
+    };
+}
+pub(crate) use index_handle;

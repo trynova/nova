@@ -16,16 +16,13 @@ use crate::{
             ordinary::ordinary_create_from_constructor,
         },
         execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        types::{
-            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyKey, String,
-            Value,
-        },
+        types::{BUILTIN_STRING_MEMORY, Function, Object, PropertyKey, String, Value},
     },
     engine::{
         context::{Bindable, GcScope},
         rootable::Scopable,
     },
-    heap::IntrinsicConstructorIndexes,
+    heap::{ArenaAccessMut, IntrinsicConstructorIndexes},
 };
 
 pub(crate) struct ErrorConstructor;
@@ -114,12 +111,12 @@ impl ErrorConstructor {
         // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
         let message = message.map(|message| message.get(agent));
         let cause = cause.map(|c| c.get(agent));
-        let heap_data = &mut agent[o];
+        let heap_data = o.get_mut(agent);
         heap_data.kind = ExceptionType::Error;
         heap_data.message = message;
         heap_data.cause = cause;
         // 5. Return O.
-        Ok(o.into_value())
+        Ok(o.into())
     }
 
     #[cfg(feature = "proposal-is-error")]
@@ -145,7 +142,7 @@ impl ErrorConstructor {
         let builder =
             BuiltinFunctionBuilder::new_intrinsic_constructor::<ErrorConstructor>(agent, realm)
                 .with_property_capacity(property_capacity)
-                .with_prototype_property(error_prototype.into_object());
+                .with_prototype_property(error_prototype.into());
 
         #[cfg(feature = "proposal-is-error")]
         let builder = builder.with_builtin_function_property::<ErrorIsError>();
@@ -177,10 +174,10 @@ pub(super) fn get_error_cause<'gc>(
 /// whether the argument is a built-in Error instance or not.
 pub(super) fn is_error<'a, 'gc>(
     _agent: &mut Agent,
-    argument: impl IntoValue<'a>,
+    argument: impl Into<Value<'a>>,
     gc: NoGcScope<'gc, '_>,
 ) -> JsResult<'gc, bool> {
-    let argument = argument.into_value().bind(gc);
+    let argument = argument.into().bind(gc);
     match argument {
         // 1. If argument is not an Object, return false.
         // 2. If argument has an [[ErrorData]] internal slot, return true.

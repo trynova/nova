@@ -1,37 +1,39 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::define_property_or_throw,
         builtins::{
             Array,
-            error::ErrorHeapData,
-            promise::Promise,
-            promise_objects::promise_abstract_operations::{
+            control_abstraction_objects::promise_objects::promise_abstract_operations::{
                 promise_capability_records::PromiseCapability,
                 promise_reaction_records::PromiseReactionType,
             },
+            error::ErrorHeapData,
+            promise::Promise,
         },
         execution::{Agent, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, OrdinaryObject, PropertyDescriptor, Value},
+        types::{BUILTIN_STRING_MEMORY, OrdinaryObject, PropertyDescriptor, Value},
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
+    engine::context::{Bindable, GcScope, NoGcScope, bindable_handle},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, ObjectEntry, WorkQueues,
-        indexes::BaseIndex,
+        arena_vec_access,
+        indexes::{BaseIndex, HeapIndexHandle, index_handle},
     },
 };
 
 #[derive(Debug, Clone, Copy)]
-pub enum PromiseGroupType {
+pub(crate) enum PromiseGroupType {
     All,
     AllSettled,
     Any,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PromiseGroupRecord<'a> {
+pub(crate) struct PromiseGroupRecord<'a> {
     pub(crate) promise_group_type: PromiseGroupType,
     pub(crate) remaining_elements_count: u32,
     pub(crate) result_array: Array<'a>,
@@ -41,6 +43,8 @@ pub struct PromiseGroupRecord<'a> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct PromiseGroup<'a>(BaseIndex<'a, PromiseGroupRecord<'static>>);
+index_handle!(PromiseGroup);
+arena_vec_access!(PromiseGroup, 'a, PromiseGroupRecord, promise_group_records);
 
 impl<'a> PromiseGroupRecord<'static> {
     fn take_result_and_promise(&mut self) -> (Array<'a>, Option<Promise<'a>>) {
@@ -106,7 +110,7 @@ impl<'a> PromiseGroup<'a> {
             promise_group.pop_empty_records(agent);
 
             let capability = PromiseCapability::from_promise(promise_to_resolve, true);
-            capability.resolve(agent, result_array.into_value().unbind(), gc.reborrow());
+            capability.resolve(agent, result_array.unbind().into(), gc.reborrow());
         }
     }
 
@@ -135,7 +139,7 @@ impl<'a> PromiseGroup<'a> {
                 aggregate_error,
                 BUILTIN_STRING_MEMORY.errors.into(),
                 PropertyDescriptor {
-                    value: Some(result_array.into_value().unbind()),
+                    value: Some(result_array.unbind().into()),
                     writable: Some(true),
                     get: None,
                     set: None,
@@ -146,7 +150,7 @@ impl<'a> PromiseGroup<'a> {
             )
             .unwrap();
 
-            capability.reject(agent, aggregate_error.into_value(), gc.nogc());
+            capability.reject(agent, aggregate_error.into(), gc.nogc());
         }
     }
 
@@ -212,14 +216,10 @@ impl<'a> PromiseGroup<'a> {
         .expect("Should perform GC here")
         .bind(gc);
 
-        obj.into_value().unbind()
+        obj.unbind().into()
     }
 
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
-    pub fn get(self, agent: &Agent) -> &PromiseGroupRecord<'a> {
+    pub(crate) fn get(self, agent: &Agent) -> &PromiseGroupRecord<'a> {
         agent
             .heap
             .promise_group_records
@@ -227,7 +227,7 @@ impl<'a> PromiseGroup<'a> {
             .expect("PromiseGroupRecord not found")
     }
 
-    pub fn get_mut(self, agent: &mut Agent) -> &mut PromiseGroupRecord<'static> {
+    pub(crate) fn get_mut(self, agent: &mut Agent) -> &mut PromiseGroupRecord<'static> {
         agent
             .heap
             .promise_group_records
@@ -244,8 +244,6 @@ impl<'a> PromiseGroup<'a> {
             }
         }
     }
-
-    pub(crate) const _DEF: Self = { Self(BaseIndex::from_u32_index(0)) };
 }
 
 impl AsRef<[PromiseGroupRecord<'static>]> for Agent {
@@ -284,29 +282,6 @@ impl HeapMarkAndSweep for PromiseGroupRecord<'static> {
     }
 }
 
-impl Rootable for PromiseGroup<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::PromiseGroup(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::PromiseGroup(object) => Some(object),
-            _ => None,
-        }
-    }
-}
-
 impl HeapMarkAndSweep for PromiseGroup<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.promise_group_records.push(*self);
@@ -318,7 +293,6 @@ impl HeapMarkAndSweep for PromiseGroup<'static> {
 }
 
 bindable_handle!(PromiseGroupRecord);
-bindable_handle!(PromiseGroup);
 
 impl<'a> CreateHeapData<PromiseGroupRecord<'a>, PromiseGroup<'a>> for Heap {
     fn create(&mut self, data: PromiseGroupRecord<'a>) -> PromiseGroup<'a> {

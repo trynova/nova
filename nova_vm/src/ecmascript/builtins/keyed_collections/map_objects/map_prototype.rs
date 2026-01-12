@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::{hash::Hasher, ops::Index};
+use core::hash::Hasher;
 
 use ahash::AHasher;
 
@@ -17,16 +17,19 @@ use crate::{
             ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
             indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
             keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
-            map::{Map, data::MapHeapDataMut},
+            map::Map,
         },
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, HeapNumber, IntoValue, PropertyKey, String, Value},
+        types::{BUILTIN_STRING_MEMORY, HeapNumber, PropertyKey, String, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::{Heap, IntrinsicFunctionIndexes, PrimitiveHeap, WellKnownSymbolIndexes},
+    heap::{
+        ArenaAccess, ArenaAccessSoA, Heap, IntrinsicFunctionIndexes, PrimitiveHeap,
+        WellKnownSymbolIndexes,
+    },
 };
 
 pub(crate) struct MapPrototype;
@@ -147,23 +150,17 @@ impl MapPrototype {
             maps,
             ..
         } = &mut agent.heap;
-        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
         // 3. Set key to CanonicalizeKeyedCollectionKey(key).
         let key = canonicalize_keyed_collection_key(numbers, key);
+        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
         let key_hash = {
             let mut hasher = AHasher::default();
             key.hash(&primitive_heap, &mut hasher);
             hasher.finish()
         };
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
-        let MapHeapDataMut {
-            values,
-            keys,
-            map_data,
-            ..
-        } = m.get_direct_mut(maps);
-        let map_data = map_data.get_mut();
+        let (map_data, keys, values) = m.get_map_data_mut(maps, &primitive_heap);
 
         // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, then
         if let Ok(entry) = map_data.find_entry(key_hash, |hash_equal_index| {
@@ -199,7 +196,7 @@ impl MapPrototype {
         // 24.1.5.1 CreateMapIterator ( map, kind )
         // 1. Perform ? RequireInternalSlot(map, [[MapData]]).
         let m = require_map_data_internal_slot(agent, this_value, gc)?;
-        Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::KeyAndValue).into_value())
+        Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::KeyAndValue).into())
     }
 
     /// ### [24.1.3.5 Map.prototype.forEach ( callbackfn \[ , thisArg \] )](https://tc39.es/ecma262/#sec-map.prototype.foreach)
@@ -253,7 +250,7 @@ impl MapPrototype {
 
         // 4. Let entries be M.[[MapData]].
         // 5. Let numEntries be the number of elements in entries.
-        let mut num_entries = m.get(agent).values.len();
+        let mut num_entries = m.entries_len(agent);
 
         let this_arg = this_arg.scope(agent, nogc);
         let callback_fn = callback_fn.scope(agent, nogc);
@@ -264,14 +261,14 @@ impl MapPrototype {
         // 7. Repeat, while index < numEntries,
         while index < num_entries {
             // a. Let e be entries[index].
-            let data = &m.get(agent);
+            let (keys, values) = m.get_entries(agent);
             let entry_index = index;
             // b. Set index to index + 1.
             index += 1;
-            let k = data.keys[entry_index];
+            let k = keys[entry_index as usize];
             // c. If e.[[Key]] is not EMPTY, then
             if let Some(k) = k {
-                let v = data.values[entry_index].unwrap();
+                let v = values[entry_index as usize].unwrap();
                 // i. Perform ? Call(callbackfn, thisArg, « e.[[Value]], e.[[Key]], M »).
                 call_function(
                     agent,
@@ -280,7 +277,7 @@ impl MapPrototype {
                     Some(ArgumentsList::from_mut_slice(&mut [
                         v.unbind(),
                         k.unbind(),
-                        m.into_value().unbind(),
+                        m.unbind().into(),
                     ])),
                     gc.reborrow(),
                 )
@@ -289,7 +286,7 @@ impl MapPrototype {
                 //     increased during execution of callbackfn.
                 // iii. Set numEntries to the number of elements in entries.
                 m = scoped_m.get(agent).bind(gc.nogc());
-                num_entries = m.get(agent).values.len();
+                num_entries = m.entries_len(agent);
             }
         }
         // 8. Return undefined.
@@ -309,21 +306,6 @@ impl MapPrototype {
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
         let m = require_map_data_internal_slot(agent, this_value, gc)?;
 
-        // 3. Set key to CanonicalizeKeyedCollectionKey(key).
-        let key = canonicalize_keyed_collection_key(&agent.heap.numbers, key);
-        let key_hash = {
-            let Heap {
-                bigints,
-                numbers,
-                strings,
-                ..
-            } = &agent.heap;
-            let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
-            let mut hasher = AHasher::default();
-            key.hash(&primitive_heap, &mut hasher);
-            hasher.finish()
-        };
-
         let Heap {
             bigints,
             numbers,
@@ -331,16 +313,18 @@ impl MapPrototype {
             maps,
             ..
         } = &mut agent.heap;
+
+        // 3. Set key to CanonicalizeKeyedCollectionKey(key).
+        let key = canonicalize_keyed_collection_key(numbers, key);
         let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+        let key_hash = {
+            let mut hasher = AHasher::default();
+            key.hash(&primitive_heap, &mut hasher);
+            hasher.finish()
+        };
 
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
-        let MapHeapDataMut {
-            values,
-            keys,
-            map_data,
-            ..
-        } = m.get_direct_mut(maps);
-        let map_data = map_data.borrow();
+        let (map_data, keys, values) = m.get_map_data_mut(maps, &primitive_heap);
 
         // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, return p.[[Value]].
         let found = map_data.find(key_hash, |hash_equal_index| {
@@ -376,18 +360,17 @@ impl MapPrototype {
             maps,
             ..
         } = &mut agent.heap;
-        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
         // 3. Set key to CanonicalizeKeyedCollectionKey(key).
         let key = canonicalize_keyed_collection_key(numbers, key);
+        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
         let key_hash = {
             let mut hasher = AHasher::default();
             key.hash(&primitive_heap, &mut hasher);
             hasher.finish()
         };
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
-        let MapHeapDataMut { keys, map_data, .. } = m.get_direct_mut(maps);
-        let map_data = map_data.get_mut();
+        let (map_data, keys, _) = m.get_map_data(maps, &primitive_heap);
 
         // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, return true.
         // 5. Return false.
@@ -415,7 +398,7 @@ impl MapPrototype {
         // 24.1.5.1 CreateMapIterator ( map, kind )
         // 1. Perform ? RequireInternalSlot(map, [[MapData]]).
         let m = require_map_data_internal_slot(agent, this_value, gc)?;
-        Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::Key).into_value())
+        Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::Key).into())
     }
 
     /// ### [24.1.3.9 Map.prototype.set ( key, value )](https://tc39.es/ecma262/#sec-map.prototype.set)
@@ -440,24 +423,17 @@ impl MapPrototype {
             ..
         } = &mut agent.heap;
         let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+        let (map_data, keys, values) = m.get_map_data_mut(maps, &primitive_heap);
 
-        let MapHeapDataMut {
-            keys,
-            values,
-            map_data,
-            ..
-        } = m.get_direct_mut(maps);
-        let map_data = map_data.get_mut();
-
+        // 3. Set key to CanonicalizeKeyedCollectionKey(key).
+        let key = canonicalize_keyed_collection_key(numbers, key);
         let hasher = |value: Value| {
             let mut hasher = AHasher::default();
             value.hash(&primitive_heap, &mut hasher);
             hasher.finish()
         };
-
-        // 3. Set key to CanonicalizeKeyedCollectionKey(key).
-        let key = canonicalize_keyed_collection_key(numbers, key);
         let key_hash = hasher(key);
+
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
         // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, then
         let entry = map_data.entry(
@@ -486,7 +462,7 @@ impl MapPrototype {
             }
         }
         // 7. Return M.
-        Ok(m.into_value())
+        Ok(m.into())
     }
 
     /// ### [24.1.3.10 get Map.prototype.size](https://tc39.es/ecma262/#sec-get-map.prototype.size)
@@ -516,7 +492,7 @@ impl MapPrototype {
         // 24.1.5.1 CreateMapIterator ( map, kind )
         // 1. Perform ? RequireInternalSlot(map, [[MapData]]).
         let m = require_map_data_internal_slot(agent, this_value, gc)?;
-        Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::Value).into_value())
+        Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::Value).into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -543,7 +519,7 @@ impl MapPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::Iterator.into())
-                    .with_value(map_prototype_entries.into_value())
+                    .with_value(map_prototype_entries.into())
                     .with_enumerable(MapPrototypeValues::ENUMERABLE)
                     .with_configurable(MapPrototypeValues::CONFIGURABLE)
                     .build()
@@ -551,7 +527,7 @@ impl MapPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.Map.into_value())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.Map.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()
@@ -580,10 +556,10 @@ fn require_map_data_internal_slot<'a>(
 /// ### [24.5.1 CanonicalizeKeyedCollectionKey ( key )](https://tc39.es/ecma262/#sec-canonicalizekeyedcollectionkey)
 /// The abstract operation CanonicalizeKeyedCollectionKey takes argument key
 /// (an ECMAScript language value) and returns an ECMAScript language value.
-pub(crate) fn canonicalize_keyed_collection_key<'gc>(
-    agent: &impl Index<HeapNumber<'gc>, Output = f64>,
-    key: Value<'gc>,
-) -> Value<'gc> {
+pub(crate) fn canonicalize_keyed_collection_key<'gc, T>(agent: &T, key: Value<'gc>) -> Value<'gc>
+where
+    HeapNumber<'gc>: ArenaAccess<T, Output = f64>,
+{
     // 1. If key is -0𝔽, return +0𝔽.
     if let Value::SmallF64(key) = key {
         // Note: Only f32 should hold -0.
@@ -591,7 +567,7 @@ pub(crate) fn canonicalize_keyed_collection_key<'gc>(
             return 0.into();
         }
     } else if let Value::Number(key) = key {
-        debug_assert_ne!(agent[key], -0.0, "HeapNumber should never be -0.0");
+        debug_assert_ne!(*key.get(agent), -0.0, "HeapNumber should never be -0.0");
     }
     // 2. Return key.
     key

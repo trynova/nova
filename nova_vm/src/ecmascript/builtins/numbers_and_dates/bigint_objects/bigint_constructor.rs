@@ -12,16 +12,14 @@ use crate::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{
-            BUILTIN_STRING_MEMORY, BigInt, IntoObject, IntoValue, Number, Object, String, Value,
-        },
+        types::{BUILTIN_STRING_MEMORY, BigInt, Number, Object, String, Value},
     },
     engine::{
         context::{Bindable, GcScope},
         rootable::Scopable,
         small_bigint::SmallBigInt,
     },
-    heap::IntrinsicConstructorIndexes,
+    heap::{ArenaAccess, IntrinsicConstructorIndexes},
 };
 
 /// ### [21.1.2.1 BigInt ( value )](https://tc39.es/ecma262/#sec-bigint-constructor)
@@ -81,7 +79,7 @@ impl BigIntConstructor {
         // 3. If prim is a Number,
         if let Ok(prim) = Number::try_from(prim) {
             // return ? NumberToBigInt(prim).
-            if !prim.is_integer(agent) {
+            if !prim.is_integer_(agent) {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::RangeError,
                     "Can't convert number to BigInt because it isn't an integer",
@@ -89,11 +87,10 @@ impl BigIntConstructor {
                 ));
             }
 
-            Ok(BigInt::from_i64(agent, prim.into_i64(agent)).into_value())
+            Ok(BigInt::from_i64(agent, prim.into_i64_(agent)).into())
         } else {
             // 4. Otherwise, return ? ToBigInt(prim).
-            to_big_int_primitive(agent, prim.unbind(), gc.into_nogc())
-                .map(|result| result.into_value())
+            to_big_int_primitive(agent, prim.unbind(), gc.into_nogc()).map(|result| result.into())
         }
     }
 
@@ -120,14 +117,14 @@ impl BigIntConstructor {
             .unbind()?
             .bind(gc.nogc());
         if bits == 0 {
-            return Ok(BigInt::zero().into_value());
+            return Ok(BigInt::zero().into());
         }
 
         match 2i64.checked_pow(bits) {
             Some(divisor) => {
                 match bigint {
                     BigInt::BigInt(bigint) => {
-                        let modulo = &agent[bigint].data % divisor;
+                        let modulo = &bigint.get(agent).data % divisor;
                         // SAFETY: This cannot overflow since 2^bits didn't.
                         let divisor_half = divisor >> 1;
                         if let Ok(modulo) = i64::try_from(&modulo) {
@@ -136,9 +133,9 @@ impl BigIntConstructor {
                             } else {
                                 modulo
                             };
-                            Ok(BigInt::from_i64(agent, modulo).into_value())
+                            Ok(BigInt::from_i64(agent, modulo).into())
                         } else {
-                            Ok(BigInt::from_num_bigint(agent, modulo - divisor).into_value())
+                            Ok(BigInt::from_num_bigint(agent, modulo - divisor).into())
                         }
                     }
                     BigInt::SmallBigInt(bigint) => {
@@ -149,7 +146,7 @@ impl BigIntConstructor {
                         } else {
                             modulo
                         };
-                        Ok(BigInt::from(SmallBigInt::try_from(modulo).unwrap()).into_value())
+                        Ok(BigInt::from(SmallBigInt::try_from(modulo).unwrap()).into())
                     }
                 }
             }
@@ -158,24 +155,24 @@ impl BigIntConstructor {
                     num_bigint::BigInt::from_bytes_le(num_bigint::Sign::Plus, &[2]).pow(bits);
                 match bigint {
                     BigInt::BigInt(bigint) => {
-                        let modulo = &agent[bigint].data % &divisor;
+                        let modulo = &bigint.get(agent).data % &divisor;
                         let divisor_half = &divisor >> 1;
                         if let Ok(modulo) = i64::try_from(&modulo) {
                             // Maybe safe? Maybe not.
-                            Ok(BigInt::from_i64(agent, modulo).into_value())
+                            Ok(BigInt::from_i64(agent, modulo).into())
                         } else {
                             let modulo = if modulo >= divisor_half {
                                 modulo - divisor
                             } else {
                                 modulo
                             };
-                            Ok(BigInt::from_num_bigint(agent, modulo).into_value())
+                            Ok(BigInt::from_num_bigint(agent, modulo).into())
                         }
                     }
                     BigInt::SmallBigInt(_) => {
                         // Probably safe: The divisor is bigger than i64 but
                         // value is i54.
-                        Ok(bigint.into_value().unbind())
+                        Ok(bigint.unbind().into())
                     }
                 }
             }
@@ -208,16 +205,16 @@ impl BigIntConstructor {
         match 2i64.checked_pow(bits) {
             Some(modulus) => match bigint {
                 BigInt::BigInt(int) => {
-                    let int = &agent[int].data;
+                    let int = &int.get(agent).data;
                     Ok(
                         BigInt::from_num_bigint(agent, ((int % modulus) + modulus) % modulus)
-                            .into_value(),
+                            .into(),
                     )
                 }
                 BigInt::SmallBigInt(int) => {
                     let int = int.into_i64();
                     let modulo = int.rem_euclid(modulus);
-                    Ok(BigInt::from(SmallBigInt::try_from(modulo).unwrap()).into_value())
+                    Ok(BigInt::from(SmallBigInt::try_from(modulo).unwrap()).into())
                 }
             },
             None => {
@@ -225,14 +222,14 @@ impl BigIntConstructor {
                     num_bigint::BigInt::from_bytes_le(num_bigint::Sign::Plus, &[2]).pow(bits);
                 match bigint {
                     BigInt::BigInt(int) => {
-                        let int = &agent[int].data;
+                        let int = &int.get(agent).data;
                         let result = ((int % &modulus) + &modulus) % &modulus;
-                        Ok(BigInt::from_num_bigint(agent, result).into_value())
+                        Ok(BigInt::from_num_bigint(agent, result).into())
                     }
                     BigInt::SmallBigInt(int) => {
                         let int = int.into_i64();
                         let result = ((int % &modulus) + &modulus) % &modulus;
-                        Ok(BigInt::from_num_bigint(agent, result).into_value())
+                        Ok(BigInt::from_num_bigint(agent, result).into())
                     }
                 }
             }
@@ -247,7 +244,7 @@ impl BigIntConstructor {
             .with_property_capacity(3)
             .with_builtin_function_property::<BigIntAsIntN>()
             .with_builtin_function_property::<BigIntAsUintN>()
-            .with_prototype_property(big_int_prototype.into_object())
+            .with_prototype_property(big_int_prototype.into())
             .build();
     }
 }

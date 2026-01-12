@@ -18,10 +18,7 @@ use crate::{
             Agent, JsResult, Realm,
             agent::{ExceptionType, try_result_into_js, try_result_into_option_js},
         },
-        types::{
-            BUILTIN_STRING_MEMORY, IntoValue, Number, Object, String, Value,
-            try_get_result_into_value,
-        },
+        types::{BUILTIN_STRING_MEMORY, Number, Object, String, Value, try_get_result_into_value},
     },
     engine::{
         context::{Bindable, GcScope},
@@ -80,7 +77,7 @@ impl RegExpStringIteratorPrototype {
         if o.done(agent) {
             // a. Return CreateIteratorResultObject(undefined, true).
             return create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
-                .map(|o| o.into_value());
+                .map(|o| o.into());
         }
         // 5. Let R be O.[[IteratingRegExp]].
         let r = o.iterating_regexp(agent);
@@ -101,7 +98,7 @@ impl RegExpStringIteratorPrototype {
             scoped_o.get(agent).set_done(agent);
             // b. Return CreateIteratorResultObject(undefined, true).
             return create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
-                .map(|o| o.into_value());
+                .map(|o| o.into());
         };
         // 11. If global is false, then
         if !global {
@@ -110,11 +107,11 @@ impl RegExpStringIteratorPrototype {
             // b. Return CreateIteratorResultObject(match, false).
             return create_iter_result_object(
                 agent,
-                r#match.into_value().unbind(),
+                r#match.unbind().into(),
                 false,
                 gc.into_nogc(),
             )
-            .map(|o| o.into_value());
+            .map(|o| o.into());
         }
         // 12. Let matchStr be ? ToString(? Get(match, "0")).
         let match_str = if let Some(s) = try_result_into_js(try_get_result_into_value(try_get(
@@ -169,7 +166,7 @@ impl RegExpStringIteratorPrototype {
                 agent,
                 scoped_o.get(agent).iterating_regexp(agent),
                 BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
-                Number::try_from(next_index).unwrap().into_value(),
+                Number::try_from(next_index).unwrap().into(),
                 true,
                 gc.reborrow(),
             )
@@ -177,8 +174,8 @@ impl RegExpStringIteratorPrototype {
             r#match = unsafe { scoped_match.take(agent) }.bind(gc.nogc());
         }
         // 14. Return CreateIteratorResultObject(match, false).
-        create_iter_result_object(agent, r#match.into_value().unbind(), false, gc.into_nogc())
-            .map(|o| o.into_value())
+        create_iter_result_object(agent, r#match.unbind().into(), false, gc.into_nogc())
+            .map(|o| o.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -193,7 +190,7 @@ impl RegExpStringIteratorPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.RegExp_String_Iterator.into_value())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.RegExp_String_Iterator.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()

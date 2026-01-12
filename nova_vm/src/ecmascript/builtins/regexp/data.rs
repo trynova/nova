@@ -119,7 +119,7 @@ impl From<usize> for RegExpLastIndex {
 }
 
 #[derive(Debug)]
-pub struct RegExpHeapData<'a> {
+pub(crate) struct RegExpHeapData<'a> {
     pub(super) object_index: Option<OrdinaryObject<'a>>,
     pub(super) reg_exp_matcher: Result<Regex, regex::Error>,
     pub(super) original_source: String<'a>,
@@ -142,7 +142,7 @@ impl<'a> RegExpHeapData<'a> {
     }
 
     pub(crate) fn new(agent: &Agent, source: String<'a>, flags: RegExpFlags) -> Self {
-        let str = source.to_string_lossy(agent);
+        let str = source.to_string_lossy_(agent);
         let regex = Self::compile_pattern(&str, flags);
         Self {
             object_index: None,
@@ -154,12 +154,12 @@ impl<'a> RegExpHeapData<'a> {
     }
 
     pub(super) fn create_regexp_string(&self, agent: &Agent) -> Wtf8Buf {
-        let string_length = self.original_source.len(agent);
+        let string_length = self.original_source.len_(agent);
         let flags_length = self.original_flags.bits().count_ones();
         let mut regexp_string =
             Wtf8Buf::with_capacity(1 + string_length + 1 + flags_length as usize);
         regexp_string.push_char('/');
-        regexp_string.push_wtf8(self.original_source.as_wtf8(agent));
+        regexp_string.push_wtf8(self.original_source.as_wtf8_(agent));
         regexp_string.push_char('/');
         self.original_flags.iter_names().for_each(|(flag, _)| {
             regexp_string.push_str(flag);

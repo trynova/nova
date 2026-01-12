@@ -34,7 +34,7 @@ use crate::{
             error::ErrorHeapData,
             ordinary::caches::PropertyLookupCache,
             promise::Promise,
-            promise_objects::promise_abstract_operations::promise_jobs::{
+            control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{
                 PromiseReactionJob, PromiseResolveThenableJob,
             },
         },
@@ -49,8 +49,8 @@ use crate::{
             source_code::SourceCode,
         },
         types::{
-            Function, IntoValue, Object, OrdinaryObject, PrivateName, PropertyKey, Reference,
-            String, Symbol, Value, ValueRootRepr,
+            Function, Object, OrdinaryObject, PrivateName, PropertyKey, Reference, String, Symbol,
+            Value, ValueRootRepr,
         },
     },
     engine::{
@@ -59,8 +59,8 @@ use crate::{
         rootable::{HeapRootCollectionData, HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeapIndexable,
-        WorkQueues, heap_gc::heap_gc,
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeapAccess,
+        WorkQueues, heap_gc::heap_gc, indexes::HeapIndexHandle,
     },
     ndt,
 };
@@ -341,7 +341,7 @@ pub trait HostHooks: core::fmt::Debug {
     #[allow(unused_variables)]
     fn ensure_can_compile_strings<'a>(
         &self,
-        callee_realm: &mut RealmRecord,
+        callee_realm: Realm<'a>,
         gc: NoGcScope<'a, '_>,
     ) -> JsResult<'a, ()> {
         // The default implementation of HostEnsureCanCompileStrings is to return NormalCompletion(unused).
@@ -1004,7 +1004,7 @@ impl Agent {
     /// Get current Realm's global environment.
     pub fn current_global_env<'a>(&self, gc: NoGcScope<'a, '_>) -> GlobalEnvironment<'a> {
         let realm = self.current_realm(gc);
-        let Some(e) = self[realm].global_env.bind(gc) else {
+        let Some(e) = realm.get(self).global_env else {
             panic_corrupted_agent()
         };
         e
@@ -1012,8 +1012,7 @@ impl Agent {
 
     /// Get current Realm's global object.
     pub fn current_global_object<'a>(&self, gc: NoGcScope<'a, '_>) -> Object<'a> {
-        let realm = self.current_realm(gc);
-        self[realm].global_object.bind(gc)
+        self.current_realm(gc).get(self).global_object
     }
 
     /// Get the [current Realm](https://tc39.es/ecma262/#current-realm).
@@ -1042,16 +1041,8 @@ impl Agent {
         self.get_realm_record_by_id(self.current_realm_id_internal())
     }
 
-    pub(crate) fn current_realm_record_mut(&mut self) -> &mut RealmRecord<'static> {
-        self.get_realm_record_by_id_mut(self.current_realm_id_internal())
-    }
-
     pub(crate) fn get_realm_record_by_id<'r>(&self, id: Realm<'r>) -> &RealmRecord<'r> {
-        &self[id]
-    }
-
-    fn get_realm_record_by_id_mut(&mut self, id: Realm) -> &mut RealmRecord<'static> {
-        &mut self[id]
+        id.get(self)
     }
 
     #[must_use]
@@ -1064,7 +1055,7 @@ impl Agent {
         let message = String::from_static_str(self, message, gc).unbind();
         self.heap
             .create(ErrorHeapData::new(kind, Some(message), None))
-            .into_value()
+            .into()
     }
 
     #[must_use]
@@ -1101,7 +1092,7 @@ impl Agent {
         JsError(
             self.heap
                 .create(ErrorHeapData::new(kind, Some(message), None))
-                .into_value(),
+                .into(),
         )
     }
 
@@ -1115,8 +1106,8 @@ impl Agent {
         JsError(
             self.heap
                 .create(ErrorHeapData::new(kind, Some(message.unbind()), None))
-                .into_value()
-                .bind(gc),
+                .bind(gc)
+                .into(),
         )
     }
 
@@ -1533,7 +1524,7 @@ impl TryFrom<u16> for ExceptionType {
     }
 }
 
-impl PrimitiveHeapIndexable for Agent {}
+impl PrimitiveHeapAccess for Agent {}
 
 impl HeapMarkAndSweep for Agent {
     fn mark_values(&self, queues: &mut WorkQueues) {

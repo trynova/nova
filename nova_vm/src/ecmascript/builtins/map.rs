@@ -2,143 +2,101 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use hashbrown::HashTable;
+use soavec::SoAVec;
+
 use crate::{
     Heap,
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
+        types::{InternalMethods, InternalSlots, OrdinaryObject, Value, object_handle},
     },
-    engine::{
-        context::{Bindable, bindable_handle},
-        rootable::HeapRootData,
-    },
+    engine::context::Bindable,
     heap::{
-        CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, PrimitiveHeap,
-        WorkQueues, indexes::BaseIndex,
+        ArenaAccessSoA, ArenaAccessSoAMut, CompactionLists, CreateHeapData, HeapMarkAndSweep,
+        HeapSweepWeakReference, PrimitiveHeapAccess, WorkQueues, arena_vec_access,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
-use self::data::{MapHeapData, MapHeapDataMut, MapHeapDataRef};
-use soavec::SoAVec;
+pub(crate) use self::data::MapHeapData;
+use self::data::MapHeapDataMut;
 
-pub mod data;
+mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Map<'a>(BaseIndex<'a, MapHeapData<'static>>);
+object_handle!(Map);
+arena_vec_access!(
+    soa:
+    Map,
+    'a,
+    MapHeapData,
+    maps,
+    MapHeapDataRef,
+    MapHeapDataMut
+);
 
 impl<'gc> Map<'gc> {
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
-    #[inline(always)]
-    pub(crate) fn get<'a>(self, agent: &'a Agent) -> MapHeapDataRef<'a, 'gc> {
-        self.get_direct(&agent.heap.maps)
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_mut<'a>(self, agent: &'a mut Agent) -> MapHeapDataMut<'a, 'gc> {
-        let Heap {
-            bigints,
-            numbers,
-            strings,
-            maps,
-            ..
-        } = &mut agent.heap;
-        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
-        let mut data = self.get_direct_mut(maps);
-        data.rehash_if_needed_mut(&primitive_heap);
-        data
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_direct<'a>(
-        self,
-        maps: &'a SoAVec<MapHeapData<'static>>,
-    ) -> MapHeapDataRef<'a, 'gc> {
-        maps.get(self.0.into_u32_index())
-            .expect("Invalid Map reference")
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_direct_mut<'a>(
-        self,
-        maps: &'a mut SoAVec<MapHeapData<'static>>,
-    ) -> MapHeapDataMut<'a, 'gc> {
-        // SAFETY: Lifetime transmute to thread GC lifetime to temporary heap
-        // reference.
-        unsafe {
-            core::mem::transmute::<MapHeapDataMut<'a, 'static>, MapHeapDataMut<'a, 'gc>>(
-                maps.get_mut(self.0.into_u32_index())
-                    .expect("Invalid Map reference"),
-            )
-        }
-    }
-
-    pub(crate) fn len(&self, agent: &mut Agent) -> u32 {
+    pub(crate) fn len(self, agent: &mut Agent) -> u32 {
         self.get(agent).size()
     }
 
-    pub(crate) fn clear(&self, agent: &mut Agent) {
+    pub(crate) fn entries_len(self, agent: &Agent) -> u32 {
+        self.get(agent).entries_len()
+    }
+
+    pub(crate) fn clear(self, agent: &mut Agent) {
         self.get_mut(agent).clear();
     }
-}
 
-bindable_handle!(Map);
-
-impl<'a> From<Map<'a>> for Value<'a> {
-    fn from(value: Map<'a>) -> Self {
-        Value::Map(value)
+    pub(crate) fn get_entries(
+        self,
+        agent: &Agent,
+    ) -> (&[Option<Value<'gc>>], &[Option<Value<'gc>>]) {
+        let data = self.get(agent);
+        (data.keys, data.values)
     }
-}
 
-impl<'a> From<Map<'a>> for Object<'a> {
-    fn from(value: Map<'a>) -> Self {
-        Object::Map(value)
+    pub(crate) fn get_map_data<'soa>(
+        self,
+        maps: &'soa mut SoAVec<MapHeapData<'static>>,
+        arena: &impl PrimitiveHeapAccess,
+    ) -> (
+        &'soa HashTable<u32>,
+        &'soa [Option<Value<'gc>>],
+        &'soa [Option<Value<'gc>>],
+    ) {
+        let mut data = self.get_mut(maps);
+        data.rehash_if_needed_mut(arena);
+        let MapHeapDataMut {
+            map_data,
+            keys,
+            values,
+            ..
+        } = data;
+        (map_data.get_mut(), keys, values)
     }
-}
 
-impl From<Map<'_>> for HeapRootData {
-    fn from(value: Map) -> Self {
-        HeapRootData::Map(value.unbind())
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for Map<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Object::Map(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for Map<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::Map(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
-impl TryFrom<HeapRootData> for Map<'_> {
-    type Error = ();
-
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        match value {
-            HeapRootData::Map(data) => Ok(data),
-            _ => Err(()),
-        }
+    pub(crate) fn get_map_data_mut<'soa>(
+        self,
+        maps: &'soa mut SoAVec<MapHeapData<'static>>,
+        arena: &impl PrimitiveHeapAccess,
+    ) -> (
+        &'soa mut HashTable<u32>,
+        &'soa mut Vec<Option<Value<'static>>>,
+        &'soa mut Vec<Option<Value<'static>>>,
+    ) {
+        let mut data = self.get_mut(maps);
+        data.rehash_if_needed_mut(arena);
+        let MapHeapDataMut {
+            map_data,
+            keys,
+            values,
+            ..
+        } = data;
+        (map_data.get_mut(), keys, values)
     }
 }
 
@@ -185,6 +143,6 @@ impl<'a> CreateHeapData<MapHeapData<'a>, Map<'a>> for Heap {
             .push(data.unbind())
             .expect("Failed to allocate Map");
         self.alloc_counter += core::mem::size_of::<MapHeapData<'static>>();
-        Map(BaseIndex::from_u32_index(i))
+        Map(BaseIndex::from_index_u32(i))
     }
 }

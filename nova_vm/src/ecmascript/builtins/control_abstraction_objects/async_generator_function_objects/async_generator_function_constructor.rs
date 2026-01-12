@@ -10,7 +10,7 @@ use crate::{
         fundamental_objects::function_objects::function_constructor::{
             DynamicFunctionKind, create_dynamic_function,
         },
-        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
+        types::{BUILTIN_STRING_MEMORY, Function, Object, String, Value},
     },
     engine::context::GcScope,
     heap::IntrinsicConstructorIndexes,
@@ -38,7 +38,7 @@ impl AsyncGeneratorFunctionConstructor {
     ) -> JsResult<'gc, Value<'gc>> {
         // 2. If bodyArg is not present, set bodyArg to the empty String.
         let (parameter_args, body_arg) = if arguments.is_empty() {
-            (&[] as &[Value], String::EMPTY_STRING.into_value())
+            (&[] as &[Value], String::EMPTY_STRING.into())
         } else {
             let (last, others) = arguments.split_last().unwrap();
             (others, *last)
@@ -58,7 +58,7 @@ impl AsyncGeneratorFunctionConstructor {
             gc,
         )?;
 
-        Ok(f.into_value())
+        Ok(f.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -69,9 +69,9 @@ impl AsyncGeneratorFunctionConstructor {
         BuiltinFunctionBuilder::new_intrinsic_constructor::<AsyncGeneratorFunctionConstructor>(
             agent, realm,
         )
-        .with_prototype(function_constructor.into_object())
+        .with_prototype(function_constructor.into())
         .with_property_capacity(1)
-        .with_prototype_property(async_generator_function_prototype.into_object())
+        .with_prototype_property(async_generator_function_prototype.into())
         .build();
     }
 }

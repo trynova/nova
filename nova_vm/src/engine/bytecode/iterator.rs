@@ -18,7 +18,7 @@ use crate::{
         },
         builtins::{
             ArgumentsList, Array, ScopedArgumentsList,
-            iteration::async_from_sync_iterator_objects::{
+            control_abstraction_objects::iteration::async_from_sync_iterator_objects::{
                 AsyncFromSyncIteratorPrototype, create_async_from_sync_iterator,
             },
             promise::Promise,
@@ -28,8 +28,8 @@ use crate::{
             agent::{ExceptionType, JsError, TryError, TryResult},
         },
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject,
-            PropertyKey, PropertyKeySet, TryGetResult, Value,
+            BUILTIN_STRING_MEMORY, InternalMethods, Object, OrdinaryObject, PropertyKey,
+            PropertyKeySet, TryGetResult, Value,
         },
     },
     engine::{
@@ -89,11 +89,11 @@ impl<'a> ActiveIterator<'a> {
                 .next(agent, gc.reborrow())
                 .unbind()
                 .and_then(|r| convert_to_iter_result_object(agent, r.unbind(), gc.into_nogc()))
-                .map(|o| o.into_value()),
+                .map(|o| o.into()),
             VmIteratorRecord::AsyncFromSyncGenericIterator(_) => {
                 Ok(AsyncFromSyncGenericIterator::new(self)
                     .call_next(agent, value, gc)
-                    .into_value())
+                    .into())
             }
             VmIteratorRecord::GenericIterator(_) => {
                 GenericIterator::new(self).call_next(agent, value, gc)
@@ -101,11 +101,11 @@ impl<'a> ActiveIterator<'a> {
             VmIteratorRecord::SliceIterator(slice_ref) => {
                 let gc = gc.into_nogc();
                 convert_to_iter_result_object(agent, slice_ref.unshift(agent, gc), gc)
-                    .map(|o| o.into_value())
+                    .map(|o| o.into())
             }
             VmIteratorRecord::EmptySliceIterator => {
                 create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
-                    .map(|o| o.into_value())
+                    .map(|o| o.into())
             }
         }
     }
@@ -123,7 +123,7 @@ impl<'a> ActiveIterator<'a> {
             VmIteratorRecord::AsyncFromSyncGenericIterator(_) => Ok(Some(
                 AsyncFromSyncGenericIterator::new(self)
                     .throw(agent, received_value, gc)
-                    .into_value(),
+                    .into(),
             )),
             VmIteratorRecord::GenericIterator(_) => {
                 GenericIterator::new(self).throw(agent, received_value, gc)
@@ -145,7 +145,7 @@ impl<'a> ActiveIterator<'a> {
             VmIteratorRecord::AsyncFromSyncGenericIterator(_) => Ok(Some(
                 AsyncFromSyncGenericIterator::new(self)
                     .r#return(agent, received_value, gc)
-                    .into_value(),
+                    .into(),
             )),
             VmIteratorRecord::GenericIterator(IteratorRecord { iterator, .. })
             | VmIteratorRecord::InvalidIterator { iterator } => {
@@ -550,7 +550,7 @@ impl<'a> ObjectPropertiesIterator<'a> {
 }
 
 #[derive(Debug)]
-pub struct ObjectPropertiesIteratorRecord<'a> {
+pub(crate) struct ObjectPropertiesIteratorRecord<'a> {
     object: Object<'a>,
     visited_keys: PropertyKeySet<'a>,
     remaining_keys: Option<Vec<PropertyKey<'a>>>,
@@ -692,7 +692,7 @@ impl<'a> ArrayValuesIterator<'a> {
                 .current_realm_record()
                 .intrinsics()
                 .array_prototype()
-                .into_object(),
+                .into(),
             BUILTIN_STRING_MEMORY.throw.into(),
             gc.reborrow(),
         )
@@ -720,7 +720,7 @@ impl<'a> ArrayValuesIterator<'a> {
                 .current_realm_record()
                 .intrinsics()
                 .array_prototype()
-                .into_object(),
+                .into(),
             BUILTIN_STRING_MEMORY.r#return.into(),
             gc.reborrow(),
         )
@@ -762,7 +762,7 @@ impl<'a> ArrayValuesIterator<'a> {
 }
 
 #[derive(Debug)]
-pub struct ArrayValuesIteratorRecord<'a> {
+pub(crate) struct ArrayValuesIteratorRecord<'a> {
     array: Array<'a>,
     index: u32,
 }
@@ -854,7 +854,7 @@ impl<'a> GenericIterator<'a> {
             call_function(
                 agent,
                 next_method.unbind(),
-                iterator.into_value().unbind(),
+                iterator.unbind().into(),
                 Some(ArgumentsList::from_mut_value(&mut value.unbind())),
                 gc,
             )
@@ -863,7 +863,7 @@ impl<'a> GenericIterator<'a> {
             call_function(
                 agent,
                 next_method.unbind(),
-                iterator.into_value().unbind(),
+                iterator.unbind().into(),
                 None,
                 gc,
             )
@@ -882,7 +882,7 @@ impl<'a> GenericIterator<'a> {
         let result = call_function(
             agent,
             next_method.unbind(),
-            iterator.into_value().unbind(),
+            iterator.unbind().into(),
             None,
             gc.reborrow(),
         )
@@ -941,7 +941,7 @@ impl<'a> GenericIterator<'a> {
             Ok(Some(call_function(
                 agent,
                 throw.unbind(),
-                iterator.into_value().unbind(),
+                iterator.unbind().into(),
                 // SAFETY: not shared.
                 Some(ArgumentsList::from_mut_value(&mut unsafe {
                     received_value.take(agent)
@@ -988,7 +988,7 @@ impl<'a> GenericIterator<'a> {
             Ok(Some(call_function(
                 agent,
                 r#return.unbind(),
-                iterator.into_value().unbind(),
+                iterator.unbind().into(),
                 value.as_mut().map(ArgumentsList::from_mut_value),
                 gc,
             )?))
@@ -1093,7 +1093,7 @@ fn array_iterator_record_requires_return_call(agent: &mut Agent, gc: NoGcScope) 
     match array_iterator_prototype.try_get(
         agent,
         BUILTIN_STRING_MEMORY.r#return.into(),
-        array_iterator_prototype.into_value(),
+        array_iterator_prototype.into(),
         None,
         gc,
     ) {
@@ -1112,7 +1112,7 @@ fn generic_iterator_record_requires_return_call(
     match iterator.try_get(
         agent,
         BUILTIN_STRING_MEMORY.r#return.into(),
-        iterator.into_value(),
+        iterator.into(),
         None,
         gc,
     ) {

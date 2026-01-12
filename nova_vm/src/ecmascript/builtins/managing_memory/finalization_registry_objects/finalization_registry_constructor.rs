@@ -13,13 +13,13 @@ use crate::{
             ordinary::ordinary_create_from_constructor,
         },
         execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
+        types::{BUILTIN_STRING_MEMORY, Function, Object, String, Value},
     },
     engine::{
         context::{Bindable, GcScope},
         rootable::Scopable,
     },
-    heap::IntrinsicConstructorIndexes,
+    heap::{ArenaAccess, IntrinsicConstructorIndexes},
 };
 
 pub(crate) struct FinalizationRegistryConstructor;
@@ -96,9 +96,9 @@ impl FinalizationRegistryConstructor {
             Function::BoundFunction(_) => {
                 unreachable!("bound function constructing FinalizationRegistry")
             }
-            Function::BuiltinFunction(f) => agent[f].realm.bind(gc),
-            Function::ECMAScriptFunction(f) => agent[f].ecmascript_function.realm.bind(gc),
-            Function::BuiltinConstructorFunction(f) => agent[f].realm.bind(gc),
+            Function::BuiltinFunction(f) => f.get(agent).realm.bind(gc),
+            Function::ECMAScriptFunction(f) => f.get(agent).ecmascript_function.realm.bind(gc),
+            Function::BuiltinConstructorFunction(f) => f.get(agent).realm.bind(gc),
             Function::BuiltinPromiseResolvingFunction(_) => {
                 unreachable!("builtin promise resolving function constructing FinalizationRegistry")
             }
@@ -114,7 +114,7 @@ impl FinalizationRegistryConstructor {
         // SAFETY: initialising new FR.
         unsafe { finalization_registry.initialise(agent, realm, cleanup_callback) };
         // 8. Return finalizationRegistry.
-        Ok(finalization_registry.into_value())
+        Ok(finalization_registry.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -125,7 +125,7 @@ impl FinalizationRegistryConstructor {
             agent, realm,
         )
         .with_property_capacity(1)
-        .with_prototype_property(finalization_registry_prototype.into_object())
+        .with_prototype_property(finalization_registry_prototype.into())
         .build();
     }
 }

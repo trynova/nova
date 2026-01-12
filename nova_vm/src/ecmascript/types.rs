@@ -13,10 +13,9 @@ mod spec;
 
 pub(crate) use language::*;
 pub use language::{
-    BigInt, Function, HeapNumber, HeapString, InternalMethods, InternalSlots, IntoFunction,
-    IntoNumeric, IntoObject, IntoPrimitive, IntoValue, NoCache, Number, Numeric, Object,
-    OrdinaryObject, Primitive, PropertyKey, PropertyKeySet, String, Symbol, TryGetResult, Value,
-    bigint,
+    BigInt, Function, HeapNumber, HeapString, InternalMethods, InternalSlots, NoCache, Number,
+    Numeric, Object, OrdinaryObject, Primitive, PropertyKey, PropertyKeySet, String, Symbol,
+    TryGetResult, Value, bigint,
 };
 #[cfg(feature = "shared-array-buffer")]
 pub use spec::SharedDataBlock;

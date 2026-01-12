@@ -16,7 +16,7 @@ use crate::{
         types::OrdinaryObject,
     },
     engine::context::bindable_handle,
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, indexes::HeapIndexHandle},
 };
 
 #[repr(transparent)]
@@ -88,7 +88,7 @@ impl From<usize> for TypedArrayArrayLength {
 }
 
 #[derive(Debug, Clone)]
-pub struct TypedArrayRecord<'a> {
+pub(crate) struct TypedArrayRecord<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     /// ### [\[\[ViewedArrayBuffer\]\]](https://tc39.es/ecma262/#sec-properties-of-typedarray-instances)
     pub(crate) viewed_array_buffer: ArrayBuffer<'a>,
@@ -140,7 +140,7 @@ impl Default for TypedArrayRecord<'_> {
     fn default() -> Self {
         Self {
             object_index: Default::default(),
-            viewed_array_buffer: ArrayBuffer::_def(),
+            viewed_array_buffer: ArrayBuffer::_DEF,
             byte_length: Default::default(),
             byte_offset: Default::default(),
             array_length: Default::default(),
@@ -150,7 +150,7 @@ impl Default for TypedArrayRecord<'_> {
 
 #[derive(Debug, Clone)]
 #[cfg(feature = "shared-array-buffer")]
-pub struct SharedTypedArrayRecord<'a> {
+pub(crate) struct SharedTypedArrayRecord<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     /// ### [\[\[ViewedArrayBuffer\]\]](https://tc39.es/ecma262/#sec-properties-of-typedarray-instances)
     pub(crate) viewed_array_buffer: SharedArrayBuffer<'a>,

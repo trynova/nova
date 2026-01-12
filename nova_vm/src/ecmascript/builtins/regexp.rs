@@ -3,9 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 pub(crate) mod abstract_operations;
-pub(crate) mod data;
-
-use core::ops::{Index, IndexMut};
+mod data;
 
 use crate::{
     ecmascript::{
@@ -14,18 +12,16 @@ use crate::{
             agent::{TryResult, unwrap_try},
         },
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, SetResult, String, TryGetResult,
-            TryHasResult, Value,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, OrdinaryObject,
+            PropertyDescriptor, PropertyKey, SetResult, String, TryGetResult, TryHasResult, Value,
+            object_handle,
         },
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::HeapRootData,
-    },
+    engine::context::{Bindable, GcScope, NoGcScope},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues, indexes::BaseIndex,
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
+        arena_vec_access, indexes::BaseIndex,
     },
 };
 pub(crate) use abstract_operations::*;
@@ -42,23 +38,25 @@ use super::ordinary::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct RegExp<'a>(BaseIndex<'a, RegExpHeapData<'static>>);
+object_handle!(RegExp);
+arena_vec_access!(RegExp, 'a, RegExpHeapData, regexps);
 
 impl<'a> RegExp<'a> {
     /// Fast-path for RegExp object debug stringifying; this does not take into
     /// account any prototype-modifications.
     #[inline(always)]
     pub(crate) fn create_regexp_string(self, agent: &Agent) -> Wtf8Buf {
-        agent[self].create_regexp_string(agent)
+        self.get(agent).create_regexp_string(agent)
     }
 
     /// ### \[\[OriginalSource]]
     pub(crate) fn original_source(self, agent: &Agent) -> String<'a> {
-        agent[self].original_source
+        self.get(agent).original_source
     }
 
     /// ### \[\[OriginalFlags]]
     pub(crate) fn original_flags(self, agent: &Agent) -> RegExpFlags {
-        agent[self].original_flags
+        self.get(agent).original_flags
     }
 
     pub(crate) fn set_last_index(
@@ -76,10 +74,10 @@ impl<'a> RegExp<'a> {
             // call into JavaScript.
             let success = unwrap_try(ordinary_try_set(
                 agent,
-                self.into_object(),
+                self,
                 BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
-                last_index.get_value().unwrap().into_value(),
-                self.into_value(),
+                last_index.get_value().unwrap().into(),
+                self.into(),
                 None,
                 gc,
             ))
@@ -88,13 +86,13 @@ impl<'a> RegExp<'a> {
             if success {
                 // We successfully set the value, so set it in our direct
                 // data as well.
-                agent[self].last_index = last_index;
+                self.get_mut(agent).last_index = last_index;
             }
             success
         } else {
             // Note: lastIndex property is writable, so setting its value
             // always succeeds. We can just set this directly here.
-            agent[self].last_index = last_index;
+            self.get_mut(agent).last_index = last_index;
             true
         }
     }
@@ -106,55 +104,11 @@ impl<'a> RegExp<'a> {
     /// undefined). The method returns `None` if the property has an unexpected
     /// value, otherwise it returns the length value (0 if value is undefined).
     pub(crate) fn try_get_last_index(self, agent: &Agent) -> Option<u32> {
-        let last_index = agent[self].last_index.get_value();
+        let last_index = self.get(agent).last_index.get_value();
         if last_index.is_some() || self.get_backing_object(agent).is_none() {
             Some(last_index.unwrap_or(0))
         } else {
             None
-        }
-    }
-
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-}
-
-bindable_handle!(RegExp);
-
-impl<'a> From<RegExp<'a>> for Value<'a> {
-    fn from(value: RegExp<'a>) -> Self {
-        Self::RegExp(value)
-    }
-}
-
-impl<'a> From<RegExp<'a>> for Object<'a> {
-    fn from(value: RegExp) -> Self {
-        Self::RegExp(value.unbind())
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for RegExp<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Object::RegExp(regexp) => Ok(regexp),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for RegExp<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::RegExp(regexp) => Ok(regexp),
-            _ => Err(()),
         }
     }
 }
@@ -165,7 +119,7 @@ impl<'a> InternalSlots<'a> for RegExp<'a> {
     fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
         assert!(self.get_backing_object(agent).is_none());
         let prototype = self.internal_prototype(agent).unwrap();
-        let last_index = agent[self].last_index;
+        let last_index = self.get(agent).last_index;
         let backing_object = OrdinaryObject::create_object(
             agent,
             Some(prototype),
@@ -188,12 +142,12 @@ impl<'a> InternalSlots<'a> for RegExp<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        self.get(agent).object_index.unbind()
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
-            agent[self]
+            self.get_mut(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()
@@ -214,7 +168,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
             // knowledge of all our properties, including lastIndex.
             TryResult::Continue(ordinary_get_own_property(
                 agent,
-                self.into_object(),
+                self.into(),
                 backing_object,
                 property_key,
                 cache,
@@ -223,7 +177,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         } else if property_key == BUILTIN_STRING_MEMORY.lastIndex.into() {
             // If no backing object exists, we can turn lastIndex into a
             // PropertyDescriptor statically.
-            TryResult::Continue(Some(agent[self].last_index.into_property_descriptor()))
+            TryResult::Continue(Some(self.get(agent).last_index.into_property_descriptor()))
         } else {
             TryResult::Continue(None)
         }
@@ -238,11 +192,11 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
     ) -> TryResult<'gc, TryHasResult<'gc>> {
         if property_key == BUILTIN_STRING_MEMORY.lastIndex.into() {
             // lastIndex always exists
-            TryHasResult::Custom(0, self.into_object().bind(gc)).into()
+            TryHasResult::Custom(0, self.bind(gc).into()).into()
         } else {
             ordinary_try_has_property(
                 agent,
-                self.into_object(),
+                self.into(),
                 self.get_backing_object(agent),
                 property_key,
                 cache,
@@ -261,7 +215,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
             // lastIndex always exists
             Ok(true)
         } else if let Some(backing_object) = self.get_backing_object(agent) {
-            ordinary_has_property(agent, self.into_object(), backing_object, property_key, gc)
+            ordinary_has_property(agent, self.into(), backing_object, property_key, gc)
         } else {
             // a. Let parent be ? O.[[GetPrototypeOf]]().
             // Note: We know statically what this ends up doing.
@@ -286,13 +240,13 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         // Regardless of the backing object, we might have a valid value
         // for lastIndex.
         if property_key == BUILTIN_STRING_MEMORY.lastIndex.into()
-            && let Some(last_index) = agent[self].last_index.get_value()
+            && let Some(last_index) = self.get(agent).last_index.get_value()
         {
             return TryGetResult::Value(last_index.into()).into();
         }
         ordinary_try_get(
             agent,
-            self.into_object(),
+            self.into(),
             self.get_backing_object(agent),
             property_key,
             receiver,
@@ -312,7 +266,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         if property_key == BUILTIN_STRING_MEMORY.lastIndex.into() {
             // Regardless of the backing object, we might have a valid value
             // for lastIndex.
-            if let Some(last_index) = agent[self].last_index.get_value() {
+            if let Some(last_index) = self.get(agent).last_index.get_value() {
                 return Ok(last_index.into());
             }
         }
@@ -350,7 +304,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
                 // call into JavaScript.
                 let success = unwrap_try(ordinary_try_set(
                     agent,
-                    self.into_object(),
+                    self,
                     property_key,
                     value,
                     receiver,
@@ -362,7 +316,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
                 if success {
                     // We successfully set the value, so set it in our direct
                     // data as well.
-                    agent[self].last_index = new_last_index;
+                    self.get_mut(agent).last_index = new_last_index;
                     SetResult::Done.into()
                 } else {
                     SetResult::Unwritable.into()
@@ -370,7 +324,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
             } else {
                 // Note: lastIndex property is writable, so setting its value
                 // always succeeds. We can just set this directly here.
-                agent[self].last_index = new_last_index;
+                self.get_mut(agent).last_index = new_last_index;
                 // If we we set a value that is not a valid index or undefined,
                 // we need to create the backing object and set the actual
                 // value there.
@@ -413,7 +367,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         } else {
             // If something else is being set, fall back onto the ordinary
             // abstract operation.
-            ordinary_set(agent, self.into_object(), property_key, value, receiver, gc)
+            ordinary_set(agent, self.into(), property_key, value, receiver, gc)
         }
     }
 
@@ -447,48 +401,6 @@ impl HeapMarkAndSweep for RegExp<'static> {
 impl HeapSweepWeakReference for RegExp<'static> {
     fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
         compactions.regexps.shift_weak_index(self.0).map(Self)
-    }
-}
-
-impl Index<RegExp<'_>> for Agent {
-    type Output = RegExpHeapData<'static>;
-
-    fn index(&self, index: RegExp) -> &Self::Output {
-        &self.heap.regexps[index]
-    }
-}
-
-impl IndexMut<RegExp<'_>> for Agent {
-    fn index_mut(&mut self, index: RegExp) -> &mut Self::Output {
-        &mut self.heap.regexps[index]
-    }
-}
-
-impl Index<RegExp<'_>> for Vec<RegExpHeapData<'static>> {
-    type Output = RegExpHeapData<'static>;
-
-    fn index(&self, index: RegExp) -> &Self::Output {
-        self.get(index.get_index()).expect("RegExp out of bounds")
-    }
-}
-
-impl IndexMut<RegExp<'_>> for Vec<RegExpHeapData<'static>> {
-    fn index_mut(&mut self, index: RegExp) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("RegExp out of bounds")
-    }
-}
-
-impl TryFrom<HeapRootData> for RegExp<'_> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        if let HeapRootData::RegExp(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
     }
 }
 

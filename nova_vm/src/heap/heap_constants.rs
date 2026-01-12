@@ -10,10 +10,13 @@
 
 use std::num::NonZeroU32;
 
-use crate::ecmascript::{
-    builtins::ordinary::shape::ObjectShape,
-    execution::ProtoIntrinsics,
-    types::{PropertyKey, Value},
+use crate::{
+    ecmascript::{
+        builtins::ordinary::shape::ObjectShape,
+        execution::ProtoIntrinsics,
+        types::{PropertyKey, Symbol, Value},
+    },
+    heap::indexes::HeapIndexHandle,
 };
 
 #[repr(u32)]
@@ -148,7 +151,7 @@ pub(crate) enum IntrinsicPrimitiveObjectIndexes {
     NumberPrototype,
     StringPrototype,
 }
-pub(crate) const LAST_INTRINSIC_PRIMITIVE_OBJECT_INDEX: IntrinsicPrimitiveObjectIndexes =
+const LAST_INTRINSIC_PRIMITIVE_OBJECT_INDEX: IntrinsicPrimitiveObjectIndexes =
     IntrinsicPrimitiveObjectIndexes::StringPrototype;
 
 #[repr(u32)]
@@ -356,7 +359,7 @@ pub(crate) enum IntrinsicObjectShapes {
 impl IntrinsicObjectShapes {
     pub(crate) const fn get_object_shape_index(self, base: ObjectShape) -> ObjectShape<'static> {
         ObjectShape::from_non_zero(
-            NonZeroU32::new(self as u32 + base.get_index() as u32 + 1).unwrap(),
+            NonZeroU32::new(self as u32 + base.get_index_u32_const() + 1).unwrap(),
         )
     }
 
@@ -393,7 +396,7 @@ pub(crate) enum WellKnownSymbolIndexes {
     Unscopables,
 }
 
-impl From<WellKnownSymbolIndexes> for Value<'static> {
+impl From<WellKnownSymbolIndexes> for Value<'_> {
     fn from(value: WellKnownSymbolIndexes) -> Self {
         Value::Symbol(value.into())
     }
@@ -405,4 +408,46 @@ impl From<WellKnownSymbolIndexes> for PropertyKey<'static> {
     }
 }
 
+impl TryFrom<Symbol<'_>> for WellKnownSymbolIndexes {
+    type Error = ();
+
+    fn try_from(value: Symbol<'_>) -> Result<Self, Self::Error> {
+        const ASYNCITERATOR: u32 = WellKnownSymbolIndexes::AsyncIterator as u32;
+        const HASINSTANCE: u32 = WellKnownSymbolIndexes::HasInstance as u32;
+        const ISCONCATSPREADABLE: u32 = WellKnownSymbolIndexes::IsConcatSpreadable as u32;
+        const ITERATOR: u32 = WellKnownSymbolIndexes::Iterator as u32;
+        const MATCH: u32 = WellKnownSymbolIndexes::Match as u32;
+        const MATCHALL: u32 = WellKnownSymbolIndexes::MatchAll as u32;
+        const REPLACE: u32 = WellKnownSymbolIndexes::Replace as u32;
+        const SEARCH: u32 = WellKnownSymbolIndexes::Search as u32;
+        const SPECIES: u32 = WellKnownSymbolIndexes::Species as u32;
+        const SPLIT: u32 = WellKnownSymbolIndexes::Split as u32;
+        const TOPRIMITIVE: u32 = WellKnownSymbolIndexes::ToPrimitive as u32;
+        const TOSTRINGTAG: u32 = WellKnownSymbolIndexes::ToStringTag as u32;
+        const UNSCOPABLES: u32 = WellKnownSymbolIndexes::Unscopables as u32;
+        match value.get_index_u32() {
+            ASYNCITERATOR => Ok(Self::AsyncIterator),
+            HASINSTANCE => Ok(Self::HasInstance),
+            ISCONCATSPREADABLE => Ok(Self::IsConcatSpreadable),
+            ITERATOR => Ok(Self::Iterator),
+            #[cfg(feature = "regexp")]
+            MATCH => Ok(Self::Match),
+            #[cfg(feature = "regexp")]
+            MATCHALL => Ok(Self::MatchAll),
+            #[cfg(feature = "regexp")]
+            REPLACE => Ok(Self::Replace),
+            #[cfg(feature = "regexp")]
+            SEARCH => Ok(Self::Search),
+            SPECIES => Ok(Self::Species),
+            #[cfg(feature = "regexp")]
+            SPLIT => Ok(Self::Split),
+            TOPRIMITIVE => Ok(Self::ToPrimitive),
+            TOSTRINGTAG => Ok(Self::ToStringTag),
+            UNSCOPABLES => Ok(Self::Unscopables),
+            _ => Err(()),
+        }
+    }
+}
+
+#[cfg(test)]
 pub(crate) const LAST_WELL_KNOWN_SYMBOL_INDEX: u32 = WellKnownSymbolIndexes::Unscopables as u32;

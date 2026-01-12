@@ -11,7 +11,7 @@ use crate::{
         types::{String, Value},
     },
     engine::context::{Bindable, NoGcScope},
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+    heap::{ArenaAccess, ArenaAccessMut, CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 /// ### [9.1.1.1 Declarative Environment Records](https://tc39.es/ecma262/#sec-declarative-environment-records)
@@ -21,7 +21,7 @@ use crate::{
 /// VariableDeclarations, and Catch clauses that directly associate identifier
 /// bindings with ECMAScript language values.
 #[derive(Debug, Clone)]
-pub struct DeclarativeEnvironmentRecord {
+pub(crate) struct DeclarativeEnvironmentRecord {
     /// ### \[\[OuterEnv\]\]
     ///
     /// See [OuterEnv].
@@ -208,7 +208,7 @@ impl HeapMarkAndSweep for Binding {
 
 impl<'e> DeclarativeEnvironment<'e> {
     pub(crate) fn get_outer_env(self, agent: &Agent) -> Option<Environment<'e>> {
-        agent[self].outer_env
+        self.get(agent).outer_env
     }
 
     /// ### [9.1.1.1.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-hasbinding-n)
@@ -232,7 +232,7 @@ impl<'e> DeclarativeEnvironment<'e> {
     /// already exist in this Environment Record for N. If D is true, the new
     /// binding is marked as being subject to deletion.
     pub fn create_mutable_binding(self, agent: &mut Agent, name: String, is_deletable: bool) {
-        let env_rec = &mut agent[self];
+        let env_rec = self.get_mut(agent);
         // Delegate to heap data record method.
         env_rec.create_mutable_binding(name, is_deletable);
     }
@@ -246,7 +246,7 @@ impl<'e> DeclarativeEnvironment<'e> {
     /// not already exist in this Environment Record for N. If S is true, the
     /// new binding is marked as a strict binding.
     pub(crate) fn create_immutable_binding(self, agent: &mut Agent, name: String, is_strict: bool) {
-        let env_rec = &mut agent[self];
+        let env_rec = self.get_mut(agent);
         // Delegate to heap data record method.
         env_rec.create_immutable_binding(name, is_strict);
     }
@@ -260,7 +260,7 @@ impl<'e> DeclarativeEnvironment<'e> {
     /// whose name is N to the value V. An uninitialized binding for N must
     /// already exist.
     pub(crate) fn initialize_binding(self, agent: &mut Agent, name: String, value: Value) {
-        let env_rec = &mut agent[self];
+        let env_rec = self.get_mut(agent);
         // Delegate to heap data record method.
         env_rec.initialize_binding(name, value)
     }
@@ -283,14 +283,14 @@ impl<'e> DeclarativeEnvironment<'e> {
         mut is_strict: bool,
         gc: NoGcScope<'a, '_>,
     ) -> JsResult<'a, ()> {
-        let env_rec = &mut agent[self];
+        let env_rec = self.get_mut(agent);
         // 1. If envRec does not have a binding for N, then
         let Some(binding) = env_rec.bindings.get_mut(&name.unbind()) else {
             // a. If S is true, throw a ReferenceError exception.
             if is_strict {
                 let error_message = format!(
                     "Cannot assign to nonexisting binding '{}'.",
-                    name.to_string_lossy(agent)
+                    name.to_string_lossy_(agent)
                 );
                 return Err(agent.throw_exception(
                     ExceptionType::ReferenceError,
@@ -319,7 +319,7 @@ impl<'e> DeclarativeEnvironment<'e> {
             // a. Throw a ReferenceError exception.
             let error_message = format!(
                 "Identifier '{}' has not been initialized.",
-                name.to_string_lossy(agent)
+                name.to_string_lossy_(agent)
             );
             return Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc));
         }
@@ -338,7 +338,7 @@ impl<'e> DeclarativeEnvironment<'e> {
             if is_strict {
                 let error_message = format!(
                     "invalid assignment to const '{}'",
-                    name.to_string_lossy(agent)
+                    name.to_string_lossy_(agent)
                 );
                 return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc));
             }
@@ -363,7 +363,7 @@ impl<'e> DeclarativeEnvironment<'e> {
         is_strict: bool,
         gc: NoGcScope<'e, '_>,
     ) -> JsResult<'e, Value<'e>> {
-        let env_rec = &agent[self];
+        let env_rec = &self.get(agent);
         // Delegate to heap data record method.
         match env_rec.get_binding_value(name, is_strict) {
             Some(res) => Ok(res.bind(gc)),
@@ -372,7 +372,7 @@ impl<'e> DeclarativeEnvironment<'e> {
                 // a ReferenceError exception.
                 let error_message = format!(
                     "Could not get value of binding '{}': binding is uninitialized.",
-                    name.to_string_lossy(agent)
+                    name.to_string_lossy_(agent)
                 );
                 Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc))
             }
@@ -408,7 +408,7 @@ impl<'e> DeclarativeEnvironment<'e> {
     /// containing a Boolean. It can only delete bindings that have been
     /// explicitly designated as being subject to deletion.
     pub(crate) fn delete_binding(self, agent: &mut Agent, name: String) -> bool {
-        let env_rec = &mut agent[self];
+        let env_rec = self.get_mut(agent);
         // Delegate to heap data record method.
         env_rec.delete_binding(name)
     }
@@ -422,7 +422,7 @@ impl HeapMarkAndSweep for DeclarativeEnvironment<'static> {
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions
             .declarative_environments
-            .shift_non_zero_u32_index(&mut self.0);
+            .shift_index(&mut self.0);
     }
 }
 

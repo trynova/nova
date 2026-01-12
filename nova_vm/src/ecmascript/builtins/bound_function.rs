@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::ops::{Index, IndexMut};
-
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -15,17 +13,18 @@ use crate::{
             agent::{TryResult, unwrap_try},
         },
         types::{
-            BoundFunctionHeapData, Function, FunctionInternalProperties, InternalMethods,
-            IntoFunction, IntoValue, Object, OrdinaryObject, String, Value,
+            BoundFunctionHeapData, Function, FunctionInternalProperties, InternalMethods, Object,
+            OrdinaryObject, String, Value, function_handle,
         },
     },
     engine::{
-        context::{Bindable, GcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
+        context::{Bindable, GcScope},
+        rootable::Scopable,
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, WorkQueues, arena_vec_access, element_array::ElementsVector,
+        indexes::BaseIndex,
     },
 };
 
@@ -34,28 +33,34 @@ use super::ArgumentsList;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct BoundFunction<'a>(BaseIndex<'a, BoundFunctionHeapData<'static>>);
+function_handle!(BoundFunction);
+arena_vec_access!(
+    BoundFunction,
+    'a,
+    BoundFunctionHeapData,
+    bound_functions
+);
 
-impl BoundFunction<'_> {
-    pub(crate) const fn _def() -> Self {
-        BoundFunction(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
+impl<'f> BoundFunction<'f> {
     pub fn is_constructor(self, agent: &Agent) -> bool {
         // A bound function has the [[Construct]] method if the target function
         // does.
-        agent[self].bound_target_function.is_constructor(agent)
+        self.bound_target_function(agent).is_constructor(agent)
     }
-}
 
-bindable_handle!(BoundFunction);
+    /// ### \[\[BoundTargetFunction]]
+    pub(crate) fn bound_target_function(self, agent: &Agent) -> Function<'f> {
+        self.get(agent).bound_target_function
+    }
 
-impl<'a> IntoValue<'a> for BoundFunction<'a> {
-    fn into_value(self) -> Value<'a> {
-        Value::BoundFunction(self.unbind())
+    /// ### \[\[BoundThis]]
+    pub(crate) fn bound_this(self, agent: &Agent) -> Value<'f> {
+        self.get(agent).bound_this
+    }
+
+    /// ### \[\[BoundArguments]]
+    pub(crate) fn bound_arguments(self, agent: &Agent) -> ElementsVector<'f> {
+        self.get(agent).bound_arguments
     }
 }
 
@@ -109,7 +114,8 @@ pub(crate) fn bound_function_create<'a>(
     elements.len = u32::try_from(bound_args.len()).unwrap();
     // SAFETY: Option<Value> is an extra variant of the Value enum.
     // The transmute effectively turns Value into Some(Value).
-    agent[&elements]
+    elements
+        .get_mut(agent)
         .copy_from_slice(unsafe { core::mem::transmute::<&[Value], &[Option<Value>]>(bound_args) });
     let data = BoundFunctionHeapData {
         object_index: None,
@@ -130,16 +136,19 @@ pub(crate) fn bound_function_create<'a>(
 
 impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
     fn get_name(self, agent: &Agent) -> &String<'a> {
-        agent[self].name.as_ref().unwrap_or(&String::EMPTY_STRING)
+        self.get(agent)
+            .name
+            .as_ref()
+            .unwrap_or(&String::EMPTY_STRING)
     }
 
     fn get_length(self, agent: &Agent) -> u8 {
-        agent[self].length
+        self.get(agent).length
     }
 
     #[inline(always)]
     fn get_function_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index.unbind()
+        self.get(agent).object_index.unbind()
     }
 
     fn set_function_backing_object(
@@ -148,7 +157,7 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
         backing_object: OrdinaryObject<'static>,
     ) {
         assert!(
-            agent[self]
+            self.get_mut(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()
@@ -173,16 +182,22 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
         let f = self.bind(gc.nogc());
         let arguments_list = arguments_list.bind(gc.nogc());
         // 1. Let target be F.[[BoundTargetFunction]].
-        let target = agent[f].bound_target_function;
+        let target = f.bound_target_function(agent);
         // 2. Let boundThis be F.[[BoundThis]].
-        let bound_this = agent[f].bound_this;
+        let bound_this = f.bound_this(agent);
         // 3. Let boundArgs be F.[[BoundArguments]].
-        let bound_args = &agent[f].bound_arguments;
+        let bound_args = f.bound_arguments(agent);
         // 4. Let args be the list-concatenation of boundArgs and argumentsList.
         if bound_args.is_empty() {
             // Optimisation: If only `this` is bound, then we can pass the
             // arguments list without changes to the bound function.
-            call_function(agent, target, bound_this, Some(arguments_list.unbind()), gc)
+            call_function(
+                agent,
+                target.unbind(),
+                bound_this.unbind(),
+                Some(arguments_list.unbind()),
+                gc,
+            )
         } else {
             // Note: We cannot optimise against an empty arguments list, as we
             // must create a Vec from the bound_args ElementsVector in any case
@@ -192,15 +207,16 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
             // if we were basing it on the ElementsVector's data in the heap.
             let mut args: Vec<Value<'static>> =
                 Vec::with_capacity(bound_args.len() as usize + arguments_list.len());
-            agent[bound_args]
+            bound_args
+                .get(agent)
                 .iter()
                 .for_each(|item| args.push(item.unwrap().unbind()));
             args.extend_from_slice(&arguments_list.unbind());
             // 5. Return ? Call(target, boundThis, args).
             call_function(
                 agent,
-                target,
-                bound_this,
+                target.unbind(),
+                bound_this.unbind(),
                 Some(ArgumentsList::from_mut_slice(&mut args)),
                 gc,
             )
@@ -224,24 +240,22 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
         let arguments_list = arguments_list.bind(gc.nogc());
         let new_target = new_target.bind(gc.nogc());
         // 1. Let target be F.[[BoundTargetFunction]].
-        let target = agent[self].bound_target_function.bind(gc.nogc());
+        let target = self.bound_target_function(agent).bind(gc.nogc());
         // 2. Assert: IsConstructor(target) is true.
         assert!(is_constructor(agent, target).is_some());
         // 3. Let boundArgs be F.[[BoundArguments]].
-        let bound_args = &agent[self].bound_arguments;
+        let bound_args = &self.get(agent).bound_arguments;
         // 5. If SameValue(F, newTarget) is true, set newTarget to target.
-        let new_target = if self.into_function() == new_target {
-            target
-        } else {
-            new_target
-        };
+        let f: Function = self.into();
+        let new_target = if f == new_target { target } else { new_target };
         // 4. Let args be the list-concatenation of boundArgs and argumentsList.
         // Note: We currently cannot optimise against an empty arguments
         // list, as we must create a Vec from the bound_args ElementsVector
         // in any case to use it as arguments. A slice pointing to it would
         // be unsound as calling to JS may invalidate the slice pointer.
         let mut args = Vec::with_capacity(bound_args.len() as usize + arguments_list.len());
-        agent[bound_args]
+        bound_args
+            .get(agent)
             .iter()
             .for_each(|item| args.push(item.unwrap().unbind()));
         args.extend_from_slice(&arguments_list.unbind());
@@ -256,64 +270,11 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
     }
 }
 
-impl<'a> Index<BoundFunction<'a>> for Agent {
-    type Output = BoundFunctionHeapData<'static>;
-
-    fn index(&self, index: BoundFunction<'a>) -> &Self::Output {
-        &self.heap.bound_functions[index]
-    }
-}
-
-impl<'a> IndexMut<BoundFunction<'a>> for Agent {
-    fn index_mut(&mut self, index: BoundFunction<'a>) -> &mut Self::Output {
-        &mut self.heap.bound_functions[index]
-    }
-}
-
-impl<'a> Index<BoundFunction<'a>> for Vec<BoundFunctionHeapData<'static>> {
-    type Output = BoundFunctionHeapData<'static>;
-
-    fn index(&self, index: BoundFunction<'a>) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("BoundFunction out of bounds")
-    }
-}
-
-impl<'a> IndexMut<BoundFunction<'a>> for Vec<BoundFunctionHeapData<'static>> {
-    fn index_mut(&mut self, index: BoundFunction<'a>) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("BoundFunction out of bounds")
-    }
-}
-
 impl<'a> CreateHeapData<BoundFunctionHeapData<'a>, BoundFunction<'a>> for Heap {
     fn create(&mut self, data: BoundFunctionHeapData<'a>) -> BoundFunction<'a> {
         self.bound_functions.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<BoundFunctionHeapData<'static>>();
         BoundFunction(BaseIndex::last(&self.bound_functions))
-    }
-}
-
-impl Rootable for BoundFunction<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::BoundFunction(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::BoundFunction(d) => Some(d),
-            _ => None,
-        }
     }
 }
 
@@ -333,41 +294,5 @@ impl HeapSweepWeakReference for BoundFunction<'static> {
             .bound_functions
             .shift_weak_index(self.0)
             .map(Self)
-    }
-}
-
-bindable_handle!(BoundFunctionHeapData);
-
-impl HeapMarkAndSweep for BoundFunctionHeapData<'static> {
-    fn mark_values(&self, queues: &mut WorkQueues) {
-        let Self {
-            object_index,
-            length: _,
-            bound_target_function,
-            bound_this,
-            bound_arguments,
-            name,
-        } = self;
-        name.mark_values(queues);
-        bound_target_function.mark_values(queues);
-        object_index.mark_values(queues);
-        bound_this.mark_values(queues);
-        bound_arguments.mark_values(queues);
-    }
-
-    fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let Self {
-            object_index,
-            length: _,
-            bound_target_function,
-            bound_this,
-            bound_arguments,
-            name,
-        } = self;
-        name.sweep_values(compactions);
-        bound_target_function.sweep_values(compactions);
-        object_index.sweep_values(compactions);
-        bound_this.sweep_values(compactions);
-        bound_arguments.sweep_values(compactions);
     }
 }

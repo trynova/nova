@@ -18,14 +18,10 @@ use oxc_ecmascript::BoundNames;
 use crate::{
     ecmascript::{
         builtins::{
-            async_function_objects::await_reaction::AwaitReactionRecord,
-            module::Module,
-            promise::Promise,
-            promise_objects::{
-                promise_abstract_operations::{
-                    promise_capability_records::PromiseCapability,
-                    promise_reaction_records::PromiseReactionHandler,
-                },
+            Module, Promise, PromiseCapability,
+            control_abstraction_objects::async_function_objects::await_reaction::AwaitReactionRecord,
+            control_abstraction_objects::promise_objects::{
+                promise_abstract_operations::promise_reaction_records::PromiseReactionHandler,
                 promise_prototype::inner_promise_then,
             },
         },
@@ -52,7 +48,7 @@ use crate::{
                 VarScopedDeclarations,
             },
         },
-        types::{BUILTIN_STRING_MEMORY, IntoValue, OrdinaryObject, String, Value},
+        types::{BUILTIN_STRING_MEMORY, OrdinaryObject, String, Value},
     },
     engine::{
         Executable, ExecutionResult, Scoped, Vm,
@@ -164,10 +160,6 @@ impl<'m> SourceTextModule<'m> {
         gc: NoGcScope<'a, '_>,
     ) -> SourceCode<'a> {
         self.get(agent).source_code.bind(gc)
-    }
-
-    pub(crate) const fn _def() -> Self {
-        Self(0, PhantomData)
     }
 
     fn get<'a>(
@@ -1205,7 +1197,7 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
                 // ii. Perform ! env.CreateImmutableBinding(in.[[LocalName]], true).
                 env.create_immutable_binding(agent, r#in.local_name);
                 // iii. Perform ! env.InitializeBinding(in.[[LocalName]], namespace).
-                env.initialize_binding(agent, r#in.local_name, namespace.into_value());
+                env.initialize_binding(agent, r#in.local_name, namespace.into());
                 continue;
             };
             // c. Else,
@@ -1230,7 +1222,7 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
                 // 2. Perform ! env.CreateImmutableBinding(in.[[LocalName]], true).
                 env.create_immutable_binding(agent, r#in.local_name);
                 // 3. Perform ! env.InitializeBinding(in.[[LocalName]], namespace).
-                env.initialize_binding(agent, r#in.local_name, namespace.into_value());
+                env.initialize_binding(agent, r#in.local_name, namespace.into());
                 continue;
             };
             // iv. Else,
@@ -1337,11 +1329,7 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
                     // 1. Let fo be InstantiateFunctionObject of d with arguments env and privateEnv.
                     let fo = instantiate_function_object(agent, d, env.into(), private_env, gc);
                     // 2. Perform ! env.InitializeBinding(dn, fo).
-                    env.initialize_binding(
-                        &mut agent.heap.environments,
-                        dn_string,
-                        fo.into_value(),
-                    );
+                    env.initialize_binding(&mut agent.heap.environments, dn_string, fo.into());
                 }
             };
             let mut create_default_export = false;

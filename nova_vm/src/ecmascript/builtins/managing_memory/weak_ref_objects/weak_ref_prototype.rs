@@ -7,7 +7,7 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin, weak_ref::WeakRef},
         execution::{Agent, JsResult, Realm, add_to_kept_objects, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, String, Value},
+        types::{BUILTIN_STRING_MEMORY, String, Value},
     },
     engine::context::{Bindable, GcScope},
     heap::WellKnownSymbolIndexes,
@@ -58,7 +58,7 @@ impl WeakRefPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.WeakRef.into_value())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.WeakRef.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()
@@ -84,7 +84,7 @@ fn weak_ref_deref<'a>(agent: &mut Agent, weak_ref: WeakRef<'a>) -> Value<'a> {
         // a. Perform AddToKeptObjects(target).
         add_to_kept_objects(agent, target);
         // b. Return target.
-        target.into_value()
+        target.into()
     } else {
         // 3. Return undefined.
         Value::Undefined

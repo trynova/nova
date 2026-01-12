@@ -10,7 +10,7 @@ use crate::{
             Agent, JsResult, Realm, agent::ExceptionType, can_be_held_weakly,
             throw_not_weak_key_error,
         },
-        types::{BUILTIN_STRING_MEMORY, IntoValue, String, Value},
+        types::{BUILTIN_STRING_MEMORY, String, Value},
     },
     engine::context::{Bindable, GcScope, NoGcScope},
     heap::WellKnownSymbolIndexes,
@@ -65,7 +65,7 @@ impl WeakMapPrototype {
         // 3. If CanBeHeldWeakly(key) is false,
         let Some(key) = can_be_held_weakly(agent, key) else {
             // return false.
-            return Ok(false.into_value());
+            return Ok(false.into());
         };
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[WeakMapData]], do
         // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, then
@@ -73,7 +73,7 @@ impl WeakMapPrototype {
         // ii. Set p.[[Value]] to EMPTY.
         // iii. Return true.
         // 5. Return false.
-        Ok(m.delete(agent, key).into_value())
+        Ok(m.delete(agent, key).into())
     }
 
     /// ### [24.3.3.3 WeakMap.prototype.get ( key )](https://tc39.es/ecma262/#sec-weakmap.prototype.get)
@@ -116,12 +116,12 @@ impl WeakMapPrototype {
         // 3. If CanBeHeldWeakly(key) is false,
         let Some(key) = can_be_held_weakly(agent, key) else {
             // return false.
-            return Ok(false.into_value());
+            return Ok(false.into());
         };
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[WeakMapData]], do
         // a. If p.[[Key]] is not empty and SameValue(p.[[Key]], key) is true, return true.
         // 5. Return false.
-        Ok(m.has(agent, key).into_value())
+        Ok(m.has(agent, key).into())
     }
 
     /// ### [24.3.3.5 WeakMap.prototype.set ( key, value )](https://tc39.es/ecma262/#sec-weakmap.prototype.set)
@@ -150,7 +150,7 @@ impl WeakMapPrototype {
         // 6. Append p to M.[[WeakMapData]].
         m.set(agent, key, value);
         // 7. Return M.
-        Ok(m.into_value())
+        Ok(m.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -170,7 +170,7 @@ impl WeakMapPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.WeakMap.into_value())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.WeakMap.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()

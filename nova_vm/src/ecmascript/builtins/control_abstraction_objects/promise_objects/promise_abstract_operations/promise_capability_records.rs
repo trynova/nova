@@ -7,21 +7,20 @@
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::{get, try_get},
-        builtins::promise::{
-            Promise,
-            data::{PromiseHeapData, PromiseState},
-        },
+        builtins::promise::{Promise, PromiseHeapData, PromiseState},
         execution::{
             Agent, JsResult,
             agent::{ExceptionType, PromiseRejectionTrackerOperation, TryError, TryResult},
         },
-        types::{BUILTIN_STRING_MEMORY, Function, IntoValue, Object, TryGetResult, Value},
+        types::{BUILTIN_STRING_MEMORY, Function, Object, TryGetResult, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::Scopable,
     },
-    heap::{CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues},
+    heap::{
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues,
+    },
 };
 
 use super::promise_jobs::new_promise_resolve_thenable_job;
@@ -71,7 +70,7 @@ impl<'a> PromiseCapability<'a> {
         // If `self.must_be_unresolved` is true, then `alreadyResolved`
         // corresponds with the `is_resolved` flag in PromiseState::Pending.
         // Otherwise, it corresponds to `promise_state` not being Pending.
-        match agent[self.promise].promise_state {
+        match self.promise.get(agent).promise_state {
             PromiseState::Pending { is_resolved, .. } => {
                 if self.must_be_unresolved {
                     is_resolved
@@ -87,7 +86,7 @@ impl<'a> PromiseCapability<'a> {
     pub(crate) fn internal_fulfill(&self, agent: &mut Agent, value: Value, gc: NoGcScope) {
         // 1. Assert: The value of promise.[[PromiseState]] is pending.
         // 2. Let reactions be promise.[[PromiseFulfillReactions]].
-        let promise_state = &mut agent[self.promise].promise_state;
+        let promise_state = &mut self.promise.get_mut(agent).promise_state;
         let reactions = match promise_state {
             PromiseState::Pending {
                 fulfill_reactions, ..
@@ -111,7 +110,7 @@ impl<'a> PromiseCapability<'a> {
     fn internal_reject(&self, agent: &mut Agent, reason: Value, gc: NoGcScope) {
         // 1. Assert: The value of promise.[[PromiseState]] is pending.
         // 2. Let reactions be promise.[[PromiseRejectReactions]].
-        let promise_state = &mut agent[self.promise].promise_state;
+        let promise_state = &mut self.promise.get_mut(agent).promise_state;
         let reactions = match promise_state {
             PromiseState::Pending {
                 reject_reactions, ..
@@ -161,7 +160,7 @@ impl<'a> PromiseCapability<'a> {
         promise.set_already_resolved(agent);
 
         // 7. If SameValue(resolution, promise) is true, then
-        if resolution == promise.into_value() {
+        if resolution == promise.into() {
             // a. Let selfResolutionError be a newly created TypeError object.
             // b. Perform RejectPromise(promise, selfResolutionError).
             let exception = agent
@@ -217,7 +216,7 @@ impl<'a> PromiseCapability<'a> {
                 promise: promise.get(agent),
                 must_be_unresolved,
             }
-            .internal_fulfill(agent, resolution.into_value().unbind(), gc.nogc());
+            .internal_fulfill(agent, resolution.unbind().into(), gc.nogc());
             // b. Return undefined.
             return;
         };
@@ -256,13 +255,13 @@ impl<'a> PromiseCapability<'a> {
             return TryResult::Continue(());
         }
         // 6. Set alreadyResolved.[[Value]] to true.
-        match &mut agent[self.promise].promise_state {
+        match &mut self.promise.get_mut(agent).promise_state {
             PromiseState::Pending { is_resolved, .. } => *is_resolved = true,
             _ => unreachable!(),
         };
 
         // 7. If SameValue(resolution, promise) is true, then
-        if resolution == self.promise.into_value() {
+        if resolution == self.promise.into() {
             // a. Let selfResolutionError be a newly created TypeError object.
             // b. Perform RejectPromise(promise, selfResolutionError).
             let exception = agent
@@ -306,7 +305,7 @@ impl<'a> PromiseCapability<'a> {
         // TODO: Callable proxies
         let Ok(then_action) = Function::try_from(then_action) else {
             // a. Perform FulfillPromise(promise, resolution).
-            self.internal_fulfill(agent, resolution.into_value(), gc);
+            self.internal_fulfill(agent, resolution.into(), gc);
             // b. Return undefined.
             return TryResult::Continue(());
         };
@@ -341,7 +340,7 @@ impl<'a> PromiseCapability<'a> {
 
         // 6. Set alreadyResolved.[[Value]] to true.
         debug_assert!(matches!(
-            agent[promise].promise_state,
+            promise.get(agent).promise_state,
             PromiseState::Rejected { .. }
         ));
     }

@@ -5,7 +5,6 @@
 mod data;
 mod internal_methods;
 mod internal_slots;
-mod into_object;
 mod property_key;
 mod property_key_set;
 mod property_key_vec;
@@ -101,30 +100,16 @@ use crate::ecmascript::{
 use crate::{
     ecmascript::{
         builtins::{
-            ArgumentsList, Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
-            async_generator_objects::AsyncGenerator,
-            bound_function::BoundFunction,
-            control_abstraction_objects::{
-                generator_objects::Generator,
-                promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction,
-            },
-            embedder_object::EmbedderObject,
-            error::Error,
-            finalization_registry::FinalizationRegistry,
-            indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
-            keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
-            map::Map,
-            module::Module,
+            ArgumentsList, Array, ArrayIterator, AsyncGenerator, BoundFunction,
+            BuiltinConstructorFunction, BuiltinFunction, BuiltinPromiseFinallyFunction,
+            BuiltinPromiseResolvingFunction, ECMAScriptFunction, EmbedderObject, Error,
+            FinalizationRegistry, Generator, Map, MapIterator, Module, PrimitiveObject, Promise,
+            Proxy, StringIterator,
             ordinary::{
                 caches::{PropertyLookupCache, PropertyOffset},
                 ordinary_object_create_with_intrinsics,
                 shape::{ObjectShape, ObjectShapeRecord},
             },
-            primitive_objects::PrimitiveObject,
-            promise::Promise,
-            promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
-            proxy::Proxy,
-            text_processing::string_objects::string_iterator_objects::StringIterator,
         },
         execution::{Agent, JsResult, ProtoIntrinsics, agent::TryResult},
         types::PropertyDescriptor,
@@ -134,9 +119,10 @@ use crate::{
         rootable::HeapRootData,
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        IntrinsicConstructorIndexes, IntrinsicObjectIndexes, IntrinsicPrimitiveObjectIndexes,
-        ObjectEntry, WorkQueues,
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, DirectArenaAccess, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, IntrinsicConstructorIndexes,
+        IntrinsicObjectIndexes, IntrinsicPrimitiveObjectIndexes, ObjectEntry, WorkQueues,
+        arena_vec_access,
         element_array::{
             ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementStorageUninit,
             ElementsVector, PropertyStorageMut, PropertyStorageRef,
@@ -149,7 +135,6 @@ use ahash::AHashMap;
 pub(crate) use data::ObjectRecord;
 pub use internal_methods::*;
 pub use internal_slots::InternalSlots;
-pub use into_object::IntoObject;
 pub use property_key::PropertyKey;
 pub use property_key_set::PropertyKeySet;
 #[cfg(feature = "json")]
@@ -293,8 +278,13 @@ impl Object<'_> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct OrdinaryObject<'a>(BaseIndex<'a, ObjectRecord<'static>>);
-
-bindable_handle!(OrdinaryObject);
+object_handle!(OrdinaryObject, Object);
+arena_vec_access!(
+    OrdinaryObject,
+    'a,
+    ObjectRecord,
+    objects
+);
 
 impl<'a> OrdinaryObject<'a> {
     /// Allocate a a new blank OrdinaryObject and return its reference.
@@ -304,43 +294,6 @@ impl<'a> OrdinaryObject<'a> {
     pub(crate) fn new_uninitialised(agent: &mut Agent) -> Self {
         agent.heap.objects.push(ObjectRecord::BLANK);
         OrdinaryObject(BaseIndex::last(&agent.heap.objects))
-    }
-
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
-    #[inline(always)]
-    pub(crate) fn get(self, agent: &Agent) -> &ObjectRecord<'a> {
-        self.get_direct(&agent.heap.objects)
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_mut(self, agent: &mut Agent) -> &mut ObjectRecord<'a> {
-        self.get_direct_mut(&mut agent.heap.objects)
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_direct<'o>(self, objects: &'o [ObjectRecord<'a>]) -> &'o ObjectRecord<'a> {
-        &objects[self.get_index()]
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_direct_mut<'o>(
-        self,
-        objects: &'o mut [ObjectRecord<'static>],
-    ) -> &'o mut ObjectRecord<'a> {
-        // SAFETY: Lifetime transmute to thread GC lifetime to temporary heap
-        // reference.
-        unsafe {
-            core::mem::transmute::<&mut ObjectRecord<'static>, &mut ObjectRecord<'a>>(
-                &mut objects[self.get_index()],
-            )
-        }
     }
 
     /// Returns true if the Object has no properties.
@@ -647,8 +600,8 @@ impl IntrinsicObjectIndexes {
         self,
         base: BaseIndex<'a, ObjectRecord<'static>>,
     ) -> OrdinaryObject<'a> {
-        OrdinaryObject(BaseIndex::from_u32_index(
-            self as u32 + base.into_u32_index() + Self::OBJECT_INDEX_OFFSET,
+        OrdinaryObject(BaseIndex::from_index_u32_const(
+            self as u32 + base.get_index_u32_const() + Self::OBJECT_INDEX_OFFSET,
         ))
     }
 }
@@ -658,8 +611,8 @@ impl IntrinsicConstructorIndexes {
         self,
         base: BaseIndex<'a, ObjectRecord<'static>>,
     ) -> OrdinaryObject<'a> {
-        OrdinaryObject(BaseIndex::from_u32_index(
-            self as u32 + base.into_u32_index() + Self::OBJECT_INDEX_OFFSET,
+        OrdinaryObject(BaseIndex::from_index_u32_const(
+            self as u32 + base.get_index_u32_const() + Self::OBJECT_INDEX_OFFSET,
         ))
     }
 }
@@ -669,44 +622,9 @@ impl IntrinsicPrimitiveObjectIndexes {
         self,
         base: BaseIndex<'a, ObjectRecord<'static>>,
     ) -> OrdinaryObject<'a> {
-        OrdinaryObject(BaseIndex::from_u32_index(
-            self as u32 + base.into_u32_index() + Self::OBJECT_INDEX_OFFSET,
+        OrdinaryObject(BaseIndex::from_index_u32_const(
+            self as u32 + base.get_index_u32_const() + Self::OBJECT_INDEX_OFFSET,
         ))
-    }
-}
-
-impl<'a> From<OrdinaryObject<'a>> for Object<'a> {
-    fn from(value: OrdinaryObject<'a>) -> Self {
-        Self::Object(value)
-    }
-}
-
-impl<'a> From<OrdinaryObject<'a>> for Value<'a> {
-    fn from(value: OrdinaryObject<'a>) -> Self {
-        Self::Object(value)
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for OrdinaryObject<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::Object(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for OrdinaryObject<'a> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Object::Object(data) => Ok(data),
-            _ => Err(()),
-        }
     }
 }
 
@@ -750,13 +668,8 @@ impl<'a> InternalSlots<'a> for OrdinaryObject<'a> {
     }
 }
 
-impl<'a> From<BoundFunction<'a>> for Object<'a> {
-    fn from(value: BoundFunction) -> Self {
-        Object::BoundFunction(value.unbind())
-    }
-}
-
 impl<'a> From<Object<'a>> for Value<'a> {
+    #[inline]
     fn from(value: Object<'a>) -> Self {
         match value {
             Object::Object(data) => Self::Object(data),
@@ -1515,14 +1428,113 @@ impl<'a> CreateHeapData<ObjectRecord<'a>, OrdinaryObject<'a>> for Heap {
     }
 }
 
-impl TryFrom<HeapRootData> for OrdinaryObject<'_> {
-    type Error = ();
+impl From<Object<'_>> for HeapRootData {
+    #[inline]
+    fn from(value: Object<'_>) -> Self {
+        match value {
+            Object::Object(d) => Self::Object(d.unbind()),
+            Object::BoundFunction(d) => Self::BoundFunction(d.unbind()),
+            Object::BuiltinFunction(d) => Self::BuiltinFunction(d.unbind()),
+            Object::ECMAScriptFunction(d) => Self::ECMAScriptFunction(d.unbind()),
+            Object::BuiltinConstructorFunction(d) => Self::BuiltinConstructorFunction(d.unbind()),
+            Object::BuiltinPromiseResolvingFunction(d) => {
+                Self::BuiltinPromiseResolvingFunction(d.unbind())
+            }
+            Object::BuiltinPromiseFinallyFunction(d) => {
+                Self::BuiltinPromiseFinallyFunction(d.unbind())
+            }
+            Object::BuiltinPromiseCollectorFunction => Self::BuiltinPromiseCollectorFunction,
+            Object::BuiltinProxyRevokerFunction => Self::BuiltinProxyRevokerFunction,
+            Object::PrimitiveObject(d) => Self::PrimitiveObject(d.unbind()),
+            Object::Arguments(d) => Self::Arguments(d.unbind()),
+            Object::Array(d) => Self::Array(d.unbind()),
+            #[cfg(feature = "date")]
+            Object::Date(d) => Self::Date(d.unbind()),
+            Object::Error(d) => Self::Error(d.unbind()),
+            Object::FinalizationRegistry(d) => Self::FinalizationRegistry(d.unbind()),
+            Object::Map(d) => Self::Map(d.unbind()),
+            Object::Promise(d) => Self::Promise(d.unbind()),
+            Object::Proxy(d) => Self::Proxy(d.unbind()),
+            #[cfg(feature = "regexp")]
+            Object::RegExp(d) => Self::RegExp(d.unbind()),
+            #[cfg(feature = "set")]
+            Object::Set(d) => Self::Set(d.unbind()),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakMap(d) => Self::WeakMap(d.unbind()),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakRef(d) => Self::WeakRef(d.unbind()),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakSet(d) => Self::WeakSet(d.unbind()),
 
-    fn try_from(value: HeapRootData) -> Result<Self, ()> {
-        if let HeapRootData::Object(value) = value {
-            Ok(value)
-        } else {
-            Err(())
+            #[cfg(feature = "array-buffer")]
+            Object::ArrayBuffer(d) => Self::ArrayBuffer(d.unbind()),
+            #[cfg(feature = "array-buffer")]
+            Object::DataView(d) => Self::DataView(d.unbind()),
+            #[cfg(feature = "array-buffer")]
+            Object::Int8Array(d) => Self::Int8Array(d.unbind()),
+            #[cfg(feature = "array-buffer")]
+            Object::Uint8Array(d) => Self::Uint8Array(d.unbind()),
+            #[cfg(feature = "array-buffer")]
+            Object::Uint8ClampedArray(d) => Self::Uint8ClampedArray(d.unbind()),
+            #[cfg(feature = "array-buffer")]
+            Object::Int16Array(d) => Self::Int16Array(d.unbind()),
+            #[cfg(feature = "array-buffer")]
+            Object::Uint16Array(d) => Self::Uint16Array(d.unbind()),
+            #[cfg(feature = "array-buffer")]
+            Object::Int32Array(d) => Self::Int32Array(d.unbind()),
+            #[cfg(feature = "array-buffer")]
+            Object::Uint32Array(d) => Self::Uint32Array(d.unbind()),
+            #[cfg(feature = "array-buffer")]
+            Object::BigInt64Array(d) => Self::BigInt64Array(d.unbind()),
+            #[cfg(feature = "array-buffer")]
+            Object::BigUint64Array(d) => Self::BigUint64Array(d.unbind()),
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(d) => Self::Float16Array(d.unbind()),
+            #[cfg(feature = "array-buffer")]
+            Object::Float32Array(d) => Self::Float32Array(d.unbind()),
+            #[cfg(feature = "array-buffer")]
+            Object::Float64Array(d) => Self::Float64Array(d.unbind()),
+
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedArrayBuffer(d) => Self::SharedArrayBuffer(d.unbind()),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedDataView(d) => Self::SharedDataView(d.unbind()),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedInt8Array(d) => Self::SharedInt8Array(d.unbind()),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedUint8Array(d) => Self::SharedUint8Array(d.unbind()),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedUint8ClampedArray(d) => Self::SharedUint8ClampedArray(d.unbind()),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedInt16Array(d) => Self::SharedInt16Array(d.unbind()),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedUint16Array(d) => Self::SharedUint16Array(d.unbind()),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedInt32Array(d) => Self::SharedInt32Array(d.unbind()),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedUint32Array(d) => Self::SharedUint32Array(d.unbind()),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedBigInt64Array(d) => Self::SharedBigInt64Array(d.unbind()),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedBigUint64Array(d) => Self::SharedBigUint64Array(d.unbind()),
+            #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+            Object::SharedFloat16Array(d) => Self::SharedFloat16Array(d.unbind()),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedFloat32Array(d) => Self::SharedFloat32Array(d.unbind()),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedFloat64Array(d) => Self::SharedFloat64Array(d.unbind()),
+
+            Object::AsyncGenerator(d) => Self::AsyncGenerator(d.unbind()),
+            Object::ArrayIterator(d) => Self::ArrayIterator(d.unbind()),
+            #[cfg(feature = "set")]
+            Object::SetIterator(d) => Self::SetIterator(d.unbind()),
+            Object::MapIterator(d) => Self::MapIterator(d.unbind()),
+            Object::StringIterator(d) => Self::StringIterator(d.unbind()),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(d) => Self::RegExpStringIterator(d.unbind()),
+            Object::Generator(d) => Self::Generator(d.unbind()),
+            Object::Module(d) => Self::Module(d.unbind()),
+            Object::EmbedderObject(d) => Self::EmbedderObject(d.unbind()),
         }
     }
 }
@@ -1676,3 +1688,32 @@ impl TryFrom<HeapRootData> for Object<'_> {
         }
     }
 }
+
+macro_rules! object_handle {
+    ($name: tt) => {
+        crate::ecmascript::types::object_handle!($name, $name);
+    };
+    ($name: ident, $variant: ident) => {
+        crate::ecmascript::types::value_handle!($name, $variant);
+
+        impl<'a> From<$name<'a>> for crate::ecmascript::types::Object<'a> {
+            #[inline(always)]
+            fn from(value: $name<'a>) -> Self {
+                Self::$variant(value)
+            }
+        }
+
+        impl<'a> TryFrom<crate::ecmascript::types::Object<'a>> for $name<'a> {
+            type Error = ();
+
+            #[inline]
+            fn try_from(value: crate::ecmascript::types::Object<'a>) -> Result<Self, Self::Error> {
+                match value {
+                    crate::ecmascript::types::Object::$variant(data) => Ok(data),
+                    _ => Err(()),
+                }
+            }
+        }
+    };
+}
+pub(crate) use object_handle;

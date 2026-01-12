@@ -18,16 +18,13 @@ use crate::{
             primitive_objects::{PrimitiveObject, PrimitiveObjectData},
         },
         execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        types::{
-            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Number, Object, PropertyKey,
-            String, Value,
-        },
+        types::{BUILTIN_STRING_MEMORY, Function, Number, Object, PropertyKey, String, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::IntrinsicConstructorIndexes,
+    heap::{ArenaAccessMut, IntrinsicConstructorIndexes},
 };
 
 pub struct StringConstructor;
@@ -86,7 +83,7 @@ impl StringConstructor {
             return Ok(value
                 .unbind()
                 .descriptive_string(agent, gc.into_nogc())
-                .into_value());
+                .into());
         } else {
             // b. Let s be ? ToString(value).
             if let Ok(s) = String::try_from(value) {
@@ -101,7 +98,7 @@ impl StringConstructor {
         };
         // 3. If NewTarget is undefined, return s.
         let Some(new_target) = new_target else {
-            return Ok(s.into_value().unbind());
+            return Ok(s.unbind().into());
         };
         // 4. Return StringCreate(s, ? GetPrototypeFromConstructor(NewTarget, "%String.prototype%")).
         let value = s.scope(agent, gc.nogc());
@@ -126,7 +123,7 @@ impl StringConstructor {
         // 2. Set S.[[Prototype]] to prototype.
         // 3. Set S.[[StringData]] to value.
         let value = value.get(agent).bind(gc.nogc());
-        agent[s].data = match value {
+        s.get_mut(agent).data = match value {
             String::String(data) => PrimitiveObjectData::String(data.unbind()),
             String::SmallString(data) => PrimitiveObjectData::SmallString(data),
         };
@@ -136,7 +133,7 @@ impl StringConstructor {
         // 7. Let length be the length of value.
         // 8. Perform ! DefinePropertyOrThrow(S, "length", PropertyDescriptor { [[Value]]: 𝔽(length), [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: false }).
         // 9. Return S.
-        Ok(s.into_value().unbind())
+        Ok(s.unbind().into())
     }
 
     /// ### [22.1.2.1 String.fromCharCode ( ...`codeUnits` )](https://262.ecma-international.org/15.0/index.html#sec-string.fromcharcode)
@@ -156,7 +153,7 @@ impl StringConstructor {
         // 3. Return result.
 
         if code_units.is_empty() {
-            return Ok(String::EMPTY_STRING.into_value());
+            return Ok(String::EMPTY_STRING.into());
         }
 
         // fast path: only a single valid code unit
@@ -164,7 +161,7 @@ impl StringConstructor {
             let cu = code_units.get(0).to_uint16(agent, gc.reborrow()).unbind()?;
             // SAFETY: number within 0..0xFFFF.
             let cu = unsafe { CodePoint::from_u32_unchecked(cu as u32) };
-            return Ok(SmallString::from_code_point(cu).into_value());
+            return Ok(SmallString::from_code_point(cu).into());
         }
 
         let buf = if code_units.iter().all(|cu| cu.is_number()) {
@@ -204,7 +201,7 @@ impl StringConstructor {
     ) -> JsResult<'gc, Value<'gc>> {
         // 3. Assert: If codePoints is empty, then result is the empty String.
         if code_points.is_empty() {
-            return Ok(String::EMPTY_STRING.into_value());
+            return Ok(String::EMPTY_STRING.into());
         }
         // fast path: only a single valid code unit
         if code_points.len() == 1 && code_points.first().unwrap().is_integer() {
@@ -351,7 +348,7 @@ impl StringConstructor {
 
                 // 5. If literalCount ≤ 0, return the empty String.
                 if literal_count <= 0 {
-                    return Ok(String::EMPTY_STRING.into_value());
+                    return Ok(String::EMPTY_STRING.into());
                 }
 
                 // 6. Let R be the empty String.
@@ -376,7 +373,7 @@ impl StringConstructor {
                         .bind(gc.nogc());
 
                     // c. Set R to the string-concatenation of R and nextLiteral.
-                    r.push_wtf8(next_literal.as_wtf8(agent));
+                    r.push_wtf8(next_literal.as_wtf8_(agent));
 
                     // d. If nextIndex + 1 = literalCount, return R.
                     // Note: this branch is now below the loop.
@@ -392,7 +389,7 @@ impl StringConstructor {
                             .bind(gc.nogc());
 
                         // iii. Set R to the string-concatenation of R and nextSub.
-                        r.push_wtf8(next_sub.as_wtf8(agent));
+                        r.push_wtf8(next_sub.as_wtf8_(agent));
                     }
 
                     // f. Set nextIndex to nextIndex + 1.
@@ -411,7 +408,7 @@ impl StringConstructor {
             .with_property_capacity(4)
             .with_builtin_function_property::<StringFromCharCode>()
             .with_builtin_function_property::<StringFromCodePoint>()
-            .with_prototype_property(string_prototype.into_object())
+            .with_prototype_property(string_prototype.into())
             .with_builtin_function_property::<StringRaw>()
             .build();
     }

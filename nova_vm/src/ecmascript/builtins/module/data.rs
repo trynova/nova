@@ -8,13 +8,16 @@ use crate::{
         types::String,
     },
     engine::context::{Bindable, bindable_handle},
-    heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
+    heap::{
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        indexes::HeapIndexHandle,
+    },
 };
 
 use super::Module;
 
 #[derive(Debug, Clone)]
-pub struct ModuleHeapData<'a> {
+pub(crate) struct ModuleHeapData<'a> {
     pub(super) module: AbstractModule<'a>,
     pub(super) exports: Box<[String<'a>]>,
 }

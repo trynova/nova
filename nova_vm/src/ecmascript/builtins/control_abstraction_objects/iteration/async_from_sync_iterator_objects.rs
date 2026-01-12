@@ -18,20 +18,20 @@ use crate::{
         },
         builtins::{
             ArgumentsList,
-            promise::Promise,
-            promise_objects::{
+            control_abstraction_objects::promise_objects::{
                 promise_abstract_operations::{
                     promise_capability_records::{PromiseCapability, if_abrupt_reject_promise_m},
                     promise_reaction_records::PromiseReactionHandler,
                 },
                 promise_prototype::inner_promise_then,
             },
+            promise::Promise,
         },
         execution::{
             Agent,
             agent::{ExceptionType, unwrap_try},
         },
-        types::{BUILTIN_STRING_MEMORY, IntoValue, Object, Value},
+        types::{BUILTIN_STRING_MEMORY, Object, Value},
     },
     engine::{
         VmIteratorRecord,
@@ -165,11 +165,7 @@ impl AsyncFromSyncIteratorPrototype {
             )
             .expect("Should perform GC here");
             // b. Perform ! Call(promiseCapability.[[Resolve]], undefined, « iteratorResult »).
-            unwrap_try(promise_capability.try_resolve(
-                agent,
-                iterator_result.into_value(),
-                gc.nogc(),
-            ));
+            unwrap_try(promise_capability.try_resolve(agent, iterator_result.into(), gc.nogc()));
             // c. Return promiseCapability.[[Promise]].
             // SAFETY: scoped_promise is not shared.
             return unsafe { scoped_promise.take(agent) };
@@ -183,7 +179,7 @@ impl AsyncFromSyncIteratorPrototype {
             call_function(
                 agent,
                 r#return.unbind(),
-                scoped_sync_iterator.get(agent).into_value(),
+                scoped_sync_iterator.get(agent).into(),
                 value.as_mut().map(ArgumentsList::from_mut_value),
                 gc.reborrow(),
             )
@@ -323,7 +319,7 @@ impl AsyncFromSyncIteratorPrototype {
         let result = call_function(
             agent,
             throw.unbind(),
-            scoped_sync_iterator.get(agent).into_value(),
+            scoped_sync_iterator.get(agent).into(),
             Some(ArgumentsList::from_mut_value(&mut value.unbind())),
             gc.reborrow(),
         )

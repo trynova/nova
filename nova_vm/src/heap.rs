@@ -9,7 +9,7 @@ pub(crate) mod heap_gc;
 pub mod indexes;
 mod object_entry;
 
-use core::{cell::RefCell, ops::Index};
+use core::cell::RefCell;
 use std::ops::Deref;
 
 use self::element_array::{
@@ -18,35 +18,35 @@ use self::element_array::{
 };
 pub(crate) use self::heap_constants::{
     IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, IntrinsicObjectIndexes,
-    IntrinsicObjectShapes, IntrinsicPrimitiveObjectIndexes, LAST_WELL_KNOWN_SYMBOL_INDEX,
-    WellKnownSymbolIndexes, intrinsic_function_count, intrinsic_object_count,
-    intrinsic_primitive_object_count,
+    IntrinsicObjectShapes, IntrinsicPrimitiveObjectIndexes, WellKnownSymbolIndexes,
+    intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
 };
 #[cfg(test)]
 pub(crate) use self::heap_constants::{
     LAST_INTRINSIC_CONSTRUCTOR_INDEX, LAST_INTRINSIC_FUNCTION_INDEX, LAST_INTRINSIC_OBJECT_INDEX,
+    LAST_WELL_KNOWN_SYMBOL_INDEX,
 };
 pub(crate) use self::object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor};
 #[cfg(feature = "date")]
-use crate::ecmascript::builtins::date::data::DateHeapData;
+use crate::ecmascript::builtins::date::DateHeapData;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{
-    ArrayBuffer, ArrayBufferHeapData,
-    array_buffer::DetachKey,
-    data_view::{DataView, data::DataViewRecord},
+    ArrayBuffer,
+    array_buffer::{ArrayBufferHeapData, DetachKey},
+    data_view::{DataView, DataViewRecord},
+    typed_array::TypedArrayRecord,
     typed_array::VoidArray,
-    typed_array::data::TypedArrayRecord,
 };
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::{
-    data_view::{SharedDataView, data::SharedDataViewRecord},
-    shared_array_buffer::data::SharedArrayBufferRecord,
-    typed_array::{SharedVoidArray, data::SharedTypedArrayRecord},
+    data_view::{SharedDataView, SharedDataViewRecord},
+    shared_array_buffer::SharedArrayBufferRecord,
+    typed_array::{SharedTypedArrayRecord, SharedVoidArray},
 };
 #[cfg(feature = "set")]
 use crate::ecmascript::builtins::{
     keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIteratorHeapData,
-    set::data::SetHeapData,
+    set::SetHeapData,
 };
 #[cfg(feature = "regexp")]
 use crate::ecmascript::builtins::{
@@ -55,13 +55,12 @@ use crate::ecmascript::builtins::{
 };
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{
-    weak_map::data::WeakMapRecord, weak_ref::data::WeakRefHeapData, weak_set::data::WeakSetHeapData,
+    weak_map::WeakMapRecord, weak_ref::WeakRefHeapData, weak_set::WeakSetHeapData,
 };
 use crate::{
     ecmascript::{
         builtins::{
-            ArrayHeapData,
-            async_generator_objects::AsyncGeneratorHeapData,
+            array::ArrayHeapData,
             control_abstraction_objects::{
                 async_function_objects::await_reaction::AwaitReactionRecord,
                 generator_objects::GeneratorHeapData,
@@ -70,24 +69,27 @@ use crate::{
                     promise_resolving_functions::PromiseResolvingFunctionHeapData,
                 },
             },
-            embedder_object::data::EmbedderObjectHeapData,
+            control_abstraction_objects::{
+                async_generator_objects::AsyncGeneratorHeapData,
+                promise_objects::promise_abstract_operations::{
+                    promise_finally_functions::PromiseFinallyFunctionHeapData,
+                    promise_group_record::PromiseGroupRecord,
+                },
+            },
+            embedder_object::EmbedderObjectHeapData,
             error::ErrorHeapData,
-            finalization_registry::data::FinalizationRegistryRecord,
+            finalization_registry::FinalizationRegistryRecord,
             indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
             keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
-            map::data::MapHeapData,
-            module::data::ModuleHeapData,
+            map::MapHeapData,
+            module::ModuleHeapData,
             ordinary::{
                 caches::Caches,
                 shape::{ObjectShapeRecord, ObjectShapeTransitionMap, PrototypeShapeTable},
             },
             primitive_objects::PrimitiveObjectRecord,
-            promise::data::PromiseHeapData,
-            promise_objects::promise_abstract_operations::{
-                promise_finally_functions::PromiseFinallyFunctionHeapData,
-                promise_group_record::PromiseGroupRecord,
-            },
-            proxy::data::ProxyHeapData,
+            promise::PromiseHeapData,
+            proxy::ProxyHeapData,
             text_processing::string_objects::string_iterator_objects::StringIteratorHeapData,
         },
         execution::{Agent, Environments, Realm, RealmRecord},
@@ -101,8 +103,7 @@ use crate::{
         types::{
             BUILTIN_STRING_MEMORY, BUILTIN_STRINGS_LIST, BigIntHeapData, BoundFunctionHeapData,
             BuiltinConstructorRecord, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
-            HeapNumber, HeapString, NumberHeapData, ObjectRecord, String, StringRecord, Symbol,
-            SymbolHeapData, bigint::HeapBigInt,
+            HeapString, NumberHeapData, ObjectRecord, String, StringRecord, SymbolHeapData,
         },
     },
     engine::{
@@ -110,6 +111,7 @@ use crate::{
         context::{Bindable, NoGcScope},
         rootable::HeapRootData,
     },
+    heap::indexes::HeapIndexHandle,
 };
 #[cfg(feature = "array-buffer")]
 use ahash::AHashMap;
@@ -126,7 +128,7 @@ pub(crate) use heap_bits::{
     AtomicBits, BitRange, CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WeakReference,
     WorkQueues, sweep_heap_vector_values,
 };
-use soavec::SoAVec;
+use soavec::{SoAVec, SoAble};
 use wtf8::{Wtf8, Wtf8Buf};
 
 pub(crate) struct Heap {
@@ -150,7 +152,7 @@ pub(crate) struct Heap {
     /// Element arrays are static arrays of Values plus
     /// a HashMap of possible property descriptors.
     pub(crate) elements: ElementArrays,
-    pub(crate) embedder_objects: Vec<EmbedderObjectHeapData>,
+    pub(crate) embedder_objects: Vec<EmbedderObjectHeapData<'static>>,
     pub(crate) environments: Environments,
     pub(crate) errors: Vec<ErrorHeapData<'static>>,
     /// Stores compiled bytecodes
@@ -595,12 +597,141 @@ impl Default for Heap {
     }
 }
 
+pub(crate) trait DirectArenaAccess: HeapIndexHandle {
+    type Data;
+    type Output;
+
+    /// Access arena data belonging to a handle.
+    #[allow(clippy::ptr_arg)]
+    fn get_direct(self, agent: &Vec<Self::Data>) -> &Self::Output;
+}
+
+pub(crate) trait DirectArenaAccessMut: DirectArenaAccess {
+    /// Access arena data belonging to a handle as mutable.
+    fn get_direct_mut(self, agent: &mut Vec<Self::Data>) -> &mut Self::Output;
+}
+
+pub(crate) trait ArenaAccess<T>: DirectArenaAccess {
+    /// Access data belonging to a handle.
+    fn get(self, agent: &T) -> &<Self as DirectArenaAccess>::Output;
+}
+
+pub(crate) trait ArenaAccessMut<T>: DirectArenaAccessMut {
+    /// Access data belonging to a handle as mutable.
+    fn get_mut(self, agent: &mut T) -> &mut <Self as DirectArenaAccess>::Output;
+}
+
+impl<K: DirectArenaAccess, T> ArenaAccess<T> for K
+where
+    T: AsRef<Vec<K::Data>>,
+{
+    /// Access data belonging to a handle.
+    #[inline]
+    fn get<'agent>(self, agent: &'agent T) -> &'agent <Self as DirectArenaAccess>::Output {
+        // SAFETY: HeapIndexHandle guarantees that the lifetime of the output is
+        // safe when agent is safe.
+        unsafe {
+            core::mem::transmute::<_, &'agent <Self as DirectArenaAccess>::Output>(
+                self.get_direct(agent.as_ref()),
+            )
+        }
+    }
+}
+
+impl<K: DirectArenaAccessMut, T> ArenaAccessMut<T> for K
+where
+    T: AsMut<Vec<K::Data>>,
+{
+    /// Access data belonging to a handle as mutable.
+    #[inline]
+    fn get_mut<'agent>(
+        self,
+        agent: &'agent mut T,
+    ) -> &'agent mut <Self as DirectArenaAccess>::Output {
+        // SAFETY: HeapIndexHandle guarantees that the lifetime of the output is
+        // safe when agent is safe.
+        unsafe {
+            core::mem::transmute::<_, &'agent mut <Self as DirectArenaAccess>::Output>(
+                self.get_direct_mut(agent.as_mut()),
+            )
+        }
+    }
+}
+
+pub(crate) trait DirectArenaAccessSoA: HeapIndexHandle {
+    type Data: SoAble;
+
+    /// Access arena data belonging to a handle.
+    fn get_direct(self, source: &SoAVec<Self::Data>) -> <Self::Data as SoAble>::Ref<'_>;
+}
+
+pub(crate) trait DirectArenaAccessSoAMut: DirectArenaAccessSoA {
+    /// Access arena data belonging to a handle as mutable.
+    fn get_direct_mut<'agent>(
+        self,
+        source: &'agent mut SoAVec<Self::Data>,
+    ) -> <Self::Data as SoAble>::Mut<'agent>;
+}
+
+pub(crate) trait ArenaAccessSoA<T>: DirectArenaAccessSoA {
+    /// Access data belonging to a handle.
+    fn get<'a>(self, agent: &'a T) -> <Self::Data as SoAble>::Ref<'a>;
+}
+
+pub(crate) trait ArenaAccessSoAMut<T>: DirectArenaAccessSoAMut {
+    /// Access data belonging to a handle as mutable.
+    fn get_mut<'a>(self, agent: &'a mut T) -> <Self::Data as SoAble>::Mut<'a>;
+}
+
+impl<K: DirectArenaAccessSoA, T> ArenaAccessSoA<T> for K
+where
+    T: AsRef<SoAVec<K::Data>>,
+{
+    /// Access data belonging to a handle.
+    #[inline]
+    fn get<'a>(self, agent: &'a T) -> <Self::Data as SoAble>::Ref<'a> {
+        self.get_direct(agent.as_ref())
+    }
+}
+
+impl<K: DirectArenaAccessSoAMut, T> ArenaAccessSoAMut<T> for K
+where
+    T: AsMut<SoAVec<K::Data>>,
+{
+    /// Access data belonging to a handle as mutable.
+    #[inline]
+    fn get_mut<'a>(self, agent: &'a mut T) -> <Self::Data as SoAble>::Mut<'a> {
+        self.get_direct_mut(agent.as_mut())
+    }
+}
+
 /// A partial view to the Agent's heap that allows accessing primitive value
 /// heap data.
 pub(crate) struct PrimitiveHeap<'a> {
     pub(crate) bigints: &'a Vec<BigIntHeapData>,
     pub(crate) numbers: &'a Vec<NumberHeapData>,
     pub(crate) strings: &'a Vec<StringRecord>,
+}
+
+impl AsRef<Vec<BigIntHeapData>> for PrimitiveHeap<'_> {
+    #[inline]
+    fn as_ref(&self) -> &Vec<BigIntHeapData> {
+        self.bigints
+    }
+}
+
+impl AsRef<Vec<NumberHeapData>> for PrimitiveHeap<'_> {
+    #[inline]
+    fn as_ref(&self) -> &Vec<NumberHeapData> {
+        self.numbers
+    }
+}
+
+impl AsRef<Vec<StringRecord>> for PrimitiveHeap<'_> {
+    #[inline]
+    fn as_ref(&self) -> &Vec<StringRecord> {
+        self.strings
+    }
 }
 
 impl PrimitiveHeap<'_> {
@@ -618,42 +749,203 @@ impl PrimitiveHeap<'_> {
 }
 
 /// Helper trait for primitive heap data indexing.
-pub(crate) trait PrimitiveHeapIndexable:
-    Index<HeapNumber<'static>, Output = f64>
-    + Index<HeapString<'static>, Output = StringRecord>
-    + Index<HeapBigInt<'static>, Output = BigIntHeapData>
+pub(crate) trait PrimitiveHeapAccess:
+    StringHeapAccess + NumberHeapAccess + AsRef<Vec<BigIntHeapData>>
 {
 }
 
-impl PrimitiveHeapIndexable for PrimitiveHeap<'_> {}
+impl PrimitiveHeapAccess for PrimitiveHeap<'_> {}
 
 /// A partial view to the Agent's heap that allows accessing PropertyKey heap
 /// data.
 pub(crate) struct PropertyKeyHeap<'a> {
-    pub(crate) strings: &'a Vec<StringRecord>,
-    pub(crate) symbols: &'a Vec<SymbolHeapData<'static>>,
+    pub(crate) strings: &'a mut Vec<StringRecord>,
+    pub(crate) symbols: &'a mut Vec<SymbolHeapData<'static>>,
 }
 
 impl PropertyKeyHeap<'_> {
     pub(crate) fn new<'a>(
-        strings: &'a Vec<StringRecord>,
-        symbols: &'a Vec<SymbolHeapData<'static>>,
+        strings: &'a mut Vec<StringRecord>,
+        symbols: &'a mut Vec<SymbolHeapData<'static>>,
     ) -> PropertyKeyHeap<'a> {
         PropertyKeyHeap { strings, symbols }
     }
 }
 
+impl AsRef<Vec<StringRecord>> for PropertyKeyHeap<'_> {
+    #[inline]
+    fn as_ref(&self) -> &Vec<StringRecord> {
+        self.strings
+    }
+}
+
+impl AsRef<Vec<SymbolHeapData<'static>>> for PropertyKeyHeap<'_> {
+    #[inline]
+    fn as_ref(&self) -> &Vec<SymbolHeapData<'static>> {
+        self.symbols
+    }
+}
+
 /// Helper trait for primitive heap data indexing.
-pub(crate) trait PropertyKeyHeapIndexable:
-    Index<HeapString<'static>, Output = StringRecord>
-    + Index<Symbol<'static>, Output = SymbolHeapData<'static>>
+pub(crate) trait PropertyKeyHeapAccess:
+    StringHeapAccess + AsRef<Vec<StringRecord>> + AsRef<Vec<SymbolHeapData<'static>>>
 {
 }
 
-impl PropertyKeyHeapIndexable for PropertyKeyHeap<'_> {}
-impl PropertyKeyHeapIndexable for Agent {}
+impl PropertyKeyHeapAccess for PropertyKeyHeap<'_> {}
+impl PropertyKeyHeapAccess for Agent {}
+
+pub(crate) trait StringHeapAccess: AsRef<Vec<StringRecord>> {}
+
+impl StringHeapAccess for Vec<StringRecord> {}
+impl StringHeapAccess for PrimitiveHeap<'_> {}
+impl StringHeapAccess for PropertyKeyHeap<'_> {}
+impl StringHeapAccess for Agent {}
+
+pub(crate) trait NumberHeapAccess: AsRef<Vec<NumberHeapData>> {}
+
+impl NumberHeapAccess for Vec<NumberHeapData> {}
+impl NumberHeapAccess for PrimitiveHeap<'_> {}
+impl NumberHeapAccess for Agent {}
 
 #[test]
 fn init_heap() {
     let _ = Heap::new();
 }
+
+macro_rules! arena_vec_access {
+    (soa: $name: ident, $lt: lifetime, $data: ident, $member: ident, $output_ref: ident, $output_mut: ident) => {
+        impl<$lt> crate::heap::DirectArenaAccessSoA for $name<$lt> {
+            type Data = $data<'static>;
+
+            #[inline]
+            fn get_direct(
+                self,
+                source: &soavec::SoAVec<Self::Data>,
+            ) -> <Self::Data as soavec::SoAble>::Ref<'_> {
+                source
+                    .get(self.get_index_u32())
+                    .unwrap_or_else(|| panic!("Invalid handle {:?}", self))
+            }
+        }
+
+        impl<$lt> crate::heap::DirectArenaAccessSoAMut for $name<$lt> {
+            #[inline]
+            fn get_direct_mut<'agent>(
+                self,
+                source: &'agent mut soavec::SoAVec<Self::Data>,
+            ) -> <Self::Data as soavec::SoAble>::Mut<'agent> {
+                // SAFETY: transmuting OutputMut<'agent, 'static> to
+                // OutputMut<'agent, 'gc>. The shortening of the 'gc lifetime in
+                // a mutable setting means that it's okay to store handles to
+                // garbage collectable data inside the 'agent without them being
+                // invalidated when a garbage collection safepoint is reached.
+                // This is exactly correct, as data inside the 'agent is traced
+                // by the GC and does not get invalidated at a safepoint. The
+                // shortened lifetime is thus valid, and exposing it protects
+                // users of this API from accidentally using the original
+                // 'static lifetime.
+                unsafe {
+                    core::mem::transmute::<_, <Self::Data as soavec::SoAble>::Mut<'agent>>(
+                        source
+                            .get_mut(self.get_index_u32())
+                            .unwrap_or_else(|| panic!("Invalid handle {:?}", self)),
+                    )
+                }
+            }
+        }
+
+        impl AsRef<soavec::SoAVec<$data<'static>>> for crate::ecmascript::execution::Agent {
+            #[inline(always)]
+            fn as_ref(&self) -> &soavec::SoAVec<$data<'static>> {
+                &self.heap.$member
+            }
+        }
+
+        impl AsMut<soavec::SoAVec<$data<'static>>> for crate::ecmascript::execution::Agent {
+            #[inline(always)]
+            fn as_mut(&mut self) -> &mut soavec::SoAVec<$data<'static>> {
+                &mut self.heap.$member
+            }
+        }
+    };
+    ($name: ident, $lt: lifetime, $data: ident, $member: ident) => {
+        impl<$lt> crate::heap::DirectArenaAccess for $name<$lt> {
+            type Data = $data<'static>;
+            type Output = $data<$lt>;
+
+            #[inline]
+            fn get_direct(self, source: &Vec<Self::Data>) -> &Self::Output {
+                source
+                    .get(crate::heap::indexes::HeapIndexHandle::get_index(self))
+                    .unwrap_or_else(|| panic!("Invalid handle {:?}", self))
+            }
+        }
+
+        impl<$lt> crate::heap::DirectArenaAccessMut for $name<$lt> {
+            #[inline]
+            fn get_direct_mut(self, source: &mut Vec<Self::Data>) -> &mut Self::Output {
+                // SAFETY: GC handles are always safe within the arena.
+                unsafe {
+                    core::mem::transmute::<&mut $data<'static>, &mut $data<$lt>>(
+                        source
+                            .get_mut(crate::heap::indexes::HeapIndexHandle::get_index(self))
+                            .unwrap_or_else(|| panic!("Invalid handle {:?}", self)),
+                    )
+                }
+            }
+        }
+
+        impl AsRef<Vec<$data<'static>>> for crate::ecmascript::execution::Agent {
+            #[inline(always)]
+            fn as_ref(&self) -> &Vec<$data<'static>> {
+                &self.heap.$member
+            }
+        }
+
+        impl AsMut<Vec<$data<'static>>> for crate::ecmascript::execution::Agent {
+            #[inline(always)]
+            fn as_mut(&mut self) -> &mut Vec<$data<'static>> {
+                &mut self.heap.$member
+            }
+        }
+    };
+    ($name: ident, $data: ty, $member: ident, $output: ty) => {
+        impl crate::heap::DirectArenaAccess for $name<'_> {
+            type Data = $data;
+            type Output = $output;
+
+            #[inline]
+            fn get_direct(self, source: &Vec<Self::Data>) -> &Self::Output {
+                source
+                    .get(crate::heap::indexes::HeapIndexHandle::get_index(self))
+                    .unwrap_or_else(|| panic!("Invalid handle {:?}", self))
+            }
+        }
+
+        impl crate::heap::DirectArenaAccessMut for $name<'_> {
+            #[inline]
+            fn get_direct_mut(self, source: &mut Vec<Self::Data>) -> &mut Self::Output {
+                source
+                    .get_mut(crate::heap::indexes::HeapIndexHandle::get_index(self))
+                    .unwrap_or_else(|| panic!("Invalid handle {:?}", self))
+            }
+        }
+
+        impl AsRef<Vec<$data>> for crate::ecmascript::execution::Agent {
+            #[inline(always)]
+            fn as_ref(&self) -> &Vec<$data> {
+                &self.heap.$member
+            }
+        }
+
+        impl AsMut<Vec<$data>> for crate::ecmascript::execution::Agent {
+            #[inline(always)]
+            fn as_mut(&mut self) -> &mut Vec<$data> {
+                &mut self.heap.$member
+            }
+        }
+    };
+}
+
+pub(crate) use arena_vec_access;

@@ -8,13 +8,13 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin, primitive_objects::PrimitiveObjectData},
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, BigInt, IntoValue, String, Value},
+        types::{BUILTIN_STRING_MEMORY, BigInt, String, Value},
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::WellKnownSymbolIndexes,
+    heap::{ArenaAccess, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct BigIntPrototype;
@@ -77,7 +77,7 @@ impl BigIntPrototype {
             // 5. Return BigInt::toString(x, 10).
             Ok(BigInt::to_string_radix_10(agent, x.get(agent), gc.nogc())
                 .unbind()
-                .into_value())
+                .into())
         } else {
             // 3. Else, let radixMV be ? ToIntegerOrInfinity(radix).
             let radix = to_integer_or_infinity(agent, radix.unbind(), gc.reborrow()).unbind()?;
@@ -93,7 +93,7 @@ impl BigIntPrototype {
             }
             let radix = radix.into_i64() as u32;
             // 5. Return BigInt::toString(x, radixMV).
-            Ok(BigInt::to_string_radix_n(agent, x.get(agent), radix, gc).into_value())
+            Ok(BigInt::to_string_radix_n(agent, x.get(agent), radix, gc).into())
         }
     }
 
@@ -105,7 +105,7 @@ impl BigIntPrototype {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         // 1. Return ? ThisBigIntValue(this value).
-        this_big_int_value(agent, this_value, gc.into_nogc()).map(|result| result.into_value())
+        this_big_int_value(agent, this_value, gc.into_nogc()).map(|result| result.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -149,7 +149,7 @@ fn this_big_int_value<'a>(
         Value::SmallBigInt(value) => Ok(value.into()),
         // 2. If value is an Object and value has a [[BigIntData]] internal slot, then
         Value::PrimitiveObject(value) if value.is_bigint_object(agent) => {
-            match agent[value].data {
+            match value.get(agent).data.bind(gc) {
                 // b. Return value.[[BigIntData]].
                 PrimitiveObjectData::BigInt(value) => Ok(value.into()),
                 PrimitiveObjectData::SmallBigInt(value) => Ok(value.into()),

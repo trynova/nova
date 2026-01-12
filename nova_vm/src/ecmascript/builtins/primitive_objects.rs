@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::ops::{Index, IndexMut};
-
 use crate::{
     SmallInteger,
     ecmascript::{
@@ -18,22 +16,21 @@ use crate::{
         types::{
             BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, BUILTIN_STRING_MEMORY, BigInt,
             FLOAT_DISCRIMINANT, HeapNumber, HeapString, INTEGER_DISCRIMINANT, InternalMethods,
-            InternalSlots, IntoObject, IntoPrimitive, IntoValue, NUMBER_DISCRIMINANT, Number,
-            Object, OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey,
-            SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
-            SYMBOL_DISCRIMINANT, SetResult, String, Symbol, TryGetResult, TryHasResult, Value,
-            bigint::HeapBigInt,
+            InternalSlots, NUMBER_DISCRIMINANT, Number, Object, OrdinaryObject, Primitive,
+            PropertyDescriptor, PropertyKey, SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT,
+            STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT, SetResult, String, Symbol, TryGetResult,
+            TryHasResult, Value, bigint::HeapBigInt, object_handle,
         },
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
         small_bigint::SmallBigInt,
         small_f64::SmallF64,
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        IntrinsicPrimitiveObjectIndexes, WorkQueues, indexes::BaseIndex,
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, IntrinsicPrimitiveObjectIndexes, WorkQueues, arena_vec_access,
+        indexes::BaseIndex,
     },
 };
 use small_string::SmallString;
@@ -46,101 +43,31 @@ use super::ordinary::{
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct PrimitiveObject<'a>(BaseIndex<'a, PrimitiveObjectRecord<'static>>);
+object_handle!(PrimitiveObject);
+arena_vec_access!(PrimitiveObject, 'a, PrimitiveObjectRecord, primitive_objects);
 
 impl IntrinsicPrimitiveObjectIndexes {
     pub(crate) const fn get_primitive_object<'a>(
         self,
         base: BaseIndex<'a, PrimitiveObjectRecord<'static>>,
     ) -> PrimitiveObject<'a> {
-        PrimitiveObject(BaseIndex::from_u32_index(
-            self as u32 + base.into_u32_index() + Self::PRIMITIVE_OBJECT_INDEX_OFFSET,
+        PrimitiveObject(BaseIndex::from_index_u32_const(
+            self as u32 + base.get_index_u32_const() + Self::PRIMITIVE_OBJECT_INDEX_OFFSET,
         ))
     }
 }
 
-impl<'a> From<PrimitiveObject<'a>> for Object<'a> {
-    fn from(value: PrimitiveObject) -> Self {
-        Self::PrimitiveObject(value.unbind())
-    }
-}
-
-impl<'a> From<PrimitiveObject<'a>> for Value<'a> {
-    fn from(value: PrimitiveObject<'a>) -> Self {
-        Self::PrimitiveObject(value)
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for PrimitiveObject<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Object::PrimitiveObject(obj) => Ok(obj),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for PrimitiveObject<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::PrimitiveObject(obj) => Ok(obj),
-            _ => Err(()),
-        }
-    }
-}
-
-impl Index<PrimitiveObject<'_>> for Agent {
-    type Output = PrimitiveObjectRecord<'static>;
-
-    fn index(&self, index: PrimitiveObject) -> &Self::Output {
-        &self.heap.primitive_objects[index]
-    }
-}
-
-impl IndexMut<PrimitiveObject<'_>> for Agent {
-    fn index_mut(&mut self, index: PrimitiveObject) -> &mut Self::Output {
-        &mut self.heap.primitive_objects[index]
-    }
-}
-
-impl Index<PrimitiveObject<'_>> for Vec<PrimitiveObjectRecord<'static>> {
-    type Output = PrimitiveObjectRecord<'static>;
-
-    fn index(&self, index: PrimitiveObject) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("PrimitiveObject out of bounds")
-    }
-}
-
-impl IndexMut<PrimitiveObject<'_>> for Vec<PrimitiveObjectRecord<'static>> {
-    fn index_mut(&mut self, index: PrimitiveObject) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("PrimitiveObject out of bounds")
-    }
-}
-
 impl PrimitiveObject<'_> {
-    pub(crate) const fn _def() -> Self {
-        PrimitiveObject(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
     pub fn is_bigint_object(self, agent: &Agent) -> bool {
         matches!(
-            agent[self].data,
+            self.get(agent).data,
             PrimitiveObjectData::BigInt(_) | PrimitiveObjectData::SmallBigInt(_)
         )
     }
 
     pub fn is_number_object(self, agent: &Agent) -> bool {
         matches!(
-            agent[self].data,
+            self.get(agent).data,
             PrimitiveObjectData::SmallF64(_)
                 | PrimitiveObjectData::Integer(_)
                 | PrimitiveObjectData::Number(_)
@@ -149,27 +76,25 @@ impl PrimitiveObject<'_> {
 
     pub fn is_string_object(self, agent: &Agent) -> bool {
         matches!(
-            agent[self].data,
+            self.get(agent).data,
             PrimitiveObjectData::String(_) | PrimitiveObjectData::SmallString(_)
         )
     }
 
     pub fn is_symbol_object(self, agent: &Agent) -> bool {
-        matches!(agent[self].data, PrimitiveObjectData::Symbol(_))
+        matches!(self.get(agent).data, PrimitiveObjectData::Symbol(_))
     }
 }
-
-bindable_handle!(PrimitiveObject);
 
 impl<'a> InternalSlots<'a> for PrimitiveObject<'a> {
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        self.get(agent).object_index.unbind()
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
-            agent[self]
+            self.get_mut(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()
@@ -180,11 +105,8 @@ impl<'a> InternalSlots<'a> for PrimitiveObject<'a> {
         if let Some(bo) = self.get_backing_object(agent) {
             bo.object_shape(agent)
         } else {
-            agent[self]
-                .data
-                .into_primitive()
-                .object_shape(agent)
-                .unwrap()
+            let primitive: Primitive = self.get(agent).data.into();
+            primitive.object_shape(agent).unwrap()
         }
     }
 
@@ -192,7 +114,7 @@ impl<'a> InternalSlots<'a> for PrimitiveObject<'a> {
         match self.get_backing_object(agent) {
             Some(obj) => obj.internal_prototype(agent),
             None => {
-                let intrinsic_default_proto = match agent[self].data {
+                let intrinsic_default_proto = match self.get(agent).data {
                     PrimitiveObjectData::Boolean(_) => ProtoIntrinsics::Boolean,
                     PrimitiveObjectData::String(_) | PrimitiveObjectData::SmallString(_) => {
                         ProtoIntrinsics::String
@@ -233,19 +155,13 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         // 1. Let desc be OrdinaryGetOwnProperty(S, P).
         // 2. If desc is not undefined, return desc.
         if let Some(backing_object) = o.get_backing_object(agent)
-            && let Some(property_descriptor) = ordinary_get_own_property(
-                agent,
-                o.into_object(),
-                backing_object,
-                property_key,
-                cache,
-                gc,
-            )
+            && let Some(property_descriptor) =
+                ordinary_get_own_property(agent, o.into(), backing_object, property_key, cache, gc)
         {
             return TryResult::Continue(Some(property_descriptor));
         }
 
-        if let Ok(string) = String::try_from(agent[self].data) {
+        if let Ok(string) = String::try_from(self.get(agent).data) {
             // 3. Return StringGetOwnProperty(S, P).
             TryResult::Continue(string.get_property_descriptor(agent, property_key))
         } else {
@@ -261,7 +177,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, bool> {
-        if let Ok(string) = String::try_from(agent[self].data) {
+        if let Ok(string) = String::try_from(self.get(agent).data) {
             // For string exotic objects:
             // 1. Let stringDesc be StringGetOwnProperty(S, P).
             // 2. If stringDesc is not undefined, then
@@ -287,7 +203,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
             .unwrap_or_else(|| self.create_backing_object(agent));
         js_result_into_try(ordinary_define_own_property(
             agent,
-            self.into_object(),
+            self.into(),
             backing_object,
             property_key,
             property_descriptor,
@@ -303,16 +219,16 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, TryHasResult<'gc>> {
-        if let Ok(string) = String::try_from(agent[self].data)
+        if let Ok(string) = String::try_from(self.get(agent).data)
             && string.get_property_value(agent, property_key).is_some()
         {
-            return TryHasResult::Custom(0, self.into_object().bind(gc)).into();
+            return TryHasResult::Custom(0, self.bind(gc).into()).into();
         }
 
         // 1. Return ? OrdinaryHasProperty(O, P).
         ordinary_try_has_property(
             agent,
-            self.into_object(),
+            self.into(),
             self.get_backing_object(agent),
             property_key,
             cache,
@@ -327,7 +243,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
         let property_key = property_key.bind(gc.nogc());
-        if let Ok(string) = String::try_from(agent[self].data)
+        if let Ok(string) = String::try_from(self.get(agent).data)
             && string.get_property_value(agent, property_key).is_some()
         {
             return Ok(true);
@@ -337,7 +253,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         match self.get_backing_object(agent) {
             Some(backing_object) => ordinary_has_property(
                 agent,
-                self.into_object(),
+                self.into(),
                 backing_object,
                 property_key.unbind(),
                 gc,
@@ -369,7 +285,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, TryGetResult<'gc>> {
-        if let Ok(string) = String::try_from(agent[self].data)
+        if let Ok(string) = String::try_from(self.get(agent).data)
             && let Some(value) = string.get_property_value(agent, property_key)
         {
             return TryGetResult::Value(value.bind(gc)).into();
@@ -377,7 +293,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         // 1. Return ? OrdinaryGet(O, P, Receiver).
         ordinary_try_get(
             agent,
-            self.into_object(),
+            self.into(),
             self.get_backing_object(agent),
             property_key,
             receiver,
@@ -394,7 +310,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         let property_key = property_key.bind(gc.nogc());
-        if let Ok(string) = String::try_from(agent[self].data)
+        if let Ok(string) = String::try_from(self.get(agent).data)
             && let Some(value) = string.get_property_value(agent, property_key)
         {
             return Ok(value.bind(gc.into_nogc()));
@@ -429,7 +345,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, SetResult<'gc>> {
-        if let Ok(string) = String::try_from(agent[self].data)
+        if let Ok(string) = String::try_from(self.get(agent).data)
             && string.get_property_value(agent, property_key).is_some()
         {
             return SetResult::Unwritable.into();
@@ -448,7 +364,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
         let property_key = property_key.bind(gc.nogc());
-        if let Ok(string) = String::try_from(agent[self].data)
+        if let Ok(string) = String::try_from(self.get(agent).data)
             && string.get_property_value(agent, property_key).is_some()
         {
             return Ok(false);
@@ -457,7 +373,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         // 1. Return ? OrdinarySet(O, P, V, Receiver).
         ordinary_set(
             agent,
-            self.into_object(),
+            self.into(),
             property_key.unbind(),
             value,
             receiver,
@@ -471,14 +387,14 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         property_key: PropertyKey,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, bool> {
-        if let Ok(string) = String::try_from(agent[self].data) {
+        if let Ok(string) = String::try_from(self.get(agent).data) {
             // A String will return unconfigurable descriptors for length and
             // all valid string indexes, making delete return false.
             if property_key == BUILTIN_STRING_MEMORY.length.into() {
                 return TryResult::Continue(false);
             } else if let PropertyKey::Integer(index) = property_key {
                 let index = index.into_i64();
-                if index >= 0 && (index as usize) < string.utf16_len(agent) {
+                if index >= 0 && (index as usize) < string.utf16_len_(agent) {
                     return TryResult::Continue(false);
                 }
             }
@@ -488,7 +404,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         match self.get_backing_object(agent) {
             Some(backing_object) => TryResult::Continue(ordinary_delete(
                 agent,
-                self.into_object(),
+                self.into(),
                 backing_object,
                 property_key,
                 gc,
@@ -502,8 +418,8 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, Vec<PropertyKey<'gc>>> {
-        if let Ok(string) = String::try_from(agent[self].data) {
-            let len = string.utf16_len(agent);
+        if let Ok(string) = String::try_from(self.get(agent).data) {
+            let len = string.utf16_len_(agent);
             let mut keys = Vec::with_capacity(len + 1);
 
             // Insert keys for every index into the string.
@@ -562,6 +478,7 @@ pub(crate) enum PrimitiveObjectData<'a> {
     BigInt(HeapBigInt<'a>) = BIGINT_DISCRIMINANT,
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
+bindable_handle!(PrimitiveObjectData);
 
 impl<'a> TryFrom<PrimitiveObjectData<'a>> for BigInt<'a> {
     type Error = ();
@@ -611,33 +528,28 @@ impl<'a> TryFrom<PrimitiveObjectData<'a>> for Symbol<'a> {
     }
 }
 
-impl<'a> From<PrimitiveObjectData<'a>> for Value<'a> {
+impl<'a> From<PrimitiveObjectData<'a>> for Primitive<'a> {
     fn from(value: PrimitiveObjectData<'a>) -> Self {
-        value.into_primitive().into_value()
-    }
-}
-
-impl<'a> IntoPrimitive<'a> for PrimitiveObjectData<'a> {
-    fn into_primitive(self) -> Primitive<'a> {
-        match self {
-            PrimitiveObjectData::Boolean(d) => Primitive::Boolean(d),
-            PrimitiveObjectData::String(d) => Primitive::String(d),
-            PrimitiveObjectData::SmallString(d) => Primitive::SmallString(d),
-            PrimitiveObjectData::Symbol(d) => Primitive::Symbol(d),
-            PrimitiveObjectData::Number(d) => Primitive::Number(d),
-            PrimitiveObjectData::Integer(d) => Primitive::Integer(d),
-            PrimitiveObjectData::SmallF64(d) => Primitive::SmallF64(d),
-            PrimitiveObjectData::BigInt(d) => Primitive::BigInt(d),
-            PrimitiveObjectData::SmallBigInt(d) => Primitive::SmallBigInt(d),
+        match value {
+            PrimitiveObjectData::Boolean(d) => Self::Boolean(d),
+            PrimitiveObjectData::String(d) => Self::String(d),
+            PrimitiveObjectData::SmallString(d) => Self::SmallString(d),
+            PrimitiveObjectData::Symbol(d) => Self::Symbol(d),
+            PrimitiveObjectData::Number(d) => Self::Number(d),
+            PrimitiveObjectData::Integer(d) => Self::Integer(d),
+            PrimitiveObjectData::SmallF64(d) => Self::SmallF64(d),
+            PrimitiveObjectData::BigInt(d) => Self::BigInt(d),
+            PrimitiveObjectData::SmallBigInt(d) => Self::SmallBigInt(d),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PrimitiveObjectRecord<'a> {
+pub(crate) struct PrimitiveObjectRecord<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) data: PrimitiveObjectData<'a>,
 }
+bindable_handle!(PrimitiveObjectRecord);
 
 impl<'a> PrimitiveObjectRecord<'a> {
     pub(crate) const BLANK: Self = Self {
@@ -693,31 +605,6 @@ impl<'a> PrimitiveObjectRecord<'a> {
         }
     }
 }
-
-impl Rootable for PrimitiveObject<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::PrimitiveObject(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::PrimitiveObject(object) => Some(object),
-            _ => None,
-        }
-    }
-}
-
-bindable_handle!(PrimitiveObjectRecord);
 
 impl HeapMarkAndSweep for PrimitiveObjectRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

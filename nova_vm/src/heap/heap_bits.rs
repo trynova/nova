@@ -42,51 +42,56 @@ use crate::ecmascript::builtins::{
 };
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
-use crate::ecmascript::{
-    builtins::{
-        Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
-        async_generator_objects::AsyncGenerator,
-        bound_function::BoundFunction,
-        control_abstraction_objects::{
-            async_function_objects::await_reaction::AwaitReaction,
-            generator_objects::Generator,
-            promise_objects::promise_abstract_operations::{
-                promise_reaction_records::PromiseReaction,
-                promise_resolving_functions::BuiltinPromiseResolvingFunction,
-            },
-        },
-        embedder_object::EmbedderObject,
-        error::Error,
-        finalization_registry::FinalizationRegistry,
-        indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
-        keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
-        map::Map,
-        module::Module,
-        ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
-        primitive_objects::PrimitiveObject,
-        promise::Promise,
-        promise_objects::promise_abstract_operations::{
-            promise_finally_functions::BuiltinPromiseFinallyFunction,
-            promise_group_record::PromiseGroup,
-        },
-        proxy::Proxy,
-        text_processing::string_objects::string_iterator_objects::StringIterator,
-    },
-    execution::{
-        DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ModuleEnvironment,
-        ObjectEnvironment, PrivateEnvironment, Realm, WeakKey,
-    },
-    scripts_and_modules::{
-        module::module_semantics::{ModuleRequest, source_text_module_records::SourceTextModule},
-        script::Script,
-        source_code::SourceCode,
-    },
-    types::{
-        BUILTIN_STRINGS_LIST, HeapNumber, HeapString, OrdinaryObject, Symbol, Value,
-        bigint::HeapBigInt,
-    },
-};
 use crate::engine::Executable;
+use crate::{
+    ecmascript::{
+        builtins::{
+            Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
+            bound_function::BoundFunction,
+            control_abstraction_objects::async_generator_objects::AsyncGenerator,
+            control_abstraction_objects::promise_objects::promise_abstract_operations::{
+                promise_finally_functions::BuiltinPromiseFinallyFunction,
+                promise_group_record::PromiseGroup,
+            },
+            control_abstraction_objects::{
+                async_function_objects::await_reaction::AwaitReaction,
+                generator_objects::Generator,
+                promise_objects::promise_abstract_operations::{
+                    promise_reaction_records::PromiseReaction,
+                    promise_resolving_functions::BuiltinPromiseResolvingFunction,
+                },
+            },
+            embedder_object::EmbedderObject,
+            error::Error,
+            finalization_registry::FinalizationRegistry,
+            indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
+            keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
+            map::Map,
+            module::Module,
+            ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
+            primitive_objects::PrimitiveObject,
+            promise::Promise,
+            proxy::Proxy,
+            text_processing::string_objects::string_iterator_objects::StringIterator,
+        },
+        execution::{
+            DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ModuleEnvironment,
+            ObjectEnvironment, PrivateEnvironment, Realm, WeakKey,
+        },
+        scripts_and_modules::{
+            module::module_semantics::{
+                ModuleRequest, source_text_module_records::SourceTextModule,
+            },
+            script::Script,
+            source_code::SourceCode,
+        },
+        types::{
+            BUILTIN_STRINGS_LIST, HeapNumber, HeapString, OrdinaryObject, Symbol, Value,
+            bigint::HeapBigInt,
+        },
+    },
+    heap::indexes::HeapIndexHandle,
+};
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct BitRange(Range<usize>);
@@ -1440,7 +1445,7 @@ impl CompactionList {
 
     /// Shift a strongly held reference index.
     pub(crate) fn shift_index<T: ?Sized>(&self, index: &mut BaseIndex<T>) {
-        *index = BaseIndex::from_u32_index(self.shift_strong_u32_index(index.into_u32_index()));
+        *index = BaseIndex::from_index_u32(self.shift_strong_u32_index(index.get_index_u32()));
     }
 
     /// Shift a strongly held bare NonZeroU32 reference index.
@@ -1464,9 +1469,9 @@ impl CompactionList {
         &self,
         index: BaseIndex<'a, T>,
     ) -> Option<BaseIndex<'a, T>> {
-        let base_index = index.into_u32_index();
+        let base_index = index.get_index_u32();
         let base_index = self.shift_weak_u32_index(base_index)?;
-        Some(BaseIndex::from_u32_index(base_index))
+        Some(BaseIndex::from_index_u32(base_index))
     }
 
     /// Shift a weakly held non-zero reference index. Returns a new index if
@@ -2364,7 +2369,7 @@ pub(crate) fn sweep_heap_elements_vector_descriptors(
     let mut keys_to_reassign = Vec::with_capacity(range.len() / 4);
     for (key, descriptor) in descriptors.iter_mut() {
         let old_key = *key;
-        if !range.get_bit(old_key.into_index(), bits) {
+        if !range.get_bit(old_key.get_index(), bits) {
             keys_to_remove.push(old_key);
         } else {
             for descriptor in descriptor.values_mut() {

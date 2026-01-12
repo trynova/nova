@@ -67,6 +67,10 @@ use crate::{
 /// In Nova engine, TypedArrays viewing a [`SharedArrayBuffer`] are represented
 /// by a [`SharedTypedArray`], and TypedArrays viewing an [`ArrayBuffer`] are
 /// represented by a [`TypedArray`].
+///
+/// [`ArrayBuffer`]: crate::ecmascript::builtins::ArrayBuffer
+/// [`SharedArrayBuffer`]: crate::ecmascript::builtins::SharedArrayBuffer
+/// [`SharedTypedArray`]: crate::ecmascript::builtins::SharedTypedArray
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
@@ -916,240 +920,6 @@ impl<'a> TypedArrayAbstractOperations<'a> for AnyTypedArray<'a> {
     }
 }
 
-impl<'a> From<AnyTypedArray<'a>> for Value<'a> {
-    #[inline(always)]
-    fn from(value: AnyTypedArray<'a>) -> Self {
-        match value {
-            AnyTypedArray::Int8Array(ta) => Self::Int8Array(ta),
-            AnyTypedArray::Uint8Array(ta) => Self::Uint8Array(ta),
-            AnyTypedArray::Uint8ClampedArray(ta) => Self::Uint8ClampedArray(ta),
-            AnyTypedArray::Int16Array(ta) => Self::Int16Array(ta),
-            AnyTypedArray::Uint16Array(ta) => Self::Uint16Array(ta),
-            AnyTypedArray::Int32Array(ta) => Self::Int32Array(ta),
-            AnyTypedArray::Uint32Array(ta) => Self::Uint32Array(ta),
-            AnyTypedArray::BigInt64Array(ta) => Self::BigInt64Array(ta),
-            AnyTypedArray::BigUint64Array(ta) => Self::BigUint64Array(ta),
-            #[cfg(feature = "proposal-float16array")]
-            AnyTypedArray::Float16Array(sta) => Self::Float16Array(sta),
-            AnyTypedArray::Float32Array(ta) => Self::Float32Array(ta),
-            AnyTypedArray::Float64Array(ta) => Self::Float64Array(ta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedInt8Array(sta) => Self::SharedInt8Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedUint8Array(sta) => Self::SharedUint8Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedUint8ClampedArray(sta) => Self::SharedUint8ClampedArray(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedInt16Array(sta) => Self::SharedInt16Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedUint16Array(sta) => Self::SharedUint16Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedInt32Array(sta) => Self::SharedInt32Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedUint32Array(sta) => Self::SharedUint32Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedBigInt64Array(sta) => Self::SharedBigInt64Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedBigUint64Array(sta) => Self::SharedBigUint64Array(sta),
-            #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
-            AnyTypedArray::SharedFloat16Array(sta) => Self::SharedFloat16Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedFloat32Array(sta) => Self::SharedFloat32Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedFloat64Array(sta) => Self::SharedFloat64Array(sta),
-        }
-    }
-}
-
-impl<'a> From<AnyTypedArray<'a>> for Object<'a> {
-    #[inline(always)]
-    fn from(value: AnyTypedArray<'a>) -> Self {
-        match value {
-            AnyTypedArray::Int8Array(ta) => Self::Int8Array(ta),
-            AnyTypedArray::Uint8Array(ta) => Self::Uint8Array(ta),
-            AnyTypedArray::Uint8ClampedArray(ta) => Self::Uint8ClampedArray(ta),
-            AnyTypedArray::Int16Array(ta) => Self::Int16Array(ta),
-            AnyTypedArray::Uint16Array(ta) => Self::Uint16Array(ta),
-            AnyTypedArray::Int32Array(ta) => Self::Int32Array(ta),
-            AnyTypedArray::Uint32Array(ta) => Self::Uint32Array(ta),
-            AnyTypedArray::BigInt64Array(ta) => Self::BigInt64Array(ta),
-            AnyTypedArray::BigUint64Array(ta) => Self::BigUint64Array(ta),
-            #[cfg(feature = "proposal-float16array")]
-            AnyTypedArray::Float16Array(sta) => Self::Float16Array(sta),
-            AnyTypedArray::Float32Array(ta) => Self::Float32Array(ta),
-            AnyTypedArray::Float64Array(ta) => Self::Float64Array(ta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedInt8Array(sta) => Self::SharedInt8Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedUint8Array(sta) => Self::SharedUint8Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedUint8ClampedArray(sta) => Self::SharedUint8ClampedArray(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedInt16Array(sta) => Self::SharedInt16Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedUint16Array(sta) => Self::SharedUint16Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedInt32Array(sta) => Self::SharedInt32Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedUint32Array(sta) => Self::SharedUint32Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedBigInt64Array(sta) => Self::SharedBigInt64Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedBigUint64Array(sta) => Self::SharedBigUint64Array(sta),
-            #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
-            AnyTypedArray::SharedFloat16Array(sta) => Self::SharedFloat16Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedFloat32Array(sta) => Self::SharedFloat32Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyTypedArray::SharedFloat64Array(sta) => Self::SharedFloat64Array(sta),
-        }
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for AnyTypedArray<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::Int8Array(ta) => Ok(Self::Int8Array(ta)),
-            Value::Uint8Array(ta) => Ok(Self::Uint8Array(ta)),
-            Value::Uint8ClampedArray(ta) => Ok(Self::Uint8ClampedArray(ta)),
-            Value::Int16Array(ta) => Ok(Self::Int16Array(ta)),
-            Value::Uint16Array(ta) => Ok(Self::Uint16Array(ta)),
-            Value::Int32Array(ta) => Ok(Self::Int32Array(ta)),
-            Value::Uint32Array(ta) => Ok(Self::Uint32Array(ta)),
-            Value::BigInt64Array(ta) => Ok(Self::BigInt64Array(ta)),
-            Value::BigUint64Array(ta) => Ok(Self::BigUint64Array(ta)),
-            #[cfg(feature = "proposal-float16array")]
-            Value::Float16Array(sta) => Ok(Self::Float16Array(sta)),
-            Value::Float32Array(ta) => Ok(Self::Float32Array(ta)),
-            Value::Float64Array(ta) => Ok(Self::Float64Array(ta)),
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedInt8Array(base_index) => Ok(Self::SharedInt8Array(base_index)),
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedUint8Array(base_index) => Ok(Self::SharedUint8Array(base_index)),
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedUint8ClampedArray(base_index) => {
-                Ok(Self::SharedUint8ClampedArray(base_index))
-            }
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedInt16Array(base_index) => Ok(Self::SharedInt16Array(base_index)),
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedUint16Array(base_index) => Ok(Self::SharedUint16Array(base_index)),
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedInt32Array(base_index) => Ok(Self::SharedInt32Array(base_index)),
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedUint32Array(base_index) => Ok(Self::SharedUint32Array(base_index)),
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedBigInt64Array(base_index) => Ok(Self::SharedBigInt64Array(base_index)),
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedBigUint64Array(base_index) => Ok(Self::SharedBigUint64Array(base_index)),
-            #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
-            Value::SharedFloat16Array(base_index) => Ok(Self::SharedFloat16Array(base_index)),
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedFloat32Array(base_index) => Ok(Self::SharedFloat32Array(base_index)),
-            #[cfg(feature = "shared-array-buffer")]
-            Value::SharedFloat64Array(base_index) => Ok(Self::SharedFloat64Array(base_index)),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for AnyTypedArray<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Object::Int8Array(ta) => Ok(Self::Int8Array(ta)),
-            Object::Uint8Array(ta) => Ok(Self::Uint8Array(ta)),
-            Object::Uint8ClampedArray(ta) => Ok(Self::Uint8ClampedArray(ta)),
-            Object::Int16Array(ta) => Ok(Self::Int16Array(ta)),
-            Object::Uint16Array(ta) => Ok(Self::Uint16Array(ta)),
-            Object::Int32Array(ta) => Ok(Self::Int32Array(ta)),
-            Object::Uint32Array(ta) => Ok(Self::Uint32Array(ta)),
-            Object::BigInt64Array(ta) => Ok(Self::BigInt64Array(ta)),
-            Object::BigUint64Array(ta) => Ok(Self::BigUint64Array(ta)),
-            #[cfg(feature = "proposal-float16array")]
-            Object::Float16Array(sta) => Ok(Self::Float16Array(sta)),
-            Object::Float32Array(ta) => Ok(Self::Float32Array(ta)),
-            Object::Float64Array(ta) => Ok(Self::Float64Array(ta)),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedUint8Array(t) => Ok(Self::SharedUint8Array(t)),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedInt8Array(t) => Ok(Self::SharedInt8Array(t)),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedUint8ClampedArray(t) => Ok(Self::SharedUint8ClampedArray(t)),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedInt16Array(t) => Ok(Self::SharedInt16Array(t)),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedUint16Array(t) => Ok(Self::SharedUint16Array(t)),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedInt32Array(t) => Ok(Self::SharedInt32Array(t)),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedUint32Array(t) => Ok(Self::SharedUint32Array(t)),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedBigInt64Array(t) => Ok(Self::SharedBigInt64Array(t)),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedBigUint64Array(t) => Ok(Self::SharedBigUint64Array(t)),
-            #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
-            Object::SharedFloat16Array(t) => Ok(Self::SharedFloat16Array(t)),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedFloat32Array(t) => Ok(Self::SharedFloat32Array(t)),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedFloat64Array(t) => Ok(Self::SharedFloat64Array(t)),
-            _ => Err(()),
-        }
-    }
-}
-
-impl TryFrom<HeapRootData> for AnyTypedArray<'_> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        match value {
-            HeapRootData::Int8Array(ta) => Ok(Self::Int8Array(ta)),
-            HeapRootData::Uint8Array(ta) => Ok(Self::Uint8Array(ta)),
-            HeapRootData::Uint8ClampedArray(ta) => Ok(Self::Uint8ClampedArray(ta)),
-            HeapRootData::Int16Array(ta) => Ok(Self::Int16Array(ta)),
-            HeapRootData::Uint16Array(ta) => Ok(Self::Uint16Array(ta)),
-            HeapRootData::Int32Array(ta) => Ok(Self::Int32Array(ta)),
-            HeapRootData::Uint32Array(ta) => Ok(Self::Uint32Array(ta)),
-            HeapRootData::BigInt64Array(ta) => Ok(Self::BigInt64Array(ta)),
-            HeapRootData::BigUint64Array(ta) => Ok(Self::BigUint64Array(ta)),
-            #[cfg(feature = "proposal-float16array")]
-            HeapRootData::Float16Array(ta) => Ok(Self::Float16Array(ta)),
-            HeapRootData::Float32Array(ta) => Ok(Self::Float32Array(ta)),
-            HeapRootData::Float64Array(ta) => Ok(Self::Float64Array(ta)),
-            #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedInt8Array(sta) => Ok(Self::SharedInt8Array(sta)),
-            #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedUint8Array(sta) => Ok(Self::SharedUint8Array(sta)),
-            #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedUint8ClampedArray(sta) => Ok(Self::SharedUint8ClampedArray(sta)),
-            #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedInt16Array(sta) => Ok(Self::SharedInt16Array(sta)),
-            #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedUint16Array(sta) => Ok(Self::SharedUint16Array(sta)),
-            #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedInt32Array(sta) => Ok(Self::SharedInt32Array(sta)),
-            #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedUint32Array(sta) => Ok(Self::SharedUint32Array(sta)),
-            #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedBigInt64Array(sta) => Ok(Self::SharedBigInt64Array(sta)),
-            #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedBigUint64Array(sta) => Ok(Self::SharedBigUint64Array(sta)),
-            #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
-            HeapRootData::SharedFloat16Array(sta) => Ok(Self::SharedFloat16Array(sta)),
-            #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedFloat32Array(sta) => Ok(Self::SharedFloat32Array(sta)),
-            #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedFloat64Array(sta) => Ok(Self::SharedFloat64Array(sta)),
-            _ => Err(()),
-        }
-    }
-}
-
 impl HeapMarkAndSweep for AnyTypedArray<'static> {
     fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
         match self {
@@ -1235,3 +1005,166 @@ impl HeapMarkAndSweep for AnyTypedArray<'static> {
         }
     }
 }
+
+// === OUTPUT FROM object_handle! ADAPTED TO AnyTypedArray ===
+impl<'a> From<AnyTypedArray<'a>> for Object<'a> {
+    #[inline(always)]
+    fn from(value: AnyTypedArray<'a>) -> Self {
+        match value {
+            AnyTypedArray::Int8Array(ta) => Self::Int8Array(ta),
+            AnyTypedArray::Uint8Array(ta) => Self::Uint8Array(ta),
+            AnyTypedArray::Uint8ClampedArray(ta) => Self::Uint8ClampedArray(ta),
+            AnyTypedArray::Int16Array(ta) => Self::Int16Array(ta),
+            AnyTypedArray::Uint16Array(ta) => Self::Uint16Array(ta),
+            AnyTypedArray::Int32Array(ta) => Self::Int32Array(ta),
+            AnyTypedArray::Uint32Array(ta) => Self::Uint32Array(ta),
+            AnyTypedArray::BigInt64Array(ta) => Self::BigInt64Array(ta),
+            AnyTypedArray::BigUint64Array(ta) => Self::BigUint64Array(ta),
+            #[cfg(feature = "proposal-float16array")]
+            AnyTypedArray::Float16Array(sta) => Self::Float16Array(sta),
+            AnyTypedArray::Float32Array(ta) => Self::Float32Array(ta),
+            AnyTypedArray::Float64Array(ta) => Self::Float64Array(ta),
+            #[cfg(feature = "shared-array-buffer")]
+            AnyTypedArray::SharedInt8Array(sta) => Self::SharedInt8Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            AnyTypedArray::SharedUint8Array(sta) => Self::SharedUint8Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            AnyTypedArray::SharedUint8ClampedArray(sta) => Self::SharedUint8ClampedArray(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            AnyTypedArray::SharedInt16Array(sta) => Self::SharedInt16Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            AnyTypedArray::SharedUint16Array(sta) => Self::SharedUint16Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            AnyTypedArray::SharedInt32Array(sta) => Self::SharedInt32Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            AnyTypedArray::SharedUint32Array(sta) => Self::SharedUint32Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            AnyTypedArray::SharedBigInt64Array(sta) => Self::SharedBigInt64Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            AnyTypedArray::SharedBigUint64Array(sta) => Self::SharedBigUint64Array(sta),
+            #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+            AnyTypedArray::SharedFloat16Array(sta) => Self::SharedFloat16Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            AnyTypedArray::SharedFloat32Array(sta) => Self::SharedFloat32Array(sta),
+            #[cfg(feature = "shared-array-buffer")]
+            AnyTypedArray::SharedFloat64Array(sta) => Self::SharedFloat64Array(sta),
+        }
+    }
+}
+impl<'a> From<AnyTypedArray<'a>> for Value<'a> {
+    #[inline(always)]
+    fn from(value: AnyTypedArray<'a>) -> Self {
+        let value: Object = value.into();
+        value.into()
+    }
+}
+impl<'a> From<AnyTypedArray<'a>> for HeapRootData {
+    #[inline(always)]
+    fn from(value: AnyTypedArray<'a>) -> Self {
+        let value: Object = value.into();
+        value.into()
+    }
+}
+impl<'a> TryFrom<Object<'a>> for AnyTypedArray<'a> {
+    type Error = ();
+    #[inline]
+    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
+        let value: Value = value.into();
+        Self::try_from(value)
+    }
+}
+impl<'a> TryFrom<Value<'a>> for AnyTypedArray<'a> {
+    type Error = ();
+    #[inline]
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Value::Int8Array(ta) => Ok(Self::Int8Array(ta)),
+            Value::Uint8Array(ta) => Ok(Self::Uint8Array(ta)),
+            Value::Uint8ClampedArray(ta) => Ok(Self::Uint8ClampedArray(ta)),
+            Value::Int16Array(ta) => Ok(Self::Int16Array(ta)),
+            Value::Uint16Array(ta) => Ok(Self::Uint16Array(ta)),
+            Value::Int32Array(ta) => Ok(Self::Int32Array(ta)),
+            Value::Uint32Array(ta) => Ok(Self::Uint32Array(ta)),
+            Value::BigInt64Array(ta) => Ok(Self::BigInt64Array(ta)),
+            Value::BigUint64Array(ta) => Ok(Self::BigUint64Array(ta)),
+            #[cfg(feature = "proposal-float16array")]
+            Value::Float16Array(sta) => Ok(Self::Float16Array(sta)),
+            Value::Float32Array(ta) => Ok(Self::Float32Array(ta)),
+            Value::Float64Array(ta) => Ok(Self::Float64Array(ta)),
+            #[cfg(feature = "shared-array-buffer")]
+            Value::SharedInt8Array(base_index) => Ok(Self::SharedInt8Array(base_index)),
+            #[cfg(feature = "shared-array-buffer")]
+            Value::SharedUint8Array(base_index) => Ok(Self::SharedUint8Array(base_index)),
+            #[cfg(feature = "shared-array-buffer")]
+            Value::SharedUint8ClampedArray(base_index) => {
+                Ok(Self::SharedUint8ClampedArray(base_index))
+            }
+            #[cfg(feature = "shared-array-buffer")]
+            Value::SharedInt16Array(base_index) => Ok(Self::SharedInt16Array(base_index)),
+            #[cfg(feature = "shared-array-buffer")]
+            Value::SharedUint16Array(base_index) => Ok(Self::SharedUint16Array(base_index)),
+            #[cfg(feature = "shared-array-buffer")]
+            Value::SharedInt32Array(base_index) => Ok(Self::SharedInt32Array(base_index)),
+            #[cfg(feature = "shared-array-buffer")]
+            Value::SharedUint32Array(base_index) => Ok(Self::SharedUint32Array(base_index)),
+            #[cfg(feature = "shared-array-buffer")]
+            Value::SharedBigInt64Array(base_index) => Ok(Self::SharedBigInt64Array(base_index)),
+            #[cfg(feature = "shared-array-buffer")]
+            Value::SharedBigUint64Array(base_index) => Ok(Self::SharedBigUint64Array(base_index)),
+            #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+            Value::SharedFloat16Array(base_index) => Ok(Self::SharedFloat16Array(base_index)),
+            #[cfg(feature = "shared-array-buffer")]
+            Value::SharedFloat32Array(base_index) => Ok(Self::SharedFloat32Array(base_index)),
+            #[cfg(feature = "shared-array-buffer")]
+            Value::SharedFloat64Array(base_index) => Ok(Self::SharedFloat64Array(base_index)),
+            _ => Err(()),
+        }
+    }
+}
+impl TryFrom<HeapRootData> for AnyTypedArray<'_> {
+    type Error = ();
+    #[inline]
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        match value {
+            HeapRootData::Int8Array(ta) => Ok(Self::Int8Array(ta)),
+            HeapRootData::Uint8Array(ta) => Ok(Self::Uint8Array(ta)),
+            HeapRootData::Uint8ClampedArray(ta) => Ok(Self::Uint8ClampedArray(ta)),
+            HeapRootData::Int16Array(ta) => Ok(Self::Int16Array(ta)),
+            HeapRootData::Uint16Array(ta) => Ok(Self::Uint16Array(ta)),
+            HeapRootData::Int32Array(ta) => Ok(Self::Int32Array(ta)),
+            HeapRootData::Uint32Array(ta) => Ok(Self::Uint32Array(ta)),
+            HeapRootData::BigInt64Array(ta) => Ok(Self::BigInt64Array(ta)),
+            HeapRootData::BigUint64Array(ta) => Ok(Self::BigUint64Array(ta)),
+            #[cfg(feature = "proposal-float16array")]
+            HeapRootData::Float16Array(ta) => Ok(Self::Float16Array(ta)),
+            HeapRootData::Float32Array(ta) => Ok(Self::Float32Array(ta)),
+            HeapRootData::Float64Array(ta) => Ok(Self::Float64Array(ta)),
+            #[cfg(feature = "shared-array-buffer")]
+            HeapRootData::SharedInt8Array(sta) => Ok(Self::SharedInt8Array(sta)),
+            #[cfg(feature = "shared-array-buffer")]
+            HeapRootData::SharedUint8Array(sta) => Ok(Self::SharedUint8Array(sta)),
+            #[cfg(feature = "shared-array-buffer")]
+            HeapRootData::SharedUint8ClampedArray(sta) => Ok(Self::SharedUint8ClampedArray(sta)),
+            #[cfg(feature = "shared-array-buffer")]
+            HeapRootData::SharedInt16Array(sta) => Ok(Self::SharedInt16Array(sta)),
+            #[cfg(feature = "shared-array-buffer")]
+            HeapRootData::SharedUint16Array(sta) => Ok(Self::SharedUint16Array(sta)),
+            #[cfg(feature = "shared-array-buffer")]
+            HeapRootData::SharedInt32Array(sta) => Ok(Self::SharedInt32Array(sta)),
+            #[cfg(feature = "shared-array-buffer")]
+            HeapRootData::SharedUint32Array(sta) => Ok(Self::SharedUint32Array(sta)),
+            #[cfg(feature = "shared-array-buffer")]
+            HeapRootData::SharedBigInt64Array(sta) => Ok(Self::SharedBigInt64Array(sta)),
+            #[cfg(feature = "shared-array-buffer")]
+            HeapRootData::SharedBigUint64Array(sta) => Ok(Self::SharedBigUint64Array(sta)),
+            #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+            HeapRootData::SharedFloat16Array(sta) => Ok(Self::SharedFloat16Array(sta)),
+            #[cfg(feature = "shared-array-buffer")]
+            HeapRootData::SharedFloat32Array(sta) => Ok(Self::SharedFloat32Array(sta)),
+            #[cfg(feature = "shared-array-buffer")]
+            HeapRootData::SharedFloat64Array(sta) => Ok(Self::SharedFloat64Array(sta)),
+            _ => Err(()),
+        }
+    }
+}
+// === END ===

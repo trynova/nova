@@ -12,15 +12,15 @@ use crate::{
         builtins::proxy::abstract_operations::{NonRevokedProxy, validate_non_revoked_proxy},
         execution::{Agent, JsResult, agent::ExceptionType},
         types::{
-            Function, InternalMethods, IntoValue, Number, Numeric, Object, Primitive, String,
-            Value, bigint::BigInt,
+            Function, InternalMethods, Number, Numeric, Object, Primitive, String, Value,
+            bigint::BigInt,
         },
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::PrimitiveHeapIndexable,
+    heap::{ArenaAccess, PrimitiveHeapAccess},
 };
 
 #[cfg(feature = "regexp")]
@@ -62,10 +62,10 @@ pub(crate) fn require_object_coercible<'gc>(
 /// or a throw completion.
 pub(crate) fn is_array<'a, 'gc>(
     agent: &mut Agent,
-    argument: impl IntoValue<'a>,
+    argument: impl Into<Value<'a>>,
     gc: NoGcScope<'gc, '_>,
 ) -> JsResult<'gc, bool> {
-    let argument = argument.into_value().bind(gc);
+    let argument = argument.into().bind(gc);
 
     match argument {
         // 1. If argument is not an Object, return false.
@@ -238,7 +238,7 @@ pub(crate) fn is_integral_number<'a>(
     };
 
     // 2. If argument is not finite, return false.
-    if !argument.is_finite(agent) {
+    if !argument.is_finite_(agent) {
         return false;
     }
 
@@ -251,7 +251,7 @@ pub(crate) fn is_integral_number<'a>(
 
 /// ### [7.2.10 SameValue ( x, y )](https://tc39.es/ecma262/#sec-samevalue)
 pub(crate) fn same_value<'a, V1: Copy + Into<Value<'a>>, V2: Copy + Into<Value<'a>>>(
-    agent: &impl PrimitiveHeapIndexable,
+    agent: &impl PrimitiveHeapAccess,
     x: V1,
     y: V2,
 ) -> bool {
@@ -263,7 +263,7 @@ pub(crate) fn same_value<'a, V1: Copy + Into<Value<'a>>, V2: Copy + Into<Value<'
     // 2. If x is a Number, then
     if let (Ok(x), Ok(y)) = (Number::try_from(x.into()), Number::try_from(y.into())) {
         // a. Return Number::sameValue(x, y).
-        return Number::same_value(agent, x, y);
+        return Number::same_value_(agent, x, y);
     }
 
     // 3. Return SameValueNonNumber(x, y).
@@ -279,7 +279,7 @@ pub(crate) fn same_value<'a, V1: Copy + Into<Value<'a>>, V2: Copy + Into<Value<'
 /// It determines whether or not the two arguments are the same value (ignoring
 /// the difference between +0𝔽 and -0𝔽).
 pub(crate) fn same_value_zero<'a>(
-    agent: &impl PrimitiveHeapIndexable,
+    agent: &impl PrimitiveHeapAccess,
     x: impl Copy + Into<Value<'a>>,
     y: impl Copy + Into<Value<'a>>,
 ) -> bool {
@@ -295,7 +295,7 @@ pub(crate) fn same_value_zero<'a>(
     // type-safety.
     if let (Ok(x), Ok(y)) = (Number::try_from(x), Number::try_from(y)) {
         // a. Return Number::sameValueZero(x, y).
-        return Number::same_value_zero(agent, x, y);
+        return Number::same_value_zero_(agent, x, y);
     }
 
     // 3. Return SameValueNonNumber(x, y).
@@ -304,7 +304,7 @@ pub(crate) fn same_value_zero<'a>(
 
 /// ### [7.2.12 SameValueNonNumber ( x, y )](https://tc39.es/ecma262/#sec-samevaluenonnumber)
 pub(crate) fn same_value_non_number<'a, T: Copy + Into<Value<'a>>>(
-    agent: &impl PrimitiveHeapIndexable,
+    agent: &impl PrimitiveHeapAccess,
     x: T,
     y: T,
 ) -> bool {
@@ -328,7 +328,7 @@ pub(crate) fn same_value_non_number<'a, T: Copy + Into<Value<'a>>>(
     // 4. If x is a String, then
     if let (Ok(x), Ok(y)) = (String::try_from(x), String::try_from(y)) {
         // a. If x and y have the same length and the same code units in the same positions, return true; otherwise, return false.
-        return String::eq(agent, x, y);
+        return String::eq_(agent, x, y);
     }
 
     // 5. If x is a Boolean, then
@@ -439,14 +439,14 @@ pub(crate) fn is_less_than<'a, const LEFT_FIRST: bool>(
         // d. If lx < ly, return true. Otherwise, return false.
         let sx = String::try_from(px).unwrap();
         let sy = String::try_from(py).unwrap();
-        if let (Some(sx), Some(sy)) = (sx.as_str(agent), sy.as_str(agent)) {
+        if let (Some(sx), Some(sy)) = (sx.as_str_(agent), sy.as_str_(agent)) {
             Ok(Some(sx < sy))
         } else {
-            let lx = sx.utf16_len(agent);
-            let ly = sy.utf16_len(agent);
+            let lx = sx.utf16_len_(agent);
+            let ly = sy.utf16_len_(agent);
             let l = lx.min(ly);
-            let mut sx = sx.as_wtf8(agent).to_ill_formed_utf16();
-            let mut sy = sy.as_wtf8(agent).to_ill_formed_utf16();
+            let mut sx = sx.as_wtf8_(agent).to_ill_formed_utf16();
+            let mut sy = sy.as_wtf8_(agent).to_ill_formed_utf16();
             for _ in 0..l {
                 // i. Let cx be the numeric value of the code unit at index i within px.
                 let cx = sx.next().unwrap();
@@ -548,30 +548,30 @@ pub(crate) fn is_less_than<'a, const LEFT_FIRST: bool>(
 
         // k. If ℝ(nx) < ℝ(ny), return true; otherwise return false.
         Ok(Some(match (nx, ny) {
-            (Numeric::Number(x), Numeric::Number(y)) => x != y && agent[x] < agent[y],
-            (Numeric::Number(x), Numeric::Integer(y)) => agent[x] < y.into_i64() as f64,
-            (Numeric::Number(x), Numeric::SmallF64(y)) => agent[x] < y.into_f64(),
-            (Numeric::Integer(x), Numeric::Number(y)) => (x.into_i64() as f64) < agent[y],
+            (Numeric::Number(x), Numeric::Number(y)) => x != y && x.get(agent) < y.get(agent),
+            (Numeric::Number(x), Numeric::Integer(y)) => *x.get(agent) < y.into_i64() as f64,
+            (Numeric::Number(x), Numeric::SmallF64(y)) => *x.get(agent) < y.into_f64(),
+            (Numeric::Integer(x), Numeric::Number(y)) => (x.into_i64() as f64) < *y.get(agent),
             (Numeric::Integer(x), Numeric::Integer(y)) => x.into_i64() < y.into_i64(),
-            (Numeric::Number(x), Numeric::BigInt(y)) => agent[y].ge(&agent[x]),
-            (Numeric::Number(x), Numeric::SmallBigInt(y)) => agent[x] < y.into_i64() as f64,
+            (Numeric::Number(x), Numeric::BigInt(y)) => y.get(agent).ge(x.get(agent)),
+            (Numeric::Number(x), Numeric::SmallBigInt(y)) => *x.get(agent) < y.into_i64() as f64,
             (Numeric::Integer(x), Numeric::SmallF64(y)) => (x.into_i64() as f64) < y.into_f64(),
-            (Numeric::Integer(x), Numeric::BigInt(y)) => agent[y].ge(&x.into_i64()),
+            (Numeric::Integer(x), Numeric::BigInt(y)) => y.get(agent).ge(&x.into_i64()),
             (Numeric::Integer(x), Numeric::SmallBigInt(y)) => x.into_i64() < y.into_i64(),
-            (Numeric::SmallF64(x), Numeric::Number(y)) => x.into_f64() < agent[y],
+            (Numeric::SmallF64(x), Numeric::Number(y)) => x.into_f64() < *y.get(agent),
             (Numeric::SmallF64(x), Numeric::Integer(y)) => x.into_f64() < y.into_i64() as f64,
             (Numeric::SmallF64(x), Numeric::SmallF64(y)) => x.into_f64() < y.into_f64(),
-            (Numeric::SmallF64(x), Numeric::BigInt(y)) => agent[y].ge(&x.into_f64()),
+            (Numeric::SmallF64(x), Numeric::BigInt(y)) => y.get(agent).ge(&x.into_f64()),
             (Numeric::SmallF64(x), Numeric::SmallBigInt(y)) => x.into_f64() < y.into_i64() as f64,
-            (Numeric::BigInt(x), Numeric::Number(y)) => agent[x].le(&agent[y]),
-            (Numeric::BigInt(x), Numeric::Integer(y)) => agent[x].le(&y.into_i64()),
-            (Numeric::BigInt(x), Numeric::SmallF64(y)) => agent[x].le(&y.into_f64()),
-            (Numeric::BigInt(x), Numeric::BigInt(y)) => agent[x].data < agent[y].data,
-            (Numeric::BigInt(x), Numeric::SmallBigInt(y)) => agent[x].le(&y.into_i64()),
-            (Numeric::SmallBigInt(x), Numeric::Number(y)) => (x.into_i64() as f64) < agent[y],
+            (Numeric::BigInt(x), Numeric::Number(y)) => x.get(agent).le(y.get(agent)),
+            (Numeric::BigInt(x), Numeric::Integer(y)) => x.get(agent).le(&y.into_i64()),
+            (Numeric::BigInt(x), Numeric::SmallF64(y)) => x.get(agent).le(&y.into_f64()),
+            (Numeric::BigInt(x), Numeric::BigInt(y)) => x.get(agent).data < y.get(agent).data,
+            (Numeric::BigInt(x), Numeric::SmallBigInt(y)) => x.get(agent).le(&y.into_i64()),
+            (Numeric::SmallBigInt(x), Numeric::Number(y)) => (x.into_i64() as f64) < *y.get(agent),
             (Numeric::SmallBigInt(x), Numeric::Integer(y)) => x.into_i64() < y.into_i64(),
             (Numeric::SmallBigInt(x), Numeric::SmallF64(y)) => (x.into_i64() as f64) < y.into_f64(),
-            (Numeric::SmallBigInt(x), Numeric::BigInt(y)) => agent[y].ge(&x.into_i64()),
+            (Numeric::SmallBigInt(x), Numeric::BigInt(y)) => y.get(agent).ge(&x.into_i64()),
             (Numeric::SmallBigInt(x), Numeric::SmallBigInt(y)) => x.into_i64() < y.into_i64(),
         }))
     }
@@ -616,7 +616,7 @@ pub(crate) fn is_loosely_equal<'a>(
         // IsStrictlyEqual, which calls Number::equal.
         let gc = gc.into_nogc();
         let y = string_to_number(agent, y, gc);
-        return Ok(Number::equal(agent, x.bind(gc), y.bind(gc)));
+        return Ok(Number::equal_(agent, x.bind(gc), y.bind(gc)));
     }
 
     // 6. If x is a String and y is a Number, return ! IsLooselyEqual(! ToNumber(x), y).
@@ -626,7 +626,7 @@ pub(crate) fn is_loosely_equal<'a>(
         // IsStrictlyEqual, which calls Number::equal.
         let gc = gc.into_nogc();
         let x = string_to_number(agent, x, gc);
-        return Ok(Number::equal(agent, x.bind(gc), y.bind(gc)));
+        return Ok(Number::equal_(agent, x.bind(gc), y.bind(gc)));
     }
 
     // 7. If x is a BigInt and y is a String, then
@@ -702,7 +702,7 @@ pub(crate) fn is_loosely_equal<'a>(
     } {
         // a. If x is not finite or y is not finite, return false.
         // Note: BigInt is always finite.
-        if !b.is_finite(agent) {
+        if !b.is_finite_(agent) {
             return Ok(false);
         }
 
@@ -711,7 +711,7 @@ pub(crate) fn is_loosely_equal<'a>(
 
         // Compare BigInt with f64 using precise comparison.
         return Ok(match a {
-            BigInt::BigInt(heap_big_int) => agent[heap_big_int] == b,
+            BigInt::BigInt(heap_big_int) => heap_big_int.get(agent) == &b,
             BigInt::SmallBigInt(small_big_int) => small_big_int.into_i64() as f64 == b,
         });
     }
@@ -742,7 +742,7 @@ pub(crate) fn is_strictly_equal<'a>(
     // type-safety.
     if let (Ok(x), Ok(y)) = (Number::try_from(x), Number::try_from(y)) {
         // a. Return Number::equal(x, y).
-        return Number::equal(agent, x, y);
+        return Number::equal_(agent, x, y);
     }
 
     // 3. Return SameValueNonNumber(x, y).

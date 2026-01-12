@@ -40,7 +40,7 @@ use super::{
 /// NOTE: There is no data-wise difference between a DeclarativeEnvironment and
 /// a ModuleEnvironment, so we treat them exactly the same way.
 #[derive(Debug)]
-pub struct ModuleEnvironmentRecord {
+pub(crate) struct ModuleEnvironmentRecord {
     /// Module Environment Records support all of the Declarative Environment
     /// Record methods listed in [Table 16](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     /// and share the same specifications for all of those methods except for
@@ -194,7 +194,7 @@ impl<'e> ModuleEnvironment<'e> {
         if env_rec.has_indirect_binding(name) {
             let error_message = format!(
                 "Cannot assign to immutable binding '{}'.",
-                name.to_string_lossy(agent)
+                name.to_string_lossy_(agent)
             );
             return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc));
         }
@@ -283,7 +283,7 @@ pub(crate) fn throw_uninitialized_binding<'a>(
     name: String,
     gc: NoGcScope<'a, '_>,
 ) -> JsError<'a> {
-    let name = name.to_string_lossy(agent);
+    let name = name.to_string_lossy_(agent);
     agent.throw_exception(
         ExceptionType::ReferenceError,
         format!("attempted to access uninitialized binding {name}"),
@@ -429,9 +429,7 @@ impl HeapMarkAndSweep for ModuleEnvironment<'static> {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        compactions
-            .module_environments
-            .shift_non_zero_u32_index(&mut self.0);
+        compactions.module_environments.shift_index(&mut self.0);
     }
 }
 

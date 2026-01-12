@@ -9,8 +9,12 @@ use crate::{
         abstract_operations::operations_on_objects::try_define_property_or_throw,
         builtins::{
             ArgumentsList, ECMAScriptFunction, FunctionAstRef, OrdinaryFunctionCreateParams,
-            ThisMode,
-            async_generator_objects::{AsyncGeneratorHeapData, AsyncGeneratorState},
+            control_abstraction_objects::async_generator_objects::{
+                AsyncGeneratorHeapData, AsyncGeneratorState,
+            },
+            control_abstraction_objects::generator_objects::{
+                GeneratorHeapData, SuspendedGeneratorState,
+            },
             control_abstraction_objects::{
                 async_function_objects::await_reaction::AwaitReactionRecord,
                 generator_objects::GeneratorState,
@@ -22,30 +26,27 @@ use crate::{
                     promise_prototype::inner_promise_then,
                 },
             },
-            generator_objects::{GeneratorHeapData, SuspendedGeneratorState},
-            make_constructor,
+            ecmascript_function::ThisMode,
+            ecmascript_function::make_constructor,
+            ecmascript_function::ordinary_function_create,
+            ecmascript_function::set_function_name,
             ordinary::{
                 ordinary_object_create_with_intrinsics, ordinary_populate_from_constructor,
             },
-            ordinary_function_create,
             promise::Promise,
-            set_function_name,
         },
         execution::{
             Agent, Environment, JsResult, PrivateEnvironment, ProtoIntrinsics, agent::unwrap_try,
         },
         scripts_and_modules::source_code::SourceCode,
-        types::{
-            BUILTIN_STRING_MEMORY, IntoFunction, IntoObject, IntoValue, PropertyDescriptor,
-            PropertyKey, Value,
-        },
+        types::{BUILTIN_STRING_MEMORY, PropertyDescriptor, PropertyKey, Value},
     },
     engine::{
         Executable, ExecutionResult, Vm,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::CreateHeapData,
+    heap::{ArenaAccess, ArenaAccessMut, CreateHeapData},
 };
 use oxc_ast::ast::{self};
 
@@ -158,13 +159,13 @@ pub(crate) fn instantiate_ordinary_function_object<'a>(
                     .current_realm_record()
                     .intrinsics()
                     .async_generator_prototype()
-                    .into_object()
+                    .into()
             } else {
                 agent
                     .current_realm_record()
                     .intrinsics()
                     .generator_prototype()
-                    .into_object()
+                    .into()
             }),
             gc,
         );
@@ -175,7 +176,7 @@ pub(crate) fn instantiate_ordinary_function_object<'a>(
             BUILTIN_STRING_MEMORY.prototype.to_property_key(),
             PropertyDescriptor {
                 // [[Value]]: prototype,
-                value: Some(prototype.into_value().unbind()),
+                value: Some(prototype.unbind().into()),
                 // [[Writable]]: true,
                 writable: Some(true),
                 // [[Enumerable]]: false,
@@ -236,12 +237,12 @@ pub(crate) fn evaluate_function_body<'gc>(
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
     //function_declaration_instantiation(agent, function_object, arguments_list).unbind()?.bind(gc.nogc());
     // 2. Return ? Evaluation of FunctionStatementList.
-    let exe = if let Some(exe) = agent[function_object].compiled_bytecode {
+    let exe = if let Some(exe) = function_object.get(agent).compiled_bytecode {
         exe.bind(gc.nogc())
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object, gc.nogc());
         let exe = Executable::compile_function_body(agent, data, gc.nogc());
-        agent[function_object].compiled_bytecode = Some(exe.unbind());
+        function_object.get_mut(agent).compiled_bytecode = Some(exe.unbind());
         exe
     };
     let exe = exe.scope(agent, gc.nogc());
@@ -271,12 +272,12 @@ pub(crate) fn evaluate_async_function_body<'a>(
     // Note: FunctionDeclarationInstantiation is performed as the first part of
     // the compiled function body; we do not need to run it and
     // AsyncFunctionStart separately.
-    let exe = if let Some(exe) = agent[function_object].compiled_bytecode {
+    let exe = if let Some(exe) = function_object.get(agent).compiled_bytecode {
         exe.bind(gc.nogc())
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object, gc.nogc());
         let exe = Executable::compile_function_body(agent, data, gc.nogc());
-        agent[function_object].compiled_bytecode = Some(exe.unbind());
+        function_object.get_mut(agent).compiled_bytecode = Some(exe.unbind());
         exe
     };
     let exe = exe.scope(agent, gc.nogc());
@@ -365,12 +366,12 @@ pub(crate) fn evaluate_generator_body<'gc>(
     let arguments_list = arguments_list.bind(gc.nogc());
     let function_object = function_object.bind(gc.nogc());
 
-    let exe = if let Some(exe) = agent[function_object].compiled_bytecode {
+    let exe = if let Some(exe) = function_object.get(agent).compiled_bytecode {
         exe.scope(agent, gc.nogc())
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object, gc.nogc());
         let exe = Executable::compile_function_body(agent, data, gc.nogc());
-        agent[function_object].compiled_bytecode = Some(exe.unbind());
+        function_object.get_mut(agent).compiled_bytecode = Some(exe.unbind());
         exe.scope(agent, gc.nogc())
     };
 
@@ -415,9 +416,9 @@ pub(crate) fn evaluate_generator_body<'gc>(
         .bind(gc.nogc());
     ordinary_populate_from_constructor(
         agent,
-        g.into_object().unbind(),
+        g.unbind().into(),
         // SAFETY: not shared.
-        unsafe { function_object.take(agent) }.into_function(),
+        unsafe { function_object.take(agent) }.into(),
         ProtoIntrinsics::Generator,
         gc,
     )
@@ -439,12 +440,12 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
     let function_object = function_object.bind(gc.nogc());
     let arguments_list = arguments_list.bind(gc.nogc());
 
-    let exe = if let Some(exe) = agent[function_object].compiled_bytecode {
+    let exe = if let Some(exe) = function_object.get(agent).compiled_bytecode {
         exe.scope(agent, gc.nogc())
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object, gc.nogc());
         let exe = Executable::compile_function_body(agent, data, gc.nogc());
-        agent[function_object].compiled_bytecode = Some(exe.unbind());
+        function_object.get_mut(agent).compiled_bytecode = Some(exe.unbind());
         exe.scope(agent, gc.nogc())
     };
 
@@ -492,9 +493,9 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
         .bind(gc.nogc());
     ordinary_populate_from_constructor(
         agent,
-        generator.into_object().unbind(),
+        generator.unbind().into(),
         // SAFETY: not shared.
-        unsafe { function_object.take(agent) }.into_function(),
+        unsafe { function_object.take(agent) }.into(),
         ProtoIntrinsics::AsyncGenerator,
         gc,
     )

@@ -18,6 +18,7 @@ use crate::{
     },
     engine::context::{Bindable, NoGcScope},
     heap::{
+        ArenaAccess, ArenaAccessMut, DirectArenaAccess,
         element_array::{
             ElementDescriptor, ElementStorageMut, ElementStorageUninit, PropertyStorageMut,
             PropertyStorageRef,

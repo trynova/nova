@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::ops::{Index, IndexMut};
-
 use oxc_span::Span;
 
 use crate::{
@@ -18,18 +16,18 @@ use crate::{
         },
         types::{
             BUILTIN_STRING_MEMORY, BuiltinConstructorRecord, Function, FunctionInternalProperties,
-            IntoFunction, IntoObject, IntoValue, Object, OrdinaryObject, PropertyKey, String,
-            Value,
+            Object, OrdinaryObject, PropertyKey, String, Value, function_handle,
         },
     },
     engine::{
         Executable,
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues, indexes::BaseIndex,
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
+        arena_vec_access,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
     ndt,
 };
@@ -39,107 +37,23 @@ use super::ArgumentsList;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct BuiltinConstructorFunction<'a>(BaseIndex<'a, BuiltinConstructorRecord<'static>>);
+function_handle!(BuiltinConstructorFunction);
+arena_vec_access!(
+    BuiltinConstructorFunction,
+    'a,
+    BuiltinConstructorRecord,
+    builtin_constructors
+);
 
 impl BuiltinConstructorFunction<'_> {
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
     pub const fn is_constructor(self) -> bool {
         true
     }
 }
 
-bindable_handle!(BuiltinConstructorFunction);
-
-impl<'a> From<BuiltinConstructorFunction<'a>> for Value<'a> {
-    fn from(value: BuiltinConstructorFunction<'a>) -> Self {
-        Value::BuiltinConstructorFunction(value)
-    }
-}
-
-impl<'a> From<BuiltinConstructorFunction<'a>> for Object<'a> {
-    fn from(value: BuiltinConstructorFunction) -> Self {
-        Self::BuiltinConstructorFunction(value.unbind())
-    }
-}
-
-impl<'a> From<BuiltinConstructorFunction<'a>> for Function<'a> {
-    fn from(value: BuiltinConstructorFunction<'a>) -> Self {
-        Self::BuiltinConstructorFunction(value)
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for BuiltinConstructorFunction<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::BuiltinConstructorFunction(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for BuiltinConstructorFunction<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Object::BuiltinConstructorFunction(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Function<'a>> for BuiltinConstructorFunction<'a> {
-    type Error = ();
-
-    fn try_from(value: Function<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Function::BuiltinConstructorFunction(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
-impl Index<BuiltinConstructorFunction<'_>> for Agent {
-    type Output = BuiltinConstructorRecord<'static>;
-
-    fn index(&self, index: BuiltinConstructorFunction) -> &Self::Output {
-        &self.heap.builtin_constructors[index]
-    }
-}
-
-impl IndexMut<BuiltinConstructorFunction<'_>> for Agent {
-    fn index_mut(&mut self, index: BuiltinConstructorFunction) -> &mut Self::Output {
-        &mut self.heap.builtin_constructors[index]
-    }
-}
-
-impl Index<BuiltinConstructorFunction<'_>> for Vec<BuiltinConstructorRecord<'static>> {
-    type Output = BuiltinConstructorRecord<'static>;
-
-    fn index(&self, index: BuiltinConstructorFunction) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("BuiltinConstructorFunction out of bounds")
-    }
-}
-
-impl IndexMut<BuiltinConstructorFunction<'_>> for Vec<BuiltinConstructorRecord<'static>> {
-    fn index_mut(&mut self, index: BuiltinConstructorFunction) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("BuiltinConstructorFunction out of bounds")
-    }
-}
-
 impl<'a> FunctionInternalProperties<'a> for BuiltinConstructorFunction<'a> {
     fn get_name(self, agent: &Agent) -> &String<'a> {
-        &agent[self].class_name
+        &self.get(agent).class_name
     }
 
     fn get_length(self, _: &Agent) -> u8 {
@@ -148,7 +62,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinConstructorFunction<'a> {
 
     #[inline(always)]
     fn get_function_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].backing_object
+        self.get(agent).backing_object.unbind()
     }
 
     fn set_function_backing_object(
@@ -156,7 +70,12 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinConstructorFunction<'a> {
         agent: &mut Agent,
         backing_object: OrdinaryObject<'static>,
     ) {
-        assert!(agent[self].backing_object.replace(backing_object).is_none());
+        assert!(
+            self.get_mut(agent)
+                .backing_object
+                .replace(backing_object)
+                .is_none()
+        );
     }
 
     /// ### [10.3.1 \[\[Call\]\] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-built-in-function-objects-call-thisargument-argumentslist)
@@ -198,7 +117,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinConstructorFunction<'a> {
         let mut id = 0;
         ndt::builtin_constructor_start!(|| {
             id = create_id(agent, self);
-            let name = self.get_name(agent).to_string_lossy(agent);
+            let name = self.get_name(agent).to_string_lossy_(agent);
             (name, id)
         });
         // 1. Return ? BuiltinCallOrConstruct(F, uninitialized, argumentsList, newTarget).
@@ -210,7 +129,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinConstructorFunction<'a> {
 
 #[inline(never)]
 fn create_id(agent: &Agent, f: BuiltinConstructorFunction) -> u64 {
-    ((f.0.into_u32() as u64) << 32) | agent[f].source_text.start as u64
+    ((f.0.get_index_u32() as u64) << 32) | f.get(agent).source_text.start as u64
 }
 
 /// ### [10.3.3 BuiltinCallOrConstruct ( F, thisArgument, argumentsList, newTarget )](https://tc39.es/ecma262/#sec-builtincallorconstruct)
@@ -235,7 +154,7 @@ fn builtin_call_or_construct<'a>(
     // 2. If callerContext is not already suspended, suspend callerContext.
     caller_context.suspend();
     // 5. Let calleeRealm be F.[[Realm]].
-    let heap_data = &agent[f];
+    let heap_data = &f.get(agent);
     let callee_realm = heap_data.realm;
     let is_derived = heap_data.is_derived;
     // 3. Let calleeContext be a new execution context.
@@ -243,9 +162,9 @@ fn builtin_call_or_construct<'a>(
         // 8. Perform any necessary implementation-defined initialization of calleeContext.
         ecmascript_code: None,
         // 4. Set the Function of calleeContext to F.
-        function: Some(f.into_function().unbind()),
+        function: Some(f.unbind().into()),
         // 6. Set the Realm of calleeContext to calleeRealm.
-        realm: callee_realm,
+        realm: callee_realm.unbind(),
         // 7. Set the ScriptOrModule of calleeContext to null.
         script_or_module: None,
     };
@@ -258,11 +177,11 @@ fn builtin_call_or_construct<'a>(
         derived_class_default_constructor(
             agent,
             arguments_list.unbind(),
-            new_target.into_object().unbind(),
+            new_target.unbind().into(),
             gc,
         )
     } else {
-        base_class_default_constructor(agent, new_target.into_object().unbind(), gc)
+        base_class_default_constructor(agent, new_target.unbind().into(), gc)
     };
     // 11. NOTE: If F is defined in this document, “the specification of F” is the behaviour specified for it via
     // algorithm steps or other means.
@@ -335,7 +254,7 @@ pub(crate) fn create_builtin_constructor<'a>(
     let name_entry = ObjectEntry {
         key: PropertyKey::from(BUILTIN_STRING_MEMORY.name),
         value: ObjectEntryPropertyDescriptor::Data {
-            value: args.class_name.into_value(),
+            value: args.class_name.into(),
             writable: false,
             enumerable: false,
             configurable: true,
@@ -344,7 +263,7 @@ pub(crate) fn create_builtin_constructor<'a>(
     let prototype_entry = ObjectEntry {
         key: PropertyKey::from(BUILTIN_STRING_MEMORY.prototype),
         value: ObjectEntryPropertyDescriptor::Data {
-            value: args.prototype_property.into_value(),
+            value: args.prototype_property.into(),
             writable: false,
             enumerable: false,
             configurable: false,
@@ -372,29 +291,6 @@ pub(crate) fn create_builtin_constructor<'a>(
             class_name: args.class_name,
         })
         .bind(gc)
-}
-
-impl Rootable for BuiltinConstructorFunction<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::BuiltinConstructorFunction(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::BuiltinConstructorFunction(d) => Some(d),
-            _ => None,
-        }
-    }
 }
 
 impl<'a> CreateHeapData<BuiltinConstructorRecord<'a>, BuiltinConstructorFunction<'a>> for Heap {

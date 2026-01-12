@@ -2,38 +2,25 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::ops::{Index, IndexMut};
-
 use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
+        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, object_handle},
     },
-    engine::{
-        context::{Bindable, bindable_handle},
-        rootable::HeapRootData,
-    },
+    engine::context::{Bindable, bindable_handle},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, WorkQueues, arena_vec_access, indexes::BaseIndex,
     },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct ArrayIterator<'a>(BaseIndex<'a, ArrayIteratorHeapData<'static>>);
+object_handle!(ArrayIterator);
+arena_vec_access!(ArrayIterator, 'a, ArrayIteratorHeapData, array_iterators);
 
 impl<'a> ArrayIterator<'a> {
-    /// # Do not use this
-    /// This is only for Value discriminant creation.
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
     pub(crate) fn from_object(
         agent: &mut Agent,
         array: Object,
@@ -48,53 +35,17 @@ impl<'a> ArrayIterator<'a> {
     }
 }
 
-bindable_handle!(ArrayIterator);
-
-impl<'a> From<ArrayIterator<'a>> for Object<'a> {
-    fn from(value: ArrayIterator) -> Self {
-        Self::ArrayIterator(value.unbind())
-    }
-}
-
-impl<'a> From<ArrayIterator<'a>> for Value<'a> {
-    fn from(value: ArrayIterator<'a>) -> Self {
-        Self::ArrayIterator(value)
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for ArrayIterator<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::ArrayIterator(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for ArrayIterator<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Object::ArrayIterator(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
 impl<'a> InternalSlots<'a> for ArrayIterator<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::ArrayIterator;
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        self.get(agent).object_index.unbind()
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
-            agent[self]
+            self.get_mut(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()
@@ -103,49 +54,6 @@ impl<'a> InternalSlots<'a> for ArrayIterator<'a> {
 }
 
 impl<'a> InternalMethods<'a> for ArrayIterator<'a> {}
-
-impl Index<ArrayIterator<'_>> for Agent {
-    type Output = ArrayIteratorHeapData<'static>;
-
-    fn index(&self, index: ArrayIterator) -> &Self::Output {
-        &self.heap.array_iterators[index]
-    }
-}
-
-impl IndexMut<ArrayIterator<'_>> for Agent {
-    fn index_mut(&mut self, index: ArrayIterator) -> &mut Self::Output {
-        &mut self.heap.array_iterators[index]
-    }
-}
-
-impl Index<ArrayIterator<'_>> for Vec<ArrayIteratorHeapData<'static>> {
-    type Output = ArrayIteratorHeapData<'static>;
-
-    fn index(&self, index: ArrayIterator) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("ArrayIterator out of bounds")
-    }
-}
-
-impl IndexMut<ArrayIterator<'_>> for Vec<ArrayIteratorHeapData<'static>> {
-    fn index_mut(&mut self, index: ArrayIterator) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("ArrayIterator out of bounds")
-    }
-}
-
-impl TryFrom<HeapRootData> for ArrayIterator<'_> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        if let HeapRootData::ArrayIterator(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
-}
 
 impl<'a> CreateHeapData<ArrayIteratorHeapData<'a>, ArrayIterator<'a>> for Heap {
     fn create(&mut self, data: ArrayIteratorHeapData<'a>) -> ArrayIterator<'a> {
@@ -183,7 +91,7 @@ pub(crate) enum CollectionIteratorKind {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct ArrayIteratorHeapData<'a> {
+pub(crate) struct ArrayIteratorHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) array: Option<Object<'a>>,
     pub(crate) next_index: i64,

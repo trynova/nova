@@ -32,7 +32,7 @@ use crate::{
                 make_typed_array_with_buffer_witness_record, validate_typed_array,
             },
             promise::Promise,
-            promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
+            control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
             shared_array_buffer::SharedArrayBuffer,
             typed_array::{AnyTypedArray, SharedTypedArray, for_any_typed_array},
         },
@@ -43,8 +43,8 @@ use crate::{
             },
         },
         types::{
-            BUILTIN_STRING_MEMORY, BigInt, IntoNumeric, IntoObject, IntoValue, Number, Numeric,
-            OrdinaryObject, SharedDataBlock, String, Value,
+            BUILTIN_STRING_MEMORY, BigInt, Number, Numeric, OrdinaryObject, SharedDataBlock,
+            String, Value,
         },
     },
     engine::{
@@ -189,7 +189,7 @@ impl AtomicsObject {
             arguments.get(2),
             gc,
         )
-        .map(|v| v.into_value())
+        .map(|v| v.into())
     }
 
     fn and<'gc>(
@@ -205,7 +205,7 @@ impl AtomicsObject {
             arguments.get(2),
             gc,
         )
-        .map(|v| v.into_value())
+        .map(|v| v.into())
     }
 
     /// ### [25.4.6 Atomics.compareExchange ( typedArray, index, expectedValue, replacementValue )](https://tc39.es/ecma262/#sec-atomics.compareexchange)
@@ -234,20 +234,18 @@ impl AtomicsObject {
                     // a. Let expected be ? ToBigInt(expectedValue).
                     // b. Let replacement be ? ToBigInt(replacementValue).
                     (
-                        BigInt::try_from(expected_value).map(|value| value.into_numeric()),
-                        BigInt::try_from(replacement_value).map(|value| value.into_numeric()),
+                        BigInt::try_from(expected_value).map(|value| value.into()),
+                        BigInt::try_from(replacement_value).map(|value| value.into()),
                     )
                 } else {
                     // a. Let expected be 𝔽(? ToIntegerOrInfinity(expectedValue)).
                     // b. Let replacement be 𝔽(? ToIntegerOrInfinity(replacementValue)).
                     (
                         Number::try_from(expected_value).map(|value| {
-                            number_convert_to_integer_or_infinity(agent, value, gc.nogc())
-                                .into_numeric()
+                            number_convert_to_integer_or_infinity(agent, value, gc.nogc()).into()
                         }),
                         Number::try_from(replacement_value).map(|value| {
-                            number_convert_to_integer_or_infinity(agent, value, gc.nogc())
-                                .into_numeric()
+                            number_convert_to_integer_or_infinity(agent, value, gc.nogc()).into()
                         }),
                     )
                 },
@@ -301,7 +299,7 @@ impl AtomicsObject {
                     replacement,
                     gc,
                 )
-                .into_value()
+                .into()
             },
             ElementType
         ))
@@ -320,7 +318,7 @@ impl AtomicsObject {
             arguments.get(2),
             gc,
         )
-        .map(|v| v.into_value())
+        .map(|v| v.into())
     }
 
     /// ### [25.4.8 Atomics.isLockFree ( size )](https://tc39.es/ecma262/#sec-atomics.islockfree)
@@ -467,7 +465,7 @@ impl AtomicsObject {
             },
             ElementType
         )
-        .into_value())
+        .into())
     }
 
     fn or<'gc>(
@@ -483,7 +481,7 @@ impl AtomicsObject {
             arguments.get(2),
             gc,
         )
-        .map(|v| v.into_value())
+        .map(|v| v.into())
     }
 
     /// ### [25.4.11 Atomics.store ( typedArray, index, value )](https://tc39.es/ecma262/#sec-atomics.store)
@@ -527,7 +525,7 @@ impl AtomicsObject {
             ElementType
         );
         // 8. Return v.
-        Ok(v.into_value())
+        Ok(v.into())
     }
 
     fn sub<'gc>(
@@ -543,7 +541,7 @@ impl AtomicsObject {
             arguments.get(2),
             gc,
         )
-        .map(|v| v.into_value())
+        .map(|v| v.into())
     }
 
     /// ### [25.4.13 Atomics.wait ( typedArray, index, value, timeout )](https://tc39.es/ecma262/#sec-atomics.wait)
@@ -725,7 +723,7 @@ impl AtomicsObject {
         // 12. Perform LeaveCriticalSection(WL).
         // 13. Let n be the number of elements in S.
         // 14. Return 𝔽(n).
-        Ok(Number::from_usize(agent, n, gc).into_value())
+        Ok(Number::from_usize(agent, n, gc).into())
     }
 
     fn xor<'gc>(
@@ -741,7 +739,7 @@ impl AtomicsObject {
             arguments.get(2),
             gc,
         )
-        .map(|v| v.into_value())
+        .map(|v| v.into())
     }
 
     /// ### [1 Atomics.pause ( [ N ] )](https://tc39.es/proposal-atomics-microwait/#Atomics.pause)
@@ -1130,10 +1128,10 @@ fn handle_typed_array_index_value<'gc>(
         if let (Some(byte_index_in_buffer), Ok(value)) = (
             byte_index_in_buffer,
             if ta_record.object.is_bigint() {
-                BigInt::try_from(value).map(|value| value.into_numeric())
+                BigInt::try_from(value).map(|value| value.into())
             } else {
                 Number::try_from(value).map(|value| {
-                    number_convert_to_integer_or_infinity(agent, value, gc.nogc()).into_numeric()
+                    number_convert_to_integer_or_infinity(agent, value, gc.nogc()).into()
                 })
             },
         ) {
@@ -1181,18 +1179,18 @@ fn handle_typed_array_index_value_slow<'gc>(
     let value = unsafe { value.take(agent) }.bind(gc.nogc());
 
     // 2. If typedArray.[[ContentType]] is bigint,
-    let v = if is_bigint {
+    let v: Numeric = if is_bigint {
         // let v be ? ToBigInt(value).
         to_big_int(agent, value.unbind(), gc.reborrow())
             .unbind()?
             .bind(gc.nogc())
-            .into_numeric()
+            .into()
     } else {
         // 3. Otherwise, let v be 𝔽(? ToIntegerOrInfinity(value)).
         to_integer_number_or_infinity(agent, value.unbind(), gc.reborrow())
             .unbind()?
             .bind(gc.nogc())
-            .into_numeric()
+            .into()
     };
     let v = v.unbind();
     let gc = gc.into_nogc();
@@ -1225,7 +1223,7 @@ fn handle_typed_array_index_two_values_slow<'gc>(
             .bind(gc.nogc());
 
     // 4. If typedArray.[[ContentType]] is bigint, then
-    let (expected, replacement) = if is_bigint {
+    let (expected, replacement): (Numeric, Numeric) = if is_bigint {
         // a. Let expected be ? ToBigInt(expectedValue).
         let expected = to_big_int(agent, expected_value.get(agent), gc.reborrow())
             .unbind()?
@@ -1242,10 +1240,8 @@ fn handle_typed_array_index_two_values_slow<'gc>(
         .unbind()?
         .bind(gc.nogc());
         (
-            unsafe { expected.take(agent) }
-                .bind(gc.nogc())
-                .into_numeric(),
-            replacement.into_numeric(),
+            unsafe { expected.take(agent) }.bind(gc.nogc()).into(),
+            replacement.into(),
         )
     } else {
         // 5. Else,
@@ -1266,10 +1262,8 @@ fn handle_typed_array_index_two_values_slow<'gc>(
         .unbind()?
         .bind(gc.nogc());
         (
-            unsafe { expected.take(agent) }
-                .bind(gc.nogc())
-                .into_numeric(),
-            replacement.into_numeric(),
+            unsafe { expected.take(agent) }.bind(gc.nogc()).into(),
+            replacement.into(),
         )
     };
     let expected = expected.unbind();
@@ -1485,9 +1479,9 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
         // c. Perform ! CreateDataPropertyOrThrow(resultObject, "async", false).
         // d. Perform ! CreateDataPropertyOrThrow(resultObject, "value", "not-equal").
         let result_object =
-            create_wait_result_object(agent, false, BUILTIN_STRING_MEMORY.not_equal.into_value());
+            create_wait_result_object(agent, false, BUILTIN_STRING_MEMORY.not_equal.into());
         // e. Return resultObject.
-        return result_object.into_value();
+        return result_object.into();
     }
     // 21. If t = 0 and mode is async, then
     if t == 0 && IS_ASYNC {
@@ -1498,9 +1492,9 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
         // c. Perform ! CreateDataPropertyOrThrow(resultObject, "async", false).
         // d. Perform ! CreateDataPropertyOrThrow(resultObject, "value", "timed-out").
         let result_object =
-            create_wait_result_object(agent, false, BUILTIN_STRING_MEMORY.timed_out.into_value());
+            create_wait_result_object(agent, false, BUILTIN_STRING_MEMORY.timed_out.into());
         // e. Return resultObject.
-        return result_object.into_value();
+        return result_object.into();
     }
     // 22. Let thisAgent be AgentSignifier().
     // 23. Let now be the time value (UTC) identifying the current time.
@@ -1541,10 +1535,10 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
         // 32. If mode is sync, return waiterRecord.[[Result]].
 
         match result {
-            Ok(_) => BUILTIN_STRING_MEMORY.ok.into_value(),
+            Ok(_) => BUILTIN_STRING_MEMORY.ok.into(),
             Err(err) => match err {
-                FutexError::Timeout => BUILTIN_STRING_MEMORY.timed_out.into_value(),
-                FutexError::NotEqual => BUILTIN_STRING_MEMORY.not_equal.into_value(),
+                FutexError::Timeout => BUILTIN_STRING_MEMORY.timed_out.into(),
+                FutexError::NotEqual => BUILTIN_STRING_MEMORY.not_equal.into(),
                 FutexError::Unknown => panic!(),
             },
         }
@@ -1567,9 +1561,9 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
         // 33. Perform ! CreateDataPropertyOrThrow(resultObject, "async", true).
         // 34. Perform ! CreateDataPropertyOrThrow(resultObject, "value", promiseCapability.[[Promise]]).
         let result_object =
-            create_wait_result_object(agent, true, promise_capability.promise().into_value());
+            create_wait_result_object(agent, true, promise_capability.promise().into());
         // 35. Return resultObject.
-        result_object.into_value()
+        result_object.into()
     }
 }
 
@@ -1614,15 +1608,15 @@ fn do_wait_slow<'gc>(
     let gc = gc.into_nogc();
     let q = q.bind(gc);
     // 9. If q is either NaN or +∞𝔽,
-    let t = if q.is_nan(agent) || q.is_pos_infinity(agent) {
+    let t = if q.is_nan_(agent) || q.is_pos_infinity_(agent) {
         // let t be +∞;
         u64::MAX
-    } else if q.is_neg_infinity(agent) {
+    } else if q.is_neg_infinity_(agent) {
         // else if q is -∞𝔽, let t be 0;
         0
     } else {
         // else let t be max(ℝ(q), 0).
-        q.into_i64(agent).max(0) as u64
+        q.into_i64_(agent).max(0) as u64
     };
     Ok((unsafe { scoped_typed_array.take(agent) }.bind(gc), i, v, t))
 }
@@ -1639,14 +1633,11 @@ fn create_wait_result_object<'gc>(
                 .current_realm_record()
                 .intrinsics()
                 .object_prototype()
-                .into_object(),
+                .into(),
         ),
         &[
             // 1. Perform ! CreateDataPropertyOrThrow(resultObject, "async", isAsync).
-            ObjectEntry::new_data_entry(
-                BUILTIN_STRING_MEMORY.r#async.into(),
-                is_async.into_value(),
-            ),
+            ObjectEntry::new_data_entry(BUILTIN_STRING_MEMORY.r#async.into(), is_async.into()),
             // 34. Perform ! CreateDataPropertyOrThrow(resultObject, "value", value).
             ObjectEntry::new_data_entry(BUILTIN_STRING_MEMORY.value.into(), value),
         ],
@@ -1696,9 +1687,9 @@ impl WaitAsyncJob {
         // c. Perform LeaveCriticalSection(WL).
         let promise_capability = PromiseCapability::from_promise(promise, true);
         let result = match result {
-            Ok(_) => BUILTIN_STRING_MEMORY.ok.into_value(),
-            Err(FutexError::NotEqual) => BUILTIN_STRING_MEMORY.ok.into_value(),
-            Err(FutexError::Timeout) => BUILTIN_STRING_MEMORY.timed_out.into_value(),
+            Ok(_) => BUILTIN_STRING_MEMORY.ok.into(),
+            Err(FutexError::NotEqual) => BUILTIN_STRING_MEMORY.ok.into(),
+            Err(FutexError::Timeout) => BUILTIN_STRING_MEMORY.timed_out.into(),
             Err(FutexError::Unknown) => {
                 let error = agent.throw_exception_with_static_message(
                     ExceptionType::Error,

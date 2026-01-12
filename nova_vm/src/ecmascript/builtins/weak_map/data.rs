@@ -14,7 +14,7 @@ use crate::{
 };
 
 #[derive(Debug, Default)]
-pub struct WeakMapRecord<'a> {
+pub(crate) struct WeakMapRecord<'a> {
     pub(crate) weak_map_data: AHashMap<WeakKey<'a>, Value<'a>>,
     pub(super) object_index: Option<OrdinaryObject<'a>>,
 }

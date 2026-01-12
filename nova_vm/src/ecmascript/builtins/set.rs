@@ -6,108 +6,28 @@ use crate::{
     Heap,
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
+        types::{InternalMethods, InternalSlots, OrdinaryObject, object_handle},
     },
-    engine::{
-        context::{Bindable, bindable_handle},
-        rootable::HeapRootData,
-    },
+    engine::context::Bindable,
     heap::{
-        CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
-        indexes::BaseIndex,
+        ArenaAccessSoA, ArenaAccessSoAMut, CompactionLists, CreateHeapData, HeapMarkAndSweep,
+        HeapSweepWeakReference, WorkQueues, arena_vec_access,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
-use self::data::{SetHeapData, SetHeapDataMut, SetHeapDataRef};
-use soavec::SoAVec;
+pub(crate) use self::data::SetHeapData;
+use self::data::{SetHeapDataMut, SetHeapDataRef};
 
-pub mod data;
+mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Set<'a>(BaseIndex<'a, SetHeapData<'static>>);
+object_handle!(Set);
+arena_vec_access!(soa: Set, 'a, SetHeapData, sets, SetHeapDataRef, SetHeapDataMut);
 
-impl<'gc> Set<'gc> {
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
-    #[inline(always)]
-    pub(crate) fn get<'a>(self, agent: &'a Agent) -> SetHeapDataRef<'a, 'gc> {
-        self.get_direct(&agent.heap.sets)
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_mut<'a>(self, agent: &'a mut Agent) -> SetHeapDataMut<'a, 'gc> {
-        self.get_direct_mut(&mut agent.heap.sets)
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_direct<'a>(
-        self,
-        sets: &'a SoAVec<SetHeapData<'static>>,
-    ) -> SetHeapDataRef<'a, 'gc> {
-        sets.get(self.0.into_u32_index())
-            .expect("Invalid Set reference")
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_direct_mut<'a>(
-        self,
-        sets: &'a mut SoAVec<SetHeapData<'static>>,
-    ) -> SetHeapDataMut<'a, 'gc> {
-        // SAFETY: Lifetime transmute to thread GC lifetime to temporary heap
-        // reference.
-        unsafe {
-            core::mem::transmute::<SetHeapDataMut<'a, 'static>, SetHeapDataMut<'a, 'gc>>(
-                sets.get_mut(self.0.into_u32_index())
-                    .expect("Invalid Set reference"),
-            )
-        }
-    }
-}
-
-bindable_handle!(Set);
-
-impl<'a> From<Set<'a>> for Value<'a> {
-    fn from(value: Set<'a>) -> Self {
-        Value::Set(value)
-    }
-}
-
-impl<'a> From<Set<'a>> for Object<'a> {
-    fn from(value: Set<'a>) -> Self {
-        Object::Set(value)
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for Set<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        if let Value::Set(set) = value {
-            Ok(set)
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for Set<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        if let Object::Set(set) = value {
-            Ok(set)
-        } else {
-            Err(())
-        }
-    }
-}
+impl<'gc> Set<'gc> {}
 
 impl<'a> InternalSlots<'a> for Set<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Set;
@@ -145,19 +65,6 @@ impl HeapSweepWeakReference for Set<'static> {
     }
 }
 
-impl TryFrom<HeapRootData> for Set<'_> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        if let HeapRootData::Set(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
-}
-
 impl<'a> CreateHeapData<SetHeapData<'a>, Set<'a>> for Heap {
     fn create(&mut self, data: SetHeapData<'a>) -> Set<'a> {
         let i = self.sets.len();
@@ -165,7 +72,7 @@ impl<'a> CreateHeapData<SetHeapData<'a>, Set<'a>> for Heap {
             .push(data.unbind())
             .expect("Failed to allocate Set");
         self.alloc_counter += core::mem::size_of::<SetHeapData<'static>>();
-        Set(BaseIndex::from_u32_index(i))
+        Set(BaseIndex::from_index_u32(i))
     }
 }
 

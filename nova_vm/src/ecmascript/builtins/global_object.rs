@@ -30,10 +30,7 @@ use crate::{
                 script_var_scoped_declarations,
             },
         },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, IntoValue, Primitive, STRING_DISCRIMINANT, String,
-            Value,
-        },
+        types::{BUILTIN_STRING_MEMORY, Function, Primitive, STRING_DISCRIMINANT, String, Value},
     },
     engine::{
         Executable, Vm,
@@ -41,7 +38,7 @@ use crate::{
         rootable::Scopable,
         string_literal_to_wtf8,
     },
-    heap::IntrinsicFunctionIndexes,
+    heap::{ArenaAccess, IntrinsicFunctionIndexes, indexes::HeapIndexHandle},
     ndt,
 };
 
@@ -185,7 +182,7 @@ pub(crate) fn perform_eval<'gc>(
     // 5. Perform ? HostEnsureCanCompileStrings(evalRealm, « », x, direct).
     agent
         .host_hooks
-        .ensure_can_compile_strings(&mut agent[eval_realm], gc.nogc())
+        .ensure_can_compile_strings(eval_realm, gc.nogc())
         .unbind()?;
 
     let mut id = 0;
@@ -217,11 +214,12 @@ pub(crate) fn perform_eval<'gc>(
             _in_method = this_env_rec.has_super_binding(agent);
             // iv. If F.[[ConstructorKind]] is derived, set inDerivedConstructor to true.
             _in_derived_constructor = match f {
-                Function::ECMAScriptFunction(f) => agent[f]
+                Function::ECMAScriptFunction(f) => f
+                    .get(agent)
                     .ecmascript_function
                     .constructor_status
                     .is_derived_class(),
-                Function::BuiltinConstructorFunction(f) => agent[f].is_derived,
+                Function::BuiltinConstructorFunction(f) => f.get(agent).is_derived,
                 _ => false,
             };
 
@@ -281,8 +279,7 @@ pub(crate) fn perform_eval<'gc>(
         } else {
             // If directives exist, it means that the last directive gets used
             // as the eval result.
-            string_literal_to_wtf8(agent, &directives.last().unwrap().expression, gc.nogc())
-                .into_value()
+            string_literal_to_wtf8(agent, &directives.last().unwrap().expression, gc.nogc()).into()
         };
         // SAFETY: SourceCode was just parsed and found empty; even if it had
         // been executed, it would do nothing.
@@ -341,7 +338,8 @@ pub(crate) fn perform_eval<'gc>(
         }
     } else {
         // 17. Else,
-        let global_env = Environment::Global(agent[eval_realm].global_env.unwrap()).bind(gc.nogc());
+        let global_env =
+            Environment::Global(eval_realm.get(agent).global_env.unwrap()).bind(gc.nogc());
 
         ECMAScriptCodeEvaluationState {
             // a. Let lexEnv be NewDeclarativeEnvironment(evalRealm.[[GlobalEnv]]).
@@ -436,7 +434,7 @@ pub(crate) fn perform_eval<'gc>(
 fn create_id(x: String) -> u64 {
     match x {
         String::String(s) => {
-            let s = s.get_index() as u32;
+            let s = s.get_index_u32();
             let [a, b, c, d] = s.to_ne_bytes();
             u64::from_ne_bytes([STRING_DISCRIMINANT, 0, 0, 0, a, b, c, d])
         }
@@ -489,7 +487,7 @@ fn eval_declaration_instantiation<'a>(
                         ExceptionType::SyntaxError,
                         format!(
                             "Redeclaration of lexical declaration '{}'",
-                            name.to_string_lossy(agent)
+                            name.to_string_lossy_(agent)
                         ),
                         gc.into_nogc(),
                     ));
@@ -740,9 +738,7 @@ fn eval_declaration_instantiation<'a>(
             scoped_lex_env.get(agent).bind(gc.nogc()),
             private_env.as_ref().map(|v| v.get(agent).bind(gc.nogc())),
             gc.nogc(),
-        )
-        .into_value()
-        .unbind();
+        );
 
         // c. If varEnv is a Global Environment Record, then
         if let Environment::Global(var_env) = scoped_var_env.get(agent).bind(gc.nogc()) {
@@ -754,13 +750,14 @@ fn eval_declaration_instantiation<'a>(
                 .create_global_function_binding(
                     agent,
                     function_name.unbind(),
-                    fo.unbind(),
+                    fo.unbind().into(),
                     true,
                     gc.reborrow(),
                 )
                 .unbind()?
                 .bind(gc.nogc());
         } else {
+            let fo = fo.scope(agent, gc.nogc());
             // d. Else,
             // i. Let bindingExists be ! varEnv.HasBinding(fn).
             let function_name = String::from_str(agent, function_name.unwrap().as_str(), gc.nogc())
@@ -790,7 +787,8 @@ fn eval_declaration_instantiation<'a>(
                         agent,
                         function_name.get(agent).unbind(),
                         None,
-                        fo,
+                        // SAFETY: not shared.
+                        unsafe { fo.take(agent) }.into(),
                         gc.reborrow(),
                     )
                     .unwrap();
@@ -805,7 +803,8 @@ fn eval_declaration_instantiation<'a>(
                         agent,
                         function_name.unbind(),
                         Some(cache.unbind()),
-                        fo,
+                        // SAFETY: not shared.
+                        unsafe { fo.take(agent) }.into(),
                         false,
                         gc.reborrow(),
                     )
@@ -885,7 +884,7 @@ impl GlobalObject {
             .bind(gc.nogc());
         // 2. If num is not finite, return false.
         // 3. Otherwise, return true.
-        Ok(num.is_finite(agent).into())
+        Ok(num.is_finite_(agent).into())
     }
 
     /// ### [19.2.3 isNaN ( number )](https://tc39.es/ecma262/#sec-isnan-number)
@@ -908,7 +907,7 @@ impl GlobalObject {
             .bind(gc.nogc());
         // 2. If num is NaN, return true.
         // 3. Otherwise, return false.
-        Ok(num.is_nan(agent).into())
+        Ok(num.is_nan_(agent).into())
     }
 
     /// ### [19.2.4 parseFloat ( string )](https://tc39.es/ecma262/#sec-parsefloat-string)
@@ -933,7 +932,7 @@ impl GlobalObject {
             .bind(gc.nogc());
 
         // 2. Let trimmedString be ! TrimString(inputString, start).
-        let trimmed_string = input_string.to_string_lossy(agent);
+        let trimmed_string = input_string.to_string_lossy_(agent);
         let trimmed_string = trimmed_string.trim_start_matches(is_trimmable_whitespace);
 
         // 3. Let trimmed be StringToCodePoints(trimmedString).
@@ -1037,7 +1036,7 @@ impl GlobalObject {
         };
 
         // 2. Let S be ! TrimString(inputString, start).
-        let s = s.to_string_lossy(agent);
+        let s = s.to_string_lossy_(agent);
         let s = s.trim_start_matches(is_trimmable_whitespace);
 
         // 3. Let sign be 1.
@@ -1212,7 +1211,7 @@ impl GlobalObject {
             preserve_escape_set,
             gc.into_nogc(),
         )
-        .map(IntoValue::into_value)
+        .map(Into::into)
     }
 
     /// ### [19.2.6.2 decodeURIComponent ( encodedURIComponent )](https://tc39.es/ecma262/#sec-decodeuricomponent-encodeduricomponent)
@@ -1246,7 +1245,7 @@ impl GlobalObject {
             preserve_escape_set,
             gc.into_nogc(),
         )
-        .map(IntoValue::into_value)
+        .map(Into::into)
     }
 
     /// ### [19.2.6.3 encodeURI ( uri )](https://tc39.es/ecma262/#sec-encodeuri-uri)
@@ -1272,7 +1271,7 @@ impl GlobalObject {
 
         // 2. Let extraUnescaped be ";/?:@&=+$,#".
         // 3. Return ? Encode(uriString, extraUnescaped).
-        encode::<true>(agent, uri_string, gc).map(|c| c.into_value())
+        encode::<true>(agent, uri_string, gc).map(|c| c.into())
     }
 
     /// ### [19.2.6.4 encodeURIComponent ( uriComponent )](https://tc39.es/ecma262/#sec-encodeuricomponent-uricomponent)
@@ -1298,7 +1297,7 @@ impl GlobalObject {
 
         // 2. Let extraUnescaped be the empty String.
         // 3. Return ? Encode(componentString, extraUnescaped).
-        encode::<false>(agent, component_string, gc).map(|c| c.into_value())
+        encode::<false>(agent, component_string, gc).map(|c| c.into())
     }
 
     /// ### [B.2.1.1 escape ( string )](https://tc39.es/ecma262/#sec-escape-string)
@@ -1331,8 +1330,8 @@ impl GlobalObject {
         let gc = gc.into_nogc();
         let string = string.bind(gc);
         // 2. Let len be the length of string.
-        let string_wtf8 = string.as_wtf8(agent);
-        let bytes = string.as_bytes(agent);
+        let string_wtf8 = string.as_wtf8_(agent);
+        let bytes = string.as_bytes_(agent);
         // 3. Let R be the empty String.
         // 4. Let unescapedSet be the string-concatenation of the ASCII word
         //    characters and "@*+-./".
@@ -1342,7 +1341,7 @@ impl GlobalObject {
 
         if bytes.iter().all(unescape_set) {
             // Nothing to escape.
-            return Ok(string.into_value());
+            return Ok(string.into());
         }
         let mut r = Wtf8Buf::with_capacity(bytes.len() + (bytes.len() >> 2));
 
@@ -1390,7 +1389,7 @@ impl GlobalObject {
             // e. Set k to k + 1.
         }
         // 7. Return R.
-        Ok(String::from_wtf8_buf(agent, r, gc).into_value())
+        Ok(String::from_wtf8_buf(agent, r, gc).into())
     }
 
     /// ### [B.2.1.2 unescape ( string )](https://tc39.es/ecma262/#sec-unescape-string)
@@ -1413,8 +1412,8 @@ impl GlobalObject {
         let string = to_string(agent, string.unbind(), gc.reborrow()).unbind()?;
         let gc = gc.into_nogc();
         let string = string.bind(gc);
-        let string_wtf8 = string.as_wtf8(agent);
-        let bytes = string.as_bytes(agent);
+        let string_wtf8 = string.as_wtf8_(agent);
+        let bytes = string.as_bytes_(agent);
         // 2. Let len be the length of string.
         let len = bytes.len();
         // 3. Let R be the empty String.
@@ -1475,12 +1474,12 @@ impl GlobalObject {
         }
         if previous_k == 0 {
             // Nothing to unescape
-            Ok(string.into_value())
+            Ok(string.into())
         } else {
             // Push the rest of the string into r.
             // 6. Return R.
             r.push_wtf8(string_wtf8.slice_from(previous_k));
-            Ok(String::from_wtf8_buf(agent, r, gc).into_value())
+            Ok(String::from_wtf8_buf(agent, r, gc).into())
         }
     }
 
@@ -1532,8 +1531,8 @@ fn encode<'a, const EXTRA_UNESCAPED: bool>(
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, String<'a>> {
     // 1. Let len be the length of string.
-    let len = string.len(agent);
-    let Some(s) = string.as_str(agent) else {
+    let len = string.len_(agent);
+    let Some(s) = string.as_str_(agent) else {
         // i. Let cp be CodePointAt(string, k).
         // ii. If cp.[[IsUnpairedSurrogate]] is true, throw a URIError exception.
         return Err(agent.throw_exception_with_static_message(
@@ -1616,9 +1615,9 @@ where
     F: Fn(u8) -> bool,
 {
     // 1. Let strLen be the length of string.
-    let str_len = string.utf16_len(agent);
+    let str_len = string.utf16_len_(agent);
     // 2. Let R be the empty String.
-    let mut r = Wtf8Buf::with_capacity(string.len(agent));
+    let mut r = Wtf8Buf::with_capacity(string.len_(agent));
     let mut octets = Vec::with_capacity(4);
 
     // 3. Let k be 0.
@@ -1631,7 +1630,7 @@ where
         }
 
         // b. Let C be the code unit at index k within string.
-        let c = string.char_code_at(agent, k);
+        let c = string.char_code_at_(agent, k);
 
         // c. If C is not the code unit 0x0025 (PERCENT SIGN), then
         if c != CodePoint::from_char('%') {
@@ -1655,8 +1654,8 @@ where
             // hexadecimal digits, throw a URIError exception.
             // iv. Let B be the 8-bit value represented by the two hexadecimal digits at index (k + 1) and (k + 2).
             let Some(b) = decode_hex_byte(
-                string.char_code_at(agent, k + 1),
-                string.char_code_at(agent, k + 2),
+                string.char_code_at_(agent, k + 1),
+                string.char_code_at_(agent, k + 2),
             ) else {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::UriError,
@@ -1682,9 +1681,9 @@ where
                 } else {
                     // 3. Else,
                     // a. Let S be the substring of string from start to k + 1.
-                    let start = string.utf8_index(agent, start).unwrap();
-                    let k = string.utf8_index(agent, k).unwrap();
-                    r.push_str(&string.to_string_lossy(agent)[start..=k])
+                    let start = string.utf8_index_(agent, start).unwrap();
+                    let k = string.utf8_index_(agent, k).unwrap();
+                    r.push_str(&string.to_string_lossy_(agent)[start..=k])
                 }
             } else {
                 // viii. Else,
@@ -1716,7 +1715,7 @@ where
                     k += 1;
 
                     // b. If the code unit at index k within string is not the code unit 0x0025 (PERCENT SIGN), throw a URIError exception.
-                    if string.char_code_at(agent, k) != CodePoint::from_char('%') {
+                    if string.char_code_at_(agent, k) != CodePoint::from_char('%') {
                         return Err(agent.throw_exception_with_static_message(
                             ExceptionType::UriError,
                             "escape characters must be preceded with a % sign",
@@ -1727,8 +1726,8 @@ where
                     // c. If the code units at index (k + 1) and (k + 2) within string do not represent hexadecimal digits, throw a URIError exception.
                     // d. Let B be the 8-bit value represented by the two hexadecimal digits at index (k + 1) and (k + 2).
                     let Some(b) = decode_hex_byte(
-                        string.char_code_at(agent, k + 1),
-                        string.char_code_at(agent, k + 2),
+                        string.char_code_at_(agent, k + 1),
+                        string.char_code_at_(agent, k + 2),
                     ) else {
                         return Err(agent.throw_exception_with_static_message(
                             ExceptionType::UriError,

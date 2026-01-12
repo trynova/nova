@@ -30,8 +30,8 @@ use crate::{
             agent::{ExceptionType, TryResult, try_result_into_js, unwrap_try},
         },
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoFunction, IntoObject,
-            IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, Object, OrdinaryObject,
+            PropertyDescriptor, PropertyKey, String, Value,
         },
     },
     engine::{
@@ -283,7 +283,7 @@ impl ObjectConstructor {
                 != agent
                     .running_execution_context()
                     .function
-                    .map(|obj| obj.into_object())
+                    .map(|obj| obj.into())
         {
             // a. Return ? OrdinaryCreateFromConstructor(NewTarget, "%Object.prototype%").
             Ok(ordinary_create_from_constructor(
@@ -295,7 +295,7 @@ impl ObjectConstructor {
                 ProtoIntrinsics::Object,
                 gc,
             )?
-            .into_value())
+            .into())
         } else if value == Value::Undefined || value == Value::Null {
             // 2. If value is either undefined or null, return OrdinaryObjectCreate(%Object.prototype%).
             Ok(ordinary_object_create_with_intrinsics(
@@ -304,12 +304,12 @@ impl ObjectConstructor {
                 None,
                 gc.into_nogc(),
             )
-            .into_value())
+            .into())
         } else {
             // 3. Return ! ToObject(value).
             Ok(to_object(agent, value.unbind(), gc.into_nogc())
                 .unwrap()
-                .into_value())
+                .into())
         }
     }
 
@@ -329,7 +329,7 @@ impl ObjectConstructor {
         let to = to_object(agent, target, nogc).unbind()?.bind(nogc);
         // 2. If only one argument was passed, return to.
         if arguments.len() <= 1 {
-            return Ok(to.into_value().unbind());
+            return Ok(to.unbind().into());
         }
         let sources = arguments[1..]
             .iter()
@@ -401,7 +401,7 @@ impl ObjectConstructor {
             }
         }
         // 4. Return to.
-        Ok(to.get(agent).into_value())
+        Ok(to.get(agent).into())
     }
 
     fn create<'gc>(
@@ -422,7 +422,7 @@ impl ObjectConstructor {
                 "{} is not an object or null",
                 o.unbind()
                     .string_repr(agent, gc.reborrow())
-                    .to_string_lossy(agent)
+                    .to_string_lossy_(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
@@ -443,15 +443,12 @@ impl ObjectConstructor {
             OrdinaryObject::create_object(agent, proto, &[]).expect("Failed to allocate after GC")
         };
         if properties != Value::Undefined {
-            Ok(object_define_properties(
-                agent,
-                obj.into_object().unbind(),
-                properties.unbind(),
-                gc,
-            )?
-            .into_value())
+            Ok(
+                object_define_properties(agent, obj.unbind().into(), properties.unbind(), gc)?
+                    .into(),
+            )
         } else {
-            Ok(obj.into_value().unbind())
+            Ok(obj.unbind().into())
         }
     }
 
@@ -474,7 +471,7 @@ impl ObjectConstructor {
                 "{} is not an object",
                 o.unbind()
                     .string_repr(agent, gc.reborrow())
-                    .to_string_lossy(agent)
+                    .to_string_lossy_(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
@@ -484,7 +481,7 @@ impl ObjectConstructor {
         };
         // 2. Return ? ObjectDefineProperties(O, Properties).
         let result = object_define_properties(agent, o.unbind(), properties.unbind(), gc)?;
-        Ok(result.into_value())
+        Ok(result.into())
     }
 
     /// ### [20.1.2.4 Object.defineProperty ( O, P, Attributes )](https://tc39.es/ecma262/#sec-object.defineproperty)
@@ -507,7 +504,7 @@ impl ObjectConstructor {
                 "{} is not an object",
                 o.unbind()
                     .string_repr(agent, gc.reborrow())
-                    .to_string_lossy(agent)
+                    .to_string_lossy_(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
@@ -557,7 +554,7 @@ impl ObjectConstructor {
         )
         .unbind()?;
         // 5. Return O.
-        Ok(o.get(agent).into_value())
+        Ok(o.get(agent).into())
     }
 
     fn entries<'gc>(
@@ -576,7 +573,7 @@ impl ObjectConstructor {
         .unbind()?
         .bind(gc.nogc());
         // 3. Return CreateArrayFromList(entryList).
-        Ok(create_array_from_list(agent, &entry_list.unbind(), gc.into_nogc()).into_value())
+        Ok(create_array_from_list(agent, &entry_list.unbind(), gc.into_nogc()).into())
     }
 
     /// ### [20.1.2.6 Object.freeze ( O )](https://tc39.es/ecma262/#sec-object.freeze)
@@ -603,7 +600,7 @@ impl ObjectConstructor {
             ))
         } else {
             // 4. Return O.
-            Ok(scoped_o.get(agent).into_value())
+            Ok(scoped_o.get(agent).into())
         }
     }
 
@@ -624,7 +621,7 @@ impl ObjectConstructor {
                     .current_realm_record()
                     .intrinsics()
                     .array_prototype()
-                    .into_value(),
+                    .into(),
                 WellKnownSymbolIndexes::Iterator.into(),
                 gc.reborrow(),
             )
@@ -646,7 +643,7 @@ impl ObjectConstructor {
                         .current_realm_record()
                         .intrinsics()
                         .array_prototype_values()
-                        .into_function(),
+                        .into(),
                 )
                 && entries_array.is_simple(agent)
                 && entries_array.is_dense(agent)
@@ -713,7 +710,7 @@ impl ObjectConstructor {
                                 .current_realm_record()
                                 .intrinsics()
                                 .object_prototype()
-                                .into_object(),
+                                .into(),
                         ),
                         &object_entries,
                     ) {
@@ -722,7 +719,7 @@ impl ObjectConstructor {
                             return Err(agent.throw_allocation_exception(err, gc.into_nogc()));
                         }
                     };
-                    return Ok(object.into_value().unbind());
+                    return Ok(object.unbind().into());
                 }
             }
         }
@@ -740,7 +737,7 @@ impl ObjectConstructor {
         // 5. Let adder be CreateBuiltinFunction(closure, 2, "", « »).
         // 6. Return ? AddEntriesFromIterable(obj, iterable, adder).
         add_entries_from_iterable_from_entries(agent, obj.unbind(), iterable.unbind(), gc)
-            .map(|obj| obj.into_value())
+            .map(|obj| obj.into())
     }
 
     /// ### [20.1.2.8 Object.getOwnPropertyDescriptor ( O, P )](https://tc39.es/ecma262/#sec-object.getownpropertydescriptor)
@@ -774,7 +771,7 @@ impl ObjectConstructor {
         // 4. Return FromPropertyDescriptor(desc).
         Ok(
             PropertyDescriptor::from_property_descriptor(desc.unbind(), agent, gc.into_nogc())
-                .map_or(Value::Undefined, |obj| obj.into_value()),
+                .map_or(Value::Undefined, |obj| obj.into()),
         )
     }
 
@@ -817,7 +814,7 @@ impl ObjectConstructor {
             let descriptor = PropertyDescriptor::from_property_descriptor(desc, agent, gc.nogc());
             // c. If descriptor is not undefined, perform ! CreateDataPropertyOrThrow(descriptors, key, descriptor).
             if let Some(descriptor) = descriptor {
-                descriptors.push(ObjectEntry::new_data_entry(key, descriptor.into_value()));
+                descriptors.push(ObjectEntry::new_data_entry(key, descriptor.into()));
             }
             i += 1;
         }
@@ -829,7 +826,7 @@ impl ObjectConstructor {
                     .current_realm_record()
                     .intrinsics()
                     .object_prototype()
-                    .into_object(),
+                    .into(),
             ),
             &descriptors,
         ) {
@@ -850,7 +847,7 @@ impl ObjectConstructor {
             )
         } else {
             // 5. Return descriptors.
-            Ok(descriptors.into_value().unbind())
+            Ok(descriptors.unbind().into())
         }
     }
 
@@ -867,8 +864,8 @@ impl ObjectConstructor {
             .unbind()?
             .bind(gc.nogc());
         Ok(create_array_from_list(agent, &keys.unbind(), gc.nogc())
-            .into_value()
-            .unbind())
+            .unbind()
+            .into())
     }
 
     /// ### [20.1.2.11 Object.getOwnPropertySymbols ( O )](https://tc39.es/ecma262/#sec-object.getownpropertysymbols)
@@ -884,8 +881,8 @@ impl ObjectConstructor {
             .unbind()?
             .bind(gc.nogc());
         Ok(create_array_from_list(agent, &keys.unbind(), gc.nogc())
-            .into_value()
-            .unbind())
+            .unbind()
+            .into())
     }
 
     /// ### [20.1.2.12 Object.getPrototypeOf ( O )](https://tc39.es/ecma262/#sec-object.getprototypeof)
@@ -903,7 +900,7 @@ impl ObjectConstructor {
         // triggering GC here.
         obj.unbind()
             .internal_get_prototype_of(agent, gc)
-            .map(|proto| proto.map_or(Value::Null, |proto| proto.into_value()))
+            .map(|proto| proto.map_or(Value::Null, |proto| proto.into()))
     }
 
     // ### [20.1.2.13 Object.groupBy ( items, callback )](https://tc39.es/ecma262/#sec-object.groupby)
@@ -931,7 +928,7 @@ impl ObjectConstructor {
             .map(|(key, elements)| {
                 ObjectEntry::new_data_entry(
                     key,
-                    create_array_from_list(agent, &elements, gc).into_value(),
+                    create_array_from_list(agent, &elements, gc).into(),
                 )
             })
             .collect::<Vec<_>>();
@@ -943,7 +940,7 @@ impl ObjectConstructor {
         };
 
         // 4. Return obj.
-        Ok(object.into_value())
+        Ok(object.into())
     }
 
     fn has_own<'gc>(
@@ -966,7 +963,7 @@ impl ObjectConstructor {
             obj = scoped_obj.get(agent).bind(gc.nogc());
             key
         };
-        Ok(has_own_property(agent, obj.unbind(), key.unbind(), gc)?.into_value())
+        Ok(has_own_property(agent, obj.unbind(), key.unbind(), gc)?.into())
     }
 
     fn is<'gc>(
@@ -989,7 +986,7 @@ impl ObjectConstructor {
             Ok(o) => o.unbind().internal_is_extensible(agent, gc)?,
             Err(_) => false,
         };
-        Ok(result.into_value())
+        Ok(result.into())
     }
 
     fn is_frozen<'gc>(
@@ -1003,7 +1000,7 @@ impl ObjectConstructor {
             Ok(o) => test_integrity_level::<Frozen>(agent, o.unbind(), gc)?,
             Err(_) => true,
         };
-        Ok(result.into_value())
+        Ok(result.into())
     }
 
     fn is_sealed<'gc>(
@@ -1017,7 +1014,7 @@ impl ObjectConstructor {
             Ok(o) => test_integrity_level::<Sealed>(agent, o.unbind(), gc)?,
             Err(_) => true,
         };
-        Ok(result.into_value())
+        Ok(result.into())
     }
 
     /// ### [20.1.2.19 Object.keys ( O )](https://tc39.es/ecma262/#sec-object.keys)
@@ -1034,12 +1031,12 @@ impl ObjectConstructor {
         let key_list = enumerable_own_keys(agent, obj.unbind(), gc.reborrow())
             .unbind()?
             .iter()
-            .map(|p| p.convert_to_value(agent, gc.nogc()).into_value())
-            .collect::<Vec<_>>();
+            .map(|p| p.convert_to_value(agent, gc.nogc()).into())
+            .collect::<Vec<Value>>();
         // 3. Return CreateArrayFromList(keyList).
         Ok(create_array_from_list(agent, &key_list.unbind(), gc.nogc())
-            .into_value()
-            .unbind())
+            .unbind()
+            .into())
     }
 
     /// ### [20.1.2.20 Object.preventExtensions ( O )](https://tc39.es/ecma262/#sec-object.preventextensions)
@@ -1069,7 +1066,7 @@ impl ObjectConstructor {
             ))
         } else {
             // 4. Return O.
-            Ok(scoped_o.get(agent).into_value())
+            Ok(scoped_o.get(agent).into())
         }
     }
 
@@ -1097,7 +1094,7 @@ impl ObjectConstructor {
             ))
         } else {
             // 4. Return O.
-            Ok(scoped_o.get(agent).into_value())
+            Ok(scoped_o.get(agent).into())
         }
     }
 
@@ -1125,7 +1122,7 @@ impl ObjectConstructor {
                 proto
                     .unbind()
                     .string_repr(agent, gc.reborrow())
-                    .to_string_lossy(agent)
+                    .to_string_lossy_(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
@@ -1152,7 +1149,7 @@ impl ObjectConstructor {
             ));
         }
         // 6. Return O.
-        Ok(scoped_o.get(agent).into_value())
+        Ok(scoped_o.get(agent).into())
     }
 
     fn values<'gc>(
@@ -1175,8 +1172,8 @@ impl ObjectConstructor {
         // 3. Return CreateArrayFromList(valueList).
         Ok(
             create_array_from_list(agent, &value_list.unbind(), gc.nogc())
-                .into_value()
-                .unbind(),
+                .unbind()
+                .into(),
         )
     }
 
@@ -1206,7 +1203,7 @@ impl ObjectConstructor {
             .with_builtin_function_property::<ObjectIsSealed>()
             .with_builtin_function_property::<ObjectKeys>()
             .with_builtin_function_property::<ObjectPreventExtensions>()
-            .with_prototype_property(object_prototype.into_object())
+            .with_prototype_property(object_prototype.into())
             .with_builtin_function_property::<ObjectSeal>()
             .with_builtin_function_property::<ObjectSetPrototypeOf>()
             .with_builtin_function_property::<ObjectValues>()
@@ -1321,7 +1318,10 @@ pub fn add_entries_from_iterable_from_entries<'a>(
     // the target but will later be reused for each repeat of the loop. We
     // cannot reuse the scoped target below for this, as the value held in the
     // scoped_next will change on each loop.
-    let mut scoped_next = target.into_object().scope(agent, gc.nogc());
+    let mut scoped_next = {
+        let target: Object = target.into();
+        target.scope(agent, gc.nogc())
+    };
     let target = target.scope(agent, gc.nogc());
     let iterable = iterable.scope(agent, gc.nogc());
     // 1. Let iteratorRecord be ? GetIterator(iterable, SYNC).
@@ -1366,7 +1366,7 @@ pub fn add_entries_from_iterable_from_entries<'a>(
                 "Invalid iterator next return value: {} is not an object",
                 next.unbind()
                     .string_repr(agent, gc.reborrow())
-                    .to_string_lossy(agent)
+                    .to_string_lossy_(agent)
             );
             let error = agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc());
             // ii. Return ? IteratorClose(iteratorRecord, error).
@@ -1482,7 +1482,7 @@ fn get_own_symbol_property_keys<'gc>(
     for next_key in keys {
         // a. If nextKey is a Symbol and type is SYMBOL then
         if let PropertyKey::Symbol(next_key) = next_key {
-            name_list.push(next_key.into_value().unbind())
+            name_list.push(next_key.unbind().into())
         }
     }
     // 5. Return nameList.
@@ -1515,11 +1515,11 @@ fn get_own_property_descriptors_slow<'gc>(
                 agent,
                 descriptors.get(agent).bind(gc),
                 key.get(gc),
-                descriptor.unbind().into_value(),
+                descriptor.unbind().into(),
                 None,
                 gc,
             )));
         }
     }
-    Ok(descriptors.get(agent).into_value())
+    Ok(descriptors.get(agent).into())
 }

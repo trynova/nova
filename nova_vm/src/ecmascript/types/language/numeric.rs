@@ -4,22 +4,19 @@
 
 use crate::{
     SmallInteger,
-    ecmascript::execution::Agent,
+    ecmascript::{
+        execution::Agent,
+        types::{
+            BIGINT_DISCRIMINANT, FLOAT_DISCRIMINANT, HeapNumber, INTEGER_DISCRIMINANT,
+            NUMBER_DISCRIMINANT, Number, Primitive, SMALL_BIGINT_DISCRIMINANT, Value,
+            bigint::HeapBigInt,
+        },
+    },
     engine::{
         context::{Bindable, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_bigint::SmallBigInt,
         small_f64::SmallF64,
-    },
-};
-
-use super::{
-    IntoPrimitive, Number, Primitive, Value,
-    bigint::HeapBigInt,
-    number::HeapNumber,
-    value::{
-        BIGINT_DISCRIMINANT, FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT,
-        SMALL_BIGINT_DISCRIMINANT,
     },
 };
 
@@ -63,58 +60,93 @@ impl Numeric<'_> {
 
     pub fn is_pos_zero(self, agent: &mut Agent) -> bool {
         Number::try_from(self)
-            .map(|n| n.is_pos_zero(agent))
+            .map(|n| n.is_pos_zero_(agent))
             .unwrap_or(false)
     }
 
     pub fn is_neg_zero(self, agent: &mut Agent) -> bool {
         Number::try_from(self)
-            .map(|n| n.is_neg_zero(agent))
+            .map(|n| n.is_neg_zero_(agent))
             .unwrap_or(false)
     }
 
     pub fn is_pos_infinity(self, agent: &mut Agent) -> bool {
         Number::try_from(self)
-            .map(|n| n.is_pos_infinity(agent))
+            .map(|n| n.is_pos_infinity_(agent))
             .unwrap_or(false)
     }
 
     pub fn is_neg_infinity(self, agent: &mut Agent) -> bool {
         Number::try_from(self)
-            .map(|n| n.is_neg_infinity(agent))
+            .map(|n| n.is_neg_infinity_(agent))
             .unwrap_or(false)
     }
 
     pub fn is_nan(self, agent: &mut Agent) -> bool {
         Number::try_from(self)
-            .map(|n| n.is_nan(agent))
+            .map(|n| n.is_nan_(agent))
             .unwrap_or(false)
     }
 }
 
 bindable_handle!(Numeric);
 
-impl<'a> From<Numeric<'a>> for Value<'a> {
-    fn from(num: Numeric<'a>) -> Self {
-        match num {
-            Numeric::Number(data) => Value::Number(data.unbind()),
-            Numeric::Integer(data) => Value::Integer(data),
-            Numeric::SmallF64(data) => Value::SmallF64(data),
-            Numeric::BigInt(data) => Value::BigInt(data.unbind()),
-            Numeric::SmallBigInt(data) => Value::SmallBigInt(data),
+impl Rootable for Numeric<'_> {
+    type RootRepr = NumericRootRepr;
+
+    #[inline]
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        match value {
+            Self::Number(n) => Err(HeapRootData::Number(n.unbind())),
+            Self::Integer(n) => Ok(Self::RootRepr::Integer(n)),
+            Self::SmallF64(n) => Ok(Self::RootRepr::SmallF64(n)),
+            Self::BigInt(n) => Err(HeapRootData::BigInt(n.unbind())),
+            Self::SmallBigInt(n) => Ok(Self::RootRepr::SmallBigInt(n)),
+        }
+    }
+
+    #[inline]
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        match *value {
+            Self::RootRepr::Integer(n) => Ok(Self::Integer(n)),
+            Self::RootRepr::SmallF64(n) => Ok(Self::SmallF64(n)),
+            Self::RootRepr::SmallBigInt(n) => Ok(Self::SmallBigInt(n)),
+            Self::RootRepr::HeapRef(n) => Err(n),
+        }
+    }
+
+    #[inline]
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        Self::RootRepr::HeapRef(heap_ref)
+    }
+
+    #[inline]
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::Number(n) => Some(Self::Number(n)),
+            HeapRootData::BigInt(n) => Some(Self::BigInt(n)),
+            _ => None,
         }
     }
 }
 
-impl<'a> From<Numeric<'a>> for Primitive<'a> {
+// === OUTPUT OF primitive_handle! MACRO ADAPTED FOR Numeric ===
+
+impl<'a> From<Numeric<'a>> for Value<'a> {
+    #[inline(always)]
     fn from(value: Numeric<'a>) -> Self {
-        value.into_primitive()
+        match value {
+            Numeric::Number(n) => Self::Number(n),
+            Numeric::Integer(n) => Self::Integer(n),
+            Numeric::SmallF64(n) => Self::SmallF64(n),
+            Numeric::BigInt(n) => Self::BigInt(n),
+            Numeric::SmallBigInt(n) => Self::SmallBigInt(n),
+        }
     }
 }
-
 impl<'a> TryFrom<Value<'a>> for Numeric<'a> {
     type Error = ();
-
+    #[inline]
     fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::Number(data) => Ok(Numeric::Number(data)),
@@ -126,10 +158,21 @@ impl<'a> TryFrom<Value<'a>> for Numeric<'a> {
         }
     }
 }
-
+impl<'a> From<Numeric<'a>> for Primitive<'a> {
+    #[inline(always)]
+    fn from(value: Numeric<'a>) -> Self {
+        match value {
+            Numeric::Number(n) => Self::Number(n),
+            Numeric::Integer(n) => Self::Integer(n),
+            Numeric::SmallF64(n) => Self::SmallF64(n),
+            Numeric::BigInt(n) => Self::BigInt(n),
+            Numeric::SmallBigInt(n) => Self::SmallBigInt(n),
+        }
+    }
+}
 impl<'a> TryFrom<Primitive<'a>> for Numeric<'a> {
     type Error = ();
-
+    #[inline]
     fn try_from(value: Primitive<'a>) -> Result<Self, Self::Error> {
         match value {
             Primitive::Number(data) => Ok(Numeric::Number(data)),
@@ -142,41 +185,60 @@ impl<'a> TryFrom<Primitive<'a>> for Numeric<'a> {
     }
 }
 
-impl Rootable for Numeric<'_> {
-    type RootRepr = NumericRootRepr;
+// === END ===
 
-    #[inline]
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        match value {
-            Self::Number(heap_number) => Err(HeapRootData::Number(heap_number.unbind())),
-            Self::Integer(integer) => Ok(Self::RootRepr::Integer(integer)),
-            Self::SmallF64(small_f64) => Ok(Self::RootRepr::SmallF64(small_f64)),
-            Self::BigInt(heap_big_int) => Err(HeapRootData::BigInt(heap_big_int.unbind())),
-            Self::SmallBigInt(small_big_int) => Ok(Self::RootRepr::SmallBigInt(small_big_int)),
+macro_rules! numeric_value {
+    ($name: tt) => {
+        crate::ecmascript::types::numeric_value!($name, $name);
+    };
+    ($name: ident, $variant: ident) => {
+        crate::ecmascript::types::primitive_value!($name, $variant);
+
+        impl From<$name> for crate::ecmascript::types::Numeric<'static> {
+            #[inline(always)]
+            fn from(value: $name) -> Self {
+                Self::$variant(value)
+            }
         }
-    }
 
-    #[inline]
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        match *value {
-            Self::RootRepr::Integer(small_integer) => Ok(Self::Integer(small_integer)),
-            Self::RootRepr::SmallF64(small_f64) => Ok(Self::SmallF64(small_f64)),
-            Self::RootRepr::SmallBigInt(small_big_int) => Ok(Self::SmallBigInt(small_big_int)),
-            Self::RootRepr::HeapRef(heap_root_ref) => Err(heap_root_ref),
+        impl TryFrom<crate::ecmascript::types::Numeric<'_>> for $name {
+            type Error = ();
+
+            #[inline]
+            fn try_from(value: crate::ecmascript::types::Numeric) -> Result<Self, Self::Error> {
+                match value {
+                    crate::ecmascript::types::Numeric::$variant(data) => Ok(data),
+                    _ => Err(()),
+                }
+            }
         }
-    }
-
-    #[inline]
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        Self::RootRepr::HeapRef(heap_ref)
-    }
-
-    #[inline]
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::Number(heap_number) => Some(Self::Number(heap_number)),
-            HeapRootData::BigInt(heap_big_int) => Some(Self::BigInt(heap_big_int)),
-            _ => None,
-        }
-    }
+    };
 }
+pub(crate) use numeric_value;
+
+macro_rules! numeric_handle {
+    ($name: tt) => {
+        crate::ecmascript::types::numeric_handle!($name, $name);
+    };
+    ($name: ident, $variant: ident) => {
+        crate::ecmascript::types::primitive_handle!($name, $variant);
+
+        impl<'a> From<$name<'a>> for crate::ecmascript::types::Numeric<'a> {
+            fn from(value: $name<'a>) -> Self {
+                Self::$variant(value)
+            }
+        }
+
+        impl<'a> TryFrom<crate::ecmascript::types::Numeric<'a>> for $name<'a> {
+            type Error = ();
+
+            fn try_from(value: crate::ecmascript::types::Numeric<'a>) -> Result<Self, Self::Error> {
+                match value {
+                    crate::ecmascript::types::Numeric::$variant(data) => Ok(data),
+                    _ => Err(()),
+                }
+            }
+        }
+    };
+}
+pub(crate) use numeric_handle;

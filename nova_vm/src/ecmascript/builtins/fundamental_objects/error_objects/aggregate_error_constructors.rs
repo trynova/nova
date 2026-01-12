@@ -18,15 +18,14 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyDescriptor,
-            PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, Function, Object, PropertyDescriptor, PropertyKey, String, Value,
         },
     },
     engine::{
         context::{Bindable, GcScope},
         rootable::Scopable,
     },
-    heap::IntrinsicConstructorIndexes,
+    heap::{ArenaAccessMut, IntrinsicConstructorIndexes},
 };
 
 use super::error_constructor::get_error_cause;
@@ -87,7 +86,7 @@ impl AggregateErrorConstructor {
             .bind(gc.nogc());
         // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
         let message = message.map(|message| message.get(agent).bind(gc.nogc()));
-        let heap_data = &mut agent[o];
+        let heap_data = o.get_mut(agent);
         heap_data.kind = ExceptionType::AggregateError;
         heap_data.message = message.unbind();
         heap_data.cause = cause.unbind();
@@ -113,8 +112,8 @@ impl AggregateErrorConstructor {
             // [[Value]]: CreateArrayFromList(errorsList)
             value: Some(
                 create_array_from_scoped_list(agent, errors_list, gc.nogc())
-                    .into_value()
-                    .unbind(),
+                    .unbind()
+                    .into(),
             ),
             ..Default::default()
         };
@@ -128,7 +127,7 @@ impl AggregateErrorConstructor {
         .unbind()?;
         // }).
         // 7. Return O.
-        Ok(o.into_value())
+        Ok(o.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -140,8 +139,8 @@ impl AggregateErrorConstructor {
             agent, realm,
         )
         .with_property_capacity(1)
-        .with_prototype(error_constructor.into_object())
-        .with_prototype_property(aggregate_error_prototype.into_object())
+        .with_prototype(error_constructor.into())
+        .with_prototype_property(aggregate_error_prototype.into())
         .build();
     }
 }

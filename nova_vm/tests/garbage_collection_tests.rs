@@ -16,7 +16,7 @@ fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope) {
     use nova_vm::ecmascript::{
         builtins::{ArgumentsList, Behaviour, BuiltinFunctionArgs, create_builtin_function},
         execution::JsResult,
-        types::{InternalMethods, IntoValue, PropertyDescriptor, PropertyKey},
+        types::{InternalMethods, PropertyDescriptor, PropertyKey},
     };
 
     // `print` function
@@ -45,7 +45,7 @@ fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope) {
             agent,
             property_key.unbind(),
             PropertyDescriptor {
-                value: Some(function.into_value().unbind()),
+                value: Some(function.unbind().into()),
                 ..Default::default()
             },
             gc,

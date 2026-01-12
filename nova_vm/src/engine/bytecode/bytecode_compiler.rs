@@ -25,7 +25,7 @@ use crate::{
         abstract_operations::type_conversion::to_property_key_simple,
         builtins::ordinary::shape::ObjectShape,
         execution::{Agent, agent::ExceptionType},
-        types::{IntoObject, Primitive, PropertyKey},
+        types::{Primitive, PropertyKey},
     },
     engine::{
         bytecode::bytecode_compiler::compile_context::{BlockEnvPrep, StackResultValue},
@@ -38,7 +38,7 @@ use crate::{
             function_definitions::ContainsExpression,
             scope_analysis::{LexicallyScopedDeclaration, LexicallyScopedDeclarations},
         },
-        types::{BUILTIN_STRING_MEMORY, BigInt, IntoValue, Number, String, Value},
+        types::{BUILTIN_STRING_MEMORY, BigInt, Number, String, Value},
     },
     engine::bytecode::bytecode_compiler::compile_context::StackValue,
 };
@@ -283,7 +283,7 @@ impl<'s, 'gc> Place<'s, 'gc> {
                     //    exception.
                     let message = format!(
                         "invalid assignment to const '{}'",
-                        name.to_string_lossy(ctx.get_agent())
+                        name.to_string_lossy_(ctx.get_agent())
                     );
                     let message = ctx.create_string_from_owned(message);
                     ctx.add_instruction_with_constant(Instruction::StoreConstant, message);
@@ -1280,7 +1280,7 @@ fn create_object_with_shape<'s, 'gc>(
                     .current_realm_record()
                     .intrinsics()
                     .object_prototype()
-                    .into_object(),
+                    .into(),
             )
         }
     } else {
@@ -1289,7 +1289,7 @@ fn create_object_with_shape<'s, 'gc>(
                 .current_realm_record()
                 .intrinsics()
                 .object_prototype()
-                .into_object(),
+                .into(),
         )
     };
     let mut shape = ObjectShape::get_shape_for_prototype(ctx.get_agent_mut(), prototype);
@@ -2674,7 +2674,7 @@ fn compile_create_iterator_result_object(ctx: &mut CompileContext, done: bool) {
         .intrinsics()
         .object_prototype()
         .bind(gc);
-    let shape = ObjectShape::get_shape_for_prototype(agent, Some(prototype.into_object()))
+    let shape = ObjectShape::get_shape_for_prototype(agent, Some(prototype.into()))
         .get_child_shape(agent, BUILTIN_STRING_MEMORY.value.to_property_key())
         .expect("Should perform GC here")
         .get_child_shape(agent, BUILTIN_STRING_MEMORY.done.to_property_key())
@@ -3182,7 +3182,7 @@ fn simple_object_pattern<'s>(
                         // Literal is a float: it needs to be converted into a
                         // String.
                         let mut buffer = ryu_js::Buffer::new();
-                        ctx.create_string(buffer.format(literal.value)).into_value()
+                        ctx.create_string(buffer.format(literal.value)).into()
                     }
                 }
                 ast::PropertyKey::StringLiteral(literal) => {
@@ -3208,16 +3208,15 @@ fn simple_object_pattern<'s>(
                     };
                     if let Ok(result) = i64::from_str_radix(literal, radix) {
                         if let Ok(number) = Number::try_from(result) {
-                            number.into_value()
+                            number.into()
                         } else {
-                            ctx.create_string_from_owned(result.to_string())
-                                .into_value()
+                            ctx.create_string_from_owned(result.to_string()).into()
                         }
                     } else {
                         let string = num_bigint::BigInt::from_str_radix(literal, radix)
                             .unwrap()
                             .to_string();
-                        ctx.create_string_from_owned(string).into_value()
+                        ctx.create_string_from_owned(string).into()
                     }
                 }
                 _ => unreachable!(),
@@ -4543,7 +4542,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::TSEnum
                 .current_realm_record()
                 .intrinsics()
                 .object_prototype()
-                .into_object(),
+                .into(),
         );
 
         // Collect all property keys upfront for intrinsic shape creation
@@ -4609,27 +4608,18 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::TSEnum
                 match initializer {
                     ast::Expression::StringLiteral(string_lit) => {
                         let string_value = ctx.create_string(string_lit.value.as_str());
-                        ctx.add_instruction_with_constant(
-                            Instruction::StoreConstant,
-                            string_value.into_value(),
-                        );
+                        ctx.add_instruction_with_constant(Instruction::StoreConstant, string_value);
                     }
                     ast::Expression::NumericLiteral(num_lit) => {
                         let number_value = ctx.create_number(num_lit.value);
-                        ctx.add_instruction_with_constant(
-                            Instruction::StoreConstant,
-                            number_value.into_value(),
-                        );
+                        ctx.add_instruction_with_constant(Instruction::StoreConstant, number_value);
                         current_numeric_value = num_lit.value + 1.0;
                     }
                     _ => unreachable!("Computed members should have been filtered out"),
                 }
             } else {
                 let number_value = ctx.create_number(current_numeric_value);
-                ctx.add_instruction_with_constant(
-                    Instruction::StoreConstant,
-                    number_value.into_value(),
-                );
+                ctx.add_instruction_with_constant(Instruction::StoreConstant, number_value);
                 current_numeric_value += 1.0;
             }
             ctx.add_instruction(Instruction::Load);
@@ -4643,10 +4633,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::TSEnum
                     _ => "unknown",
                 };
                 let name_string = ctx.create_string(member_name);
-                ctx.add_instruction_with_constant(
-                    Instruction::StoreConstant,
-                    name_string.into_value(),
-                );
+                ctx.add_instruction_with_constant(Instruction::StoreConstant, name_string);
                 ctx.add_instruction(Instruction::Load);
             }
         }
@@ -4678,7 +4665,7 @@ fn compile_enum_with_computed_members<'s>(
 
         // Push member name as property key onto stack
         let member_string = ctx.create_string(member_name);
-        ctx.add_instruction_with_constant(Instruction::LoadConstant, member_string.into_value());
+        ctx.add_instruction_with_constant(Instruction::LoadConstant, member_string);
 
         // Determine the value for this enum member
         if let Some(ref initializer) = member.initializer {
@@ -4686,17 +4673,11 @@ fn compile_enum_with_computed_members<'s>(
                 ast::Expression::StringLiteral(string_lit) => {
                     is_numeric_enum = false;
                     let string_value = ctx.create_string(string_lit.value.as_str());
-                    ctx.add_instruction_with_constant(
-                        Instruction::StoreConstant,
-                        string_value.into_value(),
-                    );
+                    ctx.add_instruction_with_constant(Instruction::StoreConstant, string_value);
                 }
                 ast::Expression::NumericLiteral(num_lit) => {
                     let number_value = ctx.create_number(num_lit.value);
-                    ctx.add_instruction_with_constant(
-                        Instruction::StoreConstant,
-                        number_value.into_value(),
-                    );
+                    ctx.add_instruction_with_constant(Instruction::StoreConstant, number_value);
                     current_numeric_value = num_lit.value + 1.0;
                 }
                 _ => {
@@ -4706,10 +4687,7 @@ fn compile_enum_with_computed_members<'s>(
             }
         } else {
             let number_value = ctx.create_number(current_numeric_value);
-            ctx.add_instruction_with_constant(
-                Instruction::StoreConstant,
-                number_value.into_value(),
-            );
+            ctx.add_instruction_with_constant(Instruction::StoreConstant, number_value);
             current_numeric_value += 1.0;
         }
 
@@ -4741,10 +4719,10 @@ fn compile_enum_with_computed_members<'s>(
             };
 
             let key_number = ctx.create_number(reverse_key_value);
-            ctx.add_instruction_with_constant(Instruction::LoadConstant, key_number.into_value());
+            ctx.add_instruction_with_constant(Instruction::LoadConstant, key_number);
 
             let name_string = ctx.create_string(member_name);
-            ctx.add_instruction_with_constant(Instruction::StoreConstant, name_string.into_value());
+            ctx.add_instruction_with_constant(Instruction::StoreConstant, name_string);
 
             ctx.add_instruction(Instruction::ObjectDefineProperty);
         }

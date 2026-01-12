@@ -32,7 +32,7 @@ impl<'a> ObjectRecord<'a> {
     pub(super) fn get_storage<'e>(
         &self,
         elements: &'e ElementArrays,
-        shapes: &[ObjectShapeRecord<'static>],
+        shapes: &Vec<ObjectShapeRecord<'static>>,
     ) -> ElementStorageRef<'e, 'a> {
         elements.get_element_storage_raw(
             self.values,
@@ -41,7 +41,7 @@ impl<'a> ObjectRecord<'a> {
         )
     }
 
-    pub(crate) fn is_empty(&self, agent: &impl AsRef<[ObjectShapeRecord<'static>]>) -> bool {
+    pub(crate) fn is_empty(&self, agent: &impl AsRef<Vec<ObjectShapeRecord<'static>>>) -> bool {
         self.shape == ObjectShape::NULL || self.shape.is_empty(agent)
     }
 
@@ -55,7 +55,7 @@ impl<'a> ObjectRecord<'a> {
 
     pub(super) fn get_prototype(
         &self,
-        agent: &impl AsRef<[ObjectShapeRecord<'static>]>,
+        agent: &impl AsRef<Vec<ObjectShapeRecord<'static>>>,
     ) -> Option<Object<'a>> {
         self.shape.get_prototype(agent)
     }
@@ -78,12 +78,12 @@ impl<'a> ObjectRecord<'a> {
 
     pub(super) fn values_capacity(
         &self,
-        agent: &impl AsRef<[ObjectShapeRecord<'static>]>,
+        agent: &impl AsRef<Vec<ObjectShapeRecord<'static>>>,
     ) -> ElementArrayKey {
         self.shape.values_capacity(agent)
     }
 
-    pub(crate) fn len(&self, agent: &impl AsRef<[ObjectShapeRecord<'static>]>) -> u32 {
+    pub(crate) fn len(&self, agent: &impl AsRef<Vec<ObjectShapeRecord<'static>>>) -> u32 {
         self.shape.len(agent)
     }
 }
@@ -94,7 +94,7 @@ impl ObjectRecord<'static> {
     pub(crate) fn mark_values(
         &self,
         queues: &mut WorkQueues,
-        shapes: &[ObjectShapeRecord<'static>],
+        shapes: &Vec<ObjectShapeRecord<'static>>,
     ) {
         let Self { shape, values } = self;
         shape.mark_values(queues);
@@ -120,7 +120,7 @@ impl ObjectRecord<'static> {
     pub(crate) fn sweep_values(
         &mut self,
         compactions: &CompactionLists,
-        shapes: &[ObjectShapeRecord<'static>],
+        shapes: &Vec<ObjectShapeRecord<'static>>,
     ) {
         let Self { shape, values } = self;
         shape.sweep_values(compactions);

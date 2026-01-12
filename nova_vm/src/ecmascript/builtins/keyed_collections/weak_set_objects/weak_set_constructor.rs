@@ -14,20 +14,20 @@ use crate::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
             ArgumentsList, Array, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            array::ArrayHeap, ordinary::ordinary_create_from_constructor, weak_set::WeakSet,
+            ordinary::ordinary_create_from_constructor, weak_set::WeakSet,
         },
         execution::{
             Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType, can_be_held_weakly,
             throw_not_weak_key_error,
         },
-        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
+        types::{BUILTIN_STRING_MEMORY, Function, Object, String, Value},
     },
     engine::{
         Scoped,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::IntrinsicConstructorIndexes,
+    heap::{DirectArenaAccessMut, IntrinsicConstructorIndexes},
 };
 
 pub(crate) struct WeakSetConstructor;
@@ -77,7 +77,7 @@ impl WeakSetConstructor {
         let iterable = scoped_iterable.get(agent).bind(gc.nogc());
         // 4. If iterable is either undefined or null, return set.
         if iterable.is_undefined() || iterable.is_null() {
-            return Ok(set.unbind().into_value());
+            return Ok(set.unbind().into());
         }
         let scoped_set = set.scope(agent, gc.nogc());
         // 5. Let adder be ? Get(set, "add").
@@ -105,13 +105,13 @@ impl WeakSetConstructor {
                     let set = scoped_set.get(agent).bind(gc);
                     let iterable = iterable.bind(gc);
                     weak_set_add_trivially_iterable_array_elements(agent, set, iterable, gc)?;
-                    return Ok(set.into_value());
+                    return Ok(set.into());
                 }
                 _ => {}
             }
         }
         weak_set_constructor_slow_path(agent, scoped_set, adder.unbind(), scoped_iterable, gc)
-            .map(|set| set.into_value())
+            .map(|set| set.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -120,7 +120,7 @@ impl WeakSetConstructor {
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<WeakSetConstructor>(agent, realm)
             .with_property_capacity(1)
-            .with_prototype_property(weak_set_prototype.into_object())
+            .with_prototype_property(weak_set_prototype.into())
             .build();
     }
 }
@@ -173,7 +173,7 @@ fn weak_set_constructor_slow_path<'a>(
         let status = call_function(
             agent,
             adder.get(agent),
-            set.unbind().into_value(),
+            set.unbind().into(),
             Some(ArgumentsList::from_mut_value(&mut next.unbind())),
             gc.reborrow(),
         );
@@ -196,8 +196,8 @@ fn weak_set_add_trivially_iterable_array_elements<'a>(
     iterable: Array,
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
-    let array_heap = ArrayHeap::new(&agent.heap.elements, &agent.heap.arrays);
-    let slice = iterable.as_slice(&array_heap);
+    let elvec = iterable.get_elements(&agent.heap.arrays);
+    let slice = agent.heap.elements.get_values(elvec);
 
     let mut weak_keys = Vec::new();
     for value in slice {
@@ -209,7 +209,7 @@ fn weak_set_add_trivially_iterable_array_elements<'a>(
         weak_keys.push(weak_key);
     }
 
-    let weak_set_data = &mut agent.heap.weak_sets[set];
+    let weak_set_data = set.get_direct_mut(&mut agent.heap.weak_sets);
     for weak_key in weak_keys {
         weak_set_data.add(weak_key);
     }

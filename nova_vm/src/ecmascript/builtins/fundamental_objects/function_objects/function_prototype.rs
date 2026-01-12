@@ -18,16 +18,15 @@ use crate::{
         builtins::{
             ArgumentsList, Behaviour, Builtin, BuiltinFunction, BuiltinIntrinsic,
             BuiltinIntrinsicConstructor, SetFunctionNamePrefix,
-            bound_function::bound_function_create, set_function_name,
+            bound_function::bound_function_create, ecmascript_function::set_function_name,
         },
         execution::{
             Agent, JsResult, Realm,
             agent::{ExceptionType, TryError, TryResult},
         },
         types::{
-            BUILTIN_STRING_MEMORY, Function, InternalSlots, IntoFunction, IntoObject, IntoValue,
-            Number, OrdinaryObject, PropertyKey, String, TryGetResult, Value,
-            handle_try_get_result,
+            BUILTIN_STRING_MEMORY, Function, InternalSlots, Number, OrdinaryObject, PropertyKey,
+            String, TryGetResult, Value, handle_try_get_result,
         },
     },
     engine::{
@@ -35,8 +34,8 @@ use crate::{
         rootable::Scopable,
     },
     heap::{
-        IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, ObjectEntry,
-        ObjectEntryPropertyDescriptor, WellKnownSymbolIndexes,
+        ArenaAccess, ArenaAccessMut, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes,
+        ObjectEntry, ObjectEntryPropertyDescriptor, WellKnownSymbolIndexes,
     },
 };
 
@@ -205,7 +204,7 @@ impl FunctionPrototype {
         // 5. Let targetHasLength be ? HasOwnProperty(Target, "length").
         let target_has_length = if let TryResult::Continue(result) = try_has_own_property(
             agent,
-            scoped_target.get(agent).into_object(),
+            scoped_target.get(agent).into(),
             BUILTIN_STRING_MEMORY.length.into(),
             None,
             gc.nogc(),
@@ -215,7 +214,7 @@ impl FunctionPrototype {
             scoped_f = Some(f.scope(agent, gc.nogc()));
             let result = has_own_property(
                 agent,
-                target.into_object(),
+                target.into(),
                 BUILTIN_STRING_MEMORY.length.into(),
                 gc.reborrow(),
             )
@@ -270,10 +269,10 @@ impl FunctionPrototype {
                     }
                     _ => {
                         // i. If targetLen is +∞𝔽, then
-                        if target_len.is_pos_infinity(agent) {
+                        if target_len.is_pos_infinity_(agent) {
                             // 1. Set L to +∞.
                             l = usize::MAX;
-                        } else if target_len.is_neg_infinity(agent) {
+                        } else if target_len.is_neg_infinity_(agent) {
                             // ii. Else if targetLen is -∞𝔽, then
                             // 1. Set L to 0.
                             l = 0;
@@ -293,7 +292,7 @@ impl FunctionPrototype {
             }
         }
         // 7. Perform SetFunctionLength(F, L).
-        agent[f].length = u8::try_from(l).unwrap_or(u8::MAX);
+        f.get_mut(agent).length = u8::try_from(l).unwrap_or(u8::MAX);
         // 8. Let targetName be ? Get(Target, "name").
         let target_name = try_get(
             agent,
@@ -335,7 +334,7 @@ impl FunctionPrototype {
         );
         // 11. Return F.
 
-        Ok(f.into_value().unbind())
+        Ok(f.unbind().into())
     }
 
     fn call<'gc>(
@@ -386,7 +385,7 @@ impl FunctionPrototype {
             // HostHasSourceTextAvailable(func) is true, then
             Function::ECMAScriptFunction(idx) => {
                 // a. Return CodePointsToString(func.[[SourceText]]).
-                let data = &agent[idx].ecmascript_function;
+                let data = &idx.get(agent).ecmascript_function;
                 let span = data.source_text;
                 let source_text = data.source_code.get_source_text(agent)
                     [(span.start as usize)..(span.end as usize)]
@@ -401,14 +400,14 @@ impl FunctionPrototype {
             // String that would be matched by NativeFunctionAccessor_opt
             // PropertyName must be the value of func.[[InitialName]].
             Function::BuiltinFunction(idx) => {
-                let data = &agent[idx];
+                let data = &idx.get(agent);
                 let initial_name = data.initial_name.map_or_else(
                     || "function () {{ [ native code ] }}".into(),
                     |initial_name| match initial_name {
                         crate::ecmascript::types::String::String(idx) => {
                             format!(
                                 "function {}() {{ [ native code ] }}",
-                                agent[idx].to_string_lossy()
+                                idx.get(agent).to_string_lossy()
                             )
                         }
                         crate::ecmascript::types::String::SmallString(string) => {
@@ -461,8 +460,8 @@ impl FunctionPrototype {
         ThrowTypeError::create_intrinsic(agent, realm);
 
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
-        let object_prototype = intrinsics.object_prototype().into_object();
-        let throw_type_error = intrinsics.throw_type_error().into_function();
+        let object_prototype = intrinsics.object_prototype().into();
+        let throw_type_error = intrinsics.throw_type_error().into();
         let function_constructor = intrinsics.function();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<FunctionPrototype>(agent, realm)
@@ -527,7 +526,7 @@ impl ThrowTypeError {
         let throw_type_error =
             BuiltinFunctionBuilder::new_intrinsic_function::<ThrowTypeError>(agent, realm).build();
         let backing_object = create_throw_type_error_backing_object(agent, realm);
-        agent[throw_type_error].object_index = Some(backing_object);
+        throw_type_error.get_mut(agent).object_index = Some(backing_object);
     }
 }
 
@@ -554,7 +553,7 @@ fn create_throw_type_error_backing_object(
         key: PropertyKey::from(BUILTIN_STRING_MEMORY.name),
         // The "name" property of this function has the attributes { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: false }.
         value: ObjectEntryPropertyDescriptor::Data {
-            value: ThrowTypeError::NAME.into_value(),
+            value: ThrowTypeError::NAME.into(),
             writable: false,
             enumerable: false,
             configurable: false,

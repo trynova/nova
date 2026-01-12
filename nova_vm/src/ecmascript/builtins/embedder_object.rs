@@ -2,53 +2,26 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::ops::{Index, IndexMut};
-
 use crate::{
     ecmascript::{
         execution::Agent,
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
-    },
-    engine::{
-        context::{Bindable, bindable_handle},
-        rootable::HeapRootData,
+        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, object_handle},
     },
     heap::{
-        CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, indexes::BaseIndex,
+        CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
+        indexes::BaseIndex,
     },
 };
 
-use self::data::EmbedderObjectHeapData;
+pub(crate) use self::data::EmbedderObjectHeapData;
 
-pub mod data;
+mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct EmbedderObject<'a>(BaseIndex<'a, EmbedderObjectHeapData>);
-
-impl EmbedderObject<'_> {
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-}
-
-bindable_handle!(EmbedderObject);
-
-impl<'a> From<EmbedderObject<'a>> for Value<'a> {
-    fn from(value: EmbedderObject<'a>) -> Self {
-        Value::EmbedderObject(value.unbind())
-    }
-}
-
-impl<'a> From<EmbedderObject<'a>> for Object<'a> {
-    fn from(value: EmbedderObject<'a>) -> Self {
-        Object::EmbedderObject(value)
-    }
-}
+pub struct EmbedderObject<'a>(BaseIndex<'a, EmbedderObjectHeapData<'static>>);
+object_handle!(EmbedderObject);
+arena_vec_access!(EmbedderObject, 'a, EmbedderObjectHeapData, embedder_objects);
 
 impl<'a> InternalSlots<'a> for EmbedderObject<'a> {
     #[inline(always)]
@@ -81,49 +54,6 @@ impl<'a> InternalSlots<'a> for EmbedderObject<'a> {
 }
 
 impl<'a> InternalMethods<'a> for EmbedderObject<'a> {}
-
-impl Index<EmbedderObject<'_>> for Agent {
-    type Output = EmbedderObjectHeapData;
-
-    fn index(&self, index: EmbedderObject) -> &Self::Output {
-        &self.heap.embedder_objects[index]
-    }
-}
-
-impl IndexMut<EmbedderObject<'_>> for Agent {
-    fn index_mut(&mut self, index: EmbedderObject) -> &mut Self::Output {
-        &mut self.heap.embedder_objects[index]
-    }
-}
-
-impl Index<EmbedderObject<'_>> for Vec<EmbedderObjectHeapData> {
-    type Output = EmbedderObjectHeapData;
-
-    fn index(&self, index: EmbedderObject) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("EmbedderObject out of bounds")
-    }
-}
-
-impl IndexMut<EmbedderObject<'_>> for Vec<EmbedderObjectHeapData> {
-    fn index_mut(&mut self, index: EmbedderObject) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("EmbedderObject out of bounds")
-    }
-}
-
-impl TryFrom<HeapRootData> for EmbedderObject<'_> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        if let HeapRootData::EmbedderObject(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
-}
 
 impl HeapMarkAndSweep for EmbedderObject<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

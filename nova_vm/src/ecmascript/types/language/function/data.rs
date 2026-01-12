@@ -6,19 +6,22 @@ use oxc_span::Span;
 
 use crate::{
     ecmascript::{
-        builtins::{Behaviour, ECMAScriptFunctionObjectHeapData},
+        builtins::{Behaviour, ecmascript_function::ECMAScriptFunctionObjectHeapData},
         execution::{Environment, PrivateEnvironment, Realm},
         scripts_and_modules::source_code::SourceCode,
         types::{OrdinaryObject, String, Value},
     },
-    engine::Executable,
-    heap::element_array::ElementsVector,
+    engine::{Executable, context::bindable_handle},
+    heap::{
+        CompactionLists, HeapMarkAndSweep, WorkQueues, element_array::ElementsVector,
+        indexes::HeapIndexHandle,
+    },
 };
 
 use super::Function;
 
 #[derive(Debug, Clone)]
-pub struct BoundFunctionHeapData<'a> {
+pub(crate) struct BoundFunctionHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) length: u8,
     /// ### \[\[BoundTargetFunction\]\]
@@ -37,9 +40,10 @@ pub struct BoundFunctionHeapData<'a> {
     pub(crate) bound_arguments: ElementsVector<'a>,
     pub(crate) name: Option<String<'a>>,
 }
+bindable_handle!(BoundFunctionHeapData);
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct BuiltinFunctionHeapData<'a> {
+pub(crate) struct BuiltinFunctionHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) length: u8,
     /// #### \[\[Realm]]
@@ -57,14 +61,14 @@ impl BuiltinFunctionHeapData<'_> {
     pub(crate) const BLANK: Self = Self {
         object_index: None,
         length: 0,
-        realm: Realm::from_u32(u32::MAX - 1),
+        realm: Realm::_DEF,
         initial_name: None,
         behaviour: Behaviour::Regular(|_, _, _, _| Ok(Value::Undefined)),
     };
 }
 
 #[derive(Debug, Clone)]
-pub struct BuiltinConstructorRecord<'a> {
+pub(crate) struct BuiltinConstructorRecord<'a> {
     pub(crate) backing_object: Option<OrdinaryObject<'a>>,
     /// #### \[\[Realm]]
     /// A Realm Record that represents the realm in which the function was
@@ -99,7 +103,7 @@ pub struct BuiltinConstructorRecord<'a> {
 }
 
 #[derive(Debug)]
-pub struct ECMAScriptFunctionHeapData<'a> {
+pub(crate) struct ECMAScriptFunctionHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) length: u8,
     pub(crate) ecmascript_function: ECMAScriptFunctionObjectHeapData<'a>,
@@ -109,3 +113,37 @@ pub struct ECMAScriptFunctionHeapData<'a> {
 }
 
 unsafe impl Send for ECMAScriptFunctionHeapData<'_> {}
+
+impl HeapMarkAndSweep for BoundFunctionHeapData<'static> {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let Self {
+            object_index,
+            length: _,
+            bound_target_function,
+            bound_this,
+            bound_arguments,
+            name,
+        } = self;
+        name.mark_values(queues);
+        bound_target_function.mark_values(queues);
+        object_index.mark_values(queues);
+        bound_this.mark_values(queues);
+        bound_arguments.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let Self {
+            object_index,
+            length: _,
+            bound_target_function,
+            bound_this,
+            bound_arguments,
+            name,
+        } = self;
+        name.sweep_values(compactions);
+        bound_target_function.sweep_values(compactions);
+        object_index.sweep_values(compactions);
+        bound_this.sweep_values(compactions);
+        bound_arguments.sweep_values(compactions);
+    }
+}

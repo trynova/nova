@@ -2,13 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::SmallInteger;
+use crate::{SmallInteger, ecmascript::types::numeric_value};
 
 /// 56-bit signed integer.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct SmallBigInt {
     pub(super) data: [u8; 7],
 }
+numeric_value!(SmallBigInt);
 
 impl core::fmt::Debug for SmallBigInt {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {

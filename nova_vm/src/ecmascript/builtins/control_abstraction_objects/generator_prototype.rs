@@ -7,7 +7,7 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
         execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, String, Value},
+        types::{BUILTIN_STRING_MEMORY, String, Value},
     },
     engine::context::{Bindable, GcScope},
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
@@ -61,7 +61,7 @@ impl GeneratorPrototype {
         };
 
         // 1. Return ? GeneratorResume(this value, value, empty).
-        Ok(generator.resume(agent, arguments.get(0), gc)?.into_value())
+        generator.resume(agent, arguments.get(0), gc)
     }
 
     /// ### [27.5.1.3 %GeneratorPrototype%.return ( value )](https://tc39.es/ecma262/#sec-generator.prototype.return)
@@ -89,9 +89,7 @@ impl GeneratorPrototype {
             ));
         };
 
-        g.unbind()
-            .resume_return(agent, c.unbind(), gc)
-            .map(|v| v.into_value())
+        g.unbind().resume_return(agent, c.unbind(), gc)
     }
 
     fn throw<'gc>(
@@ -112,9 +110,7 @@ impl GeneratorPrototype {
         // 1. Let g be the this value.
         // 2. Let C be ThrowCompletion(exception).
         // 3. Return ? GeneratorResumeAbrupt(g, C, empty).
-        Ok(generator
-            .resume_throw(agent, arguments.get(0), gc)?
-            .into_value())
+        generator.resume_throw(agent, arguments.get(0), gc)
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -129,7 +125,7 @@ impl GeneratorPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.constructor.into())
-                    .with_value_readonly(generator_function_prototype.into_value())
+                    .with_value_readonly(generator_function_prototype.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()
@@ -140,7 +136,7 @@ impl GeneratorPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.Generator.into_value())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.Generator.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()

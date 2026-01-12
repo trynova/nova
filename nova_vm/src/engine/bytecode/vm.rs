@@ -52,6 +52,7 @@ use crate::{
         abstract_operations::{
             operations_on_objects::{
                 call_function, copy_data_properties_into_object, get_method, ordinary_has_instance,
+                try_get_object_method,
             },
             testing_and_comparison::is_callable,
             type_conversion::{
@@ -59,14 +60,14 @@ use crate::{
                 to_property_key, to_string_primitive,
             },
         },
-        builtins::{ArgumentsList, ScopedArgumentsList, array_create},
+        builtins::{ArgumentsList, ScopedArgumentsList, array::abstract_operations::array_create},
         execution::{
             Agent, Environment, JsResult,
-            agent::{ExceptionType, JsError, resolve_binding},
+            agent::{ExceptionType, JsError, resolve_binding, try_result_into_option_js},
         },
         types::{
-            BUILTIN_STRING_MEMORY, BigInt, IntoValue, Number, Object, Primitive, Reference, String,
-            Value, initialize_referenced_binding, put_value,
+            BUILTIN_STRING_MEMORY, BigInt, Number, Object, Primitive, Reference, String, Value,
+            initialize_referenced_binding, put_value,
         },
     },
     engine::{
@@ -1038,7 +1039,7 @@ fn concat_string_from_slice<'gc>(
 ) -> String<'gc> {
     let mut result_string = Wtf8Buf::with_capacity(string_length);
     for string in slice.iter() {
-        result_string.push_wtf8(string.as_wtf8(agent));
+        result_string.push_wtf8(string.as_wtf8_(agent));
     }
     String::from_wtf8_buf(agent, result_string, gc)
 }
@@ -1075,9 +1076,9 @@ fn apply_string_or_numeric_binary_operator<'gc>(
 
     // 6. If lnum is a BigInt, then
     if let (Ok(lnum), Ok(rnum)) = (BigInt::try_from(lnum), BigInt::try_from(rnum)) {
-        bigint_binary_operator(agent, op_text, lnum, rnum, gc).map(|v| v.into_value())
+        bigint_binary_operator(agent, op_text, lnum, rnum, gc).map(|v| v.into())
     } else if let (Ok(lnum), Ok(rnum)) = (Number::try_from(lnum), Number::try_from(rnum)) {
-        number_binary_operator(agent, op_text, lnum, rnum, gc).map(|v| v.into_value())
+        number_binary_operator(agent, op_text, lnum, rnum, gc).map(|v| v.into())
     } else {
         // 5. If Type(lnum) is not Type(rnum), throw a TypeError exception.
         Err(agent.throw_exception_with_static_message(
@@ -1147,21 +1148,21 @@ fn apply_string_or_numeric_addition<'gc>(
     match (String::try_from(lprim), String::try_from(rprim)) {
         (Ok(lstr), Ok(rstr)) => {
             // iii. Return the string-concatenation of lstr and rstr.
-            return Ok(String::concat(agent, [lstr, rstr], gc).into_value());
+            return Ok(String::concat(agent, [lstr, rstr], gc).into());
         }
         (Ok(lstr), Err(_)) => {
             let lstr = lstr.scope(agent, gc);
             // ii. Let rstr be ? ToString(rprim).
             let rstr = to_string_primitive(agent, rprim, gc)?;
             // iii. Return the string-concatenation of lstr and rstr.
-            return Ok(String::concat(agent, [lstr.get(agent).bind(gc), rstr], gc).into_value());
+            return Ok(String::concat(agent, [lstr.get(agent).bind(gc), rstr], gc).into());
         }
         (Err(_), Ok(rstr)) => {
             let rstr = rstr.scope(agent, gc);
             // i. Let lstr be ? ToString(lprim).
             let lstr = to_string_primitive(agent, lprim, gc)?;
             // iii. Return the string-concatenation of lstr and rstr.
-            return Ok(String::concat(agent, [lstr, rstr.get(agent).bind(gc)], gc).into_value());
+            return Ok(String::concat(agent, [lstr, rstr.get(agent).bind(gc)], gc).into());
         }
         (Err(_), Err(_)) => {}
     }
@@ -1176,9 +1177,9 @@ fn apply_string_or_numeric_addition<'gc>(
 
     // 6. If lnum is a BigInt, then
     if let (Ok(lnum), Ok(rnum)) = (BigInt::try_from(lnum), BigInt::try_from(rnum)) {
-        Ok(BigInt::add(agent, lnum, rnum).into_value())
+        Ok(BigInt::add(agent, lnum, rnum).into())
     } else if let (Ok(lnum), Ok(rnum)) = (Number::try_from(lnum), Number::try_from(rnum)) {
-        Ok(Number::add(agent, lnum, rnum).into_value())
+        Ok(Number::add(agent, lnum, rnum).into())
     } else {
         // 5. If Type(lnum) is not Type(rnum), throw a TypeError exception.
         Err(agent.throw_exception_with_static_message(
@@ -1385,40 +1386,56 @@ pub(crate) fn typeof_operator(agent: &Agent, val: Value, gc: NoGcScope) -> Strin
 /// > the default instanceof semantics.
 pub(crate) fn instanceof_operator<'a, 'b>(
     agent: &mut Agent,
-    value: impl IntoValue<'b>,
-    target: impl IntoValue<'b>,
+    value: impl Into<Value<'b>>,
+    target: impl Into<Value<'b>>,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, bool> {
+    let mut value = value.into().bind(gc.nogc());
+    let target = target.into().bind(gc.nogc());
     // 1. If target is not an Object, throw a TypeError exception.
-    let Ok(target) = Object::try_from(target.into_value()) else {
+    let Ok(mut target) = Object::try_from(target) else {
         let error_message = format!(
             "Invalid instanceof target {}.",
             target
-                .into_value()
+                .unbind()
                 .string_repr(agent, gc.reborrow())
-                .to_string_lossy(agent)
+                .to_string_lossy_(agent)
         );
         return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.into_nogc()));
     };
     // 2. Let instOfHandler be ? GetMethod(target, @@hasInstance).
-    let inst_of_handler = get_method(
+    let inst_of_handler = if let Some(handler) = try_result_into_option_js(try_get_object_method(
         agent,
-        target.into_value(),
+        target,
         WellKnownSymbolIndexes::HasInstance.into(),
-        gc.reborrow(),
-    )
-    .unbind()?
-    .bind(gc.nogc());
+        gc.nogc(),
+    )) {
+        handler.unbind()?.bind(gc.nogc())
+    } else {
+        let scoped_value = value.scope(agent, gc.nogc());
+        let scoped_target = target.scope(agent, gc.nogc());
+        let inst_of_handler = get_method(
+            agent,
+            target.unbind().into(),
+            WellKnownSymbolIndexes::HasInstance.into(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        // SAFETY: not shared.
+        value = unsafe { scoped_value.take(agent) }.bind(gc.nogc());
+        // SAFETY: not shared.
+        target = unsafe { scoped_target.take(agent) }.bind(gc.nogc());
+        inst_of_handler
+    };
     // 3. If instOfHandler is not undefined, then
     if let Some(inst_of_handler) = inst_of_handler {
         // a. Return ToBoolean(? Call(instOfHandler, target, « V »)).
         let result = call_function(
             agent,
             inst_of_handler.unbind(),
-            target.into_value(),
-            Some(ArgumentsList::from_mut_slice(&mut [value
-                .into_value()
-                .unbind()])),
+            target.unbind().into(),
+            Some(ArgumentsList::from_mut_slice(&mut [value.unbind()])),
             gc.reborrow(),
         )
         .unbind()?
@@ -1429,10 +1446,10 @@ pub(crate) fn instanceof_operator<'a, 'b>(
         let Some(target) = is_callable(target, gc.nogc()) else {
             let error_message = format!(
                 "Invalid instanceof target {} is not a function.",
-                target
-                    .into_value()
+                Value::from(target)
+                    .unbind()
                     .string_repr(agent, gc.reborrow())
-                    .to_string_lossy(agent)
+                    .to_string_lossy_(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
@@ -1441,7 +1458,12 @@ pub(crate) fn instanceof_operator<'a, 'b>(
             ));
         };
         // 5. Return ? OrdinaryHasInstance(target, V).
-        Ok(ordinary_has_instance(agent, target.unbind(), value, gc)?)
+        Ok(ordinary_has_instance(
+            agent,
+            target.unbind(),
+            value.unbind(),
+            gc,
+        )?)
     }
 }
 
@@ -1593,7 +1615,7 @@ fn set_class_name<'a>(
         };
 
         let name = prop_key.convert_to_value(agent, gc.nogc());
-        set_class_name(agent, vm, name.into_value().unbind(), gc)
+        set_class_name(agent, vm, name.unbind().into(), gc)
     }
 }
 
@@ -1618,7 +1640,7 @@ fn throw_error_in_target_not_object<'a>(
 ) -> JsError<'a> {
     let error_message = format!(
         "right-hand side of 'in' should be an object, got {}.",
-        typeof_operator(agent, value, gc).to_string_lossy(agent)
+        typeof_operator(agent, value, gc).to_string_lossy_(agent)
     );
     agent.throw_exception(ExceptionType::TypeError, error_message, gc)
 }

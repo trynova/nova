@@ -25,22 +25,19 @@ use crate::{
             agent::{TryError, TryResult, js_result_into_try, unwrap_try},
         },
         types::{
-            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoFunction,
-            IntoObject, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, TryGetResult,
-            TryHasResult, Value,
+            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, Object,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, TryGetResult, TryHasResult, Value,
+            object_handle,
         },
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
+    engine::context::{Bindable, GcScope, NoGcScope},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues,
+        WorkQueues, arena_vec_access,
         element_array::{
             ElementArrays, ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementsVector,
         },
-        indexes::BaseIndex,
+        indexes::{BaseIndex, HeapIndexHandle},
     },
 };
 
@@ -57,6 +54,8 @@ use super::ordinary::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Array<'a>(BaseIndex<'a, ArrayHeapData<'static>>);
+object_handle!(Array);
+arena_vec_access!(soa: Array, 'a, ArrayHeapData, arrays, ArrayHeapDataRef, ArrayHeapDataMut);
 
 pub(crate) static ARRAY_INDEX_RANGE: RangeInclusive<i64> = 0..=(i64::pow(2, 32) - 2);
 
@@ -81,7 +80,7 @@ impl<'a> Array<'a> {
     /// Effectively, this is only useful in Realm creation for getting the
     /// `%Array.prototype%` intrinsic.
     pub(crate) unsafe fn next_array(agent: &Agent) -> Self {
-        Array(BaseIndex::from_u32_index(agent.heap.arrays.len()))
+        Array(BaseIndex::from_index_u32(agent.heap.arrays.len()))
     }
 
     /// Allocate a new Array in the Agent heap with 0 capacity.
@@ -112,7 +111,7 @@ impl<'a> Array<'a> {
         agent
             .heap
             .arrays
-            .get_mut(self.0.into_u32_index())
+            .get_mut(self.0.get_index_u32())
             .unwrap()
             .elements
             .push(&mut agent.heap.elements, Some(value), None)
@@ -126,19 +125,13 @@ impl<'a> Array<'a> {
         elems.reserve(elements, elems.len().saturating_add(additional))
     }
 
-    /// # Do not use this
-    /// This is only for Value discriminant creation.
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
     pub(crate) fn get<'agent>(
         self,
         agent: &'agent impl AsRef<SoAVec<ArrayHeapData<'static>>>,
     ) -> ArrayHeapDataRef<'agent, 'a> {
         agent
             .as_ref()
-            .get(self.0.into_u32_index())
+            .get(self.0.get_index_u32())
             .expect("Invalid Array reference")
     }
 
@@ -148,7 +141,7 @@ impl<'a> Array<'a> {
     ) -> ArrayHeapDataMut<'agent, 'static> {
         agent
             .as_mut()
-            .get_mut(self.0.into_u32_index())
+            .get_mut(self.0.get_index_u32())
             .expect("Invalid Array reference")
     }
 
@@ -158,7 +151,7 @@ impl<'a> Array<'a> {
     ) -> &ElementsVector<'a> {
         agent
             .as_ref()
-            .get(self.0.into_u32_index())
+            .get(self.0.get_index_u32())
             .expect("Invalid Array reference")
             .elements
     }
@@ -169,7 +162,7 @@ impl<'a> Array<'a> {
     ) -> &mut ElementsVector<'static> {
         agent
             .as_mut()
-            .get_mut(self.0.into_u32_index())
+            .get_mut(self.0.get_index_u32())
             .expect("Invalid Array reference")
             .elements
     }
@@ -181,10 +174,6 @@ impl<'a> Array<'a> {
     #[inline]
     pub fn from_slice(agent: &mut Agent, elements: &[Value], gc: NoGcScope<'a, '_>) -> Self {
         create_array_from_list(agent, elements, gc)
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
     }
 
     pub fn len(self, agent: &Agent) -> u32 {
@@ -221,17 +210,17 @@ impl<'a> Array<'a> {
     /// JavaScript. This does not necessarily mean that all the slots in the
     /// array contain a Value; some may be None but those slots are setters
     /// without a matching getter and accessing them returns `undefined`.
-    pub(crate) fn is_dense(self, agent: &impl ArrayHeapIndexable<'a>) -> bool {
+    pub(crate) fn is_dense(self, agent: &impl ArrayHeapAccess<'a>) -> bool {
         self.get_elements(agent).is_dense(agent)
     }
 
     /// An array is simple if it contains no element accessor descriptors.
-    pub(crate) fn is_simple(self, agent: &impl ArrayHeapIndexable<'a>) -> bool {
+    pub(crate) fn is_simple(self, agent: &impl ArrayHeapAccess<'a>) -> bool {
         self.get_elements(agent).is_simple(agent)
     }
 
     /// An array is trivial if it contains no element descriptors.
-    pub(crate) fn is_trivial(self, agent: &impl ArrayHeapIndexable<'a>) -> bool {
+    pub(crate) fn is_trivial(self, agent: &impl ArrayHeapAccess<'a>) -> bool {
         self.get_elements(agent).is_trivial(agent)
     }
 
@@ -249,7 +238,7 @@ impl<'a> Array<'a> {
                         .current_realm_record()
                         .intrinsics()
                         .array_prototype_values()
-                        .into_function() =>
+                        .into() =>
             {
                 Some(array)
             }
@@ -270,7 +259,7 @@ impl<'a> Array<'a> {
         } else {
             let TryResult::Continue(Some(iterator_method)) = try_get_object_method(
                 agent,
-                self.into_object(),
+                self.into(),
                 PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
                 gc,
             ) else {
@@ -288,7 +277,7 @@ impl<'a> Array<'a> {
                     .current_realm_record()
                     .intrinsics()
                     .array_prototype_values()
-                    .into_function()
+                    .into()
         }
     }
 
@@ -307,63 +296,26 @@ impl<'a> Array<'a> {
     }
 
     #[inline]
-    pub(crate) fn as_slice(self, arena: &impl ArrayHeapIndexable<'a>) -> &[Option<Value<'a>>] {
+    pub(crate) fn as_slice(self, arena: &impl ArrayHeapAccess<'a>) -> &[Option<Value<'a>>] {
+        let elvec = self.get_elements(arena);
         let elements: &ElementArrays = arena.as_ref();
-        &elements[self.get_elements(arena)]
+        elements.get_values(elvec)
     }
 
     #[inline]
     pub(crate) fn as_mut_slice(self, agent: &mut Agent) -> &mut [Option<Value<'static>>] {
-        let elements = self.get_elements(&agent.heap.arrays);
-        &mut agent.heap.elements[elements]
+        let elvec = self.get_elements(&agent.heap.arrays);
+        let elements = &mut agent.heap.elements;
+        elements.get_values_mut(elvec)
     }
 
-    pub(crate) fn get_storage(
-        self,
-        arena: &impl ArrayHeapIndexable<'a>,
-    ) -> ElementStorageRef<'_, 'a> {
+    pub(crate) fn get_storage(self, arena: &impl ArrayHeapAccess<'a>) -> ElementStorageRef<'_, 'a> {
         self.get_elements(arena).get_storage(arena)
     }
 
     pub(crate) fn get_storage_mut(self, agent: &mut Agent) -> ElementStorageMut<'_> {
         self.get_elements(&agent.heap.arrays)
             .get_storage_mut(&mut agent.heap.elements)
-    }
-}
-
-bindable_handle!(Array);
-
-impl<'a> From<Array<'a>> for Object<'a> {
-    fn from(value: Array) -> Self {
-        Self::Array(value.unbind())
-    }
-}
-
-impl<'a> From<Array<'a>> for Value<'a> {
-    fn from(value: Array<'a>) -> Self {
-        Self::Array(value)
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for Array<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::Array(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for Array<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Object::Array(data) => Ok(data),
-            _ => Err(()),
-        }
     }
 }
 
@@ -409,7 +361,7 @@ impl<'a> InternalSlots<'a> for Array<'a> {
                         .current_realm_record()
                         .intrinsics()
                         .array_prototype()
-                        .into_object(),
+                        .into(),
                 )
             {
                 return;
@@ -474,7 +426,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             TryResult::Continue(
                 ordinary_get_own_property(
                     agent,
-                    self.into_object(),
+                    self.into(),
                     backing_object,
                     property_key,
                     cache,
@@ -554,7 +506,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                     // invalidate caches.
                     Caches::invalidate_caches_on_intrinsic_shape_property_addition(
                         agent,
-                        self.into_object(),
+                        self.into(),
                         shape,
                         index.into(),
                         u32::MAX,
@@ -580,7 +532,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 .unwrap_or_else(|| self.create_backing_object(agent));
             js_result_into_try(ordinary_define_own_property(
                 agent,
-                self.into_object(),
+                self.into(),
                 backing_object,
                 property_key,
                 property_descriptor,
@@ -621,7 +573,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
     ) -> TryResult<'gc, TryHasResult<'gc>> {
         let array = self.bind(gc);
         if property_key == BUILTIN_STRING_MEMORY.length.into() {
-            return TryHasResult::Custom(u32::MAX, array.into_object()).into();
+            return TryHasResult::Custom(u32::MAX, array.into()).into();
         } else if let Some(index) = property_key.into_u32() {
             // Within possible Array bounds: the data is found in the Array
             // elements storage.
@@ -630,7 +582,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 // Within the Array slice: first check values as checking
                 // descriptors requires a hash calculation.
                 if values[index as usize].is_some() {
-                    return TryHasResult::Custom(index, array.into_object()).into();
+                    return TryHasResult::Custom(index, array.into()).into();
                 }
                 // No value at this index; we have to check descriptors.
                 let ElementStorageRef {
@@ -643,7 +595,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                     // Indeed, found a descriptor at this index. It must be an
                     // accessor, otherwise it should have a value as well.
                     debug_assert!(d.get(&index).unwrap().is_accessor_descriptor());
-                    return TryHasResult::Custom(index, array.into_object()).into();
+                    return TryHasResult::Custom(index, array.into()).into();
                 }
             }
             // Overindexing, or no value or descriptor at this index: we have
@@ -651,7 +603,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         }
         ordinary_try_has_property(
             agent,
-            array.into_object(),
+            array.into(),
             array.get_backing_object(agent),
             property_key,
             cache,
@@ -699,13 +651,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             if let Some(backing_object) = self.get_backing_object(agent) {
                 // Note: this looks up in the prototype chain as well, so we
                 // don't need to fall-through if this returns false or such.
-                return ordinary_has_property(
-                    agent,
-                    self.into_object(),
-                    backing_object,
-                    property_key,
-                    gc,
-                );
+                return ordinary_has_property(agent, self.into(), backing_object, property_key, gc);
             }
         }
         // Data is not found in the array or its backing object (or one does
@@ -766,7 +712,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         }
         ordinary_try_get(
             agent,
-            self.into_object(),
+            self.into(),
             self.get_backing_object(agent),
             property_key,
             receiver,
@@ -874,7 +820,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             TryResult::Continue(
                 self.get_backing_object(agent)
                     .map(|backing_object| {
-                        ordinary_delete(agent, self.into_object(), backing_object, property_key, gc)
+                        ordinary_delete(agent, self.into(), backing_object, property_key, gc)
                     })
                     .unwrap_or(true),
             )
@@ -911,29 +857,6 @@ impl<'a> InternalMethods<'a> for Array<'a> {
     }
 }
 
-impl Rootable for Array<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::Array(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::Array(object) => Some(object),
-            _ => None,
-        }
-    }
-}
-
 impl<'a> CreateHeapData<ArrayHeapData<'a>, Array<'a>> for Heap {
     fn create(&mut self, data: ArrayHeapData<'a>) -> Array<'a> {
         let i = self.arrays.len();
@@ -941,7 +864,7 @@ impl<'a> CreateHeapData<ArrayHeapData<'a>, Array<'a>> for Heap {
             .push(data.unbind())
             .expect("Failed to allocate Array");
         self.alloc_counter += core::mem::size_of::<ArrayHeapData<'static>>();
-        Array(BaseIndex::from_u32_index(i))
+        Array(BaseIndex::from_index_u32(i))
     }
 }
 
@@ -973,7 +896,7 @@ fn invalidate_array_index_caches(agent: &mut Agent, array: Array, index: u32, gc
         // invalidate caches.
         Caches::invalidate_caches_on_intrinsic_shape_property_addition(
             agent,
-            array.into_object(),
+            array.into(),
             shape,
             index.into(),
             u32::MAX,
@@ -1244,7 +1167,7 @@ fn insert_data_descriptor(
         insert_element_descriptor(agent, elements, index, descriptor_value, descriptor);
     } else {
         agent.heap.alloc_counter += core::mem::size_of::<Option<Value>>();
-        agent[elements][index as usize] =
+        agent.heap.elements.get_values_mut(elements)[index as usize] =
             Some(descriptor_value.unwrap_or(Value::Undefined).unbind());
     }
 }
@@ -1280,37 +1203,24 @@ fn insert_element_descriptor(
 
 /// A partial view to the Agent's Heap that allows accessing array heap data.
 pub(crate) struct ArrayHeap<'a> {
-    elements: &'a ElementArrays,
-    arrays: &'a SoAVec<ArrayHeapData<'static>>,
+    elements: &'a mut ElementArrays,
+    arrays: &'a mut SoAVec<ArrayHeapData<'static>>,
 }
 
 impl ArrayHeap<'_> {
     #[inline(always)]
     pub(crate) fn new<'a>(
-        elements: &'a ElementArrays,
-        arrays: &'a SoAVec<ArrayHeapData<'static>>,
+        elements: &'a mut ElementArrays,
+        arrays: &'a mut SoAVec<ArrayHeapData<'static>>,
     ) -> ArrayHeap<'a> {
         ArrayHeap { elements, arrays }
     }
 }
 
 impl AsRef<SoAVec<ArrayHeapData<'static>>> for ArrayHeap<'_> {
+    #[inline(always)]
     fn as_ref(&self) -> &SoAVec<ArrayHeapData<'static>> {
         self.arrays
-    }
-}
-
-impl AsRef<SoAVec<ArrayHeapData<'static>>> for Agent {
-    #[inline(always)]
-    fn as_ref(&self) -> &SoAVec<ArrayHeapData<'static>> {
-        &self.heap.arrays
-    }
-}
-
-impl AsMut<SoAVec<ArrayHeapData<'static>>> for Agent {
-    #[inline(always)]
-    fn as_mut(&mut self) -> &mut SoAVec<ArrayHeapData<'static>> {
-        &mut self.heap.arrays
     }
 }
 
@@ -1321,10 +1231,27 @@ impl AsRef<ElementArrays> for ArrayHeap<'_> {
     }
 }
 
+impl AsMut<SoAVec<ArrayHeapData<'static>>> for ArrayHeap<'_> {
+    #[inline(always)]
+    fn as_mut(&mut self) -> &mut SoAVec<ArrayHeapData<'static>> {
+        self.arrays
+    }
+}
+
+impl AsMut<ElementArrays> for ArrayHeap<'_> {
+    #[inline(always)]
+    fn as_mut(&mut self) -> &mut ElementArrays {
+        self.elements
+    }
+}
+
 /// Helper trait for array indexing.
-pub(crate) trait ArrayHeapIndexable<'a>:
-    AsRef<SoAVec<ArrayHeapData<'static>>> + AsRef<ElementArrays>
+pub(crate) trait ArrayHeapAccess<'a>:
+    AsRef<SoAVec<ArrayHeapData<'static>>>
+    + AsRef<ElementArrays>
+    + AsMut<SoAVec<ArrayHeapData<'static>>>
+    + AsMut<ElementArrays>
 {
 }
-impl ArrayHeapIndexable<'_> for ArrayHeap<'_> {}
-impl ArrayHeapIndexable<'_> for Agent {}
+impl ArrayHeapAccess<'_> for ArrayHeap<'_> {}
+impl ArrayHeapAccess<'_> for Agent {}

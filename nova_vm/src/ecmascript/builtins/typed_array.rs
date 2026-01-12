@@ -12,12 +12,13 @@ use crate::{
 };
 
 mod any_typed_array;
-pub mod data;
+mod data;
 mod normal_typed_array;
 #[cfg(feature = "shared-array-buffer")]
 mod shared_typed_array;
 
 pub use any_typed_array::*;
+pub(crate) use data::*;
 pub use normal_typed_array::*;
 #[cfg(feature = "shared-array-buffer")]
 pub use shared_typed_array::*;

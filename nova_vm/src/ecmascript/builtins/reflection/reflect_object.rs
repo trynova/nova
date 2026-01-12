@@ -18,8 +18,7 @@ use crate::{
             agent::{ExceptionType, try_result_into_js},
         },
         types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, IntoValue, Object, PropertyDescriptor, String,
-            Value,
+            BUILTIN_STRING_MEMORY, InternalMethods, Object, PropertyDescriptor, String, Value,
         },
     },
     engine::{
@@ -226,7 +225,7 @@ impl ReflectObject {
             Some(new_target.get(agent)),
             gc,
         )
-        .map(|o| o.into_value())
+        .map(|o| o.into())
     }
 
     ///### [28.1.3 Reflect.defineProperty ( target, propertyKey, attributes )](https://tc39.es/ecma262/#sec-reflect.defineproperty)
@@ -381,7 +380,7 @@ impl ReflectObject {
         };
         // 3. If receiver is not present, then
         //   a. Set receiver to target.
-        let receiver = receiver.unwrap_or(target.into_value());
+        let receiver = receiver.unwrap_or(target.into());
         // 4. Return ? target.[[Get]](key, receiver).
         target
             .unbind()
@@ -428,7 +427,7 @@ impl ReflectObject {
             .bind(gc.nogc());
         // 4. Return FromPropertyDescriptor(desc).
         match PropertyDescriptor::from_property_descriptor(desc.unbind(), agent, gc.into_nogc()) {
-            Some(ret) => Ok(ret.into_value()),
+            Some(ret) => Ok(ret.into()),
             None => Ok(Value::Undefined),
         }
     }
@@ -454,7 +453,7 @@ impl ReflectObject {
 
         // 2. Return ? target.[[GetPrototypeOf]]().
         match target.unbind().internal_get_prototype_of(agent, gc)? {
-            Some(ret) => Ok(ret.into_value()),
+            Some(ret) => Ok(ret.into()),
             None => Ok(Value::Null),
         }
     }
@@ -547,10 +546,10 @@ impl ReflectObject {
             .internal_own_property_keys(agent, gc.reborrow())
             .unbind()?
             .into_iter()
-            .map(|key| key.convert_to_value(agent, gc.nogc()).into_value())
+            .map(|key| key.convert_to_value(agent, gc.nogc()).into())
             .collect();
         // 3. Return CreateArrayFromList(keys).
-        Ok(create_array_from_list(agent, &keys.unbind(), gc.into_nogc()).into_value())
+        Ok(create_array_from_list(agent, &keys.unbind(), gc.into_nogc()).into())
     }
 
     ///### [28.1.11 Reflect.preventExtensions ( target )](https://tc39.es/ecma262/#sec-reflect.preventextensions)
@@ -621,7 +620,7 @@ impl ReflectObject {
 
         // 3. If receiver is not present, then
         //   a. Set receiver to target.
-        let receiver = receiver.unwrap_or(target.into_value());
+        let receiver = receiver.unwrap_or(target.into());
 
         // 4. Return ? target.[[Set]](key, V, receiver).
         let ret =

@@ -15,7 +15,7 @@ use crate::{
 };
 
 use super::{
-    IntoValue, Symbol, Value,
+    Symbol, Value,
     bigint::HeapBigInt,
     number::HeapNumber,
     string::HeapString,
@@ -81,6 +81,7 @@ pub enum Primitive<'a> {
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
 bindable_handle!(Primitive);
+primitive_value!(bool, Boolean);
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
@@ -120,12 +121,12 @@ pub(crate) enum HeapPrimitive<'a> {
     BigInt(HeapBigInt<'a>) = BIGINT_DISCRIMINANT,
 }
 
-impl<'a> IntoValue<'a> for HeapPrimitive<'a> {
-    fn into_value(self) -> Value<'a> {
-        match self {
-            HeapPrimitive::String(data) => Value::String(data),
-            HeapPrimitive::Number(data) => Value::Number(data),
-            HeapPrimitive::BigInt(data) => Value::BigInt(data),
+impl<'a> From<HeapPrimitive<'a>> for Primitive<'a> {
+    fn from(value: HeapPrimitive<'a>) -> Self {
+        match value {
+            HeapPrimitive::String(data) => Self::String(data),
+            HeapPrimitive::Number(data) => Self::Number(data),
+            HeapPrimitive::BigInt(data) => Self::BigInt(data),
         }
     }
 }
@@ -172,27 +173,21 @@ impl Primitive<'_> {
     }
 }
 
-impl From<bool> for Primitive<'static> {
-    #[inline]
-    fn from(value: bool) -> Self {
-        Primitive::Boolean(value)
-    }
-}
-
 impl<'a> From<Primitive<'a>> for Value<'a> {
-    fn from(primitive: Primitive<'a>) -> Self {
-        match primitive {
-            Primitive::Undefined => Value::Undefined,
-            Primitive::Null => Value::Null,
-            Primitive::Boolean(data) => Value::Boolean(data),
-            Primitive::String(data) => Value::String(data.unbind()),
-            Primitive::SmallString(data) => Value::SmallString(data),
-            Primitive::Symbol(data) => Value::Symbol(data.unbind()),
-            Primitive::Number(data) => Value::Number(data.unbind()),
-            Primitive::Integer(data) => Value::Integer(data),
-            Primitive::SmallF64(data) => Value::SmallF64(data),
-            Primitive::BigInt(data) => Value::BigInt(data.unbind()),
-            Primitive::SmallBigInt(data) => Value::SmallBigInt(data),
+    #[inline]
+    fn from(value: Primitive<'a>) -> Self {
+        match value {
+            Primitive::Undefined => Self::Undefined,
+            Primitive::Null => Self::Null,
+            Primitive::Boolean(p) => Self::Boolean(p),
+            Primitive::String(p) => Self::String(p),
+            Primitive::SmallString(p) => Self::SmallString(p),
+            Primitive::Symbol(p) => Self::Symbol(p),
+            Primitive::Number(p) => Self::Number(p),
+            Primitive::Integer(p) => Self::Integer(p),
+            Primitive::SmallF64(p) => Self::SmallF64(p),
+            Primitive::BigInt(p) => Self::BigInt(p),
+            Primitive::SmallBigInt(p) => Self::SmallBigInt(p),
         }
     }
 }
@@ -204,15 +199,15 @@ impl<'a> TryFrom<Value<'a>> for Primitive<'a> {
         match value {
             Value::Undefined => Ok(Primitive::Undefined),
             Value::Null => Ok(Primitive::Null),
-            Value::Boolean(data) => Ok(Primitive::Boolean(data)),
-            Value::String(data) => Ok(Primitive::String(data)),
-            Value::SmallString(data) => Ok(Primitive::SmallString(data)),
-            Value::Symbol(data) => Ok(Primitive::Symbol(data)),
-            Value::Number(data) => Ok(Primitive::Number(data)),
-            Value::Integer(data) => Ok(Primitive::Integer(data)),
-            Value::SmallF64(data) => Ok(Primitive::SmallF64(data)),
-            Value::BigInt(data) => Ok(Primitive::BigInt(data)),
-            Value::SmallBigInt(data) => Ok(Primitive::SmallBigInt(data)),
+            Value::Boolean(p) => Ok(Primitive::Boolean(p)),
+            Value::String(p) => Ok(Primitive::String(p)),
+            Value::SmallString(p) => Ok(Primitive::SmallString(p)),
+            Value::Symbol(p) => Ok(Primitive::Symbol(p)),
+            Value::Number(p) => Ok(Primitive::Number(p)),
+            Value::Integer(p) => Ok(Primitive::Integer(p)),
+            Value::SmallF64(p) => Ok(Primitive::SmallF64(p)),
+            Value::BigInt(p) => Ok(Primitive::BigInt(p)),
+            Value::SmallBigInt(p) => Ok(Primitive::SmallBigInt(p)),
             _ => Err(()),
         }
     }
@@ -226,15 +221,15 @@ impl Rootable for Primitive<'_> {
         match value {
             Self::Undefined => Ok(Self::RootRepr::Undefined),
             Self::Null => Ok(Self::RootRepr::Null),
-            Self::Boolean(bool) => Ok(Self::RootRepr::Boolean(bool)),
-            Self::String(heap_string) => Err(HeapRootData::String(heap_string.unbind())),
-            Self::SmallString(small_string) => Ok(Self::RootRepr::SmallString(small_string)),
-            Self::Symbol(symbol) => Err(HeapRootData::Symbol(symbol.unbind())),
-            Self::Number(heap_number) => Err(HeapRootData::Number(heap_number.unbind())),
-            Self::Integer(integer) => Ok(Self::RootRepr::Integer(integer)),
-            Self::SmallF64(small_f64) => Ok(Self::RootRepr::SmallF64(small_f64)),
-            Self::BigInt(heap_big_int) => Err(HeapRootData::BigInt(heap_big_int.unbind())),
-            Self::SmallBigInt(small_big_int) => Ok(Self::RootRepr::SmallBigInt(small_big_int)),
+            Self::Boolean(p) => Ok(Self::RootRepr::Boolean(p)),
+            Self::String(p) => Err(HeapRootData::String(p.unbind())),
+            Self::SmallString(p) => Ok(Self::RootRepr::SmallString(p)),
+            Self::Symbol(p) => Err(HeapRootData::Symbol(p.unbind())),
+            Self::Number(p) => Err(HeapRootData::Number(p.unbind())),
+            Self::Integer(p) => Ok(Self::RootRepr::Integer(p)),
+            Self::SmallF64(p) => Ok(Self::RootRepr::SmallF64(p)),
+            Self::BigInt(p) => Err(HeapRootData::BigInt(p.unbind())),
+            Self::SmallBigInt(p) => Ok(Self::RootRepr::SmallBigInt(p)),
         }
     }
 
@@ -243,12 +238,12 @@ impl Rootable for Primitive<'_> {
         match *value {
             Self::RootRepr::Undefined => Ok(Self::Undefined),
             Self::RootRepr::Null => Ok(Self::Null),
-            Self::RootRepr::Boolean(bool) => Ok(Self::Boolean(bool)),
-            Self::RootRepr::SmallString(small_string) => Ok(Self::SmallString(small_string)),
-            Self::RootRepr::Integer(small_integer) => Ok(Self::Integer(small_integer)),
-            Self::RootRepr::SmallF64(small_f64) => Ok(Self::SmallF64(small_f64)),
-            Self::RootRepr::SmallBigInt(small_big_int) => Ok(Self::SmallBigInt(small_big_int)),
-            Self::RootRepr::HeapRef(heap_root_ref) => Err(heap_root_ref),
+            Self::RootRepr::Boolean(p) => Ok(Self::Boolean(p)),
+            Self::RootRepr::SmallString(p) => Ok(Self::SmallString(p)),
+            Self::RootRepr::Integer(p) => Ok(Self::Integer(p)),
+            Self::RootRepr::SmallF64(p) => Ok(Self::SmallF64(p)),
+            Self::RootRepr::SmallBigInt(p) => Ok(Self::SmallBigInt(p)),
+            Self::RootRepr::HeapRef(p) => Err(p),
         }
     }
 
@@ -260,11 +255,88 @@ impl Rootable for Primitive<'_> {
     #[inline]
     fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
         match heap_data {
-            HeapRootData::String(heap_string) => Some(Self::String(heap_string)),
-            HeapRootData::Symbol(symbol) => Some(Self::Symbol(symbol)),
-            HeapRootData::Number(heap_number) => Some(Self::Number(heap_number)),
-            HeapRootData::BigInt(heap_big_int) => Some(Self::BigInt(heap_big_int)),
+            HeapRootData::String(p) => Some(Self::String(p)),
+            HeapRootData::Symbol(p) => Some(Self::Symbol(p)),
+            HeapRootData::Number(p) => Some(Self::Number(p)),
+            HeapRootData::BigInt(p) => Some(Self::BigInt(p)),
             _ => None,
         }
     }
 }
+
+macro_rules! primitive_value {
+    ($name: tt) => {
+        crate::ecmascript::types::primitive_value!($name, $name);
+    };
+    ($name: ident, $variant: ident) => {
+        impl From<$name> for crate::ecmascript::types::Primitive<'_> {
+            #[inline(always)]
+            fn from(value: $name) -> Self {
+                Self::$variant(value)
+            }
+        }
+
+        impl TryFrom<crate::ecmascript::types::Primitive<'_>> for $name {
+            type Error = ();
+
+            #[inline]
+            fn try_from(value: crate::ecmascript::types::Primitive) -> Result<Self, Self::Error> {
+                match value {
+                    crate::ecmascript::types::Primitive::$variant(data) => Ok(data),
+                    _ => Err(()),
+                }
+            }
+        }
+
+        impl From<$name> for crate::ecmascript::types::Value<'_> {
+            #[inline(always)]
+            fn from(value: $name) -> Self {
+                Self::$variant(value)
+            }
+        }
+
+        impl TryFrom<crate::ecmascript::types::Value<'_>> for $name {
+            type Error = ();
+
+            #[inline]
+            fn try_from(value: crate::ecmascript::types::Value) -> Result<Self, Self::Error> {
+                match value {
+                    crate::ecmascript::types::Value::$variant(data) => Ok(data),
+                    _ => Err(()),
+                }
+            }
+        }
+    };
+}
+pub(crate) use primitive_value;
+
+macro_rules! primitive_handle {
+    ($name: tt) => {
+        crate::ecmascript::types::primitive_handle!($name, $name);
+    };
+    ($name: ident, $variant: ident) => {
+        crate::ecmascript::types::value_handle!($name, $variant);
+
+        impl<'a> From<$name<'a>> for crate::ecmascript::types::Primitive<'a> {
+            #[inline(always)]
+            fn from(value: $name<'a>) -> Self {
+                Self::$variant(value)
+            }
+        }
+
+        impl<'a> TryFrom<crate::ecmascript::types::Primitive<'a>> for $name<'a> {
+            type Error = ();
+
+            #[inline]
+            fn try_from(
+                value: crate::ecmascript::types::Primitive<'a>,
+            ) -> Result<Self, Self::Error> {
+                match value {
+                    crate::ecmascript::types::Primitive::$variant(data) => Ok(data),
+                    _ => Err(()),
+                }
+            }
+        }
+    };
+}
+pub(crate) use primitive_handle;

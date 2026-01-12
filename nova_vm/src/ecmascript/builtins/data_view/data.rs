@@ -13,11 +13,11 @@ use crate::{
         types::OrdinaryObject,
     },
     engine::context::bindable_handle,
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, indexes::HeapIndexHandle},
 };
 
 #[derive(Debug)]
-pub struct DataViewRecord<'a> {
+pub(crate) struct DataViewRecord<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     // TODO: Add a helper function for a u32::MAX value which signifies an a under-construction value:
     // See https://github.com/trynova/nova/pull/447#discussion_r1806247107 for reference.
@@ -34,7 +34,7 @@ impl Default for DataViewRecord<'_> {
     fn default() -> Self {
         Self {
             object_index: None,
-            viewed_array_buffer: ArrayBuffer::_def(),
+            viewed_array_buffer: ArrayBuffer::_DEF,
             byte_length: ViewedArrayBufferByteLength::default(),
             byte_offset: ViewedArrayBufferByteOffset::default(),
         }
@@ -43,7 +43,7 @@ impl Default for DataViewRecord<'_> {
 
 #[cfg(feature = "shared-array-buffer")]
 #[derive(Debug)]
-pub struct SharedDataViewRecord<'a> {
+pub(crate) struct SharedDataViewRecord<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     // TODO: Add a helper function for a u32::MAX value which signifies an a under-construction value:
     // See https://github.com/trynova/nova/pull/447#discussion_r1806247107 for reference.

@@ -18,10 +18,7 @@ use crate::{
             Agent, JsResult,
             agent::{ExceptionType, JsError, try_result_into_option_js},
         },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, OrdinaryObject,
-            PropertyKey, Value,
-        },
+        types::{BUILTIN_STRING_MEMORY, Function, Object, OrdinaryObject, PropertyKey, Value},
     },
     engine::{
         ScopableCollection, ScopedCollection, VmIteratorRecord,
@@ -39,7 +36,7 @@ use crate::{
 /// An Iterator Record is a Record value used to encapsulate an Iterator or
 /// AsyncIterator along with the next method.
 #[derive(Debug, Clone, Copy)]
-pub struct IteratorRecord<'a> {
+pub(crate) struct IteratorRecord<'a> {
     pub(crate) iterator: Object<'a>,
     pub(crate) next_method: Function<'a>,
     // Note: The done field doesn't seem to be used anywhere.
@@ -492,7 +489,7 @@ pub(crate) fn iterator_close_with_value<'a>(
             call_function(
                 agent,
                 return_function.unbind(),
-                iterator.into_value().unbind(),
+                iterator.unbind().into(),
                 None,
                 gc.reborrow(),
             )
@@ -566,7 +563,7 @@ pub(crate) fn iterator_close_with_error<'a>(
         let _ = call_function(
             agent,
             r#return.unbind(),
-            iterator.into_value().unbind(),
+            iterator.unbind().into(),
             None,
             gc.reborrow(),
         );
@@ -622,7 +619,7 @@ pub(crate) fn create_iter_result_object<'a>(
                 .current_realm_record()
                 .intrinsics()
                 .object_prototype()
-                .into_object(),
+                .into(),
         ),
         &[
             ObjectEntry {
@@ -637,7 +634,7 @@ pub(crate) fn create_iter_result_object<'a>(
             ObjectEntry {
                 key: PropertyKey::from(BUILTIN_STRING_MEMORY.done),
                 value: ObjectEntryPropertyDescriptor::Data {
-                    value: done.into_value(),
+                    value: done.into(),
                     writable: true,
                     enumerable: true,
                     configurable: true,

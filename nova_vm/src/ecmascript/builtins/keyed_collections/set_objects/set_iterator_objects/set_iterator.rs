@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::ops::{Index, IndexMut};
-
 use crate::{
     ecmascript::{
         builtins::{
@@ -11,33 +9,22 @@ use crate::{
             set::Set,
         },
         execution::{Agent, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
+        types::{InternalMethods, InternalSlots, OrdinaryObject, object_handle},
     },
-    engine::{
-        context::{Bindable, bindable_handle},
-        rootable::HeapRootData,
-    },
+    engine::context::{Bindable, bindable_handle},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, WorkQueues, arena_vec_access, indexes::BaseIndex,
     },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct SetIterator<'a>(BaseIndex<'a, SetIteratorHeapData<'static>>);
+object_handle!(SetIterator);
+arena_vec_access!(SetIterator, 'a, SetIteratorHeapData, set_iterators);
 
 impl SetIterator<'_> {
-    /// # Do not use this
-    /// This is only for Value discriminant creation.
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
     pub(crate) fn from_set(agent: &mut Agent, set: Set, kind: CollectionIteratorKind) -> Self {
         agent.heap.create(SetIteratorHeapData {
             object_index: None,
@@ -48,53 +35,17 @@ impl SetIterator<'_> {
     }
 }
 
-bindable_handle!(SetIterator);
-
-impl<'a> From<SetIterator<'a>> for Object<'a> {
-    fn from(value: SetIterator) -> Self {
-        Self::SetIterator(value.unbind())
-    }
-}
-
-impl<'a> From<SetIterator<'a>> for Value<'a> {
-    fn from(value: SetIterator<'a>) -> Self {
-        Self::SetIterator(value)
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for SetIterator<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::SetIterator(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for SetIterator<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Object::SetIterator(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
 impl<'a> InternalSlots<'a> for SetIterator<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::SetIterator;
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        self.get(agent).object_index.unbind()
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
-            agent[self]
+            self.get_mut(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()
@@ -103,49 +54,6 @@ impl<'a> InternalSlots<'a> for SetIterator<'a> {
 }
 
 impl<'a> InternalMethods<'a> for SetIterator<'a> {}
-
-impl Index<SetIterator<'_>> for Agent {
-    type Output = SetIteratorHeapData<'static>;
-
-    fn index(&self, index: SetIterator) -> &Self::Output {
-        &self.heap.set_iterators[index]
-    }
-}
-
-impl IndexMut<SetIterator<'_>> for Agent {
-    fn index_mut(&mut self, index: SetIterator) -> &mut Self::Output {
-        &mut self.heap.set_iterators[index]
-    }
-}
-
-impl Index<SetIterator<'_>> for Vec<SetIteratorHeapData<'static>> {
-    type Output = SetIteratorHeapData<'static>;
-
-    fn index(&self, index: SetIterator) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("SetIterator out of bounds")
-    }
-}
-
-impl IndexMut<SetIterator<'_>> for Vec<SetIteratorHeapData<'static>> {
-    fn index_mut(&mut self, index: SetIterator) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("SetIterator out of bounds")
-    }
-}
-
-impl TryFrom<HeapRootData> for SetIterator<'_> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        if let HeapRootData::SetIterator(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
-}
 
 impl<'a> CreateHeapData<SetIteratorHeapData<'a>, SetIterator<'a>> for Heap {
     fn create(&mut self, data: SetIteratorHeapData<'a>) -> SetIterator<'a> {
@@ -174,7 +82,7 @@ impl HeapSweepWeakReference for SetIterator<'static> {
 bindable_handle!(SetIteratorHeapData);
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct SetIteratorHeapData<'a> {
+pub(crate) struct SetIteratorHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) set: Option<Set<'a>>,
     pub(crate) next_index: usize,

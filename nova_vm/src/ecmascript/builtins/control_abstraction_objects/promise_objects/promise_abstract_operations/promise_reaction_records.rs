@@ -2,28 +2,23 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::ops::{Index, IndexMut};
-
 use crate::{
     ecmascript::{
         builtins::{
-            async_generator_objects::AsyncGenerator,
+            control_abstraction_objects::async_generator_objects::AsyncGenerator,
             control_abstraction_objects::async_function_objects::await_reaction::AwaitReaction,
             promise::Promise,
-            promise_objects::promise_abstract_operations::promise_group_record::PromiseGroup,
+            control_abstraction_objects::promise_objects::promise_abstract_operations::promise_group_record::PromiseGroup,
         },
-        execution::Agent,
         scripts_and_modules::module::module_semantics::{
             abstract_module_records::AbstractModule, source_text_module_records::SourceTextModule,
         },
         types::{Function, Object},
     },
-    engine::{
-        context::{Bindable, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
+    engine::context::{Bindable, bindable_handle},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, indexes::BaseIndex,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, arena_vec_access,
+        indexes::{BaseIndex, index_handle},
     },
 };
 
@@ -124,7 +119,7 @@ impl HeapMarkAndSweep for PromiseReactionHandler<'static> {
 }
 
 #[derive(Debug, Clone)]
-pub struct PromiseReactionRecord<'a> {
+pub(crate) struct PromiseReactionRecord<'a> {
     /// \[\[Capability\]\]
     ///
     /// a PromiseCapability Record or undefined
@@ -144,48 +139,15 @@ pub struct PromiseReactionRecord<'a> {
     /// \[\[Type\]\] will be used instead.
     pub(crate) handler: PromiseReactionHandler<'a>,
 }
+bindable_handle!(PromiseReactionRecord);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct PromiseReaction<'a>(BaseIndex<'a, PromiseReactionRecord<'static>>);
+index_handle!(PromiseReaction);
+arena_vec_access!(PromiseReaction, 'a, PromiseReactionRecord, promise_reaction_records);
 
-impl PromiseReaction<'_> {
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-}
-
-impl Index<PromiseReaction<'_>> for Agent {
-    type Output = PromiseReactionRecord<'static>;
-
-    fn index(&self, index: PromiseReaction) -> &Self::Output {
-        &self.heap.promise_reaction_records[index]
-    }
-}
-
-impl IndexMut<PromiseReaction<'_>> for Agent {
-    fn index_mut(&mut self, index: PromiseReaction) -> &mut Self::Output {
-        &mut self.heap.promise_reaction_records[index]
-    }
-}
-
-impl Index<PromiseReaction<'_>> for Vec<PromiseReactionRecord<'static>> {
-    type Output = PromiseReactionRecord<'static>;
-
-    fn index(&self, index: PromiseReaction) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("PromiseReaction out of bounds")
-    }
-}
-
-impl IndexMut<PromiseReaction<'_>> for Vec<PromiseReactionRecord<'static>> {
-    fn index_mut(&mut self, index: PromiseReaction) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("PromiseReaction out of bounds")
-    }
-}
-
-bindable_handle!(PromiseReaction);
+impl PromiseReaction<'_> {}
 
 impl HeapMarkAndSweep for PromiseReaction<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
@@ -198,32 +160,6 @@ impl HeapMarkAndSweep for PromiseReaction<'static> {
             .shift_index(&mut self.0);
     }
 }
-
-impl Rootable for PromiseReaction<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::PromiseReaction(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        if let HeapRootData::PromiseReaction(data) = heap_data {
-            Some(data)
-        } else {
-            None
-        }
-    }
-}
-
-bindable_handle!(PromiseReactionRecord);
 
 impl HeapMarkAndSweep for PromiseReactionRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
