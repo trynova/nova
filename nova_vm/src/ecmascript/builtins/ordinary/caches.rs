@@ -17,7 +17,7 @@ use crate::{
     },
     heap::{
         AtomicBits, BitRange, CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference,
-        PropertyKeyHeap, WeakReference, WorkQueues, sweep_heap_vector_values,
+        PropertyKeyHeap, WeakReference, WorkQueues, indexes::BaseIndex, sweep_heap_vector_values,
     },
 };
 
@@ -446,7 +446,7 @@ impl Caches<'static> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct PropertyLookupCache<'a>(NonZeroU32, PhantomData<&'a GcToken>);
+pub struct PropertyLookupCache<'a>(BaseIndex<'a, PropertyLookupCacheRecord<'static>>);
 
 impl<'a> PropertyLookupCache<'a> {
     /// Get a property lookup cache entry for the given key if one exists.

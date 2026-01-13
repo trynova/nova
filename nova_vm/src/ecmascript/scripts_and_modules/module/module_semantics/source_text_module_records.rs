@@ -19,10 +19,12 @@ use crate::{
     ecmascript::{
         builtins::{
             Module, Promise, PromiseCapability,
-            control_abstraction_objects::async_function_objects::await_reaction::AwaitReactionRecord,
-            control_abstraction_objects::promise_objects::{
-                promise_abstract_operations::promise_reaction_records::PromiseReactionHandler,
-                promise_prototype::inner_promise_then,
+            control_abstraction_objects::{
+                async_function_objects::await_reaction::AwaitReactionRecord,
+                promise_objects::{
+                    promise_abstract_operations::promise_reaction_records::PromiseReactionHandler,
+                    promise_prototype::inner_promise_then,
+                },
             },
         },
         execution::{
@@ -55,7 +57,11 @@ use crate::{
         context::{Bindable, GcScope, GcToken, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
-    heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
+    heap::{
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        WorkQueues, arena_vec_access,
+        indexes::{BaseIndex, HeapIndexHandle, index_handle},
+    },
     ndt,
 };
 
@@ -142,15 +148,11 @@ pub(crate) struct SourceTextModuleRecord<'a> {
 unsafe impl Send for SourceTextModuleRecord<'_> {}
 
 /// ### [16.2.1.7 Source Text Module Records](https://tc39.es/ecma262/#sec-source-text-module-records)
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct SourceTextModule<'a>(u32, PhantomData<&'a GcToken>);
-
-impl core::fmt::Debug for SourceTextModule<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "SourceTextModuleRecord {{ index: {}, ... }}", self.0)
-    }
-}
+pub struct SourceTextModule<'a>(BaseIndex<'a, SourceTextModuleRecord<'static>>);
+index_handle!(SourceTextModule);
+arena_vec_access!(SourceTextModule, 'a, SourceTextModuleRecord, source_text_module_records);
 
 impl<'m> SourceTextModule<'m> {
     /// Get the script SourceCode.
@@ -160,24 +162,6 @@ impl<'m> SourceTextModule<'m> {
         gc: NoGcScope<'a, '_>,
     ) -> SourceCode<'a> {
         self.get(agent).source_code.bind(gc)
-    }
-
-    fn get<'a>(
-        self,
-        agent: &'a impl AsRef<SourceTextModuleHeap>,
-    ) -> &'a SourceTextModuleRecord<'m> {
-        &agent.as_ref()[self.0 as usize]
-    }
-
-    fn get_mut(
-        self,
-        agent: &mut impl AsMut<SourceTextModuleHeap>,
-    ) -> &mut SourceTextModuleRecord<'static> {
-        &mut agent.as_mut()[self.0 as usize]
-    }
-
-    pub(crate) fn get_index(self) -> usize {
-        self.0 as usize
     }
 
     /// ### \[\[CycleRoot]]
@@ -307,7 +291,7 @@ impl<'m> SourceTextModule<'m> {
     /// ### \[\[LocalExportEntries]]
     fn local_export_entries(
         self,
-        agent: &impl AsRef<SourceTextModuleHeap>,
+        agent: &impl AsRef<Vec<SourceTextModuleRecord<'static>>>,
     ) -> &[LocalExportEntryRecord<'m>] {
         &self.get(agent).local_export_entries
     }
@@ -320,7 +304,7 @@ impl<'m> SourceTextModule<'m> {
     /// lifetime.
     fn indirect_export_entries(
         self,
-        agent: &impl AsRef<SourceTextModuleHeap>,
+        agent: &impl AsRef<Vec<SourceTextModuleRecord<'static>>>,
     ) -> &'m [IndirectExportEntryRecord<'m>] {
         // SAFETY: [[IndirectExportEntries]] are only mutated during GC: as
         // long as GC does not run, the reference stays valid.
@@ -340,7 +324,7 @@ impl<'m> SourceTextModule<'m> {
     /// lifetime.
     fn star_export_entries(
         self,
-        agent: &impl AsRef<SourceTextModuleHeap>,
+        agent: &impl AsRef<Vec<SourceTextModuleRecord<'static>>>,
     ) -> &'m [ModuleRequest<'m>] {
         // SAFETY: [[StartExportEntries]] are never mutated; as long as GC does
         // not run, the reference stays valid.
@@ -2078,7 +2062,7 @@ impl<'a> CreateHeapData<SourceTextModuleRecord<'a>, SourceTextModule<'a>> for He
             .expect("SourceTextModuleRecord count overflowed");
         self.source_text_module_records.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<SourceTextModuleRecord<'static>>();
-        SourceTextModule(index, PhantomData)
+        SourceTextModule::from_index_u32(index)
     }
 }
 
@@ -2090,7 +2074,7 @@ impl HeapMarkAndSweep for SourceTextModule<'static> {
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions
             .source_text_module_records
-            .shift_u32_index(&mut self.0);
+            .shift_index(&mut self.0);
     }
 }
 
@@ -2251,6 +2235,18 @@ impl Deref for SourceTextModuleHeap {
 
 impl DerefMut for SourceTextModuleHeap {
     fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl AsRef<Vec<SourceTextModuleRecord<'static>>> for SourceTextModuleHeap {
+    fn as_ref(&self) -> &Vec<SourceTextModuleRecord<'static>> {
+        &self.0
+    }
+}
+
+impl AsMut<Vec<SourceTextModuleRecord<'static>>> for SourceTextModuleHeap {
+    fn as_mut(&mut self) -> &mut Vec<SourceTextModuleRecord<'static>> {
         &mut self.0
     }
 }
