@@ -922,7 +922,7 @@ fn expected_arguments_count(params: &FormalParameters) -> usize {
     //    FormalParameter is true, return count.
     // 3. Return count + 1.
     for param in params.items.iter() {
-        if param.pattern.kind.is_assignment_pattern() {
+        if param.pattern.is_assignment_pattern() {
             // FormalParameterList : FormalParameter
             // 1. If HasInitializer of FormalParameter is true, return 0.
             break;

@@ -119,19 +119,19 @@ impl Contains for ast::FormalParameter<'_> {
 
 impl Contains for ast::BindingPattern<'_> {
     fn contains(&self, symbol: ContainsSymbol) -> bool {
-        match &self.kind {
-            ast::BindingPatternKind::BindingIdentifier(_) => false,
-            ast::BindingPatternKind::ObjectPattern(e) => {
+        match self {
+            ast::BindingPattern::BindingIdentifier(_) => false,
+            ast::BindingPattern::ObjectPattern(e) => {
                 e.properties
                     .iter()
                     .any(|p| p.key.contains(symbol) || p.value.contains(symbol))
                     || e.rest.as_ref().is_some_and(|e| e.argument.contains(symbol))
             }
-            ast::BindingPatternKind::ArrayPattern(e) => e
+            ast::BindingPattern::ArrayPattern(e) => e
                 .elements
                 .iter()
                 .any(|e| e.as_ref().is_some_and(|e| e.contains(symbol))),
-            ast::BindingPatternKind::AssignmentPattern(e) => {
+            ast::BindingPattern::AssignmentPattern(e) => {
                 e.left.contains(symbol) || e.right.contains(symbol)
             }
         }

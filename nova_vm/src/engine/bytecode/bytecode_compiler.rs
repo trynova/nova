@@ -2989,8 +2989,8 @@ fn simple_array_pattern<'s, I>(
             ctx.add_instruction(Instruction::BindingPatternSkip);
             continue;
         };
-        match &ele.kind {
-            ast::BindingPatternKind::BindingIdentifier(identifier) => {
+        match ele {
+            ast::BindingPattern::BindingIdentifier(identifier) => {
                 let identifier_string = ctx.create_string(identifier.name.as_str());
                 if let Some(stack_slot) = ctx.get_variable_stack_index(identifier.symbol_id()) {
                     ctx.add_instruction_with_immediate_and_constant(
@@ -3005,11 +3005,11 @@ fn simple_array_pattern<'s, I>(
                     )
                 }
             }
-            ast::BindingPatternKind::ObjectPattern(pattern) => {
+            ast::BindingPattern::ObjectPattern(pattern) => {
                 ctx.add_instruction(Instruction::BindingPatternGetValue);
                 simple_object_pattern(pattern, ctx, has_environment);
             }
-            ast::BindingPatternKind::ArrayPattern(pattern) => {
+            ast::BindingPattern::ArrayPattern(pattern) => {
                 ctx.add_instruction(Instruction::BindingPatternGetValue);
                 simple_array_pattern(
                     ctx,
@@ -3019,13 +3019,13 @@ fn simple_array_pattern<'s, I>(
                     has_environment,
                 );
             }
-            ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
+            ast::BindingPattern::AssignmentPattern(_) => unreachable!(),
         }
     }
 
     if let Some(rest) = rest {
-        match &rest.argument.kind {
-            ast::BindingPatternKind::BindingIdentifier(identifier) => {
+        match &rest.argument {
+            ast::BindingPattern::BindingIdentifier(identifier) => {
                 if let Some(stack_slot) = ctx.get_variable_stack_index(identifier.symbol_id()) {
                     ctx.add_instruction_with_immediate(
                         Instruction::BindingPatternBindRestToIndex,
@@ -3039,11 +3039,11 @@ fn simple_array_pattern<'s, I>(
                     );
                 }
             }
-            ast::BindingPatternKind::ObjectPattern(pattern) => {
+            ast::BindingPattern::ObjectPattern(pattern) => {
                 ctx.add_instruction(Instruction::BindingPatternGetRestValue);
                 simple_object_pattern(pattern, ctx, has_environment);
             }
-            ast::BindingPatternKind::ArrayPattern(pattern) => {
+            ast::BindingPattern::ArrayPattern(pattern) => {
                 ctx.add_instruction(Instruction::BindingPatternGetRestValue);
                 simple_array_pattern(
                     ctx,
@@ -3053,7 +3053,7 @@ fn simple_array_pattern<'s, I>(
                     has_environment,
                 );
             }
-            ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
+            ast::BindingPattern::AssignmentPattern(_) => unreachable!(),
         }
     } else {
         ctx.add_instruction(Instruction::FinishBindingPattern);
@@ -3142,12 +3142,9 @@ fn simple_object_pattern<'s>(
         if ele.shorthand {
             debug_assert!(
                 matches!(&ele.key, ast::PropertyKey::StaticIdentifier(_))
-                    && matches!(
-                        &ele.value.kind,
-                        ast::BindingPatternKind::BindingIdentifier(_)
-                    )
+                    && matches!(&ele.value, ast::BindingPattern::BindingIdentifier(_))
             );
-            let ast::BindingPatternKind::BindingIdentifier(identifier) = &ele.value.kind else {
+            let ast::BindingPattern::BindingIdentifier(identifier) = &ele.value else {
                 unreachable!()
             };
             let identifier = identifier.as_ref();
@@ -3222,8 +3219,8 @@ fn simple_object_pattern<'s>(
                 _ => unreachable!(),
             };
 
-            match &ele.value.kind {
-                ast::BindingPatternKind::BindingIdentifier(identifier) => {
+            match &ele.value {
+                ast::BindingPattern::BindingIdentifier(identifier) => {
                     let value_identifier_string = ctx.create_string(identifier.name.as_str());
                     if let Some(stack_slot) = ctx.get_variable_stack_index(identifier.symbol_id()) {
                         ctx.add_instruction_with_immediate_and_constant(
@@ -3239,14 +3236,14 @@ fn simple_object_pattern<'s>(
                         )
                     }
                 }
-                ast::BindingPatternKind::ObjectPattern(pattern) => {
+                ast::BindingPattern::ObjectPattern(pattern) => {
                     ctx.add_instruction_with_constant(
                         Instruction::BindingPatternGetValueNamed,
                         key_string,
                     );
                     simple_object_pattern(pattern, ctx, has_environment);
                 }
-                ast::BindingPatternKind::ArrayPattern(pattern) => {
+                ast::BindingPattern::ArrayPattern(pattern) => {
                     ctx.add_instruction_with_constant(
                         Instruction::BindingPatternGetValueNamed,
                         key_string,
@@ -3259,14 +3256,14 @@ fn simple_object_pattern<'s>(
                         has_environment,
                     );
                 }
-                ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
+                ast::BindingPattern::AssignmentPattern(_) => unreachable!(),
             }
         }
     }
 
     if let Some(rest) = &pattern.rest {
-        match &rest.argument.kind {
-            ast::BindingPatternKind::BindingIdentifier(identifier) => {
+        match &rest.argument {
+            ast::BindingPattern::BindingIdentifier(identifier) => {
                 if let Some(stack_slot) = ctx.get_variable_stack_index(identifier.symbol_id()) {
                     ctx.add_instruction_with_immediate(
                         Instruction::BindingPatternBindRestToIndex,
@@ -3360,7 +3357,7 @@ fn complex_object_pattern<'s>(
     value_on_stack.store(ctx);
 
     if let Some(rest) = &object_pattern.rest {
-        let ast::BindingPatternKind::BindingIdentifier(identifier) = &rest.argument.kind else {
+        let ast::BindingPattern::BindingIdentifier(identifier) = &rest.argument else {
             unreachable!()
         };
 
@@ -3391,11 +3388,11 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Bindin
     type Output = Result<(), ExpressionError>;
     /// ### [8.6.2 Runtime Semantics: BindingInitialization](https://tc39.es/ecma262/#sec-runtime-semantics-bindinginitialization)
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
-        match &self.kind {
+        match self {
             // ### BindingIdentifier : Identifier
             // ### BindingIdentifier : yield
             // ### BindingIdentifier : await
-            ast::BindingPatternKind::BindingIdentifier(identifier) => {
+            ast::BindingPattern::BindingIdentifier(identifier) => {
                 // 1. Let name be the StringValue of Identifier.
                 // 2. Return ? InitializeBoundName(name, value, environment).
                 let place = identifier.compile(ctx);
@@ -3416,22 +3413,22 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Bindin
                 }
             }
             // ### BindingPattern : ObjectBindingPattern
-            ast::BindingPatternKind::ObjectPattern(object_binding_pattern) => {
+            ast::BindingPattern::ObjectPattern(object_binding_pattern) => {
                 object_binding_pattern.compile(ctx)
             }
             // ### BindingPattern : ArrayBindingPattern
-            ast::BindingPatternKind::ArrayPattern(array_binding_pattern) => {
+            ast::BindingPattern::ArrayPattern(array_binding_pattern) => {
                 array_binding_pattern.compile(ctx)
             }
             // ### SingleNameBinding : BindingIdentifier Initializer
             // ### BindingElement : BindingPattern Initializer
-            ast::BindingPatternKind::AssignmentPattern(pattern) => {
-                match &pattern.left.kind {
+            ast::BindingPattern::AssignmentPattern(pattern) => {
+                match &pattern.left {
                     // ### SingleNameBinding : BindingIdentifier Initializer
                     //
                     // * function (a = 1) {}
                     // * [a = 1]
-                    ast::BindingPatternKind::BindingIdentifier(binding_identifier) => {
+                    ast::BindingPattern::BindingIdentifier(binding_identifier) => {
                         // 1. Let bindingId be the StringValue of BindingIdentifier.
                         // 2. Let lhs be ? ResolveBinding(bindingId, environment).
                         let lhs = binding_identifier.compile(ctx);
@@ -3550,8 +3547,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Variab
                     };
                     // VariableDeclaration : BindingIdentifier Initializer
 
-                    let ast::BindingPatternKind::BindingIdentifier(identifier) = &decl.id.kind
-                    else {
+                    let ast::BindingPattern::BindingIdentifier(identifier) = &decl.id else {
                         //  VariableDeclaration : BindingPattern Initializer
                         // 1. Let rhs be ? Evaluation of Initializer.
                         // 2. Let rval be ? GetValue(rhs).
@@ -3598,8 +3594,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Variab
             }
             ast::VariableDeclarationKind::Let | ast::VariableDeclarationKind::Const => {
                 for decl in &self.declarations {
-                    let ast::BindingPatternKind::BindingIdentifier(identifier) = &decl.id.kind
-                    else {
+                    let ast::BindingPattern::BindingIdentifier(identifier) = &decl.id else {
                         let init = decl.init.as_ref().unwrap();
 
                         //  LexicalBinding : BindingPattern Initializer

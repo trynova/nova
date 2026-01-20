@@ -280,14 +280,14 @@ pub(crate) fn instantiation<'s>(
             let _ = complex_array_pattern(
                 ctx,
                 formals.items.iter().map(|param| Some(&param.pattern)),
-                formals.rest.as_deref(),
+                formals.rest.as_ref().map(|r| &r.rest),
                 !has_duplicates,
             );
         } else {
             simple_array_pattern(
                 ctx,
                 formals.items.iter().map(|param| Some(&param.pattern)),
-                formals.rest.as_deref(),
+                formals.rest.as_ref().map(|r| &r.rest),
                 formals.items.len(),
                 !has_duplicates,
             );

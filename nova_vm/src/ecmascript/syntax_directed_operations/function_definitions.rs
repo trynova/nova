@@ -58,11 +58,11 @@ pub(crate) trait ContainsExpression {
 
 impl ContainsExpression for ast::BindingPattern<'_> {
     fn contains_expression(&self) -> bool {
-        match &self.kind {
-            ast::BindingPatternKind::BindingIdentifier(_) => false,
-            ast::BindingPatternKind::ObjectPattern(pattern) => pattern.contains_expression(),
-            ast::BindingPatternKind::ArrayPattern(pattern) => pattern.contains_expression(),
-            ast::BindingPatternKind::AssignmentPattern(_) => true,
+        match self {
+            ast::BindingPattern::BindingIdentifier(_) => false,
+            ast::BindingPattern::ObjectPattern(pattern) => pattern.contains_expression(),
+            ast::BindingPattern::ArrayPattern(pattern) => pattern.contains_expression(),
+            ast::BindingPattern::AssignmentPattern(_) => true,
         }
     }
 }
