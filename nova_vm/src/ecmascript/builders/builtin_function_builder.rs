@@ -16,7 +16,7 @@ use crate::{
         },
     },
     engine::context::Bindable,
-    heap::{element_array::ElementDescriptor, indexes::HeapIndexHandle},
+    heap::{ElementDescriptor, HeapIndexHandle},
 };
 
 use super::{

@@ -49,7 +49,7 @@ use crate::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, indexes::HeapIndexHandle},
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, HeapIndexHandle},
 };
 
 /// ### [\[\[OuterEnv\]\]](https://tc39.es/ecma262/#sec-environment-records)
@@ -76,15 +76,15 @@ macro_rules! create_environment_index {
         /// stored in an [`Option`].
         #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
         #[repr(transparent)]
-        pub struct $index<'a>(crate::heap::indexes::BaseIndex<'a, $record>);
-        crate::heap::indexes::index_handle!($index);
+        pub struct $index<'a>(crate::heap::BaseIndex<'a, $record>);
+        crate::heap::index_handle!($index);
 
         impl core::fmt::Debug for $index<'_> {
             fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
                 write!(
                     f,
                     "$index({:?})",
-                    crate::heap::indexes::HeapIndexHandle::get_index_u32(*self)
+                    crate::heap::HeapIndexHandle::get_index_u32(*self)
                 )
             }
         }
@@ -96,7 +96,7 @@ macro_rules! create_environment_index {
             #[inline]
             fn get_direct(self, source: &Vec<Self::Data>) -> &Self::Output {
                 source
-                    .get(crate::heap::indexes::HeapIndexHandle::get_index(self))
+                    .get(crate::heap::HeapIndexHandle::get_index(self))
                     .expect("Invalid environment handle")
             }
         }
@@ -105,7 +105,7 @@ macro_rules! create_environment_index {
             #[inline]
             fn get_direct_mut(self, source: &mut Vec<Self::Data>) -> &mut Self::Output {
                 source
-                    .get_mut(crate::heap::indexes::HeapIndexHandle::get_index(self))
+                    .get_mut(crate::heap::HeapIndexHandle::get_index(self))
                     .expect("Invalid environment handle")
             }
         }

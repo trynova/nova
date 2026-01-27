@@ -2,32 +2,23 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-pub mod element_array;
+mod element_array;
 mod heap_bits;
 mod heap_constants;
 mod heap_gc;
-pub use heap_gc::*;
-pub mod indexes;
+mod indexes;
 mod object_entry;
+
+pub use element_array::*;
+pub(crate) use heap_bits::*;
+pub(crate) use heap_constants::*;
+pub use heap_gc::*;
+pub(crate) use indexes::*;
+pub(crate) use object_entry::*;
 
 use core::cell::RefCell;
 use std::ops::Deref;
 
-use self::element_array::{
-    ElementArray2Pow8, ElementArray2Pow10, ElementArray2Pow12, ElementArray2Pow16,
-    ElementArray2Pow24, ElementArray2Pow32, ElementArrays,
-};
-pub(crate) use self::heap_constants::{
-    IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, IntrinsicObjectIndexes,
-    IntrinsicObjectShapes, IntrinsicPrimitiveObjectIndexes, WellKnownSymbolIndexes,
-    intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
-};
-#[cfg(test)]
-pub(crate) use self::heap_constants::{
-    LAST_INTRINSIC_CONSTRUCTOR_INDEX, LAST_INTRINSIC_FUNCTION_INDEX, LAST_INTRINSIC_OBJECT_INDEX,
-    LAST_WELL_KNOWN_SYMBOL_INDEX,
-};
-pub(crate) use self::object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor};
 #[cfg(feature = "date")]
 use crate::ecmascript::DateHeapData;
 #[cfg(feature = "array-buffer")]
@@ -65,23 +56,10 @@ use crate::{
         context::{Bindable, NoGcScope},
         rootable::HeapRootData,
     },
-    heap::indexes::HeapIndexHandle,
 };
 #[cfg(feature = "array-buffer")]
 use ahash::AHashMap;
-use element_array::{
-    ElementArray2Pow1, ElementArray2Pow2, ElementArray2Pow3, ElementArray2Pow4, ElementArray2Pow6,
-    PropertyKeyArray2Pow1, PropertyKeyArray2Pow2, PropertyKeyArray2Pow3, PropertyKeyArray2Pow4,
-    PropertyKeyArray2Pow6, PropertyKeyArray2Pow8, PropertyKeyArray2Pow10, PropertyKeyArray2Pow12,
-    PropertyKeyArray2Pow16, PropertyKeyArray2Pow24, PropertyKeyArray2Pow32,
-};
 use hashbrown::HashTable;
-#[cfg(feature = "weak-refs")]
-pub(crate) use heap_bits::sweep_side_set;
-pub(crate) use heap_bits::{
-    AtomicBits, BitRange, CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WeakReference,
-    WorkQueues, sweep_heap_vector_values,
-};
 use soavec::{SoAVec, SoAble};
 use wtf8::{Wtf8, Wtf8Buf};
 
@@ -831,7 +809,7 @@ macro_rules! arena_vec_access {
             #[inline]
             fn get_direct(self, source: &Vec<Self::Data>) -> &Self::Output {
                 source
-                    .get(crate::heap::indexes::HeapIndexHandle::get_index(self))
+                    .get(crate::heap::HeapIndexHandle::get_index(self))
                     .unwrap_or_else(|| panic!("Invalid handle {:?}", self))
             }
         }
@@ -843,7 +821,7 @@ macro_rules! arena_vec_access {
                 unsafe {
                     core::mem::transmute::<&mut $data<'static>, &mut $data<$lt>>(
                         source
-                            .get_mut(crate::heap::indexes::HeapIndexHandle::get_index(self))
+                            .get_mut(crate::heap::HeapIndexHandle::get_index(self))
                             .unwrap_or_else(|| panic!("Invalid handle {:?}", self)),
                     )
                 }
@@ -872,7 +850,7 @@ macro_rules! arena_vec_access {
             #[inline]
             fn get_direct(self, source: &Vec<Self::Data>) -> &Self::Output {
                 source
-                    .get(crate::heap::indexes::HeapIndexHandle::get_index(self))
+                    .get(crate::heap::HeapIndexHandle::get_index(self))
                     .unwrap_or_else(|| panic!("Invalid handle {:?}", self))
             }
         }
@@ -881,7 +859,7 @@ macro_rules! arena_vec_access {
             #[inline]
             fn get_direct_mut(self, source: &mut Vec<Self::Data>) -> &mut Self::Output {
                 source
-                    .get_mut(crate::heap::indexes::HeapIndexHandle::get_index(self))
+                    .get_mut(crate::heap::HeapIndexHandle::get_index(self))
                     .unwrap_or_else(|| panic!("Invalid handle {:?}", self))
             }
         }

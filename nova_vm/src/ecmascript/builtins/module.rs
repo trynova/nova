@@ -22,7 +22,7 @@ use crate::{
     },
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference,
-        WellKnownSymbolIndexes, WorkQueues, arena_vec_access, indexes::BaseIndex,
+        WellKnownSymbolIndexes, WorkQueues, arena_vec_access, BaseIndex,
     },
 };
 

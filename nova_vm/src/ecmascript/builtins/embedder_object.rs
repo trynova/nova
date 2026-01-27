@@ -8,12 +8,11 @@ pub(crate) use data::*;
 
 use crate::{
     ecmascript::{
-        execution::Agent,
-        InternalMethods, InternalSlots, Object, OrdinaryObject, object_handle,
+        InternalMethods, InternalSlots, Object, OrdinaryObject, execution::Agent, object_handle,
     },
     heap::{
         CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
-        indexes::BaseIndex,
+        BaseIndex,
     },
 };
 

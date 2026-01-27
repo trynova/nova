@@ -24,7 +24,7 @@ use crate::{
     },
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, NumberHeapAccess,
-        WorkQueues, arena_vec_access, indexes::BaseIndex,
+        WorkQueues, arena_vec_access, BaseIndex,
     },
 };
 

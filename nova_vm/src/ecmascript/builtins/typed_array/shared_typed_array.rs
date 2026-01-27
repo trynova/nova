@@ -41,7 +41,7 @@ use crate::{
     heap::{
         ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, DirectArenaAccess,
         DirectArenaAccessMut, Heap, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
-        indexes::{BaseIndex, HeapIndexHandle},
+        {BaseIndex, HeapIndexHandle},
     },
 };
 

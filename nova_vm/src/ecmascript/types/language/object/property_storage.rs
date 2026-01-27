@@ -10,19 +10,17 @@ use std::{
 use ahash::AHashMap;
 
 use crate::{
-    Heap,
     ecmascript::{
         Agent, Caches, ExceptionType, JsResult, PrivateField, PrivateName, PropertyDescriptor,
         Value,
     },
     engine::context::{Bindable, NoGcScope},
     heap::{
-        ArenaAccess, ArenaAccessMut, DirectArenaAccess,
-        element_array::{
+        ArenaAccess, ArenaAccessMut, DirectArenaAccess, ElementIndex, Heap,
+        {
             ElementDescriptor, ElementStorageMut, ElementStorageUninit, PropertyStorageMut,
             PropertyStorageRef,
         },
-        indexes::ElementIndex,
     },
 };
 

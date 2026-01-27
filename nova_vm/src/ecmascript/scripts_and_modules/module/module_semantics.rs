@@ -29,7 +29,7 @@ use crate::{
     },
     heap::{
         ArenaAccess, CompactionLists, HeapMarkAndSweep, WorkQueues, arena_vec_access,
-        indexes::{BaseIndex, HeapIndexHandle},
+        {BaseIndex, HeapIndexHandle},
     },
 };
 

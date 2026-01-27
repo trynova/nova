@@ -27,16 +27,15 @@ use crate::ecmascript::{
 use crate::ecmascript::{WeakMap, WeakRef, WeakSet};
 use crate::{
     ecmascript::{
-    SmallInteger,
         Agent, Array, ArrayIterator, AsyncGenerator, BUILTIN_STRING_MEMORY, BigInt, BoundFunction,
         BuiltinConstructorFunction, BuiltinFunction, BuiltinPromiseFinallyFunction,
         BuiltinPromiseResolvingFunction, ECMAScriptFunction, EmbedderObject, Error,
         FinalizationRegistry, Generator, HeapBigInt, HeapNumber, HeapString, JsResult, Map,
         MapIterator, Module, Number, Numeric, Object, OrdinaryObject, Primitive, PrimitiveObject,
-        Promise, Proxy, SmallBigInt, SmallF64, SmallString, String, StringIterator, Symbol,
-        TryResult, to_big_int, to_big_int64, to_big_uint64, to_int8, to_int16, to_int32, to_number,
-        to_numeric, to_string, to_uint8, to_uint8_clamp, to_uint16, to_uint32, try_result_into_js,
-        try_to_string,
+        Promise, Proxy, SmallBigInt, SmallF64, SmallInteger, SmallString, String, StringIterator,
+        Symbol, TryResult, to_big_int, to_big_int64, to_big_uint64, to_int8, to_int16, to_int32,
+        to_number, to_numeric, to_string, to_uint8, to_uint8_clamp, to_uint16, to_uint32,
+        try_result_into_js, try_to_string,
     },
     engine::{
         Scoped,
@@ -45,7 +44,7 @@ use crate::{
     },
     heap::{
         ArenaAccess, CompactionLists, HeapMarkAndSweep, PrimitiveHeapAccess, WorkQueues,
-        indexes::HeapIndexHandle,
+        HeapIndexHandle,
     },
 };
 
@@ -1522,7 +1521,7 @@ macro_rules! value_handle {
         crate::ecmascript::types::value_handle!($name, $name);
     };
     ($name: ident, $variant: ident) => {
-        crate::heap::indexes::index_handle!($name, $variant);
+        crate::heap::index_handle!($name, $variant);
 
         impl<'a> From<$name<'a>> for crate::ecmascript::types::Value<'a> {
             #[inline(always)]

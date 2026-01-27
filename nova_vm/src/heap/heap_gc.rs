@@ -34,15 +34,13 @@ use crate::{
         context::{Bindable, GcScope},
     },
     heap::{
-        Heap, WellKnownSymbolIndexes,
+        ElementIndex, Heap, HeapIndexHandle, PropertyKeyIndex, WellKnownSymbolIndexes,
         element_array::ElementArrays,
         heap_bits::{
             CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues, mark_descriptors,
             sweep_heap_elements_vector_descriptors, sweep_heap_soa_vector_values,
             sweep_heap_vector_values, sweep_lookup_table,
         },
-        indexes::HeapIndexHandle,
-        indexes::{ElementIndex, PropertyKeyIndex},
     },
     ndt,
 };

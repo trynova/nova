@@ -14,9 +14,8 @@ use std::borrow::Cow;
 
 use crate::{
     ecmascript::{
-    SmallInteger,
         Agent, Primitive, PropertyDescriptor, PropertyKey, SMALL_STRING_DISCRIMINANT,
-        STRING_DISCRIMINANT, Value, primitive_handle, primitive_value,
+        STRING_DISCRIMINANT, SmallInteger, Value, primitive_handle, primitive_value,
     },
     engine::{
         Scoped,
@@ -26,7 +25,7 @@ use crate::{
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         HeapSweepWeakReference, StringHeapAccess, WorkQueues, arena_vec_access,
-        indexes::{BaseIndex, HeapIndexHandle},
+        {BaseIndex, HeapIndexHandle},
     },
 };
 

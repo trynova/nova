@@ -34,7 +34,7 @@ use crate::{
     },
     heap::{
         CreateHeapData, WellKnownSymbolIndexes,
-        element_array::{ElementStorageRef, PropertyStorageRef},
+        {ElementStorageRef, PropertyStorageRef},
     },
 };
 

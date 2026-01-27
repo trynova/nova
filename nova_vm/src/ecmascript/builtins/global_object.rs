@@ -26,7 +26,7 @@ use crate::{
         rootable::Scopable,
         string_literal_to_wtf8,
     },
-    heap::{ArenaAccess, IntrinsicFunctionIndexes, indexes::HeapIndexHandle},
+    heap::{ArenaAccess, IntrinsicFunctionIndexes, HeapIndexHandle},
     ndt,
 };
 

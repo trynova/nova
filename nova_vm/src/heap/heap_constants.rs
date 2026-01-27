@@ -12,7 +12,7 @@ use std::num::NonZeroU32;
 
 use crate::{
     ecmascript::{ObjectShape, PropertyKey, ProtoIntrinsics, Symbol, Value},
-    heap::indexes::HeapIndexHandle,
+    heap::HeapIndexHandle,
 };
 
 #[repr(u32)]

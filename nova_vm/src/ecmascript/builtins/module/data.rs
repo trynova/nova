@@ -7,7 +7,7 @@ use crate::{
     engine::context::{Bindable, bindable_handle},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
-        indexes::HeapIndexHandle,
+        HeapIndexHandle,
     },
 };
 

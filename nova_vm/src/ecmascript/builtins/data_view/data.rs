@@ -13,7 +13,7 @@ use crate::{
         types::OrdinaryObject,
     },
     engine::context::bindable_handle,
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, indexes::HeapIndexHandle},
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, HeapIndexHandle},
 };
 
 #[derive(Debug)]

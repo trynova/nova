@@ -22,7 +22,7 @@ use crate::{
     heap::{
         ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         HeapSweepWeakReference, ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
-        arena_vec_access, indexes::BaseIndex,
+        arena_vec_access, BaseIndex,
     },
 };
 use oxc_ast::ast::RegExpFlags;

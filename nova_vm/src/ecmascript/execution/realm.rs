@@ -21,7 +21,7 @@ use crate::{
     heap::{
         ArenaAccess, ArenaAccessMut, CompactionLists, HeapMarkAndSweep, WorkQueues,
         arena_vec_access,
-        indexes::{BaseIndex, HeapIndexHandle, index_handle},
+        {BaseIndex, HeapIndexHandle, index_handle},
     },
 };
 use core::marker::PhantomData;
@@ -676,7 +676,7 @@ pub(crate) fn initialize_default_realm(agent: &mut Agent, gc: GcScope) {
 
 #[cfg(test)]
 mod test {
-    use crate::heap::indexes::HeapIndexHandle;
+    use crate::heap::HeapIndexHandle;
     #[allow(unused_imports)]
     use crate::{
         ecmascript::types::BuiltinFunctionHeapData,

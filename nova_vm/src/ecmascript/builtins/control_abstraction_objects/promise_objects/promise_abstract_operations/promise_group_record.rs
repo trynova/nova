@@ -12,7 +12,7 @@ use crate::{
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, ObjectEntry, WorkQueues,
         arena_vec_access,
-        indexes::{BaseIndex, HeapIndexHandle, index_handle},
+        {BaseIndex, HeapIndexHandle, index_handle},
     },
 };
 

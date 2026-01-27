@@ -84,15 +84,14 @@ use crate::{
         rootable::HeapRootData,
     },
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, DirectArenaAccess, Heap,
-        HeapMarkAndSweep, HeapSweepWeakReference, IntrinsicConstructorIndexes,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, DirectArenaAccess,
+        Heap, HeapMarkAndSweep, HeapSweepWeakReference, IntrinsicConstructorIndexes,
         IntrinsicObjectIndexes, IntrinsicPrimitiveObjectIndexes, ObjectEntry, WorkQueues,
         arena_vec_access,
-        element_array::{
+        {
             ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementStorageUninit,
             ElementsVector, PropertyStorageMut, PropertyStorageRef,
         },
-        indexes::BaseIndex,
     },
 };
 

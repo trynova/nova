@@ -18,7 +18,7 @@ use crate::{
     heap::{
         ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         HeapSweepWeakReference, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, ObjectEntry,
-        ObjectEntryPropertyDescriptor, WorkQueues, arena_vec_access, indexes::BaseIndex,
+        ObjectEntryPropertyDescriptor, WorkQueues, arena_vec_access, BaseIndex,
     },
     ndt,
 };

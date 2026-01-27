@@ -25,7 +25,7 @@ use crate::{
         rootable::Scopable,
     },
     heap::{
-        ArenaAccess, IntrinsicFunctionIndexes, WellKnownSymbolIndexes, indexes::HeapIndexHandle,
+        ArenaAccess, IntrinsicFunctionIndexes, WellKnownSymbolIndexes, HeapIndexHandle,
     },
 };
 #[cfg(feature = "regexp")]

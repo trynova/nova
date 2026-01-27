@@ -15,7 +15,7 @@ use crate::{
         String, Value, array_create, unwrap_try,
     },
     engine::context::{Bindable, NoGcScope},
-    heap::{ObjectEntry, ObjectEntryPropertyDescriptor, element_array::ElementDescriptor},
+    heap::{ObjectEntry, ObjectEntryPropertyDescriptor, ElementDescriptor},
 };
 
 /// ### [13.2.8.4 GetTemplateObject ( templateLiteral )](https://tc39.es/ecma262/#sec-gettemplateobject)

@@ -8,15 +8,14 @@ use core::ops::ControlFlow;
 
 use crate::{
     ecmascript::{
-    SmallInteger,
         Agent, ArgumentsList, Array, BUILTIN_STRING_MEMORY, BuiltinConstructorFunction,
         ECMAScriptCodeEvaluationState, Environment, ExceptionType, ExecutionContext, Function,
         InternalMethods, InternalSlots, IteratorRecord, JsError, JsResult, KeyedGroup, Number,
         Object, OrdinaryObject, PrivateName, PropertyDescriptor, PropertyKey, PropertyKeySet,
-        PropertyLookupCache, ProtoIntrinsics, Realm, SetResult, String, TryError, TryGetResult,
-        TryHasResult, TryResult, Value, array_create, canonicalize_keyed_collection_key,
-        get_iterator, if_abrupt_close_iterator, is_callable, is_constructor,
-        iterator_close_with_error, iterator_step_value, js_result_into_try,
+        PropertyLookupCache, ProtoIntrinsics, Realm, SetResult, SmallInteger, String, TryError,
+        TryGetResult, TryHasResult, TryResult, Value, array_create,
+        canonicalize_keyed_collection_key, get_iterator, if_abrupt_close_iterator, is_callable,
+        is_constructor, iterator_close_with_error, iterator_step_value, js_result_into_try,
         new_class_field_initializer_environment, require_object_coercible, to_length, to_object,
         to_property_key, to_property_key_simple, try_get_result_into_value, try_result_into_js,
         try_to_length, try_validate_non_revoked_proxy, unwrap_try, validate_non_revoked_proxy,
@@ -27,7 +26,7 @@ use crate::{
         instanceof_operator,
         rootable::{Rootable, Scopable},
     },
-    heap::{ArenaAccess, ObjectEntry, WellKnownSymbolIndexes, element_array::ElementDescriptor},
+    heap::{ArenaAccess, ObjectEntry, WellKnownSymbolIndexes, ElementDescriptor},
 };
 
 use super::{

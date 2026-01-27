@@ -8,13 +8,13 @@ pub(crate) use data::*;
 
 use crate::{
     ecmascript::{
-        Agent, ProtoIntrinsics, WeakKey,
-        InternalMethods, InternalSlots, OrdinaryObject, object_handle,
+        Agent, InternalMethods, InternalSlots, OrdinaryObject, ProtoIntrinsics, WeakKey,
+        object_handle,
     },
     engine::context::Bindable,
     heap::{
         ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, WorkQueues, arena_vec_access, indexes::BaseIndex,
+        HeapSweepWeakReference, WorkQueues, arena_vec_access, BaseIndex,
     },
 };
 

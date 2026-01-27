@@ -7,15 +7,14 @@ mod data;
 pub(crate) use data::*;
 
 use crate::{
-    Heap,
     ecmascript::{
-        Agent, ProtoIntrinsics, WeakKey,
-        InternalMethods, InternalSlots, OrdinaryObject, Value, object_handle,
+        Agent, InternalMethods, InternalSlots, OrdinaryObject, ProtoIntrinsics, Value, WeakKey,
+        object_handle,
     },
     engine::context::Bindable,
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, HeapMarkAndSweep,
-        HeapSweepWeakReference, WorkQueues, arena_vec_access, indexes::BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
 

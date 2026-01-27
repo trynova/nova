@@ -18,7 +18,7 @@ use crate::{
     heap::{
         ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         HeapSweepWeakReference, IntrinsicPrimitiveObjectIndexes, WorkQueues, arena_vec_access,
-        indexes::BaseIndex,
+        BaseIndex,
     },
 };
 use small_string::SmallString;

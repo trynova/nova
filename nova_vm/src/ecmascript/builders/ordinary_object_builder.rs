@@ -14,7 +14,7 @@ use crate::{
     engine::context::Bindable,
     heap::{
         ArenaAccessMut, CreateHeapData,
-        element_array::{ElementDescriptor, ElementsVector},
+        {ElementDescriptor, ElementsVector},
     },
 };
 

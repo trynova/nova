@@ -237,17 +237,17 @@ impl<T: ?Sized> HeapIndexHandle for BaseIndex<'_, T> {
 
 macro_rules! index_handle {
     ($name: tt) => {
-        crate::heap::indexes::index_handle!($name, $name);
+        crate::heap::index_handle!($name, $name);
     };
     ($name: ident, $variant: ident) => {
         crate::engine::context::bindable_handle!($name);
 
-        impl crate::heap::indexes::HeapIndexHandle for $name<'_> {
-            const _DEF: Self = Self(crate::heap::indexes::BaseIndex::MAX);
+        impl crate::heap::HeapIndexHandle for $name<'_> {
+            const _DEF: Self = Self(crate::heap::BaseIndex::MAX);
 
             #[inline]
             fn from_index_u32(index: u32) -> Self {
-                Self(crate::heap::indexes::BaseIndex::from_index_u32(index))
+                Self(crate::heap::BaseIndex::from_index_u32(index))
             }
 
             #[inline]

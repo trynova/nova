@@ -45,9 +45,8 @@ use crate::{
     },
     engine::Executable,
     heap::{
-        Heap,
+        BaseIndex, ElementIndex, Heap, HeapIndexHandle, PropertyKeyIndex,
         element_array::ElementDescriptor,
-        indexes::{BaseIndex, ElementIndex, HeapIndexHandle, PropertyKeyIndex},
     },
 };
 

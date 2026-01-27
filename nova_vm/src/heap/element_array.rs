@@ -5,14 +5,13 @@
 use ahash::AHashMap;
 
 use super::{
-    CompactionLists, HeapMarkAndSweep, WorkQueues,
-    indexes::{ElementIndex, PropertyKeyIndex},
+    CompactionLists, ElementIndex, HeapMarkAndSweep, PropertyKeyIndex, WorkQueues,
     object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor},
 };
 use crate::{
     ecmascript::{Agent, Function, PropertyDescriptor, PropertyKey, Value},
     engine::context::{Bindable, NoGcScope, bindable_handle},
-    heap::indexes::HeapIndexHandle,
+    heap::HeapIndexHandle,
 };
 use core::mem::MaybeUninit;
 use std::collections::{TryReserveError, hash_map::Entry};

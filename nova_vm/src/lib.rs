@@ -7,7 +7,6 @@
 pub mod ecmascript;
 pub mod engine;
 pub mod heap;
-use heap::Heap;
 
 /// DTrace / SystemTap USDT probes in Nova VM.
 #[usdt::provider(provider = "nova_vm")]

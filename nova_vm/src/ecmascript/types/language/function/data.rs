@@ -11,8 +11,8 @@ use crate::{
     },
     engine::{Executable, context::bindable_handle},
     heap::{
-        CompactionLists, HeapMarkAndSweep, WorkQueues, element_array::ElementsVector,
-        indexes::HeapIndexHandle,
+        CompactionLists, HeapIndexHandle, HeapMarkAndSweep, WorkQueues,
+        ElementsVector,
     },
 };
 

@@ -31,9 +31,9 @@ use std::collections::TryReserveError;
 use ahash::AHashMap;
 
 use crate::{
-    ecmascript::{BUILTIN_STRING_MEMORY, Number, Object, OrdinaryObject, Value, Agent,},
+    ecmascript::{Agent, BUILTIN_STRING_MEMORY, Number, Object, OrdinaryObject, Value},
     engine::context::{Bindable, NoGcScope},
-    heap::{WellKnownSymbolIndexes, element_array::ElementDescriptor},
+    heap::{WellKnownSymbolIndexes, ElementDescriptor},
 };
 
 use super::{ObjectShape, ScopedArgumentsList};

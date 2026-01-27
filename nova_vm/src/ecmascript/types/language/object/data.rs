@@ -7,9 +7,8 @@ use crate::{
     ecmascript::{ObjectShape, ObjectShapeRecord},
     engine::context::{Bindable, bindable_handle},
     heap::{
-        CompactionLists, HeapMarkAndSweep, WorkQueues,
-        element_array::{ElementArrayKey, ElementArrays, ElementStorageRef},
-        indexes::ElementIndex,
+        CompactionLists, ElementIndex, HeapMarkAndSweep, WorkQueues,
+        {ElementArrayKey, ElementArrays, ElementStorageRef},
     },
 };
 

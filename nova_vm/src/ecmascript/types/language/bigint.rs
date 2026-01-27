@@ -23,7 +23,7 @@ use crate::{
     },
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
-        arena_vec_access, indexes::BaseIndex,
+        arena_vec_access, BaseIndex,
     },
 };
 use core::ops::Neg;

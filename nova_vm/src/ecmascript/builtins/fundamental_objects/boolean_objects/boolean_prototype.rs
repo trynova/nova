@@ -8,7 +8,7 @@ use crate::{
         OrdinaryObjectBuilder, PrimitiveObjectData, PrimitiveObjectRecord, Realm, String, Value,
     },
     engine::context::{GcScope, NoGcScope},
-    heap::{ArenaAccess, indexes::HeapIndexHandle},
+    heap::{ArenaAccess, HeapIndexHandle},
 };
 
 pub(crate) struct BooleanPrototype;

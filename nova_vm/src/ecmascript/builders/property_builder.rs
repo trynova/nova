@@ -3,11 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    ecmascript::{
-        execution::Agent,
-        Function, PropertyKey, Value,
-    },
-    heap::element_array::ElementDescriptor,
+    ecmascript::{Function, PropertyKey, Value, execution::Agent},
+    heap::ElementDescriptor,
 };
 
 #[derive(Default, Clone, Copy)]

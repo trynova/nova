@@ -4,16 +4,15 @@
 
 use crate::{
     ecmascript::{
-    SmallInteger,
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType, JsResult,
         Number, OrdinaryObjectBuilder, PrimitiveObject, PrimitiveObjectData, PrimitiveObjectRecord,
-        Realm, String, Value, to_integer_or_infinity,
+        Realm, SmallInteger, String, Value, to_integer_or_infinity,
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::{ArenaAccess, indexes::HeapIndexHandle},
+    heap::{ArenaAccess, HeapIndexHandle},
 };
 
 pub(crate) struct NumberPrototype;

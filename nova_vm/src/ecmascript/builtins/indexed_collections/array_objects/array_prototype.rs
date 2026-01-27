@@ -8,23 +8,22 @@ use wtf8::Wtf8Buf;
 
 use crate::{
     ecmascript::{
-    SmallInteger,
         Agent, ArgumentsList, ArrayIterator, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
         BuiltinIntrinsic, CollectionIteratorKind, ExceptionType, Function, InternalMethods,
-        JsError, JsResult, Number, Object, OrdinaryObjectBuilder, PropertyKey, Realm, String,
-        Value, array_create, array_species_create, call_function, create_data_property_or_throw,
-        delete_property_or_throw, get, has_property, invoke, is_array, is_callable,
-        is_strictly_equal, length_of_array_like, same_value_zero, set, to_boolean,
-        to_integer_or_infinity, to_number, to_object, to_string, try_create_data_property_or_throw,
-        try_length_of_array_like, try_result_into_js, try_to_integer_or_infinity, try_to_string,
-        unwrap_try,
+        JsError, JsResult, Number, Object, OrdinaryObjectBuilder, PropertyKey, Realm, SmallInteger,
+        String, Value, array_create, array_species_create, call_function,
+        create_data_property_or_throw, delete_property_or_throw, get, has_property, invoke,
+        is_array, is_callable, is_strictly_equal, length_of_array_like, same_value_zero, set,
+        to_boolean, to_integer_or_infinity, to_number, to_object, to_string,
+        try_create_data_property_or_throw, try_length_of_array_like, try_result_into_js,
+        try_to_integer_or_infinity, try_to_string, unwrap_try,
     },
     engine::{
         ScopableCollection, Scoped,
         context::{Bindable, GcScope},
         rootable::{Rootable, Scopable},
     },
-    heap::{Heap, IntrinsicFunctionIndexes, WellKnownSymbolIndexes, indexes::HeapIndexHandle},
+    heap::{Heap, IntrinsicFunctionIndexes, WellKnownSymbolIndexes, HeapIndexHandle},
 };
 
 pub(crate) struct ArrayPrototype;

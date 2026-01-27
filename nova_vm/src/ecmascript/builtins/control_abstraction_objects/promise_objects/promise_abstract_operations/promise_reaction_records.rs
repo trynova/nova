@@ -10,7 +10,7 @@ use crate::{
     engine::context::{Bindable, bindable_handle},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, arena_vec_access,
-        indexes::{BaseIndex, index_handle},
+        {BaseIndex, index_handle},
     },
 };
 

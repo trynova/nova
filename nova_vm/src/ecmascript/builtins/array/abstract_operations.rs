@@ -6,17 +6,16 @@ use std::collections::{TryReserveError, hash_map::Entry};
 
 use crate::{
     ecmascript::{
-        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, ExceptionType, JsResult, Number, Object,
-        OrdinaryObject, PropertyDescriptor, TryError, TryResult, Value,
-        Array, ArrayHeapData,
-        construct, get, get_function_realm, is_array, is_constructor, same_value, to_number,
-        to_uint32, to_uint32_number,
+        Agent, ArgumentsList, Array, ArrayHeapData, BUILTIN_STRING_MEMORY, ExceptionType, JsResult,
+        Number, Object, OrdinaryObject, PropertyDescriptor, TryError, TryResult, Value, construct,
+        get, get_function_realm, is_array, is_constructor, same_value, to_number, to_uint32,
+        to_uint32_number,
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::{CreateHeapData, Heap, WellKnownSymbolIndexes, element_array::ElementStorageMut},
+    heap::{CreateHeapData, ElementStorageMut, Heap, WellKnownSymbolIndexes},
 };
 
 /// ### [10.4.2.2 ArrayCreate ( length \[ , proto \] )](https://tc39.es/ecma262/#sec-arraycreate)
