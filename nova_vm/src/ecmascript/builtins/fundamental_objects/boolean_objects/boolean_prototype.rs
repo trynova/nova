@@ -7,7 +7,7 @@ use crate::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType, JsResult,
         OrdinaryObjectBuilder, PrimitiveObjectData, PrimitiveObjectRecord, Realm, String, Value,
     },
-    engine::context::{GcScope, NoGcScope},
+    engine::{GcScope, NoGcScope},
     heap::{ArenaAccess, HeapIndexHandle},
 };
 

@@ -9,8 +9,8 @@ use crate::{
         Realm, String, Value, get_array_buffer_max_byte_length_option, to_index,
     },
     engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
+        Bindable, GcScope,
+        Scopable,
     },
     heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };

@@ -4,7 +4,7 @@
 
 use crate::{
     ecmascript::{Agent, ExceptionType, JsResult, Object},
-    engine::context::{Bindable, NoGcScope, bindable_handle},
+    engine::{Bindable, NoGcScope, bindable_handle},
     heap::ArenaAccess,
 };
 

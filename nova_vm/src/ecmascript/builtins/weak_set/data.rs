@@ -6,7 +6,7 @@ use ahash::AHashSet;
 
 use crate::{
     ecmascript::{execution::WeakKey, types::OrdinaryObject},
-    engine::context::{Bindable, bindable_handle},
+    engine::{Bindable, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, sweep_side_set},
 };
 

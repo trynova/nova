@@ -4,7 +4,7 @@
 
 use crate::{
     ecmascript::types::Object,
-    engine::context::bindable_handle,
+    engine::bindable_handle,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 

@@ -20,14 +20,11 @@ use crate::{
         TryGetResult, TryHasResult, TryResult, Value, call_function, create_array_from_list,
         js_result_into_try, object_handle, ordinary_define_own_property, same_value, unwrap_try,
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
+    engine::{Bindable, GcScope, NoGcScope},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, arena_vec_access,
-        {
-            ElementArrays, ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementsVector,
-        },
-        {BaseIndex, HeapIndexHandle},
+        WorkQueues, arena_vec_access, {BaseIndex, HeapIndexHandle},
+        {ElementArrays, ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementsVector},
     },
 };
 
@@ -39,6 +36,7 @@ use super::{
     ordinary_has_property, ordinary_try_get, ordinary_try_has_property,
 };
 
+/// ### [10.4.2 Array Exotic Objects](https://tc39.es/ecma262/#sec-array-exotic-objects)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Array<'a>(BaseIndex<'a, ArrayHeapData<'static>>);
@@ -180,11 +178,11 @@ impl<'a> Array<'a> {
         elems.len = len;
     }
 
-    pub fn length_writable(self, agent: &Agent) -> bool {
+    pub(crate) fn length_writable(self, agent: &Agent) -> bool {
         self.get_elements(agent).len_writable
     }
 
-    pub fn set_length_readonly(self, agent: &mut Agent) {
+    pub(crate) fn set_length_readonly(self, agent: &mut Agent) {
         self.get_elements_mut(agent).len_writable = false;
     }
 

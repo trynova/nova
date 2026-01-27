@@ -22,19 +22,14 @@ use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, ExceptionType, Function, InternalMethods,
         InternalSlots, JsResult, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
-        ProtoIntrinsics, Realm, SetCachedProps, SetResult, String, Symbol, TryError, TryGetResult,
-        TryHasResult, TryResult, Value, call_function, create_data_property, get_function_realm,
-        handle_try_get_result, same_value, try_create_data_property, try_get,
+        ProtoIntrinsics, Realm, SetAtOffsetProps, SetResult, String, Symbol, TryError,
+        TryGetResult, TryHasResult, TryResult, Value, call_function, create_data_property,
+        get_function_realm, handle_try_get_result, same_value, try_create_data_property, try_get,
         try_get_function_realm, try_result_into_js, unwrap_try,
     },
-    engine::{
-        Scoped,
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, Scoped},
     heap::{
-        CreateHeapData, WellKnownSymbolIndexes,
-        {ElementStorageRef, PropertyStorageRef},
+        CreateHeapData, WellKnownSymbolIndexes, {ElementStorageRef, PropertyStorageRef},
     },
 };
 
@@ -82,7 +77,7 @@ impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {
     fn set_at_offset<'gc>(
         self,
         agent: &mut Agent,
-        props: &SetCachedProps,
+        props: &SetAtOffsetProps,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, SetResult<'gc>> {
@@ -1307,7 +1302,7 @@ fn ordinary_set_with_own_descriptor<'a>(
 /// ### [10.1.9.1 OrdinarySet ( O, P, V, Receiver )](https://tc39.es/ecma262/#sec-ordinaryset)
 pub(crate) fn ordinary_set_at_offset<'a>(
     agent: &mut Agent,
-    props: &SetCachedProps,
+    props: &SetAtOffsetProps,
     o: Object,
     bo: Option<OrdinaryObject>,
     offset: PropertyOffset,

@@ -15,11 +15,7 @@ use crate::{
         if_abrupt_reject_promise_m, inner_promise_then, iterator_close_with_value,
         iterator_complete, iterator_next, iterator_value, unwrap_try,
     },
-    engine::{
-        VmIteratorRecord,
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable, VmIteratorRecord},
 };
 
 /// ### [27.1.6.1 CreateAsyncFromSyncIterator ( syncIteratorRecord )](https://tc39.es/ecma262/#sec-createasyncfromsynciterator)

@@ -21,7 +21,7 @@ use crate::{
         SHARED_FLOAT_64_ARRAY_DISCRIMINANT, SHARED_INT_8_ARRAY_DISCRIMINANT,
         SHARED_INT_16_ARRAY_DISCRIMINANT, SHARED_INT_32_ARRAY_DISCRIMINANT,
         SHARED_UINT_8_ARRAY_DISCRIMINANT, SHARED_UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
-        SHARED_UINT_16_ARRAY_DISCRIMINANT, SHARED_UINT_32_ARRAY_DISCRIMINANT, SetCachedProps,
+        SHARED_UINT_16_ARRAY_DISCRIMINANT, SHARED_UINT_32_ARRAY_DISCRIMINANT, SetAtOffsetProps,
         SetResult, SharedArrayBuffer, SharedDataBlock, SharedTypedArrayRecord, TryError,
         TryGetResult, TryHasResult, TryResult, TypedArray, TypedArrayAbstractOperations,
         TypedArrayArrayLength, U8Clamped, Value, Viewable, ViewedArrayBufferByteLength,
@@ -33,11 +33,7 @@ use crate::{
         to_boolean, to_number, to_number_primitive, typed_array_create_from_data_block,
         typed_array_species_create_with_length, unwrap_try,
     },
-    engine::{
-        Scoped,
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, Scopable},
-    },
+    engine::{Bindable, GcScope, HeapRootData, NoGcScope, Scopable, Scoped, bindable_handle},
     heap::{
         ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, DirectArenaAccess,
         DirectArenaAccessMut, Heap, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
@@ -577,7 +573,7 @@ impl<'a> InternalMethods<'a> for SharedTypedArray<'a> {
     fn set_at_offset<'gc>(
         self,
         agent: &mut Agent,
-        props: &SetCachedProps,
+        props: &SetAtOffsetProps,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, SetResult<'gc>> {

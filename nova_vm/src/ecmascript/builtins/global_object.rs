@@ -22,8 +22,8 @@ use crate::{
     },
     engine::{
         Executable, Vm,
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
+        Bindable, GcScope, NoGcScope,
+        Scopable,
         string_literal_to_wtf8,
     },
     heap::{ArenaAccess, IntrinsicFunctionIndexes, HeapIndexHandle},

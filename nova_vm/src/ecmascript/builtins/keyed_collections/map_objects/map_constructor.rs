@@ -19,8 +19,8 @@ use crate::{
         same_value, throw_not_callable, try_get,
     },
     engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
+        Bindable, GcScope,
+        Scopable,
     },
     heap::{
         ArenaAccess, CreateHeapData, Heap, IntrinsicConstructorIndexes, PrimitiveHeap,

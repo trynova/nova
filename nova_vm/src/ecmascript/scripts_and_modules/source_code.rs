@@ -18,11 +18,10 @@ use oxc_span::SourceType;
 
 use crate::{
     ecmascript::{HeapString, String, execution::Agent},
-    engine::context::{Bindable, NoGcScope, bindable_handle},
+    engine::{Bindable, NoGcScope, bindable_handle},
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
-        arena_vec_access,
-        {BaseIndex, HeapIndexHandle, index_handle},
+        arena_vec_access, {BaseIndex, HeapIndexHandle, index_handle},
     },
 };
 
@@ -387,7 +386,7 @@ mod test {
             Agent, DefaultHostHooks, Options, ParseResult, SourceCode, SourceCodeType, String,
             initialize_default_realm,
         },
-        engine::context::GcScope,
+        engine::GcScope,
     };
 
     #[test]

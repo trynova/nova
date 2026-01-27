@@ -31,11 +31,7 @@ use nova_vm::{
         String as JsString, Value, finish_loading_imported_module, parse_module, parse_script,
         script_evaluation,
     },
-    engine::{
-        Global,
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, Global, NoGcScope, Scopable},
     register_probes,
 };
 use oxc_parser::Parser;

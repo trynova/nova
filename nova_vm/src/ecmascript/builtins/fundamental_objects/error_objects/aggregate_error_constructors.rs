@@ -11,8 +11,8 @@ use crate::{
         ordinary_create_from_constructor, throw_not_callable, to_string,
     },
     engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
+        Bindable, GcScope,
+        Scopable,
     },
     heap::{ArenaAccessMut, IntrinsicConstructorIndexes},
 };

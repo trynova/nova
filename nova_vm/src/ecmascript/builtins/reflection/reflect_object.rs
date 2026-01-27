@@ -11,8 +11,8 @@ use crate::{
         to_property_key_simple, try_result_into_js,
     },
     engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
+        Bindable, GcScope,
+        Scopable,
     },
     heap::WellKnownSymbolIndexes,
 };

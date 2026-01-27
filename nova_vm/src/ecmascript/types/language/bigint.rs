@@ -17,13 +17,10 @@ use crate::{
         Agent, BIGINT_DISCRIMINANT, ExceptionType, JsResult, Numeric, Primitive,
         SMALL_BIGINT_DISCRIMINANT, SmallInteger, String, Value, primitive_handle, with_radix,
     },
-    engine::{
-        context::{Bindable, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
+    engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, bindable_handle},
     heap::{
-        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
-        arena_vec_access, BaseIndex,
+        ArenaAccess, BaseIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        WorkQueues, arena_vec_access,
     },
 };
 use core::ops::Neg;

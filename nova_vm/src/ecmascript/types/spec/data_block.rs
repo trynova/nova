@@ -31,7 +31,7 @@ use crate::{
         to_big_uint64_big_int, to_int8_number, to_int16_number, to_int32_number,
         to_uint8_clamp_number, to_uint8_number, to_uint16_number, to_uint32_number,
     },
-    engine::context::{NoGcScope, trivially_bindable},
+    engine::{NoGcScope, trivially_bindable},
     heap::ArenaAccess,
 };
 

@@ -7,7 +7,7 @@ use std::ops::ControlFlow;
 
 use wtf8::CodePoint;
 
-use super::{Scoped, rootable::Rootable};
+use super::{Rootable, Scoped};
 
 /// # ZST type representing access to the garbage collector.
 ///
@@ -241,7 +241,7 @@ pub unsafe trait Bindable: Sized {
     /// This is the only correct way to define the type:
     ///
     /// ```rust
-    /// use nova_vm::engine::context::{Bindable, NoGcScope};
+    /// use nova_vm::engine::{Bindable, NoGcScope};
     /// struct MyType<'a>(std::marker::PhantomData<&'a ()>);
     /// unsafe impl Bindable for MyType<'_> {
     ///   type Of<'a> = MyType<'a>;
@@ -334,10 +334,8 @@ pub unsafe trait Bindable: Sized {
     /// ## Examples
     ///
     /// ```rust
-    /// use nova_vm::ecmascript::builtins::ArgumentsList;
-    /// use nova_vm::ecmascript::Agent, JsResult;
-    /// use nova_vm::ecmascript::types::Value;
-    /// use nova_vm::engine::context::{GcScope, Bindable};
+    /// use nova_vm::ecmascript::{Agent, ArgumentsList, JsResult, Value};
+    /// use nova_vm::engine::{GcScope, Bindable};
     /// fn function_call<'gc>(
     ///   agent: &mut Agent,
     ///   this_value: Value,
@@ -364,10 +362,8 @@ pub unsafe trait Bindable: Sized {
     /// *Incorrect* usage of this function: skip binding arguments when a
     /// function with a garbage collector safepoint is entered.
     /// ```rust
-    /// use nova_vm::ecmascript::builtins::ArgumentsList;
-    /// use nova_vm::ecmascript::{Agent, JsResult};
-    /// use nova_vm::ecmascript::types::Value;
-    /// use nova_vm::engine::context::{GcScope, Bindable};
+    /// use nova_vm::ecmascript::{ArgumentsList, Agent, JsResult, Value};
+    /// use nova_vm::engine::{GcScope, Bindable};
     /// fn function_call<'gc>(
     ///   agent: &mut Agent,
     ///   this_value: Value,
@@ -390,7 +386,7 @@ pub unsafe trait Bindable: Sized {
 macro_rules! bindable_handle {
     ($self:ident) => {
         // SAFETY: Bindable handle.
-        unsafe impl crate::engine::context::Bindable for $self<'_> {
+        unsafe impl crate::engine::Bindable for $self<'_> {
             type Of<'a> = $self<'a>;
 
             #[inline(always)]
@@ -399,7 +395,7 @@ macro_rules! bindable_handle {
             }
 
             #[inline(always)]
-            fn bind<'a>(self, _: crate::engine::context::NoGcScope<'a, '_>) -> Self::Of<'a> {
+            fn bind<'a>(self, _: crate::engine::NoGcScope<'a, '_>) -> Self::Of<'a> {
                 unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
             }
         }
@@ -410,7 +406,7 @@ pub(crate) use bindable_handle;
 macro_rules! trivially_bindable {
     ($self:ty) => {
         // SAFETY: Trivially safe.
-        unsafe impl crate::engine::context::Bindable for $self {
+        unsafe impl crate::engine::Bindable for $self {
             type Of<'a> = Self;
 
             #[inline(always)]

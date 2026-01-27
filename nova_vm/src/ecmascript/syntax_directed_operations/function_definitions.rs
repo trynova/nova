@@ -17,8 +17,8 @@ use crate::{
     },
     engine::{
         Executable, ExecutionResult, Vm,
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
+        Bindable, GcScope, NoGcScope,
+        Scopable,
     },
     heap::{ArenaAccess, ArenaAccessMut, CreateHeapData},
 };

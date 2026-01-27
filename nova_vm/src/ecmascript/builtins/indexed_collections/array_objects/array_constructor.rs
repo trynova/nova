@@ -15,8 +15,8 @@ use crate::{
         to_uint32_number, try_create_data_property_or_throw, unwrap_try,
     },
     engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
+        Bindable, GcScope,
+        Scopable,
     },
     heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };

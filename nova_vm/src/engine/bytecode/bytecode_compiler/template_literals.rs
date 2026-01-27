@@ -14,8 +14,8 @@ use crate::{
         Agent, Array, BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, OrdinaryObject,
         String, Value, array_create, unwrap_try,
     },
-    engine::context::{Bindable, NoGcScope},
-    heap::{ObjectEntry, ObjectEntryPropertyDescriptor, ElementDescriptor},
+    engine::{Bindable, NoGcScope},
+    heap::{ElementDescriptor, ObjectEntry, ObjectEntryPropertyDescriptor},
 };
 
 /// ### [13.2.8.4 GetTemplateObject ( templateLiteral )](https://tc39.es/ecma262/#sec-gettemplateobject)

@@ -9,7 +9,7 @@ use crate::{
         AbstractModule, AbstractModuleSlots, Agent, ExceptionType, JsError, JsResult, String,
         TryResult, Value,
     },
-    engine::context::{Bindable, NoGcScope},
+    engine::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 

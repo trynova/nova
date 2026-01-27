@@ -7,10 +7,10 @@ use crate::{
         Agent, CollectionIteratorKind, InternalMethods, InternalSlots, Map, OrdinaryObject,
         ProtoIntrinsics, object_handle,
     },
-    engine::context::{Bindable, bindable_handle},
+    engine::{Bindable, bindable_handle},
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, WorkQueues, arena_vec_access, BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
 

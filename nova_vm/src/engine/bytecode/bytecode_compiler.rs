@@ -15,30 +15,22 @@ mod labelled_statement;
 mod template_literals;
 mod with_statement;
 
+pub(crate) use compile_context::*;
+
 use std::{convert::Infallible, ops::ControlFlow};
 
 use super::{FunctionExpression, Instruction, SendableRef, executable::ArrowFunctionExpression};
+use crate::ecmascript::{
+    BUILTIN_STRING_MEMORY, BigInt, ContainsExpression, LexicallyScopedDeclaration,
+    LexicallyScopedDeclarations, Number, String, Value,
+};
 #[cfg(feature = "typescript")]
 use crate::{ecmascript::builtins::ObjectShapeRecord, heap::CreateHeapData};
 use crate::{
     ecmascript::{
         Agent, ExceptionType, ObjectShape, Primitive, PropertyKey, to_property_key_simple,
     },
-    engine::{
-        bytecode::bytecode_compiler::compile_context::{BlockEnvPrep, StackResultValue},
-        context::{Bindable, NoGcScope},
-    },
-};
-use crate::{
-    ecmascript::{
-        BUILTIN_STRING_MEMORY, BigInt, ContainsExpression, LexicallyScopedDeclaration,
-        LexicallyScopedDeclarations, Number, String, Value,
-    },
-    engine::bytecode::bytecode_compiler::compile_context::StackValue,
-};
-pub(crate) use compile_context::{
-    CompileContext, CompileEvaluation, CompileLabelledEvaluation, GeneratorKind, IndexType,
-    JumpIndex, NamedEvaluationParameter,
+    engine::{Bindable, NoGcScope},
 };
 use num_traits::Num;
 use oxc_ast::ast;

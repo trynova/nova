@@ -18,13 +18,10 @@ use crate::{
         BoundFunction, BuiltinConstructorFunction, BuiltinFunction, BuiltinPromiseFinallyFunction,
         BuiltinPromiseResolvingFunction, ECMASCRIPT_FUNCTION_DISCRIMINANT, ECMAScriptFunction,
         InternalMethods, InternalSlots, JsResult, Object, OrdinaryObject, PropertyDescriptor,
-        PropertyKey, PropertyLookupCache, PropertyOffset, ProtoIntrinsics, SetCachedProps,
+        PropertyKey, PropertyLookupCache, PropertyOffset, ProtoIntrinsics, SetAtOffsetProps,
         SetResult, String, TryGetResult, TryHasResult, TryResult, Value,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::HeapRootData,
-    },
+    engine::{Bindable, GcScope, HeapRootData, NoGcScope, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -507,7 +504,7 @@ impl<'a> InternalMethods<'a> for Function<'a> {
     fn set_at_offset<'gc>(
         self,
         agent: &mut Agent,
-        props: &SetCachedProps,
+        props: &SetAtOffsetProps,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, SetResult<'gc>> {

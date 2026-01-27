@@ -6,7 +6,7 @@ use std::time::SystemTime;
 
 use crate::{
     ecmascript::{OrdinaryObject, SmallInteger, Value},
-    engine::context::bindable_handle,
+    engine::bindable_handle,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 

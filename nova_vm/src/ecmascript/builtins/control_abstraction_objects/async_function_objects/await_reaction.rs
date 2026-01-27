@@ -9,8 +9,8 @@ use crate::{
     },
     engine::{
         Executable, ExecutionResult, SuspendedVm,
-        context::{Bindable, GcScope, bindable_handle},
-        rootable::Scopable,
+        Bindable, GcScope, bindable_handle,
+        Scopable,
     },
     heap::{
         ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,

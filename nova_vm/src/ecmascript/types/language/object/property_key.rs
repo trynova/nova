@@ -9,16 +9,11 @@ use wtf8::{Wtf8, Wtf8Buf};
 
 use crate::{
     ecmascript::{
-    SmallInteger, SmallString,
         Agent, HeapString, INTEGER_DISCRIMINANT, Primitive, PrivateName, SMALL_STRING_DISCRIMINANT,
-        STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT, String, Symbol, Value,
+        STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT, SmallInteger, SmallString, String, Symbol, Value,
         parse_string_to_integer_property_key,
     },
-    engine::{
-        Scoped,
-        context::{Bindable, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
+    engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, Scoped, bindable_handle},
     heap::{ArenaAccess, CompactionLists, HeapMarkAndSweep, PropertyKeyHeapAccess, WorkQueues},
 };
 

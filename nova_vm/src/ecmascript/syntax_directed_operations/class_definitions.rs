@@ -9,8 +9,8 @@ use crate::{
         ordinary_create_from_constructor, unwrap_try,
     },
     engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
+        Bindable, GcScope,
+        Scopable,
     },
 };
 

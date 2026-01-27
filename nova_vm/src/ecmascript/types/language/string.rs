@@ -17,11 +17,7 @@ use crate::{
         Agent, Primitive, PropertyDescriptor, PropertyKey, SMALL_STRING_DISCRIMINANT,
         STRING_DISCRIMINANT, SmallInteger, Value, primitive_handle, primitive_value,
     },
-    engine::{
-        Scoped,
-        context::{Bindable, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
+    engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, Scoped, bindable_handle},
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         HeapSweepWeakReference, StringHeapAccess, WorkQueues, arena_vec_access,

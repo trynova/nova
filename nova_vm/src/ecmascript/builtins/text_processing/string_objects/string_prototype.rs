@@ -20,13 +20,8 @@ use crate::{
         to_number, to_string, to_string_primitive, to_uint32, try_result_into_js,
         try_to_integer_or_infinity, try_to_length, try_to_string,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
-    heap::{
-        ArenaAccess, IntrinsicFunctionIndexes, WellKnownSymbolIndexes, HeapIndexHandle,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
+    heap::{ArenaAccess, HeapIndexHandle, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
 #[cfg(feature = "regexp")]
 use crate::{
@@ -3583,7 +3578,7 @@ fn create_html<'gc>(
     attribute_and_value: Option<(&str, Value)>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, String<'gc>> {
-    use crate::engine::rootable::Scopable;
+    use crate::engine::Scopable;
 
     let nogc = gc.nogc();
     // 1. Let str be ? RequireObjectCoercible(string).

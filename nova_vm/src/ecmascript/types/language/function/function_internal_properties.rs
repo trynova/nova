@@ -12,7 +12,7 @@ use crate::{
         ordinary_get_own_property, ordinary_has_property, ordinary_own_property_keys, ordinary_set,
         ordinary_try_get, ordinary_try_has_property, ordinary_try_set, unwrap_try,
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
+    engine::{Bindable, GcScope, NoGcScope},
     heap::{ObjectEntry, ObjectEntryPropertyDescriptor},
 };
 

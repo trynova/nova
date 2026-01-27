@@ -18,11 +18,11 @@ use crate::{
         },
         unwrap_try,
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
+    engine::{Bindable, GcScope, NoGcScope},
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
-        arena_vec_access, BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, ObjectEntry, ObjectEntryPropertyDescriptor,
+        WorkQueues, arena_vec_access,
     },
 };
 use oxc_ast::ast::RegExpFlags;

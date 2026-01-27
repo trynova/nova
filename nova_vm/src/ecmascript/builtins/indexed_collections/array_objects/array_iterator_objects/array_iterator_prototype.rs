@@ -14,10 +14,7 @@ use crate::{
         OrdinaryObjectBuilder, Realm, String, Value, create_array_from_list,
         create_iter_result_object, get, length_of_array_like,
     },
-    engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::{ArenaAccess, ArenaAccessMut, WellKnownSymbolIndexes},
 };
 

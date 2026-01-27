@@ -8,11 +8,10 @@ use crate::{
         PromiseCapability, PromiseReactionType, PropertyDescriptor, Value,
         define_property_or_throw,
     },
-    engine::context::{Bindable, GcScope, NoGcScope, bindable_handle},
+    engine::{Bindable, GcScope, NoGcScope, bindable_handle},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, ObjectEntry, WorkQueues,
-        arena_vec_access,
-        {BaseIndex, HeapIndexHandle, index_handle},
+        arena_vec_access, {BaseIndex, HeapIndexHandle, index_handle},
     },
 };
 

@@ -18,12 +18,8 @@ use crate::{
         try_create_data_property_or_throw, try_length_of_array_like, try_result_into_js,
         try_to_integer_or_infinity, try_to_string, unwrap_try,
     },
-    engine::{
-        ScopableCollection, Scoped,
-        context::{Bindable, GcScope},
-        rootable::{Rootable, Scopable},
-    },
-    heap::{Heap, IntrinsicFunctionIndexes, WellKnownSymbolIndexes, HeapIndexHandle},
+    engine::{Bindable, GcScope, Rootable, Scopable, ScopableCollection, Scoped},
+    heap::{Heap, HeapIndexHandle, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct ArrayPrototype;

@@ -30,8 +30,8 @@ use crate::{
         },
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope, trivially_bindable},
-        rootable::Scopable,
+        Bindable, GcScope, NoGcScope, trivially_bindable,
+        Scopable,
     },
     heap::{ArenaAccess, CreateHeapData, WellKnownSymbolIndexes},
 };

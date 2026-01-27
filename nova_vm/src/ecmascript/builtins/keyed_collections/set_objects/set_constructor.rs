@@ -16,8 +16,8 @@ use crate::{
         ordinary_create_from_constructor, throw_not_callable,
     },
     engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
+        Bindable, GcScope,
+        Scopable,
     },
     heap::{
         DirectArenaAccessSoAMut, Heap, IntrinsicConstructorIndexes, PrimitiveHeap,

@@ -68,10 +68,7 @@ use crate::{
         Promise, Proxy, STRING_ITERATOR_DISCRIMINANT, SYMBOL_DISCRIMINANT, StringIterator, Symbol,
         Value,
     },
-    engine::{
-        context::{Bindable, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
+    engine::{Bindable, HeapRootData, HeapRootRef, Rootable, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues},
 };
 

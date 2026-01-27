@@ -8,10 +8,7 @@ use hashbrown::{HashTable, hash_table::Entry};
 
 use crate::{
     ecmascript::{Agent, InternalMethods, Object, PropertyKey, TryResult, Value},
-    engine::{
-        context::{Bindable, GcToken, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
+    engine::{Bindable, GcToken, HeapRootData, HeapRootRef, NoGcScope, Rootable, bindable_handle},
     heap::{
         AtomicBits, BitRange, CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference,
         PropertyKeyHeap, WeakReference, WorkQueues, sweep_heap_vector_values,

@@ -6,13 +6,13 @@ use ecmascript_atomics::Ordering;
 
 use crate::{
     ecmascript::{
-    SmallInteger,
         Agent, AnyDataView, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
         BuiltinGetter, ExceptionType, JsResult, Number, OrdinaryObjectBuilder, PropertyKey, Realm,
-        String, Value, Viewable, get_view_byte_length, get_view_value, is_view_out_of_bounds,
-        make_data_view_with_buffer_witness_record, set_view_value, to_boolean,
+        SmallInteger, String, Value, Viewable, get_view_byte_length, get_view_value,
+        is_view_out_of_bounds, make_data_view_with_buffer_witness_record, set_view_value,
+        to_boolean,
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
+    engine::{Bindable, GcScope, NoGcScope},
     heap::WellKnownSymbolIndexes,
 };
 

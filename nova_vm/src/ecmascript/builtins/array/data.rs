@@ -6,7 +6,7 @@ use soavec_derive::SoAble;
 
 use crate::{
     ecmascript::types::OrdinaryObject,
-    engine::context::bindable_handle,
+    engine::bindable_handle,
     heap::{CompactionLists, ElementsVector, HeapMarkAndSweep, WorkQueues},
 };
 

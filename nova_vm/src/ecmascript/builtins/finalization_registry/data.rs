@@ -7,10 +7,9 @@ use soavec_derive::SoAble;
 
 use crate::{
     ecmascript::{Function, OrdinaryObject, Realm, Value, WeakKey},
-    engine::context::{Bindable, bindable_handle},
+    engine::{Bindable, bindable_handle},
     heap::{
-        CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
-        HeapIndexHandle,
+        CompactionLists, HeapIndexHandle, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
     },
 };
 

@@ -7,7 +7,7 @@ use crate::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType, JsResult,
         OrdinaryObjectBuilder, Realm, String, Value, WeakRef, add_to_kept_objects,
     },
-    engine::context::{Bindable, GcScope},
+    engine::{Bindable, GcScope},
     heap::WellKnownSymbolIndexes,
 };
 

@@ -2,7 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use binding_methods::{execute_simple_array_binding, execute_simple_object_binding};
 use core::ops::ControlFlow;
 use oxc_span::Span;
 
@@ -34,23 +33,22 @@ use crate::{
         try_result_into_option_js, unwrap_try,
     },
     engine::{
-        ScopableCollection, Scoped,
+        ActiveIterator, Bindable, GcScope, NoGcScope, Scopable, ScopableCollection, Scoped,
         bytecode::{
             Executable, FunctionExpression, Instruction, NamedEvaluationParameter,
             executable::ArrowFunctionExpression,
             instructions::Instr,
             iterator::{ObjectPropertiesIteratorRecord, VmIteratorRecord},
         },
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
+        throw_iterator_returned_non_object,
     },
     heap::{ArenaAccessMut, ObjectEntry},
 };
 
 use super::{
-    super::iterator::{ActiveIterator, throw_iterator_returned_non_object},
     ExceptionHandler, Vm, apply_string_or_numeric_addition,
-    apply_string_or_numeric_binary_operator, bigint_binary_operator, binding_methods,
+    apply_string_or_numeric_binary_operator, bigint_binary_operator,
+    binding_methods::{execute_simple_array_binding, execute_simple_object_binding},
     concat_string_from_slice, instanceof_operator, number_binary_operator, set_class_name,
     throw_error_in_target_not_object, typeof_operator, verify_is_object, with_vm_gc,
 };

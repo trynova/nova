@@ -12,8 +12,8 @@ use crate::{
         invoke, is_callable, is_constructor, new_promise_reaction_job, species_constructor,
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
+        Bindable, GcScope, NoGcScope,
+        Scopable,
     },
     heap::{ArenaAccessMut, CreateHeapData, WellKnownSymbolIndexes},
 };

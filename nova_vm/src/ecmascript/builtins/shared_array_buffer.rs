@@ -13,11 +13,10 @@ use crate::{
         Agent, ExceptionType, InternalMethods, InternalSlots, JsResult, OrdinaryObject,
         ProtoIntrinsics, SharedDataBlock, array_buffer_handle, create_shared_byte_data_block,
     },
-    engine::context::{Bindable, NoGcScope},
+    engine::{Bindable, NoGcScope},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, arena_vec_access,
-        {BaseIndex, HeapIndexHandle},
+        WorkQueues, arena_vec_access, {BaseIndex, HeapIndexHandle},
     },
 };
 

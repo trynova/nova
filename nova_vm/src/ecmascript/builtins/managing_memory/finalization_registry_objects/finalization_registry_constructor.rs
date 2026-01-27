@@ -11,8 +11,8 @@ use crate::{
         Realm, String, Value, is_callable, ordinary_create_from_constructor,
     },
     engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
+        Bindable, GcScope,
+        Scopable,
     },
     heap::{ArenaAccess, IntrinsicConstructorIndexes},
 };

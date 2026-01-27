@@ -8,7 +8,7 @@ use crate::{
         BuiltinIntrinsicConstructor, DynamicFunctionKind, Function, JsResult, Object, Realm,
         String, Value, create_dynamic_function,
     },
-    engine::context::{Bindable, GcScope},
+    engine::{Bindable, GcScope},
     heap::IntrinsicConstructorIndexes,
 };
 

@@ -8,8 +8,8 @@ use crate::{
         JsResult, OrdinaryObject, Promise, String, Value, call_function, function_handle, invoke,
     },
     engine::{
-        context::{Bindable, GcScope, bindable_handle},
-        rootable::Scopable,
+        Bindable, GcScope, bindable_handle,
+        Scopable,
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,

@@ -4,8 +4,8 @@
 
 //!# [ECMAScript language](https://tc39.es/ecma262/)
 //!
-//! This module contains everything directly related to the ECMAScript language
-//! specification and its implementation in the Nova engine.
+//! This module is the main entry point into the Nova JavaScript API and its
+//! implementation of the ECMAScript language specification.
 
 mod abstract_operations;
 mod builders;

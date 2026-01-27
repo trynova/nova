@@ -13,8 +13,8 @@ use crate::{
         try_result_into_js, try_to_index, try_to_integer_or_infinity,
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
+        Bindable, GcScope, NoGcScope,
+        Scopable,
     },
     heap::WellKnownSymbolIndexes,
 };

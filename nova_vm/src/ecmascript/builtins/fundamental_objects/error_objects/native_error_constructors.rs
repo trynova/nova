@@ -9,8 +9,8 @@ use crate::{
         ProtoIntrinsics, Realm, String, Value, ordinary_create_from_constructor, to_string,
     },
     engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
+        Bindable, GcScope,
+        Scopable,
     },
     heap::{ArenaAccessMut, IntrinsicConstructorIndexes},
 };

@@ -17,8 +17,8 @@ use crate::{
         try_get_prototype_from_constructor, try_result_into_js, try_to_index, typed_array_create,
     },
     engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
+        Bindable, GcScope,
+        Scopable,
     },
     heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };

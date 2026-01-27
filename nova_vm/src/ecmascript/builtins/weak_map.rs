@@ -11,7 +11,7 @@ use crate::{
         Agent, InternalMethods, InternalSlots, OrdinaryObject, ProtoIntrinsics, Value, WeakKey,
         object_handle,
     },
-    engine::context::Bindable,
+    engine::Bindable,
     heap::{
         ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
         HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,

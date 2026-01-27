@@ -13,8 +13,8 @@ use crate::{
         to_property_key_simple, try_private_get, try_private_set, try_set,
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::Scopable,
+        Bindable, GcScope, NoGcScope, bindable_handle,
+        Scopable,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };

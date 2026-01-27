@@ -47,12 +47,12 @@ use crate::{
         ProxyConstructor, ReflectObject, StringConstructor, StringIteratorPrototype,
         StringPrototype, SymbolConstructor, SymbolPrototype,
     },
-    engine::context::NoGcScope,
+    engine::NoGcScope,
     heap::{
         CompactionLists, HeapMarkAndSweep, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes,
         IntrinsicObjectIndexes, IntrinsicObjectShapes, IntrinsicPrimitiveObjectIndexes, WorkQueues,
-        {BaseIndex, HeapIndexHandle},
         intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
+        {BaseIndex, HeapIndexHandle},
     },
 };
 #[derive(Debug, Clone)]

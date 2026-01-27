@@ -24,8 +24,8 @@ use crate::{
         unwrap_try_get_value, unwrap_try_get_value_or_unset,
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
+        Bindable, GcScope, NoGcScope,
+        Scopable,
     },
     heap::{IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };

@@ -7,9 +7,8 @@ use hashbrown::HashTable;
 use crate::{
     ecmascript::{Agent, PropertyKey},
     engine::{
-        ScopableCollection, ScopedCollection,
-        context::{Bindable, NoGcScope, bindable_handle},
-        rootable::HeapRootCollectionData,
+        Bindable, HeapRootCollectionData, NoGcScope, ScopableCollection, ScopedCollection,
+        bindable_handle,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };

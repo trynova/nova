@@ -11,10 +11,10 @@ use crate::{
         Agent, InternalMethods, InternalSlots, OrdinaryObject, ProtoIntrinsics, WeakKey,
         object_handle,
     },
-    engine::context::Bindable,
+    engine::Bindable,
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, WorkQueues, arena_vec_access, BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
 

@@ -13,7 +13,7 @@ use crate::{
         ProtoIntrinsics, Value, Viewable, create_byte_data_block, get,
         ordinary_create_from_constructor, to_index,
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
+    engine::{Bindable, GcScope, NoGcScope},
     heap::{ArenaAccess, ArenaAccessMut},
 };
 

@@ -2,10 +2,7 @@ use core::marker::PhantomData;
 
 use crate::{
     ecmascript::Agent,
-    engine::{
-        context::NoGcScope,
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
+    engine::{HeapRootData, HeapRootRef, NoGcScope, Rootable},
 };
 
 /// # Global heap root

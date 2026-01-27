@@ -10,10 +10,10 @@ use crate::{
     ecmascript::{
         Agent, InternalMethods, InternalSlots, OrdinaryObject, ProtoIntrinsics, object_handle,
     },
-    engine::context::Bindable,
+    engine::Bindable,
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, WorkQueues, arena_vec_access, BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
 

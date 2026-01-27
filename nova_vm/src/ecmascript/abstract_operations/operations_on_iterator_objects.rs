@@ -13,8 +13,8 @@ use crate::{
     },
     engine::{
         ScopableCollection, ScopedCollection, VmIteratorRecord,
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::Scopable,
+        Bindable, GcScope, NoGcScope, bindable_handle,
+        Scopable,
     },
     heap::{
         CompactionLists, HeapMarkAndSweep, ObjectEntry, ObjectEntryPropertyDescriptor,

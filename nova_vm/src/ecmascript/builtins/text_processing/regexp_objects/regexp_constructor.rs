@@ -11,8 +11,8 @@ use crate::{
         PropertyKey, Realm, String, Value, get, is_reg_exp, reg_exp_alloc, reg_exp_initialize,
     },
     engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
+        Bindable, GcScope,
+        Scopable,
     },
     heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };

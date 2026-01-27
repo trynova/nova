@@ -5,15 +5,11 @@
 mod bytecode_compiler;
 mod executable;
 mod instructions;
-pub(super) mod iterator;
+mod iterator;
 mod vm;
 
-pub(crate) use bytecode_compiler::{
-    CompileContext, CompileEvaluation, NamedEvaluationParameter, string_literal_to_wtf8,
-};
-pub(crate) use executable::{
-    Executable, ExecutableHeapData, FunctionExpression, IndexType, SendableRef,
-};
-pub(crate) use instructions::{Instruction, InstructionIter};
-pub(crate) use iterator::VmIteratorRecord;
-pub(crate) use vm::{ExecutionResult, SuspendedVm, Vm, instanceof_operator, typeof_operator};
+pub(crate) use bytecode_compiler::*;
+pub(crate) use executable::*;
+pub(crate) use instructions::*;
+pub(crate) use iterator::*;
+pub(crate) use vm::*;

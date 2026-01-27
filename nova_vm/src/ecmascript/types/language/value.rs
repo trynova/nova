@@ -38,13 +38,11 @@ use crate::{
         try_result_into_js, try_to_string,
     },
     engine::{
-        Scoped,
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
+        Bindable, GcScope, HeapRootData, HeapRootRef, NoGcScope, Rootable, Scoped, bindable_handle,
     },
     heap::{
-        ArenaAccess, CompactionLists, HeapMarkAndSweep, PrimitiveHeapAccess, WorkQueues,
-        HeapIndexHandle,
+        ArenaAccess, CompactionLists, HeapIndexHandle, HeapMarkAndSweep, PrimitiveHeapAccess,
+        WorkQueues,
     },
 };
 

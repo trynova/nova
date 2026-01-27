@@ -15,8 +15,8 @@ use crate::{
         Object, OrdinaryObject, PropertyDescriptor, PropertyKey, Value, define_property_or_throw,
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::Scopable,
+        Bindable, GcScope, NoGcScope, bindable_handle,
+        Scopable,
     },
     heap::{
         ArenaAccess, ArenaAccessMut, CompactionLists, HeapMarkAndSweep, WorkQueues,
@@ -680,7 +680,7 @@ mod test {
     #[allow(unused_imports)]
     use crate::{
         ecmascript::types::BuiltinFunctionHeapData,
-        engine::context::{Bindable, GcScope},
+        engine::{Bindable, GcScope},
         heap::{
             IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, IntrinsicObjectIndexes,
             LAST_INTRINSIC_CONSTRUCTOR_INDEX, LAST_INTRINSIC_FUNCTION_INDEX,

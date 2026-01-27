@@ -8,7 +8,7 @@ use crate::{
         BuiltinIntrinsicConstructor, ExceptionType, Function, JsResult, Object, ProtoIntrinsics,
         Realm, String, Value, ordinary_create_from_constructor,
     },
-    engine::context::{Bindable, GcScope},
+    engine::{Bindable, GcScope},
     heap::IntrinsicConstructorIndexes,
 };
 

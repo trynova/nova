@@ -11,8 +11,8 @@ use crate::{
         Value, is_integral_number, ordinary_create_from_constructor, to_numeric_primitive,
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
+        Bindable, GcScope, NoGcScope,
+        Scopable,
     },
     heap::{ArenaAccessMut, CreateHeapData, IntrinsicConstructorIndexes},
 };

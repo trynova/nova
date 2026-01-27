@@ -6,11 +6,7 @@ use std::{marker::PhantomData, ptr::NonNull};
 
 use crate::{
     ecmascript::{Agent, Value},
-    engine::{
-        ScopableCollection, ScopedCollection,
-        context::{Bindable, NoGcScope},
-        rootable::HeapRootCollectionData,
-    },
+    engine::{Bindable, HeapRootCollectionData, NoGcScope, ScopableCollection, ScopedCollection},
 };
 
 impl ScopableCollection for Vec<Value<'_>> {

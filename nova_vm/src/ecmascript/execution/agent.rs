@@ -39,13 +39,12 @@ use crate::{
         try_get_identifier_reference,
     },
     engine::{
-        Vm,
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootCollectionData, HeapRootData, HeapRootRef, Rootable},
+        Bindable, GcScope, HeapRootCollectionData, HeapRootData, HeapRootRef, NoGcScope, Rootable,
+        Vm, bindable_handle,
     },
     heap::{
-        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeapAccess,
-        WorkQueues, heap_gc, HeapIndexHandle,
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapIndexHandle, HeapMarkAndSweep,
+        PrimitiveHeapAccess, WorkQueues, heap_gc,
     },
     ndt,
 };
@@ -787,6 +786,12 @@ impl GcAgent {
 }
 
 /// ## [9.7 Agents](https://tc39.es/ecma262/#sec-agents)
+///
+/// Agents are the way that JavaScript code is executed in the Nova JavaScript
+/// engine. An Agent contains the JavaScript heap, the execution context, and
+/// other parts required to execute JavaScript code.
+///
+/// For creating an Agent, see [`GcAgent`](GcAgent).
 pub struct Agent {
     pub(crate) heap: Heap,
     pub(crate) options: Options,

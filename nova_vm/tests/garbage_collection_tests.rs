@@ -5,13 +5,13 @@ use nova_vm::{
         Agent, DefaultHostHooks, GcAgent, Object, Options, String, Value, parse_script,
         script_evaluation,
     },
-    engine::context::{Bindable, GcScope},
+    engine::{Bindable, GcScope},
 };
 
 fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope) {
     use nova_vm::ecmascript::{
-        ArgumentsList, Behaviour, BuiltinFunctionArgs, InternalMethods, PropertyDescriptor,
-        PropertyKey, create_builtin_function, JsResult,
+        ArgumentsList, Behaviour, BuiltinFunctionArgs, InternalMethods, JsResult,
+        PropertyDescriptor, PropertyKey, create_builtin_function,
     };
 
     // `print` function

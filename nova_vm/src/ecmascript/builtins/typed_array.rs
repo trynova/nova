@@ -16,7 +16,7 @@ pub use shared_typed_array::*;
 
 use crate::{
     ecmascript::{Agent, Number, PropertyKey, String, canonical_numeric_index_string},
-    engine::context::NoGcScope,
+    engine::NoGcScope,
 };
 
 /// Canonicalize the given property key if it is a numeric string key.

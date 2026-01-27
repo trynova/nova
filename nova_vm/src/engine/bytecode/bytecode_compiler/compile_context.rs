@@ -16,7 +16,7 @@ use crate::{
         PropertyLookupCache, SourceCode, String, Value,
     },
     engine::{
-        Executable, FunctionExpression, Instruction,
+        Executable, FunctionExpression, Instruction, NoGcScope,
         bytecode::{
             bytecode_compiler::finaliser_stack::{
                 compile_array_destructuring_exit, compile_if_statement_exit, compile_loop_exit,
@@ -24,7 +24,6 @@ use crate::{
             },
             executable::ArrowFunctionExpression,
         },
-        context::NoGcScope,
     },
 };
 
@@ -37,7 +36,7 @@ use super::{
     function_declaration_instantiation,
 };
 
-pub type IndexType = u16;
+pub(crate) type IndexType = u16;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum NamedEvaluationParameter {

@@ -25,16 +25,12 @@ use crate::{
         Function, INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
         Int8Array, Int16Array, Int32Array, InternalMethods, InternalSlots, JsResult, Numeric,
         Object, ObjectShape, OrdinaryObject, PropertyDescriptor, PropertyKey, PropertyLookupCache,
-        PropertyOffset, ProtoIntrinsics, SetCachedProps, SetResult, TryGetResult, TryHasResult,
+        PropertyOffset, ProtoIntrinsics, SetAtOffsetProps, SetResult, TryGetResult, TryHasResult,
         TryResult, TypedArray, TypedArrayAbstractOperations, UINT_8_ARRAY_DISCRIMINANT,
         UINT_8_CLAMPED_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT,
         Uint8Array, Uint8ClampedArray, Uint16Array, Uint32Array, Value,
     },
-    engine::{
-        Scoped,
-        context::{GcScope, NoGcScope, bindable_handle},
-        rootable::HeapRootData,
-    },
+    engine::{GcScope, HeapRootData, NoGcScope, Scoped, bindable_handle},
     heap::HeapMarkAndSweep,
 };
 
@@ -662,7 +658,7 @@ impl<'a> InternalMethods<'a> for AnyTypedArray<'a> {
     fn set_at_offset<'gc>(
         self,
         agent: &mut Agent,
-        props: &SetCachedProps,
+        props: &SetAtOffsetProps,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, SetResult<'gc>> {

@@ -11,10 +11,7 @@ use crate::{
         Object, ProtoIntrinsics, Realm, String, Value, is_fixed_length_array_buffer,
         ordinary_create_from_constructor, require_internal_slot_any_array_buffer, to_index,
     },
-    engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::IntrinsicConstructorIndexes,
 };
 

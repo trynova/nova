@@ -23,10 +23,7 @@ use crate::{
         Agent, HostDefined, JsResult, Module, Realm, Script, ScriptOrModule,
         module_namespace_create, types::String,
     },
-    engine::{
-        context::{Bindable, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
+    engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, bindable_handle},
     heap::{
         ArenaAccess, CompactionLists, HeapMarkAndSweep, WorkQueues, arena_vec_access,
         {BaseIndex, HeapIndexHandle},

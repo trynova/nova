@@ -6,10 +6,7 @@
 
 use crate::{
     ecmascript::{Agent, HostDefined, JsResult, Module, ModuleEnvironment, Promise, Realm, String},
-    engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
+    engine::{Bindable, GcScope, HeapRootData, HeapRootRef, NoGcScope, Rootable, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 

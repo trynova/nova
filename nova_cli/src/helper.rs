@@ -23,8 +23,8 @@ use nova_vm::{
         Value, create_builtin_function, parse_script, script_evaluation, unwrap_try,
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
+        Bindable, GcScope, NoGcScope,
+        Scopable,
     },
 };
 use oxc_diagnostics::OxcDiagnostic;

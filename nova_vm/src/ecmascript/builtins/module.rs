@@ -16,13 +16,10 @@ use crate::{
         TryGetResult, TryHasResult, TryResult, Value, get_module_namespace, object_handle,
         same_value, throw_uninitialized_binding,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{
-        ArenaAccess, CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference,
-        WellKnownSymbolIndexes, WorkQueues, arena_vec_access, BaseIndex,
+        ArenaAccess, BaseIndex, CompactionLists, CreateHeapData, HeapMarkAndSweep,
+        HeapSweepWeakReference, WellKnownSymbolIndexes, WorkQueues, arena_vec_access,
     },
 };
 
@@ -660,7 +657,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         }
     }
 
-    /// ### [10.4.6.11 \[\[OwnPropertyKeys\]\] ( )])(https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-ownpropertykeys)
+    /// ### [10.4.6.11 \[\[OwnPropertyKeys\]\] ( )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-ownpropertykeys)
     fn try_own_property_keys<'gc>(
         self,
         agent: &mut Agent,

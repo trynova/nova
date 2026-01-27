@@ -11,11 +11,9 @@ use crate::{
         VarScopedDeclaration, VarScopedDeclarations,
     },
     engine::{
-        CompileContext, CompileEvaluation, FunctionExpression, Instruction,
-        NamedEvaluationParameter, SendableRef,
-        bytecode::bytecode_compiler::{
-            ExpressionError, ValueOutput, compile_context::BlockEnvPrep, variable_escapes_scope,
-        },
+        BlockEnvPrep, CompileContext, ExpressionError, FunctionExpression, Instruction,
+        NamedEvaluationParameter, SendableRef, ValueOutput,
+        bytecode::{CompileEvaluation, bytecode_compiler::variable_escapes_scope},
     },
 };
 use ahash::{AHashMap, AHashSet};

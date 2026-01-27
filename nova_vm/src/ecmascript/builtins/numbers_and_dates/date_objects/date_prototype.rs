@@ -11,8 +11,8 @@ use crate::{
         to_zero_padded_decimal_string,
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
+        Bindable, GcScope, NoGcScope,
+        Scopable,
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };

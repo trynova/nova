@@ -10,8 +10,8 @@ use crate::{
         try_get_result_into_value, try_result_into_js, try_result_into_option_js, try_to_string,
     },
     engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
+        Bindable, GcScope,
+        Scopable,
     },
     heap::WellKnownSymbolIndexes,
 };

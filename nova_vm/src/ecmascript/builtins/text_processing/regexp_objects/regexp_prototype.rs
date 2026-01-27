@@ -19,8 +19,8 @@ use crate::{
     },
     engine::{
         Scoped,
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
+        Bindable, GcScope, NoGcScope,
+        Scopable,
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };

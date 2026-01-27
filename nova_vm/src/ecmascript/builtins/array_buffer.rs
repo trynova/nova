@@ -22,19 +22,16 @@ use crate::{
             Value, Viewable, copy_data_block_bytes, create_byte_data_block,
         },
     },
-    engine::{
-        context::{Bindable, NoGcScope, bindable_handle},
-        rootable::HeapRootData,
-    },
+    engine::{Bindable, HeapRootData, NoGcScope, bindable_handle},
     heap::{
         ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, WorkQueues, arena_vec_access,
-        {BaseIndex, HeapIndexHandle},
+        HeapSweepWeakReference, WorkQueues, arena_vec_access, {BaseIndex, HeapIndexHandle},
     },
 };
 
 use ecmascript_atomics::Ordering;
 
+/// ## [25.1 ArrayBuffer Objects](https://tc39.es/ecma262/#sec-arraybuffer-objects)
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct ArrayBuffer<'a>(BaseIndex<'a, ArrayBufferHeapData<'static>>);

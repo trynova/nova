@@ -5,7 +5,7 @@
 //! # [16 ECMAScript Language: Scripts and Modules](https://tc39.es/ecma262/#sec-ecmascript-language-scripts-and-modules)
 
 use crate::{
-    engine::context::bindable_handle,
+    engine::bindable_handle,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 

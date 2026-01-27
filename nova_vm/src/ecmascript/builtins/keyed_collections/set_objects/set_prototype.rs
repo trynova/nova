@@ -14,8 +14,8 @@ use crate::{
         canonicalize_keyed_collection_key, is_callable, same_value,
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
+        Bindable, GcScope, NoGcScope,
+        Scopable,
     },
     heap::{
         ArenaAccessSoA, ArenaAccessSoAMut, DirectArenaAccessSoA, DirectArenaAccessSoAMut, Heap,

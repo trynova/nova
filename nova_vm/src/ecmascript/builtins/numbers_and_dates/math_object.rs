@@ -15,8 +15,8 @@ use crate::{
         try_length_of_array_like,
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
+        Bindable, GcScope, NoGcScope,
+        Scopable,
     },
     heap::WellKnownSymbolIndexes,
 };

@@ -8,7 +8,7 @@ use crate::{
         Environment, ExceptionType, Function, FunctionEnvironment, InternalMethods, JsResult,
         Object, String, ThisMode, Value, unwrap_try,
     },
-    engine::context::{Bindable, NoGcScope},
+    engine::{Bindable, NoGcScope},
     heap::{ArenaAccess, ArenaAccessMut, CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 

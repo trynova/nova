@@ -10,10 +10,7 @@ use crate::{
         PromiseHeapData, PromiseRejectionTrackerOperation, PromiseState, TryError, TryGetResult,
         TryResult, Value, get, try_get,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, bindable_handle},
     heap::{
         ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues,
     },

@@ -8,8 +8,8 @@ use ahash::AHashMap;
 
 use crate::{
     ecmascript::{PrivateName, String, Value, builtins::ECMAScriptFunction, execution::Agent},
-    engine::context::{Bindable, NoGcScope, bindable_handle},
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, ElementDescriptor},
+    engine::{Bindable, NoGcScope, bindable_handle},
+    heap::{CompactionLists, ElementDescriptor, HeapMarkAndSweep, WorkQueues},
 };
 
 use super::PrivateEnvironment;

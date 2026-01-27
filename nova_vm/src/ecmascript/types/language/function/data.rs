@@ -9,11 +9,8 @@ use crate::{
         Behaviour, ECMAScriptFunctionObjectHeapData, Environment, OrdinaryObject,
         PrivateEnvironment, Realm, SourceCode, String, Value,
     },
-    engine::{Executable, context::bindable_handle},
-    heap::{
-        CompactionLists, HeapIndexHandle, HeapMarkAndSweep, WorkQueues,
-        ElementsVector,
-    },
+    engine::{Executable, bindable_handle},
+    heap::{CompactionLists, ElementsVector, HeapIndexHandle, HeapMarkAndSweep, WorkQueues},
 };
 
 use super::Function;

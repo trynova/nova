@@ -13,15 +13,10 @@ use crate::{
         script_lexically_declared_names, script_lexically_scoped_declarations,
         script_var_declared_names, script_var_scoped_declarations,
     },
-    engine::{
-        Executable, Vm,
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::Scopable,
-    },
+    engine::{Bindable, Executable, GcScope, NoGcScope, Scopable, Vm, bindable_handle},
     heap::{
         ArenaAccess, ArenaAccessMut, CompactionLists, HeapMarkAndSweep, WorkQueues,
-        arena_vec_access,
-        {BaseIndex, HeapIndexHandle, index_handle},
+        arena_vec_access, {BaseIndex, HeapIndexHandle, index_handle},
     },
     ndt,
 };
@@ -661,10 +656,7 @@ mod test {
             create_builtin_function, create_data_property_or_throw, initialize_default_realm,
             parse_script, script_evaluation, unwrap_try,
         },
-        engine::{
-            context::{Bindable, GcScope},
-            rootable::Scopable,
-        },
+        engine::{Bindable, GcScope, Scopable},
         heap::ArenaAccess,
     };
 

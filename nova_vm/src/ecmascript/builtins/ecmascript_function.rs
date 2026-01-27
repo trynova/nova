@@ -23,8 +23,8 @@ use crate::{
     },
     engine::{
         Executable,
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::Scopable,
+        Bindable, GcScope, NoGcScope, bindable_handle,
+        Scopable,
     },
     heap::{
         ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,

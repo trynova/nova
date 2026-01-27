@@ -32,9 +32,8 @@ use crate::{
         new_module_environment, unwrap_try,
     },
     engine::{
-        Executable, ExecutionResult, Scoped, Vm,
-        context::{Bindable, GcScope, GcToken, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
+        Bindable, Executable, ExecutionResult, GcScope, GcToken, HeapRootData, HeapRootRef,
+        NoGcScope, Rootable, Scopable, Scoped, Vm, bindable_handle,
     },
     heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
     ndt,

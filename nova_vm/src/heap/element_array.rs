@@ -10,7 +10,7 @@ use super::{
 };
 use crate::{
     ecmascript::{Agent, Function, PropertyDescriptor, PropertyKey, Value},
-    engine::context::{Bindable, NoGcScope, bindable_handle},
+    engine::{Bindable, NoGcScope, bindable_handle},
     heap::HeapIndexHandle,
 };
 use core::mem::MaybeUninit;

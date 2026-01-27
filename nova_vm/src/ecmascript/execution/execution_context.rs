@@ -5,7 +5,7 @@
 use super::{Agent, Environment, JsResult, PrivateEnvironment, Realm, get_this_environment};
 use crate::{
     ecmascript::{Function, Object, ScriptOrModule, SourceCode, Value},
-    engine::context::{Bindable, NoGcScope},
+    engine::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 

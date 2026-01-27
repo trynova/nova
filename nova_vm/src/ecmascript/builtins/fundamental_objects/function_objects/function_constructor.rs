@@ -15,8 +15,8 @@ use crate::{
         set_function_name, to_string, to_string_primitive,
     },
     engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
+        Bindable, GcScope,
+        Scopable,
     },
     heap::IntrinsicConstructorIndexes,
 };

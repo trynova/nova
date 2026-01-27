@@ -7,10 +7,8 @@ use oxc_syntax::number::ToJsString;
 
 use crate::{
     ecmascript::{Agent, String},
-    engine::{Scoped, context::NoGcScope},
+    engine::{Executable, NoGcScope, Scoped, bytecode::bytecode_compiler::IndexType},
 };
-
-use super::{Executable, IndexType};
 
 /// ## Notes
 ///

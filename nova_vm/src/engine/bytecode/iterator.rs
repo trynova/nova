@@ -16,8 +16,8 @@ use crate::{
     },
     engine::{
         Scoped,
-        context::{Bindable, GcScope, NoGcScope, ScopeToken, bindable_handle},
-        rootable::Scopable,
+        Bindable, GcScope, NoGcScope, ScopeToken, bindable_handle,
+        Scopable,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };

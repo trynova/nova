@@ -11,10 +11,7 @@ use crate::{
         get, get_function_realm, is_array, is_constructor, same_value, to_number, to_uint32,
         to_uint32_number,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{CreateHeapData, ElementStorageMut, Heap, WellKnownSymbolIndexes},
 };
 

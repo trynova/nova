@@ -14,7 +14,7 @@ use crate::{
         Agent, Caches, ExceptionType, JsResult, PrivateField, PrivateName, PropertyDescriptor,
         Value,
     },
-    engine::context::{Bindable, NoGcScope},
+    engine::{Bindable, NoGcScope},
     heap::{
         ArenaAccess, ArenaAccessMut, DirectArenaAccess, ElementIndex, Heap,
         {

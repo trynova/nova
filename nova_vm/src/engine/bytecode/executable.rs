@@ -8,14 +8,12 @@ use crate::{
         SourceCode, SourceTextModule, String, Value,
     },
     engine::{
-        Scoped,
+        Bindable, NoGcScope, Scoped, bindable_handle,
         bytecode::{CompileContext, NamedEvaluationParameter, instructions::Instr},
-        context::{Bindable, NoGcScope, bindable_handle},
     },
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
-        arena_vec_access,
-        {BaseIndex, HeapIndexHandle, index_handle},
+        arena_vec_access, {BaseIndex, HeapIndexHandle, index_handle},
     },
 };
 use oxc_ast::ast;
@@ -59,8 +57,6 @@ impl<T: ?Sized> SendableRef<T> {
 // reference is valid, so it's fine to send or use this type from other threads.
 unsafe impl<T: ?Sized> Send for SendableRef<T> {}
 unsafe impl<T: ?Sized> Sync for SendableRef<T> {}
-
-pub type IndexType = u16;
 
 #[derive(Debug, Clone)]
 pub(crate) struct FunctionExpression<'a> {

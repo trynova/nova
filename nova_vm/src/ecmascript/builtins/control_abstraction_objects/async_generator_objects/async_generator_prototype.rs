@@ -10,10 +10,7 @@ use crate::{
         async_generator_resume, async_generator_validate, create_iter_result_object,
         if_abrupt_reject_promise, if_abrupt_reject_promise_m,
     },
-    engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::{ArenaAccess, WellKnownSymbolIndexes},
 };
 

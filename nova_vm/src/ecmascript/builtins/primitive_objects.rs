@@ -14,11 +14,11 @@ use crate::{
         js_result_into_try, object_handle, ordinary_define_own_property, ordinary_delete,
         ordinary_get, ordinary_get_own_property, ordinary_has_property, ordinary_set, unwrap_try,
     },
-    engine::context::{Bindable, GcScope, NoGcScope, bindable_handle},
+    engine::{Bindable, GcScope, NoGcScope, bindable_handle},
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, IntrinsicPrimitiveObjectIndexes, WorkQueues, arena_vec_access,
-        BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, IntrinsicPrimitiveObjectIndexes, WorkQueues,
+        arena_vec_access,
     },
 };
 use small_string::SmallString;

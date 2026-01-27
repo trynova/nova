@@ -17,8 +17,8 @@ use crate::{
     },
     engine::{
         Scoped,
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::Scopable,
+        Bindable, GcScope, NoGcScope, bindable_handle,
+        Scopable,
     },
     heap::{CreateHeapData, IntrinsicConstructorIndexes, ObjectEntry, WellKnownSymbolIndexes},
 };

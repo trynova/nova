@@ -8,7 +8,7 @@ use crate::{
         ExceptionType, JsResult, OrdinaryObjectBuilder, Realm, String, Value,
         create_array_from_list, create_iter_result_object,
     },
-    engine::context::{Bindable, GcScope},
+    engine::{Bindable, GcScope},
     heap::{ArenaAccess, ArenaAccessMut, ArenaAccessSoA, WellKnownSymbolIndexes},
 };
 

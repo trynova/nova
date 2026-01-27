@@ -16,10 +16,7 @@ use crate::{
         ordinary_try_has_property, ordinary_try_set, throw_cannot_set_property, try_result_ok,
         unwrap_try,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, bindable_handle},
 };
 
 /// ### [6.1.7.2 Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-object-internal-methods-and-internal-slots)
@@ -511,7 +508,7 @@ where
     fn set_at_offset<'gc>(
         self,
         agent: &mut Agent,
-        props: &SetCachedProps,
+        props: &SetAtOffsetProps,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, SetResult<'gc>> {
@@ -678,31 +675,14 @@ impl<'a, T> From<Value<'a>> for ControlFlow<TryGetResult<'a>, T> {
     }
 }
 
-impl<'a> From<TryGetResult<'a>> for ControlFlow<TryGetResult<'a>, NoCache> {
-    fn from(value: TryGetResult<'a>) -> Self {
-        Self::Break(value)
-    }
-}
-
-/// No property cache was found.
-///
-/// The normal \[\[Get]] or \[\[Set]] method variant should be entered.
-pub struct NoCache;
-
-impl<T> From<NoCache> for ControlFlow<T, NoCache> {
-    fn from(value: NoCache) -> Self {
-        ControlFlow::Continue(value)
-    }
-}
-
-pub struct SetCachedProps<'a> {
+pub struct SetAtOffsetProps<'a> {
     pub p: PropertyKey<'a>,
     pub receiver: Value<'a>,
     pub cache: PropertyLookupCache<'a>,
     pub value: Value<'a>,
 }
 
-/// Early-return conditions for [[Set]] method's cached variant.
+/// Early-return conditions for \[\[Set\]\] method's cached variant.
 ///
 /// Early-return effectively means that a cached property lookup was found and
 /// the normal \[\[Set]] method variant need not be entered.
@@ -746,7 +726,7 @@ impl SetResult<'_> {
     }
 }
 
-/// Helper function for calling a Proxy [[Set]] trap when triggered by finding
+/// Helper function for calling a Proxy \[\[Set]] trap when triggered by finding
 /// a Proxy used as a prototype.
 pub fn call_proxy_set<'a>(
     agent: &mut Agent,

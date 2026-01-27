@@ -15,7 +15,7 @@ LL | fn test_doesnt_need_gc_scope_at_all(gc: GcScope<'_, '_>) {
 warning: you can use `NoGcScope` instead of `GcScope` here
   --> $DIR/can_use_no_gc_scope.rs:20:80
    |
-LL | fn test_doesnt_need_gc_scope_with_qualified_path(gc: nova_vm::engine::context::GcScope<'_, '_>) {
+LL | fn test_doesnt_need_gc_scope_with_qualified_path(gc: nova_vm::engine::GcScope<'_, '_>) {
    |                                                                                ^^^^^^^ help: replace with: `NoGcScope`
 
 warning: you can use `NoGcScope` instead of `GcScope` here
@@ -25,4 +25,3 @@ LL |     fn test_doesnt_need_gc_scope(&self, gc: GcScope<'_, '_>) {
    |                                             ^^^^^^^ help: replace with: `NoGcScope`
 
 warning: 4 warnings emitted
-

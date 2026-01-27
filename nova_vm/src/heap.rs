@@ -51,11 +51,7 @@ use crate::{
         Script, ScriptRecord, SourceCodeHeapData, SourceTextModuleHeap, String,
         StringIteratorHeapData, StringRecord, SymbolHeapData,
     },
-    engine::{
-        ExecutableHeapData,
-        context::{Bindable, NoGcScope},
-        rootable::HeapRootData,
-    },
+    engine::{Bindable, ExecutableHeapData, HeapRootData, NoGcScope},
 };
 #[cfg(feature = "array-buffer")]
 use ahash::AHashMap;

@@ -16,7 +16,7 @@ use crate::{
     engine::{
         Executable, ExecutableHeapData, FunctionExpression, Instruction,
         bytecode::executable::ArrowFunctionExpression,
-        context::{Bindable, NoGcScope},
+        Bindable, NoGcScope,
     },
     heap::CreateHeapData,
 };

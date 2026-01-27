@@ -15,11 +15,10 @@ use crate::{
         Agent, InternalMethods, InternalSlots, Object, OrdinaryObject, ProtoIntrinsics, String,
         object_handle,
     },
-    engine::context::{Bindable, NoGcScope, bindable_handle},
+    engine::{Bindable, NoGcScope, bindable_handle},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, arena_vec_access,
-        {BaseIndex, HeapIndexHandle},
+        WorkQueues, arena_vec_access, {BaseIndex, HeapIndexHandle},
     },
 };
 

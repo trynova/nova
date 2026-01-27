@@ -16,8 +16,8 @@ use crate::{
         ProtoIntrinsics, Value, Viewable,
     },
     engine::{
-        context::{Bindable, bindable_handle},
-        rootable::HeapRootData,
+        Bindable, bindable_handle,
+        HeapRootData,
     },
     heap::{
         ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,

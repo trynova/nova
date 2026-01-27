@@ -12,7 +12,7 @@ use crate::{
         has_own_property, invoke, is_array, is_prototype_of_loop, to_object, to_property_key,
         try_get,
     },
-    engine::context::{Bindable, GcScope},
+    engine::{Bindable, GcScope},
     heap::{ArenaAccess, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
 

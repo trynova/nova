@@ -8,7 +8,7 @@ use crate::{
         InternalMethods, InternalSlots, JsResult, OrdinaryObject, OrdinaryObjectBuilder,
         ProtoIntrinsics, Realm, String, Value, create_iter_result_object, object_handle,
     },
-    engine::context::{Bindable, GcScope, NoGcScope, bindable_handle},
+    engine::{Bindable, GcScope, NoGcScope, bindable_handle},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         WellKnownSymbolIndexes, WorkQueues, arena_vec_access,

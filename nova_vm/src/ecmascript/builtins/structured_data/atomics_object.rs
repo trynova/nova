@@ -27,11 +27,7 @@ use crate::{
         to_integer_or_infinity, to_number, try_result_into_js, try_to_index, unwrap_try,
         validate_index, validate_typed_array,
     },
-    engine::{
-        Global,
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, Global, NoGcScope, Scopable},
     heap::{ObjectEntry, WellKnownSymbolIndexes},
 };
 

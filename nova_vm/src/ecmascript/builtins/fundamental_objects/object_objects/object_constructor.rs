@@ -18,8 +18,8 @@ use crate::{
     },
     engine::{
         ScopableCollection, Scoped,
-        context::{Bindable, GcScope},
-        rootable::Scopable,
+        Bindable, GcScope,
+        Scopable,
     },
     heap::{IntrinsicConstructorIndexes, ObjectEntry, WellKnownSymbolIndexes},
 };

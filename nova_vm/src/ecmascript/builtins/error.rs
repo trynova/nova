@@ -12,11 +12,11 @@ use crate::{
         Object, OrdinaryObject, PropertyDescriptor, PropertyKey, ProtoIntrinsics, SetResult,
         String, TryGetResult, TryHasResult, TryResult, Value, object_handle, unwrap_try,
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
+    engine::{Bindable, GcScope, NoGcScope},
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
-        arena_vec_access, BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, ObjectEntry, ObjectEntryPropertyDescriptor,
+        WorkQueues, arena_vec_access,
     },
 };
 

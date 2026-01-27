@@ -7,7 +7,7 @@ use crate::{
         AbstractModule, AsyncGenerator, AwaitReaction, Function, Object, Promise,
         PromiseCapability, PromiseGroup, SourceTextModule,
     },
-    engine::context::{Bindable, bindable_handle},
+    engine::{Bindable, bindable_handle},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, arena_vec_access,
         {BaseIndex, index_handle},

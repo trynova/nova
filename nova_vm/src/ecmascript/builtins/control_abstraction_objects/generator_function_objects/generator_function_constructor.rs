@@ -9,7 +9,7 @@ use crate::{
         PropertyDescriptor, ProtoIntrinsics, Realm, String, Value, create_dynamic_function,
         ordinary_object_create_with_intrinsics, try_define_property_or_throw, unwrap_try,
     },
-    engine::context::{Bindable, GcScope},
+    engine::{Bindable, GcScope},
     heap::IntrinsicConstructorIndexes,
 };
 

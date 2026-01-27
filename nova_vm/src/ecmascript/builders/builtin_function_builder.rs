@@ -15,7 +15,7 @@ use crate::{
             String, Value,
         },
     },
-    engine::context::Bindable,
+    engine::Bindable,
     heap::{ElementDescriptor, HeapIndexHandle},
 };
 

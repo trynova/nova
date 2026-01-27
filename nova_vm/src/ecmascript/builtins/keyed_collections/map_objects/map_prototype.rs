@@ -14,8 +14,8 @@ use crate::{
         is_callable, same_value,
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
+        Bindable, GcScope, NoGcScope,
+        Scopable,
     },
     heap::{
         ArenaAccess, ArenaAccessSoA, Heap, IntrinsicFunctionIndexes, PrimitiveHeap,

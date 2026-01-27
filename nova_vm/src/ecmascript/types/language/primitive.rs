@@ -4,17 +4,13 @@
 
 use crate::{
     ecmascript::{
-    SmallInteger,
         BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, FLOAT_DISCRIMINANT, HeapBigInt, HeapNumber,
         HeapString, INTEGER_DISCRIMINANT, NULL_DISCRIMINANT, NUMBER_DISCRIMINANT,
         SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
-        SYMBOL_DISCRIMINANT, SmallBigInt, SmallF64, SmallString, Symbol, UNDEFINED_DISCRIMINANT,
-        Value,
+        SYMBOL_DISCRIMINANT, SmallBigInt, SmallF64, SmallInteger, SmallString, Symbol,
+        UNDEFINED_DISCRIMINANT, Value,
     },
-    engine::{
-        context::{Bindable, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
+    engine::{Bindable, HeapRootData, HeapRootRef, Rootable, bindable_handle},
 };
 
 /// ### [4.4.5 primitive value](https://tc39.es/ecma262/#sec-primitive-value)

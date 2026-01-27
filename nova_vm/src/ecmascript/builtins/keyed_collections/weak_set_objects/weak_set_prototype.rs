@@ -8,7 +8,7 @@ use crate::{
         OrdinaryObjectBuilder, Realm, String, Value, WeakSet, can_be_held_weakly,
         throw_not_weak_key_error,
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
+    engine::{Bindable, GcScope, NoGcScope},
     heap::{ArenaAccess, ArenaAccessMut, WellKnownSymbolIndexes},
 };
 

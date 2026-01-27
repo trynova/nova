@@ -22,8 +22,8 @@ use crate::{
     },
     engine::{
         Scoped, ScopedCollection,
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::Scopable,
+        Bindable, GcScope, NoGcScope, bindable_handle,
+        Scopable,
     },
     heap::CreateHeapData,
 };

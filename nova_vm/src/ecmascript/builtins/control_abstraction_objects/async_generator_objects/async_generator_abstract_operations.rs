@@ -10,8 +10,8 @@ use crate::{
     },
     engine::{
         ExecutionResult, Scoped, SuspendedVm,
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
+        Bindable, GcScope, NoGcScope,
+        Scopable,
     },
     heap::ArenaAccessMut,
 };

@@ -15,8 +15,8 @@ use crate::{
     },
     engine::{
         Global,
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
+        Bindable, GcScope, NoGcScope,
+        Scopable,
     },
     heap::{ArenaAccess, CreateHeapData},
 };

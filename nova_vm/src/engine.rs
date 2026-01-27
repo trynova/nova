@@ -3,8 +3,9 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 mod bytecode;
-pub mod context;
-pub mod rootable;
+mod context;
+mod rootable;
 
 pub(crate) use bytecode::*;
-pub use rootable::{Global, ScopableCollection, Scoped, ScopedCollection};
+pub use context::*;
+pub use rootable::*;

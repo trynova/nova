@@ -8,7 +8,7 @@ use crate::{
         FinalizationRegistry, JsResult, OrdinaryObjectBuilder, Realm, String, Value,
         can_be_held_weakly, same_value,
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
+    engine::{Bindable, GcScope, NoGcScope},
     heap::WellKnownSymbolIndexes,
 };
 

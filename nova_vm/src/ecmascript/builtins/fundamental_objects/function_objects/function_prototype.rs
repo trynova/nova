@@ -15,8 +15,8 @@ use crate::{
         to_integer_or_infinity_number, try_get, try_has_own_property,
     },
     engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
+        Bindable, GcScope,
+        Scopable,
     },
     heap::{
         ArenaAccess, ArenaAccessMut, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes,

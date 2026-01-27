@@ -15,8 +15,8 @@ use crate::{
         is_extensible, js_result_into_try, set, try_has_own_property,
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
+        Bindable, GcScope, NoGcScope,
+        Scopable,
     },
     heap::{ArenaAccess, ArenaAccessMut, CompactionLists, HeapMarkAndSweep, WorkQueues},
 };

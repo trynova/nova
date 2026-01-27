@@ -5,10 +5,8 @@
 use std::{fs, path::PathBuf};
 
 use nova_vm::{
-    ecmascript::{
-        DefaultHostHooks, GcAgent, Options, parse_script, script_evaluation, String,
-    },
-    engine::context::Bindable,
+    ecmascript::{DefaultHostHooks, GcAgent, Options, String, parse_script, script_evaluation},
+    engine::Bindable,
 };
 
 #[test]

@@ -8,13 +8,11 @@ use crate::{
         OrdinaryObject, ProtoIntrinsics, Value, create_iter_result_object, object_handle,
     },
     engine::{
-        Executable, ExecutionResult, SuspendedVm,
-        context::{Bindable, GcScope, bindable_handle},
-        rootable::Scopable,
+        Bindable, Executable, ExecutionResult, GcScope, Scopable, SuspendedVm, bindable_handle,
     },
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, WorkQueues, arena_vec_access, BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
 

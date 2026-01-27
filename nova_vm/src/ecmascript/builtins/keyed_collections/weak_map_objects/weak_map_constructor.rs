@@ -12,8 +12,8 @@ use crate::{
         ordinary_create_from_constructor,
     },
     engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
+        Bindable, GcScope,
+        Scopable,
     },
     heap::IntrinsicConstructorIndexes,
 };

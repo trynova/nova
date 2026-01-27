@@ -12,8 +12,8 @@ use crate::{
     },
     engine::{
         ScopableCollection,
-        context::{Bindable, GcScope},
-        rootable::Scopable,
+        Bindable, GcScope,
+        Scopable,
     },
     heap::WellKnownSymbolIndexes,
 };

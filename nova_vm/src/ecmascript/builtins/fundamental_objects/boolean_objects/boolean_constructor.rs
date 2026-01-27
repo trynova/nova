@@ -9,7 +9,7 @@ use crate::{
         PrimitiveObjectData, ProtoIntrinsics, Realm, String, Value,
         ordinary_create_from_constructor, to_boolean,
     },
-    engine::context::{Bindable, GcScope},
+    engine::{Bindable, GcScope},
     heap::{ArenaAccessMut, IntrinsicConstructorIndexes},
 };
 

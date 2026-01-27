@@ -13,8 +13,8 @@ use crate::{
         to_primitive,
     },
     engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
+        Bindable, GcScope,
+        Scopable,
     },
     heap::{ArenaAccessMut, IntrinsicConstructorIndexes},
 };

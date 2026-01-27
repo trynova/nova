@@ -10,10 +10,7 @@ use crate::{
         Numeric, Object, PreferredType, Primitive, String, Value, string_to_big_int,
         string_to_number, to_numeric_primitive, to_primitive, validate_non_revoked_proxy,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{ArenaAccess, PrimitiveHeapAccess},
 };
 

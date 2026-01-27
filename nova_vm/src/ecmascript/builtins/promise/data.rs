@@ -4,7 +4,7 @@
 
 use crate::{
     ecmascript::{Agent, OrdinaryObject, PromiseReaction, Value, new_promise_reaction_job},
-    engine::context::{NoGcScope, bindable_handle},
+    engine::{NoGcScope, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 

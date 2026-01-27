@@ -10,7 +10,7 @@ use crate::{
         },
         create_shared_byte_data_block,
     },
-    engine::context::{Bindable, GcScope},
+    engine::{Bindable, GcScope},
 };
 
 mod shared_array_buffer_constructor;

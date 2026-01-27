@@ -11,8 +11,8 @@ use crate::{
     },
     engine::{
         Global, ScopableCollection,
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
+        Bindable, GcScope, NoGcScope,
+        Scopable,
     },
 };
 

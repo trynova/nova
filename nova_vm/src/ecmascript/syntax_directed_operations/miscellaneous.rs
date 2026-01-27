@@ -10,11 +10,10 @@ use core::hint::unreachable_unchecked;
 
 use crate::{
     ecmascript::{
-        builtins::ECMAScriptFunction,
-        Agent, Environment, PrivateEnvironment,
+        Agent, Environment, PrivateEnvironment, builtins::ECMAScriptFunction,
         syntax_directed_operations::function_definitions::instantiate_ordinary_function_object,
     },
-    engine::context::NoGcScope,
+    engine::NoGcScope,
 };
 use oxc_ast::ast;
 

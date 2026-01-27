@@ -8,7 +8,7 @@ use crate::{
         BuiltinIntrinsicConstructor, ExceptionType, JsResult, Object, Realm, String, Symbol,
         SymbolHeapData, Value, to_string,
     },
-    engine::context::{Bindable, GcScope},
+    engine::{Bindable, GcScope},
     heap::{CreateHeapData, IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };
 

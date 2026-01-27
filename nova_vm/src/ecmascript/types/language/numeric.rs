@@ -4,17 +4,11 @@
 
 use crate::{
     ecmascript::{
-    SmallInteger,
         Agent, BIGINT_DISCRIMINANT, FLOAT_DISCRIMINANT, HeapBigInt, HeapNumber,
         INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT, Number, Primitive, SMALL_BIGINT_DISCRIMINANT,
-        Value,
-        SmallBigInt,
-        SmallF64,
+        SmallBigInt, SmallF64, SmallInteger, Value,
     },
-    engine::{
-        context::{Bindable, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
+    engine::{Bindable, HeapRootData, HeapRootRef, Rootable, bindable_handle},
 };
 
 /// ### [6.1.6 Numeric Types](https://tc39.es/ecma262/#sec-numeric-types)

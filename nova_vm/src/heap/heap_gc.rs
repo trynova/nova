@@ -29,10 +29,7 @@ use crate::{
         PrimitiveObject, Promise, PromiseGroup, PromiseReaction, PropertyLookupCache, Proxy, Realm,
         Script, SourceCode, SourceTextModule, StringIterator, Symbol,
     },
-    engine::{
-        Executable,
-        context::{Bindable, GcScope},
-    },
+    engine::{Bindable, Executable, GcScope},
     heap::{
         ElementIndex, Heap, HeapIndexHandle, PropertyKeyIndex, WellKnownSymbolIndexes,
         element_array::ElementArrays,
@@ -2031,10 +2028,10 @@ fn sweep(
 
 #[test]
 fn test_heap_gc() {
-    use crate::engine::context::GcScope;
+    use crate::engine::GcScope;
     use crate::{
         ecmascript::{DefaultHostHooks, Options},
-        engine::rootable::HeapRootData,
+        engine::HeapRootData,
     };
 
     let mut agent = Agent::new(Options::default(), &DefaultHostHooks);

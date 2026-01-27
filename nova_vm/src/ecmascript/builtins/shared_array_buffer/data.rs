@@ -4,7 +4,7 @@
 
 use crate::{
     ecmascript::{OrdinaryObject, SharedDataBlock},
-    engine::context::{NoGcScope, bindable_handle},
+    engine::{NoGcScope, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 

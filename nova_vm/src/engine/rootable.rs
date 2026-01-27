@@ -5,6 +5,9 @@
 mod global;
 mod scoped;
 
+pub use global::*;
+pub use scoped::*;
+
 pub(crate) use private::{HeapRootCollectionData, RootableCollectionSealed, RootableSealed};
 
 #[cfg(feature = "date")]
@@ -106,7 +109,7 @@ pub(crate) mod private {
             PromiseReaction, PropertyKey, PropertyKeySet, PropertyLookupCache, Proxy, Realm,
             Referrer, Script, SourceCode, SourceTextModule, String, Symbol, Value,
         },
-        engine::{Executable, context::Bindable},
+        engine::{Bindable, Executable},
         heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
     };
 
@@ -344,9 +347,6 @@ pub(crate) mod private {
         }
     }
 }
-
-pub use global::Global;
-pub use scoped::{Scopable, ScopableCollection, Scoped, ScopedCollection};
 
 use super::Executable;
 

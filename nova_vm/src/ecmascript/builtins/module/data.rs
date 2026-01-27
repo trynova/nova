@@ -4,11 +4,8 @@
 
 use crate::{
     ecmascript::{AbstractModule, String},
-    engine::context::{Bindable, bindable_handle},
-    heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
-        HeapIndexHandle,
-    },
+    engine::{Bindable, bindable_handle},
+    heap::{CompactionLists, CreateHeapData, Heap, HeapIndexHandle, HeapMarkAndSweep, WorkQueues},
 };
 
 use super::Module;

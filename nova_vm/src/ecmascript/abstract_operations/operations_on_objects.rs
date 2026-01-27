@@ -21,12 +21,10 @@ use crate::{
         try_to_length, try_validate_non_revoked_proxy, unwrap_try, validate_non_revoked_proxy,
     },
     engine::{
-        ScopableCollection, Scoped, ScopedCollection, Vm,
-        context::{Bindable, GcScope, NoGcScope},
-        instanceof_operator,
-        rootable::{Rootable, Scopable},
+        Bindable, GcScope, NoGcScope, Rootable, Scopable, ScopableCollection, Scoped,
+        ScopedCollection, Vm, instanceof_operator,
     },
-    heap::{ArenaAccess, ObjectEntry, WellKnownSymbolIndexes, ElementDescriptor},
+    heap::{ArenaAccess, ElementDescriptor, ObjectEntry, WellKnownSymbolIndexes},
 };
 
 use super::{

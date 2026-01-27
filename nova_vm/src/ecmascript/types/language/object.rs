@@ -79,10 +79,7 @@ use crate::{
         PropertyOffset, ProtoIntrinsics, Proxy, StringIterator, TryResult,
         ordinary_object_create_with_intrinsics,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::HeapRootData,
-    },
+    engine::{Bindable, GcScope, HeapRootData, NoGcScope, bindable_handle},
     heap::{
         ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, DirectArenaAccess,
         Heap, HeapMarkAndSweep, HeapSweepWeakReference, IntrinsicConstructorIndexes,
@@ -1149,7 +1146,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
     fn set_at_offset<'gc>(
         self,
         agent: &mut Agent,
-        props: &SetCachedProps,
+        props: &SetAtOffsetProps,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, SetResult<'gc>> {

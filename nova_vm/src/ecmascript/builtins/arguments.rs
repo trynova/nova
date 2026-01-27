@@ -32,8 +32,8 @@ use ahash::AHashMap;
 
 use crate::{
     ecmascript::{Agent, BUILTIN_STRING_MEMORY, Number, Object, OrdinaryObject, Value},
-    engine::context::{Bindable, NoGcScope},
-    heap::{WellKnownSymbolIndexes, ElementDescriptor},
+    engine::{Bindable, NoGcScope},
+    heap::{ElementDescriptor, WellKnownSymbolIndexes},
 };
 
 use super::{ObjectShape, ScopedArgumentsList};

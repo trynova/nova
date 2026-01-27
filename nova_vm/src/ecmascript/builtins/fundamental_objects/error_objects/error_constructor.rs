@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #[cfg(feature = "proposal-is-error")]
-use crate::engine::context::NoGcScope;
+use crate::engine::NoGcScope;
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinFunctionBuilder,
@@ -11,10 +11,7 @@ use crate::{
         ProtoIntrinsics, Realm, String, Value, get, has_property, ordinary_create_from_constructor,
         to_string,
     },
-    engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::{ArenaAccessMut, IntrinsicConstructorIndexes},
 };
 

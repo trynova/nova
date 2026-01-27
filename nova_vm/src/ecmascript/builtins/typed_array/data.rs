@@ -11,8 +11,8 @@ use crate::{
         ArrayBuffer, OrdinaryObject, ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset,
         VoidArray,
     },
-    engine::context::bindable_handle,
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, HeapIndexHandle},
+    engine::bindable_handle,
+    heap::{CompactionLists, HeapIndexHandle, HeapMarkAndSweep, WorkQueues},
 };
 
 #[repr(transparent)]

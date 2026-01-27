@@ -11,8 +11,8 @@ use crate::{
     ecmascript::{PropertyKey, Value, execution::Agent},
     engine::{
         ScopableCollection, ScopedCollection,
-        context::{Bindable, NoGcScope, bindable_handle},
-        rootable::HeapRootCollectionData,
+        Bindable, NoGcScope, bindable_handle,
+        HeapRootCollectionData,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };

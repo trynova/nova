@@ -8,10 +8,7 @@ pub(crate) use data::*;
 
 use crate::{
     ecmascript::{Agent, BUILTIN_STRING_MEMORY, Primitive, PropertyKey, String, Value},
-    engine::{
-        context::{Bindable, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
+    engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, bindable_handle},
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         HeapSweepWeakReference, WellKnownSymbolIndexes, WorkQueues, arena_vec_access,

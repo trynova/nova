@@ -8,8 +8,8 @@ use crate::{
         Object, OrdinaryObjectBuilder, PropertyKey, Realm, String, Value, get, to_string,
     },
     engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
+        Bindable, GcScope,
+        Scopable,
     },
 };
 

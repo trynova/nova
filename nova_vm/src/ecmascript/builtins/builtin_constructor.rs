@@ -13,7 +13,7 @@ use crate::{
     },
     engine::{
         Executable,
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
+        Bindable, GcScope, NoGcScope, bindable_handle,
     },
     heap::{
         ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,

@@ -9,7 +9,7 @@ use crate::{
         Agent, DeclarativeEnvironment, Environment, Environments, ExceptionType, JsResult,
         OuterEnv, String, Value,
     },
-    engine::context::{Bindable, NoGcScope},
+    engine::{Bindable, NoGcScope},
     heap::{ArenaAccess, ArenaAccessMut, CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 

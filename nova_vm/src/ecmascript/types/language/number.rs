@@ -18,13 +18,10 @@ use super::{
 };
 use crate::{
     ecmascript::{Agent, numeric_handle, to_int32_number, to_uint32_number},
-    engine::{
-        context::{Bindable, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
+    engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, bindable_handle},
     heap::{
-        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, NumberHeapAccess,
-        WorkQueues, arena_vec_access, BaseIndex,
+        ArenaAccess, BaseIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        NumberHeapAccess, WorkQueues, arena_vec_access,
     },
 };
 
@@ -1693,7 +1690,7 @@ mod tests {
     use super::Number;
     use crate::{
         ecmascript::{Agent, HostHooks, Job, Options},
-        engine::context::GcScope,
+        engine::GcScope,
     };
 
     #[derive(Default, Debug)]

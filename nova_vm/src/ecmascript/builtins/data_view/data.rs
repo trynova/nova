@@ -12,8 +12,8 @@ use crate::{
         },
         types::OrdinaryObject,
     },
-    engine::context::bindable_handle,
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, HeapIndexHandle},
+    engine::bindable_handle,
+    heap::{CompactionLists, HeapIndexHandle, HeapMarkAndSweep, WorkQueues},
 };
 
 #[derive(Debug)]

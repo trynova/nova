@@ -46,10 +46,10 @@ use crate::{
         String, TryError, TryHasResult, TryResult, Value, js_result_into_try,
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
+        Bindable, GcScope, HeapRootData, HeapRootRef, NoGcScope, Rootable, Scopable,
+        bindable_handle,
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, HeapIndexHandle},
+    heap::{CompactionLists, HeapIndexHandle, HeapMarkAndSweep, WorkQueues},
 };
 
 /// ### [\[\[OuterEnv\]\]](https://tc39.es/ecma262/#sec-environment-records)
@@ -74,6 +74,8 @@ macro_rules! create_environment_index {
         /// plus one. This allows us to not use an empty value in storage for
         /// the zero index while still saving room for a [`None`] value when
         /// stored in an [`Option`].
+        ///
+        /// [`NonZeroU32`]: core::num::NonZeroU32
         #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
         #[repr(transparent)]
         pub struct $index<'a>(crate::heap::BaseIndex<'a, $record>);

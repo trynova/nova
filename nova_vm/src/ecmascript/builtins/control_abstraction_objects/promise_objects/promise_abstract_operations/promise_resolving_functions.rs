@@ -7,10 +7,10 @@ use crate::{
         Agent, ArgumentsList, FunctionInternalProperties, JsResult, OrdinaryObject,
         PromiseCapability, String, Value, function_handle,
     },
-    engine::context::{Bindable, GcScope, bindable_handle},
+    engine::{Bindable, GcScope, bindable_handle},
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, WorkQueues, arena_vec_access, BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
 

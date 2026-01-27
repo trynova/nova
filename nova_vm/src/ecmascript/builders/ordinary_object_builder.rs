@@ -11,10 +11,9 @@ use crate::{
             ObjectShapeRecord,
         },
     },
-    engine::context::Bindable,
+    engine::Bindable,
     heap::{
-        ArenaAccessMut, CreateHeapData,
-        {ElementDescriptor, ElementsVector},
+        ArenaAccessMut, CreateHeapData, {ElementDescriptor, ElementsVector},
     },
 };
 
