@@ -5,7 +5,7 @@
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, Array, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter,
-        BuiltinSetter, ExceptionType, IteratorRecord, JsResult, Object, OrdinaryObjectBuilder,
+        BuiltinSetter, ExceptionType, IteratorRecord, JsResult, Object, builders::OrdinaryObjectBuilder,
         PropertyKey, Realm, String, Value, call, get_iterator_direct, if_abrupt_close_iterator,
         is_callable, iterator_close_with_error, iterator_close_with_value, iterator_step_value,
         setter_that_ignores_prototype_properties, throw_not_callable, to_boolean,

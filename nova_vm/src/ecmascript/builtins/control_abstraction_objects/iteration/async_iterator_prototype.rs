@@ -5,7 +5,7 @@
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, JsResult,
-        OrdinaryObjectBuilder, PropertyKey, Realm, String, Value,
+        builders::OrdinaryObjectBuilder, PropertyKey, Realm, String, Value,
     },
     engine::{Bindable, GcScope},
     heap::WellKnownSymbolIndexes,

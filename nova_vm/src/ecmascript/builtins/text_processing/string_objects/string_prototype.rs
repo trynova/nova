@@ -13,7 +13,7 @@ use wtf8::{CodePoint, Wtf8Buf};
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, Array, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinIntrinsic,
-        ExceptionType, JsResult, Number, OrdinaryObjectBuilder, Primitive, PrimitiveObjectData,
+        ExceptionType, JsResult, Number, builders::OrdinaryObjectBuilder, Primitive, PrimitiveObjectData,
         PrimitiveObjectRecord, PropertyKey, Realm, String, StringIterator, Value, call_function,
         create_array_from_list, is_callable, is_reg_exp, is_trimmable_whitespace,
         require_object_coercible, to_integer_or_infinity, to_integer_or_infinity_number, to_length,

@@ -10,7 +10,7 @@ use ahash::AHasher;
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, ArrayHeap, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
-        BuiltinFunctionBuilder, BuiltinGetter, BuiltinIntrinsicConstructor, ExceptionType,
+        builders::BuiltinFunctionBuilder, BuiltinGetter, BuiltinIntrinsicConstructor, ExceptionType,
         Function, IteratorRecord, JsResult, Map, MapHeapData, MapPrototypeSet, Object, PropertyKey,
         ProtoIntrinsics, Realm, String, TryError, TryGetResult, Value, call_function,
         canonicalize_keyed_collection_key, create_array_from_list, get, get_iterator, get_method,

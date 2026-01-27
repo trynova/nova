@@ -6,7 +6,7 @@
 use crate::heap::ArenaAccessSoA;
 use crate::{
     ecmascript::{
-        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinFunctionBuilder,
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, builders::BuiltinFunctionBuilder,
         BuiltinGetter, BuiltinIntrinsicConstructor, ExceptionType, Function, IteratorRecord,
         JsError, JsResult, Object, OrdinaryObject, Promise, PromiseCapability, PromiseGroupRecord,
         PromiseGroupType, PromiseHeapData, PromiseReactionHandler,

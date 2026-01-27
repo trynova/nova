@@ -11,7 +11,7 @@ use crate::{
     ecmascript::{
         ARRAY_INDEX_RANGE, Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
         CollectionIteratorKind, ExceptionType, InternalSlots, JsResult, Object,
-        OrdinaryObjectBuilder, Realm, String, Value, create_array_from_list,
+        builders::OrdinaryObjectBuilder, Realm, String, Value, create_array_from_list,
         create_iter_result_object, get, length_of_array_like,
     },
     engine::{Bindable, GcScope, Scopable},

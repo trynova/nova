@@ -4,7 +4,7 @@
 
 use crate::{
     ecmascript::{
-        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinFunctionBuilder,
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, builders::BuiltinFunctionBuilder,
         BuiltinIntrinsicConstructor, DynamicFunctionKind, Function, JsResult, Object, Realm,
         String, Value, create_dynamic_function,
     },

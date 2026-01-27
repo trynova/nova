@@ -7,7 +7,7 @@ use num_traits::Pow;
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, BigInt, Builtin,
-        BuiltinFunctionBuilder, BuiltinIntrinsicConstructor, ExceptionType, JsResult, Number,
+        builders::BuiltinFunctionBuilder, BuiltinIntrinsicConstructor, ExceptionType, JsResult, Number,
         Object, PreferredType, Realm, SmallBigInt, String, Value, to_big_int, to_big_int_primitive,
         to_index, to_primitive,
     },

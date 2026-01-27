@@ -7,8 +7,8 @@ use ecmascript_atomics::Ordering;
 use crate::{
     ecmascript::{
         Agent, AnyArrayBuffer, AnyTypedArray, ArgumentsList, ArrayBuffer, BUILTIN_STRING_MEMORY,
-        Behaviour, Builtin, BuiltinFunctionBuilder, BuiltinIntrinsicConstructor, ExceptionType,
-        Function, JsResult, Object, OrdinaryObjectBuilder, PropertyKey, Realm, String,
+        Behaviour, Builtin, builders::BuiltinFunctionBuilder, BuiltinIntrinsicConstructor, ExceptionType,
+        Function, JsResult, Object, builders::OrdinaryObjectBuilder, PropertyKey, Realm, String,
         TypedArrayAbstractOperations, U8Clamped, Value, Viewable, allocate_typed_array,
         get_iterator_from_method, get_method, get_prototype_from_constructor,
         initialize_typed_array_from_array_buffer, initialize_typed_array_from_array_like,

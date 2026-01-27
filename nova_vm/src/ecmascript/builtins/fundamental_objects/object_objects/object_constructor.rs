@@ -4,7 +4,7 @@
 
 use crate::{
     ecmascript::{
-        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinFunctionBuilder,
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, builders::BuiltinFunctionBuilder,
         BuiltinIntrinsicConstructor, EnumerateKeysAndValues, EnumerateValues, ExceptionType,
         Frozen, InternalMethods, InternalSlots, IteratorRecord, JsResult, Object, OrdinaryObject,
         PropertyDescriptor, PropertyKey, ProtoIntrinsics, Realm, Sealed, String, TryResult, Value,

@@ -10,9 +10,9 @@ use wtf8::Wtf8Buf;
 use crate::{
     ecmascript::{
         Agent, AnyTypedArray, ArgumentsList, ArrayIterator, BUILTIN_STRING_MEMORY, Behaviour,
-        Builtin, BuiltinFunctionBuilder, BuiltinGetter, BuiltinIntrinsic,
+        Builtin, builders::BuiltinFunctionBuilder, BuiltinGetter, BuiltinIntrinsic,
         BuiltinIntrinsicConstructor, CollectionIteratorKind, ExceptionType, InternalMethods,
-        JsResult, Number, Numeric, Object, OrdinaryObjectBuilder, Primitive, PropertyKey, Realm,
+        JsResult, Number, Numeric, Object, builders::OrdinaryObjectBuilder, Primitive, PropertyKey, Realm,
         SmallInteger, String, TryGetResult, TypedArrayAbstractOperations, Value, call_function,
         find_via_predicate, for_any_typed_array, get, get_iterator_from_method, get_method, invoke,
         is_callable, is_constructor, iterator_to_list, length_of_array_like, same_value_zero, set,

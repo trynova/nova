@@ -9,7 +9,7 @@ use crate::{
     ecmascript::{
         Agent, ArgumentsList, Array, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter,
         BuiltinIntrinsic, ExceptionType, Function, JsError, JsResult, Number, Object,
-        OrdinaryObjectBuilder, PropertyKey, PropertyLookupCache, ProtoIntrinsics, Realm, String,
+        builders::OrdinaryObjectBuilder, PropertyKey, PropertyLookupCache, ProtoIntrinsics, Realm, String,
         TryGetResult, Value, advance_string_index, array_create, call_function, construct,
         create_reg_exp_string_iterator, get, get_substitution, is_callable, length_of_array_like,
         reg_exp_builtin_exec, reg_exp_builtin_test, reg_exp_exec, reg_exp_test,

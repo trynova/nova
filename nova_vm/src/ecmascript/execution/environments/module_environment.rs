@@ -123,7 +123,12 @@ impl<'e> ModuleEnvironment<'e> {
     /// Create a new but uninitialized mutable binding in an Environment
     /// Record. The String value N is the text of the bound name. If the
     /// Boolean argument D is true the binding may be subsequently deleted.
-    pub fn create_mutable_binding(self, agent: &mut Agent, name: String, is_deletable: bool) {
+    pub(crate) fn create_mutable_binding(
+        self,
+        agent: &mut Agent,
+        name: String,
+        is_deletable: bool,
+    ) {
         self.get_declarative_env(agent)
             .create_mutable_binding(agent, name, is_deletable);
     }

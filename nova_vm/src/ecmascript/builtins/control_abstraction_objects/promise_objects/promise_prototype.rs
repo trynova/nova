@@ -6,7 +6,7 @@ use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
         BuiltinPromiseFinallyFunction, ExceptionType, Function, JsResult, Object,
-        OrdinaryObjectBuilder, Promise, PromiseCapability, PromiseReactionHandler,
+        builders::OrdinaryObjectBuilder, Promise, PromiseCapability, PromiseReactionHandler,
         PromiseReactionRecord, PromiseReactionType, PromiseReactions,
         PromiseRejectionTrackerOperation, PromiseState, ProtoIntrinsics, Realm, String, Value,
         invoke, is_callable, is_constructor, new_promise_reaction_job, species_constructor,

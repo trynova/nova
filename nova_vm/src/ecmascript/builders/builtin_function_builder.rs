@@ -4,15 +4,12 @@
 
 use crate::{
     ecmascript::{
-        Agent, CreatorProperties, CreatorPrototype, NoProperties, NoPrototype, Realm,
-        builders::ordinary_object_builder::create_intrinsic_backing_object,
-        builtins::{
-            Behaviour, Builtin, BuiltinFunction, BuiltinGetter, BuiltinIntrinsic,
-            BuiltinIntrinsicConstructor, BuiltinSetter,
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, Object, OrdinaryObject, PropertyKey,
-            String, Value,
+        Agent, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinFunction, BuiltinFunctionHeapData,
+        BuiltinGetter, BuiltinIntrinsic, BuiltinIntrinsicConstructor, BuiltinSetter, Object,
+        OrdinaryObject, PropertyKey, Realm, String, Value,
+        builders::{
+            CreatorProperties, CreatorPrototype, NoProperties, NoPrototype,
+            create_intrinsic_backing_object,
         },
     },
     engine::Bindable,

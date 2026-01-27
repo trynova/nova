@@ -5,7 +5,7 @@
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, BigIntMathematicalValue, Builtin,
-        BuiltinFunctionBuilder, BuiltinIntrinsicConstructor, Function, JsResult, Number, Numeric,
+        builders::BuiltinFunctionBuilder, BuiltinIntrinsicConstructor, Function, JsResult, Number, Numeric,
         Object, Primitive, PrimitiveObject, PrimitiveObjectData, ProtoIntrinsics, Realm,
         SmallInteger, String, Value, is_integral_number, ordinary_create_from_constructor,
         to_numeric_primitive,

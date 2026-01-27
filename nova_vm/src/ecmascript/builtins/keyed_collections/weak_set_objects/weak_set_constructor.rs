@@ -5,7 +5,7 @@
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, Array, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
-        BuiltinFunctionBuilder, BuiltinIntrinsicConstructor, ExceptionType, Function,
+        builders::BuiltinFunctionBuilder, BuiltinIntrinsicConstructor, ExceptionType, Function,
         IteratorRecord, JsResult, Object, ProtoIntrinsics, Realm, String, Value, WeakSet,
         call_function, can_be_held_weakly, get, get_iterator, if_abrupt_close_iterator,
         is_callable, iterator_step_value, ordinary_create_from_constructor, throw_not_callable,

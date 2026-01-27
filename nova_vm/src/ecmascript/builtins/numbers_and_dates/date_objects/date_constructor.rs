@@ -6,7 +6,7 @@ use std::time::SystemTime;
 
 use crate::{
     ecmascript::{
-        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinFunctionBuilder,
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, builders::BuiltinFunctionBuilder,
         BuiltinIntrinsicConstructor, Date, DateValue, Function, JsResult, Number, Object,
         ProtoIntrinsics, Realm, SmallInteger, String, Value, ordinary_create_from_constructor,
         to_number, to_primitive,

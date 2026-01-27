@@ -42,7 +42,7 @@ use crate::{
     ndt,
 };
 
-pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc: GcScope) {
+pub(crate) fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc: GcScope) {
     ndt::gc_start!(|| ());
 
     let mut bits = HeapBits::new(&agent.heap);

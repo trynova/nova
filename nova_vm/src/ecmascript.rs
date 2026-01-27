@@ -8,7 +8,7 @@
 //! implementation of the ECMAScript language specification.
 
 mod abstract_operations;
-mod builders;
+pub mod builders;
 mod builtins;
 mod execution;
 mod scripts_and_modules;
@@ -16,7 +16,6 @@ mod syntax_directed_operations;
 mod types;
 
 pub(crate) use abstract_operations::*;
-pub use builders::*;
 pub use builtins::*;
 pub use execution::*;
 pub use scripts_and_modules::*;

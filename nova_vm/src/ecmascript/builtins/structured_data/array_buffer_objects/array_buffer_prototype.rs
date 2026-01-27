@@ -5,7 +5,7 @@
 use crate::{
     ecmascript::{
         Agent, AnyArrayBuffer, ArgumentsList, ArrayBuffer, BUILTIN_STRING_MEMORY, Behaviour,
-        Builtin, BuiltinGetter, ExceptionType, JsResult, OrdinaryObjectBuilder, PropertyKey,
+        Builtin, BuiltinGetter, ExceptionType, JsResult, builders::OrdinaryObjectBuilder, PropertyKey,
         ProtoIntrinsics, Realm, String, Value, construct, is_detached_buffer,
         is_fixed_length_array_buffer, species_constructor, to_index, to_integer_or_infinity,
         try_result_into_js, try_to_index,

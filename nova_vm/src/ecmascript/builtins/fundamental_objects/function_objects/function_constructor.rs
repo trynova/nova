@@ -7,7 +7,7 @@ use wtf8::Wtf8Buf;
 
 use crate::{
     ecmascript::{
-        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinFunctionBuilder,
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, builders::BuiltinFunctionBuilder,
         BuiltinIntrinsicConstructor, ECMAScriptFunction, Environment, ExceptionType, Function,
         FunctionAstRef, JsResult, Object, OrdinaryFunctionCreateParams, ParseResult, Primitive,
         ProtoIntrinsics, Realm, SourceCode, SourceCodeType, String, Value,

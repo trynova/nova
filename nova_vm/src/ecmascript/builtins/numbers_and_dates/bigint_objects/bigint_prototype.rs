@@ -5,7 +5,7 @@
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, BigInt, Builtin, ExceptionType,
-        JsResult, OrdinaryObjectBuilder, PrimitiveObjectData, Realm, String, Value,
+        JsResult, builders::OrdinaryObjectBuilder, PrimitiveObjectData, Realm, String, Value,
         to_integer_or_infinity,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable},

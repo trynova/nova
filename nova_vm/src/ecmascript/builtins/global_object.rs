@@ -11,7 +11,7 @@ use wtf8::{CodePoint, Wtf8Buf};
 
 use crate::{
     ecmascript::{
-        Agent, BUILTIN_STRING_MEMORY, BuiltinFunctionBuilder, ECMAScriptCodeEvaluationState,
+        Agent, BUILTIN_STRING_MEMORY, builders::BuiltinFunctionBuilder, ECMAScriptCodeEvaluationState,
         Environment, ExceptionType, ExecutionContext, Function, JsResult,
         LexicallyScopedDeclaration, ParseResult, Primitive, PrivateEnvironment, Realm,
         STRING_DISCRIMINANT, SourceCode, SourceCodeType, String, Value, VarScopedDeclaration,

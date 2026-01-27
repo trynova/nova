@@ -21,6 +21,8 @@
 
 use ahash::AHashMap;
 
+#[cfg(test)]
+use crate::ecmascript::GlobalEnvironment;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::SharedArrayBuffer;
 #[cfg(feature = "atomics")]
@@ -30,13 +32,12 @@ use crate::ecmascript::{FinalizationRegistryCleanupJob, clear_kept_objects};
 use crate::{
     ecmascript::{
         AbstractModuleMethods, Environment, ErrorHeapData, ExecutionContext, Function,
-        GlobalEnvironment, GraphLoadingStateRecord, HostDefined, ModuleRequest, Object,
-        OrdinaryObject, PrivateEnvironment, PrivateName, Promise, PromiseReactionJob,
-        PromiseResolveThenableJob, PropertyKey, PropertyLookupCache, Realm, RealmRecord, Reference,
-        Referrer, ScriptOrModule, SourceCode, SourceTextModule, String, Symbol, Value,
-        ValueRootRepr, get_identifier_reference, initialize_default_realm,
-        initialize_host_defined_realm, parse_script, script_evaluation, to_string,
-        try_get_identifier_reference,
+        GraphLoadingStateRecord, HostDefined, ModuleRequest, Object, OrdinaryObject,
+        PrivateEnvironment, PrivateName, Promise, PromiseReactionJob, PromiseResolveThenableJob,
+        PropertyKey, PropertyLookupCache, Realm, RealmRecord, Reference, Referrer, ScriptOrModule,
+        SourceCode, SourceTextModule, String, Symbol, Value, ValueRootRepr,
+        get_identifier_reference, initialize_default_realm, initialize_host_defined_realm,
+        parse_script, script_evaluation, to_string, try_get_identifier_reference,
     },
     engine::{
         Bindable, GcScope, HeapRootCollectionData, HeapRootData, HeapRootRef, NoGcScope, Rootable,
@@ -987,7 +988,8 @@ impl Agent {
     }
 
     /// Get current Realm's global environment.
-    pub fn current_global_env<'a>(&self, gc: NoGcScope<'a, '_>) -> GlobalEnvironment<'a> {
+    #[cfg(test)]
+    pub(crate) fn current_global_env<'a>(&self, gc: NoGcScope<'a, '_>) -> GlobalEnvironment<'a> {
         let realm = self.current_realm(gc);
         let Some(e) = realm.get(self).global_env else {
             panic_corrupted_agent()

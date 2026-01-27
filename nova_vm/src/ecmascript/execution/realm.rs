@@ -64,7 +64,7 @@ impl<'r> Realm<'r> {
     }
 
     /// ### \[\[GlobalEnv]]
-    pub fn global_env<'gc>(
+    pub(crate) fn global_env<'gc>(
         self,
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,

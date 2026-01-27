@@ -17,7 +17,7 @@ use crate::{
     ecmascript::{
         Agent, AnyArrayBuffer, AnyTypedArray, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour,
         BigInt, Builtin, ExceptionType, InnerJob, Job, JsResult, Number, Numeric, OrdinaryObject,
-        OrdinaryObjectBuilder, Promise, PromiseCapability, Realm, SharedArrayBuffer,
+        builders::OrdinaryObjectBuilder, Promise, PromiseCapability, Realm, SharedArrayBuffer,
         SharedDataBlock, SharedTypedArray, String, TryError, TryResult,
         TypedArrayAbstractOperations, TypedArrayWithBufferWitnessRecords, Value,
         compare_exchange_in_buffer, for_any_typed_array, get_modify_set_value_in_buffer,
@@ -30,7 +30,6 @@ use crate::{
     engine::{Bindable, GcScope, Global, NoGcScope, Scopable},
     heap::{ObjectEntry, WellKnownSymbolIndexes},
 };
-
 pub(crate) struct AtomicsObject;
 
 struct AtomicsObjectAdd;

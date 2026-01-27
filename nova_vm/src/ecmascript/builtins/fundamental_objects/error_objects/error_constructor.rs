@@ -6,7 +6,7 @@
 use crate::engine::NoGcScope;
 use crate::{
     ecmascript::{
-        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinFunctionBuilder,
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, builders::BuiltinFunctionBuilder,
         BuiltinIntrinsicConstructor, Error, ExceptionType, Function, JsResult, Object, PropertyKey,
         ProtoIntrinsics, Realm, String, Value, get, has_property, ordinary_create_from_constructor,
         to_string,

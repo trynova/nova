@@ -9,10 +9,10 @@ use xsum::{Xsum, XsumAuto, XsumLarge, XsumSmall, XsumVariant, constants::XSUM_TH
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType,
-        IteratorRecord, JsResult, Number, Object, OrdinaryObjectBuilder, Primitive, Realm, String,
-        Value, get_iterator, iterator_close_with_error, iterator_step_value,
-        require_object_coercible, throw_not_callable, to_number, to_number_primitive, to_uint32,
-        try_length_of_array_like,
+        IteratorRecord, JsResult, Number, Object, Primitive, Realm, String, Value,
+        builders::OrdinaryObjectBuilder, get_iterator, iterator_close_with_error,
+        iterator_step_value, require_object_coercible, throw_not_callable, to_number,
+        to_number_primitive, to_uint32, try_length_of_array_like,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::WellKnownSymbolIndexes,

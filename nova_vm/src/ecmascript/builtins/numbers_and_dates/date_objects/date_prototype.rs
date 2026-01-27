@@ -5,7 +5,7 @@
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinIntrinsic, Date,
-        DateValue, ExceptionType, JsResult, Number, Object, OrdinaryObjectBuilder, PreferredType,
+        DateValue, ExceptionType, JsResult, Number, Object, builders::OrdinaryObjectBuilder, PreferredType,
         PropertyKey, Realm, String, Value, abstract_operations::to_number, invoke,
         ordinary_to_primitive, to_integer_or_infinity_f64, to_object,
         to_zero_padded_decimal_string,

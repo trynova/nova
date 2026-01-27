@@ -6,7 +6,7 @@ use wtf8::{CodePoint, Wtf8Buf};
 
 use crate::{
     ecmascript::{
-        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinFunctionBuilder,
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, builders::BuiltinFunctionBuilder,
         BuiltinIntrinsicConstructor, ExceptionType, Function, JsResult, Number, Object,
         PrimitiveObject, PrimitiveObjectData, PropertyKey, ProtoIntrinsics, Realm, SmallString,
         String, Value, get, get_prototype_from_constructor, length_of_array_like,

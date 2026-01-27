@@ -12,7 +12,7 @@ mod object_entry;
 pub use element_array::*;
 pub(crate) use heap_bits::*;
 pub(crate) use heap_constants::*;
-pub use heap_gc::*;
+pub(crate) use heap_gc::*;
 pub(crate) use indexes::*;
 pub(crate) use object_entry::*;
 

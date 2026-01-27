@@ -5,7 +5,7 @@
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, AsyncGeneratorRequestCompletion, BUILTIN_STRING_MEMORY, Behaviour,
-        Builtin, JsError, JsResult, OrdinaryObjectBuilder, Promise, PromiseCapability, Realm,
+        Builtin, JsError, JsResult, builders::OrdinaryObjectBuilder, Promise, PromiseCapability, Realm,
         String, Value, async_generator_await_return, async_generator_enqueue,
         async_generator_resume, async_generator_validate, create_iter_result_object,
         if_abrupt_reject_promise, if_abrupt_reject_promise_m,

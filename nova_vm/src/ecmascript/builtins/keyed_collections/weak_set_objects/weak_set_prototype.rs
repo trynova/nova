@@ -5,13 +5,12 @@
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType, JsResult,
-        OrdinaryObjectBuilder, Realm, String, Value, WeakSet, can_be_held_weakly,
+        Realm, String, Value, WeakSet, builders::OrdinaryObjectBuilder, can_be_held_weakly,
         throw_not_weak_key_error,
     },
     engine::{Bindable, GcScope, NoGcScope},
     heap::{ArenaAccess, ArenaAccessMut, WellKnownSymbolIndexes},
 };
-
 pub(crate) struct WeakSetPrototype;
 
 struct WeakSetPrototypeAdd;

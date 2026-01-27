@@ -7,7 +7,7 @@ use core::ops::ControlFlow;
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinFunction,
-        BuiltinFunctionBuilder, BuiltinIntrinsic, BuiltinIntrinsicConstructor, ExceptionType,
+        builders::BuiltinFunctionBuilder, BuiltinIntrinsic, BuiltinIntrinsicConstructor, ExceptionType,
         Function, InternalSlots, JsResult, Number, OrdinaryObject, PropertyKey, Realm,
         SetFunctionNamePrefix, String, TryError, TryGetResult, TryResult, Value,
         bound_function_create, call_function, create_list_from_array_like, handle_try_get_result,

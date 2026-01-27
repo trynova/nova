@@ -9,7 +9,7 @@ use ahash::AHasher;
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, ArrayHeap, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
-        BuiltinFunctionBuilder, BuiltinGetter, BuiltinIntrinsicConstructor, ExceptionType,
+        builders::BuiltinFunctionBuilder, BuiltinGetter, BuiltinIntrinsicConstructor, ExceptionType,
         Function, IteratorRecord, JsResult, Object, PropertyKey, ProtoIntrinsics, Realm, Set,
         String, Value, call_function, canonicalize_keyed_collection_key, get, get_iterator,
         if_abrupt_close_iterator, is_callable, iterator_step_value,
