@@ -1683,7 +1683,11 @@ pub(crate) fn enumerable_own_properties<'gc, Kind: EnumerablePropertiesKind>(
 
         // Optimisation: If [[GetOwnProperty]] has returned us a Value, we
         // shouldn't need to call [[Get]] except if the object is a Proxy.
-        let value = if desc.value.is_none() || matches!(o, Object::Proxy(_)) {
+        let value = if let Some(value) = desc.value
+            && !matches!(o, Object::Proxy(_))
+        {
+            value
+        } else {
             match try_get(agent, o, key, None, gc.nogc()) {
                 ControlFlow::Continue(TryGetResult::Unset) => Value::Undefined,
                 ControlFlow::Continue(TryGetResult::Value(value)) => value,
@@ -1692,8 +1696,6 @@ pub(crate) fn enumerable_own_properties<'gc, Kind: EnumerablePropertiesKind>(
                     break;
                 }
             }
-        } else {
-            desc.value.unwrap()
         };
         // b. If kind is VALUE, then
         if Kind::KIND == EnumPropKind::Value {
