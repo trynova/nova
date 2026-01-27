@@ -1,7 +1,7 @@
 use core::marker::PhantomData;
 
 use crate::{
-    ecmascript::execution::Agent,
+    ecmascript::Agent,
     engine::{
         context::NoGcScope,
         rootable::{HeapRootData, HeapRootRef, Rootable},

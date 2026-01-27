@@ -4,12 +4,8 @@
 
 use crate::{
     ecmascript::{
-        builtins::{
-            ArgumentsList,
-            control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
-        },
-        execution::{Agent, JsResult},
-        types::{FunctionInternalProperties, OrdinaryObject, String, Value, function_handle},
+        Agent, ArgumentsList, FunctionInternalProperties, JsResult, OrdinaryObject,
+        PromiseCapability, String, Value, function_handle,
     },
     engine::context::{Bindable, GcScope, bindable_handle},
     heap::{

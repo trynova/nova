@@ -4,12 +4,12 @@
 
 use crate::{
     ecmascript::{
+        Agent, BUILTIN_STRING_MEMORY, Object, ObjectRecord, OrdinaryObject, PropertyKey, Realm,
+        Value,
         builtins::{
             Builtin, BuiltinFunction, BuiltinGetter, BuiltinIntrinsic, BuiltinSetter,
-            ordinary::shape::ObjectShapeRecord,
+            ObjectShapeRecord,
         },
-        execution::{Agent, Realm},
-        types::{BUILTIN_STRING_MEMORY, Object, ObjectRecord, OrdinaryObject, PropertyKey, Value},
     },
     engine::context::Bindable,
     heap::{
@@ -27,7 +27,7 @@ use super::{
 pub struct NoPrototype;
 
 #[derive(Clone, Copy)]
-pub struct CreatorPrototype<T: Into<Object<'static>>>(T);
+pub struct CreatorPrototype<T: Into<Object<'static>>>(pub(crate) T);
 
 #[derive(Default, Clone, Copy)]
 pub struct NoProperties;
@@ -39,7 +39,7 @@ pub type PropertyDefinition = (
 );
 
 #[derive(Clone)]
-pub struct CreatorProperties(Vec<PropertyDefinition>);
+pub struct CreatorProperties(pub(crate) Vec<PropertyDefinition>);
 
 pub struct OrdinaryObjectBuilder<'agent, P, Pr> {
     pub(crate) agent: &'agent mut Agent,

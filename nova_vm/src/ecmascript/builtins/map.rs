@@ -2,14 +2,18 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+mod data;
+
+pub(crate) use data::*;
+
 use hashbrown::HashTable;
 use soavec::SoAVec;
 
 use crate::{
     Heap,
     ecmascript::{
-        execution::{Agent, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, OrdinaryObject, Value, object_handle},
+        Agent, InternalMethods, InternalSlots, OrdinaryObject, ProtoIntrinsics, Value,
+        object_handle,
     },
     engine::context::Bindable,
     heap::{
@@ -18,11 +22,6 @@ use crate::{
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
-
-pub(crate) use self::data::MapHeapData;
-use self::data::MapHeapDataMut;
-
-mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]

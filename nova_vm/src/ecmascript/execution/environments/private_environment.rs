@@ -10,7 +10,7 @@ use crate::{
     ecmascript::{
         builtins::ECMAScriptFunction,
         execution::Agent,
-        types::{PrivateName, String, Value},
+        PrivateName, String, Value,
     },
     engine::context::{Bindable, NoGcScope, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, element_array::ElementDescriptor},

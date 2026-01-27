@@ -9,10 +9,9 @@ mod data_block;
 mod private_name;
 mod property_descriptor;
 mod reference;
-#[cfg(feature = "shared-array-buffer")]
-pub use data_block::SharedDataBlock;
+
 #[cfg(feature = "array-buffer")]
-pub(crate) use data_block::*;
+pub use data_block::*;
 pub use private_name::*;
-pub use property_descriptor::PropertyDescriptor;
+pub use property_descriptor::*;
 pub(crate) use reference::*;

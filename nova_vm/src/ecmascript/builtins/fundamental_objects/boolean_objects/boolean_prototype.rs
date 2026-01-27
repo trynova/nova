@@ -4,13 +4,8 @@
 
 use crate::{
     ecmascript::{
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin,
-            primitive_objects::{PrimitiveObjectData, PrimitiveObjectRecord},
-        },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType, JsResult,
+        OrdinaryObjectBuilder, PrimitiveObjectData, PrimitiveObjectRecord, Realm, String, Value,
     },
     engine::context::{GcScope, NoGcScope},
     heap::{ArenaAccess, indexes::HeapIndexHandle},

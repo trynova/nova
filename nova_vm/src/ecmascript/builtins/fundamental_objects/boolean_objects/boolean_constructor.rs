@@ -4,15 +4,10 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_boolean,
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            ordinary::ordinary_create_from_constructor,
-            primitive_objects::{PrimitiveObject, PrimitiveObjectData},
-        },
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm},
-        types::{BUILTIN_STRING_MEMORY, Function, Object, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinFunctionBuilder,
+        BuiltinIntrinsicConstructor, Function, JsResult, Object, PrimitiveObject,
+        PrimitiveObjectData, ProtoIntrinsics, Realm, String, Value,
+        ordinary_create_from_constructor, to_boolean,
     },
     engine::context::{Bindable, GcScope},
     heap::{ArenaAccessMut, IntrinsicConstructorIndexes},

@@ -4,18 +4,18 @@
 
 //! # [16 ECMAScript Language: Scripts and Modules](https://tc39.es/ecma262/#sec-ecmascript-language-scripts-and-modules)
 
-use module::module_semantics::source_text_module_records::SourceTextModule;
-
 use crate::{
     engine::context::bindable_handle,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
-use self::script::Script;
+mod module;
+mod script;
+mod source_code;
 
-pub mod module;
-pub mod script;
-pub mod source_code;
+pub use module::*;
+pub use script::*;
+pub use source_code::*;
 
 #[derive(Clone, Copy)]
 pub(crate) enum ScriptOrModule<'a> {

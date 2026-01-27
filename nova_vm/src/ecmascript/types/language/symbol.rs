@@ -4,13 +4,10 @@
 
 mod data;
 
-pub(crate) use data::SymbolHeapData;
+pub(crate) use data::*;
 
 use crate::{
-    ecmascript::{
-        execution::Agent,
-        types::{Primitive, String, Value},
-    },
+    ecmascript::{Agent, BUILTIN_STRING_MEMORY, Primitive, PropertyKey, String, Value},
     engine::{
         context::{Bindable, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
@@ -21,8 +18,6 @@ use crate::{
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
-
-use super::{BUILTIN_STRING_MEMORY, PropertyKey};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]

@@ -9,7 +9,7 @@ use std::ops::ControlFlow;
 use oxc_ast::ast;
 
 use crate::{
-    ecmascript::types::BUILTIN_STRING_MEMORY,
+    ecmascript::BUILTIN_STRING_MEMORY,
     engine::{
         Instruction, NamedEvaluationParameter,
         bytecode::bytecode_compiler::{

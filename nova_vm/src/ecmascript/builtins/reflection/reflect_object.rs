@@ -4,22 +4,11 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{
-                call_function, construct, create_array_from_list, create_list_from_array_like,
-            },
-            testing_and_comparison::{is_callable, is_constructor},
-            type_conversion::{to_property_key_complex, to_property_key_simple},
-        },
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin},
-        execution::{
-            Agent, JsResult, Realm,
-            agent::{ExceptionType, try_result_into_js},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, Object, PropertyDescriptor, String, Value,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType,
+        InternalMethods, JsResult, Object, OrdinaryObjectBuilder, PropertyDescriptor, Realm,
+        String, Value, call_function, construct, create_array_from_list,
+        create_list_from_array_like, is_callable, is_constructor, to_property_key_complex,
+        to_property_key_simple, try_result_into_js,
     },
     engine::{
         context::{Bindable, GcScope},

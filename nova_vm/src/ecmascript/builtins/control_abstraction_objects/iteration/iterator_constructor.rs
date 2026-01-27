@@ -4,13 +4,9 @@
 
 use crate::{
     ecmascript::{
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            ordinary::ordinary_create_from_constructor,
-        },
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Function, Object, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinFunctionBuilder,
+        BuiltinIntrinsicConstructor, ExceptionType, Function, JsResult, Object, ProtoIntrinsics,
+        Realm, String, Value, ordinary_create_from_constructor,
     },
     engine::context::{Bindable, GcScope},
     heap::IntrinsicConstructorIndexes,
@@ -67,7 +63,7 @@ impl IteratorConstructor {
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<IteratorConstructor>(agent, realm)
             .with_property_capacity(1)
-            .with_prototype(function_prototype.into())
+            .with_prototype(function_prototype)
             .with_prototype_property(iterator_prototype.into())
             .build();
     }

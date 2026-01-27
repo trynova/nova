@@ -49,26 +49,12 @@ use wtf8::Wtf8Buf;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{
-                call_function, copy_data_properties_into_object, get_method, ordinary_has_instance,
-                try_get_object_method,
-            },
-            testing_and_comparison::is_callable,
-            type_conversion::{
-                to_boolean, to_numeric, to_numeric_primitive, to_object, to_primitive,
-                to_property_key, to_string_primitive,
-            },
-        },
-        builtins::{ArgumentsList, ScopedArgumentsList, array::abstract_operations::array_create},
-        execution::{
-            Agent, Environment, JsResult,
-            agent::{ExceptionType, JsError, resolve_binding, try_result_into_option_js},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, BigInt, Number, Object, Primitive, Reference, String, Value,
-            initialize_referenced_binding, put_value,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, BigInt, Environment, ExceptionType, JsError,
+        JsResult, Number, Object, Primitive, Reference, ScopedArgumentsList, String, Value,
+        array_create, call_function, copy_data_properties_into_object, get_method,
+        initialize_referenced_binding, is_callable, ordinary_has_instance, put_value,
+        resolve_binding, to_boolean, to_numeric, to_numeric_primitive, to_object, to_primitive,
+        to_property_key, to_string_primitive, try_get_object_method, try_result_into_option_js,
     },
     engine::{
         Scoped,

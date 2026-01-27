@@ -11,11 +11,8 @@ use oxc_ast::ast;
 
 use crate::{
     ecmascript::{
-        builtins::{Array, array::abstract_operations::array_create},
-        execution::{Agent, agent::unwrap_try},
-        types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, OrdinaryObject, String, Value,
-        },
+        Agent, Array, BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, OrdinaryObject,
+        String, Value, array_create, unwrap_try,
     },
     engine::context::{Bindable, NoGcScope},
     heap::{ObjectEntry, ObjectEntryPropertyDescriptor, element_array::ElementDescriptor},

@@ -6,17 +6,10 @@
 use crate::engine::context::NoGcScope;
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{get, has_property},
-            type_conversion::to_string,
-        },
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor, error::Error,
-            ordinary::ordinary_create_from_constructor,
-        },
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Function, Object, PropertyKey, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinFunctionBuilder,
+        BuiltinIntrinsicConstructor, Error, ExceptionType, Function, JsResult, Object, PropertyKey,
+        ProtoIntrinsics, Realm, String, Value, get, has_property, ordinary_create_from_constructor,
+        to_string,
     },
     engine::{
         context::{Bindable, GcScope},

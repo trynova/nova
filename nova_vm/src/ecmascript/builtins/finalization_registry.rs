@@ -2,13 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+mod data;
+
+pub(crate) use data::*;
+
 use crate::{
     ecmascript::{
-        execution::{
-            Agent, FinalizationRegistryCleanupJob, ProtoIntrinsics, Realm, WeakKey,
-            agent::{InnerJob, Job},
-        },
-        types::{Function, InternalMethods, InternalSlots, OrdinaryObject, Value, object_handle},
+        Agent, FinalizationRegistryCleanupJob, Function, InnerJob, InternalMethods, InternalSlots,
+        Job, OrdinaryObject, ProtoIntrinsics, Realm, Value, WeakKey, object_handle,
     },
     engine::context::Bindable,
     heap::{
@@ -17,10 +18,6 @@ use crate::{
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
-
-pub(crate) use self::data::FinalizationRegistryRecord;
-
-mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]

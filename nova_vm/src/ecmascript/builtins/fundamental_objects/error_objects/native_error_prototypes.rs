@@ -2,11 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::{
-    builders::ordinary_object_builder::OrdinaryObjectBuilder,
-    execution::{Agent, Realm},
-    types::{BUILTIN_STRING_MEMORY, String},
-};
+use crate::ecmascript::{Agent, BUILTIN_STRING_MEMORY, OrdinaryObjectBuilder, Realm, String};
 
 pub(crate) struct NativeErrorPrototypes;
 impl NativeErrorPrototypes {

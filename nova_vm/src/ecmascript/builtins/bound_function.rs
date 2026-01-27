@@ -4,18 +4,9 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{call_function, construct},
-            testing_and_comparison::is_constructor,
-        },
-        execution::{
-            Agent, JsResult,
-            agent::{TryResult, unwrap_try},
-        },
-        types::{
-            BoundFunctionHeapData, Function, FunctionInternalProperties, InternalMethods, Object,
-            OrdinaryObject, String, Value, function_handle,
-        },
+        Agent, BoundFunctionHeapData, Function, FunctionInternalProperties, InternalMethods,
+        JsResult, Object, OrdinaryObject, String, TryResult, Value, call_function, construct,
+        function_handle, is_constructor, unwrap_try,
     },
     engine::{
         context::{Bindable, GcScope},

@@ -9,31 +9,15 @@ use wtf8::Wtf8Buf;
 use crate::{
     SmallInteger,
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{
-                call_function, create_data_property_or_throw, delete_property_or_throw, get,
-                has_property, invoke, length_of_array_like, set, try_create_data_property_or_throw,
-                try_length_of_array_like,
-            },
-            testing_and_comparison::{is_array, is_callable, is_strictly_equal, same_value_zero},
-            type_conversion::{
-                to_boolean, to_integer_or_infinity, to_number, to_object, to_string,
-                try_to_integer_or_infinity, try_to_string,
-            },
-        },
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic,
-            array::abstract_operations::{array_create, array_species_create},
-        },
-        execution::{
-            Agent, JsResult, Realm,
-            agent::{ExceptionType, JsError, try_result_into_js, unwrap_try},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, InternalMethods, Number, Object, PropertyKey, String,
-            Value,
-        },
+        Agent, ArgumentsList, ArrayIterator, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        BuiltinIntrinsic, CollectionIteratorKind, ExceptionType, Function, InternalMethods,
+        JsError, JsResult, Number, Object, OrdinaryObjectBuilder, PropertyKey, Realm, String,
+        Value, array_create, array_species_create, call_function, create_data_property_or_throw,
+        delete_property_or_throw, get, has_property, invoke, is_array, is_callable,
+        is_strictly_equal, length_of_array_like, same_value_zero, set, to_boolean,
+        to_integer_or_infinity, to_number, to_object, to_string, try_create_data_property_or_throw,
+        try_length_of_array_like, try_result_into_js, try_to_integer_or_infinity, try_to_string,
+        unwrap_try,
     },
     engine::{
         ScopableCollection, Scoped,
@@ -42,8 +26,6 @@ use crate::{
     },
     heap::{Heap, IntrinsicFunctionIndexes, WellKnownSymbolIndexes, indexes::HeapIndexHandle},
 };
-
-use super::array_iterator_objects::array_iterator::{ArrayIterator, CollectionIteratorKind};
 
 pub(crate) struct ArrayPrototype;
 

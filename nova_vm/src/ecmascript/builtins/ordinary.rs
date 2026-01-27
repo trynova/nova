@@ -2,8 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-pub(crate) mod caches;
-pub mod shape;
+mod caches;
+mod shape;
+
+pub use caches::*;
+pub use shape::*;
 
 use std::{
     collections::{TryReserveError, hash_map::Entry},
@@ -11,78 +14,47 @@ use std::{
     vec,
 };
 
-use caches::{CacheToPopulate, Caches, PropertyLookupCache, PropertyOffset};
-
 #[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::builtins::data_view::SharedDataViewRecord;
+use crate::ecmascript::SharedDataViewRecord;
 #[cfg(feature = "array-buffer")]
-use crate::ecmascript::types::try_get_result_into_value;
+use crate::ecmascript::try_get_result_into_value;
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::{
-            try_create_data_property, try_get, try_get_function_realm,
-        },
-        execution::{
-            Realm,
-            agent::{TryError, TryResult, try_result_into_js, unwrap_try},
-        },
-        types::{SetCachedProps, SetResult, TryGetResult, TryHasResult, handle_try_get_result},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, ExceptionType, Function, InternalMethods,
+        InternalSlots, JsResult, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
+        ProtoIntrinsics, Realm, SetCachedProps, SetResult, String, Symbol, TryError, TryGetResult,
+        TryHasResult, TryResult, Value, call_function, create_data_property, get_function_realm,
+        handle_try_get_result, same_value, try_create_data_property, try_get,
+        try_get_function_realm, try_result_into_js, unwrap_try,
     },
     engine::{
         Scoped,
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
-    heap::element_array::{ElementStorageRef, PropertyStorageRef},
-};
-use crate::{
-    ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{call_function, create_data_property, get_function_realm},
-            testing_and_comparison::same_value,
-        },
-        builtins::ArgumentsList,
-        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
-        types::{
-            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Symbol, Value,
-        },
+    heap::{
+        CreateHeapData, WellKnownSymbolIndexes,
+        element_array::{ElementStorageRef, PropertyStorageRef},
     },
-    heap::{CreateHeapData, WellKnownSymbolIndexes},
 };
 
 #[cfg(feature = "date")]
-use super::date::DateHeapData;
+use crate::ecmascript::DateHeapData;
 #[cfg(feature = "regexp")]
-use super::regexp::RegExpHeapData;
+use crate::ecmascript::RegExpHeapData;
 #[cfg(feature = "shared-array-buffer")]
-use super::shared_array_buffer::SharedArrayBufferRecord;
-use super::{
-    array::ArrayHeapData,
-    control_abstraction_objects::{
-        async_generator_objects::AsyncGeneratorHeapData, generator_objects::GeneratorHeapData,
-    },
-    error::ErrorHeapData,
-    finalization_registry::FinalizationRegistryRecord,
-    indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
-    keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
-    map::MapHeapData,
-    module::Module,
-    primitive_objects::PrimitiveObjectRecord,
-    promise::PromiseHeapData,
-    text_processing::string_objects::string_iterator_objects::StringIteratorHeapData,
-};
+use crate::ecmascript::SharedArrayBufferRecord;
 #[cfg(feature = "array-buffer")]
-use super::{
-    array_buffer::ArrayBufferHeapData, data_view::DataViewRecord, typed_array::TypedArrayRecord,
+use crate::ecmascript::{ArrayBufferHeapData, DataViewRecord, TypedArrayRecord};
+use crate::ecmascript::{
+    ArrayHeapData, ArrayIteratorHeapData, AsyncGeneratorHeapData, ErrorHeapData,
+    FinalizationRegistryRecord, GeneratorHeapData, MapHeapData, MapIteratorHeapData, Module,
+    PrimitiveObjectRecord, PromiseHeapData, StringIteratorHeapData,
 };
 #[cfg(feature = "set")]
-use super::{
-    keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIteratorHeapData,
-    set::SetHeapData,
-};
+use crate::ecmascript::{SetHeapData, SetIteratorHeapData};
 #[cfg(feature = "weak-refs")]
-use super::{weak_map::WeakMapRecord, weak_ref::WeakRefHeapData, weak_set::WeakSetHeapData};
+use crate::ecmascript::{WeakMapRecord, WeakRefHeapData, WeakSetHeapData};
 
 /// ## [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
 impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {

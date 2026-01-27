@@ -335,7 +335,7 @@ pub unsafe trait Bindable: Sized {
     ///
     /// ```rust
     /// use nova_vm::ecmascript::builtins::ArgumentsList;
-    /// use nova_vm::ecmascript::execution::{Agent, JsResult};
+    /// use nova_vm::ecmascript::Agent, JsResult;
     /// use nova_vm::ecmascript::types::Value;
     /// use nova_vm::engine::context::{GcScope, Bindable};
     /// fn function_call<'gc>(
@@ -365,7 +365,7 @@ pub unsafe trait Bindable: Sized {
     /// function with a garbage collector safepoint is entered.
     /// ```rust
     /// use nova_vm::ecmascript::builtins::ArgumentsList;
-    /// use nova_vm::ecmascript::execution::{Agent, JsResult};
+    /// use nova_vm::ecmascript::{Agent, JsResult};
     /// use nova_vm::ecmascript::types::Value;
     /// use nova_vm::engine::context::{GcScope, Bindable};
     /// fn function_call<'gc>(

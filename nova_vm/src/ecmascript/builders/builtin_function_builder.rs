@@ -4,12 +4,12 @@
 
 use crate::{
     ecmascript::{
+        Agent, CreatorProperties, CreatorPrototype, NoProperties, NoPrototype, Realm,
         builders::ordinary_object_builder::create_intrinsic_backing_object,
         builtins::{
             Behaviour, Builtin, BuiltinFunction, BuiltinGetter, BuiltinIntrinsic,
             BuiltinIntrinsicConstructor, BuiltinSetter,
         },
-        execution::{Agent, Realm},
         types::{
             BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, Object, OrdinaryObject, PropertyKey,
             String, Value,
@@ -23,12 +23,6 @@ use super::{
     ordinary_object_builder::PropertyDefinition,
     property_builder::{self, PropertyBuilder},
 };
-
-#[derive(Default, Clone, Copy)]
-pub struct NoPrototype;
-
-#[derive(Clone, Copy)]
-pub struct CreatorPrototype(Option<Object<'static>>);
 
 #[derive(Default, Clone, Copy)]
 pub struct NoLength;
@@ -47,12 +41,6 @@ pub struct NoBehaviour;
 
 #[derive(Clone, Copy)]
 pub struct CreatorBehaviour(Behaviour);
-
-#[derive(Default, Clone, Copy)]
-pub struct NoProperties;
-
-#[derive(Clone)]
-pub struct CreatorProperties(Vec<PropertyDefinition>);
 
 pub struct BuiltinFunctionBuilder<'agent, P, L, N, B, Pr> {
     pub(crate) agent: &'agent mut Agent,
@@ -229,11 +217,11 @@ impl<'agent, P, L, N, Pr> BuiltinFunctionBuilder<'agent, P, L, N, NoBehaviour, P
 
 impl<'agent, L, N, B, Pr> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, Pr> {
     #[must_use]
-    pub fn with_prototype(
+    pub fn with_prototype<T: Copy + Into<Object<'static>>>(
         self,
-        prototype: Object<'static>,
-    ) -> BuiltinFunctionBuilder<'agent, CreatorPrototype, L, N, B, Pr> {
-        let backing_object = if prototype
+        prototype: T,
+    ) -> BuiltinFunctionBuilder<'agent, CreatorPrototype<T>, L, N, B, Pr> {
+        let backing_object = if prototype.into()
             != self
                 .agent
                 .get_realm_record_by_id(self.realm)
@@ -251,7 +239,7 @@ impl<'agent, L, N, B, Pr> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, P
             this: self.this,
             backing_object,
             realm: self.realm,
-            prototype: CreatorPrototype(Some(prototype)),
+            prototype: CreatorPrototype(prototype),
             length: self.length,
             name: self.name,
             behaviour: self.behaviour,
@@ -260,9 +248,7 @@ impl<'agent, L, N, B, Pr> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, P
     }
 
     #[must_use]
-    pub fn with_null_prototype(
-        self,
-    ) -> BuiltinFunctionBuilder<'agent, CreatorPrototype, L, N, B, Pr> {
+    pub fn with_null_prototype(self) -> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, Pr> {
         let backing_object = if self.backing_object.is_none() {
             Some(OrdinaryObject::new_uninitialised(self.agent))
         } else {
@@ -273,7 +259,7 @@ impl<'agent, L, N, B, Pr> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, P
             this: self.this,
             backing_object,
             realm: self.realm,
-            prototype: CreatorPrototype(None),
+            prototype: NoPrototype,
             length: self.length,
             name: self.name,
             behaviour: self.behaviour,
@@ -652,10 +638,10 @@ impl
     }
 }
 
-impl
+impl<T: Into<Object<'static>>>
     BuiltinFunctionBuilder<
         '_,
-        CreatorPrototype,
+        CreatorPrototype<T>,
         CreatorLength,
         CreatorName,
         CreatorBehaviour,
@@ -675,7 +661,12 @@ impl
             ..
         } = self;
 
-        create_function_intrinsic_backing_object(agent, backing_object, prototype, properties);
+        create_function_intrinsic_backing_object(
+            agent,
+            backing_object,
+            Some(prototype.into()),
+            properties,
+        );
 
         let data = BuiltinFunctionHeapData {
             object_index: backing_object,

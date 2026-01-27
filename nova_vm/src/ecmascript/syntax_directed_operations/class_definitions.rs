@@ -4,18 +4,9 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{construct, initialize_instance_elements},
-            testing_and_comparison::is_constructor,
-        },
-        builtins::{
-            ArgumentsList, BuiltinConstructorFunction, ordinary::ordinary_create_from_constructor,
-        },
-        execution::{
-            Agent, JsResult, ProtoIntrinsics,
-            agent::{ExceptionType, unwrap_try},
-        },
-        types::{Function, InternalMethods, Object},
+        Agent, ArgumentsList, BuiltinConstructorFunction, ExceptionType, Function, InternalMethods,
+        JsResult, Object, ProtoIntrinsics, construct, initialize_instance_elements, is_constructor,
+        ordinary_create_from_constructor, unwrap_try,
     },
     engine::{
         context::{Bindable, GcScope},

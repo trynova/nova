@@ -5,7 +5,7 @@
 use std::{marker::PhantomData, ptr::NonNull};
 
 use crate::{
-    ecmascript::execution::Agent,
+    ecmascript::Agent,
     engine::{
         ScopableCollection, ScopedCollection,
         context::{Bindable, NoGcScope},

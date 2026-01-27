@@ -6,35 +6,15 @@ use ecmascript_atomics::Ordering;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_iterator_objects::{get_iterator_from_method, iterator_to_list},
-            operations_on_objects::{get_method, throw_not_callable},
-            type_conversion::{to_index, try_to_index},
-        },
-        builders::{
-            builtin_function_builder::BuiltinFunctionBuilder,
-            ordinary_object_builder::OrdinaryObjectBuilder,
-        },
-        builtins::{
-            ArgumentsList, ArrayBuffer, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            array_buffer::AnyArrayBuffer,
-            indexed_collections::typed_array_objects::abstract_operations::{
-                TypedArrayAbstractOperations, allocate_typed_array,
-                initialize_typed_array_from_array_buffer, initialize_typed_array_from_array_like,
-                initialize_typed_array_from_list, make_typed_array_with_buffer_witness_record,
-                typed_array_create,
-            },
-            ordinary::{get_prototype_from_constructor, try_get_prototype_from_constructor},
-            typed_array::AnyTypedArray,
-        },
-        execution::{
-            Agent, JsResult, Realm,
-            agent::{ExceptionType, try_result_into_js},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, Object, PropertyKey, String, U8Clamped, Value,
-            Viewable,
-        },
+        Agent, AnyArrayBuffer, AnyTypedArray, ArgumentsList, ArrayBuffer, BUILTIN_STRING_MEMORY,
+        Behaviour, Builtin, BuiltinFunctionBuilder, BuiltinIntrinsicConstructor, ExceptionType,
+        Function, JsResult, Object, OrdinaryObjectBuilder, PropertyKey, Realm, String,
+        TypedArrayAbstractOperations, U8Clamped, Value, Viewable, allocate_typed_array,
+        get_iterator_from_method, get_method, get_prototype_from_constructor,
+        initialize_typed_array_from_array_buffer, initialize_typed_array_from_array_like,
+        initialize_typed_array_from_list, iterator_to_list,
+        make_typed_array_with_buffer_witness_record, throw_not_callable, to_index,
+        try_get_prototype_from_constructor, try_result_into_js, try_to_index, typed_array_create,
     },
     engine::{
         context::{Bindable, GcScope},
@@ -317,7 +297,7 @@ impl TypedArrayConstructors {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
-        let typed_array_constructor = intrinsics.typed_array().into();
+        let typed_array_constructor = intrinsics.typed_array();
 
         let int8_array_prototype = intrinsics.int8_array_prototype();
         let uint8_array_prototype = intrinsics.uint8_array_prototype();

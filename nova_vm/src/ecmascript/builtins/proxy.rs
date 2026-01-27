@@ -2,32 +2,25 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+mod abstract_operations;
+mod data;
+
+pub(crate) use abstract_operations::*;
+pub(crate) use data::*;
+
 use std::collections::VecDeque;
 
-use abstract_operations::{NonRevokedProxy, validate_non_revoked_proxy};
 use ahash::AHashSet;
-pub(crate) use data::ProxyHeapData;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{
-                call, call_function, construct, create_array_from_list,
-                create_property_key_list_from_array_like, get_object_method, try_get_object_method,
-            },
-            testing_and_comparison::{is_callable, is_constructor, is_extensible, same_value},
-            type_conversion::to_boolean,
-        },
-        builtins::ArgumentsList,
-        execution::{
-            Agent, JsResult,
-            agent::{ExceptionType, TryError, TryResult, try_result_into_js},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps, SetResult, String,
-            TryGetResult, TryHasResult, Value, object_handle,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, ExceptionType, Function, InternalMethods,
+        InternalSlots, JsResult, Object, ObjectShape, OrdinaryObject, PropertyDescriptor,
+        PropertyKey, PropertyLookupCache, PropertyOffset, SetCachedProps, SetResult, String,
+        TryError, TryGetResult, TryHasResult, TryResult, Value, call, call_function, construct,
+        create_array_from_list, create_property_key_list_from_array_like, get_object_method,
+        is_callable, is_compatible_property_descriptor, is_constructor, is_extensible,
+        object_handle, same_value, to_boolean, try_get_object_method, try_result_into_js,
     },
     engine::{
         ScopableCollection,
@@ -39,15 +32,6 @@ use crate::{
         HeapSweepWeakReference, WorkQueues, arena_vec_access, indexes::BaseIndex,
     },
 };
-
-use super::ordinary::{
-    caches::{PropertyLookupCache, PropertyOffset},
-    is_compatible_property_descriptor,
-    shape::ObjectShape,
-};
-
-pub(crate) mod abstract_operations;
-mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]

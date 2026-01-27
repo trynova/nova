@@ -4,14 +4,11 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::{to_index, validate_index},
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
-            array_buffer::{allocate_array_buffer, get_array_buffer_max_byte_length_option},
-        },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Function, Object, PropertyKey, String, Value},
+        Agent, ArgumentsList, Behaviour, Builtin, BuiltinFunctionBuilder, BuiltinGetter,
+        BuiltinIntrinsicConstructor, ExceptionType, JsResult, Realm, allocate_array_buffer,
+        get_array_buffer_max_byte_length_option, to_index,
+        BUILTIN_STRING_MEMORY, Function, Object, PropertyKey, String, Value,
+        validate_index,
     },
     engine::{
         context::{Bindable, GcScope},

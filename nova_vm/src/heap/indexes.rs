@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    ecmascript::types::{PropertyKey, Value},
+    ecmascript::{PropertyKey, Value},
     engine::context::{Bindable, GcToken, NoGcScope},
 };
 use core::fmt::Debug;

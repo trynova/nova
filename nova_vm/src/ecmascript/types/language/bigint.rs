@@ -5,6 +5,11 @@
 mod data;
 mod operators;
 
+pub(crate) use data::*;
+use operators::{
+    bigint_bitwise_op, left_shift_bigint, left_shift_i64, right_shift_bigint, right_shift_i64,
+};
+
 use super::{
     Primitive, String, Value,
     numeric::Numeric,
@@ -13,10 +18,7 @@ use super::{
 };
 use crate::{
     SmallInteger,
-    ecmascript::{
-        execution::{Agent, JsResult, agent::ExceptionType},
-        types::primitive_handle,
-    },
+    ecmascript::{Agent, ExceptionType, JsResult, types::primitive_handle},
     engine::{
         context::{Bindable, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
@@ -28,11 +30,7 @@ use crate::{
     },
 };
 use core::ops::Neg;
-pub(crate) use data::BigIntHeapData;
 use num_bigint::{Sign, ToBigInt, TryFromBigIntError};
-use operators::{
-    bigint_bitwise_op, left_shift_bigint, left_shift_i64, right_shift_bigint, right_shift_i64,
-};
 use std::ops::{BitAnd, BitOr, BitXor};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

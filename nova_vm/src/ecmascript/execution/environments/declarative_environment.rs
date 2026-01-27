@@ -4,11 +4,10 @@
 
 use ahash::AHashMap;
 
-use super::{DeclarativeEnvironment, Environment, Environments, OuterEnv};
 use crate::{
     ecmascript::{
-        execution::{Agent, JsResult, agent::ExceptionType},
-        types::{String, Value},
+        Agent, DeclarativeEnvironment, Environment, Environments, ExceptionType, JsResult,
+        OuterEnv, String, Value,
     },
     engine::context::{Bindable, NoGcScope},
     heap::{ArenaAccess, ArenaAccessMut, CompactionLists, HeapMarkAndSweep, WorkQueues},

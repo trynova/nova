@@ -11,8 +11,8 @@ use hashbrown::{HashTable, hash_table::Entry};
 
 use crate::{
     ecmascript::{
-        execution::{Agent, PrivateField, Realm},
-        types::{InternalMethods, Object, Primitive, PropertyKey, Symbol, TryGetResult, Value},
+        Agent, PrivateField, Realm,
+        InternalMethods, Object, Primitive, PropertyKey, Symbol, TryGetResult, Value,
     },
     engine::context::{Bindable, GcToken, NoGcScope, bindable_handle},
     heap::{

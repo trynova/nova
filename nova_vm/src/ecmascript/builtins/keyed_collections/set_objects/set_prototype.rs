@@ -8,22 +8,10 @@ use ahash::AHasher;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::call_function,
-            testing_and_comparison::{is_callable, same_value},
-        },
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
-            indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
-            keyed_collections::{
-                map_objects::map_prototype::canonicalize_keyed_collection_key,
-                set_objects::set_iterator_objects::set_iterator::SetIterator,
-            },
-            set::Set,
-        },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Number, PropertyKey, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter,
+        BuiltinIntrinsic, CollectionIteratorKind, ExceptionType, JsResult, Number,
+        OrdinaryObjectBuilder, PropertyKey, Realm, Set, SetIterator, String, Value, call_function,
+        canonicalize_keyed_collection_key, is_callable, same_value,
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},

@@ -2,11 +2,15 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+mod data;
+
+pub(crate) use data::*;
+
 use crate::{
     Heap,
     ecmascript::{
-        execution::{Agent, ProtoIntrinsics, WeakKey},
-        types::{InternalMethods, InternalSlots, OrdinaryObject, Value, object_handle},
+        Agent, ProtoIntrinsics, WeakKey,
+        InternalMethods, InternalSlots, OrdinaryObject, Value, object_handle,
     },
     engine::context::Bindable,
     heap::{
@@ -14,10 +18,6 @@ use crate::{
         HeapSweepWeakReference, WorkQueues, arena_vec_access, indexes::BaseIndex,
     },
 };
-
-pub(crate) use self::data::WeakMapRecord;
-
-mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]

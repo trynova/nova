@@ -4,11 +4,9 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_string,
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Object, String, Symbol, SymbolHeapData, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinFunctionBuilder,
+        BuiltinIntrinsicConstructor, ExceptionType, JsResult, Object, Realm, String, Symbol,
+        SymbolHeapData, Value, to_string,
     },
     engine::context::{Bindable, GcScope},
     heap::{CreateHeapData, IntrinsicConstructorIndexes, WellKnownSymbolIndexes},

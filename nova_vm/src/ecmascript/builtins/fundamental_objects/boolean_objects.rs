@@ -2,5 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-pub(crate) mod boolean_constructor;
-pub(crate) mod boolean_prototype;
+mod boolean_constructor;
+mod boolean_prototype;
+
+pub(crate) use boolean_constructor::*;
+pub(crate) use boolean_prototype::*;

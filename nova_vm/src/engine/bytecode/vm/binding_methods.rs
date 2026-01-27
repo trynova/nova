@@ -4,9 +4,8 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::{get, try_create_data_property_or_throw},
-        execution::{Agent, JsResult, agent::unwrap_try},
-        types::{Object, PropertyKey, PropertyKeySet, Value},
+        Agent, JsResult, Object, PropertyKey, PropertyKeySet, Value, get,
+        try_create_data_property_or_throw, unwrap_try,
     },
     engine::{
         ScopableCollection, Scoped,

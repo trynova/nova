@@ -6,23 +6,13 @@
 use ecmascript_atomics::Ordering;
 
 #[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::{
-    indexed_collections::typed_array_objects::abstract_operations::make_typed_array_with_buffer_witness_record,
-    typed_array::AnyTypedArray,
-};
+use crate::ecmascript::builtins::{AnyTypedArray, make_typed_array_with_buffer_witness_record};
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_iterator_objects::create_iter_result_object,
-            operations_on_objects::{create_array_from_list, get, length_of_array_like},
-        },
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, array::ARRAY_INDEX_RANGE,
-            indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
-        },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, InternalSlots, Object, String, Value},
+        ARRAY_INDEX_RANGE, Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        CollectionIteratorKind, ExceptionType, InternalSlots, JsResult, Object,
+        OrdinaryObjectBuilder, Realm, String, Value, create_array_from_list,
+        create_iter_result_object, get, length_of_array_like,
     },
     engine::{
         context::{Bindable, GcScope},

@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    ecmascript::types::{DataBlock, OrdinaryObject},
+    ecmascript::{DataBlock, OrdinaryObject},
     engine::context::bindable_handle,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };

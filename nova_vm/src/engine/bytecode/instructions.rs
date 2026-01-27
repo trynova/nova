@@ -6,7 +6,7 @@ use oxc_ast::ast::BindingPattern;
 use oxc_syntax::number::ToJsString;
 
 use crate::{
-    ecmascript::{execution::Agent, types::String},
+    ecmascript::{Agent, String},
     engine::{Scoped, context::NoGcScope},
 };
 

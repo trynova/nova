@@ -10,55 +10,28 @@ use std::ops::ControlFlow;
 use ecmascript_atomics::{Ordering, RacySlice};
 
 #[cfg(feature = "proposal-float16array")]
-use crate::ecmascript::types::SHARED_FLOAT_16_ARRAY_DISCRIMINANT;
-use crate::heap::{ArenaAccess, ArenaAccessMut, DirectArenaAccessMut};
+use crate::ecmascript::SHARED_FLOAT_16_ARRAY_DISCRIMINANT;
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{call_function, set},
-            type_conversion::{
-                to_big_int, to_big_int_primitive, to_boolean, to_number, to_number_primitive,
-            },
-        },
-        builtins::{
-            ArgumentsList,
-            array_buffer::{
-                AnyArrayBuffer, ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset,
-            },
-            indexed_collections::typed_array_objects::abstract_operations::{
-                CachedBufferByteLength, TypedArrayAbstractOperations,
-                typed_array_create_from_data_block, typed_array_species_create_with_length,
-            },
-            ordinary::{
-                caches::{PropertyLookupCache, PropertyOffset},
-                ordinary_define_own_property, ordinary_delete, ordinary_get,
-                ordinary_get_own_property, ordinary_has_property_entry,
-                ordinary_prevent_extensions, ordinary_set, ordinary_try_get,
-                ordinary_try_has_property, ordinary_try_set,
-                shape::ObjectShape,
-            },
-            shared_array_buffer::SharedArrayBuffer,
-            typed_array::{
-                AnyTypedArray, TypedArray, canonicalize_numeric_index_string,
-                data::{SharedTypedArrayRecord, TypedArrayArrayLength},
-                for_normal_typed_array,
-            },
-        },
-        execution::{
-            Agent, JsResult, ProtoIntrinsics,
-            agent::{JsError, TryError, TryResult, js_result_into_try, unwrap_try},
-        },
-        types::{
-            BigInt, DataBlock, Function, InternalMethods, InternalSlots, Number, Numeric, Object,
-            OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey,
-            SHARED_BIGINT_64_ARRAY_DISCRIMINANT, SHARED_BIGUINT_64_ARRAY_DISCRIMINANT,
-            SHARED_FLOAT_32_ARRAY_DISCRIMINANT, SHARED_FLOAT_64_ARRAY_DISCRIMINANT,
-            SHARED_INT_8_ARRAY_DISCRIMINANT, SHARED_INT_16_ARRAY_DISCRIMINANT,
-            SHARED_INT_32_ARRAY_DISCRIMINANT, SHARED_UINT_8_ARRAY_DISCRIMINANT,
-            SHARED_UINT_8_CLAMPED_ARRAY_DISCRIMINANT, SHARED_UINT_16_ARRAY_DISCRIMINANT,
-            SHARED_UINT_32_ARRAY_DISCRIMINANT, SetCachedProps, SetResult, SharedDataBlock,
-            TryGetResult, TryHasResult, U8Clamped, Value, Viewable, create_byte_data_block,
-        },
+        Agent, AnyArrayBuffer, AnyTypedArray, ArgumentsList, BigInt, CachedBufferByteLength,
+        DataBlock, Function, InternalMethods, InternalSlots, JsError, JsResult, Number, Numeric,
+        Object, ObjectShape, OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey,
+        PropertyLookupCache, PropertyOffset, ProtoIntrinsics, SHARED_BIGINT_64_ARRAY_DISCRIMINANT,
+        SHARED_BIGUINT_64_ARRAY_DISCRIMINANT, SHARED_FLOAT_32_ARRAY_DISCRIMINANT,
+        SHARED_FLOAT_64_ARRAY_DISCRIMINANT, SHARED_INT_8_ARRAY_DISCRIMINANT,
+        SHARED_INT_16_ARRAY_DISCRIMINANT, SHARED_INT_32_ARRAY_DISCRIMINANT,
+        SHARED_UINT_8_ARRAY_DISCRIMINANT, SHARED_UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+        SHARED_UINT_16_ARRAY_DISCRIMINANT, SHARED_UINT_32_ARRAY_DISCRIMINANT, SetCachedProps,
+        SetResult, SharedArrayBuffer, SharedDataBlock, SharedTypedArrayRecord, TryError,
+        TryGetResult, TryHasResult, TryResult, TypedArray, TypedArrayAbstractOperations,
+        TypedArrayArrayLength, U8Clamped, Value, Viewable, ViewedArrayBufferByteLength,
+        ViewedArrayBufferByteOffset, call_function, canonicalize_numeric_index_string,
+        create_byte_data_block, for_normal_typed_array, js_result_into_try,
+        ordinary_define_own_property, ordinary_delete, ordinary_get, ordinary_get_own_property,
+        ordinary_has_property_entry, ordinary_prevent_extensions, ordinary_set, ordinary_try_get,
+        ordinary_try_has_property, ordinary_try_set, set, to_big_int, to_big_int_primitive,
+        to_boolean, to_number, to_number_primitive, typed_array_create_from_data_block,
+        typed_array_species_create_with_length, unwrap_try,
     },
     engine::{
         Scoped,
@@ -66,8 +39,8 @@ use crate::{
         rootable::{HeapRootData, Scopable},
     },
     heap::{
-        CompactionLists, CreateHeapData, DirectArenaAccess, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, WorkQueues,
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, DirectArenaAccess,
+        DirectArenaAccessMut, Heap, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };

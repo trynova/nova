@@ -3,8 +3,8 @@
 use nova_vm::{
     ecmascript::{
         builtins::ArgumentsList,
-        execution::{Agent, JsResult},
-        types::{Object, Value},
+        Agent, JsResult,
+        Object, Value,
     },
     engine::context::{GcScope, NoGcScope},
 };

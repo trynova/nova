@@ -4,7 +4,7 @@
 
 use super::Object;
 use crate::{
-    ecmascript::builtins::ordinary::shape::{ObjectShape, ObjectShapeRecord},
+    ecmascript::{ObjectShape, ObjectShapeRecord},
     engine::context::{Bindable, bindable_handle},
     heap::{
         CompactionLists, HeapMarkAndSweep, WorkQueues,

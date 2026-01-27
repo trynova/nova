@@ -17,19 +17,10 @@ static START_TIME: LazyLock<std::time::Instant> = LazyLock::new(std::time::Insta
 
 use nova_vm::{
     ecmascript::{
-        builtins::{
-            ArgumentsList, Behaviour, BuiltinFunctionArgs, RegularFn, SharedArrayBuffer,
-            create_builtin_function,
-        },
-        execution::{
-            Agent, JsResult,
-            agent::{ExceptionType, GcAgent, HostHooks, Job, Options, unwrap_try},
-        },
-        scripts_and_modules::script::{parse_script, script_evaluation},
-        types::{
-            BigInt, Function, InternalMethods, Number, Object, OrdinaryObject, PropertyDescriptor,
-            PropertyKey, String, Value,
-        },
+        Agent, ArgumentsList, Behaviour, BigInt, BuiltinFunctionArgs, ExceptionType, Function,
+        GcAgent, HostHooks, InternalMethods, Job, JsResult, Number, Object, Options,
+        OrdinaryObject, PropertyDescriptor, PropertyKey, RegularFn, SharedArrayBuffer, String,
+        Value, create_builtin_function, parse_script, script_evaluation, unwrap_try,
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},

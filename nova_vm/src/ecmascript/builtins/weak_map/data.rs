@@ -7,7 +7,7 @@ use ahash::AHashMap;
 use crate::{
     ecmascript::{
         execution::WeakKey,
-        types::{OrdinaryObject, Value},
+        OrdinaryObject, Value,
     },
     engine::context::bindable_handle,
     heap::{CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues},

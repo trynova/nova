@@ -26,19 +26,10 @@ use helper::{
 };
 use nova_vm::{
     ecmascript::{
-        execution::{
-            Agent, JsResult,
-            agent::{ExceptionType, GcAgent, HostHooks, Job, Options},
-        },
-        scripts_and_modules::{
-            module::module_semantics::{
-                ModuleRequest, Referrer, abstract_module_records::AbstractModule,
-                cyclic_module_records::GraphLoadingStateRecord, finish_loading_imported_module,
-                source_text_module_records::parse_module,
-            },
-            script::{HostDefined, parse_script, script_evaluation},
-        },
-        types::{Object, SharedDataBlock, String as JsString, Value},
+        AbstractModule, Agent, ExceptionType, GcAgent, GraphLoadingStateRecord, HostDefined,
+        HostHooks, Job, JsResult, ModuleRequest, Object, Options, Referrer, SharedDataBlock,
+        String as JsString, Value, finish_loading_imported_module, parse_module, parse_script,
+        script_evaluation,
     },
     engine::{
         Global,

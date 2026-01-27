@@ -5,14 +5,9 @@
 use crate::{
     SmallInteger,
     ecmascript::{
-        abstract_operations::type_conversion::to_integer_or_infinity,
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin,
-            primitive_objects::{PrimitiveObject, PrimitiveObjectData, PrimitiveObjectRecord},
-        },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Number, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType, JsResult,
+        Number, OrdinaryObjectBuilder, PrimitiveObject, PrimitiveObjectData, PrimitiveObjectRecord,
+        Realm, String, Value, to_integer_or_infinity,
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},

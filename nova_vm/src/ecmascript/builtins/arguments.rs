@@ -31,15 +31,12 @@ use std::collections::TryReserveError;
 use ahash::AHashMap;
 
 use crate::{
-    ecmascript::{
-        execution::agent::Agent,
-        types::{BUILTIN_STRING_MEMORY, Number, Object, OrdinaryObject, Value},
-    },
+    ecmascript::{BUILTIN_STRING_MEMORY, Number, Object, OrdinaryObject, Value, Agent,},
     engine::context::{Bindable, NoGcScope},
     heap::{WellKnownSymbolIndexes, element_array::ElementDescriptor},
 };
 
-use super::{ScopedArgumentsList, ordinary::shape::ObjectShape};
+use super::{ObjectShape, ScopedArgumentsList};
 
 /// ### [10.4.4.6 CreateUnmappedArgumentsObject ( argumentsList )](https://tc39.es/ecma262/#sec-createunmappedargumentsobject)
 ///

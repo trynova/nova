@@ -6,13 +6,9 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::{get, try_get},
-        builtins::promise::{Promise, PromiseHeapData, PromiseState},
-        execution::{
-            Agent, JsResult,
-            agent::{ExceptionType, PromiseRejectionTrackerOperation, TryError, TryResult},
-        },
-        types::{BUILTIN_STRING_MEMORY, Function, Object, TryGetResult, Value},
+        Agent, BUILTIN_STRING_MEMORY, ExceptionType, Function, JsResult, Object, Promise,
+        PromiseHeapData, PromiseRejectionTrackerOperation, PromiseState, TryError, TryGetResult,
+        TryResult, Value, get, try_get,
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},

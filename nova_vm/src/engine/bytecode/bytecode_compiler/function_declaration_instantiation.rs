@@ -10,16 +10,9 @@ use oxc_ecmascript::BoundNames;
 
 use crate::{
     ecmascript::{
-        builtins::FunctionAstRef,
-        syntax_directed_operations::{
-            contains::{Contains, ContainsSymbol},
-            function_definitions::ContainsExpression,
-            scope_analysis::{
-                LexicallyDeclaredNames, LexicallyScopedDeclaration, LexicallyScopedDeclarations,
-                VarDeclaredNames, VarScopedDeclaration, VarScopedDeclarations,
-            },
-        },
-        types::{BUILTIN_STRING_MEMORY, Value},
+        BUILTIN_STRING_MEMORY, Contains, ContainsExpression, ContainsSymbol, FunctionAstRef,
+        LexicallyDeclaredNames, LexicallyScopedDeclaration, LexicallyScopedDeclarations, Value,
+        VarDeclaredNames, VarScopedDeclaration, VarScopedDeclarations,
     },
     engine::{
         Instruction,

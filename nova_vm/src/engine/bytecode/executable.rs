@@ -4,14 +4,8 @@
 
 use crate::{
     ecmascript::{
-        builtins::ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
-        execution::Agent,
-        scripts_and_modules::{
-            module::module_semantics::source_text_module_records::SourceTextModule, script::Script,
-            source_code::SourceCode,
-        },
-        syntax_directed_operations::function_definitions::CompileFunctionBodyData,
-        types::{PropertyKey, String, Value},
+        Agent, CompileFunctionBodyData, ObjectShape, PropertyKey, PropertyLookupCache, Script,
+        SourceCode, SourceTextModule, String, Value,
     },
     engine::{
         Scoped,

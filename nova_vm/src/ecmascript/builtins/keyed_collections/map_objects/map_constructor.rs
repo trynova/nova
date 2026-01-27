@@ -9,35 +9,14 @@ use ahash::AHasher;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_iterator_objects::{
-                IteratorRecord, get_iterator, if_abrupt_close_iterator, iterator_close_with_error,
-                iterator_step_value,
-            },
-            operations_on_objects::{
-                call_function, create_array_from_list, get, get_method, group_by_collection,
-                throw_not_callable, try_get,
-            },
-            testing_and_comparison::{is_callable, same_value},
-        },
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
-            array::ArrayHeap,
-            keyed_collections::map_objects::map_prototype::{
-                MapPrototypeSet, canonicalize_keyed_collection_key,
-            },
-            map::{Map, MapHeapData},
-            ordinary::ordinary_create_from_constructor,
-        },
-        execution::{
-            Agent, JsResult, ProtoIntrinsics, Realm,
-            agent::{ExceptionType, TryError},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, Object, PropertyKey, String, TryGetResult, Value,
-            handle_try_get_result,
-        },
+        Agent, ArgumentsList, ArrayHeap, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        BuiltinFunctionBuilder, BuiltinGetter, BuiltinIntrinsicConstructor, ExceptionType,
+        Function, IteratorRecord, JsResult, Map, MapHeapData, MapPrototypeSet, Object, PropertyKey,
+        ProtoIntrinsics, Realm, String, TryError, TryGetResult, Value, call_function,
+        canonicalize_keyed_collection_key, create_array_from_list, get, get_iterator, get_method,
+        group_by_collection, handle_try_get_result, if_abrupt_close_iterator, is_callable,
+        iterator_close_with_error, iterator_step_value, ordinary_create_from_constructor,
+        same_value, throw_not_callable, try_get,
     },
     engine::{
         context::{Bindable, GcScope},
@@ -281,7 +260,7 @@ impl MapConstructor {
 /// #### Unspecified specialization
 ///
 /// This is a specialization for the `new Map()` use case.
-pub fn add_entries_from_iterable_map_constructor<'a>(
+pub(crate) fn add_entries_from_iterable_map_constructor<'a>(
     agent: &mut Agent,
     target: Map,
     iterable: Value,

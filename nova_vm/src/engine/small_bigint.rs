@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::{SmallInteger, ecmascript::types::numeric_value};
+use crate::{SmallInteger, ecmascript::numeric_value};
 
 /// 56-bit signed integer.
 #[derive(Clone, Copy, PartialEq, Eq)]

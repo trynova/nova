@@ -10,49 +10,18 @@ use wtf8::Wtf8Buf;
 use crate::{
     SmallInteger,
     ecmascript::{
-        abstract_operations::{
-            operations_on_iterator_objects::{get_iterator_from_method, iterator_to_list},
-            operations_on_objects::{
-                call_function, get, get_method, invoke, length_of_array_like, set,
-                throw_not_callable, try_get, try_length_of_array_like,
-            },
-            testing_and_comparison::{is_callable, is_constructor, same_value_zero},
-            type_conversion::{
-                to_big_int, to_big_int_primitive, to_boolean, to_integer_or_infinity, to_number,
-                to_number_primitive, to_object, to_string, try_to_integer_or_infinity,
-                try_to_string,
-            },
-        },
-        builders::{
-            builtin_function_builder::BuiltinFunctionBuilder,
-            ordinary_object_builder::OrdinaryObjectBuilder,
-        },
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
-            BuiltinIntrinsicConstructor,
-            indexed_collections::{
-                array_objects::{
-                    array_iterator_objects::array_iterator::{
-                        ArrayIterator, CollectionIteratorKind,
-                    },
-                    array_prototype::find_via_predicate,
-                },
-                typed_array_objects::abstract_operations::{
-                    TypedArrayAbstractOperations, try_typed_array_species_create_with_length,
-                    typed_array_create_from_data_block,
-                },
-            },
-            typed_array::{AnyTypedArray, for_any_typed_array},
-        },
-        execution::{
-            Agent, JsResult, Realm,
-            agent::{ExceptionType, try_result_into_js, unwrap_try},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, Number, Numeric, Object, Primitive,
-            PropertyKey, String, TryGetResult, Value, unwrap_try_get_value,
-            unwrap_try_get_value_or_unset,
-        },
+        Agent, AnyTypedArray, ArgumentsList, ArrayIterator, BUILTIN_STRING_MEMORY, Behaviour,
+        Builtin, BuiltinFunctionBuilder, BuiltinGetter, BuiltinIntrinsic,
+        BuiltinIntrinsicConstructor, CollectionIteratorKind, ExceptionType, InternalMethods,
+        JsResult, Number, Numeric, Object, OrdinaryObjectBuilder, Primitive, PropertyKey, Realm,
+        String, TryGetResult, TypedArrayAbstractOperations, Value, call_function,
+        find_via_predicate, for_any_typed_array, get, get_iterator_from_method, get_method, invoke,
+        is_callable, is_constructor, iterator_to_list, length_of_array_like, same_value_zero, set,
+        throw_not_callable, to_big_int, to_big_int_primitive, to_boolean, to_integer_or_infinity,
+        to_number, to_number_primitive, to_object, to_string, try_get, try_length_of_array_like,
+        try_result_into_js, try_to_integer_or_infinity, try_to_string,
+        try_typed_array_species_create_with_length, typed_array_create_from_data_block, unwrap_try,
+        unwrap_try_get_value, unwrap_try_get_value_or_unset,
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
@@ -108,7 +77,7 @@ impl TypedArrayIntrinsicObject {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         Err(agent.throw_exception_with_static_message(
-            crate::ecmascript::execution::agent::ExceptionType::TypeError,
+            crate::ecmascript::ExceptionType::TypeError,
             "Abstract class TypedArray not directly constructable",
             gc.into_nogc(),
         ))
@@ -3136,7 +3105,7 @@ pub(crate) fn require_internal_slot_typed_array<'a>(
     // 1. Perform ? RequireInternalSlot(O, [[TypedArrayName]]).
     AnyTypedArray::try_from(o.unbind()).map_err(|_| {
         agent.throw_exception_with_static_message(
-            crate::ecmascript::execution::agent::ExceptionType::TypeError,
+            crate::ecmascript::ExceptionType::TypeError,
             "Expected this to be TypedArray",
             gc,
         )

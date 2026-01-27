@@ -6,21 +6,12 @@
 
 use crate::{
     ecmascript::{
-        builtins::ordinary::caches::PropertyLookupCache,
-        execution::{
-            Agent, ECMAScriptCode, Environment, ExecutionContext, GlobalEnvironment, JsResult,
-            Realm, agent::ExceptionType,
-        },
-        scripts_and_modules::ScriptOrModule,
-        syntax_directed_operations::{
-            miscellaneous::instantiate_function_object,
-            scope_analysis::{
-                LexicallyScopedDeclaration, VarScopedDeclaration, script_lexically_declared_names,
-                script_lexically_scoped_declarations, script_var_declared_names,
-                script_var_scoped_declarations,
-            },
-        },
-        types::{BUILTIN_STRING_MEMORY, String, Value},
+        AbstractModule, Agent, BUILTIN_STRING_MEMORY, ECMAScriptCode, Environment, ExceptionType,
+        ExecutionContext, GlobalEnvironment, JsResult, LexicallyScopedDeclaration, LoadedModules,
+        ModuleRequest, ParseResult, PropertyLookupCache, Realm, ScriptOrModule, SourceCode,
+        SourceCodeType, String, Value, VarScopedDeclaration, instantiate_function_object,
+        script_lexically_declared_names, script_lexically_scoped_declarations,
+        script_var_declared_names, script_var_scoped_declarations,
     },
     engine::{
         Executable, Vm,
@@ -40,13 +31,6 @@ use oxc_ast::ast;
 use oxc_diagnostics::OxcDiagnostic;
 use oxc_ecmascript::BoundNames;
 use std::{ptr::NonNull, rc::Rc};
-
-use super::{
-    module::module_semantics::{
-        LoadedModules, ModuleRequest, abstract_module_records::AbstractModule,
-    },
-    source_code::{ParseResult, SourceCode, SourceCodeType},
-};
 
 pub type HostDefined = Rc<dyn Any>;
 
@@ -670,22 +654,12 @@ mod test {
     use std::ops::ControlFlow;
 
     use crate::{
-        SmallInteger,
         ecmascript::{
-            abstract_operations::operations_on_objects::create_data_property_or_throw,
-            builtins::{
-                ArgumentsList, Array, Behaviour, BuiltinFunctionArgs, create_builtin_function,
-            },
-            execution::{
-                Agent, DefaultHostHooks, JsResult, TryHasBindingContinue,
-                agent::{ExceptionType, Options, unwrap_try},
-                initialize_default_realm,
-            },
-            scripts_and_modules::script::{parse_script, script_evaluation},
-            types::{
-                BUILTIN_STRING_MEMORY, InternalMethods, Number, Object, PropertyKey, String,
-                TryHasResult, Value,
-            },
+            Agent, ArgumentsList, Array, BUILTIN_STRING_MEMORY, Behaviour, BuiltinFunctionArgs,
+            DefaultHostHooks, ExceptionType, InternalMethods, JsResult, Number, Object, Options,
+            PropertyKey, SmallInteger, String, TryHasBindingContinue, TryHasResult, Value,
+            create_builtin_function, create_data_property_or_throw, initialize_default_realm,
+            parse_script, script_evaluation, unwrap_try,
         },
         engine::{
             context::{Bindable, GcScope},

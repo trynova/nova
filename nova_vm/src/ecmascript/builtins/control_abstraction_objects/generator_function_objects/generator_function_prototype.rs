@@ -3,11 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    ecmascript::{
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        execution::{Agent, Realm},
-        types::BUILTIN_STRING_MEMORY,
-    },
+    ecmascript::{Agent, BUILTIN_STRING_MEMORY, OrdinaryObjectBuilder, Realm},
     heap::WellKnownSymbolIndexes,
 };
 

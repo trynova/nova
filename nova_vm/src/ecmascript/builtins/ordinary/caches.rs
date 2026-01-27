@@ -7,10 +7,7 @@ use std::{marker::PhantomData, num::NonZeroU32};
 use hashbrown::{HashTable, hash_table::Entry};
 
 use crate::{
-    ecmascript::{
-        execution::{Agent, agent::TryResult},
-        types::{InternalMethods, Object, PropertyKey, Value},
-    },
+    ecmascript::{Agent, InternalMethods, Object, PropertyKey, TryResult, Value},
     engine::{
         context::{Bindable, GcToken, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
@@ -21,7 +18,7 @@ use crate::{
     },
 };
 
-use super::shape::ObjectShape;
+use super::ObjectShape;
 
 /// Heap structure holding all property lookup caches, cache-caches, and other
 /// related features.

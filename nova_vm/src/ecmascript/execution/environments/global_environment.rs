@@ -8,24 +8,11 @@ use ahash::AHashSet;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{
-                define_property_or_throw, has_own_property, set, try_has_own_property,
-            },
-            testing_and_comparison::is_extensible,
-        },
-        builtins::ordinary::caches::PropertyLookupCache,
-        execution::{
-            Agent, JsResult,
-            agent::{ExceptionType, TryError, TryResult, js_result_into_try},
-            environments::{
-                DeclarativeEnvironment, DeclarativeEnvironmentRecord, GlobalEnvironment,
-                ObjectEnvironment, ObjectEnvironmentRecord,
-            },
-        },
-        types::{
-            InternalMethods, Object, PropertyDescriptor, PropertyKey, SetResult, String, Value,
-        },
+        Agent, DeclarativeEnvironment, DeclarativeEnvironmentRecord, ExceptionType,
+        GlobalEnvironment, InternalMethods, JsResult, Object, ObjectEnvironment,
+        ObjectEnvironmentRecord, PropertyDescriptor, PropertyKey, PropertyLookupCache, SetResult,
+        String, TryError, TryResult, Value, define_property_or_throw, has_own_property,
+        is_extensible, js_result_into_try, set, try_has_own_property,
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},

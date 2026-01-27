@@ -9,7 +9,7 @@ use wtf8::Wtf8Buf;
 use crate::{
     ecmascript::{
         execution::Agent,
-        types::{OrdinaryObject, PropertyDescriptor, String, Value},
+        OrdinaryObject, PropertyDescriptor, String, Value,
     },
     engine::context::bindable_handle,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},

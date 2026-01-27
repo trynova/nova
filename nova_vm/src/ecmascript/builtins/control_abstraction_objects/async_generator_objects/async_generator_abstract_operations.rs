@@ -4,23 +4,9 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_iterator_objects::create_iter_result_object,
-        builtins::{
-            ECMAScriptFunction,
-            control_abstraction_objects::promise_objects::{
-                promise_abstract_operations::{
-                    promise_capability_records::PromiseCapability,
-                    promise_reaction_records::PromiseReactionHandler,
-                },
-                promise_prototype::inner_promise_then,
-            },
-            promise::Promise,
-        },
-        execution::{
-            Agent, JsResult, Realm,
-            agent::{ExceptionType, JsError, unwrap_try},
-        },
-        types::Value,
+        Agent, ECMAScriptFunction, ExceptionType, JsError, JsResult, Promise, PromiseCapability,
+        PromiseReactionHandler, Realm, Value, create_iter_result_object, inner_promise_then,
+        unwrap_try,
     },
     engine::{
         ExecutionResult, Scoped, SuspendedVm,
@@ -40,7 +26,7 @@ use super::{
 /// The abstract operation AsyncGeneratorValidate takes arguments generator (an
 /// ECMAScript language value) and generatorBrand (a String or empty) and
 /// returns either a normal completion containing unused or a throw completion.
-pub(super) fn async_generator_validate<'a>(
+pub(crate) fn async_generator_validate<'a>(
     agent: &mut Agent,
     generator: Value,
     _generator_brand: (),
@@ -67,7 +53,7 @@ pub(super) fn async_generator_validate<'a>(
 /// The abstract operation AsyncGeneratorEnqueue takes arguments generator (an
 /// AsyncGenerator), completion (a Completion Record), and promiseCapability
 /// (a PromiseCapability Record) and returns unused.
-pub(super) fn async_generator_enqueue(
+pub(crate) fn async_generator_enqueue(
     agent: &mut Agent,
     generator: AsyncGenerator,
     completion: AsyncGeneratorRequestCompletion,
@@ -149,7 +135,7 @@ fn async_generator_complete_step(
 ///
 /// The abstract operation AsyncGeneratorResume takes arguments generator (an
 /// AsyncGenerator) and completion (a Completion Record) and returns unused.
-pub(super) fn async_generator_resume(
+pub(crate) fn async_generator_resume(
     agent: &mut Agent,
     generator: AsyncGenerator,
     completion: AsyncGeneratorRequestCompletion,
@@ -403,7 +389,7 @@ pub(super) fn async_generator_yield(
 ///
 /// The abstract operation AsyncGeneratorAwaitReturn takes argument generator
 /// (an AsyncGenerator) and returns unused.
-pub(super) fn async_generator_await_return(
+pub(crate) fn async_generator_await_return(
     agent: &mut Agent,
     scoped_generator: Scoped<AsyncGenerator>,
     mut gc: GcScope,

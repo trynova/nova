@@ -5,7 +5,7 @@
 use crate::{
     ecmascript::{
         execution::Agent,
-        types::{Function, PropertyKey, Value},
+        Function, PropertyKey, Value,
     },
     heap::element_array::ElementDescriptor,
 };

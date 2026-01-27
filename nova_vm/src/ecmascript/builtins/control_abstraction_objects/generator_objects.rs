@@ -4,12 +4,8 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_iterator_objects::create_iter_result_object,
-        execution::{
-            Agent, ExecutionContext, JsResult, ProtoIntrinsics,
-            agent::{ExceptionType, JsError},
-        },
-        types::{InternalMethods, InternalSlots, OrdinaryObject, Value, object_handle},
+        Agent, ExceptionType, ExecutionContext, InternalMethods, InternalSlots, JsError, JsResult,
+        OrdinaryObject, ProtoIntrinsics, Value, create_iter_result_object, object_handle,
     },
     engine::{
         Executable, ExecutionResult, SuspendedVm,

@@ -5,17 +5,17 @@
 mod data;
 mod radix;
 
+pub(crate) use data::*;
+pub(crate) use radix::*;
+
+pub use crate::SmallInteger;
+
 use super::{
     Numeric, Primitive, String, Value,
     value::{FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT},
 };
 use crate::{
-    SmallInteger,
-    ecmascript::{
-        abstract_operations::type_conversion::{to_int32_number, to_uint32_number},
-        execution::Agent,
-        types::language::numeric::numeric_handle,
-    },
+    ecmascript::{Agent, numeric_handle, to_int32_number, to_uint32_number},
     engine::{
         context::{Bindable, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
@@ -27,10 +27,7 @@ use crate::{
     },
 };
 
-pub(crate) use data::*;
 use num_traits::{PrimInt, Zero};
-use radix::make_float_string_ascii_lowercase;
-pub(crate) use radix::with_radix;
 
 /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
 #[derive(Clone, Copy, PartialEq)]
@@ -1663,25 +1660,25 @@ pub(crate) enum BitwiseOp {
 
 macro_rules! number_value {
     ($name: tt) => {
-        crate::ecmascript::types::number_value!($name, $name);
+        crate::ecmascript::number_value!($name, $name);
     };
     ($name: ident, $variant: ident) => {
-        crate::ecmascript::types::numeric_value!($name, $variant);
+        crate::ecmascript::numeric_value!($name, $variant);
 
-        impl From<$name> for crate::ecmascript::types::Number<'static> {
+        impl From<$name> for crate::ecmascript::Number<'static> {
             #[inline(always)]
             fn from(value: $name) -> Self {
                 Self::$variant(value)
             }
         }
 
-        impl TryFrom<crate::ecmascript::types::Number<'_>> for $name {
+        impl TryFrom<crate::ecmascript::Number<'_>> for $name {
             type Error = ();
 
             #[inline]
-            fn try_from(value: crate::ecmascript::types::Number) -> Result<Self, Self::Error> {
+            fn try_from(value: crate::ecmascript::Number) -> Result<Self, Self::Error> {
                 match value {
-                    crate::ecmascript::types::Number::$variant(data) => Ok(data),
+                    crate::ecmascript::Number::$variant(data) => Ok(data),
                     _ => Err(()),
                 }
             }
@@ -1694,10 +1691,7 @@ pub(crate) use number_value;
 mod tests {
     use super::Number;
     use crate::{
-        ecmascript::execution::{
-            Agent,
-            agent::{HostHooks, Job, Options},
-        },
+        ecmascript::{Agent, HostHooks, Job, Options},
         engine::context::GcScope,
     };
 

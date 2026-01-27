@@ -6,11 +6,17 @@
 
 mod abstract_operations;
 mod data;
+
+pub(crate) use abstract_operations::*;
+pub(crate) use data::*;
+
+#[cfg(feature = "shared-array-buffer")]
+use super::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::types::SHARED_ARRAY_BUFFER_DISCRIMINANT;
 use crate::{
     ecmascript::{
-        execution::{Agent, JsResult, ProtoIntrinsics},
+        Agent, JsResult, ProtoIntrinsics,
         types::{
             ARRAY_BUFFER_DISCRIMINANT, InternalMethods, InternalSlots, Object, OrdinaryObject,
             Value, Viewable, copy_data_block_bytes, create_byte_data_block,
@@ -27,13 +33,7 @@ use crate::{
     },
 };
 
-use abstract_operations::detach_array_buffer;
-pub(crate) use abstract_operations::*;
-pub(crate) use data::*;
 use ecmascript_atomics::Ordering;
-
-#[cfg(feature = "shared-array-buffer")]
-use super::shared_array_buffer::SharedArrayBuffer;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
@@ -47,7 +47,8 @@ impl<'ab> ArrayBuffer<'ab> {
         byte_length: usize,
         gc: NoGcScope<'gc, '_>,
     ) -> JsResult<'gc, ArrayBuffer<'gc>> {
-        let block = create_byte_data_block(agent, byte_length as u64, gc)?;
+        let data_block = create_byte_data_block(agent, byte_length as u64, gc)?;
+        let block = data_block;
         Ok(agent
             .heap
             .create(ArrayBufferHeapData::new_fixed_length(block))

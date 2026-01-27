@@ -8,33 +8,14 @@ use wtf8::{CodePoint, Wtf8Buf};
 use crate::{
     SmallInteger,
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{
-                call_function, create_data_property, enumerable_own_keys, get, get_v,
-                length_of_array_like, scoped_enumerable_own_keys, try_create_data_property,
-                try_create_data_property_or_throw,
-            },
-            testing_and_comparison::{is_array, is_callable},
-            type_conversion::{
-                to_integer_or_infinity_number, to_number, to_property_key, to_property_key_simple,
-                to_string,
-            },
-        },
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin,
-            array::abstract_operations::array_create,
-            ordinary::ordinary_object_create_with_intrinsics,
-            primitive_objects::{PrimitiveObject, PrimitiveObjectData},
-        },
-        execution::{
-            Agent, JsResult, ProtoIntrinsics, Realm,
-            agent::{ExceptionType, unwrap_try},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, InternalMethods, Number, Object, Primitive,
-            PropertyDescriptor, PropertyKey, ScopedPropertyKey, String, Value,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType, Function,
+        InternalMethods, JsResult, Number, Object, OrdinaryObjectBuilder, Primitive,
+        PrimitiveObject, PrimitiveObjectData, PropertyDescriptor, PropertyKey, ProtoIntrinsics,
+        Realm, ScopedPropertyKey, String, Value, array_create, call_function, create_data_property,
+        enumerable_own_keys, get, get_v, is_array, is_callable, length_of_array_like,
+        ordinary_object_create_with_intrinsics, scoped_enumerable_own_keys,
+        to_integer_or_infinity_number, to_number, to_property_key, to_property_key_simple,
+        to_string, try_create_data_property, try_create_data_property_or_throw, unwrap_try,
     },
     engine::{
         ScopableCollection, Scoped, ScopedCollection,

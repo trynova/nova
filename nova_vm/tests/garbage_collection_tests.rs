@@ -2,21 +2,16 @@ use std::{fs, path::PathBuf};
 
 use nova_vm::{
     ecmascript::{
-        execution::{
-            Agent, DefaultHostHooks,
-            agent::{GcAgent, Options},
-        },
-        scripts_and_modules::script::{parse_script, script_evaluation},
-        types::{Object, String, Value},
+        Agent, DefaultHostHooks, GcAgent, Object, Options, String, Value, parse_script,
+        script_evaluation,
     },
     engine::context::{Bindable, GcScope},
 };
 
 fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope) {
     use nova_vm::ecmascript::{
-        builtins::{ArgumentsList, Behaviour, BuiltinFunctionArgs, create_builtin_function},
-        execution::JsResult,
-        types::{InternalMethods, PropertyDescriptor, PropertyKey},
+        ArgumentsList, Behaviour, BuiltinFunctionArgs, InternalMethods, PropertyDescriptor,
+        PropertyKey, create_builtin_function, JsResult,
     };
 
     // `print` function

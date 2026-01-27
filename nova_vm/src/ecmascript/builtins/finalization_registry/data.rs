@@ -7,8 +7,8 @@ use soavec_derive::SoAble;
 
 use crate::{
     ecmascript::{
-        execution::{Realm, WeakKey},
-        types::{Function, OrdinaryObject, Value},
+        Realm, WeakKey,
+        Function, OrdinaryObject, Value,
     },
     engine::context::{Bindable, bindable_handle},
     heap::{

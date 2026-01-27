@@ -6,36 +6,14 @@
 use crate::heap::ArenaAccessSoA;
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_iterator_objects::{
-                IteratorRecord, get_iterator, iterator_close_with_error, iterator_step_value,
-            },
-            operations_on_objects::{call, call_function, get},
-            testing_and_comparison::{is_callable, is_constructor},
-        },
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
-            array::abstract_operations::array_create,
-            control_abstraction_objects::promise_objects::{
-                promise_abstract_operations::{
-                    promise_group_record::{PromiseGroupRecord, PromiseGroupType},
-                    promise_reaction_records::PromiseReactionHandler,
-                },
-                promise_prototype::inner_promise_then,
-            },
-            ordinary::ordinary_create_from_constructor,
-            promise::{
-                Promise, {PromiseHeapData, PromiseState},
-            },
-        },
-        execution::{
-            Agent, JsResult, ProtoIntrinsics, Realm,
-            agent::{ExceptionType, JsError},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, Object, OrdinaryObject, PropertyKey, String, Value,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinFunctionBuilder,
+        BuiltinGetter, BuiltinIntrinsicConstructor, ExceptionType, Function, IteratorRecord,
+        JsError, JsResult, Object, OrdinaryObject, Promise, PromiseCapability, PromiseGroupRecord,
+        PromiseGroupType, PromiseHeapData, PromiseReactionHandler,
+        PromiseResolvingFunctionHeapData, PromiseResolvingFunctionType, PromiseState, PropertyKey,
+        ProtoIntrinsics, Realm, String, Value, array_create, call, call_function, get,
+        get_iterator, inner_promise_then, is_callable, is_constructor, iterator_close_with_error,
+        iterator_step_value, ordinary_create_from_constructor,
     },
     engine::{
         Scoped,
@@ -43,11 +21,6 @@ use crate::{
         rootable::Scopable,
     },
     heap::{CreateHeapData, IntrinsicConstructorIndexes, ObjectEntry, WellKnownSymbolIndexes},
-};
-
-use super::promise_abstract_operations::{
-    promise_capability_records::PromiseCapability,
-    promise_resolving_functions::{PromiseResolvingFunctionHeapData, PromiseResolvingFunctionType},
 };
 
 pub(crate) struct PromiseConstructor;

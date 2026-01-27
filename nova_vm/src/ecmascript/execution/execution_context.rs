@@ -4,10 +4,7 @@
 
 use super::{Agent, Environment, JsResult, PrivateEnvironment, Realm, get_this_environment};
 use crate::{
-    ecmascript::{
-        scripts_and_modules::{ScriptOrModule, source_code::SourceCode},
-        types::*,
-    },
+    ecmascript::{Function, Object, ScriptOrModule, SourceCode, Value},
     engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
@@ -66,7 +63,7 @@ pub(crate) struct ExecutionContext {
     ///
     /// Any state needed to perform, suspend, and resume evaluation of the code
     /// associated with this execution context.
-    pub ecmascript_code: Option<ECMAScriptCodeEvaluationState>,
+    pub(crate) ecmascript_code: Option<ECMAScriptCodeEvaluationState>,
 
     /// ### Function
     ///
@@ -74,13 +71,13 @@ pub(crate) struct ExecutionContext {
     /// then the value of this component is that function object. If the
     /// context is evaluating the code of a Script or Module, the value is
     /// null.
-    pub function: Option<Function<'static>>,
+    pub(crate) function: Option<Function<'static>>,
 
     /// ### Realm
     ///
     /// The Realm Record from which associated code accesses ECMAScript
     /// resources.
-    pub realm: Realm<'static>,
+    pub(crate) realm: Realm<'static>,
 
     /// ### ScriptOrModule
     ///
@@ -88,7 +85,7 @@ pub(crate) struct ExecutionContext {
     /// originates. If there is no originating script or module, as is the case
     /// for the original execution context created in
     /// InitializeHostDefinedRealm, the value is null.
-    pub script_or_module: Option<ScriptOrModule<'static>>,
+    pub(crate) script_or_module: Option<ScriptOrModule<'static>>,
 }
 
 impl ExecutionContext {

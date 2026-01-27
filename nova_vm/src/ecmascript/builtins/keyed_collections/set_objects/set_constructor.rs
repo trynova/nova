@@ -8,22 +8,12 @@ use ahash::AHasher;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_iterator_objects::{
-                IteratorRecord, get_iterator, if_abrupt_close_iterator, iterator_step_value,
-            },
-            operations_on_objects::{call_function, get, throw_not_callable},
-            testing_and_comparison::is_callable,
-        },
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
-            array::ArrayHeap,
-            keyed_collections::map_objects::map_prototype::canonicalize_keyed_collection_key,
-            ordinary::ordinary_create_from_constructor, set::Set,
-        },
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Function, Object, PropertyKey, String, Value},
+        Agent, ArgumentsList, ArrayHeap, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        BuiltinFunctionBuilder, BuiltinGetter, BuiltinIntrinsicConstructor, ExceptionType,
+        Function, IteratorRecord, JsResult, Object, PropertyKey, ProtoIntrinsics, Realm, Set,
+        String, Value, call_function, canonicalize_keyed_collection_key, get, get_iterator,
+        if_abrupt_close_iterator, is_callable, iterator_step_value,
+        ordinary_create_from_constructor, throw_not_callable,
     },
     engine::{
         context::{Bindable, GcScope},

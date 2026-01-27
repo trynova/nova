@@ -6,28 +6,13 @@ use core::ops::ControlFlow;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{
-                call_function, create_list_from_array_like, has_own_property,
-                ordinary_has_instance, try_get, try_has_own_property,
-            },
-            testing_and_comparison::is_callable,
-            type_conversion::to_integer_or_infinity_number,
-        },
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinFunction, BuiltinIntrinsic,
-            BuiltinIntrinsicConstructor, SetFunctionNamePrefix,
-            bound_function::bound_function_create, ecmascript_function::set_function_name,
-        },
-        execution::{
-            Agent, JsResult, Realm,
-            agent::{ExceptionType, TryError, TryResult},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, InternalSlots, Number, OrdinaryObject, PropertyKey,
-            String, TryGetResult, Value, handle_try_get_result,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinFunction,
+        BuiltinFunctionBuilder, BuiltinIntrinsic, BuiltinIntrinsicConstructor, ExceptionType,
+        Function, InternalSlots, JsResult, Number, OrdinaryObject, PropertyKey, Realm,
+        SetFunctionNamePrefix, String, TryError, TryGetResult, TryResult, Value,
+        bound_function_create, call_function, create_list_from_array_like, handle_try_get_result,
+        has_own_property, is_callable, ordinary_has_instance, set_function_name,
+        to_integer_or_infinity_number, try_get, try_has_own_property,
     },
     engine::{
         context::{Bindable, GcScope},
@@ -460,7 +445,7 @@ impl FunctionPrototype {
         ThrowTypeError::create_intrinsic(agent, realm);
 
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
-        let object_prototype = intrinsics.object_prototype().into();
+        let object_prototype = intrinsics.object_prototype();
         let throw_type_error = intrinsics.throw_type_error().into();
         let function_constructor = intrinsics.function();
 

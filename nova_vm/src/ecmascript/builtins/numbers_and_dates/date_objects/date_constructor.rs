@@ -7,17 +7,10 @@ use std::time::SystemTime;
 use crate::{
     SmallInteger,
     ecmascript::{
-        abstract_operations::type_conversion::{to_number, to_primitive},
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor, Date, date::DateValue,
-            ordinary::ordinary_create_from_constructor,
-        },
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm},
-        numbers_and_dates::date_objects::date_prototype::{
-            make_date, make_day, make_full_year, make_time, utc,
-        },
-        types::{BUILTIN_STRING_MEMORY, Function, Number, Object, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinFunctionBuilder,
+        BuiltinIntrinsicConstructor, Date, DateValue, Function, JsResult, Number, Object,
+        ProtoIntrinsics, Realm, String, Value, ordinary_create_from_constructor, to_number,
+        to_primitive,
     },
     engine::{
         context::{Bindable, GcScope},
@@ -26,9 +19,11 @@ use crate::{
     heap::{ArenaAccessMut, IntrinsicConstructorIndexes},
 };
 
-use super::date_prototype::{MS_PER_MINUTE, to_date_string};
+use super::date_prototype::{
+    MS_PER_MINUTE, make_date, make_day, make_full_year, make_time, to_date_string, utc,
+};
 
-pub struct DateConstructor;
+pub(crate) struct DateConstructor;
 
 impl Builtin for DateConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);

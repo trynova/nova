@@ -10,10 +10,7 @@ use super::{
     object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor},
 };
 use crate::{
-    ecmascript::{
-        execution::Agent,
-        types::{Function, PropertyDescriptor, PropertyKey, Value},
-    },
+    ecmascript::{Agent, Function, PropertyDescriptor, PropertyKey, Value},
     engine::context::{Bindable, NoGcScope, bindable_handle},
     heap::indexes::HeapIndexHandle,
 };

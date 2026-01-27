@@ -6,13 +6,10 @@ use num_traits::Pow;
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::{
-            PreferredType, to_big_int, to_big_int_primitive, to_index, to_primitive,
-        },
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, BigInt, Number, Object, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, BigInt, Builtin,
+        BuiltinFunctionBuilder, BuiltinIntrinsicConstructor, ExceptionType, JsResult, Number,
+        Object, PreferredType, Realm, String, Value, to_big_int, to_big_int_primitive, to_index,
+        to_primitive,
     },
     engine::{
         context::{Bindable, GcScope},
@@ -23,7 +20,7 @@ use crate::{
 };
 
 /// ### [21.1.2.1 BigInt ( value )](https://tc39.es/ecma262/#sec-bigint-constructor)
-pub struct BigIntConstructor;
+pub(crate) struct BigIntConstructor;
 
 impl Builtin for BigIntConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);

@@ -4,10 +4,11 @@
 
 mod data;
 
+pub(crate) use data::*;
+
 use crate::{
     ecmascript::{
-        execution::{Agent, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, OrdinaryObject, object_handle},
+        Agent, InternalMethods, InternalSlots, OrdinaryObject, ProtoIntrinsics, object_handle,
     },
     engine::context::Bindable,
     heap::{
@@ -15,9 +16,6 @@ use crate::{
         HeapSweepWeakReference, WorkQueues, arena_vec_access, indexes::BaseIndex,
     },
 };
-
-pub(crate) use self::data::DateHeapData;
-pub(super) use data::DateValue;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]

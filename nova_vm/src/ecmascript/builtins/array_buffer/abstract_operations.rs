@@ -6,16 +6,12 @@ use ecmascript_atomics::Ordering;
 
 use super::{AnyArrayBuffer, ArrayBuffer, InternalBuffer};
 #[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::types::SharedDataBlock;
+use crate::ecmascript::SharedDataBlock;
 use crate::{
     ecmascript::{
-        abstract_operations::{operations_on_objects::get, type_conversion::to_index},
-        builtins::ordinary::ordinary_create_from_constructor,
-        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
-        types::{
-            BUILTIN_STRING_MEMORY, Function, Numeric, Object, Value, Viewable,
-            create_byte_data_block,
-        },
+        Agent, BUILTIN_STRING_MEMORY, ExceptionType, Function, JsResult, Numeric, Object,
+        ProtoIntrinsics, Value, Viewable, create_byte_data_block, get,
+        ordinary_create_from_constructor, to_index,
     },
     engine::context::{Bindable, GcScope, NoGcScope},
     heap::{ArenaAccess, ArenaAccessMut},

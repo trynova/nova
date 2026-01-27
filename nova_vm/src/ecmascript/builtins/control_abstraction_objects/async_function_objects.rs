@@ -2,6 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-pub(crate) mod async_function_constructor;
-pub(crate) mod async_function_prototype;
-pub(crate) mod await_reaction;
+mod async_function_constructor;
+mod async_function_prototype;
+mod await_reaction;
+
+pub(crate) use async_function_constructor::*;
+pub(crate) use async_function_prototype::*;
+pub use await_reaction::*;

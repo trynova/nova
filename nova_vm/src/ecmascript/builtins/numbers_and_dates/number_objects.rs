@@ -2,5 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-pub mod number_constructor;
-pub mod number_prototype;
+mod number_constructor;
+mod number_prototype;
+
+pub(crate) use number_constructor::*;
+pub(crate) use number_prototype::*;

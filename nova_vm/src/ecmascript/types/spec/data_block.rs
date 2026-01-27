@@ -27,13 +27,9 @@ use num_bigint::Sign;
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::{
-            to_big_int64_big_int, to_big_uint64_big_int, to_int8_number, to_int16_number,
-            to_int32_number, to_uint8_clamp_number, to_uint8_number, to_uint16_number,
-            to_uint32_number,
-        },
-        execution::{Agent, JsResult, agent::ExceptionType},
-        types::{BigInt, Number, Numeric, Value},
+        Agent, BigInt, ExceptionType, JsResult, Number, Numeric, Value, to_big_int64_big_int,
+        to_big_uint64_big_int, to_int8_number, to_int16_number, to_int32_number,
+        to_uint8_clamp_number, to_uint8_number, to_uint16_number, to_uint32_number,
     },
     engine::context::{NoGcScope, trivially_bindable},
     heap::ArenaAccess,

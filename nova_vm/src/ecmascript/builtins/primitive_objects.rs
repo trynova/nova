@@ -5,22 +5,15 @@
 use crate::{
     SmallInteger,
     ecmascript::{
-        builtins::ordinary::{
-            is_compatible_property_descriptor, ordinary_define_own_property, ordinary_delete,
-            ordinary_get, ordinary_get_own_property, ordinary_has_property, ordinary_set,
-        },
-        execution::{
-            Agent, JsResult, ProtoIntrinsics,
-            agent::{TryError, TryResult, js_result_into_try, unwrap_try},
-        },
-        types::{
-            BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, BUILTIN_STRING_MEMORY, BigInt,
-            FLOAT_DISCRIMINANT, HeapNumber, HeapString, INTEGER_DISCRIMINANT, InternalMethods,
-            InternalSlots, NUMBER_DISCRIMINANT, Number, Object, OrdinaryObject, Primitive,
-            PropertyDescriptor, PropertyKey, SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT,
-            STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT, SetResult, String, Symbol, TryGetResult,
-            TryHasResult, Value, bigint::HeapBigInt, object_handle,
-        },
+        Agent, BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, BUILTIN_STRING_MEMORY, BigInt,
+        FLOAT_DISCRIMINANT, HeapBigInt, HeapNumber, HeapString, INTEGER_DISCRIMINANT,
+        InternalMethods, InternalSlots, JsResult, NUMBER_DISCRIMINANT, Number, Object,
+        OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey, ProtoIntrinsics,
+        SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
+        SYMBOL_DISCRIMINANT, SetResult, String, Symbol, TryError, TryGetResult, TryHasResult,
+        TryResult, Value, is_compatible_property_descriptor, js_result_into_try, object_handle,
+        ordinary_define_own_property, ordinary_delete, ordinary_get, ordinary_get_own_property,
+        ordinary_has_property, ordinary_set, unwrap_try,
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
@@ -35,9 +28,9 @@ use crate::{
 };
 use small_string::SmallString;
 
-use super::ordinary::{
-    caches::PropertyLookupCache, ordinary_own_property_keys, ordinary_try_get,
-    ordinary_try_has_property, ordinary_try_set, shape::ObjectShape,
+use super::{
+    ObjectShape, PropertyLookupCache, ordinary_own_property_keys, ordinary_try_get,
+    ordinary_try_has_property, ordinary_try_set,
 };
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]

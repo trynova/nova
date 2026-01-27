@@ -4,12 +4,8 @@
 
 use crate::{
     ecmascript::{
-        builtins::{
-            indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
-            map::Map,
-        },
-        execution::{Agent, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, OrdinaryObject, object_handle},
+        Agent, CollectionIteratorKind, InternalMethods, InternalSlots, Map, OrdinaryObject,
+        ProtoIntrinsics, object_handle,
     },
     engine::context::{Bindable, bindable_handle},
     heap::{

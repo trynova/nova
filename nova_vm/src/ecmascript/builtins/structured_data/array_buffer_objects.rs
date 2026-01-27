@@ -2,5 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-pub(crate) mod array_buffer_constructor;
-pub(crate) mod array_buffer_prototype;
+mod array_buffer_constructor;
+mod array_buffer_prototype;
+
+pub(crate) use array_buffer_constructor::*;
+pub(crate) use array_buffer_prototype::*;

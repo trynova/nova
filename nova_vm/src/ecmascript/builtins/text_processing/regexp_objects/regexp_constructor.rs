@@ -6,14 +6,9 @@ use wtf8::CodePoint;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{operations_on_objects::get, testing_and_comparison::is_reg_exp},
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
-            regexp::{reg_exp_alloc, reg_exp_initialize},
-        },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Function, Object, PropertyKey, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinFunctionBuilder,
+        BuiltinGetter, BuiltinIntrinsicConstructor, ExceptionType, Function, JsResult, Object,
+        PropertyKey, Realm, String, Value, get, is_reg_exp, reg_exp_alloc, reg_exp_initialize,
     },
     engine::{
         context::{Bindable, GcScope},
@@ -22,7 +17,7 @@ use crate::{
     heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };
 
-pub struct RegExpConstructor;
+pub(crate) struct RegExpConstructor;
 
 impl Builtin for RegExpConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);

@@ -3,35 +3,20 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    ecmascript::scripts_and_modules::module::module_semantics::source_text_module_records::SourceTextModule,
+    ecmascript::{
+        Agent, ECMAScriptFunction, ExecutionContext, Promise, PromiseCapability,
+        PromiseReactionHandler, PromiseReactionType, SourceTextModule, Value, inner_promise_then,
+    },
     engine::{
-        Executable,
+        Executable, ExecutionResult, SuspendedVm,
         context::{Bindable, GcScope, bindable_handle},
         rootable::Scopable,
     },
     heap::{
-        ArenaAccess, ArenaAccessMut, arena_vec_access,
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        WorkQueues, arena_vec_access,
         indexes::{BaseIndex, HeapIndexHandle, index_handle},
     },
-};
-use crate::{
-    ecmascript::{
-        builtins::{
-            ECMAScriptFunction,
-            control_abstraction_objects::promise_objects::{
-                promise_abstract_operations::{
-                    promise_capability_records::PromiseCapability,
-                    promise_reaction_records::{PromiseReactionHandler, PromiseReactionType},
-                },
-                promise_prototype::inner_promise_then,
-            },
-            promise::Promise,
-        },
-        execution::{Agent, ExecutionContext},
-        types::Value,
-    },
-    engine::{ExecutionResult, SuspendedVm},
-    heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

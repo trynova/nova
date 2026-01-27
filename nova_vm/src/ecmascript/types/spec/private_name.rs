@@ -16,7 +16,7 @@
 use crate::{
     ecmascript::{
         execution::Agent,
-        types::{PropertyKey, String},
+        PropertyKey, String,
     },
     engine::context::{NoGcScope, trivially_bindable},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},

@@ -4,18 +4,9 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::define_property_or_throw,
-        builtins::{
-            Array,
-            control_abstraction_objects::promise_objects::promise_abstract_operations::{
-                promise_capability_records::PromiseCapability,
-                promise_reaction_records::PromiseReactionType,
-            },
-            error::ErrorHeapData,
-            promise::Promise,
-        },
-        execution::{Agent, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, OrdinaryObject, PropertyDescriptor, Value},
+        Agent, Array, BUILTIN_STRING_MEMORY, ErrorHeapData, ExceptionType, OrdinaryObject, Promise,
+        PromiseCapability, PromiseReactionType, PropertyDescriptor, Value,
+        define_property_or_throw,
     },
     engine::context::{Bindable, GcScope, NoGcScope, bindable_handle},
     heap::{

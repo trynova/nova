@@ -4,22 +4,15 @@
 
 mod intrinsics;
 
+pub use intrinsics::*;
+
 use super::{
     Agent, ExecutionContext, JsResult, environments::GlobalEnvironment, new_global_environment,
 };
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::define_property_or_throw,
-        scripts_and_modules::{
-            module::module_semantics::{
-                LoadedModules, ModuleRequest, abstract_module_records::AbstractModule,
-            },
-            script::HostDefined,
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, Number, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
-            Value,
-        },
+        AbstractModule, BUILTIN_STRING_MEMORY, HostDefined, LoadedModules, ModuleRequest, Number,
+        Object, OrdinaryObject, PropertyDescriptor, PropertyKey, Value, define_property_or_throw,
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
@@ -32,8 +25,6 @@ use crate::{
     },
 };
 use core::marker::PhantomData;
-pub(crate) use intrinsics::Intrinsics;
-pub(crate) use intrinsics::ProtoIntrinsics;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
@@ -740,10 +731,7 @@ mod test {
     #[test]
     fn test_default_realm_sanity() {
         use super::initialize_default_realm;
-        use crate::ecmascript::{
-            execution::{Agent, DefaultHostHooks, agent::Options},
-            types::ObjectRecord,
-        };
+        use crate::ecmascript::{Agent, DefaultHostHooks, ObjectRecord, Options};
 
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };

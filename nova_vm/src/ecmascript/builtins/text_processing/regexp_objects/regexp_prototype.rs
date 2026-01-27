@@ -7,35 +7,15 @@ use wtf8::Wtf8Buf;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{
-                call_function, construct, get, length_of_array_like, set, species_constructor,
-                try_create_data_property_or_throw, try_get,
-            },
-            testing_and_comparison::{is_callable, same_value},
-            type_conversion::{
-                to_boolean, to_integer_or_infinity, to_length, to_object, to_string, to_uint32,
-            },
-        },
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Array, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
-            array::abstract_operations::array_create,
-            ordinary::caches::PropertyLookupCache,
-            regexp::{
-                advance_string_index, reg_exp_builtin_exec, reg_exp_builtin_test, reg_exp_exec,
-                reg_exp_test, require_internal_slot_reg_exp,
-            },
-            text_processing::string_objects::string_prototype::get_substitution,
-        },
-        execution::{
-            Agent, JsResult, ProtoIntrinsics, Realm,
-            agent::{ExceptionType, JsError, unwrap_try},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, Number, Object, PropertyKey, String, TryGetResult,
-            Value,
-        },
+        Agent, ArgumentsList, Array, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter,
+        BuiltinIntrinsic, ExceptionType, Function, JsError, JsResult, Number, Object,
+        OrdinaryObjectBuilder, PropertyKey, PropertyLookupCache, ProtoIntrinsics, Realm, String,
+        TryGetResult, Value, advance_string_index, array_create, call_function, construct,
+        create_reg_exp_string_iterator, get, get_substitution, is_callable, length_of_array_like,
+        reg_exp_builtin_exec, reg_exp_builtin_test, reg_exp_exec, reg_exp_test,
+        require_internal_slot_reg_exp, same_value, set, species_constructor, to_boolean,
+        to_integer_or_infinity, to_length, to_object, to_string, to_uint32,
+        try_create_data_property_or_throw, try_get, unwrap_try,
     },
     engine::{
         Scoped,
@@ -44,8 +24,6 @@ use crate::{
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
-
-use super::regexp_string_iterator_objects::create_reg_exp_string_iterator;
 
 pub(crate) struct RegExpPrototype;
 

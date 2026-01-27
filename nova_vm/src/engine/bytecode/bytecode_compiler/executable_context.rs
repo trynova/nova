@@ -8,12 +8,10 @@ use oxc_ast::ast::RegExpFlags;
 use wtf8::Wtf8Buf;
 
 #[cfg(feature = "regexp")]
-use crate::ecmascript::builtins::regexp::{RegExp, reg_exp_create_literal};
+use crate::ecmascript::{RegExp, reg_exp_create_literal};
 use crate::{
     ecmascript::{
-        builtins::ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
-        execution::Agent,
-        types::{BigInt, Number, PropertyKey, String, Value},
+        Agent, BigInt, Number, ObjectShape, PropertyKey, PropertyLookupCache, String, Value,
     },
     engine::{
         Executable, ExecutableHeapData, FunctionExpression, Instruction,

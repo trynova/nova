@@ -5,7 +5,7 @@
 use hashbrown::HashTable;
 
 use crate::{
-    ecmascript::{execution::Agent, types::PropertyKey},
+    ecmascript::{Agent, PropertyKey},
     engine::{
         ScopableCollection, ScopedCollection,
         context::{Bindable, NoGcScope, bindable_handle},

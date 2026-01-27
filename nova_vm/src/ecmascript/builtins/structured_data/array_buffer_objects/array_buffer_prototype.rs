@@ -4,20 +4,11 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{construct, species_constructor},
-            type_conversion::{to_index, to_integer_or_infinity, try_to_index},
-        },
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, ArrayBuffer, Behaviour, Builtin, BuiltinGetter,
-            array_buffer::{AnyArrayBuffer, is_detached_buffer, is_fixed_length_array_buffer},
-        },
-        execution::{
-            Agent, JsResult, ProtoIntrinsics, Realm,
-            agent::{ExceptionType, try_result_into_js},
-        },
-        types::{BUILTIN_STRING_MEMORY, PropertyKey, String, Value},
+        Agent, AnyArrayBuffer, ArgumentsList, ArrayBuffer, BUILTIN_STRING_MEMORY, Behaviour,
+        Builtin, BuiltinGetter, ExceptionType, JsResult, OrdinaryObjectBuilder, PropertyKey,
+        ProtoIntrinsics, Realm, String, Value, construct, is_detached_buffer,
+        is_fixed_length_array_buffer, species_constructor, to_index, to_integer_or_infinity,
+        try_result_into_js, try_to_index,
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},

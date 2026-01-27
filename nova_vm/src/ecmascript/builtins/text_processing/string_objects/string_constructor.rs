@@ -7,18 +7,11 @@ use wtf8::{CodePoint, Wtf8Buf};
 use crate::{
     SmallString,
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{get, length_of_array_like},
-            type_conversion::{to_number, to_object, to_string, to_uint16_number},
-        },
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            ordinary::{get_prototype_from_constructor, ordinary_object_create_with_intrinsics},
-            primitive_objects::{PrimitiveObject, PrimitiveObjectData},
-        },
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Function, Number, Object, PropertyKey, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinFunctionBuilder,
+        BuiltinIntrinsicConstructor, ExceptionType, Function, JsResult, Number, Object,
+        PrimitiveObject, PrimitiveObjectData, PropertyKey, ProtoIntrinsics, Realm, String, Value,
+        get, get_prototype_from_constructor, length_of_array_like,
+        ordinary_object_create_with_intrinsics, to_number, to_object, to_string, to_uint16_number,
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
@@ -27,7 +20,7 @@ use crate::{
     heap::{ArenaAccessMut, IntrinsicConstructorIndexes},
 };
 
-pub struct StringConstructor;
+pub(crate) struct StringConstructor;
 
 impl Builtin for StringConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);

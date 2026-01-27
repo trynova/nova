@@ -4,14 +4,9 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_iterator_objects::create_iter_result_object,
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin},
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, OrdinaryObject, String, Value,
-            object_handle,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType,
+        InternalMethods, InternalSlots, JsResult, OrdinaryObject, OrdinaryObjectBuilder,
+        ProtoIntrinsics, Realm, String, Value, create_iter_result_object, object_handle,
     },
     engine::context::{Bindable, GcScope, NoGcScope, bindable_handle},
     heap::{

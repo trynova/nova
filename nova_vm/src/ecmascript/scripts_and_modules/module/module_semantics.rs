@@ -4,28 +4,24 @@
 
 //! ### [16.2.1 Module Semantics](https://tc39.es/ecma262/#sec-module-semantics)
 
-use std::hash::{Hash, Hasher};
+mod abstract_module_records;
+mod cyclic_module_records;
+mod source_text_module_records;
 
-use abstract_module_records::{
-    AbstractModule, AbstractModuleMethods, AbstractModuleSlots, ResolvedBinding,
-};
+pub use abstract_module_records::*;
+pub use cyclic_module_records::*;
+pub use source_text_module_records::*;
+
+use super::continue_dynamic_import;
 use ahash::AHasher;
-use cyclic_module_records::{
-    CyclicModuleRecordStatus, CyclicModuleSlots, GraphLoadingStateRecord, continue_module_loading,
-};
 use hashbrown::{HashTable, hash_table::Entry};
 use oxc_ast::ast;
-use source_text_module_records::SourceTextModule;
+use std::hash::{Hash, Hasher};
 
 use crate::{
     ecmascript::{
-        builtins::module::{Module, module_namespace_create},
-        execution::{Agent, JsResult, Realm},
-        scripts_and_modules::{
-            ScriptOrModule,
-            script::{HostDefined, Script},
-        },
-        types::String,
+        Agent, HostDefined, JsResult, Module, Realm, Script, ScriptOrModule,
+        module_namespace_create, types::String,
     },
     engine::{
         context::{Bindable, NoGcScope, bindable_handle},
@@ -36,11 +32,6 @@ use crate::{
         indexes::{BaseIndex, HeapIndexHandle},
     },
 };
-
-use super::continue_dynamic_import;
-pub mod abstract_module_records;
-pub mod cyclic_module_records;
-pub mod source_text_module_records;
 
 /// ### [16.2.1.3 ModuleRequest Records](https://tc39.es/ecma262/#sec-modulerequest-record)
 ///
@@ -343,7 +334,7 @@ fn module_requests_equal(left: &ModuleRequestRecord, right: &ModuleRequestRecord
 /// The abstract operation GetImportedModule takes arguments referrer (a Cyclic
 /// Module Record) and request (a ModuleRequest Record) and returns a Module
 /// Record.
-fn get_imported_module<'a>(
+pub(crate) fn get_imported_module<'a>(
     agent: &Agent,
     referrer: SourceTextModule<'a>,
     request: ModuleRequest,

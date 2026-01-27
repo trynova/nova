@@ -4,13 +4,9 @@
 
 use crate::{
     ecmascript::{
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, weak_map::WeakMap},
-        execution::{
-            Agent, JsResult, Realm, agent::ExceptionType, can_be_held_weakly,
-            throw_not_weak_key_error,
-        },
-        types::{BUILTIN_STRING_MEMORY, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType, JsResult,
+        OrdinaryObjectBuilder, Realm, String, Value, WeakMap, can_be_held_weakly,
+        throw_not_weak_key_error,
     },
     engine::context::{Bindable, GcScope, NoGcScope},
     heap::WellKnownSymbolIndexes,

@@ -11,7 +11,7 @@ use core::hint::unreachable_unchecked;
 use crate::{
     ecmascript::{
         builtins::ECMAScriptFunction,
-        execution::{Agent, Environment, PrivateEnvironment},
+        Agent, Environment, PrivateEnvironment,
         syntax_directed_operations::function_definitions::instantiate_ordinary_function_object,
     },
     engine::context::NoGcScope,

@@ -3,53 +3,32 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #[cfg(feature = "proposal-float16array")]
-use crate::ecmascript::{builtins::typed_array::Float16Array, types::FLOAT_16_ARRAY_DISCRIMINANT};
-#[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
-use crate::ecmascript::{
-    builtins::typed_array::SharedFloat16Array, types::SHARED_FLOAT_16_ARRAY_DISCRIMINANT,
-};
+use crate::ecmascript::{FLOAT_16_ARRAY_DISCRIMINANT, Float16Array};
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::{
-    builtins::{
-        SharedBigInt64Array, SharedBigUint64Array, SharedFloat32Array, SharedFloat64Array,
-        SharedInt8Array, SharedInt16Array, SharedInt32Array, SharedUint8Array,
-        SharedUint8ClampedArray, SharedUint16Array, SharedUint32Array,
-    },
-    types::{
-        SHARED_BIGINT_64_ARRAY_DISCRIMINANT, SHARED_BIGUINT_64_ARRAY_DISCRIMINANT,
-        SHARED_FLOAT_32_ARRAY_DISCRIMINANT, SHARED_FLOAT_64_ARRAY_DISCRIMINANT,
-        SHARED_INT_8_ARRAY_DISCRIMINANT, SHARED_INT_16_ARRAY_DISCRIMINANT,
-        SHARED_INT_32_ARRAY_DISCRIMINANT, SHARED_UINT_8_ARRAY_DISCRIMINANT,
-        SHARED_UINT_8_CLAMPED_ARRAY_DISCRIMINANT, SHARED_UINT_16_ARRAY_DISCRIMINANT,
-        SHARED_UINT_32_ARRAY_DISCRIMINANT,
-    },
+    SHARED_BIGINT_64_ARRAY_DISCRIMINANT, SHARED_BIGUINT_64_ARRAY_DISCRIMINANT,
+    SHARED_FLOAT_32_ARRAY_DISCRIMINANT, SHARED_FLOAT_64_ARRAY_DISCRIMINANT,
+    SHARED_INT_8_ARRAY_DISCRIMINANT, SHARED_INT_16_ARRAY_DISCRIMINANT,
+    SHARED_INT_32_ARRAY_DISCRIMINANT, SHARED_UINT_8_ARRAY_DISCRIMINANT,
+    SHARED_UINT_8_CLAMPED_ARRAY_DISCRIMINANT, SHARED_UINT_16_ARRAY_DISCRIMINANT,
+    SHARED_UINT_32_ARRAY_DISCRIMINANT, SharedBigInt64Array, SharedBigUint64Array,
+    SharedFloat32Array, SharedFloat64Array, SharedInt8Array, SharedInt16Array, SharedInt32Array,
+    SharedUint8Array, SharedUint8ClampedArray, SharedUint16Array, SharedUint32Array,
 };
+#[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+use crate::ecmascript::{SHARED_FLOAT_16_ARRAY_DISCRIMINANT, SharedFloat16Array};
 use crate::{
     ecmascript::{
-        builtins::{
-            array_buffer::AnyArrayBuffer,
-            indexed_collections::typed_array_objects::abstract_operations::{
-                CachedBufferByteLength, TypedArrayAbstractOperations,
-            },
-            ordinary::{
-                caches::{PropertyLookupCache, PropertyOffset},
-                shape::ObjectShape,
-            },
-            typed_array::{
-                BigInt64Array, BigUint64Array, Float32Array, Float64Array, Int8Array, Int16Array,
-                Int32Array, TypedArray, Uint8Array, Uint8ClampedArray, Uint16Array, Uint32Array,
-            },
-        },
-        execution::{Agent, JsResult, ProtoIntrinsics, agent::TryResult},
-        types::{
-            BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT, DataBlock,
-            FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, Function,
-            INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
-            InternalMethods, InternalSlots, Numeric, Object, OrdinaryObject, PropertyDescriptor,
-            PropertyKey, SetCachedProps, SetResult, TryGetResult, TryHasResult,
-            UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
-            UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT, Value,
-        },
+        Agent, AnyArrayBuffer, BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
+        BigInt64Array, BigUint64Array, CachedBufferByteLength, DataBlock,
+        FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, Float32Array, Float64Array,
+        Function, INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
+        Int8Array, Int16Array, Int32Array, InternalMethods, InternalSlots, JsResult, Numeric,
+        Object, ObjectShape, OrdinaryObject, PropertyDescriptor, PropertyKey, PropertyLookupCache,
+        PropertyOffset, ProtoIntrinsics, SetCachedProps, SetResult, TryGetResult, TryHasResult,
+        TryResult, TypedArray, TypedArrayAbstractOperations, UINT_8_ARRAY_DISCRIMINANT,
+        UINT_8_CLAMPED_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT,
+        Uint8Array, Uint8ClampedArray, Uint16Array, Uint32Array, Value,
     },
     engine::{
         Scoped,

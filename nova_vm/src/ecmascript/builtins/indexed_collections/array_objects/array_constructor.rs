@@ -5,28 +5,14 @@
 use crate::{
     SmallInteger,
     ecmascript::{
-        abstract_operations::{
-            operations_on_iterator_objects::{
-                IteratorRecord, get_iterator_from_method, if_abrupt_close_iterator,
-                iterator_close_with_error, iterator_step_value,
-            },
-            operations_on_objects::{
-                call_function, construct, create_data_property_or_throw, get, get_method,
-                length_of_array_like, set, throw_not_callable, try_create_data_property_or_throw,
-            },
-            testing_and_comparison::{is_array, is_callable, is_constructor, same_value_zero},
-            type_conversion::{to_object, to_uint32_number},
-        },
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
-            array::abstract_operations::array_create, ordinary::get_prototype_from_constructor,
-        },
-        execution::{
-            Agent, JsResult, ProtoIntrinsics, Realm,
-            agent::{ExceptionType, unwrap_try},
-        },
-        types::{BUILTIN_STRING_MEMORY, Function, Number, Object, PropertyKey, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinFunctionBuilder,
+        BuiltinGetter, BuiltinIntrinsicConstructor, ExceptionType, Function, IteratorRecord,
+        JsResult, Number, Object, PropertyKey, ProtoIntrinsics, Realm, String, Value, array_create,
+        call_function, construct, create_data_property_or_throw, get, get_iterator_from_method,
+        get_method, get_prototype_from_constructor, if_abrupt_close_iterator, is_array,
+        is_callable, is_constructor, iterator_close_with_error, iterator_step_value,
+        length_of_array_like, same_value_zero, set, throw_not_callable, to_object,
+        to_uint32_number, try_create_data_property_or_throw, unwrap_try,
     },
     engine::{
         context::{Bindable, GcScope},
@@ -35,7 +21,7 @@ use crate::{
     heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };
 
-pub struct ArrayConstructor;
+pub(crate) struct ArrayConstructor;
 
 impl Builtin for ArrayConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
@@ -574,7 +560,7 @@ impl ArrayConstructor {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
-        let function_prototype = intrinsics.function_prototype().into();
+        let function_prototype = intrinsics.function_prototype();
         let array_prototype = intrinsics.array_prototype();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<ArrayConstructor>(agent, realm)

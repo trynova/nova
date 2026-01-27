@@ -9,14 +9,11 @@ use oxc_semantic::ScopeId;
 use wtf8::Wtf8Buf;
 
 #[cfg(feature = "regexp")]
-use crate::ecmascript::builtins::regexp::RegExp;
+use crate::ecmascript::RegExp;
 use crate::{
     ecmascript::{
-        builtins::ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
-        execution::Agent,
-        scripts_and_modules::source_code::SourceCode,
-        syntax_directed_operations::function_definitions::CompileFunctionBodyData,
-        types::{BigInt, Number, PropertyKey, String, Value},
+        Agent, BigInt, CompileFunctionBodyData, Number, ObjectShape, PropertyKey,
+        PropertyLookupCache, SourceCode, String, Value,
     },
     engine::{
         Executable, FunctionExpression, Instruction,

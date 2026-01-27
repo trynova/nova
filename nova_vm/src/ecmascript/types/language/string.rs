@@ -5,17 +5,16 @@
 include!(concat!(env!("OUT_DIR"), "/builtin_strings.rs"));
 mod data;
 
+pub(crate) use data::*;
+
 use core::hash::Hash;
 use std::borrow::Cow;
 
 use crate::{
     SmallInteger, SmallString,
     ecmascript::{
-        execution::Agent,
-        types::{
-            Primitive, PropertyDescriptor, PropertyKey, SMALL_STRING_DISCRIMINANT,
-            STRING_DISCRIMINANT, Value, primitive_handle, primitive_value,
-        },
+        Agent, Primitive, PropertyDescriptor, PropertyKey, SMALL_STRING_DISCRIMINANT,
+        STRING_DISCRIMINANT, Value, primitive_handle, primitive_value,
     },
     engine::{
         Scoped,
@@ -29,7 +28,6 @@ use crate::{
     },
 };
 
-pub(crate) use data::StringRecord;
 use hashbrown::HashTable;
 use wtf8::{CodePoint, Wtf8, Wtf8Buf};
 

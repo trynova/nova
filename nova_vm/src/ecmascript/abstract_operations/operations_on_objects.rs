@@ -9,40 +9,17 @@ use core::ops::ControlFlow;
 use crate::{
     SmallInteger,
     ecmascript::{
-        abstract_operations::{
-            keyed_group::KeyedGroup,
-            operations_on_iterator_objects::{
-                IteratorRecord, get_iterator, if_abrupt_close_iterator, iterator_close_with_error,
-                iterator_step_value,
-            },
-            testing_and_comparison::{is_callable, is_constructor, require_object_coercible},
-            type_conversion::{
-                to_length, to_object, to_property_key, to_property_key_simple, try_to_length,
-            },
-        },
-        builtins::{
-            ArgumentsList, Array, BuiltinConstructorFunction,
-            array::abstract_operations::array_create,
-            keyed_collections::map_objects::map_prototype::canonicalize_keyed_collection_key,
-            ordinary::caches::PropertyLookupCache,
-            proxy::abstract_operations::{
-                try_validate_non_revoked_proxy, validate_non_revoked_proxy,
-            },
-        },
-        execution::{
-            Agent, ECMAScriptCodeEvaluationState, Environment, ExecutionContext, JsResult,
-            ProtoIntrinsics, Realm,
-            agent::{
-                ExceptionType, JsError, TryError, TryResult, js_result_into_try,
-                try_result_into_js, unwrap_try,
-            },
-            new_class_field_initializer_environment,
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, Number, Object,
-            OrdinaryObject, PrivateName, PropertyDescriptor, PropertyKey, PropertyKeySet,
-            SetResult, String, TryGetResult, TryHasResult, Value, try_get_result_into_value,
-        },
+        Agent, ArgumentsList, Array, BUILTIN_STRING_MEMORY, BuiltinConstructorFunction,
+        ECMAScriptCodeEvaluationState, Environment, ExceptionType, ExecutionContext, Function,
+        InternalMethods, InternalSlots, IteratorRecord, JsError, JsResult, KeyedGroup, Number,
+        Object, OrdinaryObject, PrivateName, PropertyDescriptor, PropertyKey, PropertyKeySet,
+        PropertyLookupCache, ProtoIntrinsics, Realm, SetResult, String, TryError, TryGetResult,
+        TryHasResult, TryResult, Value, array_create, canonicalize_keyed_collection_key,
+        get_iterator, if_abrupt_close_iterator, is_callable, is_constructor,
+        iterator_close_with_error, iterator_step_value, js_result_into_try,
+        new_class_field_initializer_environment, require_object_coercible, to_length, to_object,
+        to_property_key, to_property_key_simple, try_get_result_into_value, try_result_into_js,
+        try_to_length, try_validate_non_revoked_proxy, unwrap_try, validate_non_revoked_proxy,
     },
     engine::{
         ScopableCollection, Scoped, ScopedCollection, Vm,
@@ -724,7 +701,7 @@ pub(crate) trait Level {
     const LEVEL: IntegrityLevel;
 }
 
-pub(crate) mod integrity {
+mod integrity {
     use super::{IntegrityLevel, Level};
 
     pub(crate) struct Sealed {}
@@ -738,6 +715,8 @@ pub(crate) mod integrity {
         const LEVEL: IntegrityLevel = IntegrityLevel::Frozen;
     }
 }
+
+pub(crate) use integrity::*;
 
 /// ### [7.3.15 SetIntegrityLevel ( O, level )](https://tc39.es/ecma262/#sec-setintegritylevel)
 ///
@@ -1537,7 +1516,7 @@ pub(crate) trait EnumerablePropertiesKind {
     const KIND: EnumPropKind;
 }
 
-pub(crate) mod enumerable_properties_kind {
+mod enumerable_properties_kind {
     use super::{EnumPropKind, EnumerablePropertiesKind};
 
     pub(crate) struct EnumerateValues;
@@ -1551,6 +1530,8 @@ pub(crate) mod enumerable_properties_kind {
         const KIND: EnumPropKind = EnumPropKind::KeyValue;
     }
 }
+
+pub(crate) use enumerable_properties_kind::*;
 
 /// ### [7.3.23 EnumerableOwnKeys ( O, kind )](https://tc39.es/ecma262/#sec-enumerableownproperties)
 ///

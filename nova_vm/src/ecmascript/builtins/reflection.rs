@@ -2,5 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-pub(crate) mod proxy_constructor;
-pub(crate) mod reflect_object;
+mod proxy_constructor;
+mod reflect_object;
+
+pub(crate) use proxy_constructor::*;
+pub(crate) use reflect_object::*;

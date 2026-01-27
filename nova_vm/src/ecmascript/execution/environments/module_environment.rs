@@ -6,14 +6,8 @@ use ahash::AHashMap;
 
 use crate::{
     ecmascript::{
-        execution::{
-            Agent, JsResult,
-            agent::{ExceptionType, JsError, TryResult},
-        },
-        scripts_and_modules::module::module_semantics::abstract_module_records::{
-            AbstractModule, AbstractModuleSlots,
-        },
-        types::{String, Value},
+        AbstractModule, AbstractModuleSlots, Agent, ExceptionType, JsError, JsResult, String,
+        TryResult, Value,
     },
     engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},

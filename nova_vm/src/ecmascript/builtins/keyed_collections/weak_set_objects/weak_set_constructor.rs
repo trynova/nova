@@ -4,23 +4,12 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_iterator_objects::{
-                IteratorRecord, get_iterator, if_abrupt_close_iterator, iterator_step_value,
-            },
-            operations_on_objects::{call_function, get, throw_not_callable},
-            testing_and_comparison::is_callable,
-        },
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Array, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            ordinary::ordinary_create_from_constructor, weak_set::WeakSet,
-        },
-        execution::{
-            Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType, can_be_held_weakly,
-            throw_not_weak_key_error,
-        },
-        types::{BUILTIN_STRING_MEMORY, Function, Object, String, Value},
+        Agent, ArgumentsList, Array, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        BuiltinFunctionBuilder, BuiltinIntrinsicConstructor, ExceptionType, Function,
+        IteratorRecord, JsResult, Object, ProtoIntrinsics, Realm, String, Value, WeakSet,
+        call_function, can_be_held_weakly, get, get_iterator, if_abrupt_close_iterator,
+        is_callable, iterator_step_value, ordinary_create_from_constructor, throw_not_callable,
+        throw_not_weak_key_error,
     },
     engine::{
         Scoped,

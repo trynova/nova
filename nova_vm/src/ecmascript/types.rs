@@ -11,13 +11,5 @@
 mod language;
 mod spec;
 
-pub(crate) use language::*;
-pub use language::{
-    BigInt, Function, HeapNumber, HeapString, InternalMethods, InternalSlots, NoCache, Number,
-    Numeric, Object, OrdinaryObject, Primitive, PropertyKey, PropertyKeySet, String, Symbol,
-    TryGetResult, Value, bigint,
-};
-#[cfg(feature = "shared-array-buffer")]
-pub use spec::SharedDataBlock;
-pub(crate) use spec::*;
-pub use spec::{PrivateName, PropertyDescriptor};
+pub use language::*;
+pub use spec::*;

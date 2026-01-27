@@ -4,31 +4,17 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_iterator_objects::create_iter_result_object,
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin,
-            promise::Promise,
-            control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::{
-                PromiseCapability, if_abrupt_reject_promise, if_abrupt_reject_promise_m,
-            },
-        },
-        execution::{Agent, JsResult, Realm, agent::JsError},
-        types::{BUILTIN_STRING_MEMORY, String, Value},
+        Agent, ArgumentsList, AsyncGeneratorRequestCompletion, BUILTIN_STRING_MEMORY, Behaviour,
+        Builtin, JsError, JsResult, OrdinaryObjectBuilder, Promise, PromiseCapability, Realm,
+        String, Value, async_generator_await_return, async_generator_enqueue,
+        async_generator_resume, async_generator_validate, create_iter_result_object,
+        if_abrupt_reject_promise, if_abrupt_reject_promise_m,
     },
     engine::{
         context::{Bindable, GcScope},
         rootable::Scopable,
     },
     heap::{ArenaAccess, WellKnownSymbolIndexes},
-};
-
-use super::{
-    AsyncGeneratorRequestCompletion,
-    async_generator_abstract_operations::{
-        async_generator_await_return, async_generator_enqueue, async_generator_resume,
-        async_generator_validate,
-    },
 };
 
 pub(crate) struct AsyncGeneratorPrototype;

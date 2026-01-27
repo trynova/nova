@@ -5,144 +5,47 @@
 use std::num::NonZeroU32;
 
 use super::Realm;
-#[cfg(feature = "set")]
-use crate::ecmascript::builtins::keyed_collections::set_objects::{
-    set_constructor::SetConstructor,
-    set_iterator_objects::set_iterator_prototype::SetIteratorPrototype,
-    set_prototype::SetPrototype,
-};
-#[cfg(feature = "weak-refs")]
-use crate::ecmascript::builtins::keyed_collections::{
-    weak_map_objects::{
-        weak_map_constructor::WeakMapConstructor, weak_map_prototype::WeakMapPrototype,
-    },
-    weak_set_objects::{
-        weak_set_constructor::WeakSetConstructor, weak_set_prototype::WeakSetPrototype,
-    },
-};
-#[cfg(feature = "weak-refs")]
-use crate::ecmascript::builtins::managing_memory::weak_ref_objects::{
-    weak_ref_constructor::WeakRefConstructor, weak_ref_prototype::WeakRefPrototype,
+#[cfg(feature = "atomics")]
+use crate::ecmascript::AtomicsObject;
+#[cfg(feature = "json")]
+use crate::ecmascript::JSONObject;
+#[cfg(feature = "math")]
+use crate::ecmascript::MathObject;
+#[cfg(feature = "array-buffer")]
+use crate::ecmascript::{
+    ArrayBufferConstructor, ArrayBufferPrototype, DataViewConstructor, DataViewPrototype,
+    TypedArrayConstructors, TypedArrayIntrinsicObject, TypedArrayPrototype, TypedArrayPrototypes,
 };
 #[cfg(feature = "date")]
-use crate::ecmascript::builtins::numbers_and_dates::date_objects::{
-    date_constructor::DateConstructor, date_prototype::DatePrototype,
-};
-#[cfg(feature = "math")]
-use crate::ecmascript::builtins::numbers_and_dates::math_object::MathObject;
-#[cfg(feature = "atomics")]
-use crate::ecmascript::builtins::structured_data::atomics_object::AtomicsObject;
-#[cfg(feature = "json")]
-use crate::ecmascript::builtins::structured_data::json_object::JSONObject;
-#[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::builtins::structured_data::shared_array_buffer_objects::{
-    shared_array_buffer_constructor::SharedArrayBufferConstructor,
-    shared_array_buffer_prototype::SharedArrayBufferPrototype,
-};
+use crate::ecmascript::{DateConstructor, DatePrototype};
 #[cfg(feature = "regexp")]
-use crate::ecmascript::builtins::text_processing::regexp_objects::{
-    regexp_constructor::RegExpConstructor, regexp_prototype::RegExpPrototype,
-    regexp_string_iterator_prototype::RegExpStringIteratorPrototype,
+use crate::ecmascript::{RegExpConstructor, RegExpPrototype, RegExpStringIteratorPrototype};
+#[cfg(feature = "set")]
+use crate::ecmascript::{SetConstructor, SetIteratorPrototype, SetPrototype};
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::{SharedArrayBufferConstructor, SharedArrayBufferPrototype};
+#[cfg(feature = "weak-refs")]
+use crate::ecmascript::{
+    WeakMapConstructor, WeakMapPrototype, WeakSetConstructor, WeakSetPrototype,
 };
-#[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::{
-    indexed_collections::typed_array_objects::{
-        typed_array_constructors::{TypedArrayConstructors, TypedArrayPrototypes},
-        typed_array_intrinsic_object::{TypedArrayIntrinsicObject, TypedArrayPrototype},
-    },
-    structured_data::{
-        array_buffer_objects::{
-            array_buffer_constructor::ArrayBufferConstructor,
-            array_buffer_prototype::ArrayBufferPrototype,
-        },
-        data_view_objects::{
-            data_view_constructor::DataViewConstructor, data_view_prototype::DataViewPrototype,
-        },
-    },
-};
+#[cfg(feature = "weak-refs")]
+use crate::ecmascript::{WeakRefConstructor, WeakRefPrototype};
 use crate::{
     ecmascript::{
-        builtins::{
-            Array, BuiltinFunction,
-            control_abstraction_objects::iteration::iterator_constructor::IteratorConstructor,
-            control_abstraction_objects::{
-                async_function_objects::{
-                    async_function_constructor::AsyncFunctionConstructor,
-                    async_function_prototype::AsyncFunctionPrototype,
-                },
-                async_generator_function_objects::{
-                    async_generator_function_constructor::AsyncGeneratorFunctionConstructor,
-                    async_generator_function_prototype::AsyncGeneratorFunctionPrototype,
-                },
-                async_generator_objects::AsyncGeneratorPrototype,
-                generator_function_objects::{
-                    generator_function_constructor::GeneratorFunctionConstructor,
-                    generator_function_prototype::GeneratorFunctionPrototype,
-                },
-                generator_prototype::GeneratorPrototype,
-                iteration::{
-                    async_iterator_prototype::AsyncIteratorPrototype,
-                    iterator_prototype::IteratorPrototype,
-                },
-                promise_objects::{
-                    promise_constructor::PromiseConstructor, promise_prototype::PromisePrototype,
-                },
-            },
-            global_object::GlobalObject,
-            indexed_collections::array_objects::{
-                array_constructor::ArrayConstructor,
-                array_iterator_objects::array_iterator_prototype::ArrayIteratorPrototype,
-                array_prototype::ArrayPrototype,
-            },
-            keyed_collections::map_objects::{
-                map_constructor::MapConstructor,
-                map_iterator_objects::map_iterator_prototype::MapIteratorPrototype,
-                map_prototype::MapPrototype,
-            },
-            managing_memory::finalization_registry_objects::{
-                finalization_registry_constructor::FinalizationRegistryConstructor,
-                finalization_registry_prototype::FinalizationRegistryPrototype,
-            },
-            ordinary::shape::ObjectShape,
-            primitive_objects::{PrimitiveObject, PrimitiveObjectRecord},
-            reflection::{proxy_constructor::ProxyConstructor, reflect_object::ReflectObject},
-            text_processing::string_objects::{
-                string_constructor::StringConstructor,
-                string_iterator_objects::StringIteratorPrototype,
-                string_prototype::StringPrototype,
-            },
-        },
-        execution::Agent,
-        fundamental_objects::{
-            boolean_objects::{
-                boolean_constructor::BooleanConstructor, boolean_prototype::BooleanPrototype,
-            },
-            error_objects::{
-                aggregate_error_constructors::AggregateErrorConstructor,
-                aggregate_error_prototypes::AggregateErrorPrototype,
-                error_constructor::ErrorConstructor, error_prototype::ErrorPrototype,
-                native_error_constructors::NativeErrorConstructors,
-                native_error_prototypes::NativeErrorPrototypes,
-            },
-            function_objects::{
-                function_constructor::FunctionConstructor, function_prototype::FunctionPrototype,
-            },
-            object_objects::{
-                object_constructor::ObjectConstructor, object_prototype::ObjectPrototype,
-            },
-            symbol_objects::{
-                symbol_constructor::SymbolConstructor, symbol_prototype::SymbolPrototype,
-            },
-        },
-        numbers_and_dates::{
-            bigint_objects::{
-                bigint_constructor::BigIntConstructor, bigint_prototype::BigIntPrototype,
-            },
-            number_objects::{
-                number_constructor::NumberConstructor, number_prototype::NumberPrototype,
-            },
-        },
-        types::{BuiltinFunctionHeapData, Function, Object, ObjectRecord, OrdinaryObject},
+        Agent, AggregateErrorConstructor, AggregateErrorPrototype, Array, ArrayConstructor,
+        ArrayIteratorPrototype, ArrayPrototype, AsyncFunctionConstructor, AsyncFunctionPrototype,
+        AsyncGeneratorFunctionConstructor, AsyncGeneratorFunctionPrototype,
+        AsyncGeneratorPrototype, AsyncIteratorPrototype, BigIntConstructor, BigIntPrototype,
+        BooleanConstructor, BooleanPrototype, BuiltinFunction, BuiltinFunctionHeapData,
+        ErrorConstructor, ErrorPrototype, FinalizationRegistryConstructor,
+        FinalizationRegistryPrototype, Function, FunctionConstructor, FunctionPrototype,
+        GeneratorFunctionConstructor, GeneratorFunctionPrototype, GeneratorPrototype, GlobalObject,
+        IteratorConstructor, IteratorPrototype, MapConstructor, MapIteratorPrototype, MapPrototype,
+        NativeErrorConstructors, NativeErrorPrototypes, NumberConstructor, NumberPrototype, Object,
+        ObjectConstructor, ObjectPrototype, ObjectRecord, ObjectShape, OrdinaryObject,
+        PrimitiveObject, PrimitiveObjectRecord, PromiseConstructor, PromisePrototype,
+        ProxyConstructor, ReflectObject, StringConstructor, StringIteratorPrototype,
+        StringPrototype, SymbolConstructor, SymbolPrototype,
     },
     engine::context::NoGcScope,
     heap::{

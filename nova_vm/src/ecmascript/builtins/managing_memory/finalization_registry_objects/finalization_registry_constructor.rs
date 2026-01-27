@@ -6,14 +6,9 @@ use std::hint::unreachable_unchecked;
 
 use crate::{
     ecmascript::{
-        abstract_operations::testing_and_comparison::is_callable,
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            ordinary::ordinary_create_from_constructor,
-        },
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Function, Object, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinFunctionBuilder,
+        BuiltinIntrinsicConstructor, ExceptionType, Function, JsResult, Object, ProtoIntrinsics,
+        Realm, String, Value, is_callable, ordinary_create_from_constructor,
     },
     engine::{
         context::{Bindable, GcScope},

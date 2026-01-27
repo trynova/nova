@@ -7,12 +7,9 @@ use std::{borrow::Cow, hint::unreachable_unchecked, ptr::NonNull};
 
 use crate::{
     ecmascript::{
-        execution::{Agent, ExecutionContext, JsResult, Realm, agent::ExceptionType},
-        types::{
-            BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, Function, FunctionInternalProperties,
-            InternalSlots, Object, OrdinaryObject, PropertyKey, ScopedValuesIterator, String,
-            Value, function_handle,
-        },
+        Agent, BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, ExceptionType, ExecutionContext,
+        Function, FunctionInternalProperties, InternalSlots, JsResult, Object, OrdinaryObject,
+        PropertyKey, Realm, ScopedValuesIterator, String, Value, function_handle,
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},

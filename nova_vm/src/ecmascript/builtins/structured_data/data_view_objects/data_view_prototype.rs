@@ -7,20 +7,10 @@ use ecmascript_atomics::Ordering;
 use crate::{
     SmallInteger,
     ecmascript::{
-        abstract_operations::type_conversion::to_boolean,
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter,
-            data_view::{
-                AnyDataView,
-                abstract_operations::{
-                    get_view_byte_length, get_view_value, is_view_out_of_bounds,
-                    make_data_view_with_buffer_witness_record, set_view_value,
-                },
-            },
-        },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Number, PropertyKey, String, Value, Viewable},
+        Agent, AnyDataView, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        BuiltinGetter, ExceptionType, JsResult, Number, OrdinaryObjectBuilder, PropertyKey, Realm,
+        String, Value, Viewable, get_view_byte_length, get_view_value, is_view_out_of_bounds,
+        make_data_view_with_buffer_witness_record, set_view_value, to_boolean,
     },
     engine::context::{Bindable, GcScope, NoGcScope},
     heap::WellKnownSymbolIndexes,

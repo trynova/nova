@@ -4,34 +4,18 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{invoke, species_constructor},
-            testing_and_comparison::{is_callable, is_constructor},
-        },
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinPromiseFinallyFunction, Promise,
-            promise::{PromiseReactions, PromiseState},
-        },
-        execution::{
-            Agent, JsResult, ProtoIntrinsics, Realm,
-            agent::{ExceptionType, PromiseRejectionTrackerOperation},
-        },
-        types::{BUILTIN_STRING_MEMORY, Function, Object, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        BuiltinPromiseFinallyFunction, ExceptionType, Function, JsResult, Object,
+        OrdinaryObjectBuilder, Promise, PromiseCapability, PromiseReactionHandler,
+        PromiseReactionRecord, PromiseReactionType, PromiseReactions,
+        PromiseRejectionTrackerOperation, PromiseState, ProtoIntrinsics, Realm, String, Value,
+        invoke, is_callable, is_constructor, new_promise_reaction_job, species_constructor,
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Scopable,
     },
     heap::{ArenaAccessMut, CreateHeapData, WellKnownSymbolIndexes},
-};
-
-use super::promise_abstract_operations::{
-    promise_capability_records::PromiseCapability,
-    promise_jobs::new_promise_reaction_job,
-    promise_reaction_records::{
-        PromiseReactionHandler, PromiseReactionRecord, PromiseReactionType,
-    },
 };
 
 pub(crate) struct PromisePrototype;

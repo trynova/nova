@@ -4,17 +4,9 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_iterator_objects::create_iter_result_object,
-            operations_on_objects::create_array_from_list,
-        },
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin,
-            indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
-        },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, CollectionIteratorKind,
+        ExceptionType, JsResult, OrdinaryObjectBuilder, Realm, String, Value,
+        create_array_from_list, create_iter_result_object,
     },
     engine::context::{Bindable, GcScope},
     heap::{ArenaAccess, ArenaAccessMut, ArenaAccessSoA, WellKnownSymbolIndexes},

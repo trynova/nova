@@ -8,10 +8,7 @@ use ahash::AHasher;
 use hashbrown::{HashTable, hash_table::Entry};
 
 use crate::{
-    ecmascript::{
-        execution::Agent,
-        types::{PropertyKey, Value},
-    },
+    ecmascript::{PropertyKey, Value, execution::Agent},
     engine::{
         ScopableCollection, ScopedCollection,
         context::{Bindable, NoGcScope, bindable_handle},

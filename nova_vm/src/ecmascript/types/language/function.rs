@@ -3,29 +3,23 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 mod data;
-pub mod function_internal_properties;
+mod function_internal_properties;
+
+pub(crate) use data::*;
+pub(crate) use function_internal_properties::*;
 
 use crate::{
     ecmascript::{
-        builtins::{
-            ArgumentsList, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
-            bound_function::BoundFunction,
-            control_abstraction_objects::promise_objects::promise_abstract_operations::{
-                promise_finally_functions::BuiltinPromiseFinallyFunction,
-                promise_resolving_functions::BuiltinPromiseResolvingFunction,
-            },
-            ordinary::caches::{PropertyLookupCache, PropertyOffset},
-        },
-        execution::{Agent, JsResult, ProtoIntrinsics, agent::TryResult},
-        types::{
-            BOUND_FUNCTION_DISCRIMINANT, BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
-            BUILTIN_FUNCTION_DISCRIMINANT, BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
-            BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
-            BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
-            ECMASCRIPT_FUNCTION_DISCRIMINANT, InternalMethods, InternalSlots, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps, SetResult, String,
-            TryGetResult, TryHasResult, Value,
-        },
+        Agent, ArgumentsList, BOUND_FUNCTION_DISCRIMINANT,
+        BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
+        BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
+        BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
+        BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
+        BoundFunction, BuiltinConstructorFunction, BuiltinFunction, BuiltinPromiseFinallyFunction,
+        BuiltinPromiseResolvingFunction, ECMASCRIPT_FUNCTION_DISCRIMINANT, ECMAScriptFunction,
+        InternalMethods, InternalSlots, JsResult, Object, OrdinaryObject, PropertyDescriptor,
+        PropertyKey, PropertyLookupCache, PropertyOffset, ProtoIntrinsics, SetCachedProps,
+        SetResult, String, TryGetResult, TryHasResult, TryResult, Value,
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
@@ -33,9 +27,6 @@ use crate::{
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
-
-pub(crate) use data::*;
-pub(crate) use function_internal_properties::FunctionInternalProperties;
 
 /// ### [20.2.4 Function Instances](https://tc39.es/ecma262/#sec-function-instances)
 ///

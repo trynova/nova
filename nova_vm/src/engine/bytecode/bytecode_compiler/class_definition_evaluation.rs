@@ -6,16 +6,9 @@ use std::{cell::Cell, collections::hash_map::Entry};
 
 use crate::{
     ecmascript::{
-        builtins::FunctionAstRef,
-        execution::agent::ExceptionType,
-        syntax_directed_operations::{
-            function_definitions::CompileFunctionBodyData,
-            scope_analysis::{
-                LexicallyScopedDeclaration, LexicallyScopedDeclarations, VarDeclaredNames,
-                VarScopedDeclaration, VarScopedDeclarations,
-            },
-        },
-        types::{BUILTIN_STRING_MEMORY, String, Value},
+        BUILTIN_STRING_MEMORY, CompileFunctionBodyData, ExceptionType, FunctionAstRef,
+        LexicallyScopedDeclaration, LexicallyScopedDeclarations, String, Value, VarDeclaredNames,
+        VarScopedDeclaration, VarScopedDeclarations,
     },
     engine::{
         CompileContext, CompileEvaluation, FunctionExpression, Instruction,

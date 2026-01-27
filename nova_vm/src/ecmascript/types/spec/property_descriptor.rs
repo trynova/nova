@@ -6,20 +6,9 @@ use std::ops::ControlFlow;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{get, has_property, try_get, try_has_property},
-            testing_and_comparison::is_callable,
-            type_conversion::to_boolean,
-        },
-        builtins::ordinary::caches::PropertyLookupCache,
-        execution::{
-            Agent, JsResult,
-            agent::{ExceptionType, TryError, TryResult},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, Object, OrdinaryObject, TryHasResult, Value,
-            try_get_result_into_value,
-        },
+        Agent, BUILTIN_STRING_MEMORY, ExceptionType, Function, JsResult, Object, OrdinaryObject,
+        PropertyLookupCache, TryError, TryHasResult, TryResult, Value, get, has_property,
+        is_callable, to_boolean, try_get, try_get_result_into_value, try_has_property,
     },
     engine::{
         Scoped,

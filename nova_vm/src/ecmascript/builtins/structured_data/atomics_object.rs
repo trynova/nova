@@ -15,37 +15,17 @@ use ecmascript_futex::{ECMAScriptAtomicWait, FutexError};
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::{
-            number_convert_to_integer_or_infinity, to_big_int, to_big_int64, to_big_int64_big_int,
-            to_index, to_int32, to_int32_number, to_integer_number_or_infinity,
-            to_integer_or_infinity, to_number, try_to_index, validate_index,
-        },
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin,
-            array_buffer::{
-                AnyArrayBuffer, compare_exchange_in_buffer, get_modify_set_value_in_buffer,
-                get_value_from_buffer, set_value_in_buffer,
-            },
-            indexed_collections::typed_array_objects::abstract_operations::{
-                TypedArrayAbstractOperations, TypedArrayWithBufferWitnessRecords,
-                make_typed_array_with_buffer_witness_record, validate_typed_array,
-            },
-            promise::Promise,
-            control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
-            shared_array_buffer::SharedArrayBuffer,
-            typed_array::{AnyTypedArray, SharedTypedArray, for_any_typed_array},
-        },
-        execution::{
-            Agent, JsResult, Realm,
-            agent::{
-                ExceptionType, InnerJob, Job, TryError, TryResult, try_result_into_js, unwrap_try,
-            },
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, BigInt, Number, Numeric, OrdinaryObject, SharedDataBlock,
-            String, Value,
-        },
+        Agent, AnyArrayBuffer, AnyTypedArray, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour,
+        BigInt, Builtin, ExceptionType, InnerJob, Job, JsResult, Number, Numeric, OrdinaryObject,
+        OrdinaryObjectBuilder, Promise, PromiseCapability, Realm, SharedArrayBuffer,
+        SharedDataBlock, SharedTypedArray, String, TryError, TryResult,
+        TypedArrayAbstractOperations, TypedArrayWithBufferWitnessRecords, Value,
+        compare_exchange_in_buffer, for_any_typed_array, get_modify_set_value_in_buffer,
+        get_value_from_buffer, make_typed_array_with_buffer_witness_record,
+        number_convert_to_integer_or_infinity, set_value_in_buffer, to_big_int, to_big_int64,
+        to_big_int64_big_int, to_index, to_int32, to_int32_number, to_integer_number_or_infinity,
+        to_integer_or_infinity, to_number, try_result_into_js, try_to_index, unwrap_try,
+        validate_index, validate_typed_array,
     },
     engine::{
         Global,

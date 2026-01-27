@@ -19,13 +19,10 @@ use std::{convert::Infallible, ops::ControlFlow};
 
 use super::{FunctionExpression, Instruction, SendableRef, executable::ArrowFunctionExpression};
 #[cfg(feature = "typescript")]
-use crate::{ecmascript::builtins::ordinary::shape::ObjectShapeRecord, heap::CreateHeapData};
+use crate::{ecmascript::builtins::ObjectShapeRecord, heap::CreateHeapData};
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_property_key_simple,
-        builtins::ordinary::shape::ObjectShape,
-        execution::{Agent, agent::ExceptionType},
-        types::{Primitive, PropertyKey},
+        Agent, ExceptionType, ObjectShape, Primitive, PropertyKey, to_property_key_simple,
     },
     engine::{
         bytecode::bytecode_compiler::compile_context::{BlockEnvPrep, StackResultValue},
@@ -34,11 +31,8 @@ use crate::{
 };
 use crate::{
     ecmascript::{
-        syntax_directed_operations::{
-            function_definitions::ContainsExpression,
-            scope_analysis::{LexicallyScopedDeclaration, LexicallyScopedDeclarations},
-        },
-        types::{BUILTIN_STRING_MEMORY, BigInt, Number, String, Value},
+        BUILTIN_STRING_MEMORY, BigInt, ContainsExpression, LexicallyScopedDeclaration,
+        LexicallyScopedDeclarations, Number, String, Value,
     },
     engine::bytecode::bytecode_compiler::compile_context::StackValue,
 };
