@@ -5,8 +5,8 @@
 use std::time::SystemTime;
 
 use crate::{
-    SmallInteger,
     ecmascript::{
+    SmallInteger,
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinFunctionBuilder,
         BuiltinIntrinsicConstructor, Date, DateValue, Function, JsResult, Number, Object,
         ProtoIntrinsics, Realm, String, Value, ordinary_create_from_constructor, to_number,

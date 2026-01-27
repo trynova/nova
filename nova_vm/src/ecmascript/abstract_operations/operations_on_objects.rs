@@ -7,8 +7,8 @@
 use core::ops::ControlFlow;
 
 use crate::{
-    SmallInteger,
     ecmascript::{
+    SmallInteger,
         Agent, ArgumentsList, Array, BUILTIN_STRING_MEMORY, BuiltinConstructorFunction,
         ECMAScriptCodeEvaluationState, Environment, ExceptionType, ExecutionContext, Function,
         InternalMethods, InternalSlots, IteratorRecord, JsError, JsResult, KeyedGroup, Number,

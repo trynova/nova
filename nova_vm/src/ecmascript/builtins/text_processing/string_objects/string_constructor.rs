@@ -5,8 +5,8 @@
 use wtf8::{CodePoint, Wtf8Buf};
 
 use crate::{
-    SmallString,
     ecmascript::{
+    SmallString,
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinFunctionBuilder,
         BuiltinIntrinsicConstructor, ExceptionType, Function, JsResult, Number, Object,
         PrimitiveObject, PrimitiveObjectData, PropertyKey, ProtoIntrinsics, Realm, String, Value,

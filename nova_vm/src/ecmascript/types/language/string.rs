@@ -7,12 +7,14 @@ mod data;
 
 pub(crate) use data::*;
 
+pub use small_string::SmallString;
+
 use core::hash::Hash;
 use std::borrow::Cow;
 
 use crate::{
-    SmallInteger, SmallString,
     ecmascript::{
+    SmallInteger,
         Agent, Primitive, PropertyDescriptor, PropertyKey, SMALL_STRING_DISCRIMINANT,
         STRING_DISCRIMINANT, Value, primitive_handle, primitive_value,
     },

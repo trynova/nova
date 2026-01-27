@@ -8,8 +8,8 @@ use ecmascript_atomics::Ordering;
 use wtf8::Wtf8Buf;
 
 use crate::{
-    SmallInteger,
     ecmascript::{
+    SmallInteger,
         Agent, AnyTypedArray, ArgumentsList, ArrayIterator, BUILTIN_STRING_MEMORY, Behaviour,
         Builtin, BuiltinFunctionBuilder, BuiltinGetter, BuiltinIntrinsic,
         BuiltinIntrinsicConstructor, CollectionIteratorKind, ExceptionType, InternalMethods,

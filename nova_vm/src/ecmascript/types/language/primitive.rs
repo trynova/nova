@@ -2,21 +2,18 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-pub use small_string::SmallString;
-
 use crate::{
-    SmallInteger,
     ecmascript::{
+    SmallInteger,
         BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, FLOAT_DISCRIMINANT, HeapBigInt, HeapNumber,
         HeapString, INTEGER_DISCRIMINANT, NULL_DISCRIMINANT, NUMBER_DISCRIMINANT,
         SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
-        SYMBOL_DISCRIMINANT, Symbol, UNDEFINED_DISCRIMINANT, Value,
+        SYMBOL_DISCRIMINANT, SmallBigInt, SmallF64, SmallString, Symbol, UNDEFINED_DISCRIMINANT,
+        Value,
     },
     engine::{
         context::{Bindable, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
-        small_bigint::SmallBigInt,
-        small_f64::SmallF64,
     },
 };
 

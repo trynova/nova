@@ -6,8 +6,8 @@ use sonic_rs::{JsonContainerTrait, JsonValueTrait};
 use wtf8::{CodePoint, Wtf8Buf};
 
 use crate::{
-    SmallInteger,
     ecmascript::{
+    SmallInteger,
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType, Function,
         InternalMethods, JsResult, Number, Object, OrdinaryObjectBuilder, Primitive,
         PrimitiveObject, PrimitiveObjectData, PropertyDescriptor, PropertyKey, ProtoIntrinsics,

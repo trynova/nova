@@ -3,23 +3,18 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    SmallInteger,
     ecmascript::{
         Agent, BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, BUILTIN_STRING_MEMORY, BigInt,
         FLOAT_DISCRIMINANT, HeapBigInt, HeapNumber, HeapString, INTEGER_DISCRIMINANT,
         InternalMethods, InternalSlots, JsResult, NUMBER_DISCRIMINANT, Number, Object,
         OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey, ProtoIntrinsics,
         SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
-        SYMBOL_DISCRIMINANT, SetResult, String, Symbol, TryError, TryGetResult, TryHasResult,
-        TryResult, Value, is_compatible_property_descriptor, js_result_into_try, object_handle,
-        ordinary_define_own_property, ordinary_delete, ordinary_get, ordinary_get_own_property,
-        ordinary_has_property, ordinary_set, unwrap_try,
+        SYMBOL_DISCRIMINANT, SetResult, SmallBigInt, SmallF64, SmallInteger, String, Symbol,
+        TryError, TryGetResult, TryHasResult, TryResult, Value, is_compatible_property_descriptor,
+        js_result_into_try, object_handle, ordinary_define_own_property, ordinary_delete,
+        ordinary_get, ordinary_get_own_property, ordinary_has_property, ordinary_set, unwrap_try,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        small_bigint::SmallBigInt,
-        small_f64::SmallF64,
-    },
+    engine::context::{Bindable, GcScope, NoGcScope, bindable_handle},
     heap::{
         ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         HeapSweepWeakReference, IntrinsicPrimitiveObjectIndexes, WorkQueues, arena_vec_access,

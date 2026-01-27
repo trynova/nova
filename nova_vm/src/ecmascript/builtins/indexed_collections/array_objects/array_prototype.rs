@@ -7,8 +7,8 @@ use core::cmp::Ordering;
 use wtf8::Wtf8Buf;
 
 use crate::{
-    SmallInteger,
     ecmascript::{
+    SmallInteger,
         Agent, ArgumentsList, ArrayIterator, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
         BuiltinIntrinsic, CollectionIteratorKind, ExceptionType, Function, InternalMethods,
         JsError, JsResult, Number, Object, OrdinaryObjectBuilder, PropertyKey, Realm, String,

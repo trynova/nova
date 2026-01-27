@@ -20,8 +20,8 @@ use num_bigint::Sign;
 use wtf8::Wtf8;
 
 use crate::{
-    SmallInteger,
     ecmascript::{
+    SmallInteger,
         Agent, ArgumentsList, ExceptionType, JsResult, PrimitiveObjectData, PrimitiveObjectRecord,
         TryError, TryResult, js_result_into_try,
         types::{

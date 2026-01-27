@@ -4,25 +4,22 @@
 
 mod data;
 mod operators;
+mod small_bigint;
 
 pub(crate) use data::*;
 use operators::{
     bigint_bitwise_op, left_shift_bigint, left_shift_i64, right_shift_bigint, right_shift_i64,
 };
+pub(crate) use small_bigint::*;
 
-use super::{
-    Primitive, String, Value,
-    numeric::Numeric,
-    value::{BIGINT_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT},
-    with_radix,
-};
 use crate::{
-    SmallInteger,
-    ecmascript::{Agent, ExceptionType, JsResult, types::primitive_handle},
+    ecmascript::{
+        Agent, BIGINT_DISCRIMINANT, ExceptionType, JsResult, Numeric, Primitive,
+        SMALL_BIGINT_DISCRIMINANT, SmallInteger, String, Value, primitive_handle, with_radix,
+    },
     engine::{
         context::{Bindable, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
-        small_bigint::SmallBigInt,
     },
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,

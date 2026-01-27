@@ -8,13 +8,12 @@ use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, BigInt, Builtin,
         BuiltinFunctionBuilder, BuiltinIntrinsicConstructor, ExceptionType, JsResult, Number,
-        Object, PreferredType, Realm, String, Value, to_big_int, to_big_int_primitive, to_index,
-        to_primitive,
+        Object, PreferredType, Realm, SmallBigInt, String, Value, to_big_int, to_big_int_primitive,
+        to_index, to_primitive,
     },
     engine::{
         context::{Bindable, GcScope},
         rootable::Scopable,
-        small_bigint::SmallBigInt,
     },
     heap::{ArenaAccess, IntrinsicConstructorIndexes},
 };

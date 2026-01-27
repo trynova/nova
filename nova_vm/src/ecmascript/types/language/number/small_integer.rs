@@ -2,42 +2,34 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::{SmallInteger, ecmascript::numeric_value};
+use crate::ecmascript::{SmallBigInt, number_value};
 
 /// 56-bit signed integer.
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub struct SmallBigInt {
-    pub(super) data: [u8; 7],
+pub struct SmallInteger {
+    pub(crate) data: [u8; 7],
 }
-numeric_value!(SmallBigInt);
+number_value!(SmallInteger, Integer);
 
-impl core::fmt::Debug for SmallBigInt {
+impl core::fmt::Debug for SmallInteger {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", Into::<i64>::into(*self))
     }
 }
 
-impl core::hash::Hash for SmallBigInt {
+impl core::hash::Hash for SmallInteger {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.into_i64().hash(state);
     }
 }
 
-impl SmallBigInt {
-    pub const MIN: i64 = -(2i64.pow(55));
-    pub const MAX: i64 = 2i64.pow(55) - 1;
-
-    // Returns true if SmallBigInt equals zero.
-    pub const fn is_zero(self) -> bool {
-        let Self {
-            data: [a, b, c, d, e, f, g],
-        } = self;
-        a == 0 && b == 0 && c == 0 && d == 0 && e == 0 && f == 0 && g == 0
-    }
+impl SmallInteger {
+    pub const MIN: i64 = -(2i64.pow(53)) + 1;
+    pub const MAX: i64 = 2i64.pow(53) - 1;
 
     #[inline]
     pub const fn into_i64(self) -> i64 {
-        let SmallBigInt { data } = self;
+        let SmallInteger { data } = self;
 
         #[repr(u8)]
         enum Repr {
@@ -55,18 +47,20 @@ impl SmallBigInt {
         }
     }
 
-    pub const fn zero() -> SmallBigInt {
+    pub const fn zero() -> Self {
         Self {
             data: [0, 0, 0, 0, 0, 0, 0],
         }
     }
 
-    /// Encode an i64 as a SmallBigInt without a range check.
+    /// Encode an i64 as a SmallInteger without a range check.
     ///
     /// ## Safety
     ///
-    /// If the value is outside the SmallBigInt range, data is lost.
-    pub unsafe fn from_i64_unchecked(value: i64) -> SmallBigInt {
+    /// If the value is outside the SmallInteger range, the method panics
+    /// in debug mode. In release mode, data may be lost and an invalid
+    /// variant may be created.
+    pub unsafe fn from_i64_unchecked(value: i64) -> Self {
         debug_assert!((Self::MIN..=Self::MAX).contains(&value));
         let bytes = i64::to_ne_bytes(value);
 
@@ -82,42 +76,38 @@ impl SmallBigInt {
 
         Self { data }
     }
+
+    /// Convert a SmallBigInt as SmallInteger without a range check.
+    ///
+    /// ## Safety
+    ///
+    /// If the value is outside the SmallInteger range, an invalid variant is
+    /// created.
+    pub unsafe fn from_small_bigint_unchecked(value: SmallBigInt) -> Self {
+        Self { data: value.data }
+    }
 }
 
-impl core::ops::Neg for SmallBigInt {
+impl core::ops::Neg for SmallInteger {
     type Output = Self;
 
-    /// ## Safety
-    /// - If the negation overflows, data is lost.
+    /// ## Panics
+    /// - If the negation overflows.
     fn neg(self) -> Self::Output {
         unsafe { Self::from_i64_unchecked(-self.into_i64()) }
     }
 }
 
-impl core::ops::Not for SmallBigInt {
+impl core::ops::Not for SmallInteger {
     type Output = Self;
     fn not(self) -> Self::Output {
-        // SAFETY: This is safe because the bitwise not of any bigint in the
-        // range will always be in the safe bigint range.
+        // SAFETY: This is safe because the bitwise not of any number in the
+        // range will always be in the safe number range.
         unsafe { Self::from_i64_unchecked(!self.into_i64()) }
     }
 }
 
-impl From<SmallInteger> for SmallBigInt {
-    fn from(value: SmallInteger) -> Self {
-        Self { data: value.data }
-    }
-}
-
-impl TryFrom<SmallBigInt> for SmallInteger {
-    type Error = ();
-
-    fn try_from(value: SmallBigInt) -> Result<Self, Self::Error> {
-        Self::try_from(value.into_i64())
-    }
-}
-
-impl TryFrom<i64> for SmallBigInt {
+impl TryFrom<i64> for SmallInteger {
     type Error = ();
     fn try_from(value: i64) -> Result<Self, Self::Error> {
         if (Self::MIN..=Self::MAX).contains(&value) {
@@ -129,7 +119,7 @@ impl TryFrom<i64> for SmallBigInt {
     }
 }
 
-impl TryFrom<isize> for SmallBigInt {
+impl TryFrom<isize> for SmallInteger {
     type Error = ();
     fn try_from(value: isize) -> Result<Self, Self::Error> {
         if (Self::MIN..=Self::MAX).contains(&(value as i64)) {
@@ -141,7 +131,7 @@ impl TryFrom<isize> for SmallBigInt {
     }
 }
 
-impl TryFrom<f64> for SmallBigInt {
+impl TryFrom<f64> for SmallInteger {
     type Error = ();
     fn try_from(value: f64) -> Result<Self, Self::Error> {
         if value.fract() == 0.0 && (Self::MIN..=Self::MAX).contains(&(value as i64)) {
@@ -153,7 +143,7 @@ impl TryFrom<f64> for SmallBigInt {
     }
 }
 
-impl TryFrom<f32> for SmallBigInt {
+impl TryFrom<f32> for SmallInteger {
     type Error = ();
     fn try_from(value: f32) -> Result<Self, Self::Error> {
         if value.fract() == 0.0 && (Self::MIN..=Self::MAX).contains(&(value as i64)) {
@@ -165,7 +155,7 @@ impl TryFrom<f32> for SmallBigInt {
     }
 }
 
-impl TryFrom<i128> for SmallBigInt {
+impl TryFrom<i128> for SmallInteger {
     type Error = ();
     fn try_from(value: i128) -> Result<Self, Self::Error> {
         if (Self::MIN as i128..=Self::MAX as i128).contains(&value) {
@@ -177,7 +167,7 @@ impl TryFrom<i128> for SmallBigInt {
     }
 }
 
-impl TryFrom<u64> for SmallBigInt {
+impl TryFrom<u64> for SmallInteger {
     type Error = ();
     fn try_from(value: u64) -> Result<Self, Self::Error> {
         if value <= (Self::MAX as u64) {
@@ -189,19 +179,7 @@ impl TryFrom<u64> for SmallBigInt {
     }
 }
 
-impl TryFrom<u128> for SmallBigInt {
-    type Error = ();
-    fn try_from(value: u128) -> Result<Self, Self::Error> {
-        if (Self::MIN as u128..=Self::MAX as u128).contains(&value) {
-            // SAFETY: Checked to be in range.
-            Ok(unsafe { Self::from_i64_unchecked(value as i64) })
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl TryFrom<usize> for SmallBigInt {
+impl TryFrom<usize> for SmallInteger {
     type Error = ();
     fn try_from(value: usize) -> Result<Self, Self::Error> {
         if value <= (Self::MAX as usize) {
@@ -218,21 +196,21 @@ macro_rules! from_numeric_type {
         // Checking at compile-time that $numtype fully fits within the range.
         const _: () = {
             assert!(
-                <$numtype>::MIN as i64 >= SmallBigInt::MIN,
+                <$numtype>::MIN as i64 >= SmallInteger::MIN,
                 concat!(
                     stringify!($numtype),
-                    " is outside of the SmallBigInt range (min)"
+                    " is outside of the SmallInteger range (min)"
                 )
             );
             assert!(
-                <$numtype>::MAX as i64 <= SmallBigInt::MAX,
+                <$numtype>::MAX as i64 <= SmallInteger::MAX,
                 concat!(
                     stringify!($numtype),
-                    " is outside of the SmallBigInt range (max)"
+                    " is outside of the SmallInteger range (max)"
                 )
             );
         };
-        impl From<$numtype> for SmallBigInt {
+        impl From<$numtype> for SmallInteger {
             fn from(value: $numtype) -> Self {
                 // SAFETY: Checked to be in range.
                 unsafe { Self::from_i64_unchecked(i64::from(value)) }
@@ -247,34 +225,38 @@ from_numeric_type!(i16);
 from_numeric_type!(u32);
 from_numeric_type!(i32);
 
-impl From<SmallBigInt> for i64 {
-    fn from(value: SmallBigInt) -> Self {
+impl From<SmallInteger> for i64 {
+    fn from(value: SmallInteger) -> Self {
         value.into_i64()
     }
 }
 
 #[test]
 fn valid_small_integers() {
-    assert_eq!(0i64, SmallBigInt::from(0).into_i64());
-    assert_eq!(5i64, SmallBigInt::from(5).into_i64());
-    assert_eq!(23i64, SmallBigInt::from(23).into_i64());
+    assert_eq!(0i64, SmallInteger::from(0).into_i64());
+    assert_eq!(5i64, SmallInteger::from(5).into_i64());
+    assert_eq!(23i64, SmallInteger::from(23).into_i64());
     assert_eq!(
-        SmallBigInt::MAX,
-        SmallBigInt::try_from(SmallBigInt::MAX).unwrap().into_i64()
+        SmallInteger::MAX,
+        SmallInteger::try_from(SmallInteger::MAX)
+            .unwrap()
+            .into_i64()
     );
 
-    assert_eq!(-5i64, SmallBigInt::from(-5).into_i64());
-    assert_eq!(-59i64, SmallBigInt::from(-59).into_i64());
+    assert_eq!(-5i64, SmallInteger::from(-5).into_i64());
+    assert_eq!(-59i64, SmallInteger::from(-59).into_i64());
     assert_eq!(
-        SmallBigInt::MIN,
-        SmallBigInt::try_from(SmallBigInt::MIN).unwrap().into_i64()
+        SmallInteger::MIN,
+        SmallInteger::try_from(SmallInteger::MIN)
+            .unwrap()
+            .into_i64()
     );
 }
 
 #[test]
 fn invalid_small_integers() {
-    assert_eq!(SmallBigInt::try_from(SmallBigInt::MAX + 1), Err(()));
-    assert_eq!(SmallBigInt::try_from(i64::MAX), Err(()));
-    assert_eq!(SmallBigInt::try_from(SmallBigInt::MIN - 1), Err(()));
-    assert_eq!(SmallBigInt::try_from(i64::MIN), Err(()));
+    assert_eq!(SmallInteger::try_from(SmallInteger::MAX + 1), Err(()));
+    assert_eq!(SmallInteger::try_from(i64::MAX), Err(()));
+    assert_eq!(SmallInteger::try_from(SmallInteger::MIN - 1), Err(()));
+    assert_eq!(SmallInteger::try_from(i64::MIN), Err(()));
 }

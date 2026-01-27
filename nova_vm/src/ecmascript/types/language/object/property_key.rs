@@ -8,8 +8,8 @@ use ahash::AHasher;
 use wtf8::{Wtf8, Wtf8Buf};
 
 use crate::{
-    SmallInteger, SmallString,
     ecmascript::{
+    SmallInteger, SmallString,
         Agent, HeapString, INTEGER_DISCRIMINANT, Primitive, PrivateName, SMALL_STRING_DISCRIMINANT,
         STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT, String, Symbol, Value,
         parse_string_to_integer_property_key,

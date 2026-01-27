@@ -26,23 +26,22 @@ use crate::ecmascript::{
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::{WeakMap, WeakRef, WeakSet};
 use crate::{
-    SmallInteger, SmallString,
     ecmascript::{
+    SmallInteger,
         Agent, Array, ArrayIterator, AsyncGenerator, BUILTIN_STRING_MEMORY, BigInt, BoundFunction,
         BuiltinConstructorFunction, BuiltinFunction, BuiltinPromiseFinallyFunction,
         BuiltinPromiseResolvingFunction, ECMAScriptFunction, EmbedderObject, Error,
         FinalizationRegistry, Generator, HeapBigInt, HeapNumber, HeapString, JsResult, Map,
         MapIterator, Module, Number, Numeric, Object, OrdinaryObject, Primitive, PrimitiveObject,
-        Promise, Proxy, String, StringIterator, Symbol, TryResult, to_big_int, to_big_int64,
-        to_big_uint64, to_int8, to_int16, to_int32, to_number, to_numeric, to_string, to_uint8,
-        to_uint8_clamp, to_uint16, to_uint32, try_result_into_js, try_to_string,
+        Promise, Proxy, SmallBigInt, SmallF64, SmallString, String, StringIterator, Symbol,
+        TryResult, to_big_int, to_big_int64, to_big_uint64, to_int8, to_int16, to_int32, to_number,
+        to_numeric, to_string, to_uint8, to_uint8_clamp, to_uint16, to_uint32, try_result_into_js,
+        try_to_string,
     },
     engine::{
         Scoped,
         context::{Bindable, GcScope, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
-        small_bigint::SmallBigInt,
-        small_f64::SmallF64,
     },
     heap::{
         ArenaAccess, CompactionLists, HeapMarkAndSweep, PrimitiveHeapAccess, WorkQueues,

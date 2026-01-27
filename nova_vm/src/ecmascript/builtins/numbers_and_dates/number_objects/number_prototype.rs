@@ -3,8 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    SmallInteger,
     ecmascript::{
+    SmallInteger,
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType, JsResult,
         Number, OrdinaryObjectBuilder, PrimitiveObject, PrimitiveObjectData, PrimitiveObjectRecord,
         Realm, String, Value, to_integer_or_infinity,

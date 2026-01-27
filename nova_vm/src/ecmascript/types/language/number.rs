@@ -4,11 +4,13 @@
 
 mod data;
 mod radix;
+mod small_f64;
+mod small_integer;
 
 pub(crate) use data::*;
 pub(crate) use radix::*;
-
-pub use crate::SmallInteger;
+pub(crate) use small_f64::*;
+pub(crate) use small_integer::*;
 
 use super::{
     Numeric, Primitive, String, Value,
@@ -19,7 +21,6 @@ use crate::{
     engine::{
         context::{Bindable, NoGcScope, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
-        small_f64::SmallF64,
     },
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, NumberHeapAccess,

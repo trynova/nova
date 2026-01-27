@@ -3,17 +3,17 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    SmallInteger,
     ecmascript::{
+    SmallInteger,
         Agent, BIGINT_DISCRIMINANT, FLOAT_DISCRIMINANT, HeapBigInt, HeapNumber,
         INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT, Number, Primitive, SMALL_BIGINT_DISCRIMINANT,
         Value,
+        SmallBigInt,
+        SmallF64,
     },
     engine::{
         context::{Bindable, bindable_handle},
         rootable::{HeapRootData, HeapRootRef, Rootable},
-        small_bigint::SmallBigInt,
-        small_f64::SmallF64,
     },
 };
 

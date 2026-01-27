@@ -9,8 +9,8 @@ use ecmascript_atomics::Ordering;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::{GenericSharedTypedArray, SharedTypedArrayRecord};
 use crate::{
-    SmallInteger,
     ecmascript::{
+    SmallInteger,
         Agent, AnyArrayBuffer, AnyTypedArray, ArgumentsList, ArrayBuffer, ArrayBufferHeapData,
         DataBlock, ExceptionType, Function, GenericTypedArray, InternalSlots, JsResult, Number,
         Numeric, Object, PropertyKey, TryError, TryResult, TypedArray, TypedArrayRecord, Value,
