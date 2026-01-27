@@ -10,8 +10,8 @@ use crate::{
     ecmascript::{
         Agent, ArgumentsList, ArrayIterator, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
         BuiltinIntrinsic, CollectionIteratorKind, ExceptionType, Function, InternalMethods,
-        JsError, JsResult, Number, Object, builders::OrdinaryObjectBuilder, PropertyKey, Realm, SmallInteger,
-        String, Value, array_create, array_species_create, call_function,
+        JsError, JsResult, Number, Object, PropertyKey, Realm, SmallInteger, String, Value,
+        array_create, array_species_create, builders::OrdinaryObjectBuilder, call_function,
         create_data_property_or_throw, delete_property_or_throw, get, has_property, invoke,
         is_array, is_callable, is_strictly_equal, length_of_array_like, same_value_zero, set,
         to_boolean, to_integer_or_infinity, to_number, to_object, to_string,

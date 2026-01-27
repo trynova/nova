@@ -4,11 +4,12 @@
 
 use crate::{
     ecmascript::{
-        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, builders::BuiltinFunctionBuilder,
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
         BuiltinIntrinsicConstructor, Error, ExceptionType, Function, JsResult, Object,
         PropertyDescriptor, PropertyKey, ProtoIntrinsics, Realm, String, Value,
-        create_array_from_scoped_list, define_property_or_throw, get_iterator, iterator_to_list,
-        ordinary_create_from_constructor, throw_not_callable, to_string,
+        builders::BuiltinFunctionBuilder, create_array_from_scoped_list, define_property_or_throw,
+        get_iterator, iterator_to_list, ordinary_create_from_constructor, throw_not_callable,
+        to_string,
     },
     engine::{Bindable, GcScope, Scopable},
     heap::{ArenaAccessMut, IntrinsicConstructorIndexes},

@@ -9,8 +9,8 @@ use ahash::AHasher;
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter,
-        BuiltinIntrinsic, CollectionIteratorKind, ExceptionType, JsResult, Number,
-        builders::OrdinaryObjectBuilder, PropertyKey, Realm, Set, SetIterator, String, Value, call_function,
+        BuiltinIntrinsic, CollectionIteratorKind, ExceptionType, JsResult, Number, PropertyKey,
+        Realm, Set, SetIterator, String, Value, builders::OrdinaryObjectBuilder, call_function,
         canonicalize_keyed_collection_key, is_callable, same_value,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable},

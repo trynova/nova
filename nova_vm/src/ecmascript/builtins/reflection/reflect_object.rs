@@ -5,8 +5,8 @@
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType,
-        InternalMethods, JsResult, Object, builders::OrdinaryObjectBuilder, PropertyDescriptor, Realm,
-        String, Value, call_function, construct, create_array_from_list,
+        InternalMethods, JsResult, Object, PropertyDescriptor, Realm, String, Value,
+        builders::OrdinaryObjectBuilder, call_function, construct, create_array_from_list,
         create_list_from_array_like, is_callable, is_constructor, to_property_key_complex,
         to_property_key_simple, try_result_into_js,
     },

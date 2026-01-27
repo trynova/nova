@@ -7,12 +7,12 @@ use wtf8::Wtf8Buf;
 
 use crate::{
     ecmascript::{
-        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, builders::BuiltinFunctionBuilder,
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
         BuiltinIntrinsicConstructor, ECMAScriptFunction, Environment, ExceptionType, Function,
         FunctionAstRef, JsResult, Object, OrdinaryFunctionCreateParams, ParseResult, Primitive,
         ProtoIntrinsics, Realm, SourceCode, SourceCodeType, String, Value,
-        get_prototype_from_constructor, make_constructor, ordinary_function_create,
-        set_function_name, to_string, to_string_primitive,
+        builders::BuiltinFunctionBuilder, get_prototype_from_constructor, make_constructor,
+        ordinary_function_create, set_function_name, to_string, to_string_primitive,
     },
     engine::{Bindable, GcScope, Scopable},
     heap::IntrinsicConstructorIndexes,

@@ -6,12 +6,12 @@
 use crate::heap::ArenaAccessSoA;
 use crate::{
     ecmascript::{
-        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, builders::BuiltinFunctionBuilder,
-        BuiltinGetter, BuiltinIntrinsicConstructor, ExceptionType, Function, IteratorRecord,
-        JsError, JsResult, Object, OrdinaryObject, Promise, PromiseCapability, PromiseGroupRecord,
-        PromiseGroupType, PromiseHeapData, PromiseReactionHandler,
-        PromiseResolvingFunctionHeapData, PromiseResolvingFunctionType, PromiseState, PropertyKey,
-        ProtoIntrinsics, Realm, String, Value, array_create, call, call_function, get,
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter,
+        BuiltinIntrinsicConstructor, ExceptionType, Function, IteratorRecord, JsError, JsResult,
+        Object, OrdinaryObject, Promise, PromiseCapability, PromiseGroupRecord, PromiseGroupType,
+        PromiseHeapData, PromiseReactionHandler, PromiseResolvingFunctionHeapData,
+        PromiseResolvingFunctionType, PromiseState, PropertyKey, ProtoIntrinsics, Realm, String,
+        Value, array_create, builders::BuiltinFunctionBuilder, call, call_function, get,
         get_iterator, inner_promise_then, is_callable, is_constructor, iterator_close_with_error,
         iterator_step_value, ordinary_create_from_constructor,
     },

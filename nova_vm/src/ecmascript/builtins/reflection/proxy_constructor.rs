@@ -4,9 +4,9 @@
 
 use crate::{
     ecmascript::{
-        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, builders::BuiltinFunctionBuilder,
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
         BuiltinIntrinsicConstructor, ExceptionType, JsResult, Object, Realm, String, Value,
-        proxy_create,
+        builders::BuiltinFunctionBuilder, proxy_create,
     },
     engine::{Bindable, GcScope},
     heap::IntrinsicConstructorIndexes,

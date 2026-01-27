@@ -7,10 +7,10 @@ use core::ops::ControlFlow;
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinIntrinsic,
-        InternalMethods, JsResult, Object, builders::OrdinaryObjectBuilder, PrimitiveObjectData, PropertyKey,
-        PropertyLookupCache, Realm, String, TryError, TryGetResult, Value, handle_try_get_result,
-        has_own_property, invoke, is_array, is_prototype_of_loop, to_object, to_property_key,
-        try_get,
+        InternalMethods, JsResult, Object, PrimitiveObjectData, PropertyKey, PropertyLookupCache,
+        Realm, String, TryError, TryGetResult, Value, builders::OrdinaryObjectBuilder,
+        handle_try_get_result, has_own_property, invoke, is_array, is_prototype_of_loop, to_object,
+        to_property_key, try_get,
     },
     engine::{Bindable, GcScope},
     heap::{ArenaAccess, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},

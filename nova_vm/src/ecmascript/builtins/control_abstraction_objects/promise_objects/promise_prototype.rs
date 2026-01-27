@@ -5,11 +5,11 @@
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
-        BuiltinPromiseFinallyFunction, ExceptionType, Function, JsResult, Object,
-        builders::OrdinaryObjectBuilder, Promise, PromiseCapability, PromiseReactionHandler,
-        PromiseReactionRecord, PromiseReactionType, PromiseReactions,
-        PromiseRejectionTrackerOperation, PromiseState, ProtoIntrinsics, Realm, String, Value,
-        invoke, is_callable, is_constructor, new_promise_reaction_job, species_constructor,
+        BuiltinPromiseFinallyFunction, ExceptionType, Function, JsResult, Object, Promise,
+        PromiseCapability, PromiseReactionHandler, PromiseReactionRecord, PromiseReactionType,
+        PromiseReactions, PromiseRejectionTrackerOperation, PromiseState, ProtoIntrinsics, Realm,
+        String, Value, builders::OrdinaryObjectBuilder, invoke, is_callable, is_constructor,
+        new_promise_reaction_job, species_constructor,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{ArenaAccessMut, CreateHeapData, WellKnownSymbolIndexes},

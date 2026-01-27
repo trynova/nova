@@ -4,8 +4,8 @@
 
 use crate::{
     ecmascript::{
-        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, JsResult,
-        builders::OrdinaryObjectBuilder, PropertyKey, Realm, String, Value,
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, JsResult, PropertyKey,
+        Realm, String, Value, builders::OrdinaryObjectBuilder,
     },
     engine::{Bindable, GcScope},
     heap::WellKnownSymbolIndexes,

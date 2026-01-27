@@ -10,9 +10,9 @@ use crate::ecmascript::builtins::{AnyTypedArray, make_typed_array_with_buffer_wi
 use crate::{
     ecmascript::{
         ARRAY_INDEX_RANGE, Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
-        CollectionIteratorKind, ExceptionType, InternalSlots, JsResult, Object,
-        builders::OrdinaryObjectBuilder, Realm, String, Value, create_array_from_list,
-        create_iter_result_object, get, length_of_array_like,
+        CollectionIteratorKind, ExceptionType, InternalSlots, JsResult, Object, Realm, String,
+        Value, builders::OrdinaryObjectBuilder, create_array_from_list, create_iter_result_object,
+        get, length_of_array_like,
     },
     engine::{Bindable, GcScope, Scopable},
     heap::{ArenaAccess, ArenaAccessMut, WellKnownSymbolIndexes},

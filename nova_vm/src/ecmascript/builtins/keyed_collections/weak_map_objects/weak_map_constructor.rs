@@ -6,10 +6,10 @@ use std::hint::unreachable_unchecked;
 
 use crate::{
     ecmascript::{
-        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, builders::BuiltinFunctionBuilder,
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
         BuiltinIntrinsicConstructor, ExceptionType, Function, JsResult, Object, ProtoIntrinsics,
-        Realm, String, Value, add_entries_from_iterable, get, is_callable,
-        ordinary_create_from_constructor,
+        Realm, String, Value, add_entries_from_iterable, builders::BuiltinFunctionBuilder, get,
+        is_callable, ordinary_create_from_constructor,
     },
     engine::{Bindable, GcScope, Scopable},
     heap::IntrinsicConstructorIndexes,

@@ -13,9 +13,9 @@ use wtf8::{CodePoint, Wtf8Buf};
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, Array, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinIntrinsic,
-        ExceptionType, JsResult, Number, builders::OrdinaryObjectBuilder, Primitive, PrimitiveObjectData,
-        PrimitiveObjectRecord, PropertyKey, Realm, String, StringIterator, Value, call_function,
-        create_array_from_list, is_callable, is_reg_exp, is_trimmable_whitespace,
+        ExceptionType, JsResult, Number, Primitive, PrimitiveObjectData, PrimitiveObjectRecord,
+        PropertyKey, Realm, String, StringIterator, Value, builders::OrdinaryObjectBuilder,
+        call_function, create_array_from_list, is_callable, is_reg_exp, is_trimmable_whitespace,
         require_object_coercible, to_integer_or_infinity, to_integer_or_infinity_number, to_length,
         to_number, to_string, to_string_primitive, to_uint32, try_result_into_js,
         try_to_integer_or_infinity, try_to_length, try_to_string,

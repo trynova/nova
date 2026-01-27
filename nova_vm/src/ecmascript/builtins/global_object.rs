@@ -11,14 +11,14 @@ use wtf8::{CodePoint, Wtf8Buf};
 
 use crate::{
     ecmascript::{
-        Agent, BUILTIN_STRING_MEMORY, builders::BuiltinFunctionBuilder, ECMAScriptCodeEvaluationState,
-        Environment, ExceptionType, ExecutionContext, Function, JsResult,
-        LexicallyScopedDeclaration, ParseResult, Primitive, PrivateEnvironment, Realm,
-        STRING_DISCRIMINANT, SourceCode, SourceCodeType, String, Value, VarScopedDeclaration,
-        get_this_environment, instantiate_function_object, is_trimmable_whitespace,
-        new_declarative_environment, script_lexically_scoped_declarations,
-        script_var_declared_names, script_var_scoped_declarations, to_int32, to_int32_number,
-        to_number, to_number_primitive, to_string,
+        Agent, BUILTIN_STRING_MEMORY, ECMAScriptCodeEvaluationState, Environment, ExceptionType,
+        ExecutionContext, Function, JsResult, LexicallyScopedDeclaration, ParseResult, Primitive,
+        PrivateEnvironment, Realm, STRING_DISCRIMINANT, SourceCode, SourceCodeType, String, Value,
+        VarScopedDeclaration, builders::BuiltinFunctionBuilder, get_this_environment,
+        instantiate_function_object, is_trimmable_whitespace, new_declarative_environment,
+        script_lexically_scoped_declarations, script_var_declared_names,
+        script_var_scoped_declarations, to_int32, to_int32_number, to_number, to_number_primitive,
+        to_string,
     },
     engine::{Bindable, Executable, GcScope, NoGcScope, Scopable, Vm, string_literal_to_wtf8},
     heap::{ArenaAccess, HeapIndexHandle, IntrinsicFunctionIndexes},

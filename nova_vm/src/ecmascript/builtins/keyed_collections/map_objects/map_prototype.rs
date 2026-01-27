@@ -10,8 +10,8 @@ use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter,
         BuiltinIntrinsic, CollectionIteratorKind, ExceptionType, HeapNumber, JsResult, Map,
-        MapIterator, builders::OrdinaryObjectBuilder, PropertyKey, Realm, String, Value, call_function,
-        is_callable, same_value,
+        MapIterator, PropertyKey, Realm, String, Value, builders::OrdinaryObjectBuilder,
+        call_function, is_callable, same_value,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{

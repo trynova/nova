@@ -6,11 +6,12 @@ use wtf8::{CodePoint, Wtf8Buf};
 
 use crate::{
     ecmascript::{
-        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, builders::BuiltinFunctionBuilder,
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
         BuiltinIntrinsicConstructor, ExceptionType, Function, JsResult, Number, Object,
         PrimitiveObject, PrimitiveObjectData, PropertyKey, ProtoIntrinsics, Realm, SmallString,
-        String, Value, get, get_prototype_from_constructor, length_of_array_like,
-        ordinary_object_create_with_intrinsics, to_number, to_object, to_string, to_uint16_number,
+        String, Value, builders::BuiltinFunctionBuilder, get, get_prototype_from_constructor,
+        length_of_array_like, ordinary_object_create_with_intrinsics, to_number, to_object,
+        to_string, to_uint16_number,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{ArenaAccessMut, IntrinsicConstructorIndexes},

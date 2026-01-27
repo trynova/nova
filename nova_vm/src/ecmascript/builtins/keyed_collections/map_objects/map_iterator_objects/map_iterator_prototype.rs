@@ -5,7 +5,7 @@
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, CollectionIteratorKind,
-        ExceptionType, JsResult, builders::OrdinaryObjectBuilder, Realm, String, Value,
+        ExceptionType, JsResult, Realm, String, Value, builders::OrdinaryObjectBuilder,
         create_array_from_list, create_iter_result_object,
     },
     engine::{Bindable, GcScope},

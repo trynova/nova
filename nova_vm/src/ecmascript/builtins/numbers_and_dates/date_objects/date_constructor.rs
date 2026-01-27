@@ -6,10 +6,10 @@ use std::time::SystemTime;
 
 use crate::{
     ecmascript::{
-        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, builders::BuiltinFunctionBuilder,
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
         BuiltinIntrinsicConstructor, Date, DateValue, Function, JsResult, Number, Object,
-        ProtoIntrinsics, Realm, SmallInteger, String, Value, ordinary_create_from_constructor,
-        to_number, to_primitive,
+        ProtoIntrinsics, Realm, SmallInteger, String, Value, builders::BuiltinFunctionBuilder,
+        ordinary_create_from_constructor, to_number, to_primitive,
     },
     engine::{Bindable, GcScope, Scopable},
     heap::{ArenaAccessMut, IntrinsicConstructorIndexes},

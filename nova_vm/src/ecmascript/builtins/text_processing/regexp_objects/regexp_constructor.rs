@@ -6,9 +6,10 @@ use wtf8::CodePoint;
 
 use crate::{
     ecmascript::{
-        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, builders::BuiltinFunctionBuilder,
-        BuiltinGetter, BuiltinIntrinsicConstructor, ExceptionType, Function, JsResult, Object,
-        PropertyKey, Realm, String, Value, get, is_reg_exp, reg_exp_alloc, reg_exp_initialize,
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter,
+        BuiltinIntrinsicConstructor, ExceptionType, Function, JsResult, Object, PropertyKey, Realm,
+        String, Value, builders::BuiltinFunctionBuilder, get, is_reg_exp, reg_exp_alloc,
+        reg_exp_initialize,
     },
     engine::{Bindable, GcScope, Scopable},
     heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},

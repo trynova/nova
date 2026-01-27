@@ -17,9 +17,9 @@ use crate::{
     ecmascript::{
         Agent, AnyArrayBuffer, AnyTypedArray, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour,
         BigInt, Builtin, ExceptionType, InnerJob, Job, JsResult, Number, Numeric, OrdinaryObject,
-        builders::OrdinaryObjectBuilder, Promise, PromiseCapability, Realm, SharedArrayBuffer,
-        SharedDataBlock, SharedTypedArray, String, TryError, TryResult,
-        TypedArrayAbstractOperations, TypedArrayWithBufferWitnessRecords, Value,
+        Promise, PromiseCapability, Realm, SharedArrayBuffer, SharedDataBlock, SharedTypedArray,
+        String, TryError, TryResult, TypedArrayAbstractOperations,
+        TypedArrayWithBufferWitnessRecords, Value, builders::OrdinaryObjectBuilder,
         compare_exchange_in_buffer, for_any_typed_array, get_modify_set_value_in_buffer,
         get_value_from_buffer, make_typed_array_with_buffer_witness_record,
         number_convert_to_integer_or_infinity, set_value_in_buffer, to_big_int, to_big_int64,

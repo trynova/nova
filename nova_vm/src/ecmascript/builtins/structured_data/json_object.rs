@@ -8,9 +8,9 @@ use wtf8::{CodePoint, Wtf8Buf};
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType, Function,
-        InternalMethods, JsResult, Number, Object, builders::OrdinaryObjectBuilder, Primitive,
-        PrimitiveObject, PrimitiveObjectData, PropertyDescriptor, PropertyKey, ProtoIntrinsics,
-        Realm, ScopedPropertyKey, SmallInteger, String, Value, array_create, call_function,
+        InternalMethods, JsResult, Number, Object, Primitive, PrimitiveObject, PrimitiveObjectData,
+        PropertyDescriptor, PropertyKey, ProtoIntrinsics, Realm, ScopedPropertyKey, SmallInteger,
+        String, Value, array_create, builders::OrdinaryObjectBuilder, call_function,
         create_data_property, enumerable_own_keys, get, get_v, is_array, is_callable,
         length_of_array_like, ordinary_object_create_with_intrinsics, scoped_enumerable_own_keys,
         to_integer_or_infinity_number, to_number, to_property_key, to_property_key_simple,

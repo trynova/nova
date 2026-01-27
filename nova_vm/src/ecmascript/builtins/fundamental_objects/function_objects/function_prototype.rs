@@ -7,12 +7,12 @@ use core::ops::ControlFlow;
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinFunction,
-        builders::BuiltinFunctionBuilder, BuiltinIntrinsic, BuiltinIntrinsicConstructor, ExceptionType,
-        Function, InternalSlots, JsResult, Number, OrdinaryObject, PropertyKey, Realm,
-        SetFunctionNamePrefix, String, TryError, TryGetResult, TryResult, Value,
-        bound_function_create, call_function, create_list_from_array_like, handle_try_get_result,
-        has_own_property, is_callable, ordinary_has_instance, set_function_name,
-        to_integer_or_infinity_number, try_get, try_has_own_property,
+        BuiltinIntrinsic, BuiltinIntrinsicConstructor, ExceptionType, Function, InternalSlots,
+        JsResult, Number, OrdinaryObject, PropertyKey, Realm, SetFunctionNamePrefix, String,
+        TryError, TryGetResult, TryResult, Value, bound_function_create,
+        builders::BuiltinFunctionBuilder, call_function, create_list_from_array_like,
+        handle_try_get_result, has_own_property, is_callable, ordinary_has_instance,
+        set_function_name, to_integer_or_infinity_number, try_get, try_has_own_property,
     },
     engine::{Bindable, GcScope, Scopable},
     heap::{

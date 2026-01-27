@@ -5,7 +5,7 @@
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType, JsResult,
-        builders::OrdinaryObjectBuilder, Realm, String, Value, WeakMap, can_be_held_weakly,
+        Realm, String, Value, WeakMap, builders::OrdinaryObjectBuilder, can_be_held_weakly,
         throw_not_weak_key_error,
     },
     engine::{Bindable, GcScope, NoGcScope},

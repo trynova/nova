@@ -4,9 +4,9 @@
 
 use crate::{
     ecmascript::{
-        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, builders::BuiltinFunctionBuilder,
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
         BuiltinIntrinsicConstructor, DynamicFunctionKind, Function, JsResult, Object, Realm,
-        String, Value, create_dynamic_function,
+        String, Value, builders::BuiltinFunctionBuilder, create_dynamic_function,
     },
     engine::{Bindable, GcScope},
     heap::IntrinsicConstructorIndexes,

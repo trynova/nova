@@ -4,10 +4,10 @@
 
 use crate::{
     ecmascript::{
-        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, builders::BuiltinFunctionBuilder,
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
         BuiltinIntrinsicConstructor, ExceptionType, Function, JsResult, Object, ProtoIntrinsics,
-        Realm, String, Value, add_to_kept_objects, can_be_held_weakly,
-        ordinary_create_from_constructor, throw_not_weak_key_error,
+        Realm, String, Value, add_to_kept_objects, builders::BuiltinFunctionBuilder,
+        can_be_held_weakly, ordinary_create_from_constructor, throw_not_weak_key_error,
     },
     engine::{Bindable, GcScope, Scopable},
     heap::IntrinsicConstructorIndexes,

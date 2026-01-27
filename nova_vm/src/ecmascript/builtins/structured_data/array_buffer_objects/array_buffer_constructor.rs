@@ -4,9 +4,9 @@
 
 use crate::{
     ecmascript::{
-        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, builders::BuiltinFunctionBuilder,
-        BuiltinGetter, BuiltinIntrinsicConstructor, ExceptionType, Function, JsResult, Object,
-        PropertyKey, Realm, String, Value, allocate_array_buffer,
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter,
+        BuiltinIntrinsicConstructor, ExceptionType, Function, JsResult, Object, PropertyKey, Realm,
+        String, Value, allocate_array_buffer, builders::BuiltinFunctionBuilder,
         get_array_buffer_max_byte_length_option, to_index, validate_index,
     },
     engine::{Bindable, GcScope, Scopable},
