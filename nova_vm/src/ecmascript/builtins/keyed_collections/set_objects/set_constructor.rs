@@ -15,10 +15,7 @@ use crate::{
         if_abrupt_close_iterator, is_callable, iterator_step_value,
         ordinary_create_from_constructor, throw_not_callable,
     },
-    engine::{
-        Bindable, GcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::{
         DirectArenaAccessSoAMut, Heap, IntrinsicConstructorIndexes, PrimitiveHeap,
         WellKnownSymbolIndexes,

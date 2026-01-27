@@ -12,9 +12,8 @@ use crate::{
         try_result_into_option_js,
     },
     engine::{
-        ScopableCollection, ScopedCollection, VmIteratorRecord,
-        Bindable, GcScope, NoGcScope, bindable_handle,
-        Scopable,
+        Bindable, GcScope, NoGcScope, Scopable, ScopableCollection, ScopedCollection,
+        VmIteratorRecord, bindable_handle,
     },
     heap::{
         CompactionLists, HeapMarkAndSweep, ObjectEntry, ObjectEntryPropertyDescriptor,

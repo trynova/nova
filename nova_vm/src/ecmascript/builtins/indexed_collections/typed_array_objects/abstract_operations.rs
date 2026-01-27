@@ -10,21 +10,16 @@ use ecmascript_atomics::Ordering;
 use crate::ecmascript::{GenericSharedTypedArray, SharedTypedArrayRecord};
 use crate::{
     ecmascript::{
-    SmallInteger,
         Agent, AnyArrayBuffer, AnyTypedArray, ArgumentsList, ArrayBuffer, ArrayBufferHeapData,
         DataBlock, ExceptionType, Function, GenericTypedArray, InternalSlots, JsResult, Number,
-        Numeric, Object, PropertyKey, TryError, TryResult, TypedArray, TypedArrayRecord, Value,
-        Viewable, VoidArray, construct, create_byte_data_block, get,
+        Numeric, Object, PropertyKey, SmallInteger, TryError, TryResult, TypedArray,
+        TypedArrayRecord, Value, Viewable, VoidArray, construct, create_byte_data_block, get,
         get_prototype_from_constructor, get_value_from_buffer, is_fixed_length_array_buffer,
         js_result_into_try, length_of_array_like, require_internal_slot_typed_array, set,
         set_value_in_buffer, species_constructor, to_index, try_result_into_js,
         try_species_constructor, try_to_index,
     },
-    engine::{
-        Scoped, ScopedCollection,
-        Bindable, GcScope, NoGcScope, bindable_handle,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, Scoped, ScopedCollection, bindable_handle},
     heap::CreateHeapData,
 };
 

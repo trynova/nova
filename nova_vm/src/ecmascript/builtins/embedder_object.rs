@@ -11,8 +11,8 @@ use crate::{
         InternalMethods, InternalSlots, Object, OrdinaryObject, execution::Agent, object_handle,
     },
     heap::{
-        CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
-        BaseIndex,
+        BaseIndex, CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
+        arena_vec_access,
     },
 };
 

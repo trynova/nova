@@ -14,9 +14,8 @@ use crate::{
         Agent, BigInt, Number, ObjectShape, PropertyKey, PropertyLookupCache, String, Value,
     },
     engine::{
-        Executable, ExecutableHeapData, FunctionExpression, Instruction,
+        Bindable, Executable, ExecutableHeapData, FunctionExpression, Instruction, NoGcScope,
         bytecode::executable::ArrowFunctionExpression,
-        Bindable, NoGcScope,
     },
     heap::CreateHeapData,
 };

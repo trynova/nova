@@ -13,11 +13,7 @@ use crate::{
         create_iter_result_object, get_function_realm, import_get_module_namespace,
         iterator_close_with_error, link_and_evaluate,
     },
-    engine::{
-        Global,
-        Bindable, GcScope, NoGcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, Global, NoGcScope, Scopable},
     heap::{ArenaAccess, CreateHeapData},
 };
 

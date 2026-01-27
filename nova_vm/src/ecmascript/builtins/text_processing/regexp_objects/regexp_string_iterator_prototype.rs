@@ -9,10 +9,7 @@ use crate::{
         create_iter_result_object, get, reg_exp_exec, set, to_length, to_string, try_get,
         try_get_result_into_value, try_result_into_js, try_result_into_option_js, try_to_string,
     },
-    engine::{
-        Bindable, GcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::WellKnownSymbolIndexes,
 };
 

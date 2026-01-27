@@ -17,11 +17,7 @@ use crate::{
         to_integer_or_infinity, to_length, to_object, to_string, to_uint32,
         try_create_data_property_or_throw, try_get, unwrap_try,
     },
-    engine::{
-        Scoped,
-        Bindable, GcScope, NoGcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, Scoped},
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
 

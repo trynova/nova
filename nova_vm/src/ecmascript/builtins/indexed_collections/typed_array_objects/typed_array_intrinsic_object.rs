@@ -9,12 +9,11 @@ use wtf8::Wtf8Buf;
 
 use crate::{
     ecmascript::{
-    SmallInteger,
         Agent, AnyTypedArray, ArgumentsList, ArrayIterator, BUILTIN_STRING_MEMORY, Behaviour,
         Builtin, BuiltinFunctionBuilder, BuiltinGetter, BuiltinIntrinsic,
         BuiltinIntrinsicConstructor, CollectionIteratorKind, ExceptionType, InternalMethods,
         JsResult, Number, Numeric, Object, OrdinaryObjectBuilder, Primitive, PropertyKey, Realm,
-        String, TryGetResult, TypedArrayAbstractOperations, Value, call_function,
+        SmallInteger, String, TryGetResult, TypedArrayAbstractOperations, Value, call_function,
         find_via_predicate, for_any_typed_array, get, get_iterator_from_method, get_method, invoke,
         is_callable, is_constructor, iterator_to_list, length_of_array_like, same_value_zero, set,
         throw_not_callable, to_big_int, to_big_int_primitive, to_boolean, to_integer_or_infinity,
@@ -23,10 +22,7 @@ use crate::{
         try_typed_array_species_create_with_length, typed_array_create_from_data_block, unwrap_try,
         unwrap_try_get_value, unwrap_try_get_value_or_unset,
     },
-    engine::{
-        Bindable, GcScope, NoGcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
 

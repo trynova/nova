@@ -21,14 +21,10 @@ use crate::{
         new_function_environment, ordinary_create_from_constructor,
         ordinary_object_create_with_intrinsics, to_object,
     },
-    engine::{
-        Executable,
-        Bindable, GcScope, NoGcScope, bindable_handle,
-        Scopable,
-    },
+    engine::{Bindable, Executable, GcScope, NoGcScope, Scopable, bindable_handle},
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, WorkQueues, arena_vec_access, BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
     ndt,
 };

@@ -12,10 +12,7 @@ use crate::{
         private_set, set, throw_no_private_name_error, to_object, to_property_key,
         to_property_key_simple, try_private_get, try_private_set, try_set,
     },
-    engine::{
-        Bindable, GcScope, NoGcScope, bindable_handle,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 

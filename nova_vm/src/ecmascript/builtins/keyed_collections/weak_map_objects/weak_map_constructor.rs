@@ -11,10 +11,7 @@ use crate::{
         Realm, String, Value, add_entries_from_iterable, get, is_callable,
         ordinary_create_from_constructor,
     },
-    engine::{
-        Bindable, GcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::IntrinsicConstructorIndexes,
 };
 

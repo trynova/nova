@@ -10,10 +10,7 @@ use crate::{
         create_array_from_scoped_list, define_property_or_throw, get_iterator, iterator_to_list,
         ordinary_create_from_constructor, throw_not_callable, to_string,
     },
-    engine::{
-        Bindable, GcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::{ArenaAccessMut, IntrinsicConstructorIndexes},
 };
 

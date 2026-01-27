@@ -8,11 +8,7 @@ use crate::{
         PromiseReactionHandler, Realm, Value, create_iter_result_object, inner_promise_then,
         unwrap_try,
     },
-    engine::{
-        ExecutionResult, Scoped, SuspendedVm,
-        Bindable, GcScope, NoGcScope,
-        Scopable,
-    },
+    engine::{Bindable, ExecutionResult, GcScope, NoGcScope, Scopable, Scoped, SuspendedVm},
     heap::ArenaAccessMut,
 };
 

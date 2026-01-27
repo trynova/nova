@@ -10,10 +10,7 @@ use crate::{
         is_fixed_length_array_buffer, species_constructor, to_index, to_integer_or_infinity,
         try_result_into_js, try_to_index,
     },
-    engine::{
-        Bindable, GcScope, NoGcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::WellKnownSymbolIndexes,
 };
 

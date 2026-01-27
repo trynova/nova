@@ -11,10 +11,7 @@ use crate::{
         PromiseRejectionTrackerOperation, PromiseState, ProtoIntrinsics, Realm, String, Value,
         invoke, is_callable, is_constructor, new_promise_reaction_job, species_constructor,
     },
-    engine::{
-        Bindable, GcScope, NoGcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{ArenaAccessMut, CreateHeapData, WellKnownSymbolIndexes},
 };
 

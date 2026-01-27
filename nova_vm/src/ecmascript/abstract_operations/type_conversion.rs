@@ -21,18 +21,14 @@ use wtf8::Wtf8;
 
 use crate::{
     ecmascript::{
-    SmallInteger,
         Agent, ArgumentsList, ExceptionType, JsResult, PrimitiveObjectData, PrimitiveObjectRecord,
-        TryError, TryResult, js_result_into_try,
+        SmallInteger, TryError, TryResult, js_result_into_try,
         types::{
             BUILTIN_STRING_MEMORY, BigInt, Number, Numeric, Object, Primitive, PropertyKey, String,
             Value,
         },
     },
-    engine::{
-        Bindable, GcScope, NoGcScope, trivially_bindable,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, trivially_bindable},
     heap::{ArenaAccess, CreateHeapData, WellKnownSymbolIndexes},
 };
 

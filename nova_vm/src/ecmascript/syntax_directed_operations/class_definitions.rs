@@ -8,10 +8,7 @@ use crate::{
         JsResult, Object, ProtoIntrinsics, construct, initialize_instance_elements, is_constructor,
         ordinary_create_from_constructor, unwrap_try,
     },
-    engine::{
-        Bindable, GcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
 };
 
 pub(crate) fn base_class_default_constructor<'a>(

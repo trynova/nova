@@ -9,10 +9,7 @@ use crate::{
         Realm, String, Value, add_to_kept_objects, can_be_held_weakly,
         ordinary_create_from_constructor, throw_not_weak_key_error,
     },
-    engine::{
-        Bindable, GcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::IntrinsicConstructorIndexes,
 };
 

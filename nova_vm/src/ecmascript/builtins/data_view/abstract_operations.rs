@@ -6,10 +6,7 @@ use crate::{
         is_fixed_length_array_buffer, require_internal_slot_data_view, set_value_in_buffer,
         to_big_int, to_index, to_number, try_result_into_js, try_to_index,
     },
-    engine::{
-        Bindable, GcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
 };
 
 use super::AnyDataView;

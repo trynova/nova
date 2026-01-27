@@ -8,10 +8,7 @@ use crate::{
         Number, OrdinaryObjectBuilder, PrimitiveObject, PrimitiveObjectData, PrimitiveObjectRecord,
         Realm, SmallInteger, String, Value, to_integer_or_infinity,
     },
-    engine::{
-        Bindable, GcScope, NoGcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{ArenaAccess, HeapIndexHandle},
 };
 

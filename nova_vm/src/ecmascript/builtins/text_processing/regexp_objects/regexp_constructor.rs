@@ -10,10 +10,7 @@ use crate::{
         BuiltinGetter, BuiltinIntrinsicConstructor, ExceptionType, Function, JsResult, Object,
         PropertyKey, Realm, String, Value, get, is_reg_exp, reg_exp_alloc, reg_exp_initialize,
     },
-    engine::{
-        Bindable, GcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };
 

@@ -10,10 +10,7 @@ use crate::{
         create_list_from_array_like, is_callable, is_constructor, to_property_key_complex,
         to_property_key_simple, try_result_into_js,
     },
-    engine::{
-        Bindable, GcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::WellKnownSymbolIndexes,
 };
 

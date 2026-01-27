@@ -8,14 +8,10 @@ use crate::{
         JsResult, Object, OrdinaryObject, String, TryResult, Value, call_function, construct,
         function_handle, is_constructor, unwrap_try,
     },
-    engine::{
-        Bindable, GcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::{
-        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
-        HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
-        ElementsVector,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, ElementsVector,
+        Heap, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
 

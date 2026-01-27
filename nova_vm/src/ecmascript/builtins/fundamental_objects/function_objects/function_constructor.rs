@@ -14,10 +14,7 @@ use crate::{
         get_prototype_from_constructor, make_constructor, ordinary_function_create,
         set_function_name, to_string, to_string_primitive,
     },
-    engine::{
-        Bindable, GcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::IntrinsicConstructorIndexes,
 };
 

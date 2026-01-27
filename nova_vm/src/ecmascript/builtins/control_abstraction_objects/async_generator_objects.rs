@@ -15,14 +15,10 @@ use crate::{
         Agent, ExecutionContext, InternalMethods, InternalSlots, JsError, OrdinaryObject,
         PromiseCapability, PromiseReactionType, ProtoIntrinsics, Value, object_handle,
     },
-    engine::{
-        Executable, SuspendedVm,
-        Bindable, GcScope, NoGcScope, bindable_handle,
-        Scopable,
-    },
+    engine::{Bindable, Executable, GcScope, NoGcScope, Scopable, SuspendedVm, bindable_handle},
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, WorkQueues, arena_vec_access, BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
 

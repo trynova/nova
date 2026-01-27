@@ -12,10 +12,7 @@ use crate::{
         copy_shared_data_block_bytes, species_constructor, to_index, to_integer_or_infinity,
         try_result_into_js, try_to_index, try_to_integer_or_infinity,
     },
-    engine::{
-        Bindable, GcScope, NoGcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::WellKnownSymbolIndexes,
 };
 

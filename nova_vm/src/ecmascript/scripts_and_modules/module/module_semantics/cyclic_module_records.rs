@@ -11,11 +11,7 @@ use crate::{
         PromiseReactionHandler, SourceTextModule, Value, get_imported_module, inner_promise_then,
         unwrap_try,
     },
-    engine::{
-        Scoped,
-        Bindable, GcScope, NoGcScope, bindable_handle,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, Scoped, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 

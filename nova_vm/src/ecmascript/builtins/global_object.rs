@@ -20,13 +20,8 @@ use crate::{
         script_var_declared_names, script_var_scoped_declarations, to_int32, to_int32_number,
         to_number, to_number_primitive, to_string,
     },
-    engine::{
-        Executable, Vm,
-        Bindable, GcScope, NoGcScope,
-        Scopable,
-        string_literal_to_wtf8,
-    },
-    heap::{ArenaAccess, IntrinsicFunctionIndexes, HeapIndexHandle},
+    engine::{Bindable, Executable, GcScope, NoGcScope, Scopable, Vm, string_literal_to_wtf8},
+    heap::{ArenaAccess, HeapIndexHandle, IntrinsicFunctionIndexes},
     ndt,
 };
 

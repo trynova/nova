@@ -7,10 +7,7 @@ use crate::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType, JsResult,
         Object, OrdinaryObjectBuilder, PropertyKey, Realm, String, Value, get, to_string,
     },
-    engine::{
-        Bindable, GcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
 };
 
 pub(crate) struct ErrorPrototype;

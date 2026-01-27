@@ -9,11 +9,7 @@ use crate::{
         Agent, ArgumentsList, ExceptionType, FinalizationRegistry, JsError, JsResult, Object,
         Value, WeakKey, call_function, key_for_symbol,
     },
-    engine::{
-        Global, ScopableCollection,
-        Bindable, GcScope, NoGcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, Global, NoGcScope, Scopable, ScopableCollection},
 };
 
 /// ## [9.10 ClearKeptObjects ( )](https://tc39.es/ecma262/#sec-clear-kept-objects)

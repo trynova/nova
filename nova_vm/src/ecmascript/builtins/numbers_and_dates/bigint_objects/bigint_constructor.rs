@@ -11,10 +11,7 @@ use crate::{
         Object, PreferredType, Realm, SmallBigInt, String, Value, to_big_int, to_big_int_primitive,
         to_index, to_primitive,
     },
-    engine::{
-        Bindable, GcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::{ArenaAccess, IntrinsicConstructorIndexes},
 };
 

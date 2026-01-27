@@ -15,11 +15,7 @@ use crate::{
         ordinary_populate_from_constructor, set_function_name, try_define_property_or_throw,
         unwrap_try,
     },
-    engine::{
-        Executable, ExecutionResult, Vm,
-        Bindable, GcScope, NoGcScope,
-        Scopable,
-    },
+    engine::{Bindable, Executable, ExecutionResult, GcScope, NoGcScope, Scopable, Vm},
     heap::{ArenaAccess, ArenaAccessMut, CreateHeapData},
 };
 use oxc_ast::ast::{self};

@@ -8,14 +8,11 @@ use crate::{
         PromiseReactionHandler, PromiseReactionType, SourceTextModule, Value, inner_promise_then,
     },
     engine::{
-        Executable, ExecutionResult, SuspendedVm,
-        Bindable, GcScope, bindable_handle,
-        Scopable,
+        Bindable, Executable, ExecutionResult, GcScope, Scopable, SuspendedVm, bindable_handle,
     },
     heap::{
         ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        WorkQueues, arena_vec_access,
-        {BaseIndex, HeapIndexHandle, index_handle},
+        WorkQueues, arena_vec_access, {BaseIndex, HeapIndexHandle, index_handle},
     },
 };
 

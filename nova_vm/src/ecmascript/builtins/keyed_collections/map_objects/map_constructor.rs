@@ -18,10 +18,7 @@ use crate::{
         iterator_close_with_error, iterator_step_value, ordinary_create_from_constructor,
         same_value, throw_not_callable, try_get,
     },
-    engine::{
-        Bindable, GcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::{
         ArenaAccess, CreateHeapData, Heap, IntrinsicConstructorIndexes, PrimitiveHeap,
         WellKnownSymbolIndexes,

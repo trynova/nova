@@ -11,14 +11,11 @@ use crate::{
         PrivateEnvironment, PropertyKey, SourceCode, String, Value, base_class_default_constructor,
         derived_class_default_constructor, function_handle,
     },
-    engine::{
-        Executable,
-        Bindable, GcScope, NoGcScope, bindable_handle,
-    },
+    engine::{Bindable, Executable, GcScope, NoGcScope, bindable_handle},
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
-        arena_vec_access, BaseIndex, HeapIndexHandle,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapIndexHandle, HeapMarkAndSweep, HeapSweepWeakReference, ObjectEntry,
+        ObjectEntryPropertyDescriptor, WorkQueues, arena_vec_access,
     },
     ndt,
 };

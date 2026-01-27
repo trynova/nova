@@ -14,10 +14,7 @@ use crate::{
         String, TryError, TryResult, Value, define_property_or_throw, has_own_property,
         is_extensible, js_result_into_try, set, try_has_own_property,
     },
-    engine::{
-        Bindable, GcScope, NoGcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{ArenaAccess, ArenaAccessMut, CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 

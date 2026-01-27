@@ -16,11 +16,7 @@ use crate::{
         throw_not_callable, to_object, to_property_key, to_property_key_simple,
         try_create_data_property, try_result_into_js, unwrap_try,
     },
-    engine::{
-        ScopableCollection, Scoped,
-        Bindable, GcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable, ScopableCollection, Scoped},
     heap::{IntrinsicConstructorIndexes, ObjectEntry, WellKnownSymbolIndexes},
 };
 

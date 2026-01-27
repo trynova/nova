@@ -18,11 +18,7 @@ use crate::{
         try_create_data_property_or_throw, try_get, try_result_into_js, try_to_length, unwrap_try,
         unwrap_try_get_value,
     },
-    engine::{
-        Scoped,
-        Bindable, GcScope, NoGcScope, bindable_handle,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, Scoped, bindable_handle},
     heap::{ArenaAccess, ArenaAccessMut, CreateHeapData, DirectArenaAccessMut},
 };
 

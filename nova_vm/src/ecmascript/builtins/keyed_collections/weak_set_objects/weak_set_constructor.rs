@@ -11,11 +11,7 @@ use crate::{
         is_callable, iterator_step_value, ordinary_create_from_constructor, throw_not_callable,
         throw_not_weak_key_error,
     },
-    engine::{
-        Scoped,
-        Bindable, GcScope, NoGcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, Scoped},
     heap::{DirectArenaAccessMut, IntrinsicConstructorIndexes},
 };
 

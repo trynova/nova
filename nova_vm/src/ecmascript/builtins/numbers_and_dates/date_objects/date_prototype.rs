@@ -10,10 +10,7 @@ use crate::{
         ordinary_to_primitive, to_integer_or_infinity_f64, to_object,
         to_zero_padded_decimal_string,
     },
-    engine::{
-        Bindable, GcScope, NoGcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
 

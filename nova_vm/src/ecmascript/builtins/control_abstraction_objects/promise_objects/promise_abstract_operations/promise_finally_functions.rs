@@ -7,14 +7,10 @@ use crate::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Function, FunctionInternalProperties, JsError,
         JsResult, OrdinaryObject, Promise, String, Value, call_function, function_handle, invoke,
     },
-    engine::{
-        Bindable, GcScope, bindable_handle,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable, bindable_handle},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, arena_vec_access,
-        {BaseIndex, HeapIndexHandle},
+        WorkQueues, arena_vec_access, {BaseIndex, HeapIndexHandle},
     },
 };
 

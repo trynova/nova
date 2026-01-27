@@ -16,10 +16,7 @@ use crate::{
         make_typed_array_with_buffer_witness_record, throw_not_callable, to_index,
         try_get_prototype_from_constructor, try_result_into_js, try_to_index, typed_array_create,
     },
-    engine::{
-        Bindable, GcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };
 

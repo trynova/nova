@@ -14,14 +14,10 @@ use crate::{
         AbstractModule, BUILTIN_STRING_MEMORY, HostDefined, LoadedModules, ModuleRequest, Number,
         Object, OrdinaryObject, PropertyDescriptor, PropertyKey, Value, define_property_or_throw,
     },
-    engine::{
-        Bindable, GcScope, NoGcScope, bindable_handle,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, bindable_handle},
     heap::{
         ArenaAccess, ArenaAccessMut, CompactionLists, HeapMarkAndSweep, WorkQueues,
-        arena_vec_access,
-        {BaseIndex, HeapIndexHandle, index_handle},
+        arena_vec_access, {BaseIndex, HeapIndexHandle, index_handle},
     },
 };
 use core::marker::PhantomData;

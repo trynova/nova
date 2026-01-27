@@ -13,10 +13,7 @@ use crate::{
         OrdinaryObjectBuilder, PropertyKey, Realm, Set, SetIterator, String, Value, call_function,
         canonicalize_keyed_collection_key, is_callable, same_value,
     },
-    engine::{
-        Bindable, GcScope, NoGcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{
         ArenaAccessSoA, ArenaAccessSoAMut, DirectArenaAccessSoA, DirectArenaAccessSoAMut, Heap,
         IntrinsicFunctionIndexes, PrimitiveHeap, WellKnownSymbolIndexes,

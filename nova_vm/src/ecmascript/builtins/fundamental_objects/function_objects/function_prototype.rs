@@ -14,10 +14,7 @@ use crate::{
         has_own_property, is_callable, ordinary_has_instance, set_function_name,
         to_integer_or_infinity_number, try_get, try_has_own_property,
     },
-    engine::{
-        Bindable, GcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::{
         ArenaAccess, ArenaAccessMut, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes,
         ObjectEntry, ObjectEntryPropertyDescriptor, WellKnownSymbolIndexes,

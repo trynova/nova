@@ -40,9 +40,7 @@ mod ndt {
 /// for them to work. On other OS's this is a no-op.
 ///
 /// ```rust
-/// fn main() {
-///   nova_vm::register_probes();
-/// }
+/// nova_vm::register_probes();
 /// ```
 ///
 /// # usdt documentation

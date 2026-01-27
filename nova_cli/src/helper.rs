@@ -22,10 +22,7 @@ use nova_vm::{
         OrdinaryObject, PropertyDescriptor, PropertyKey, RegularFn, SharedArrayBuffer, String,
         Value, create_builtin_function, parse_script, script_evaluation, unwrap_try,
     },
-    engine::{
-        Bindable, GcScope, NoGcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
 };
 use oxc_diagnostics::OxcDiagnostic;
 

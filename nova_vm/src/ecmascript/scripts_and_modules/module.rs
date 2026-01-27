@@ -15,12 +15,7 @@ use crate::{
         enumerable_own_properties, get, get_active_script_or_module, if_abrupt_reject_promise_m,
         inner_promise_then, to_string, unwrap_try,
     },
-    engine::{
-        Scoped,
-        Bindable, GcScope, NoGcScope,
-        Scopable,
-        typeof_operator,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, Scoped, typeof_operator},
 };
 
 /// ### [13.3.10.2 EvaluateImportCall ( specifierExpression \[ , optionsExpression \] )](https://tc39.es/ecma262/#sec-evaluate-import-call)

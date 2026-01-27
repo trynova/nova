@@ -10,9 +10,8 @@ use hashbrown::{HashTable, hash_table::Entry};
 use crate::{
     ecmascript::{PropertyKey, Value, execution::Agent},
     engine::{
-        ScopableCollection, ScopedCollection,
-        Bindable, NoGcScope, bindable_handle,
-        HeapRootCollectionData,
+        Bindable, HeapRootCollectionData, NoGcScope, ScopableCollection, ScopedCollection,
+        bindable_handle,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };

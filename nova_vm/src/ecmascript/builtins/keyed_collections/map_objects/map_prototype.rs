@@ -13,10 +13,7 @@ use crate::{
         MapIterator, OrdinaryObjectBuilder, PropertyKey, Realm, String, Value, call_function,
         is_callable, same_value,
     },
-    engine::{
-        Bindable, GcScope, NoGcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{
         ArenaAccess, ArenaAccessSoA, Heap, IntrinsicFunctionIndexes, PrimitiveHeap,
         WellKnownSymbolIndexes,

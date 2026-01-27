@@ -14,10 +14,7 @@ use crate::{
         require_object_coercible, throw_not_callable, to_number, to_number_primitive, to_uint32,
         try_length_of_array_like,
     },
-    engine::{
-        Bindable, GcScope, NoGcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::WellKnownSymbolIndexes,
 };
 
@@ -1839,7 +1836,7 @@ impl MathObject {
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        use crate::ecmascript::execution::agent::ExceptionType;
+        use crate::ecmascript::ExceptionType;
 
         let value = arguments.get(0).bind(gc.nogc());
         let min = arguments.get(1).bind(gc.nogc());

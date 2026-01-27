@@ -25,7 +25,7 @@ use crate::ecmascript::{
     LexicallyScopedDeclarations, Number, String, Value,
 };
 #[cfg(feature = "typescript")]
-use crate::{ecmascript::builtins::ObjectShapeRecord, heap::CreateHeapData};
+use crate::{ecmascript::ObjectShapeRecord, heap::CreateHeapData};
 use crate::{
     ecmascript::{
         Agent, ExceptionType, ObjectShape, Primitive, PropertyKey, to_property_key_simple,

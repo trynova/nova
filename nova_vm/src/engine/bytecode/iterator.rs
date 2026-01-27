@@ -14,11 +14,7 @@ use crate::{
         create_iter_result_object, get, get_iterator_from_method, get_method, get_object_method,
         throw_not_callable, to_boolean, try_get,
     },
-    engine::{
-        Scoped,
-        Bindable, GcScope, NoGcScope, ScopeToken, bindable_handle,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, ScopeToken, Scoped, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
 

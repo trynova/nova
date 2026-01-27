@@ -10,11 +10,7 @@ use crate::{
         is_callable, iterator_close_with_error, iterator_close_with_value, iterator_step_value,
         setter_that_ignores_prototype_properties, throw_not_callable, to_boolean,
     },
-    engine::{
-        ScopableCollection,
-        Bindable, GcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable, ScopableCollection},
     heap::WellKnownSymbolIndexes,
 };
 

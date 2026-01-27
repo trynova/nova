@@ -10,11 +10,7 @@ use crate::{
         PropertyLookupCache, TryError, TryHasResult, TryResult, Value, get, has_property,
         is_callable, to_boolean, try_get, try_get_result_into_value, try_has_property,
     },
-    engine::{
-        Scoped,
-        Bindable, GcScope, NoGcScope, bindable_handle,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, Scoped, bindable_handle},
     heap::ObjectEntry,
 };
 

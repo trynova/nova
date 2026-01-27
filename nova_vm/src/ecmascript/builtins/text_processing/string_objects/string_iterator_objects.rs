@@ -11,8 +11,7 @@ use crate::{
     engine::{Bindable, GcScope, NoGcScope, bindable_handle},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WellKnownSymbolIndexes, WorkQueues, arena_vec_access,
-        {BaseIndex, HeapIndexHandle},
+        WellKnownSymbolIndexes, WorkQueues, arena_vec_access, {BaseIndex, HeapIndexHandle},
     },
 };
 

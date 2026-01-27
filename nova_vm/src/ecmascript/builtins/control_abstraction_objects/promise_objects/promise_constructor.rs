@@ -15,11 +15,7 @@ use crate::{
         get_iterator, inner_promise_then, is_callable, is_constructor, iterator_close_with_error,
         iterator_step_value, ordinary_create_from_constructor,
     },
-    engine::{
-        Scoped,
-        Bindable, GcScope, NoGcScope, bindable_handle,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, Scoped, bindable_handle},
     heap::{CreateHeapData, IntrinsicConstructorIndexes, ObjectEntry, WellKnownSymbolIndexes},
 };
 

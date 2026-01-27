@@ -8,10 +8,7 @@ use crate::{
         BuiltinGetter, BuiltinIntrinsicConstructor, ExceptionType, JsResult, Object, PropertyKey,
         Realm, String, Value, get_array_buffer_max_byte_length_option, to_index,
     },
-    engine::{
-        Bindable, GcScope,
-        Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };
 
