@@ -25,3 +25,4 @@ LL |     fn test_doesnt_need_gc_scope(&self, gc: GcScope<'_, '_>) {
    |                                             ^^^^^^^ help: replace with: `NoGcScope`
 
 warning: 4 warnings emitted
+
