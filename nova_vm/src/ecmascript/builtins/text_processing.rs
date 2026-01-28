@@ -3,5 +3,9 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #[cfg(feature = "regexp")]
-pub(crate) mod regexp_objects;
-pub(crate) mod string_objects;
+mod regexp_objects;
+mod string_objects;
+
+#[cfg(feature = "regexp")]
+pub use regexp_objects::*;
+pub use string_objects::*;

@@ -6,39 +6,13 @@
 
 use crate::{
     ecmascript::{
-        builtins::{
-            control_abstraction_objects::promise_objects::{
-                promise_abstract_operations::{
-                    promise_capability_records::PromiseCapability,
-                    promise_reaction_records::PromiseReactionHandler,
-                },
-                promise_prototype::inner_promise_then,
-            },
-            promise::Promise,
-        },
-        execution::{
-            Agent, JsResult,
-            agent::{JsError, unwrap_try},
-        },
-        scripts_and_modules::{
-            module::module_semantics::{
-                abstract_module_records::AbstractModuleMethods, get_imported_module,
-            },
-            script::HostDefined,
-        },
-        types::Value,
+        AbstractModule, AbstractModuleMethods, Agent, HostDefined, JsError, JsResult,
+        LoadedModules, ModuleRequest, ModuleRequestRecord, Promise, PromiseCapability,
+        PromiseReactionHandler, SourceTextModule, Value, get_imported_module, inner_promise_then,
+        unwrap_try,
     },
-    engine::{
-        Scoped,
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, Scoped, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
-};
-
-use super::{
-    LoadedModules, ModuleRequest, ModuleRequestRecord, abstract_module_records::AbstractModule,
-    source_text_module_records::SourceTextModule,
 };
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -549,7 +523,7 @@ impl<'a> GraphLoadingStateRecord<'a> {
 /// GraphLoadingState Record) and module (a Module Record) and returns unused.
 /// It is used by LoadRequestedModules to recursively perform the actual
 /// loading process for module's dependency graph.
-pub(super) fn inner_module_loading<'a>(
+pub(crate) fn inner_module_loading<'a>(
     agent: &mut Agent,
     state: &mut GraphLoadingStateRecord<'a>,
     module: AbstractModule<'a>,
@@ -632,7 +606,7 @@ pub(super) fn inner_module_loading<'a>(
 /// depth-first search (DFS) traversal. In particular, \[\[DFSAncestorIndex]]
 /// is used to discover strongly connected components (SCCs), such that all
 /// modules in an SCC transition to linked together.
-pub(super) fn inner_module_linking<'a>(
+pub(crate) fn inner_module_linking<'a>(
     agent: &mut Agent,
     module: AbstractModule<'a>,
     stack: &mut Vec<SourceTextModule<'a>>,
@@ -753,7 +727,7 @@ pub(super) fn inner_module_linking<'a>(
 /// > root of the cycle via \[\[CycleRoot]]. This ensures that the cycle state
 /// > can be treated as a single strongly connected component through its root
 /// > module state.
-pub(super) fn inner_module_evaluation<'a, 'b>(
+pub(crate) fn inner_module_evaluation<'a, 'b>(
     agent: &mut Agent,
     scoped_module: Scoped<'b, AbstractModule<'static>>,
     stack: &mut Vec<Scoped<'b, SourceTextModule<'static>>>,

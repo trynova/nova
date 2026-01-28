@@ -6,28 +6,16 @@ use oxc_span::Span;
 
 use crate::{
     ecmascript::{
-        execution::{
-            Agent, Environment, ExecutionContext, JsResult, PrivateEnvironment,
-            agent::ExceptionType,
-        },
-        scripts_and_modules::source_code::SourceCode,
-        syntax_directed_operations::class_definitions::{
-            base_class_default_constructor, derived_class_default_constructor,
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, BuiltinConstructorRecord, Function, FunctionInternalProperties,
-            Object, OrdinaryObject, PropertyKey, String, Value, function_handle,
-        },
+        Agent, BUILTIN_STRING_MEMORY, BuiltinConstructorRecord, Environment, ExceptionType,
+        ExecutionContext, Function, FunctionInternalProperties, JsResult, Object, OrdinaryObject,
+        PrivateEnvironment, PropertyKey, SourceCode, String, Value, base_class_default_constructor,
+        derived_class_default_constructor, function_handle,
     },
-    engine::{
-        Executable,
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-    },
+    engine::{Bindable, Executable, GcScope, NoGcScope, bindable_handle},
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
-        arena_vec_access,
-        indexes::{BaseIndex, HeapIndexHandle},
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapIndexHandle, HeapMarkAndSweep, HeapSweepWeakReference, ObjectEntry,
+        ObjectEntryPropertyDescriptor, WorkQueues, arena_vec_access,
     },
     ndt,
 };

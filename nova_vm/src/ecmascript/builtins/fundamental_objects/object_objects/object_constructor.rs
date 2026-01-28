@@ -4,41 +4,19 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_iterator_objects::{
-                IteratorRecord, get_iterator, if_abrupt_close_iterator, iterator_close_with_error,
-                iterator_step_value,
-            },
-            operations_on_objects::{
-                create_array_from_list, define_property_or_throw, enumerable_own_keys,
-                enumerable_own_properties, enumerable_properties_kind, get, get_method,
-                group_by_property, has_own_property,
-                integrity::{Frozen, Sealed},
-                set, set_integrity_level, test_integrity_level, throw_not_callable,
-                try_create_data_property,
-            },
-            testing_and_comparison::{require_object_coercible, same_value},
-            type_conversion::{to_object, to_property_key, to_property_key_simple},
-        },
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
-        },
-        execution::{
-            Agent, JsResult, ProtoIntrinsics, Realm,
-            agent::{ExceptionType, TryResult, try_result_into_js, unwrap_try},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, Object, OrdinaryObject,
-            PropertyDescriptor, PropertyKey, String, Value,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        BuiltinIntrinsicConstructor, EnumerateKeysAndValues, EnumerateValues, ExceptionType,
+        Frozen, InternalMethods, InternalSlots, IteratorRecord, JsResult, Object, OrdinaryObject,
+        PropertyDescriptor, PropertyKey, ProtoIntrinsics, Realm, Sealed, String, TryResult, Value,
+        builders::BuiltinFunctionBuilder, create_array_from_list, define_property_or_throw,
+        enumerable_own_keys, enumerable_own_properties, get, get_iterator, get_method,
+        group_by_property, has_own_property, if_abrupt_close_iterator, iterator_close_with_error,
+        iterator_step_value, ordinary_create_from_constructor,
+        ordinary_object_create_with_intrinsics, require_object_coercible, same_value, set,
+        set_integrity_level, test_integrity_level, throw_not_callable, to_object, to_property_key,
+        to_property_key_simple, try_create_data_property, try_result_into_js, unwrap_try,
     },
-    engine::{
-        ScopableCollection, Scoped,
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable, ScopableCollection, Scoped},
     heap::{IntrinsicConstructorIndexes, ObjectEntry, WellKnownSymbolIndexes},
 };
 
@@ -567,11 +545,10 @@ impl ObjectConstructor {
         // 1. Let obj be ? ToObject(O).
         let obj = to_object(agent, o, gc.nogc()).unbind()?.bind(gc.nogc());
         // 2. Let entryList be ? EnumerableOwnProperties(obj, KEY+VALUE).
-        let entry_list = enumerable_own_properties::<
-            enumerable_properties_kind::EnumerateKeysAndValues,
-        >(agent, obj.unbind(), gc.reborrow())
-        .unbind()?
-        .bind(gc.nogc());
+        let entry_list =
+            enumerable_own_properties::<EnumerateKeysAndValues>(agent, obj.unbind(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
         // 3. Return CreateArrayFromList(entryList).
         Ok(create_array_from_list(agent, &entry_list.unbind(), gc.into_nogc()).into())
     }
@@ -1162,13 +1139,10 @@ impl ObjectConstructor {
         // 1. Let obj be ? ToObject(O).
         let obj = to_object(agent, o, gc.nogc()).unbind()?.bind(gc.nogc());
         // 2. Let valueList be ? EnumerableOwnProperties(obj, VALUE).
-        let value_list = enumerable_own_properties::<enumerable_properties_kind::EnumerateValues>(
-            agent,
-            obj.unbind(),
-            gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        let value_list =
+            enumerable_own_properties::<EnumerateValues>(agent, obj.unbind(), gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc());
         // 3. Return CreateArrayFromList(valueList).
         Ok(
             create_array_from_list(agent, &value_list.unbind(), gc.nogc())

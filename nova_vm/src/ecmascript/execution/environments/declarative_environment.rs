@@ -4,13 +4,12 @@
 
 use ahash::AHashMap;
 
-use super::{DeclarativeEnvironment, Environment, Environments, OuterEnv};
 use crate::{
     ecmascript::{
-        execution::{Agent, JsResult, agent::ExceptionType},
-        types::{String, Value},
+        Agent, DeclarativeEnvironment, Environment, Environments, ExceptionType, JsResult,
+        OuterEnv, String, Value,
     },
-    engine::context::{Bindable, NoGcScope},
+    engine::{Bindable, NoGcScope},
     heap::{ArenaAccess, ArenaAccessMut, CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -217,7 +216,7 @@ impl<'e> DeclarativeEnvironment<'e> {
     /// envRec takes argument N (a String) and returns a normal completion
     /// containing a Boolean. It determines if the argument identifier is one
     /// of the identifiers bound by the record.
-    pub fn has_binding(self, agent: &impl AsRef<Environments>, name: String) -> bool {
+    pub(crate) fn has_binding(self, agent: &impl AsRef<Environments>, name: String) -> bool {
         let env_rec = agent.as_ref().get_declarative_environment(self);
         // Delegate to heap data record method.
         env_rec.has_binding(name)
@@ -231,7 +230,12 @@ impl<'e> DeclarativeEnvironment<'e> {
     /// binding for the name N that is uninitialized. A binding must not
     /// already exist in this Environment Record for N. If D is true, the new
     /// binding is marked as being subject to deletion.
-    pub fn create_mutable_binding(self, agent: &mut Agent, name: String, is_deletable: bool) {
+    pub(crate) fn create_mutable_binding(
+        self,
+        agent: &mut Agent,
+        name: String,
+        is_deletable: bool,
+    ) {
         let env_rec = self.get_mut(agent);
         // Delegate to heap data record method.
         env_rec.create_mutable_binding(name, is_deletable);

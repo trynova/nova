@@ -9,17 +9,14 @@ use oxc_semantic::ScopeId;
 use wtf8::Wtf8Buf;
 
 #[cfg(feature = "regexp")]
-use crate::ecmascript::builtins::regexp::RegExp;
+use crate::ecmascript::RegExp;
 use crate::{
     ecmascript::{
-        builtins::ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
-        execution::Agent,
-        scripts_and_modules::source_code::SourceCode,
-        syntax_directed_operations::function_definitions::CompileFunctionBodyData,
-        types::{BigInt, Number, PropertyKey, String, Value},
+        Agent, BigInt, CompileFunctionBodyData, Number, ObjectShape, PropertyKey,
+        PropertyLookupCache, SourceCode, String, Value,
     },
     engine::{
-        Executable, FunctionExpression, Instruction,
+        Executable, FunctionExpression, Instruction, NoGcScope,
         bytecode::{
             bytecode_compiler::finaliser_stack::{
                 compile_array_destructuring_exit, compile_if_statement_exit, compile_loop_exit,
@@ -27,7 +24,6 @@ use crate::{
             },
             executable::ArrowFunctionExpression,
         },
-        context::NoGcScope,
     },
 };
 
@@ -40,7 +36,7 @@ use super::{
     function_declaration_instantiation,
 };
 
-pub type IndexType = u16;
+pub(crate) type IndexType = u16;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum NamedEvaluationParameter {

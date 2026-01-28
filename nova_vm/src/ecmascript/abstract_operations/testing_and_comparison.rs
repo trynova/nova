@@ -6,29 +6,17 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::{
-            PreferredType, string_to_big_int, string_to_number, to_numeric_primitive, to_primitive,
-        },
-        builtins::proxy::abstract_operations::{NonRevokedProxy, validate_non_revoked_proxy},
-        execution::{Agent, JsResult, agent::ExceptionType},
-        types::{
-            Function, InternalMethods, Number, Numeric, Object, Primitive, String, Value,
-            bigint::BigInt,
-        },
+        Agent, BigInt, ExceptionType, Function, InternalMethods, JsResult, NonRevokedProxy, Number,
+        Numeric, Object, PreferredType, Primitive, String, Value, string_to_big_int,
+        string_to_number, to_numeric_primitive, to_primitive, validate_non_revoked_proxy,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{ArenaAccess, PrimitiveHeapAccess},
 };
 
 #[cfg(feature = "regexp")]
 use crate::{
-    ecmascript::{
-        abstract_operations::{operations_on_objects::get, type_conversion::to_boolean},
-        types::PropertyKey,
-    },
+    ecmascript::{PropertyKey, get, to_boolean},
     heap::WellKnownSymbolIndexes,
 };
 

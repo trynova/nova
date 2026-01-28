@@ -3,14 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    ecmascript::{
-        builtins::control_abstraction_objects::promise_objects::promise_abstract_operations::{
-            promise_jobs::new_promise_reaction_job, promise_reaction_records::PromiseReaction,
-        },
-        execution::Agent,
-        types::{OrdinaryObject, Value},
-    },
-    engine::context::{NoGcScope, bindable_handle},
+    ecmascript::{Agent, OrdinaryObject, PromiseReaction, Value, new_promise_reaction_job},
+    engine::{NoGcScope, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 

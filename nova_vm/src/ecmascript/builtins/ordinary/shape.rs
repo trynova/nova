@@ -11,16 +11,15 @@ use hashbrown::{HashTable, hash_table::Entry};
 
 use crate::{
     ecmascript::{
-        execution::{Agent, PrivateField, Realm},
-        types::{InternalMethods, Object, Primitive, PropertyKey, Symbol, TryGetResult, Value},
+        Agent, InternalMethods, Object, Primitive, PrivateField, PropertyKey, Realm, Symbol,
+        TryGetResult, Value,
     },
-    engine::context::{Bindable, GcToken, NoGcScope, bindable_handle},
+    engine::{Bindable, GcToken, NoGcScope, bindable_handle},
     heap::{
         ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, DirectArenaAccess,
         DirectArenaAccessMut, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         IntrinsicObjectShapes, PropertyKeyHeap, WeakReference, WorkQueues,
-        element_array::{ElementArrayKey, ElementArrays},
-        indexes::{HeapIndexHandle, PropertyKeyIndex},
+        {ElementArrayKey, ElementArrays}, {HeapIndexHandle, PropertyKeyIndex},
     },
 };
 

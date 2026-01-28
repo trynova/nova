@@ -17,59 +17,26 @@ use oxc_ecmascript::BoundNames;
 
 use crate::{
     ecmascript::{
-        builtins::{
-            Module, Promise, PromiseCapability,
-            control_abstraction_objects::async_function_objects::await_reaction::AwaitReactionRecord,
-            control_abstraction_objects::promise_objects::{
-                promise_abstract_operations::promise_reaction_records::PromiseReactionHandler,
-                promise_prototype::inner_promise_then,
-            },
-        },
-        execution::{
-            Agent, ECMAScriptCodeEvaluationState, ExecutionContext, JsResult, ModuleEnvironment,
-            Realm,
-            agent::{ExceptionType, JsError, unwrap_try},
-            create_import_binding, create_indirect_import_binding, initialize_import_binding,
-            new_module_environment,
-        },
-        scripts_and_modules::{
-            ScriptOrModule,
-            module::module_semantics::cyclic_module_records::{
-                CyclicModuleRecordStatus, inner_module_evaluation, inner_module_linking,
-            },
-            script::HostDefined,
-            source_code::{ParseResult, SourceCode, SourceCodeType},
-        },
-        syntax_directed_operations::{
-            contains::{Contains, ContainsSymbol},
-            miscellaneous::instantiate_function_object,
-            scope_analysis::{
-                LexicallyScopedDeclaration, LexicallyScopedDeclarations, VarScopedDeclaration,
-                VarScopedDeclarations,
-            },
-        },
-        types::{BUILTIN_STRING_MEMORY, OrdinaryObject, String, Value},
+        AbstractModule, AbstractModuleMethods, AbstractModuleRecord, AbstractModuleSlots, Agent,
+        AsyncEvaluationOrder, AwaitReactionRecord, BUILTIN_STRING_MEMORY, Contains, ContainsSymbol,
+        CyclicModuleMethods, CyclicModuleRecord, CyclicModuleRecordStatus, CyclicModuleSlots,
+        ECMAScriptCodeEvaluationState, ExceptionType, ExecutionContext, GraphLoadingStateRecord,
+        HostDefined, JsError, JsResult, LexicallyScopedDeclaration, LexicallyScopedDeclarations,
+        Module, ModuleEnvironment, ModuleRequest, ModuleRequestRecord, OrdinaryObject, ParseResult,
+        Promise, PromiseCapability, PromiseReactionHandler, Realm, ResolveSetEntry,
+        ResolvedBinding, ScriptOrModule, SourceCode, SourceCodeType, String, Value,
+        VarScopedDeclaration, VarScopedDeclarations, create_import_binding,
+        create_indirect_import_binding, get_imported_module, get_module_namespace,
+        initialize_import_binding, inner_module_evaluation, inner_module_linking,
+        inner_module_loading, inner_promise_then, instantiate_function_object,
+        new_module_environment, unwrap_try,
     },
     engine::{
-        Executable, ExecutionResult, Scoped, Vm,
-        context::{Bindable, GcScope, GcToken, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
+        Bindable, Executable, ExecutionResult, GcScope, GcToken, HeapRootData, HeapRootRef,
+        NoGcScope, Rootable, Scopable, Scoped, Vm, bindable_handle,
     },
     heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
     ndt,
-};
-
-use super::{
-    ModuleRequest, ModuleRequestRecord,
-    abstract_module_records::{
-        AbstractModule, AbstractModuleMethods, AbstractModuleRecord, AbstractModuleSlots,
-        ResolveSetEntry, ResolvedBinding,
-    },
-    cyclic_module_records::{
-        AsyncEvaluationOrder, CyclicModuleMethods, CyclicModuleRecord, CyclicModuleSlots,
-        GraphLoadingStateRecord, inner_module_loading,
-    },
-    get_imported_module, get_module_namespace,
 };
 
 #[derive(Debug)]

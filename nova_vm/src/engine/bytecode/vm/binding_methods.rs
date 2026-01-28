@@ -4,20 +4,13 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::{get, try_create_data_property_or_throw},
-        execution::{Agent, JsResult, agent::unwrap_try},
-        types::{Object, PropertyKey, PropertyKeySet, Value},
+        Agent, Environment, JsResult, Object, PropertyKey, PropertyKeySet, Value, array_create,
+        copy_data_properties_into_object, get, initialize_referenced_binding, put_value,
+        resolve_binding, to_object, try_create_data_property_or_throw, unwrap_try,
     },
     engine::{
-        ScopableCollection, Scoped,
-        bytecode::vm::{
-            Environment, Executable, Instruction, Vm, VmIteratorRecord, array_create,
-            copy_data_properties_into_object, initialize_referenced_binding, put_value,
-            resolve_binding, to_object,
-        },
-        context::{Bindable, GcScope},
-        iterator::ActiveIterator,
-        rootable::Scopable,
+        ActiveIterator, Bindable, Executable, GcScope, Instruction, Scopable, ScopableCollection,
+        Scoped, Vm, VmIteratorRecord,
     },
 };
 

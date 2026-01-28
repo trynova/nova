@@ -7,29 +7,16 @@ use std::ops::ControlFlow;
 use super::{InternalSlots, Object, PropertyKey};
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::call_function,
-        builtins::{
-            ArgumentsList,
-            ordinary::{
-                caches::{PropertyLookupCache, PropertyOffset},
-                ordinary_define_own_property, ordinary_delete, ordinary_get,
-                ordinary_get_own_property, ordinary_get_prototype_of, ordinary_has_property,
-                ordinary_is_extensible, ordinary_own_property_keys, ordinary_prevent_extensions,
-                ordinary_set, ordinary_set_at_offset, ordinary_set_prototype_of, ordinary_try_get,
-                ordinary_try_has_property, ordinary_try_set,
-            },
-            proxy::Proxy,
-        },
-        execution::{
-            Agent, JsResult,
-            agent::{TryError, TryResult, js_result_into_try, try_result_ok, unwrap_try},
-        },
-        types::{Function, PropertyDescriptor, Value, throw_cannot_set_property},
+        Agent, ArgumentsList, Function, JsResult, PropertyDescriptor, PropertyLookupCache,
+        PropertyOffset, Proxy, TryError, TryResult, Value, call_function, js_result_into_try,
+        ordinary_define_own_property, ordinary_delete, ordinary_get, ordinary_get_own_property,
+        ordinary_get_prototype_of, ordinary_has_property, ordinary_is_extensible,
+        ordinary_own_property_keys, ordinary_prevent_extensions, ordinary_set,
+        ordinary_set_at_offset, ordinary_set_prototype_of, ordinary_try_get,
+        ordinary_try_has_property, ordinary_try_set, throw_cannot_set_property, try_result_ok,
+        unwrap_try,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, bindable_handle},
 };
 
 /// ### [6.1.7.2 Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-object-internal-methods-and-internal-slots)
@@ -521,7 +508,7 @@ where
     fn set_at_offset<'gc>(
         self,
         agent: &mut Agent,
-        props: &SetCachedProps,
+        props: &SetAtOffsetProps,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, SetResult<'gc>> {
@@ -688,31 +675,14 @@ impl<'a, T> From<Value<'a>> for ControlFlow<TryGetResult<'a>, T> {
     }
 }
 
-impl<'a> From<TryGetResult<'a>> for ControlFlow<TryGetResult<'a>, NoCache> {
-    fn from(value: TryGetResult<'a>) -> Self {
-        Self::Break(value)
-    }
-}
-
-/// No property cache was found.
-///
-/// The normal \[\[Get]] or \[\[Set]] method variant should be entered.
-pub struct NoCache;
-
-impl<T> From<NoCache> for ControlFlow<T, NoCache> {
-    fn from(value: NoCache) -> Self {
-        ControlFlow::Continue(value)
-    }
-}
-
-pub struct SetCachedProps<'a> {
+pub struct SetAtOffsetProps<'a> {
     pub p: PropertyKey<'a>,
     pub receiver: Value<'a>,
     pub cache: PropertyLookupCache<'a>,
     pub value: Value<'a>,
 }
 
-/// Early-return conditions for [[Set]] method's cached variant.
+/// Early-return conditions for \[\[Set\]\] method's cached variant.
 ///
 /// Early-return effectively means that a cached property lookup was found and
 /// the normal \[\[Set]] method variant need not be entered.
@@ -756,7 +726,7 @@ impl SetResult<'_> {
     }
 }
 
-/// Helper function for calling a Proxy [[Set]] trap when triggered by finding
+/// Helper function for calling a Proxy \[\[Set]] trap when triggered by finding
 /// a Proxy used as a prototype.
 pub fn call_proxy_set<'a>(
     agent: &mut Agent,

@@ -4,10 +4,10 @@
 
 use crate::{
     ecmascript::types::{
-        BIGINT_DISCRIMINANT, HeapNumber, HeapPrimitive, HeapString, NUMBER_DISCRIMINANT,
-        OrdinaryObject, STRING_DISCRIMINANT, Value, bigint::HeapBigInt,
+        BIGINT_DISCRIMINANT, HeapBigInt, HeapNumber, HeapPrimitive, HeapString,
+        NUMBER_DISCRIMINANT, OrdinaryObject, STRING_DISCRIMINANT, Value,
     },
-    engine::context::{Bindable, bindable_handle},
+    engine::{Bindable, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, PrimitiveHeapAccess, WorkQueues},
 };
 use ahash::AHasher;

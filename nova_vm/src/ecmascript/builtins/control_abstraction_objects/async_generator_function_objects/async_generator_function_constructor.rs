@@ -4,15 +4,11 @@
 
 use crate::{
     ecmascript::{
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
-        execution::{Agent, JsResult, Realm},
-        fundamental_objects::function_objects::function_constructor::{
-            DynamicFunctionKind, create_dynamic_function,
-        },
-        types::{BUILTIN_STRING_MEMORY, Function, Object, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        BuiltinIntrinsicConstructor, DynamicFunctionKind, Function, JsResult, Object, Realm,
+        String, Value, builders::BuiltinFunctionBuilder, create_dynamic_function,
     },
-    engine::context::GcScope,
+    engine::GcScope,
     heap::IntrinsicConstructorIndexes,
 };
 
@@ -69,7 +65,7 @@ impl AsyncGeneratorFunctionConstructor {
         BuiltinFunctionBuilder::new_intrinsic_constructor::<AsyncGeneratorFunctionConstructor>(
             agent, realm,
         )
-        .with_prototype(function_constructor.into())
+        .with_prototype(function_constructor)
         .with_property_capacity(1)
         .with_prototype_property(async_generator_function_prototype.into())
         .build();

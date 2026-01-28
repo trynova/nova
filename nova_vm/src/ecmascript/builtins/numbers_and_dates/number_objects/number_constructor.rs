@@ -3,32 +3,19 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    SmallInteger,
     ecmascript::{
-        abstract_operations::{
-            testing_and_comparison::is_integral_number, type_conversion::to_numeric_primitive,
-        },
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            ordinary::ordinary_create_from_constructor,
-            primitive_objects::{PrimitiveObject, PrimitiveObjectData},
-        },
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm},
-        types::{
-            BUILTIN_STRING_MEMORY, Function, Number, Numeric, Object, Primitive, String, Value,
-            bigint::BigIntMathematicalValue,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, BigIntMathematicalValue, Builtin,
+        BuiltinIntrinsicConstructor, Function, JsResult, Number, Numeric, Object, Primitive,
+        PrimitiveObject, PrimitiveObjectData, ProtoIntrinsics, Realm, SmallInteger, String, Value,
+        builders::BuiltinFunctionBuilder, is_integral_number, ordinary_create_from_constructor,
+        to_numeric_primitive,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{ArenaAccessMut, CreateHeapData, IntrinsicConstructorIndexes},
 };
 
 /// ### [21.1.1.1 Number ( value )](https://tc39.es/ecma262/#sec-number-constructor-number-value)
-pub struct NumberConstructor;
+pub(crate) struct NumberConstructor;
 
 impl Builtin for NumberConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);

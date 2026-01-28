@@ -4,53 +4,39 @@
 
 //! ### [10.4.2 Array Exotic Objects](https://tc39.es/ecma262/#sec-array-exotic-objects)
 
-pub(crate) mod abstract_operations;
+mod abstract_operations;
 mod data;
+
+pub(crate) use abstract_operations::*;
+pub(crate) use data::*;
 
 use core::ops::RangeInclusive;
 use std::collections::{TryReserveError, hash_map::Entry};
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{call_function, create_array_from_list},
-            testing_and_comparison::same_value,
-        },
-        builtins::{
-            array::abstract_operations::{array_set_length, array_try_set_length},
-            ordinary::{caches::Caches, ordinary_define_own_property},
-        },
-        execution::{
-            Agent, JsResult, ProtoIntrinsics,
-            agent::{TryError, TryResult, js_result_into_try, unwrap_try},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, TryGetResult, TryHasResult, Value,
-            object_handle,
-        },
+        Agent, BUILTIN_STRING_MEMORY, Caches, Function, InternalMethods, InternalSlots, JsResult,
+        Object, OrdinaryObject, PropertyDescriptor, PropertyKey, ProtoIntrinsics, TryError,
+        TryGetResult, TryHasResult, TryResult, Value, call_function, create_array_from_list,
+        js_result_into_try, object_handle, ordinary_define_own_property, same_value, unwrap_try,
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
+    engine::{Bindable, GcScope, NoGcScope},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, arena_vec_access,
-        element_array::{
-            ElementArrays, ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementsVector,
-        },
-        indexes::{BaseIndex, HeapIndexHandle},
+        WorkQueues, arena_vec_access, {BaseIndex, HeapIndexHandle},
+        {ElementArrays, ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementsVector},
     },
 };
 
 use ahash::AHashMap;
-pub(crate) use data::ArrayHeapData;
-use data::{ArrayHeapDataMut, ArrayHeapDataRef};
 use soavec::SoAVec;
 
-use super::ordinary::{
-    caches::PropertyLookupCache, ordinary_delete, ordinary_get, ordinary_get_own_property,
+use super::{
+    PropertyLookupCache, ordinary_delete, ordinary_get, ordinary_get_own_property,
     ordinary_has_property, ordinary_try_get, ordinary_try_has_property,
 };
 
+/// ### [10.4.2 Array Exotic Objects](https://tc39.es/ecma262/#sec-array-exotic-objects)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Array<'a>(BaseIndex<'a, ArrayHeapData<'static>>);
@@ -192,11 +178,11 @@ impl<'a> Array<'a> {
         elems.len = len;
     }
 
-    pub fn length_writable(self, agent: &Agent) -> bool {
+    pub(crate) fn length_writable(self, agent: &Agent) -> bool {
         self.get_elements(agent).len_writable
     }
 
-    pub fn set_length_readonly(self, agent: &mut Agent) {
+    pub(crate) fn set_length_readonly(self, agent: &mut Agent) {
         self.get_elements_mut(agent).len_writable = false;
     }
 
@@ -250,7 +236,7 @@ impl<'a> Array<'a> {
     /// accessor descriptors and uses the Array intrinsic itrator method.
     #[cfg(any(feature = "set", feature = "weak-refs"))]
     pub(crate) fn is_trivially_iterable(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> bool {
-        use crate::ecmascript::abstract_operations::operations_on_objects::try_get_object_method;
+        use crate::ecmascript::abstract_operations::try_get_object_method;
         use crate::heap::WellKnownSymbolIndexes;
         if !self.is_dense(agent) {
             // Contains holes or getters, so cannot be iterated without looking

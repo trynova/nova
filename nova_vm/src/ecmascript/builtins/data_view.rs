@@ -2,29 +2,25 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+mod abstract_operations;
+mod data;
+
+pub(crate) use abstract_operations::*;
+pub(crate) use data::*;
+
 #[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::types::SHARED_DATA_VIEW_DISCRIMINANT;
+use crate::ecmascript::SHARED_DATA_VIEW_DISCRIMINANT;
 use crate::{
     ecmascript::{
-        execution::{Agent, ProtoIntrinsics},
-        types::{
-            DATA_VIEW_DISCRIMINANT, InternalMethods, InternalSlots, Object, OrdinaryObject, Value,
-            Viewable,
-        },
+        Agent, DATA_VIEW_DISCRIMINANT, InternalMethods, InternalSlots, Object, OrdinaryObject,
+        ProtoIntrinsics, Value, Viewable,
     },
-    engine::{
-        context::{Bindable, bindable_handle},
-        rootable::HeapRootData,
-    },
+    engine::{Bindable, HeapRootData, bindable_handle},
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, WorkQueues, arena_vec_access, indexes::BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
-
-pub(crate) use self::data::DataViewRecord;
-#[cfg(feature = "shared-array-buffer")]
-pub(crate) use self::data::SharedDataViewRecord;
 
 #[cfg(feature = "shared-array-buffer")]
 use super::SharedArrayBuffer;
@@ -32,9 +28,6 @@ use super::{
     ArrayBuffer,
     array_buffer::{AnyArrayBuffer, ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset},
 };
-
-pub(crate) mod abstract_operations;
-mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]

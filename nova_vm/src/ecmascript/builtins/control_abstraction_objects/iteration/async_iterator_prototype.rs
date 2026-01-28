@@ -4,12 +4,10 @@
 
 use crate::{
     ecmascript::{
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin},
-        execution::{Agent, JsResult, Realm},
-        types::{BUILTIN_STRING_MEMORY, PropertyKey, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, JsResult, PropertyKey,
+        Realm, String, Value, builders::OrdinaryObjectBuilder,
     },
-    engine::context::{Bindable, GcScope},
+    engine::{Bindable, GcScope},
     heap::WellKnownSymbolIndexes,
 };
 

@@ -4,27 +4,14 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_iterator_objects::{get_iterator, iterator_to_list},
-            operations_on_objects::{
-                create_array_from_scoped_list, define_property_or_throw, throw_not_callable,
-            },
-            type_conversion::to_string,
-        },
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor, error::Error,
-            ordinary::ordinary_create_from_constructor,
-        },
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        types::{
-            BUILTIN_STRING_MEMORY, Function, Object, PropertyDescriptor, PropertyKey, String, Value,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        BuiltinIntrinsicConstructor, Error, ExceptionType, Function, JsResult, Object,
+        PropertyDescriptor, PropertyKey, ProtoIntrinsics, Realm, String, Value,
+        builders::BuiltinFunctionBuilder, create_array_from_scoped_list, define_property_or_throw,
+        get_iterator, iterator_to_list, ordinary_create_from_constructor, throw_not_callable,
+        to_string,
     },
-    engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::{ArenaAccessMut, IntrinsicConstructorIndexes},
 };
 
@@ -139,7 +126,7 @@ impl AggregateErrorConstructor {
             agent, realm,
         )
         .with_property_capacity(1)
-        .with_prototype(error_constructor.into())
+        .with_prototype(error_constructor)
         .with_prototype_property(aggregate_error_prototype.into())
         .build();
     }

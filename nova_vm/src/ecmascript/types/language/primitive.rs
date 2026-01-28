@@ -2,29 +2,15 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use small_string::SmallString;
-
 use crate::{
-    SmallInteger,
-    engine::{
-        context::{Bindable, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-        small_bigint::SmallBigInt,
-        small_f64::SmallF64,
+    ecmascript::{
+        BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, FLOAT_DISCRIMINANT, HeapBigInt, HeapNumber,
+        HeapString, INTEGER_DISCRIMINANT, NULL_DISCRIMINANT, NUMBER_DISCRIMINANT,
+        SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
+        SYMBOL_DISCRIMINANT, SmallBigInt, SmallF64, SmallInteger, SmallString, Symbol,
+        UNDEFINED_DISCRIMINANT, Value,
     },
-};
-
-use super::{
-    Symbol, Value,
-    bigint::HeapBigInt,
-    number::HeapNumber,
-    string::HeapString,
-    value::{
-        BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT,
-        NULL_DISCRIMINANT, NUMBER_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT,
-        SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT,
-        UNDEFINED_DISCRIMINANT,
-    },
+    engine::{Bindable, HeapRootData, HeapRootRef, Rootable, bindable_handle},
 };
 
 /// ### [4.4.5 primitive value](https://tc39.es/ecma262/#sec-primitive-value)
@@ -266,42 +252,42 @@ impl Rootable for Primitive<'_> {
 
 macro_rules! primitive_value {
     ($name: tt) => {
-        crate::ecmascript::types::primitive_value!($name, $name);
+        crate::ecmascript::primitive_value!($name, $name);
     };
     ($name: ident, $variant: ident) => {
-        impl From<$name> for crate::ecmascript::types::Primitive<'_> {
+        impl From<$name> for crate::ecmascript::Primitive<'_> {
             #[inline(always)]
             fn from(value: $name) -> Self {
                 Self::$variant(value)
             }
         }
 
-        impl TryFrom<crate::ecmascript::types::Primitive<'_>> for $name {
+        impl TryFrom<crate::ecmascript::Primitive<'_>> for $name {
             type Error = ();
 
             #[inline]
-            fn try_from(value: crate::ecmascript::types::Primitive) -> Result<Self, Self::Error> {
+            fn try_from(value: crate::ecmascript::Primitive) -> Result<Self, Self::Error> {
                 match value {
-                    crate::ecmascript::types::Primitive::$variant(data) => Ok(data),
+                    crate::ecmascript::Primitive::$variant(data) => Ok(data),
                     _ => Err(()),
                 }
             }
         }
 
-        impl From<$name> for crate::ecmascript::types::Value<'_> {
+        impl From<$name> for crate::ecmascript::Value<'_> {
             #[inline(always)]
             fn from(value: $name) -> Self {
                 Self::$variant(value)
             }
         }
 
-        impl TryFrom<crate::ecmascript::types::Value<'_>> for $name {
+        impl TryFrom<crate::ecmascript::Value<'_>> for $name {
             type Error = ();
 
             #[inline]
-            fn try_from(value: crate::ecmascript::types::Value) -> Result<Self, Self::Error> {
+            fn try_from(value: crate::ecmascript::Value) -> Result<Self, Self::Error> {
                 match value {
-                    crate::ecmascript::types::Value::$variant(data) => Ok(data),
+                    crate::ecmascript::Value::$variant(data) => Ok(data),
                     _ => Err(()),
                 }
             }
@@ -312,27 +298,25 @@ pub(crate) use primitive_value;
 
 macro_rules! primitive_handle {
     ($name: tt) => {
-        crate::ecmascript::types::primitive_handle!($name, $name);
+        crate::ecmascript::primitive_handle!($name, $name);
     };
     ($name: ident, $variant: ident) => {
-        crate::ecmascript::types::value_handle!($name, $variant);
+        crate::ecmascript::value_handle!($name, $variant);
 
-        impl<'a> From<$name<'a>> for crate::ecmascript::types::Primitive<'a> {
+        impl<'a> From<$name<'a>> for crate::ecmascript::Primitive<'a> {
             #[inline(always)]
             fn from(value: $name<'a>) -> Self {
                 Self::$variant(value)
             }
         }
 
-        impl<'a> TryFrom<crate::ecmascript::types::Primitive<'a>> for $name<'a> {
+        impl<'a> TryFrom<crate::ecmascript::Primitive<'a>> for $name<'a> {
             type Error = ();
 
             #[inline]
-            fn try_from(
-                value: crate::ecmascript::types::Primitive<'a>,
-            ) -> Result<Self, Self::Error> {
+            fn try_from(value: crate::ecmascript::Primitive<'a>) -> Result<Self, Self::Error> {
                 match value {
-                    crate::ecmascript::types::Primitive::$variant(data) => Ok(data),
+                    crate::ecmascript::Primitive::$variant(data) => Ok(data),
                     _ => Err(()),
                 }
             }

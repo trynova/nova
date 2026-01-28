@@ -7,13 +7,9 @@ use std::collections::hash_map::Entry;
 use ahash::AHashMap;
 
 use crate::{
-    ecmascript::{
-        builtins::ECMAScriptFunction,
-        execution::Agent,
-        types::{PrivateName, String, Value},
-    },
-    engine::context::{Bindable, NoGcScope, bindable_handle},
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, element_array::ElementDescriptor},
+    ecmascript::{PrivateName, String, Value, builtins::ECMAScriptFunction, execution::Agent},
+    engine::{Bindable, NoGcScope, bindable_handle},
+    heap::{CompactionLists, ElementDescriptor, HeapMarkAndSweep, WorkQueues},
 };
 
 use super::PrivateEnvironment;

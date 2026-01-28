@@ -4,15 +4,11 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::testing_and_comparison::same_value,
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, finalization_registry::FinalizationRegistry,
-        },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType, can_be_held_weakly},
-        types::{BUILTIN_STRING_MEMORY, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType,
+        FinalizationRegistry, JsResult, Realm, String, Value, builders::OrdinaryObjectBuilder,
+        can_be_held_weakly, same_value,
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
+    engine::{Bindable, GcScope, NoGcScope},
     heap::WellKnownSymbolIndexes,
 };
 

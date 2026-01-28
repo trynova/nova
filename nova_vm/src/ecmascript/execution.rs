@@ -4,7 +4,7 @@
 
 //!# [9 Executable Code and Execution Contexts](https://tc39.es/ecma262/#sec-executable-code-and-execution-contexts)
 
-pub mod agent;
+mod agent;
 mod default_host_hooks;
 mod environments;
 mod execution_context;
@@ -14,13 +14,11 @@ mod weak_key;
 #[cfg(feature = "weak-refs")]
 mod weak_ref_and_finalization_registry;
 
-pub use agent::{Agent, JsResult};
-pub use default_host_hooks::DefaultHostHooks;
-pub(crate) use environments::*;
+pub use agent::*;
+pub use default_host_hooks::*;
+pub use environments::*;
 pub(crate) use execution_context::*;
-pub(crate) use realm::{
-    ProtoIntrinsics, Realm, RealmRecord, initialize_default_realm, initialize_host_defined_realm,
-};
+pub use realm::*;
 #[cfg(feature = "weak-refs")]
 pub(crate) use weak_key::*;
 #[cfg(feature = "weak-refs")]

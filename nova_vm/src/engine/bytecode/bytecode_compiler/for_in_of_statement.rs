@@ -6,7 +6,7 @@ use std::ops::ControlFlow;
 
 use super::{CompileContext, CompileEvaluation, CompileLabelledEvaluation, Instruction, JumpIndex};
 use crate::{
-    ecmascript::types::{Primitive, String, Value},
+    ecmascript::{Primitive, String, Value},
     engine::bytecode::bytecode_compiler::{
         ExpressionError, StatementContinue, StatementResult, ValueOutput,
         compile_context::{BlockEnvPrep, IteratorStackEntry},

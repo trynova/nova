@@ -5,116 +5,73 @@
 mod global;
 mod scoped;
 
+pub use global::*;
+pub use scoped::*;
+
 pub(crate) use private::{HeapRootCollectionData, RootableCollectionSealed, RootableSealed};
 
 #[cfg(feature = "date")]
-use crate::ecmascript::builtins::date::Date;
-#[cfg(feature = "weak-refs")]
-use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
+use crate::ecmascript::DATE_DISCRIMINANT;
 #[cfg(feature = "date")]
-use crate::ecmascript::types::DATE_DISCRIMINANT;
-#[cfg(feature = "weak-refs")]
-use crate::ecmascript::types::{
-    WEAK_MAP_DISCRIMINANT, WEAK_REF_DISCRIMINANT, WEAK_SET_DISCRIMINANT,
-};
-#[cfg(feature = "proposal-float16array")]
-use crate::ecmascript::{builtins::typed_array::Float16Array, types::FLOAT_16_ARRAY_DISCRIMINANT};
-#[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
-use crate::ecmascript::{
-    builtins::typed_array::SharedFloat16Array, types::SHARED_FLOAT_16_ARRAY_DISCRIMINANT,
-};
+use crate::ecmascript::Date;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::{
-    builtins::{
-        ArrayBuffer,
-        data_view::DataView,
-        typed_array::{
-            BigInt64Array, BigUint64Array, Float32Array, Float64Array, Int8Array, Int16Array,
-            Int32Array, Uint8Array, Uint8ClampedArray, Uint16Array, Uint32Array,
-        },
-    },
-    types::{
-        ARRAY_BUFFER_DISCRIMINANT, BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
-        DATA_VIEW_DISCRIMINANT, FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT,
-        INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
-        UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT,
-        UINT_32_ARRAY_DISCRIMINANT,
-    },
+    ARRAY_BUFFER_DISCRIMINANT, ArrayBuffer, BIGINT_64_ARRAY_DISCRIMINANT,
+    BIGUINT_64_ARRAY_DISCRIMINANT, BigInt64Array, BigUint64Array, DATA_VIEW_DISCRIMINANT, DataView,
+    FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, Float32Array, Float64Array,
+    INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT, Int8Array,
+    Int16Array, Int32Array, UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+    UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT, Uint8Array, Uint8ClampedArray,
+    Uint16Array, Uint32Array,
 };
-#[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::{
-    builtins::{
-        data_view::SharedDataView,
-        shared_array_buffer::SharedArrayBuffer,
-        typed_array::{
-            SharedBigInt64Array, SharedBigUint64Array, SharedFloat32Array, SharedFloat64Array,
-            SharedInt8Array, SharedInt16Array, SharedInt32Array, SharedUint8Array,
-            SharedUint8ClampedArray, SharedUint16Array, SharedUint32Array,
-        },
-    },
-    types::{
-        SHARED_ARRAY_BUFFER_DISCRIMINANT, SHARED_BIGINT_64_ARRAY_DISCRIMINANT,
-        SHARED_BIGUINT_64_ARRAY_DISCRIMINANT, SHARED_DATA_VIEW_DISCRIMINANT,
-        SHARED_FLOAT_32_ARRAY_DISCRIMINANT, SHARED_FLOAT_64_ARRAY_DISCRIMINANT,
-        SHARED_INT_8_ARRAY_DISCRIMINANT, SHARED_INT_16_ARRAY_DISCRIMINANT,
-        SHARED_INT_32_ARRAY_DISCRIMINANT, SHARED_UINT_8_ARRAY_DISCRIMINANT,
-        SHARED_UINT_8_CLAMPED_ARRAY_DISCRIMINANT, SHARED_UINT_16_ARRAY_DISCRIMINANT,
-        SHARED_UINT_32_ARRAY_DISCRIMINANT,
-    },
-};
-#[cfg(feature = "set")]
-use crate::ecmascript::{
-    builtins::{
-        keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
-    },
-    types::{SET_DISCRIMINANT, SET_ITERATOR_DISCRIMINANT},
-};
+#[cfg(feature = "proposal-float16array")]
+use crate::ecmascript::{FLOAT_16_ARRAY_DISCRIMINANT, Float16Array};
 #[cfg(feature = "regexp")]
 use crate::ecmascript::{
-    builtins::{
-        regexp::RegExp,
-        text_processing::regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
-    },
-    types::{REGEXP_DISCRIMINANT, REGEXP_STRING_ITERATOR_DISCRIMINANT},
+    REGEXP_DISCRIMINANT, REGEXP_STRING_ITERATOR_DISCRIMINANT, RegExp, RegExpStringIterator,
 };
+#[cfg(feature = "set")]
+use crate::ecmascript::{SET_DISCRIMINANT, SET_ITERATOR_DISCRIMINANT, Set, SetIterator};
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::{
+    SHARED_ARRAY_BUFFER_DISCRIMINANT, SHARED_BIGINT_64_ARRAY_DISCRIMINANT,
+    SHARED_BIGUINT_64_ARRAY_DISCRIMINANT, SHARED_DATA_VIEW_DISCRIMINANT,
+    SHARED_FLOAT_32_ARRAY_DISCRIMINANT, SHARED_FLOAT_64_ARRAY_DISCRIMINANT,
+    SHARED_INT_8_ARRAY_DISCRIMINANT, SHARED_INT_16_ARRAY_DISCRIMINANT,
+    SHARED_INT_32_ARRAY_DISCRIMINANT, SHARED_UINT_8_ARRAY_DISCRIMINANT,
+    SHARED_UINT_8_CLAMPED_ARRAY_DISCRIMINANT, SHARED_UINT_16_ARRAY_DISCRIMINANT,
+    SHARED_UINT_32_ARRAY_DISCRIMINANT, SharedArrayBuffer, SharedBigInt64Array,
+    SharedBigUint64Array, SharedDataView, SharedFloat32Array, SharedFloat64Array, SharedInt8Array,
+    SharedInt16Array, SharedInt32Array, SharedUint8Array, SharedUint8ClampedArray,
+    SharedUint16Array, SharedUint32Array,
+};
+#[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+use crate::ecmascript::{SHARED_FLOAT_16_ARRAY_DISCRIMINANT, SharedFloat16Array};
+#[cfg(feature = "weak-refs")]
+use crate::ecmascript::{WEAK_MAP_DISCRIMINANT, WEAK_REF_DISCRIMINANT, WEAK_SET_DISCRIMINANT};
+#[cfg(feature = "weak-refs")]
+use crate::ecmascript::{WeakMap, WeakRef, WeakSet};
 use crate::{
     ecmascript::{
-        abstract_operations::keyed_group::KeyedGroup,
-        builtins::{
-            Array, ArrayIterator, AsyncGenerator, BoundFunction, BuiltinConstructorFunction,
-            BuiltinFunction, BuiltinPromiseFinallyFunction, BuiltinPromiseResolvingFunction,
-            ECMAScriptFunction, EmbedderObject, Error, FinalizationRegistry, Generator, Map,
-            MapIterator, Module, PrimitiveObject, Promise, Proxy, StringIterator,
-            control_abstraction_objects::{
-                async_function_objects::await_reaction::AwaitReaction,
-                promise_objects::promise_abstract_operations::{
-                    promise_group_record::PromiseGroup, promise_reaction_records::PromiseReaction,
-                },
-            },
-            ordinary::caches::PropertyLookupCache,
-        },
-        execution::{
-            DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ModuleEnvironment,
-            ObjectEnvironment, PrivateEnvironment, Realm,
-        },
-        scripts_and_modules::{
-            module::module_semantics::source_text_module_records::SourceTextModule, script::Script,
-            source_code::SourceCode,
-        },
-        types::{
-            ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
-            ASYNC_GENERATOR_DISCRIMINANT, BIGINT_DISCRIMINANT, BOUND_FUNCTION_DISCRIMINANT,
-            BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
-            BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
-            BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
-            BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
-            ECMASCRIPT_FUNCTION_DISCRIMINANT, EMBEDDER_OBJECT_DISCRIMINANT, ERROR_DISCRIMINANT,
-            FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, HeapNumber, HeapString,
-            MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, NUMBER_DISCRIMINANT,
-            OBJECT_DISCRIMINANT, OrdinaryObject, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT,
-            PropertyKey, PropertyKeySet, STRING_DISCRIMINANT, STRING_ITERATOR_DISCRIMINANT,
-            SYMBOL_DISCRIMINANT, Symbol, Value, bigint::HeapBigInt,
-        },
+        ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
+        ASYNC_GENERATOR_DISCRIMINANT, Array, ArrayIterator, AsyncGenerator, AwaitReaction,
+        BIGINT_DISCRIMINANT, BOUND_FUNCTION_DISCRIMINANT,
+        BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
+        BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
+        BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
+        BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
+        BoundFunction, BuiltinConstructorFunction, BuiltinFunction, BuiltinPromiseFinallyFunction,
+        BuiltinPromiseResolvingFunction, DeclarativeEnvironment, ECMASCRIPT_FUNCTION_DISCRIMINANT,
+        ECMAScriptFunction, EMBEDDER_OBJECT_DISCRIMINANT, ERROR_DISCRIMINANT, EmbedderObject,
+        Error, FINALIZATION_REGISTRY_DISCRIMINANT, FinalizationRegistry, FunctionEnvironment,
+        GENERATOR_DISCRIMINANT, Generator, GlobalEnvironment, HeapBigInt, HeapNumber, HeapString,
+        KeyedGroup, MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, Map,
+        MapIterator, Module, ModuleEnvironment, NUMBER_DISCRIMINANT, OBJECT_DISCRIMINANT,
+        ObjectEnvironment, OrdinaryObject, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT,
+        PrimitiveObject, PrivateEnvironment, Promise, PromiseGroup, PromiseReaction, PropertyKey,
+        PropertyKeySet, PropertyLookupCache, Proxy, Realm, STRING_DISCRIMINANT,
+        STRING_ITERATOR_DISCRIMINANT, SYMBOL_DISCRIMINANT, Script, SourceCode, SourceTextModule,
+        StringIterator, Symbol, Value,
     },
     heap::HeapMarkAndSweep,
 };
@@ -123,84 +80,36 @@ pub(crate) mod private {
     use std::ptr::NonNull;
 
     #[cfg(feature = "date")]
-    use crate::ecmascript::builtins::date::Date;
-    #[cfg(feature = "shared-array-buffer")]
-    use crate::ecmascript::builtins::{
-        data_view::SharedDataView,
-        shared_array_buffer::SharedArrayBuffer,
-        typed_array::{GenericSharedTypedArray, SharedTypedArray},
-    };
-    #[cfg(feature = "set")]
-    use crate::ecmascript::builtins::{
-        keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
-    };
-    #[cfg(feature = "regexp")]
-    use crate::ecmascript::builtins::{
-        regexp::RegExp,
-        text_processing::regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
-    };
+    use crate::ecmascript::Date;
     #[cfg(feature = "array-buffer")]
     use crate::ecmascript::{
-        builtins::{
-            ArrayBuffer,
-            array_buffer::AnyArrayBuffer,
-            data_view::{AnyDataView, DataView},
-            typed_array::GenericTypedArray,
-            typed_array::{AnyTypedArray, TypedArray},
-        },
-        types::Viewable,
+        AnyArrayBuffer, AnyDataView, AnyTypedArray, ArrayBuffer, DataView, GenericTypedArray,
+        TypedArray, Viewable,
     };
-    #[cfg(feature = "weak-refs")]
+    #[cfg(feature = "shared-array-buffer")]
     use crate::ecmascript::{
-        builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet},
-        execution::WeakKey,
+        GenericSharedTypedArray, SharedArrayBuffer, SharedDataView, SharedTypedArray,
     };
+    #[cfg(feature = "regexp")]
+    use crate::ecmascript::{RegExp, RegExpStringIterator};
+    #[cfg(feature = "set")]
+    use crate::ecmascript::{Set, SetIterator};
+    #[cfg(feature = "weak-refs")]
+    use crate::ecmascript::{WeakKey, WeakMap, WeakRef, WeakSet};
     use crate::{
         ecmascript::{
-            abstract_operations::keyed_group::KeyedGroup,
-            builtins::{
-                ArgumentsList, Array, BuiltinConstructorFunction, BuiltinFunction,
-                ECMAScriptFunction, Generator,
-                bound_function::BoundFunction,
-                control_abstraction_objects::async_function_objects::await_reaction::AwaitReaction,
-                control_abstraction_objects::async_generator_objects::AsyncGenerator,
-                control_abstraction_objects::promise_objects::promise_abstract_operations::{
-                    promise_finally_functions::BuiltinPromiseFinallyFunction,
-                    promise_group_record::PromiseGroup, promise_reaction_records::PromiseReaction,
-                    promise_resolving_functions::BuiltinPromiseResolvingFunction,
-                },
-                embedder_object::EmbedderObject,
-                error::Error,
-                finalization_registry::FinalizationRegistry,
-                indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
-                keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
-                map::Map,
-                module::Module,
-                ordinary::caches::PropertyLookupCache,
-                primitive_objects::PrimitiveObject,
-                promise::Promise,
-                proxy::Proxy,
-            },
-            execution::{
-                DeclarativeEnvironment, Environment, FunctionEnvironment, GlobalEnvironment,
-                ModuleEnvironment, ObjectEnvironment, PrivateEnvironment, Realm, agent::JsError,
-            },
-            scripts_and_modules::{
-                module::module_semantics::{
-                    InnerReferrer, Referrer,
-                    abstract_module_records::{AbstractModule, InnerAbstractModule},
-                    cyclic_module_records::{CyclicModule, InnerCyclicModule},
-                    source_text_module_records::SourceTextModule,
-                },
-                script::Script,
-                source_code::SourceCode,
-            },
-            types::{
-                BigInt, Function, Number, Numeric, Object, OrdinaryObject, Primitive, PropertyKey,
-                PropertyKeySet, String, Symbol, Value,
-            },
+            AbstractModule, ArgumentsList, Array, ArrayIterator, AsyncGenerator, AwaitReaction,
+            BigInt, BoundFunction, BuiltinConstructorFunction, BuiltinFunction,
+            BuiltinPromiseFinallyFunction, BuiltinPromiseResolvingFunction, CyclicModule,
+            DeclarativeEnvironment, ECMAScriptFunction, EmbedderObject, Environment, Error,
+            FinalizationRegistry, Function, FunctionEnvironment, Generator, GlobalEnvironment,
+            InnerAbstractModule, InnerCyclicModule, InnerReferrer, JsError, KeyedGroup, Map,
+            MapIterator, Module, ModuleEnvironment, Number, Numeric, Object, ObjectEnvironment,
+            OrdinaryObject, Primitive, PrimitiveObject, PrivateEnvironment, Promise, PromiseGroup,
+            PromiseReaction, PropertyKey, PropertyKeySet, PropertyLookupCache, Proxy, Realm,
+            Referrer, Script, SourceCode, SourceTextModule, String, Symbol, Value,
         },
-        engine::{Executable, context::Bindable},
+        engine::{Bindable, Executable},
         heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
     };
 
@@ -438,9 +347,6 @@ pub(crate) mod private {
         }
     }
 }
-
-pub use global::Global;
-pub use scoped::{Scopable, ScopableCollection, Scoped, ScopedCollection};
 
 use super::Executable;
 

@@ -6,16 +6,11 @@ use oxc_span::Span;
 
 use crate::{
     ecmascript::{
-        builtins::{Behaviour, ecmascript_function::ECMAScriptFunctionObjectHeapData},
-        execution::{Environment, PrivateEnvironment, Realm},
-        scripts_and_modules::source_code::SourceCode,
-        types::{OrdinaryObject, String, Value},
+        Behaviour, ECMAScriptFunctionObjectHeapData, Environment, OrdinaryObject,
+        PrivateEnvironment, Realm, SourceCode, String, Value,
     },
-    engine::{Executable, context::bindable_handle},
-    heap::{
-        CompactionLists, HeapMarkAndSweep, WorkQueues, element_array::ElementsVector,
-        indexes::HeapIndexHandle,
-    },
+    engine::{Executable, bindable_handle},
+    heap::{CompactionLists, ElementsVector, HeapIndexHandle, HeapMarkAndSweep, WorkQueues},
 };
 
 use super::Function;

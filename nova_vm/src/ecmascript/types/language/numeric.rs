@@ -3,21 +3,12 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    SmallInteger,
     ecmascript::{
-        execution::Agent,
-        types::{
-            BIGINT_DISCRIMINANT, FLOAT_DISCRIMINANT, HeapNumber, INTEGER_DISCRIMINANT,
-            NUMBER_DISCRIMINANT, Number, Primitive, SMALL_BIGINT_DISCRIMINANT, Value,
-            bigint::HeapBigInt,
-        },
+        Agent, BIGINT_DISCRIMINANT, FLOAT_DISCRIMINANT, HeapBigInt, HeapNumber,
+        INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT, Number, Primitive, SMALL_BIGINT_DISCRIMINANT,
+        SmallBigInt, SmallF64, SmallInteger, Value,
     },
-    engine::{
-        context::{Bindable, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-        small_bigint::SmallBigInt,
-        small_f64::SmallF64,
-    },
+    engine::{Bindable, HeapRootData, HeapRootRef, Rootable, bindable_handle},
 };
 
 /// ### [6.1.6 Numeric Types](https://tc39.es/ecma262/#sec-numeric-types)
@@ -189,25 +180,25 @@ impl<'a> TryFrom<Primitive<'a>> for Numeric<'a> {
 
 macro_rules! numeric_value {
     ($name: tt) => {
-        crate::ecmascript::types::numeric_value!($name, $name);
+        crate::ecmascript::numeric_value!($name, $name);
     };
     ($name: ident, $variant: ident) => {
-        crate::ecmascript::types::primitive_value!($name, $variant);
+        crate::ecmascript::primitive_value!($name, $variant);
 
-        impl From<$name> for crate::ecmascript::types::Numeric<'static> {
+        impl From<$name> for crate::ecmascript::Numeric<'static> {
             #[inline(always)]
             fn from(value: $name) -> Self {
                 Self::$variant(value)
             }
         }
 
-        impl TryFrom<crate::ecmascript::types::Numeric<'_>> for $name {
+        impl TryFrom<crate::ecmascript::Numeric<'_>> for $name {
             type Error = ();
 
             #[inline]
-            fn try_from(value: crate::ecmascript::types::Numeric) -> Result<Self, Self::Error> {
+            fn try_from(value: crate::ecmascript::Numeric) -> Result<Self, Self::Error> {
                 match value {
-                    crate::ecmascript::types::Numeric::$variant(data) => Ok(data),
+                    crate::ecmascript::Numeric::$variant(data) => Ok(data),
                     _ => Err(()),
                 }
             }
@@ -218,23 +209,23 @@ pub(crate) use numeric_value;
 
 macro_rules! numeric_handle {
     ($name: tt) => {
-        crate::ecmascript::types::numeric_handle!($name, $name);
+        crate::ecmascript::numeric_handle!($name, $name);
     };
     ($name: ident, $variant: ident) => {
-        crate::ecmascript::types::primitive_handle!($name, $variant);
+        crate::ecmascript::primitive_handle!($name, $variant);
 
-        impl<'a> From<$name<'a>> for crate::ecmascript::types::Numeric<'a> {
+        impl<'a> From<$name<'a>> for crate::ecmascript::Numeric<'a> {
             fn from(value: $name<'a>) -> Self {
                 Self::$variant(value)
             }
         }
 
-        impl<'a> TryFrom<crate::ecmascript::types::Numeric<'a>> for $name<'a> {
+        impl<'a> TryFrom<crate::ecmascript::Numeric<'a>> for $name<'a> {
             type Error = ();
 
-            fn try_from(value: crate::ecmascript::types::Numeric<'a>) -> Result<Self, Self::Error> {
+            fn try_from(value: crate::ecmascript::Numeric<'a>) -> Result<Self, Self::Error> {
                 match value {
-                    crate::ecmascript::types::Numeric::$variant(data) => Ok(data),
+                    crate::ecmascript::Numeric::$variant(data) => Ok(data),
                     _ => Err(()),
                 }
             }

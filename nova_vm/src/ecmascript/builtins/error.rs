@@ -4,30 +4,24 @@
 
 mod data;
 
-pub(crate) use data::ErrorHeapData;
+pub(crate) use data::*;
 
 use crate::{
     ecmascript::{
-        execution::{
-            Agent, JsResult, ProtoIntrinsics,
-            agent::{ExceptionType, TryResult, unwrap_try},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, Object, OrdinaryObject,
-            PropertyDescriptor, PropertyKey, SetResult, String, TryGetResult, TryHasResult, Value,
-            object_handle,
-        },
+        Agent, BUILTIN_STRING_MEMORY, ExceptionType, InternalMethods, InternalSlots, JsResult,
+        Object, OrdinaryObject, PropertyDescriptor, PropertyKey, ProtoIntrinsics, SetResult,
+        String, TryGetResult, TryHasResult, TryResult, Value, object_handle, unwrap_try,
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
+    engine::{Bindable, GcScope, NoGcScope},
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
-        arena_vec_access, indexes::BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, ObjectEntry, ObjectEntryPropertyDescriptor,
+        WorkQueues, arena_vec_access,
     },
 };
 
 use super::ordinary::{
-    caches::PropertyLookupCache, ordinary_delete, ordinary_get_own_property, ordinary_has_property,
+    PropertyLookupCache, ordinary_delete, ordinary_get_own_property, ordinary_has_property,
     ordinary_set, ordinary_try_get, ordinary_try_has_property, ordinary_try_set,
 };
 

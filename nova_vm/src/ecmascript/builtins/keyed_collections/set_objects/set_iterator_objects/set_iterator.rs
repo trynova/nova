@@ -4,17 +4,13 @@
 
 use crate::{
     ecmascript::{
-        builtins::{
-            indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
-            set::Set,
-        },
-        execution::{Agent, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, OrdinaryObject, object_handle},
+        Agent, CollectionIteratorKind, InternalMethods, InternalSlots, OrdinaryObject,
+        ProtoIntrinsics, Set, object_handle,
     },
-    engine::context::{Bindable, bindable_handle},
+    engine::{Bindable, bindable_handle},
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, WorkQueues, arena_vec_access, indexes::BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
 

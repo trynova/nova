@@ -5,11 +5,8 @@
 use core::marker::PhantomData;
 
 use crate::{
-    ecmascript::execution::Agent,
-    engine::{
-        context::{Bindable, NoGcScope, ScopeToken},
-        rootable::{HeapRootCollectionData, HeapRootRef, Rootable},
-    },
+    ecmascript::Agent,
+    engine::{Bindable, HeapRootCollectionData, HeapRootRef, NoGcScope, Rootable, ScopeToken},
 };
 
 use super::{HeapRootData, RootableCollection};
@@ -39,7 +36,7 @@ impl<T: 'static + Rootable> core::fmt::Debug for Scoped<'_, T> {
 
 impl<T: 'static + Rootable> Scoped<'static, T> {
     #[inline(always)]
-    pub const fn from_root_repr(value: T::RootRepr) -> Scoped<'static, T> {
+    pub(crate) const fn from_root_repr(value: T::RootRepr) -> Scoped<'static, T> {
         Self {
             inner: value,
             _marker: PhantomData,

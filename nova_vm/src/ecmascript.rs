@@ -4,14 +4,20 @@
 
 //!# [ECMAScript language](https://tc39.es/ecma262/)
 //!
-//! This module contains everything directly related to the ECMAScript language
-//! specification and its implementation in the Nova engine.
+//! This module is the main entry point into the Nova JavaScript API and its
+//! implementation of the ECMAScript language specification.
 
-pub(crate) mod abstract_operations;
+mod abstract_operations;
 pub mod builders;
-pub mod builtins;
-pub mod execution;
-pub(crate) use builtins::{fundamental_objects, numbers_and_dates};
-pub mod scripts_and_modules;
-pub(crate) mod syntax_directed_operations;
-pub mod types;
+mod builtins;
+mod execution;
+mod scripts_and_modules;
+mod syntax_directed_operations;
+mod types;
+
+pub(crate) use abstract_operations::*;
+pub use builtins::*;
+pub use execution::*;
+pub use scripts_and_modules::*;
+pub(crate) use syntax_directed_operations::*;
+pub use types::*;

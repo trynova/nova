@@ -3,8 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    ecmascript::types::{PropertyKey, Value},
-    engine::context::{Bindable, GcToken, NoGcScope},
+    ecmascript::{PropertyKey, Value},
+    engine::{Bindable, GcToken, NoGcScope},
 };
 use core::fmt::Debug;
 use core::{
@@ -237,17 +237,17 @@ impl<T: ?Sized> HeapIndexHandle for BaseIndex<'_, T> {
 
 macro_rules! index_handle {
     ($name: tt) => {
-        crate::heap::indexes::index_handle!($name, $name);
+        crate::heap::index_handle!($name, $name);
     };
     ($name: ident, $variant: ident) => {
-        crate::engine::context::bindable_handle!($name);
+        crate::engine::bindable_handle!($name);
 
-        impl crate::heap::indexes::HeapIndexHandle for $name<'_> {
-            const _DEF: Self = Self(crate::heap::indexes::BaseIndex::MAX);
+        impl crate::heap::HeapIndexHandle for $name<'_> {
+            const _DEF: Self = Self(crate::heap::BaseIndex::MAX);
 
             #[inline]
             fn from_index_u32(index: u32) -> Self {
-                Self(crate::heap::indexes::BaseIndex::from_index_u32(index))
+                Self(crate::heap::BaseIndex::from_index_u32(index))
             }
 
             #[inline]
@@ -256,20 +256,20 @@ macro_rules! index_handle {
             }
         }
 
-        impl<'a> From<$name<'a>> for crate::engine::rootable::HeapRootData {
+        impl<'a> From<$name<'a>> for crate::engine::HeapRootData {
             #[inline(always)]
             fn from(value: $name<'a>) -> Self {
-                Self::$variant(crate::engine::context::Bindable::unbind(value))
+                Self::$variant(crate::engine::Bindable::unbind(value))
             }
         }
 
-        impl TryFrom<crate::engine::rootable::HeapRootData> for $name<'_> {
+        impl TryFrom<crate::engine::HeapRootData> for $name<'_> {
             type Error = ();
 
             #[inline]
-            fn try_from(value: crate::engine::rootable::HeapRootData) -> Result<Self, Self::Error> {
+            fn try_from(value: crate::engine::HeapRootData) -> Result<Self, Self::Error> {
                 match value {
-                    crate::engine::rootable::HeapRootData::$variant(data) => Ok(data),
+                    crate::engine::HeapRootData::$variant(data) => Ok(data),
                     _ => Err(()),
                 }
             }

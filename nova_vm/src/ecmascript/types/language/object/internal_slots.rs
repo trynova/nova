@@ -2,12 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{Object, OrdinaryObject};
-use crate::ecmascript::{
-    builtins::ordinary::shape::ObjectShape,
-    execution::{Agent, ProtoIntrinsics},
-    types::Value,
-};
+use crate::ecmascript::{Agent, Object, ObjectShape, OrdinaryObject, ProtoIntrinsics, Value};
 
 /// ## [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
 pub trait InternalSlots<'a>

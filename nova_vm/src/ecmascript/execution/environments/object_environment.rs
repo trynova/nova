@@ -6,37 +6,15 @@ use std::ops::ControlFlow;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{
-                call_function, define_property_or_throw, get, has_property, set, throw_set_error,
-                try_define_property_or_throw, try_get, try_has_property, try_set,
-            },
-            type_conversion::to_boolean,
-        },
-        builtins::{
-            ArgumentsList,
-            ordinary::{
-                caches::{PropertyLookupCache, PropertyOffset},
-                try_get_ordinary_object_value,
-            },
-        },
-        execution::{
-            Agent, JsResult,
-            agent::{
-                ExceptionType, JsError, TryError, TryResult, js_result_into_try, try_result_into_js,
-            },
-            environments::{Environment, ObjectEnvironment, OuterEnv},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, Object, PropertyDescriptor, PropertyKey,
-            SetCachedProps, SetResult, String, TryGetResult, TryHasResult, Value, call_proxy_set,
-            try_get_result_into_value,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Environment, ExceptionType, InternalMethods,
+        JsError, JsResult, Object, ObjectEnvironment, OuterEnv, PropertyDescriptor, PropertyKey,
+        PropertyLookupCache, PropertyOffset, SetAtOffsetProps, SetResult, String, TryError,
+        TryGetResult, TryHasResult, TryResult, Value, call_function, call_proxy_set,
+        define_property_or_throw, get, has_property, js_result_into_try, set, throw_set_error,
+        to_boolean, try_define_property_or_throw, try_get, try_get_ordinary_object_value,
+        try_get_result_into_value, try_has_property, try_result_into_js, try_set,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{ArenaAccess, CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
 
@@ -470,7 +448,7 @@ impl<'e> ObjectEnvironment<'e> {
         {
             let result = object.set_at_offset(
                 agent,
-                &SetCachedProps {
+                &SetAtOffsetProps {
                     p: n.bind(gc),
                     receiver: binding_object.bind(gc).into(),
                     cache: cache.bind(gc),

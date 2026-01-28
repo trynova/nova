@@ -7,25 +7,27 @@ use std::{borrow::Cow, hint::unreachable_unchecked, ptr::NonNull};
 
 use crate::{
     ecmascript::{
-        execution::{Agent, ExecutionContext, JsResult, Realm, agent::ExceptionType},
-        types::{
-            BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, Function, FunctionInternalProperties,
-            InternalSlots, Object, OrdinaryObject, PropertyKey, ScopedValuesIterator, String,
-            Value, function_handle,
-        },
+        Agent, BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, ExceptionType, ExecutionContext,
+        Function, FunctionInternalProperties, InternalSlots, JsResult, Object, OrdinaryObject,
+        PropertyKey, Realm, ScopedValuesIterator, String, Value, function_handle,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::HeapRootCollectionData,
-    },
+    engine::{Bindable, GcScope, HeapRootCollectionData, NoGcScope, bindable_handle},
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, ObjectEntry,
-        ObjectEntryPropertyDescriptor, WorkQueues, arena_vec_access, indexes::BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, IntrinsicConstructorIndexes,
+        IntrinsicFunctionIndexes, ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
+        arena_vec_access,
     },
     ndt,
 };
 
+/// A list of [ECMAScript language values](Value).
+///
+/// Garbage collection invalidates the [`Value`](Value)s in the list but does
+/// not automatically make it impossible to extract them from it. Thus, when
+/// received as a parameter the list should immediately be [bound](Bindable) to
+/// the [`GcScope`](GcScope)'s GC lifetime to ensure that it is not used after
+/// garbage collection.
 #[derive(Default)]
 #[repr(transparent)]
 pub struct ArgumentsList<'slice, 'value> {
@@ -41,7 +43,7 @@ impl core::fmt::Debug for ArgumentsList<'_, '_> {
 
 impl<'slice, 'value> ArgumentsList<'slice, 'value> {
     /// Create an ArgumentsList from a single Value.
-    pub fn from_mut_value(value: &'slice mut Value<'value>) -> Self {
+    pub(crate) fn from_mut_value(value: &'slice mut Value<'value>) -> Self {
         Self {
             // SAFETY: The Value lifetime is moved over to the PhantomData.
             slice: core::slice::from_mut(unsafe {
@@ -52,7 +54,7 @@ impl<'slice, 'value> ArgumentsList<'slice, 'value> {
     }
 
     /// Create an ArgumentsList from a Value slice.
-    pub fn from_mut_slice(slice: &'slice mut [Value<'value>]) -> Self {
+    pub(crate) fn from_mut_slice(slice: &'slice mut [Value<'value>]) -> Self {
         Self {
             // SAFETY: The Value lifetime is moved over to the PhantomData.
             slice: unsafe {
@@ -64,6 +66,12 @@ impl<'slice, 'value> ArgumentsList<'slice, 'value> {
         }
     }
 
+    /// Temporarily store the list on the [`Agent`](Agent) heap for the duration
+    /// of a callback, ensuring that garbage collection does not invalidate any
+    /// of the [`Value`](Value)s within.
+    ///
+    /// See [`ScopedArgumentsList`](ScopedArgumentsList) for accessing the
+    /// [`Value`](Value)s within the callback.
     pub fn with_scoped<'a, R>(
         &mut self,
         agent: &mut Agent,
@@ -196,6 +204,9 @@ impl<'slice, 'value> ArgumentsList<'slice, 'value> {
     /// Get a Value by index from an ArgumentsList.
     ///
     /// If a Value with that index isn't present, `undefined` is returned.
+    ///
+    /// If the list itself has not been [bound](Bindable) then the returned
+    /// Value should immediately be bound.
     #[inline]
     pub fn get(&self, index: usize) -> Value<'value> {
         *self.slice.get(index).unwrap_or(&Value::Undefined)
@@ -204,6 +215,9 @@ impl<'slice, 'value> ArgumentsList<'slice, 'value> {
     /// Get a Value by index from an ArgumentsList if present.
     ///
     /// If a Value with that index isn't present, None.
+    ///
+    /// If the list itself has not been [bound](Bindable) then the returned
+    /// Value should immediately be bound.
     #[inline]
     pub fn get_if_present(&self, index: usize) -> Option<Value<'value>> {
         self.slice.get(index).copied()

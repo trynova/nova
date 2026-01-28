@@ -3,19 +3,18 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use core::f64::consts;
+use std::ops::ControlFlow;
+use xsum::{Xsum, XsumAuto, XsumLarge, XsumSmall, XsumVariant, constants::XSUM_THRESHOLD};
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::{to_number, to_number_primitive, to_uint32},
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin},
-        execution::{Agent, JsResult, Realm},
-        types::{BUILTIN_STRING_MEMORY, Number, Primitive, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType,
+        IteratorRecord, JsResult, Number, Object, Primitive, Realm, String, Value,
+        builders::OrdinaryObjectBuilder, get_iterator, iterator_close_with_error,
+        iterator_step_value, require_object_coercible, throw_not_callable, to_number,
+        to_number_primitive, to_uint32, try_length_of_array_like,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::WellKnownSymbolIndexes,
 };
 
@@ -1699,20 +1698,6 @@ impl MathObject {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        use crate::ecmascript::{
-            abstract_operations::{
-                operations_on_iterator_objects::{
-                    IteratorRecord, get_iterator, iterator_close_with_error, iterator_step_value,
-                },
-                operations_on_objects::{throw_not_callable, try_length_of_array_like},
-                testing_and_comparison::require_object_coercible,
-            },
-            execution::agent::ExceptionType,
-            types::Object,
-        };
-        use std::ops::ControlFlow;
-        use xsum::{Xsum, XsumAuto, XsumLarge, XsumSmall, XsumVariant, constants::XSUM_THRESHOLD};
-
         let items = arguments.get(0).bind(gc.nogc());
 
         // 1. Perform ? RequireObjectCoercible(items).
@@ -1851,7 +1836,7 @@ impl MathObject {
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        use crate::ecmascript::execution::agent::ExceptionType;
+        use crate::ecmascript::ExceptionType;
 
         let value = arguments.get(0).bind(gc.nogc());
         let min = arguments.get(1).bind(gc.nogc());

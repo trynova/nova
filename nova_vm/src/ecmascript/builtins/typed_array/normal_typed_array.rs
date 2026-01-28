@@ -11,63 +11,34 @@ use core::{
 use ecmascript_atomics::Ordering;
 
 #[cfg(feature = "proposal-float16array")]
-use crate::ecmascript::types::FLOAT_16_ARRAY_DISCRIMINANT;
+use crate::ecmascript::FLOAT_16_ARRAY_DISCRIMINANT;
 #[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::types::SharedDataBlock;
+use crate::ecmascript::SharedDataBlock;
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{call_function, set},
-            type_conversion::{
-                to_big_int, to_big_int_primitive, to_boolean, to_number, to_number_primitive,
-            },
-        },
-        builtins::{
-            ArgumentsList, ArrayBuffer,
-            array_buffer::{
-                AnyArrayBuffer, ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset,
-            },
-            indexed_collections::typed_array_objects::abstract_operations::{
-                CachedBufferByteLength, TypedArrayAbstractOperations,
-                typed_array_create_from_data_block, typed_array_species_create_with_length,
-            },
-            ordinary::{
-                caches::{PropertyLookupCache, PropertyOffset},
-                ordinary_define_own_property, ordinary_delete, ordinary_get,
-                ordinary_get_own_property, ordinary_has_property_entry,
-                ordinary_prevent_extensions, ordinary_set, ordinary_try_get,
-                ordinary_try_has_property, ordinary_try_set,
-                shape::ObjectShape,
-            },
-            typed_array::{
-                AnyTypedArray, canonicalize_numeric_index_string,
-                data::{TypedArrayArrayLength, TypedArrayRecord},
-            },
-        },
-        execution::{
-            Agent, JsResult, ProtoIntrinsics,
-            agent::{JsError, TryError, TryResult, js_result_into_try, unwrap_try},
-        },
-        types::{
-            BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT, BigInt, DataBlock,
-            FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, Function,
-            INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
-            InternalMethods, InternalSlots, Number, Numeric, Object, OrdinaryObject, Primitive,
-            PropertyDescriptor, PropertyKey, SetCachedProps, SetResult, TryGetResult, TryHasResult,
-            U8Clamped, UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
-            UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT, Value, Viewable,
-            create_byte_data_block,
-        },
+        Agent, AnyArrayBuffer, AnyTypedArray, ArgumentsList, ArrayBuffer,
+        BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT, BigInt,
+        CachedBufferByteLength, DataBlock, FLOAT_32_ARRAY_DISCRIMINANT,
+        FLOAT_64_ARRAY_DISCRIMINANT, Function, INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT,
+        INT_32_ARRAY_DISCRIMINANT, InternalMethods, InternalSlots, JsError, JsResult, Number,
+        Numeric, Object, ObjectShape, OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey,
+        PropertyLookupCache, PropertyOffset, ProtoIntrinsics, SetAtOffsetProps, SetResult,
+        TryError, TryGetResult, TryHasResult, TryResult, TypedArrayAbstractOperations,
+        TypedArrayArrayLength, TypedArrayRecord, U8Clamped, UINT_8_ARRAY_DISCRIMINANT,
+        UINT_8_CLAMPED_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT,
+        Value, Viewable, ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset, call_function,
+        canonicalize_numeric_index_string, create_byte_data_block, js_result_into_try,
+        ordinary_define_own_property, ordinary_delete, ordinary_get, ordinary_get_own_property,
+        ordinary_has_property_entry, ordinary_prevent_extensions, ordinary_set, ordinary_try_get,
+        ordinary_try_has_property, ordinary_try_set, set, to_big_int, to_big_int_primitive,
+        to_boolean, to_number, to_number_primitive, typed_array_create_from_data_block,
+        typed_array_species_create_with_length, unwrap_try,
     },
-    engine::{
-        Scoped,
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, Scopable},
-    },
+    engine::{Bindable, GcScope, HeapRootData, NoGcScope, Scopable, Scoped, bindable_handle},
     heap::{
         ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, DirectArenaAccess,
         DirectArenaAccessMut, Heap, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
-        indexes::{BaseIndex, HeapIndexHandle},
+        {BaseIndex, HeapIndexHandle},
     },
 };
 
@@ -1318,7 +1289,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     fn set_at_offset<'gc>(
         self,
         agent: &mut Agent,
-        props: &SetCachedProps,
+        props: &SetAtOffsetProps,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, SetResult<'gc>> {

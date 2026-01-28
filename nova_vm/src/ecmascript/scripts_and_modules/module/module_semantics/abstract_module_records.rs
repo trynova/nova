@@ -5,16 +5,8 @@
 //! ### [16.2.1.5 Abstract Module Records](https://tc39.es/ecma262/#sec-abstract-module-records)
 
 use crate::{
-    ecmascript::{
-        builtins::{module::Module, promise::Promise},
-        execution::{Agent, JsResult, ModuleEnvironment, Realm},
-        scripts_and_modules::script::HostDefined,
-        types::String,
-    },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
+    ecmascript::{Agent, HostDefined, JsResult, Module, ModuleEnvironment, Promise, Realm, String},
+    engine::{Bindable, GcScope, HeapRootData, HeapRootRef, NoGcScope, Rootable, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 

@@ -11,40 +11,21 @@ use wtf8::{CodePoint, Wtf8Buf};
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::{
-            is_trimmable_whitespace, to_int32, to_int32_number, to_number, to_number_primitive,
-            to_string,
-        },
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        execution::{
-            Agent, ECMAScriptCodeEvaluationState, Environment, ExecutionContext, JsResult,
-            PrivateEnvironment, Realm, agent::ExceptionType, get_this_environment,
-            new_declarative_environment,
-        },
-        scripts_and_modules::source_code::{ParseResult, SourceCode, SourceCodeType},
-        syntax_directed_operations::{
-            miscellaneous::instantiate_function_object,
-            scope_analysis::{
-                LexicallyScopedDeclaration, VarScopedDeclaration,
-                script_lexically_scoped_declarations, script_var_declared_names,
-                script_var_scoped_declarations,
-            },
-        },
-        types::{BUILTIN_STRING_MEMORY, Function, Primitive, STRING_DISCRIMINANT, String, Value},
+        Agent, BUILTIN_STRING_MEMORY, ECMAScriptCodeEvaluationState, Environment, ExceptionType,
+        ExecutionContext, Function, JsResult, LexicallyScopedDeclaration, ParseResult, Primitive,
+        PrivateEnvironment, Realm, STRING_DISCRIMINANT, SourceCode, SourceCodeType, String, Value,
+        VarScopedDeclaration, builders::BuiltinFunctionBuilder, get_this_environment,
+        instantiate_function_object, is_trimmable_whitespace, new_declarative_environment,
+        script_lexically_scoped_declarations, script_var_declared_names,
+        script_var_scoped_declarations, to_int32, to_int32_number, to_number, to_number_primitive,
+        to_string,
     },
-    engine::{
-        Executable, Vm,
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-        string_literal_to_wtf8,
-    },
-    heap::{ArenaAccess, IntrinsicFunctionIndexes, indexes::HeapIndexHandle},
+    engine::{Bindable, Executable, GcScope, NoGcScope, Scopable, Vm, string_literal_to_wtf8},
+    heap::{ArenaAccess, HeapIndexHandle, IntrinsicFunctionIndexes},
     ndt,
 };
 
-use super::{
-    ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic, ordinary::caches::PropertyLookupCache,
-};
+use super::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic, ordinary::PropertyLookupCache};
 
 pub(crate) struct GlobalObject;
 

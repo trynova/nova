@@ -5,31 +5,26 @@
 include!(concat!(env!("OUT_DIR"), "/builtin_strings.rs"));
 mod data;
 
+pub(crate) use data::*;
+
+pub use small_string::SmallString;
+
 use core::hash::Hash;
 use std::borrow::Cow;
 
 use crate::{
-    SmallInteger, SmallString,
     ecmascript::{
-        execution::Agent,
-        types::{
-            Primitive, PropertyDescriptor, PropertyKey, SMALL_STRING_DISCRIMINANT,
-            STRING_DISCRIMINANT, Value, primitive_handle, primitive_value,
-        },
+        Agent, Primitive, PropertyDescriptor, PropertyKey, SMALL_STRING_DISCRIMINANT,
+        STRING_DISCRIMINANT, SmallInteger, Value, primitive_handle, primitive_value,
     },
-    engine::{
-        Scoped,
-        context::{Bindable, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
+    engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, Scoped, bindable_handle},
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         HeapSweepWeakReference, StringHeapAccess, WorkQueues, arena_vec_access,
-        indexes::{BaseIndex, HeapIndexHandle},
+        {BaseIndex, HeapIndexHandle},
     },
 };
 
-pub(crate) use data::StringRecord;
 use hashbrown::HashTable;
 use wtf8::{CodePoint, Wtf8, Wtf8Buf};
 

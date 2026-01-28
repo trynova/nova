@@ -4,93 +4,45 @@
 
 use std::thread;
 
-#[cfg(feature = "array-buffer")]
-use super::heap_bits::sweep_side_table_values;
-use super::{
-    Heap, WellKnownSymbolIndexes,
-    element_array::ElementArrays,
-    heap_bits::{
-        CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues, mark_descriptors,
-        sweep_heap_elements_vector_descriptors, sweep_heap_soa_vector_values,
-        sweep_heap_vector_values, sweep_lookup_table,
-    },
-    indexes::{ElementIndex, PropertyKeyIndex},
-};
 #[cfg(feature = "date")]
-use crate::ecmascript::builtins::date::Date;
+use crate::ecmascript::Date;
 #[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::{ArrayBuffer, data_view::DataView, typed_array::VoidArray};
-#[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::builtins::{
-    data_view::SharedDataView, shared_array_buffer::SharedArrayBuffer, typed_array::SharedVoidArray,
-};
-#[cfg(feature = "set")]
-use crate::ecmascript::builtins::{
-    keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
-};
+use crate::ecmascript::{ArrayBuffer, DataView, VoidArray};
 #[cfg(feature = "regexp")]
-use crate::ecmascript::builtins::{
-    regexp::RegExp,
-    text_processing::regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
-};
+use crate::ecmascript::{RegExp, RegExpStringIterator};
+#[cfg(feature = "set")]
+use crate::ecmascript::{Set, SetIterator};
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::{SharedArrayBuffer, SharedDataView, SharedVoidArray};
 #[cfg(feature = "weak-refs")]
-use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
+use crate::ecmascript::{WeakMap, WeakRef, WeakSet};
+#[cfg(feature = "array-buffer")]
+use crate::heap::heap_bits::sweep_side_table_values;
 use crate::{
     ecmascript::{
-        builtins::{
-            Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
-            bound_function::BoundFunction,
-            control_abstraction_objects::async_generator_objects::AsyncGenerator,
-            control_abstraction_objects::promise_objects::promise_abstract_operations::{
-                promise_finally_functions::BuiltinPromiseFinallyFunction,
-                promise_group_record::PromiseGroup,
-            },
-            control_abstraction_objects::{
-                async_function_objects::await_reaction::AwaitReaction,
-                generator_objects::Generator,
-                promise_objects::promise_abstract_operations::{
-                    promise_reaction_records::PromiseReaction,
-                    promise_resolving_functions::BuiltinPromiseResolvingFunction,
-                },
-            },
-            embedder_object::EmbedderObject,
-            error::Error,
-            finalization_registry::FinalizationRegistry,
-            indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
-            keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
-            map::Map,
-            module::Module,
-            ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
-            primitive_objects::PrimitiveObject,
-            promise::Promise,
-            proxy::Proxy,
-            text_processing::string_objects::string_iterator_objects::StringIterator,
-        },
-        execution::{
-            Agent, DeclarativeEnvironment, Environments, FunctionEnvironment, GlobalEnvironment,
-            ModuleEnvironment, ObjectEnvironment, Realm,
-        },
-        scripts_and_modules::{
-            module::module_semantics::{
-                ModuleRequest, source_text_module_records::SourceTextModule,
-            },
-            script::Script,
-            source_code::SourceCode,
-        },
-        types::{
-            BUILTIN_STRINGS_LIST, HeapNumber, HeapString, OrdinaryObject, Symbol,
-            bigint::HeapBigInt,
+        Agent, Array, ArrayIterator, AsyncGenerator, AwaitReaction, BUILTIN_STRINGS_LIST,
+        BoundFunction, BuiltinConstructorFunction, BuiltinFunction, BuiltinPromiseFinallyFunction,
+        BuiltinPromiseResolvingFunction, DeclarativeEnvironment, ECMAScriptFunction,
+        EmbedderObject, Environments, Error, FinalizationRegistry, FunctionEnvironment, Generator,
+        GlobalEnvironment, HeapBigInt, HeapNumber, HeapString, Map, MapIterator, Module,
+        ModuleEnvironment, ModuleRequest, ObjectEnvironment, ObjectShape, OrdinaryObject,
+        PrimitiveObject, Promise, PromiseGroup, PromiseReaction, PropertyLookupCache, Proxy, Realm,
+        Script, SourceCode, SourceTextModule, StringIterator, Symbol,
+    },
+    engine::{Bindable, Executable, GcScope},
+    heap::{
+        ElementIndex, Heap, HeapIndexHandle, PropertyKeyIndex, WellKnownSymbolIndexes,
+        element_array::ElementArrays,
+        heap_bits::{
+            CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues, mark_descriptors,
+            sweep_heap_elements_vector_descriptors, sweep_heap_soa_vector_values,
+            sweep_heap_vector_values, sweep_lookup_table,
         },
     },
-    engine::{
-        Executable,
-        context::{Bindable, GcScope},
-    },
-    heap::indexes::HeapIndexHandle,
     ndt,
 };
 
-pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc: GcScope) {
+pub(crate) fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc: GcScope) {
     ndt::gc_start!(|| ());
 
     let mut bits = HeapBits::new(&agent.heap);
@@ -2076,10 +2028,10 @@ fn sweep(
 
 #[test]
 fn test_heap_gc() {
-    use crate::engine::context::GcScope;
+    use crate::engine::GcScope;
     use crate::{
-        ecmascript::execution::{DefaultHostHooks, agent::Options},
-        engine::rootable::HeapRootData,
+        ecmascript::{DefaultHostHooks, Options},
+        engine::HeapRootData,
     };
 
     let mut agent = Agent::new(Options::default(), &DefaultHostHooks);

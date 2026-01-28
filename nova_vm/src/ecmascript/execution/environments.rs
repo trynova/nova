@@ -24,8 +24,6 @@
 //! functions will have as their outer Environment Record the Environment Record
 //! of the current evaluation of the surrounding function.
 
-use std::ops::ControlFlow;
-
 mod declarative_environment;
 mod function_environment;
 mod global_environment;
@@ -33,40 +31,25 @@ mod module_environment;
 mod object_environment;
 mod private_environment;
 
-pub(crate) use declarative_environment::{
-    DeclarativeEnvironmentRecord, new_declarative_environment,
-};
-pub(crate) use function_environment::{
-    FunctionEnvironmentRecord, ThisBindingStatus, new_class_field_initializer_environment,
-    new_class_static_element_environment, new_function_environment,
-};
-pub(crate) use global_environment::{GlobalEnvironmentRecord, new_global_environment};
-use module_environment::ModuleEnvironmentRecord;
-pub(crate) use module_environment::{
-    create_import_binding, create_indirect_import_binding, initialize_import_binding,
-    new_module_environment, throw_uninitialized_binding,
-};
-pub(crate) use object_environment::ObjectEnvironmentRecord;
-pub(crate) use private_environment::{
-    PrivateEnvironmentRecord, PrivateField, PrivateMethod, new_private_environment,
-    resolve_private_identifier,
-};
+pub(crate) use declarative_environment::*;
+pub(crate) use function_environment::*;
+pub(crate) use global_environment::*;
+pub(crate) use module_environment::*;
+pub(crate) use object_environment::*;
+pub(crate) use private_environment::*;
+
+use std::ops::ControlFlow;
 
 use crate::{
     ecmascript::{
-        builtins::{ordinary::caches::PropertyLookupCache, proxy::Proxy},
-        types::{InternalMethods, Object, Reference, SetResult, String, TryHasResult, Value},
+        Agent, InternalMethods, JsResult, Object, PropertyLookupCache, Proxy, Reference, SetResult,
+        String, TryError, TryHasResult, TryResult, Value, js_result_into_try,
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
+        Bindable, GcScope, HeapRootData, HeapRootRef, NoGcScope, Rootable, Scopable,
+        bindable_handle,
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, indexes::HeapIndexHandle},
-};
-
-use super::{
-    Agent, JsResult,
-    agent::{TryError, TryResult, js_result_into_try},
+    heap::{CompactionLists, HeapIndexHandle, HeapMarkAndSweep, WorkQueues},
 };
 
 /// ### [\[\[OuterEnv\]\]](https://tc39.es/ecma262/#sec-environment-records)
@@ -82,7 +65,7 @@ use super::{
 /// nested FunctionDeclarations then the Environment Records of each of the
 /// nested functions will have as their outer Environment Record the
 /// Environment Record of the current evaluation of the surrounding function.
-pub(super) type OuterEnv<'a> = Option<Environment<'a>>;
+pub(crate) type OuterEnv<'a> = Option<Environment<'a>>;
 
 macro_rules! create_environment_index {
     ($record: ident, $index: ident, $entry: ident) => {
@@ -91,17 +74,19 @@ macro_rules! create_environment_index {
         /// plus one. This allows us to not use an empty value in storage for
         /// the zero index while still saving room for a [`None`] value when
         /// stored in an [`Option`].
+        ///
+        /// [`NonZeroU32`]: core::num::NonZeroU32
         #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
         #[repr(transparent)]
-        pub struct $index<'a>(crate::heap::indexes::BaseIndex<'a, $record>);
-        crate::heap::indexes::index_handle!($index);
+        pub struct $index<'a>(crate::heap::BaseIndex<'a, $record>);
+        crate::heap::index_handle!($index);
 
         impl core::fmt::Debug for $index<'_> {
             fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
                 write!(
                     f,
                     "$index({:?})",
-                    crate::heap::indexes::HeapIndexHandle::get_index_u32(*self)
+                    crate::heap::HeapIndexHandle::get_index_u32(*self)
                 )
             }
         }
@@ -113,7 +98,7 @@ macro_rules! create_environment_index {
             #[inline]
             fn get_direct(self, source: &Vec<Self::Data>) -> &Self::Output {
                 source
-                    .get(crate::heap::indexes::HeapIndexHandle::get_index(self))
+                    .get(crate::heap::HeapIndexHandle::get_index(self))
                     .expect("Invalid environment handle")
             }
         }
@@ -122,7 +107,7 @@ macro_rules! create_environment_index {
             #[inline]
             fn get_direct_mut(self, source: &mut Vec<Self::Data>) -> &mut Self::Output {
                 source
-                    .get_mut(crate::heap::indexes::HeapIndexHandle::get_index(self))
+                    .get_mut(crate::heap::HeapIndexHandle::get_index(self))
                     .expect("Invalid environment handle")
             }
         }

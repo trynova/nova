@@ -4,12 +4,11 @@
 
 use super::Object;
 use crate::{
-    ecmascript::builtins::ordinary::shape::{ObjectShape, ObjectShapeRecord},
-    engine::context::{Bindable, bindable_handle},
+    ecmascript::{ObjectShape, ObjectShapeRecord},
+    engine::{Bindable, bindable_handle},
     heap::{
-        CompactionLists, HeapMarkAndSweep, WorkQueues,
-        element_array::{ElementArrayKey, ElementArrays, ElementStorageRef},
-        indexes::ElementIndex,
+        CompactionLists, ElementIndex, HeapMarkAndSweep, WorkQueues,
+        {ElementArrayKey, ElementArrays, ElementStorageRef},
     },
 };
 

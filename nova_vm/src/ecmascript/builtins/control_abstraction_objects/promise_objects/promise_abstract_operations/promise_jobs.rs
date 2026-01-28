@@ -6,37 +6,15 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_iterator_objects::{
-                create_iter_result_object, iterator_close_with_error,
-            },
-            operations_on_objects::{call_function, get_function_realm},
-        },
-        builtins::{ArgumentsList, promise::Promise},
-        execution::{
-            Agent, JsResult,
-            agent::{InnerJob, Job, JsError},
-        },
-        scripts_and_modules::module::{
-            import_get_module_namespace, link_and_evaluate,
-            module_semantics::cyclic_module_records::{
-                async_module_execution_fulfilled, async_module_execution_rejected,
-            },
-        },
-        types::{Function, Object, Value},
+        Agent, ArgumentsList, Function, InnerJob, Job, JsError, JsResult, Object, Promise,
+        PromiseCapability, PromiseReaction, PromiseReactionHandler, PromiseReactionType,
+        PromiseResolvingFunctionHeapData, PromiseResolvingFunctionType, Value,
+        async_module_execution_fulfilled, async_module_execution_rejected, call_function,
+        create_iter_result_object, get_function_realm, import_get_module_namespace,
+        iterator_close_with_error, link_and_evaluate,
     },
-    engine::{
-        Global,
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, Global, NoGcScope, Scopable},
     heap::{ArenaAccess, CreateHeapData},
-};
-
-use super::{
-    promise_capability_records::PromiseCapability,
-    promise_reaction_records::{PromiseReaction, PromiseReactionHandler, PromiseReactionType},
-    promise_resolving_functions::{PromiseResolvingFunctionHeapData, PromiseResolvingFunctionType},
 };
 
 #[derive(Debug)]

@@ -2,132 +2,60 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-pub mod element_array;
+mod element_array;
 mod heap_bits;
 mod heap_constants;
-pub(crate) mod heap_gc;
-pub mod indexes;
+mod heap_gc;
+mod indexes;
 mod object_entry;
+
+pub use element_array::*;
+pub(crate) use heap_bits::*;
+pub(crate) use heap_constants::*;
+pub(crate) use heap_gc::*;
+pub(crate) use indexes::*;
+pub(crate) use object_entry::*;
 
 use core::cell::RefCell;
 use std::ops::Deref;
 
-use self::element_array::{
-    ElementArray2Pow8, ElementArray2Pow10, ElementArray2Pow12, ElementArray2Pow16,
-    ElementArray2Pow24, ElementArray2Pow32, ElementArrays,
-};
-pub(crate) use self::heap_constants::{
-    IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, IntrinsicObjectIndexes,
-    IntrinsicObjectShapes, IntrinsicPrimitiveObjectIndexes, WellKnownSymbolIndexes,
-    intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
-};
-#[cfg(test)]
-pub(crate) use self::heap_constants::{
-    LAST_INTRINSIC_CONSTRUCTOR_INDEX, LAST_INTRINSIC_FUNCTION_INDEX, LAST_INTRINSIC_OBJECT_INDEX,
-    LAST_WELL_KNOWN_SYMBOL_INDEX,
-};
-pub(crate) use self::object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor};
 #[cfg(feature = "date")]
-use crate::ecmascript::builtins::date::DateHeapData;
+use crate::ecmascript::DateHeapData;
 #[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::{
-    ArrayBuffer,
-    array_buffer::{ArrayBufferHeapData, DetachKey},
-    data_view::{DataView, DataViewRecord},
-    typed_array::TypedArrayRecord,
-    typed_array::VoidArray,
-};
-#[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::builtins::{
-    data_view::{SharedDataView, SharedDataViewRecord},
-    shared_array_buffer::SharedArrayBufferRecord,
-    typed_array::{SharedTypedArrayRecord, SharedVoidArray},
-};
-#[cfg(feature = "set")]
-use crate::ecmascript::builtins::{
-    keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIteratorHeapData,
-    set::SetHeapData,
+use crate::ecmascript::{
+    ArrayBuffer, ArrayBufferHeapData, DataView, DataViewRecord, DetachKey, TypedArrayRecord,
+    VoidArray,
 };
 #[cfg(feature = "regexp")]
-use crate::ecmascript::builtins::{
-    regexp::RegExpHeapData,
-    text_processing::regexp_objects::regexp_string_iterator_objects::RegExpStringIteratorRecord,
+use crate::ecmascript::{RegExpHeapData, RegExpStringIteratorRecord};
+#[cfg(feature = "set")]
+use crate::ecmascript::{SetHeapData, SetIteratorHeapData};
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::{
+    SharedArrayBufferRecord, SharedDataView, SharedDataViewRecord, SharedTypedArrayRecord,
+    SharedVoidArray,
 };
 #[cfg(feature = "weak-refs")]
-use crate::ecmascript::builtins::{
-    weak_map::WeakMapRecord, weak_ref::WeakRefHeapData, weak_set::WeakSetHeapData,
-};
+use crate::ecmascript::{WeakMapRecord, WeakRefHeapData, WeakSetHeapData};
 use crate::{
     ecmascript::{
-        builtins::{
-            array::ArrayHeapData,
-            control_abstraction_objects::{
-                async_function_objects::await_reaction::AwaitReactionRecord,
-                generator_objects::GeneratorHeapData,
-                promise_objects::promise_abstract_operations::{
-                    promise_reaction_records::PromiseReactionRecord,
-                    promise_resolving_functions::PromiseResolvingFunctionHeapData,
-                },
-            },
-            control_abstraction_objects::{
-                async_generator_objects::AsyncGeneratorHeapData,
-                promise_objects::promise_abstract_operations::{
-                    promise_finally_functions::PromiseFinallyFunctionHeapData,
-                    promise_group_record::PromiseGroupRecord,
-                },
-            },
-            embedder_object::EmbedderObjectHeapData,
-            error::ErrorHeapData,
-            finalization_registry::FinalizationRegistryRecord,
-            indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
-            keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
-            map::MapHeapData,
-            module::ModuleHeapData,
-            ordinary::{
-                caches::Caches,
-                shape::{ObjectShapeRecord, ObjectShapeTransitionMap, PrototypeShapeTable},
-            },
-            primitive_objects::PrimitiveObjectRecord,
-            promise::PromiseHeapData,
-            proxy::ProxyHeapData,
-            text_processing::string_objects::string_iterator_objects::StringIteratorHeapData,
-        },
-        execution::{Agent, Environments, Realm, RealmRecord},
-        scripts_and_modules::{
-            module::module_semantics::{
-                ModuleRequestRecord, source_text_module_records::SourceTextModuleHeap,
-            },
-            script::{Script, ScriptRecord},
-            source_code::SourceCodeHeapData,
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, BUILTIN_STRINGS_LIST, BigIntHeapData, BoundFunctionHeapData,
-            BuiltinConstructorRecord, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
-            HeapString, NumberHeapData, ObjectRecord, String, StringRecord, SymbolHeapData,
-        },
+        Agent, ArrayHeapData, ArrayIteratorHeapData, AsyncGeneratorHeapData, AwaitReactionRecord,
+        BUILTIN_STRING_MEMORY, BUILTIN_STRINGS_LIST, BigIntHeapData, BoundFunctionHeapData,
+        BuiltinConstructorRecord, BuiltinFunctionHeapData, Caches, ECMAScriptFunctionHeapData,
+        EmbedderObjectHeapData, Environments, ErrorHeapData, FinalizationRegistryRecord,
+        GeneratorHeapData, HeapString, MapHeapData, MapIteratorHeapData, ModuleHeapData,
+        ModuleRequestRecord, NumberHeapData, ObjectRecord, ObjectShapeRecord,
+        ObjectShapeTransitionMap, PrimitiveObjectRecord, PromiseFinallyFunctionHeapData,
+        PromiseGroupRecord, PromiseHeapData, PromiseReactionRecord,
+        PromiseResolvingFunctionHeapData, PrototypeShapeTable, ProxyHeapData, Realm, RealmRecord,
+        Script, ScriptRecord, SourceCodeHeapData, SourceTextModuleHeap, String,
+        StringIteratorHeapData, StringRecord, SymbolHeapData,
     },
-    engine::{
-        ExecutableHeapData,
-        context::{Bindable, NoGcScope},
-        rootable::HeapRootData,
-    },
-    heap::indexes::HeapIndexHandle,
+    engine::{Bindable, ExecutableHeapData, HeapRootData, NoGcScope},
 };
 #[cfg(feature = "array-buffer")]
 use ahash::AHashMap;
-use element_array::{
-    ElementArray2Pow1, ElementArray2Pow2, ElementArray2Pow3, ElementArray2Pow4, ElementArray2Pow6,
-    PropertyKeyArray2Pow1, PropertyKeyArray2Pow2, PropertyKeyArray2Pow3, PropertyKeyArray2Pow4,
-    PropertyKeyArray2Pow6, PropertyKeyArray2Pow8, PropertyKeyArray2Pow10, PropertyKeyArray2Pow12,
-    PropertyKeyArray2Pow16, PropertyKeyArray2Pow24, PropertyKeyArray2Pow32,
-};
 use hashbrown::HashTable;
-#[cfg(feature = "weak-refs")]
-pub(crate) use heap_bits::sweep_side_set;
-pub(crate) use heap_bits::{
-    AtomicBits, BitRange, CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WeakReference,
-    WorkQueues, sweep_heap_vector_values,
-};
 use soavec::{SoAVec, SoAble};
 use wtf8::{Wtf8, Wtf8Buf};
 
@@ -877,7 +805,7 @@ macro_rules! arena_vec_access {
             #[inline]
             fn get_direct(self, source: &Vec<Self::Data>) -> &Self::Output {
                 source
-                    .get(crate::heap::indexes::HeapIndexHandle::get_index(self))
+                    .get(crate::heap::HeapIndexHandle::get_index(self))
                     .unwrap_or_else(|| panic!("Invalid handle {:?}", self))
             }
         }
@@ -889,21 +817,21 @@ macro_rules! arena_vec_access {
                 unsafe {
                     core::mem::transmute::<&mut $data<'static>, &mut $data<$lt>>(
                         source
-                            .get_mut(crate::heap::indexes::HeapIndexHandle::get_index(self))
+                            .get_mut(crate::heap::HeapIndexHandle::get_index(self))
                             .unwrap_or_else(|| panic!("Invalid handle {:?}", self)),
                     )
                 }
             }
         }
 
-        impl AsRef<Vec<$data<'static>>> for crate::ecmascript::execution::Agent {
+        impl AsRef<Vec<$data<'static>>> for crate::ecmascript::Agent {
             #[inline(always)]
             fn as_ref(&self) -> &Vec<$data<'static>> {
                 &self.heap.$member
             }
         }
 
-        impl AsMut<Vec<$data<'static>>> for crate::ecmascript::execution::Agent {
+        impl AsMut<Vec<$data<'static>>> for crate::ecmascript::Agent {
             #[inline(always)]
             fn as_mut(&mut self) -> &mut Vec<$data<'static>> {
                 &mut self.heap.$member
@@ -918,7 +846,7 @@ macro_rules! arena_vec_access {
             #[inline]
             fn get_direct(self, source: &Vec<Self::Data>) -> &Self::Output {
                 source
-                    .get(crate::heap::indexes::HeapIndexHandle::get_index(self))
+                    .get(crate::heap::HeapIndexHandle::get_index(self))
                     .unwrap_or_else(|| panic!("Invalid handle {:?}", self))
             }
         }
@@ -927,7 +855,7 @@ macro_rules! arena_vec_access {
             #[inline]
             fn get_direct_mut(self, source: &mut Vec<Self::Data>) -> &mut Self::Output {
                 source
-                    .get_mut(crate::heap::indexes::HeapIndexHandle::get_index(self))
+                    .get_mut(crate::heap::HeapIndexHandle::get_index(self))
                     .unwrap_or_else(|| panic!("Invalid handle {:?}", self))
             }
         }

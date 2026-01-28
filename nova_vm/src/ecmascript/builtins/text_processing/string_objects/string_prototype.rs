@@ -10,47 +10,24 @@ use unicode_normalization::{
 };
 use wtf8::{CodePoint, Wtf8Buf};
 
+use crate::{
+    ecmascript::{
+        Agent, ArgumentsList, Array, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinIntrinsic,
+        ExceptionType, JsResult, Number, Primitive, PrimitiveObjectData, PrimitiveObjectRecord,
+        PropertyKey, Realm, String, StringIterator, Value, builders::OrdinaryObjectBuilder,
+        call_function, create_array_from_list, is_callable, is_reg_exp, is_trimmable_whitespace,
+        require_object_coercible, to_integer_or_infinity, to_integer_or_infinity_number, to_length,
+        to_number, to_string, to_string_primitive, to_uint32, try_result_into_js,
+        try_to_integer_or_infinity, try_to_length, try_to_string,
+    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
+    heap::{ArenaAccess, HeapIndexHandle, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+};
 #[cfg(feature = "regexp")]
 use crate::{
-    ecmascript::{
-        abstract_operations::operations_on_objects::{get, get_object_method, invoke},
-        builtins::regexp::reg_exp_create,
-        types::Object,
-    },
+    ecmascript::{Object, get, get_object_method, invoke, reg_exp_create},
     engine::Scoped,
 };
-use crate::{
-    ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{call_function, create_array_from_list},
-            testing_and_comparison::{is_callable, is_reg_exp, require_object_coercible},
-            type_conversion::{
-                is_trimmable_whitespace, to_integer_or_infinity, to_integer_or_infinity_number,
-                to_length, to_number, to_string, to_string_primitive, to_uint32,
-                try_to_integer_or_infinity, try_to_length, try_to_string,
-            },
-        },
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Array, Behaviour, Builtin, BuiltinIntrinsic,
-            primitive_objects::{PrimitiveObjectData, PrimitiveObjectRecord},
-        },
-        execution::{
-            Agent, JsResult, Realm,
-            agent::{ExceptionType, try_result_into_js},
-        },
-        types::{BUILTIN_STRING_MEMORY, Number, Primitive, PropertyKey, String, Value},
-    },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
-    heap::{
-        ArenaAccess, IntrinsicFunctionIndexes, WellKnownSymbolIndexes, indexes::HeapIndexHandle,
-    },
-};
-
-use super::string_iterator_objects::StringIterator;
 
 pub(crate) struct StringPrototype;
 
@@ -3601,7 +3578,7 @@ fn create_html<'gc>(
     attribute_and_value: Option<(&str, Value)>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, String<'gc>> {
-    use crate::engine::rootable::Scopable;
+    use crate::engine::Scopable;
 
     let nogc = gc.nogc();
     // 1. Let str be ? RequireObjectCoercible(string).

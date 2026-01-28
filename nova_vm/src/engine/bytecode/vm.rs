@@ -5,79 +5,25 @@
 mod binding_methods;
 mod execute_instructions;
 
-use execute_instructions::{
-    execute_apply_addition_binary_operator, execute_apply_binary_operator, execute_array_create,
-    execute_array_elision, execute_array_push, execute_async_iterator_close,
-    execute_async_iterator_close_with_error, execute_begin_simple_array_binding_pattern,
-    execute_begin_simple_object_binding_pattern, execute_binding_pattern, execute_bitwise_not,
-    execute_class_define_constructor, execute_class_define_default_constructor,
-    execute_class_define_private_method, execute_class_define_private_property,
-    execute_class_initialize_private_elements, execute_class_initialize_private_value,
-    execute_copy_data_properties, execute_copy_data_properties_into_object,
-    execute_create_immutable_binding, execute_create_mutable_binding,
-    execute_create_unmapped_arguments_object, execute_debug, execute_decrement, execute_delete,
-    execute_direct_eval_call, execute_enter_class_static_element_environment,
-    execute_enter_declarative_environment, execute_enter_private_environment,
-    execute_enumerate_object_properties, execute_evaluate_call, execute_evaluate_new,
-    execute_evaluate_property_access_with_expression_key,
-    execute_evaluate_property_access_with_identifier_key, execute_evaluate_super,
-    execute_exit_declarative_environment, execute_exit_private_environment,
-    execute_exit_variable_environment, execute_get_iterator_async, execute_get_iterator_sync,
-    execute_get_new_target, execute_get_value, execute_greater_than, execute_greater_than_equals,
-    execute_has_private_element, execute_has_property, execute_import_call, execute_import_meta,
-    execute_increment, execute_initialize_referenced_binding,
-    execute_initialize_variable_environment, execute_instanceof_operator,
-    execute_instantiate_arrow_function_expression,
-    execute_instantiate_ordinary_function_expression, execute_is_constructor,
-    execute_is_loosely_equal, execute_is_strictly_equal, execute_iterator_call_next_method,
-    execute_iterator_close, execute_iterator_close_with_error, execute_iterator_complete,
-    execute_iterator_rest_into_array, execute_iterator_return, execute_iterator_step_value,
-    execute_iterator_step_value_or_undefined, execute_iterator_throw, execute_iterator_value,
-    execute_jump, execute_jump_if_not, execute_jump_if_true, execute_less_than,
-    execute_less_than_equals, execute_load_constant, execute_logical_not,
-    execute_make_private_reference, execute_make_super_property_reference_with_expression_key,
-    execute_make_super_property_reference_with_identifier_key, execute_object_create,
-    execute_object_create_with_shape, execute_object_define_getter, execute_object_define_method,
-    execute_object_define_property, execute_object_define_setter, execute_object_set_prototype,
-    execute_push_exception_jump_target, execute_put_value, execute_resolve_binding,
-    execute_resolve_binding_with_cache, execute_resolve_this_binding, execute_store_constant,
-    execute_string_concat, execute_throw_error, execute_to_number, execute_to_numeric,
-    execute_to_object, execute_typeof, execute_unary_minus, execute_verify_is_object,
-};
+use execute_instructions::*;
+
 use std::{hint::unreachable_unchecked, ptr::NonNull};
 use wtf8::Wtf8Buf;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{
-                call_function, copy_data_properties_into_object, get_method, ordinary_has_instance,
-                try_get_object_method,
-            },
-            testing_and_comparison::is_callable,
-            type_conversion::{
-                to_boolean, to_numeric, to_numeric_primitive, to_object, to_primitive,
-                to_property_key, to_string_primitive,
-            },
-        },
-        builtins::{ArgumentsList, ScopedArgumentsList, array::abstract_operations::array_create},
-        execution::{
-            Agent, Environment, JsResult,
-            agent::{ExceptionType, JsError, resolve_binding, try_result_into_option_js},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, BigInt, Number, Object, Primitive, Reference, String, Value,
-            initialize_referenced_binding, put_value,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, BigInt, Environment, ExceptionType, JsError,
+        JsResult, Number, Object, Primitive, Reference, ScopedArgumentsList, String, Value,
+        call_function, get_method, is_callable, ordinary_has_instance, to_boolean, to_numeric,
+        to_numeric_primitive, to_primitive, to_property_key, to_string_primitive,
+        try_get_object_method, try_result_into_option_js,
     },
     engine::{
-        Scoped,
+        Bindable, GcScope, NoGcScope, Scopable, Scoped, bindable_handle,
         bytecode::{
             Executable, IndexType, Instruction, InstructionIter, instructions::Instr,
             iterator::VmIteratorRecord,
         },
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::Scopable,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };

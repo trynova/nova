@@ -6,46 +6,16 @@ use std::collections::VecDeque;
 
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::try_define_property_or_throw,
-        builtins::{
-            ArgumentsList, ECMAScriptFunction, FunctionAstRef, OrdinaryFunctionCreateParams,
-            control_abstraction_objects::async_generator_objects::{
-                AsyncGeneratorHeapData, AsyncGeneratorState,
-            },
-            control_abstraction_objects::generator_objects::{
-                GeneratorHeapData, SuspendedGeneratorState,
-            },
-            control_abstraction_objects::{
-                async_function_objects::await_reaction::AwaitReactionRecord,
-                generator_objects::GeneratorState,
-                promise_objects::{
-                    promise_abstract_operations::{
-                        promise_capability_records::PromiseCapability,
-                        promise_reaction_records::PromiseReactionHandler,
-                    },
-                    promise_prototype::inner_promise_then,
-                },
-            },
-            ecmascript_function::ThisMode,
-            ecmascript_function::make_constructor,
-            ecmascript_function::ordinary_function_create,
-            ecmascript_function::set_function_name,
-            ordinary::{
-                ordinary_object_create_with_intrinsics, ordinary_populate_from_constructor,
-            },
-            promise::Promise,
-        },
-        execution::{
-            Agent, Environment, JsResult, PrivateEnvironment, ProtoIntrinsics, agent::unwrap_try,
-        },
-        scripts_and_modules::source_code::SourceCode,
-        types::{BUILTIN_STRING_MEMORY, PropertyDescriptor, PropertyKey, Value},
+        Agent, ArgumentsList, AsyncGeneratorHeapData, AsyncGeneratorState, AwaitReactionRecord,
+        BUILTIN_STRING_MEMORY, ECMAScriptFunction, Environment, FunctionAstRef, GeneratorHeapData,
+        GeneratorState, JsResult, OrdinaryFunctionCreateParams, PrivateEnvironment, Promise,
+        PromiseCapability, PromiseReactionHandler, PropertyDescriptor, PropertyKey,
+        ProtoIntrinsics, SourceCode, SuspendedGeneratorState, ThisMode, Value, inner_promise_then,
+        make_constructor, ordinary_function_create, ordinary_object_create_with_intrinsics,
+        ordinary_populate_from_constructor, set_function_name, try_define_property_or_throw,
+        unwrap_try,
     },
-    engine::{
-        Executable, ExecutionResult, Vm,
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, Executable, ExecutionResult, GcScope, NoGcScope, Scopable, Vm},
     heap::{ArenaAccess, ArenaAccessMut, CreateHeapData},
 };
 use oxc_ast::ast::{self};

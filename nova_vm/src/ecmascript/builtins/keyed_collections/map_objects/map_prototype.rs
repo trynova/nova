@@ -8,24 +8,12 @@ use ahash::AHasher;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::call_function,
-            testing_and_comparison::{is_callable, same_value},
-        },
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
-            indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
-            keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
-            map::Map,
-        },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, HeapNumber, PropertyKey, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter,
+        BuiltinIntrinsic, CollectionIteratorKind, ExceptionType, HeapNumber, JsResult, Map,
+        MapIterator, PropertyKey, Realm, String, Value, builders::OrdinaryObjectBuilder,
+        call_function, is_callable, same_value,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{
         ArenaAccess, ArenaAccessSoA, Heap, IntrinsicFunctionIndexes, PrimitiveHeap,
         WellKnownSymbolIndexes,
@@ -79,7 +67,7 @@ impl Builtin for MapPrototypeKeys {
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::keys);
 }
-pub(super) struct MapPrototypeSet;
+pub(crate) struct MapPrototypeSet;
 impl Builtin for MapPrototypeSet {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.set;
     const LENGTH: u8 = 2;

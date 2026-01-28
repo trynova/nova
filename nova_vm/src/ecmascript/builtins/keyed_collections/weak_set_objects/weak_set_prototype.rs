@@ -4,18 +4,13 @@
 
 use crate::{
     ecmascript::{
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, weak_set::WeakSet},
-        execution::{
-            Agent, JsResult, Realm, agent::ExceptionType, can_be_held_weakly,
-            throw_not_weak_key_error,
-        },
-        types::{BUILTIN_STRING_MEMORY, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType, JsResult,
+        Realm, String, Value, WeakSet, builders::OrdinaryObjectBuilder, can_be_held_weakly,
+        throw_not_weak_key_error,
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
+    engine::{Bindable, GcScope, NoGcScope},
     heap::{ArenaAccess, ArenaAccessMut, WellKnownSymbolIndexes},
 };
-
 pub(crate) struct WeakSetPrototype;
 
 struct WeakSetPrototypeAdd;

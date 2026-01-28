@@ -21,55 +21,35 @@
 
 use ahash::AHashMap;
 
+#[cfg(test)]
+use crate::ecmascript::GlobalEnvironment;
 #[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
+use crate::ecmascript::SharedArrayBuffer;
 #[cfg(feature = "atomics")]
-use crate::ecmascript::builtins::structured_data::atomics_object::WaitAsyncJob;
+use crate::ecmascript::WaitAsyncJob;
 #[cfg(feature = "weak-refs")]
-use crate::ecmascript::execution::{FinalizationRegistryCleanupJob, clear_kept_objects};
+use crate::ecmascript::{FinalizationRegistryCleanupJob, clear_kept_objects};
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_string,
-        builtins::{
-            error::ErrorHeapData,
-            ordinary::caches::PropertyLookupCache,
-            promise::Promise,
-            control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{
-                PromiseReactionJob, PromiseResolveThenableJob,
-            },
-        },
-        scripts_and_modules::{
-            ScriptOrModule,
-            module::module_semantics::{
-                ModuleRequest, Referrer, abstract_module_records::AbstractModuleMethods,
-                cyclic_module_records::GraphLoadingStateRecord,
-                source_text_module_records::SourceTextModule,
-            },
-            script::{HostDefined, parse_script, script_evaluation},
-            source_code::SourceCode,
-        },
-        types::{
-            Function, Object, OrdinaryObject, PrivateName, PropertyKey, Reference, String, Symbol,
-            Value, ValueRootRepr,
-        },
+        AbstractModuleMethods, Environment, ErrorHeapData, ExecutionContext, Function,
+        GraphLoadingStateRecord, HostDefined, ModuleRequest, Object, OrdinaryObject,
+        PrivateEnvironment, PrivateName, Promise, PromiseReactionJob, PromiseResolveThenableJob,
+        PropertyKey, PropertyLookupCache, Realm, RealmRecord, Reference, Referrer, ScriptOrModule,
+        SourceCode, SourceTextModule, String, Symbol, Value, ValueRootRepr,
+        get_identifier_reference, initialize_default_realm, initialize_host_defined_realm,
+        parse_script, script_evaluation, to_string, try_get_identifier_reference,
     },
     engine::{
-        Vm,
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootCollectionData, HeapRootData, HeapRootRef, Rootable},
+        Bindable, GcScope, HeapRootCollectionData, HeapRootData, HeapRootRef, NoGcScope, Rootable,
+        Vm, bindable_handle,
     },
     heap::{
-        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeapAccess,
-        WorkQueues, heap_gc::heap_gc, indexes::HeapIndexHandle,
+        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapIndexHandle, HeapMarkAndSweep,
+        PrimitiveHeapAccess, WorkQueues, heap_gc,
     },
     ndt,
 };
 
-use super::{
-    Environment, ExecutionContext, GlobalEnvironment, PrivateEnvironment, Realm, RealmRecord,
-    environments::{get_identifier_reference, try_get_identifier_reference},
-    initialize_default_realm, initialize_host_defined_realm,
-};
 use core::{any::Any, cell::RefCell, ops::ControlFlow, ptr::NonNull};
 use std::{collections::TryReserveError, sync::Arc};
 
@@ -807,6 +787,12 @@ impl GcAgent {
 }
 
 /// ## [9.7 Agents](https://tc39.es/ecma262/#sec-agents)
+///
+/// Agents are the way that JavaScript code is executed in the Nova JavaScript
+/// engine. An Agent contains the JavaScript heap, the execution context, and
+/// other parts required to execute JavaScript code.
+///
+/// For creating an Agent, see [`GcAgent`](GcAgent).
 pub struct Agent {
     pub(crate) heap: Heap,
     pub(crate) options: Options,
@@ -1002,7 +988,8 @@ impl Agent {
     }
 
     /// Get current Realm's global environment.
-    pub fn current_global_env<'a>(&self, gc: NoGcScope<'a, '_>) -> GlobalEnvironment<'a> {
+    #[cfg(test)]
+    pub(crate) fn current_global_env<'a>(&self, gc: NoGcScope<'a, '_>) -> GlobalEnvironment<'a> {
         let realm = self.current_realm(gc);
         let Some(e) = realm.get(self).global_env else {
             panic_corrupted_agent()

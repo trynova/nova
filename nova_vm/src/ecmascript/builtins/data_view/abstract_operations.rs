@@ -2,21 +2,11 @@ use ecmascript_atomics::Ordering;
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::{to_big_int, to_index, to_number, try_to_index},
-        builtins::{
-            array_buffer::{is_fixed_length_array_buffer, set_value_in_buffer},
-            structured_data::data_view_objects::data_view_prototype::require_internal_slot_data_view,
-        },
-        execution::{
-            Agent, JsResult,
-            agent::{ExceptionType, try_result_into_js},
-        },
-        types::{BigInt, Number, Numeric, Value, Viewable},
+        Agent, BigInt, ExceptionType, JsResult, Number, Numeric, Value, Viewable,
+        is_fixed_length_array_buffer, require_internal_slot_data_view, set_value_in_buffer,
+        to_big_int, to_index, to_number, try_result_into_js, try_to_index,
     },
-    engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
 };
 
 use super::AnyDataView;

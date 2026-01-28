@@ -6,14 +6,10 @@ use ahash::AHashMap;
 use soavec_derive::SoAble;
 
 use crate::{
-    ecmascript::{
-        execution::{Realm, WeakKey},
-        types::{Function, OrdinaryObject, Value},
-    },
-    engine::context::{Bindable, bindable_handle},
+    ecmascript::{Function, OrdinaryObject, Realm, Value, WeakKey},
+    engine::{Bindable, bindable_handle},
     heap::{
-        CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
-        indexes::HeapIndexHandle,
+        CompactionLists, HeapIndexHandle, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
     },
 };
 

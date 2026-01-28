@@ -11,40 +11,20 @@ use oxc_span::Span;
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_object,
-        builtins::{
-            ArgumentsList,
-            ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
-        },
-        execution::{
-            Agent, ECMAScriptCodeEvaluationState, Environment, ExecutionContext,
-            FunctionEnvironment, JsResult, PrivateEnvironment, ProtoIntrinsics, Realm,
-            ThisBindingStatus,
-            agent::{
-                ExceptionType::{self, SyntaxError},
-                get_active_script_or_module,
-            },
-            new_function_environment,
-        },
-        scripts_and_modules::{ScriptOrModule, source_code::SourceCode},
-        syntax_directed_operations::function_definitions::{
-            evaluate_async_function_body, evaluate_async_generator_body, evaluate_function_body,
-            evaluate_generator_body,
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, ECMAScriptFunctionHeapData, Function,
-            FunctionInternalProperties, InternalSlots, Object, OrdinaryObject, PropertyDescriptor,
-            PropertyKey, String, Value, function_handle,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, ECMAScriptCodeEvaluationState,
+        ECMAScriptFunctionHeapData, Environment, ExceptionType, ExecutionContext, Function,
+        FunctionEnvironment, FunctionInternalProperties, InternalSlots, JsResult, Object,
+        OrdinaryObject, PrivateEnvironment, PropertyDescriptor, PropertyKey, ProtoIntrinsics,
+        Realm, ScriptOrModule, SourceCode, String, ThisBindingStatus, Value,
+        evaluate_async_function_body, evaluate_async_generator_body, evaluate_function_body,
+        evaluate_generator_body, function_handle, get_active_script_or_module,
+        new_function_environment, ordinary_create_from_constructor,
+        ordinary_object_create_with_intrinsics, to_object,
     },
-    engine::{
-        Executable,
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::Scopable,
-    },
+    engine::{Bindable, Executable, GcScope, NoGcScope, Scopable, bindable_handle},
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, WorkQueues, arena_vec_access, indexes::BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
     ndt,
 };
@@ -1177,7 +1157,7 @@ fn set_ecmascript_function_length<'a>(
     // 2. Perform ! DefinePropertyOrThrow(F, "length", PropertyDescriptor { [[Value]]: 𝔽(length), [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }).
     if length > u8::MAX as usize {
         return Err(agent.throw_exception_with_static_message(
-            SyntaxError,
+            ExceptionType::SyntaxError,
             "Too many arguments in function call (only 255 allowed)",
             gc,
         ));

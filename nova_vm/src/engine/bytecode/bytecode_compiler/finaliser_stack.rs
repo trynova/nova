@@ -15,7 +15,7 @@
 
 use oxc_ast::ast::LabelIdentifier;
 
-use crate::{ecmascript::types::Value, engine::Instruction};
+use crate::{ecmascript::Value, engine::Instruction};
 
 use super::{JumpIndex, executable_context::ExecutableContext};
 

@@ -8,20 +8,16 @@ use ahash::AHashMap;
 use crate::ecmascript::builtins::{SharedArrayBuffer, SharedVoidArray};
 use crate::{
     ecmascript::{
-        builtins::{
-            ArrayBuffer,
-            array_buffer::{ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset},
-            typed_array::VoidArray,
-        },
-        types::OrdinaryObject,
+        ArrayBuffer, OrdinaryObject, ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset,
+        VoidArray,
     },
-    engine::context::bindable_handle,
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, indexes::HeapIndexHandle},
+    engine::bindable_handle,
+    heap::{CompactionLists, HeapIndexHandle, HeapMarkAndSweep, WorkQueues},
 };
 
 #[repr(transparent)]
 #[derive(Clone, Copy, Eq, PartialEq)]
-pub(crate) struct TypedArrayArrayLength(pub u32);
+pub(crate) struct TypedArrayArrayLength(pub(crate) u32);
 
 impl core::fmt::Debug for TypedArrayArrayLength {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

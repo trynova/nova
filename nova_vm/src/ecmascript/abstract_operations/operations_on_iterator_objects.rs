@@ -6,24 +6,14 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{
-                call_function, get, get_method, get_object_method, try_get_object_method,
-            },
-            testing_and_comparison::is_callable,
-            type_conversion::to_boolean,
-        },
-        builtins::ArgumentsList,
-        execution::{
-            Agent, JsResult,
-            agent::{ExceptionType, JsError, try_result_into_option_js},
-        },
-        types::{BUILTIN_STRING_MEMORY, Function, Object, OrdinaryObject, PropertyKey, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, ExceptionType, Function, JsError, JsResult,
+        Object, OrdinaryObject, PropertyKey, Value, call_function, get, get_method,
+        get_object_method, is_callable, to_boolean, try_get_object_method,
+        try_result_into_option_js,
     },
     engine::{
-        ScopableCollection, ScopedCollection, VmIteratorRecord,
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::Scopable,
+        Bindable, GcScope, NoGcScope, Scopable, ScopableCollection, ScopedCollection,
+        VmIteratorRecord, bindable_handle,
     },
     heap::{
         CompactionLists, HeapMarkAndSweep, ObjectEntry, ObjectEntryPropertyDescriptor,
@@ -579,12 +569,12 @@ macro_rules! if_abrupt_close_iterator {
         // 2. If value is an abrupt completion, return ? IteratorClose(iteratorRecord, value).
         if let Err(err) = $value {
             return Err(
-                crate::ecmascript::abstract_operations::operations_on_iterator_objects::iterator_close_with_error(
+                crate::ecmascript::abstract_operations::iterator_close_with_error(
                     $agent,
                     $iterator_record.iterator.unbind(),
                     err.unbind(),
-                    $gc
-                )
+                    $gc,
+                ),
             );
         } else if let Ok(value) = $value {
             value.unbind().bind($gc.nogc())

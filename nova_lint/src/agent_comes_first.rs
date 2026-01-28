@@ -1,5 +1,5 @@
 use clippy_utils::{diagnostics::span_lint_and_help, is_self};
-use rustc_hir::{Body, FnDecl, def_id::LocalDefId, intravisit::FnKind};
+use rustc_hir::{def_id::LocalDefId, intravisit::FnKind, Body, FnDecl};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::Span;
 
@@ -8,11 +8,11 @@ use crate::{is_agent_ty, is_param_ty};
 dylint_linting::declare_late_lint! {
     /// ### What it does
     ///
-    /// Checks that the `nova_vm::ecmascript::execution::agent::Agent` is the first parameter of a function.
+    /// Checks that the `nova_vm::ecmascript::Agent` is the first parameter of a function.
     ///
     /// ### Why is this bad?
     ///
-    /// The `nova_vm::ecmascript::execution::agent::Agent` is expected to be
+    /// The `nova_vm::ecmascript::Agent` is expected to be
     /// the first parameter of a function according to the Nova engines conventions.
     ///
     /// ### Example
@@ -28,7 +28,7 @@ dylint_linting::declare_late_lint! {
     /// ```
     pub AGENT_COMES_FIRST,
     Warn,
-    "the `nova_vm::ecmascript::execution::agent::Agent` should be the first parameter of any function using it"
+    "the `nova_vm::ecmascript::Agent` should be the first parameter of any function using it"
 }
 
 impl<'tcx> LateLintPass<'tcx> for AgentComesFirst {
@@ -68,9 +68,9 @@ impl<'tcx> LateLintPass<'tcx> for AgentComesFirst {
                     cx,
                     AGENT_COMES_FIRST,
                     param.span,
-                    "the `nova_vm::ecmascript::execution::agent::Agent` should be the first parameter of any function using it",
+                    "the `nova_vm::ecmascript::Agent` should be the first parameter of any function using it",
                     None,
-                    "consider moving the `nova_vm::ecmascript::execution::agent::Agent` to the first parameter",
+                    "consider moving the `nova_vm::ecmascript::Agent` to the first parameter",
                 );
             }
         }

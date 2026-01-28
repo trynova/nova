@@ -12,14 +12,13 @@
 
 use crate::{
     ecmascript::{
-        execution::{Agent, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, String, object_handle},
+        Agent, InternalMethods, InternalSlots, Object, OrdinaryObject, ProtoIntrinsics, String,
+        object_handle,
     },
-    engine::context::{Bindable, NoGcScope, bindable_handle},
+    engine::{Bindable, NoGcScope, bindable_handle},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, arena_vec_access,
-        indexes::{BaseIndex, HeapIndexHandle},
+        WorkQueues, arena_vec_access, {BaseIndex, HeapIndexHandle},
     },
 };
 

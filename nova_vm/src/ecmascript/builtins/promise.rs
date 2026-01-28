@@ -4,24 +4,19 @@
 
 mod data;
 
+pub(crate) use data::*;
+
 use crate::{
     ecmascript::{
-        execution::{Agent, JsResult, ProtoIntrinsics, agent::JsError},
-        types::{InternalMethods, InternalSlots, OrdinaryObject, Value, object_handle},
+        Agent, InternalMethods, InternalSlots, JsError, JsResult, OrdinaryObject,
+        PromiseCapability, ProtoIntrinsics, Value, object_handle,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, WorkQueues, arena_vec_access, indexes::BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
-
-pub(crate) use data::{PromiseHeapData, PromiseReactions, PromiseState};
-
-pub use super::control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]

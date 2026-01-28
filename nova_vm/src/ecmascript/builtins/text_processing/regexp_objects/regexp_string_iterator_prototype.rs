@@ -4,26 +4,13 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_iterator_objects::create_iter_result_object,
-            operations_on_objects::{get, set, try_get},
-            type_conversion::{to_length, to_string, try_to_string},
-        },
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin,
-            regexp::{advance_string_index, reg_exp_exec},
-        },
-        execution::{
-            Agent, JsResult, Realm,
-            agent::{ExceptionType, try_result_into_js, try_result_into_option_js},
-        },
-        types::{BUILTIN_STRING_MEMORY, Number, Object, String, Value, try_get_result_into_value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType, JsResult,
+        Number, Object, Realm, String, Value, advance_string_index,
+        builders::OrdinaryObjectBuilder, create_iter_result_object, get, reg_exp_exec, set,
+        to_length, to_string, try_get, try_get_result_into_value, try_result_into_js,
+        try_result_into_option_js, try_to_string,
     },
-    engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::WellKnownSymbolIndexes,
 };
 

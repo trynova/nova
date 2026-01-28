@@ -7,42 +7,20 @@ use std::{marker::PhantomData, ptr::NonNull};
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_iterator_objects::{
-                IteratorRecord, create_iter_result_object, get_iterator_from_method,
-            },
-            operations_on_objects::{
-                call_function, get, get_method, get_object_method, throw_not_callable, try_get,
-            },
-            type_conversion::to_boolean,
-        },
-        builtins::{
-            ArgumentsList, Array, ScopedArgumentsList,
-            control_abstraction_objects::iteration::async_from_sync_iterator_objects::{
-                AsyncFromSyncIteratorPrototype, create_async_from_sync_iterator,
-            },
-            promise::Promise,
-        },
-        execution::{
-            Agent, JsResult,
-            agent::{ExceptionType, JsError, TryError, TryResult},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, Object, OrdinaryObject, PropertyKey,
-            PropertyKeySet, TryGetResult, Value,
-        },
+        Agent, ArgumentsList, Array, AsyncFromSyncIteratorPrototype, BUILTIN_STRING_MEMORY,
+        ExceptionType, InternalMethods, IteratorRecord, JsError, JsResult, Object, OrdinaryObject,
+        Promise, PropertyKey, PropertyKeySet, ScopedArgumentsList, TryError, TryGetResult,
+        TryResult, Value, call_function, create_async_from_sync_iterator,
+        create_iter_result_object, get, get_iterator_from_method, get_method, get_object_method,
+        throw_not_callable, to_boolean, try_get,
     },
-    engine::{
-        Scoped,
-        context::{Bindable, GcScope, NoGcScope, ScopeToken, bindable_handle},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, ScopeToken, Scoped, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
 
 /// Marker struct for working with the active iterator of the currently active,
 /// scoped VM.
-pub struct ActiveIterator<'a> {
+pub(crate) struct ActiveIterator<'a> {
     scope: PhantomData<&'a ScopeToken>,
 }
 

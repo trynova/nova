@@ -3,11 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    ecmascript::{
-        execution::agent::ExceptionType,
-        types::{OrdinaryObject, String, Value},
-    },
-    engine::context::bindable_handle,
+    ecmascript::{OrdinaryObject, String, Value, execution::ExceptionType},
+    engine::bindable_handle,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 

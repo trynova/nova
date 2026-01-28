@@ -4,17 +4,20 @@
 
 use crate::{
     ecmascript::{
+        Agent, ExceptionType, Function, JsResult, Object, ProtoIntrinsics,
         builtins::{
             ordinary::ordinary_create_from_constructor, shared_array_buffer::SharedArrayBuffer,
         },
-        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
-        types::{Function, Object, create_shared_byte_data_block},
+        create_shared_byte_data_block,
     },
-    engine::context::{Bindable, GcScope},
+    engine::{Bindable, GcScope},
 };
 
-pub(crate) mod shared_array_buffer_constructor;
-pub(crate) mod shared_array_buffer_prototype;
+mod shared_array_buffer_constructor;
+mod shared_array_buffer_prototype;
+
+pub(crate) use shared_array_buffer_constructor::*;
+pub(crate) use shared_array_buffer_prototype::*;
 
 /// ### [25.2.2.1 AllocateSharedArrayBuffer ( constructor, byteLength \[ , maxByteLength \] )](https://tc39.es/ecma262/#sec-allocatesharedarraybuffer)
 ///

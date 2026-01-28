@@ -20,25 +20,15 @@ use num_bigint::Sign;
 use wtf8::Wtf8;
 
 use crate::{
-    SmallInteger,
     ecmascript::{
-        builtins::{
-            ArgumentsList,
-            primitive_objects::{PrimitiveObjectData, PrimitiveObjectRecord},
-        },
-        execution::{
-            Agent, JsResult,
-            agent::{ExceptionType, TryError, TryResult, js_result_into_try},
-        },
+        Agent, ArgumentsList, ExceptionType, JsResult, PrimitiveObjectData, PrimitiveObjectRecord,
+        SmallInteger, TryError, TryResult, js_result_into_try,
         types::{
             BUILTIN_STRING_MEMORY, BigInt, Number, Numeric, Object, Primitive, PropertyKey, String,
             Value,
         },
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope, trivially_bindable},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, trivially_bindable},
     heap::{ArenaAccess, CreateHeapData, WellKnownSymbolIndexes},
 };
 
@@ -48,7 +38,7 @@ use super::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub enum PreferredType {
+pub(crate) enum PreferredType {
     String = 1,
     Number,
 }
@@ -1568,7 +1558,7 @@ pub(crate) fn try_to_index<'a>(
 /// Copied from Boa JS engine. Source https://github.com/boa-dev/boa/blob/183e763c32710e4e3ea83ba762cf815b7a89cd1f/core/string/src/lib.rs#L51
 ///
 /// Copyright (c) 2019 Jason Williams
-pub const fn is_trimmable_whitespace(c: char) -> bool {
+pub(crate) const fn is_trimmable_whitespace(c: char) -> bool {
     // The rust implementation of `trim` does not regard the same characters whitespace as ecma standard does
     //
     // Rust uses \p{White_Space} by default, which also includes:

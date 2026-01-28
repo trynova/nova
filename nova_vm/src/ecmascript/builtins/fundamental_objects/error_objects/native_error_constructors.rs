@@ -4,19 +4,12 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_string,
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor, error::Error,
-            ordinary::ordinary_create_from_constructor,
-        },
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Function, Object, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        BuiltinIntrinsicConstructor, Error, ExceptionType, Function, JsResult, Object,
+        ProtoIntrinsics, Realm, String, Value, builders::BuiltinFunctionBuilder,
+        ordinary_create_from_constructor, to_string,
     },
-    engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::{ArenaAccessMut, IntrinsicConstructorIndexes},
 };
 
@@ -231,7 +224,7 @@ impl NativeErrorConstructors {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
-        let error_constructor = intrinsics.error().into();
+        let error_constructor = intrinsics.error();
         let eval_error_prototype = intrinsics.eval_error_prototype();
         let range_error_prototype = intrinsics.range_error_prototype();
         let reference_error_prototype = intrinsics.reference_error_prototype();

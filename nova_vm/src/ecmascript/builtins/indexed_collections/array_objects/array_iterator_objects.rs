@@ -2,5 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-pub(crate) mod array_iterator;
-pub(crate) mod array_iterator_prototype;
+mod array_iterator;
+mod array_iterator_prototype;
+
+pub use array_iterator::*;
+pub(crate) use array_iterator_prototype::*;

@@ -2,36 +2,34 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-pub(crate) mod abstract_operations;
+mod abstract_operations;
 mod data;
+
+pub(crate) use abstract_operations::*;
+pub(crate) use data::*;
 
 use crate::{
     ecmascript::{
-        execution::{
-            Agent, JsResult, ProtoIntrinsics,
-            agent::{TryResult, unwrap_try},
-        },
+        Agent, JsResult, ProtoIntrinsics, TryResult,
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, OrdinaryObject,
             PropertyDescriptor, PropertyKey, SetResult, String, TryGetResult, TryHasResult, Value,
             object_handle,
         },
+        unwrap_try,
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
+    engine::{Bindable, GcScope, NoGcScope},
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
-        arena_vec_access, indexes::BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, ObjectEntry, ObjectEntryPropertyDescriptor,
+        WorkQueues, arena_vec_access,
     },
 };
-pub(crate) use abstract_operations::*;
-pub(crate) use data::RegExpHeapData;
-use data::RegExpLastIndex;
 use oxc_ast::ast::RegExpFlags;
 use wtf8::Wtf8Buf;
 
 use super::ordinary::{
-    caches::PropertyLookupCache, ordinary_get_own_property, ordinary_has_property, ordinary_set,
+    PropertyLookupCache, ordinary_get_own_property, ordinary_has_property, ordinary_set,
     ordinary_try_get, ordinary_try_has_property, ordinary_try_set,
 };
 

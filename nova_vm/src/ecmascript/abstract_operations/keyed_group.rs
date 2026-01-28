@@ -8,14 +8,10 @@ use ahash::AHasher;
 use hashbrown::{HashTable, hash_table::Entry};
 
 use crate::{
-    ecmascript::{
-        execution::Agent,
-        types::{PropertyKey, Value},
-    },
+    ecmascript::{PropertyKey, Value, execution::Agent},
     engine::{
-        ScopableCollection, ScopedCollection,
-        context::{Bindable, NoGcScope, bindable_handle},
-        rootable::HeapRootCollectionData,
+        Bindable, HeapRootCollectionData, NoGcScope, ScopableCollection, ScopedCollection,
+        bindable_handle,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };

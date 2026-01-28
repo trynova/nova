@@ -2,5 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-pub(crate) mod weak_ref_constructor;
-pub(crate) mod weak_ref_prototype;
+mod weak_ref_constructor;
+mod weak_ref_prototype;
+
+pub(crate) use weak_ref_constructor::*;
+pub(crate) use weak_ref_prototype::*;

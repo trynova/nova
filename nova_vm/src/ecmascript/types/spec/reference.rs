@@ -6,33 +6,15 @@ use core::ops::ControlFlow;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{
-                private_get, private_set, set, throw_no_private_name_error, try_private_get,
-                try_private_set, try_set,
-            },
-            type_conversion::{to_object, to_property_key, to_property_key_simple},
-        },
-        builtins::{ordinary::caches::PropertyLookupCache, proxy::Proxy},
-        execution::{
-            Environment,
-            agent::{
-                self, ExceptionType, JsError, TryError, TryResult, js_result_into_try,
-                option_into_try,
-            },
-            get_global_object,
-        },
-        types::{
-            Function, InternalMethods, Object, PropertyKey, SetResult, String, TryGetResult, Value,
-        },
+        Agent, Environment, ExceptionType, Function, InternalMethods, JsError, JsResult, Object,
+        PropertyKey, PropertyLookupCache, Proxy, SetResult, String, TryError, TryGetResult,
+        TryResult, Value, get_global_object, js_result_into_try, option_into_try, private_get,
+        private_set, set, throw_no_private_name_error, to_object, to_property_key,
+        to_property_key_simple, try_private_get, try_private_set, try_set,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
-use agent::{Agent, JsResult};
 
 use super::PrivateName;
 

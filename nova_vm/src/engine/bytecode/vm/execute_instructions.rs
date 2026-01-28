@@ -2,82 +2,53 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use binding_methods::{execute_simple_array_binding, execute_simple_object_binding};
 use core::ops::ControlFlow;
 use oxc_span::Span;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_iterator_objects::{iterator_complete, iterator_value},
-            operations_on_objects::{
-                call, call_function, construct, copy_data_properties,
-                copy_data_properties_into_object, create_data_property_or_throw,
-                define_property_or_throw, has_property, private_element_find, set,
-                throw_no_proxy_private_names, try_copy_data_properties_into_object,
-                try_create_data_property, try_define_property_or_throw, try_has_property,
-            },
-            testing_and_comparison::{
-                is_constructor, is_less_than, is_loosely_equal, is_strictly_equal,
-            },
-            type_conversion::{
-                to_boolean, to_number, to_number_primitive, to_numeric, to_numeric_primitive,
-                to_object, to_property_key, to_property_key_complex, to_property_key_primitive,
-                to_property_key_simple, to_string, to_string_primitive,
-            },
-        },
-        builtins::{
-            ArgumentsList, Array, BuiltinConstructorArgs, ConstructorStatus, FunctionAstRef,
-            OrdinaryFunctionCreateParams, SetFunctionNamePrefix,
-            arguments::create_unmapped_arguments_object,
-            array::abstract_operations::array_create,
-            builtin_constructor::create_builtin_constructor,
-            ecmascript_function::make_constructor,
-            ecmascript_function::make_method,
-            ecmascript_function::ordinary_function_create,
-            ecmascript_function::set_function_name,
-            global_object::perform_eval,
-            ordinary::{caches::PropertyLookupCache, ordinary_object_create_with_intrinsics},
-        },
-        execution::{
-            Agent, Environment, JsResult, PrivateMethod, ProtoIntrinsics,
-            agent::{
-                ExceptionType, TryError, TryResult, resolve_binding, try_resolve_binding,
-                try_result_into_js, try_result_into_option_js, unwrap_try,
-            },
-            get_this_environment, new_class_static_element_environment,
-            new_declarative_environment, new_private_environment, resolve_private_identifier,
-            resolve_this_binding,
-        },
-        scripts_and_modules::{ScriptOrModule, module::evaluate_import_call},
-        types::{
-            BUILTIN_STRING_MEMORY, BigInt, Function, InternalMethods, InternalSlots, Number,
-            Numeric, Object, OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey,
-            PropertyKeySet, Reference, SetResult, String, TryGetValueContinue, TryHasResult, Value,
-            call_proxy_set, get_this_value, get_value, is_private_reference, is_property_reference,
-            is_super_reference, is_unresolvable_reference, put_value,
-            throw_read_undefined_or_null_error, try_get_value, try_initialize_referenced_binding,
-            try_put_value,
-        },
+        Agent, ArgumentsList, Array, BUILTIN_STRING_MEMORY, BigInt, BuiltinConstructorArgs,
+        ConstructorStatus, Environment, ExceptionType, Function, FunctionAstRef, InternalMethods,
+        InternalSlots, JsResult, Number, Numeric, Object, OrdinaryFunctionCreateParams,
+        OrdinaryObject, Primitive, PrivateMethod, PropertyDescriptor, PropertyKey, PropertyKeySet,
+        PropertyLookupCache, ProtoIntrinsics, Reference, ScriptOrModule, SetFunctionNamePrefix,
+        SetResult, String, TryError, TryGetValueContinue, TryHasResult, TryResult, Value,
+        array_create, call, call_function, call_proxy_set, construct, copy_data_properties,
+        copy_data_properties_into_object, create_builtin_constructor,
+        create_data_property_or_throw, create_unmapped_arguments_object, define_property_or_throw,
+        evaluate_import_call, get_this_environment, get_this_value, get_value, has_property,
+        is_constructor, is_less_than, is_loosely_equal, is_private_reference,
+        is_property_reference, is_strictly_equal, is_super_reference, is_unresolvable_reference,
+        iterator_complete, iterator_value, make_constructor, make_method,
+        new_class_static_element_environment, new_declarative_environment, new_private_environment,
+        ordinary_function_create, ordinary_object_create_with_intrinsics, perform_eval,
+        private_element_find, put_value, resolve_binding, resolve_private_identifier,
+        resolve_this_binding, set, set_function_name, throw_no_proxy_private_names,
+        throw_read_undefined_or_null_error, to_boolean, to_number, to_number_primitive, to_numeric,
+        to_numeric_primitive, to_object, to_property_key, to_property_key_complex,
+        to_property_key_primitive, to_property_key_simple, to_string, to_string_primitive,
+        try_copy_data_properties_into_object, try_create_data_property,
+        try_define_property_or_throw, try_get_value, try_has_property,
+        try_initialize_referenced_binding, try_put_value, try_resolve_binding, try_result_into_js,
+        try_result_into_option_js, unwrap_try,
     },
     engine::{
-        ScopableCollection, Scoped,
+        ActiveIterator, Bindable, GcScope, NoGcScope, Scopable, ScopableCollection, Scoped,
         bytecode::{
             Executable, FunctionExpression, Instruction, NamedEvaluationParameter,
             executable::ArrowFunctionExpression,
             instructions::Instr,
             iterator::{ObjectPropertiesIteratorRecord, VmIteratorRecord},
         },
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
+        throw_iterator_returned_non_object,
     },
     heap::{ArenaAccessMut, ObjectEntry},
 };
 
 use super::{
-    super::iterator::{ActiveIterator, throw_iterator_returned_non_object},
     ExceptionHandler, Vm, apply_string_or_numeric_addition,
-    apply_string_or_numeric_binary_operator, bigint_binary_operator, binding_methods,
+    apply_string_or_numeric_binary_operator, bigint_binary_operator,
+    binding_methods::{execute_simple_array_binding, execute_simple_object_binding},
     concat_string_from_slice, instanceof_operator, number_binary_operator, set_class_name,
     throw_error_in_target_not_object, typeof_operator, verify_is_object, with_vm_gc,
 };

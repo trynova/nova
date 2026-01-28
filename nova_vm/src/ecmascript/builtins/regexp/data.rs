@@ -7,11 +7,8 @@ use regex::bytes::{Regex, RegexBuilder};
 use wtf8::Wtf8Buf;
 
 use crate::{
-    ecmascript::{
-        execution::Agent,
-        types::{OrdinaryObject, PropertyDescriptor, String, Value},
-    },
-    engine::context::bindable_handle,
+    ecmascript::{OrdinaryObject, PropertyDescriptor, String, Value, execution::Agent},
+    engine::bindable_handle,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 

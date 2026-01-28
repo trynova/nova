@@ -5,15 +5,9 @@
 use std::{marker::PhantomData, ptr::NonNull};
 
 use crate::{
-    ecmascript::execution::Agent,
-    engine::{
-        ScopableCollection, ScopedCollection,
-        context::{Bindable, NoGcScope},
-        rootable::HeapRootCollectionData,
-    },
+    ecmascript::{Agent, Value},
+    engine::{Bindable, HeapRootCollectionData, NoGcScope, ScopableCollection, ScopedCollection},
 };
-
-use super::Value;
 
 impl ScopableCollection for Vec<Value<'_>> {
     fn scope<'scope>(

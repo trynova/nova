@@ -10,136 +10,91 @@ mod property_key_set;
 mod property_key_vec;
 mod property_storage;
 
-use core::hash::Hash;
-use std::collections::TryReserveError;
+pub(crate) use data::*;
+pub use internal_methods::*;
+pub use internal_slots::*;
+pub use property_key::*;
+pub use property_key_set::*;
+pub use property_key_vec::*;
+pub(crate) use property_storage::*;
 
-#[cfg(feature = "date")]
-use super::value::DATE_DISCRIMINANT;
-#[cfg(feature = "weak-refs")]
-use super::value::{WEAK_MAP_DISCRIMINANT, WEAK_REF_DISCRIMINANT, WEAK_SET_DISCRIMINANT};
-use super::{
-    Function, Value,
-    value::{
-        ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
-        ASYNC_GENERATOR_DISCRIMINANT, BOUND_FUNCTION_DISCRIMINANT,
-        BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
-        BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
-        BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
-        BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
-        ECMASCRIPT_FUNCTION_DISCRIMINANT, EMBEDDER_OBJECT_DISCRIMINANT, ERROR_DISCRIMINANT,
-        FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, MAP_DISCRIMINANT,
-        MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, OBJECT_DISCRIMINANT,
-        PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT,
-        STRING_ITERATOR_DISCRIMINANT,
-    },
-};
-#[cfg(feature = "date")]
-use crate::ecmascript::builtins::date::Date;
-#[cfg(feature = "weak-refs")]
-use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
-#[cfg(feature = "proposal-float16array")]
-use crate::ecmascript::{builtins::typed_array::Float16Array, types::FLOAT_16_ARRAY_DISCRIMINANT};
-#[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
 use crate::ecmascript::{
-    builtins::typed_array::SharedFloat16Array, types::SHARED_FLOAT_16_ARRAY_DISCRIMINANT,
+    ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
+    ASYNC_GENERATOR_DISCRIMINANT, BOUND_FUNCTION_DISCRIMINANT,
+    BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
+    BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT, BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
+    BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
+    ECMASCRIPT_FUNCTION_DISCRIMINANT, EMBEDDER_OBJECT_DISCRIMINANT, ERROR_DISCRIMINANT,
+    FINALIZATION_REGISTRY_DISCRIMINANT, Function, GENERATOR_DISCRIMINANT, MAP_DISCRIMINANT,
+    MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, OBJECT_DISCRIMINANT,
+    PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT,
+    STRING_ITERATOR_DISCRIMINANT, Value,
 };
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::{
-    builtins::{
-        ArrayBuffer,
-        data_view::DataView,
-        typed_array::{
-            BigInt64Array, BigUint64Array, Float32Array, Float64Array, Int8Array, Int16Array,
-            Int32Array, Uint8Array, Uint8ClampedArray, Uint16Array, Uint32Array,
-        },
-    },
-    types::{
-        ARRAY_BUFFER_DISCRIMINANT, BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
-        DATA_VIEW_DISCRIMINANT, FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT,
-        INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
-        UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT,
-        UINT_32_ARRAY_DISCRIMINANT,
-    },
+    ARRAY_BUFFER_DISCRIMINANT, ArrayBuffer, BIGINT_64_ARRAY_DISCRIMINANT,
+    BIGUINT_64_ARRAY_DISCRIMINANT, BigInt64Array, BigUint64Array, DATA_VIEW_DISCRIMINANT, DataView,
+    FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, Float32Array, Float64Array,
+    INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT, Int8Array,
+    Int16Array, Int32Array, UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+    UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT, Uint8Array, Uint8ClampedArray,
+    Uint16Array, Uint32Array,
 };
-#[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::{
-    builtins::{
-        data_view::SharedDataView,
-        shared_array_buffer::SharedArrayBuffer,
-        typed_array::{
-            SharedBigInt64Array, SharedBigUint64Array, SharedFloat32Array, SharedFloat64Array,
-            SharedInt8Array, SharedInt16Array, SharedInt32Array, SharedUint8Array,
-            SharedUint8ClampedArray, SharedUint16Array, SharedUint32Array,
-        },
-    },
-    types::{
-        SHARED_ARRAY_BUFFER_DISCRIMINANT, SHARED_BIGINT_64_ARRAY_DISCRIMINANT,
-        SHARED_BIGUINT_64_ARRAY_DISCRIMINANT, SHARED_DATA_VIEW_DISCRIMINANT,
-        SHARED_FLOAT_32_ARRAY_DISCRIMINANT, SHARED_FLOAT_64_ARRAY_DISCRIMINANT,
-        SHARED_INT_8_ARRAY_DISCRIMINANT, SHARED_INT_16_ARRAY_DISCRIMINANT,
-        SHARED_INT_32_ARRAY_DISCRIMINANT, SHARED_UINT_8_ARRAY_DISCRIMINANT,
-        SHARED_UINT_8_CLAMPED_ARRAY_DISCRIMINANT, SHARED_UINT_16_ARRAY_DISCRIMINANT,
-        SHARED_UINT_32_ARRAY_DISCRIMINANT,
-    },
-};
-#[cfg(feature = "set")]
-use crate::ecmascript::{
-    builtins::{
-        keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
-    },
-    types::{SET_DISCRIMINANT, SET_ITERATOR_DISCRIMINANT},
-};
+#[cfg(feature = "date")]
+use crate::ecmascript::{DATE_DISCRIMINANT, Date};
+#[cfg(feature = "proposal-float16array")]
+use crate::ecmascript::{FLOAT_16_ARRAY_DISCRIMINANT, Float16Array};
 #[cfg(feature = "regexp")]
 use crate::ecmascript::{
-    builtins::{
-        regexp::RegExp,
-        text_processing::regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
-    },
-    types::{REGEXP_DISCRIMINANT, REGEXP_STRING_ITERATOR_DISCRIMINANT},
+    REGEXP_DISCRIMINANT, REGEXP_STRING_ITERATOR_DISCRIMINANT, RegExp, RegExpStringIterator,
 };
+#[cfg(feature = "set")]
+use crate::ecmascript::{SET_DISCRIMINANT, SET_ITERATOR_DISCRIMINANT, Set, SetIterator};
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::{
+    SHARED_ARRAY_BUFFER_DISCRIMINANT, SHARED_BIGINT_64_ARRAY_DISCRIMINANT,
+    SHARED_BIGUINT_64_ARRAY_DISCRIMINANT, SHARED_DATA_VIEW_DISCRIMINANT,
+    SHARED_FLOAT_32_ARRAY_DISCRIMINANT, SHARED_FLOAT_64_ARRAY_DISCRIMINANT,
+    SHARED_INT_8_ARRAY_DISCRIMINANT, SHARED_INT_16_ARRAY_DISCRIMINANT,
+    SHARED_INT_32_ARRAY_DISCRIMINANT, SHARED_UINT_8_ARRAY_DISCRIMINANT,
+    SHARED_UINT_8_CLAMPED_ARRAY_DISCRIMINANT, SHARED_UINT_16_ARRAY_DISCRIMINANT,
+    SHARED_UINT_32_ARRAY_DISCRIMINANT, SharedArrayBuffer, SharedBigInt64Array,
+    SharedBigUint64Array, SharedDataView, SharedFloat32Array, SharedFloat64Array, SharedInt8Array,
+    SharedInt16Array, SharedInt32Array, SharedUint8Array, SharedUint8ClampedArray,
+    SharedUint16Array, SharedUint32Array,
+};
+#[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+use crate::ecmascript::{SHARED_FLOAT_16_ARRAY_DISCRIMINANT, SharedFloat16Array};
+#[cfg(feature = "weak-refs")]
+use crate::ecmascript::{WEAK_MAP_DISCRIMINANT, WEAK_REF_DISCRIMINANT, WEAK_SET_DISCRIMINANT};
+#[cfg(feature = "weak-refs")]
+use crate::ecmascript::{WeakMap, WeakRef, WeakSet};
 use crate::{
     ecmascript::{
-        builtins::{
-            ArgumentsList, Array, ArrayIterator, AsyncGenerator, BoundFunction,
-            BuiltinConstructorFunction, BuiltinFunction, BuiltinPromiseFinallyFunction,
-            BuiltinPromiseResolvingFunction, ECMAScriptFunction, EmbedderObject, Error,
-            FinalizationRegistry, Generator, Map, MapIterator, Module, PrimitiveObject, Promise,
-            Proxy, StringIterator,
-            ordinary::{
-                caches::{PropertyLookupCache, PropertyOffset},
-                ordinary_object_create_with_intrinsics,
-                shape::{ObjectShape, ObjectShapeRecord},
-            },
-        },
-        execution::{Agent, JsResult, ProtoIntrinsics, agent::TryResult},
-        types::PropertyDescriptor,
+        Agent, ArgumentsList, Array, ArrayIterator, AsyncGenerator, BoundFunction,
+        BuiltinConstructorFunction, BuiltinFunction, BuiltinPromiseFinallyFunction,
+        BuiltinPromiseResolvingFunction, ECMAScriptFunction, EmbedderObject, Error,
+        FinalizationRegistry, Generator, JsResult, Map, MapIterator, Module, ObjectShape,
+        ObjectShapeRecord, PrimitiveObject, Promise, PropertyDescriptor, PropertyLookupCache,
+        PropertyOffset, ProtoIntrinsics, Proxy, StringIterator, TryResult,
+        ordinary_object_create_with_intrinsics,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::HeapRootData,
-    },
+    engine::{Bindable, GcScope, HeapRootData, NoGcScope, bindable_handle},
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, DirectArenaAccess, Heap,
-        HeapMarkAndSweep, HeapSweepWeakReference, IntrinsicConstructorIndexes,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, DirectArenaAccess,
+        Heap, HeapMarkAndSweep, HeapSweepWeakReference, IntrinsicConstructorIndexes,
         IntrinsicObjectIndexes, IntrinsicPrimitiveObjectIndexes, ObjectEntry, WorkQueues,
         arena_vec_access,
-        element_array::{
+        {
             ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementStorageUninit,
             ElementsVector, PropertyStorageMut, PropertyStorageRef,
         },
-        indexes::BaseIndex,
     },
 };
 
 use ahash::AHashMap;
-pub(crate) use data::ObjectRecord;
-pub use internal_methods::*;
-pub use internal_slots::InternalSlots;
-pub use property_key::PropertyKey;
-pub use property_key_set::PropertyKeySet;
-#[cfg(feature = "json")]
-pub(crate) use property_key_vec::ScopedPropertyKey;
-pub use property_storage::PropertyStorage;
+use core::hash::Hash;
+use std::collections::TryReserveError;
 
 /// ### [6.1.7 The Object Type](https://tc39.es/ecma262/#sec-object-type)
 ///
@@ -802,7 +757,7 @@ impl<'a> TryFrom<Value<'a>> for Object<'a> {
 }
 
 impl<'a> OrdinaryObject<'a> {
-    pub fn property_storage(self) -> PropertyStorage<'a> {
+    pub(crate) fn property_storage(self) -> PropertyStorage<'a> {
         PropertyStorage::new(self)
     }
 }
@@ -1191,7 +1146,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
     fn set_at_offset<'gc>(
         self,
         agent: &mut Agent,
-        props: &SetCachedProps,
+        props: &SetAtOffsetProps,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, SetResult<'gc>> {

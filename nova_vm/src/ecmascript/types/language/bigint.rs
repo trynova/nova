@@ -4,35 +4,27 @@
 
 mod data;
 mod operators;
+mod small_bigint;
 
-use super::{
-    Primitive, String, Value,
-    numeric::Numeric,
-    value::{BIGINT_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT},
-    with_radix,
-};
-use crate::{
-    SmallInteger,
-    ecmascript::{
-        execution::{Agent, JsResult, agent::ExceptionType},
-        types::primitive_handle,
-    },
-    engine::{
-        context::{Bindable, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-        small_bigint::SmallBigInt,
-    },
-    heap::{
-        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
-        arena_vec_access, indexes::BaseIndex,
-    },
-};
-use core::ops::Neg;
-pub(crate) use data::BigIntHeapData;
-use num_bigint::{Sign, ToBigInt, TryFromBigIntError};
+pub(crate) use data::*;
 use operators::{
     bigint_bitwise_op, left_shift_bigint, left_shift_i64, right_shift_bigint, right_shift_i64,
 };
+pub(crate) use small_bigint::*;
+
+use crate::{
+    ecmascript::{
+        Agent, BIGINT_DISCRIMINANT, ExceptionType, JsResult, Numeric, Primitive,
+        SMALL_BIGINT_DISCRIMINANT, SmallInteger, String, Value, primitive_handle, with_radix,
+    },
+    engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, bindable_handle},
+    heap::{
+        ArenaAccess, BaseIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        WorkQueues, arena_vec_access,
+    },
+};
+use core::ops::Neg;
+use num_bigint::{Sign, ToBigInt, TryFromBigIntError};
 use std::ops::{BitAnd, BitOr, BitXor};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

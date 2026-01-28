@@ -4,21 +4,12 @@
 
 use crate::{
     ecmascript::{
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            ordinary::ordinary_create_from_constructor,
-        },
-        execution::{
-            Agent, JsResult, ProtoIntrinsics, Realm, add_to_kept_objects, agent::ExceptionType,
-            can_be_held_weakly, throw_not_weak_key_error,
-        },
-        types::{BUILTIN_STRING_MEMORY, Function, Object, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        BuiltinIntrinsicConstructor, ExceptionType, Function, JsResult, Object, ProtoIntrinsics,
+        Realm, String, Value, add_to_kept_objects, builders::BuiltinFunctionBuilder,
+        can_be_held_weakly, ordinary_create_from_constructor, throw_not_weak_key_error,
     },
-    engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::IntrinsicConstructorIndexes,
 };
 

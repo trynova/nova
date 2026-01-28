@@ -4,16 +4,12 @@
 
 use crate::{
     ecmascript::{
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin,
-            primitive_objects::{PrimitiveObjectData, PrimitiveObjectRecord},
-        },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType, JsResult,
+        PrimitiveObjectData, PrimitiveObjectRecord, Realm, String, Value,
+        builders::OrdinaryObjectBuilder,
     },
-    engine::context::{GcScope, NoGcScope},
-    heap::{ArenaAccess, indexes::HeapIndexHandle},
+    engine::{GcScope, NoGcScope},
+    heap::{ArenaAccess, HeapIndexHandle},
 };
 
 pub(crate) struct BooleanPrototype;

@@ -4,19 +4,13 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::try_define_property_or_throw,
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            ordinary::ordinary_object_create_with_intrinsics,
-        },
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::unwrap_try},
-        fundamental_objects::function_objects::function_constructor::{
-            DynamicFunctionKind, create_dynamic_function,
-        },
-        types::{BUILTIN_STRING_MEMORY, Function, Object, PropertyDescriptor, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        BuiltinIntrinsicConstructor, DynamicFunctionKind, Function, JsResult, Object,
+        PropertyDescriptor, ProtoIntrinsics, Realm, String, Value,
+        builders::BuiltinFunctionBuilder, create_dynamic_function,
+        ordinary_object_create_with_intrinsics, try_define_property_or_throw, unwrap_try,
     },
-    engine::context::{Bindable, GcScope},
+    engine::{Bindable, GcScope},
     heap::IntrinsicConstructorIndexes,
 };
 

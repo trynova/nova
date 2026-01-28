@@ -2,28 +2,23 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+mod data;
+
+pub(crate) use data::*;
+
 use ecmascript_atomics::{Ordering, RacySlice};
 
 use crate::{
     ecmascript::{
-        builtins::array_buffer::array_buffer_handle,
-        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
-        types::{
-            InternalMethods, InternalSlots, OrdinaryObject, SharedDataBlock,
-            create_shared_byte_data_block,
-        },
+        Agent, ExceptionType, InternalMethods, InternalSlots, JsResult, OrdinaryObject,
+        ProtoIntrinsics, SharedDataBlock, array_buffer_handle, create_shared_byte_data_block,
     },
-    engine::context::{Bindable, NoGcScope},
+    engine::{Bindable, NoGcScope},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, arena_vec_access,
-        indexes::{BaseIndex, HeapIndexHandle},
+        WorkQueues, arena_vec_access, {BaseIndex, HeapIndexHandle},
     },
 };
-
-pub(crate) use self::data::SharedArrayBufferRecord;
-
-mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]

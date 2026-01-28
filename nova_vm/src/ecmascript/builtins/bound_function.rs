@@ -4,27 +4,14 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{call_function, construct},
-            testing_and_comparison::is_constructor,
-        },
-        execution::{
-            Agent, JsResult,
-            agent::{TryResult, unwrap_try},
-        },
-        types::{
-            BoundFunctionHeapData, Function, FunctionInternalProperties, InternalMethods, Object,
-            OrdinaryObject, String, Value, function_handle,
-        },
+        Agent, BoundFunctionHeapData, Function, FunctionInternalProperties, InternalMethods,
+        JsResult, Object, OrdinaryObject, String, TryResult, Value, call_function, construct,
+        function_handle, is_constructor, unwrap_try,
     },
-    engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, WorkQueues, arena_vec_access, element_array::ElementsVector,
-        indexes::BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, ElementsVector,
+        Heap, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
 

@@ -4,25 +4,15 @@
 
 use crate::{
     ecmascript::{
-        builtins::{
-            control_abstraction_objects::async_generator_objects::AsyncGenerator,
-            control_abstraction_objects::async_function_objects::await_reaction::AwaitReaction,
-            promise::Promise,
-            control_abstraction_objects::promise_objects::promise_abstract_operations::promise_group_record::PromiseGroup,
-        },
-        scripts_and_modules::module::module_semantics::{
-            abstract_module_records::AbstractModule, source_text_module_records::SourceTextModule,
-        },
-        types::{Function, Object},
+        AbstractModule, AsyncGenerator, AwaitReaction, Function, Object, Promise,
+        PromiseCapability, PromiseGroup, SourceTextModule,
     },
-    engine::context::{Bindable, bindable_handle},
+    engine::{Bindable, bindable_handle},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, arena_vec_access,
-        indexes::{BaseIndex, index_handle},
+        {BaseIndex, index_handle},
     },
 };
-
-use super::promise_capability_records::PromiseCapability;
 
 /// \[\[Type\]\]
 ///

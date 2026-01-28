@@ -6,29 +6,13 @@ use ecmascript_atomics::Ordering;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{construct, species_constructor},
-            type_conversion::{
-                to_index, to_integer_or_infinity, try_to_index, try_to_integer_or_infinity,
-            },
-        },
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter,
-            shared_array_buffer::SharedArrayBuffer,
-        },
-        execution::{
-            Agent, JsResult, ProtoIntrinsics, Realm,
-            agent::{ExceptionType, GrowSharedArrayBufferResult, try_result_into_js},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, Number, PropertyKey, String, Value, copy_shared_data_block_bytes,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter,
+        ExceptionType, GrowSharedArrayBufferResult, JsResult, Number, PropertyKey, ProtoIntrinsics,
+        Realm, SharedArrayBuffer, String, Value, builders::OrdinaryObjectBuilder, construct,
+        copy_shared_data_block_bytes, species_constructor, to_index, to_integer_or_infinity,
+        try_result_into_js, try_to_index, try_to_integer_or_infinity,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::WellKnownSymbolIndexes,
 };
 

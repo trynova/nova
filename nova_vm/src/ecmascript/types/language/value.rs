@@ -3,73 +3,46 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #[cfg(feature = "date")]
-use crate::ecmascript::builtins::date::Date;
+use crate::ecmascript::Date;
 #[cfg(feature = "proposal-float16array")]
-use crate::ecmascript::builtins::typed_array::Float16Array;
+use crate::ecmascript::Float16Array;
 #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
-use crate::ecmascript::builtins::typed_array::SharedFloat16Array;
+use crate::ecmascript::SharedFloat16Array;
 #[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::{
-    ArrayBuffer,
-    data_view::DataView,
-    typed_array::{
-        BigInt64Array, BigUint64Array, Float32Array, Float64Array, Int8Array, Int16Array,
-        Int32Array, Uint8Array, Uint8ClampedArray, Uint16Array, Uint32Array,
-    },
-};
-#[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::builtins::{
-    data_view::SharedDataView,
-    shared_array_buffer::SharedArrayBuffer,
-    typed_array::{
-        SharedBigInt64Array, SharedBigUint64Array, SharedFloat32Array, SharedFloat64Array,
-        SharedInt8Array, SharedInt16Array, SharedInt32Array, SharedUint8Array,
-        SharedUint8ClampedArray, SharedUint16Array, SharedUint32Array,
-    },
-};
-#[cfg(feature = "set")]
-use crate::ecmascript::builtins::{
-    keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
+use crate::ecmascript::{
+    ArrayBuffer, BigInt64Array, BigUint64Array, DataView, Float32Array, Float64Array, Int8Array,
+    Int16Array, Int32Array, Uint8Array, Uint8ClampedArray, Uint16Array, Uint32Array,
 };
 #[cfg(feature = "regexp")]
-use crate::ecmascript::builtins::{
-    regexp::RegExp,
-    text_processing::regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
+use crate::ecmascript::{RegExp, RegExpStringIterator};
+#[cfg(feature = "set")]
+use crate::ecmascript::{Set, SetIterator};
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::{
+    SharedArrayBuffer, SharedBigInt64Array, SharedBigUint64Array, SharedDataView,
+    SharedFloat32Array, SharedFloat64Array, SharedInt8Array, SharedInt16Array, SharedInt32Array,
+    SharedUint8Array, SharedUint8ClampedArray, SharedUint16Array, SharedUint32Array,
 };
 #[cfg(feature = "weak-refs")]
-use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
+use crate::ecmascript::{WeakMap, WeakRef, WeakSet};
 use crate::{
-    SmallInteger, SmallString,
     ecmascript::{
-        abstract_operations::type_conversion::{
-            to_big_int, to_big_int64, to_big_uint64, to_int8, to_int16, to_int32, to_number,
-            to_numeric, to_string, to_uint8, to_uint8_clamp, to_uint16, to_uint32, try_to_string,
-        },
-        builtins::{
-            Array, ArrayIterator, AsyncGenerator, BoundFunction, BuiltinConstructorFunction,
-            BuiltinFunction, BuiltinPromiseFinallyFunction, BuiltinPromiseResolvingFunction,
-            ECMAScriptFunction, EmbedderObject, Error, FinalizationRegistry, Generator, Map,
-            MapIterator, Module, PrimitiveObject, Promise, Proxy, StringIterator,
-        },
-        execution::{
-            Agent, JsResult,
-            agent::{TryResult, try_result_into_js},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, BigInt, HeapNumber, HeapString, Number, Numeric, Object,
-            OrdinaryObject, Primitive, String, Symbol, bigint::HeapBigInt,
-        },
+        Agent, Array, ArrayIterator, AsyncGenerator, BUILTIN_STRING_MEMORY, BigInt, BoundFunction,
+        BuiltinConstructorFunction, BuiltinFunction, BuiltinPromiseFinallyFunction,
+        BuiltinPromiseResolvingFunction, ECMAScriptFunction, EmbedderObject, Error,
+        FinalizationRegistry, Generator, HeapBigInt, HeapNumber, HeapString, JsResult, Map,
+        MapIterator, Module, Number, Numeric, Object, OrdinaryObject, Primitive, PrimitiveObject,
+        Promise, Proxy, SmallBigInt, SmallF64, SmallInteger, SmallString, String, StringIterator,
+        Symbol, TryResult, to_big_int, to_big_int64, to_big_uint64, to_int8, to_int16, to_int32,
+        to_number, to_numeric, to_string, to_uint8, to_uint8_clamp, to_uint16, to_uint32,
+        try_result_into_js, try_to_string,
     },
     engine::{
-        Scoped,
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-        small_bigint::SmallBigInt,
-        small_f64::SmallF64,
+        Bindable, GcScope, HeapRootData, HeapRootRef, NoGcScope, Rootable, Scoped, bindable_handle,
     },
     heap::{
-        ArenaAccess, CompactionLists, HeapMarkAndSweep, PrimitiveHeapAccess, WorkQueues,
-        indexes::HeapIndexHandle,
+        ArenaAccess, CompactionLists, HeapIndexHandle, HeapMarkAndSweep, PrimitiveHeapAccess,
+        WorkQueues,
     },
 };
 
@@ -1546,7 +1519,7 @@ macro_rules! value_handle {
         crate::ecmascript::types::value_handle!($name, $name);
     };
     ($name: ident, $variant: ident) => {
-        crate::heap::indexes::index_handle!($name, $variant);
+        crate::heap::index_handle!($name, $variant);
 
         impl<'a> From<$name<'a>> for crate::ecmascript::types::Value<'a> {
             #[inline(always)]

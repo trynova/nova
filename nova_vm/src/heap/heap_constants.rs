@@ -11,12 +11,8 @@
 use std::num::NonZeroU32;
 
 use crate::{
-    ecmascript::{
-        builtins::ordinary::shape::ObjectShape,
-        execution::ProtoIntrinsics,
-        types::{PropertyKey, Symbol, Value},
-    },
-    heap::indexes::HeapIndexHandle,
+    ecmascript::{ObjectShape, PropertyKey, ProtoIntrinsics, Symbol, Value},
+    heap::HeapIndexHandle,
 };
 
 #[repr(u32)]

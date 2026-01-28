@@ -2,46 +2,30 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+mod data;
+
+pub(crate) use data::*;
+
 use std::ops::ControlFlow;
 
 use crate::{
     ecmascript::{
-        abstract_operations::testing_and_comparison::same_value,
-        execution::{
-            Agent, JsResult,
-            agent::{ExceptionType, TryError, TryResult},
-            throw_uninitialized_binding,
-        },
-        scripts_and_modules::module::module_semantics::{
-            abstract_module_records::{
-                AbstractModule, AbstractModuleMethods, AbstractModuleSlots, ResolvedBinding,
-            },
-            get_module_namespace,
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, Object, OrdinaryObject,
-            PropertyDescriptor, PropertyKey, SetResult, String, TryGetResult, TryHasResult, Value,
-            object_handle,
-        },
+        AbstractModule, AbstractModuleMethods, AbstractModuleSlots, Agent, BUILTIN_STRING_MEMORY,
+        ExceptionType, InternalMethods, InternalSlots, JsResult, Object, OrdinaryObject,
+        PropertyDescriptor, PropertyKey, ResolvedBinding, SetResult, String, TryError,
+        TryGetResult, TryHasResult, TryResult, Value, get_module_namespace, object_handle,
+        same_value, throw_uninitialized_binding,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{
-        ArenaAccess, CompactionLists, CreateHeapData, HeapMarkAndSweep, HeapSweepWeakReference,
-        WellKnownSymbolIndexes, WorkQueues, arena_vec_access, indexes::BaseIndex,
+        ArenaAccess, BaseIndex, CompactionLists, CreateHeapData, HeapMarkAndSweep,
+        HeapSweepWeakReference, WellKnownSymbolIndexes, WorkQueues, arena_vec_access,
     },
 };
-
-pub(crate) use self::data::ModuleHeapData;
 
 use super::ordinary::{
-    caches::{PropertyLookupCache, PropertyOffset},
-    shape::ObjectShape,
+    ObjectShape, {PropertyLookupCache, PropertyOffset},
 };
-
-mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
@@ -673,7 +657,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         }
     }
 
-    /// ### [10.4.6.11 \[\[OwnPropertyKeys\]\] ( )])(https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-ownpropertykeys)
+    /// ### [10.4.6.11 \[\[OwnPropertyKeys\]\] ( )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-ownpropertykeys)
     fn try_own_property_keys<'gc>(
         self,
         agent: &mut Agent,

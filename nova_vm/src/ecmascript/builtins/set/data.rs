@@ -3,8 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    ecmascript::types::{OrdinaryObject, Value},
-    engine::context::bindable_handle,
+    ecmascript::{OrdinaryObject, Value},
+    engine::bindable_handle,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 use ahash::AHasher;

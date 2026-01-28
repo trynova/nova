@@ -9,35 +9,13 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_iterator_objects::{
-                IteratorRecord, MaybeInvalidIteratorRecord, create_iter_result_object,
-                iterator_close_with_value, iterator_complete, iterator_next, iterator_value,
-            },
-            operations_on_objects::{call_function, get_object_method},
-        },
-        builtins::{
-            ArgumentsList,
-            control_abstraction_objects::promise_objects::{
-                promise_abstract_operations::{
-                    promise_capability_records::{PromiseCapability, if_abrupt_reject_promise_m},
-                    promise_reaction_records::PromiseReactionHandler,
-                },
-                promise_prototype::inner_promise_then,
-            },
-            promise::Promise,
-        },
-        execution::{
-            Agent,
-            agent::{ExceptionType, unwrap_try},
-        },
-        types::{BUILTIN_STRING_MEMORY, Object, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, ExceptionType, IteratorRecord,
+        MaybeInvalidIteratorRecord, Object, Promise, PromiseCapability, PromiseReactionHandler,
+        Value, call_function, create_iter_result_object, get_object_method,
+        if_abrupt_reject_promise_m, inner_promise_then, iterator_close_with_value,
+        iterator_complete, iterator_next, iterator_value, unwrap_try,
     },
-    engine::{
-        VmIteratorRecord,
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable, VmIteratorRecord},
 };
 
 /// ### [27.1.6.1 CreateAsyncFromSyncIterator ( syncIteratorRecord )](https://tc39.es/ecma262/#sec-createasyncfromsynciterator)

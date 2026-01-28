@@ -7,9 +7,6 @@
 pub mod ecmascript;
 pub mod engine;
 pub mod heap;
-pub use engine::small_integer::SmallInteger;
-use heap::Heap;
-pub use small_string::SmallString;
 
 /// DTrace / SystemTap USDT probes in Nova VM.
 #[usdt::provider(provider = "nova_vm")]
@@ -37,6 +34,14 @@ mod ndt {
     fn script_evaluation_done(id: u64) {}
 }
 
-// Expose the USDT probe registering function. In Linux this is a no-op but it
-// is required on illumos and OS X for DTrace to work automatically.
+/// Function that should be called as the very first thing in `fn main()` of any
+/// application using Nova JavaScript engine. This function registers USDT
+/// probes with the DTrace kernel module on OS's that have one and is required
+/// for them to work. On other OS's this is a no-op.
+///
+/// ```rust
+/// nova_vm::register_probes();
+/// ```
+///
+/// # usdt documentation
 pub use usdt::register_probes;

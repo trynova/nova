@@ -7,51 +7,28 @@ use std::hint::assert_unchecked;
 use ecmascript_atomics::Ordering;
 
 #[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::builtins::{GenericSharedTypedArray, typed_array::SharedTypedArrayRecord};
+use crate::ecmascript::{GenericSharedTypedArray, SharedTypedArrayRecord};
 use crate::{
-    SmallInteger,
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{
-                construct, get, length_of_array_like, set, species_constructor,
-                try_species_constructor,
-            },
-            type_conversion::{to_index, try_to_index},
-        },
-        builtins::{
-            AnyArrayBuffer, AnyTypedArray, ArgumentsList, ArrayBuffer, GenericTypedArray,
-            TypedArray, VoidArray,
-            array_buffer::{
-                ArrayBufferHeapData, get_value_from_buffer, is_fixed_length_array_buffer,
-                set_value_in_buffer,
-            },
-            indexed_collections::typed_array_objects::typed_array_intrinsic_object::require_internal_slot_typed_array,
-            ordinary::get_prototype_from_constructor,
-            typed_array::TypedArrayRecord,
-        },
-        execution::{
-            Agent, JsResult,
-            agent::{ExceptionType, TryError, TryResult, js_result_into_try, try_result_into_js},
-        },
-        types::{
-            DataBlock, Function, InternalSlots, Number, Numeric, Object, PropertyKey, Value,
-            Viewable, create_byte_data_block,
-        },
+        Agent, AnyArrayBuffer, AnyTypedArray, ArgumentsList, ArrayBuffer, ArrayBufferHeapData,
+        DataBlock, ExceptionType, Function, GenericTypedArray, InternalSlots, JsResult, Number,
+        Numeric, Object, PropertyKey, SmallInteger, TryError, TryResult, TypedArray,
+        TypedArrayRecord, Value, Viewable, VoidArray, construct, create_byte_data_block, get,
+        get_prototype_from_constructor, get_value_from_buffer, is_fixed_length_array_buffer,
+        js_result_into_try, length_of_array_like, require_internal_slot_typed_array, set,
+        set_value_in_buffer, species_constructor, to_index, try_result_into_js,
+        try_species_constructor, try_to_index,
     },
-    engine::{
-        Scoped, ScopedCollection,
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, Scoped, ScopedCollection, bindable_handle},
     heap::CreateHeapData,
 };
 
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct CachedBufferByteLength(pub usize);
+pub(crate) struct CachedBufferByteLength(pub(crate) usize);
 
 impl CachedBufferByteLength {
-    pub const fn value(value: usize) -> Self {
+    pub(crate) const fn value(value: usize) -> Self {
         assert!(
             value != usize::MAX,
             "byte length cannot be usize::MAX as it is reserved for detached buffers"
@@ -60,11 +37,11 @@ impl CachedBufferByteLength {
     }
 
     /// A sentinel value of `usize::MAX` means that the buffer is detached.
-    pub const fn detached() -> Self {
+    pub(crate) const fn detached() -> Self {
         Self(usize::MAX)
     }
 
-    pub fn is_detached(self) -> bool {
+    pub(crate) fn is_detached(self) -> bool {
         self == Self::detached()
     }
 }
@@ -77,8 +54,8 @@ impl From<CachedBufferByteLength> for Option<usize> {
 
 #[derive(Debug)]
 pub(crate) struct TypedArrayWithBufferWitnessRecords<'a> {
-    pub object: AnyTypedArray<'a>,
-    pub cached_buffer_byte_length: CachedBufferByteLength,
+    pub(crate) object: AnyTypedArray<'a>,
+    pub(crate) cached_buffer_byte_length: CachedBufferByteLength,
 }
 bindable_handle!(TypedArrayWithBufferWitnessRecords);
 

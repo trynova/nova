@@ -14,11 +14,8 @@
 //! PrivateSet.
 
 use crate::{
-    ecmascript::{
-        execution::Agent,
-        types::{PropertyKey, String},
-    },
-    engine::context::{NoGcScope, trivially_bindable},
+    ecmascript::{PropertyKey, String, execution::Agent},
+    engine::{NoGcScope, trivially_bindable},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 

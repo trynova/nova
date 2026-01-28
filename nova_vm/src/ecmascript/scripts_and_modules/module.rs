@@ -4,47 +4,19 @@
 
 //! ## [16.2 Modules](https://tc39.es/ecma262/#sec-modules)
 
-use module_semantics::{
-    ImportAttributeRecord, ModuleRequest, Referrer,
-    abstract_module_records::{AbstractModule, AbstractModuleMethods},
-    cyclic_module_records::GraphLoadingStateRecord,
-    get_module_namespace,
-};
+mod module_semantics;
+
+pub use module_semantics::*;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{
-                enumerable_own_properties, enumerable_properties_kind::EnumerateKeysAndValues, get,
-            },
-            type_conversion::to_string,
-        },
-        builtins::{
-            Array,
-            control_abstraction_objects::promise_objects::{
-                promise_abstract_operations::{
-                    promise_capability_records::{PromiseCapability, if_abrupt_reject_promise_m},
-                    promise_reaction_records::PromiseReactionHandler,
-                },
-                promise_prototype::inner_promise_then,
-            },
-            promise::Promise,
-        },
-        execution::{
-            Agent, JsResult,
-            agent::{ExceptionType, get_active_script_or_module, unwrap_try},
-        },
-        scripts_and_modules::module::module_semantics::all_import_attributes_supported,
-        types::{BUILTIN_STRING_MEMORY, Object, String, Value},
+        Agent, Array, BUILTIN_STRING_MEMORY, EnumerateKeysAndValues, ExceptionType, JsResult,
+        Object, Promise, PromiseCapability, PromiseReactionHandler, String, Value,
+        enumerable_own_properties, get, get_active_script_or_module, if_abrupt_reject_promise_m,
+        inner_promise_then, to_string, unwrap_try,
     },
-    engine::{
-        Scoped,
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-        typeof_operator,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, Scoped, typeof_operator},
 };
-pub mod module_semantics;
 
 /// ### [13.3.10.2 EvaluateImportCall ( specifierExpression \[ , optionsExpression \] )](https://tc39.es/ecma262/#sec-evaluate-import-call)
 ///

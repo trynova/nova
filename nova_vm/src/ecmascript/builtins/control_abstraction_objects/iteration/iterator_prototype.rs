@@ -4,27 +4,14 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_iterator_objects::{
-                IteratorRecord, get_iterator_direct, if_abrupt_close_iterator,
-                iterator_close_with_error, iterator_close_with_value, iterator_step_value,
-            },
-            operations_on_objects::{
-                call, setter_that_ignores_prototype_properties, throw_not_callable,
-            },
-            testing_and_comparison::is_callable,
-            type_conversion::to_boolean,
-        },
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Array, Behaviour, Builtin, BuiltinGetter, BuiltinSetter},
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Object, PropertyKey, String, Value},
+        Agent, ArgumentsList, Array, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter,
+        BuiltinSetter, ExceptionType, IteratorRecord, JsResult, Object, PropertyKey, Realm, String,
+        Value, builders::OrdinaryObjectBuilder, call, get_iterator_direct,
+        if_abrupt_close_iterator, is_callable, iterator_close_with_error,
+        iterator_close_with_value, iterator_step_value, setter_that_ignores_prototype_properties,
+        throw_not_callable, to_boolean,
     },
-    engine::{
-        ScopableCollection,
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable, ScopableCollection},
     heap::WellKnownSymbolIndexes,
 };
 

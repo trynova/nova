@@ -10,39 +10,17 @@ use oxc_regular_expression::{LiteralParser, Options};
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{
-                call_function, throw_set_error, try_create_data_property_or_throw, try_get,
-            },
-            testing_and_comparison::is_callable,
-            type_conversion::{to_length, to_string, try_to_length},
-        },
-        builtins::{
-            ArgumentsList, Array,
-            array::abstract_operations::array_create,
-            ordinary::{
-                caches::PropertyLookupCache, ordinary_create_from_constructor,
-                ordinary_object_create_null,
-            },
-        },
-        execution::{
-            Agent, JsResult, ProtoIntrinsics,
-            agent::{ExceptionType, TryError, try_result_into_js, unwrap_try},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, Number, Object, PropertyKey, String, TryGetResult,
-            Value, handle_try_get_result, unwrap_try_get_value,
-        },
+        Agent, ArgumentsList, Array, BUILTIN_STRING_MEMORY, ExceptionType, Function, JsResult,
+        Number, Object, PropertyKey, PropertyLookupCache, ProtoIntrinsics, RegExp, RegExpHeapData,
+        RegExpLastIndex, String, TryError, TryGetResult, Value, array_create, call_function,
+        handle_try_get_result, is_callable, ordinary_create_from_constructor,
+        ordinary_object_create_null, throw_set_error, to_length, to_string,
+        try_create_data_property_or_throw, try_get, try_result_into_js, try_to_length, unwrap_try,
+        unwrap_try_get_value,
     },
-    engine::{
-        Scoped,
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, Scoped, bindable_handle},
     heap::{ArenaAccess, ArenaAccessMut, CreateHeapData, DirectArenaAccessMut},
 };
-
-use super::{RegExp, RegExpHeapData, data::RegExpLastIndex};
 
 /// ### [22.2.3.1 RegExpCreate ( P, F )](https://tc39.es/ecma262/#sec-regexpcreate)
 ///

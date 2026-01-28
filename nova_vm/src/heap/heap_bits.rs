@@ -1,3 +1,7 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 use core::{hash::Hash, num::NonZeroU32};
 #[cfg(feature = "weak-refs")]
 use std::ops::Range;
@@ -15,82 +19,35 @@ use hashbrown::HashTable;
 use soavec::{SoAVec, SoAble};
 use soavec_derive::SoAble;
 
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at https://mozilla.org/MPL/2.0/.
-use super::{
-    Heap,
-    element_array::ElementDescriptor,
-    indexes::{BaseIndex, ElementIndex, PropertyKeyIndex},
-};
 #[cfg(feature = "date")]
-use crate::ecmascript::builtins::date::Date;
+use crate::ecmascript::Date;
 #[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::{ArrayBuffer, data_view::DataView, typed_array::VoidArray};
-#[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::builtins::{
-    data_view::SharedDataView, shared_array_buffer::SharedArrayBuffer, typed_array::SharedVoidArray,
-};
-#[cfg(feature = "set")]
-use crate::ecmascript::builtins::{
-    keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
-};
+use crate::ecmascript::{ArrayBuffer, DataView, VoidArray};
 #[cfg(feature = "regexp")]
-use crate::ecmascript::builtins::{
-    regexp::RegExp,
-    text_processing::regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
-};
+use crate::ecmascript::{RegExp, RegExpStringIterator};
+#[cfg(feature = "set")]
+use crate::ecmascript::{Set, SetIterator};
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::{SharedArrayBuffer, SharedDataView, SharedVoidArray};
 #[cfg(feature = "weak-refs")]
-use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
-use crate::engine::Executable;
+use crate::ecmascript::{WeakMap, WeakRef, WeakSet};
 use crate::{
     ecmascript::{
-        builtins::{
-            Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
-            bound_function::BoundFunction,
-            control_abstraction_objects::async_generator_objects::AsyncGenerator,
-            control_abstraction_objects::promise_objects::promise_abstract_operations::{
-                promise_finally_functions::BuiltinPromiseFinallyFunction,
-                promise_group_record::PromiseGroup,
-            },
-            control_abstraction_objects::{
-                async_function_objects::await_reaction::AwaitReaction,
-                generator_objects::Generator,
-                promise_objects::promise_abstract_operations::{
-                    promise_reaction_records::PromiseReaction,
-                    promise_resolving_functions::BuiltinPromiseResolvingFunction,
-                },
-            },
-            embedder_object::EmbedderObject,
-            error::Error,
-            finalization_registry::FinalizationRegistry,
-            indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
-            keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
-            map::Map,
-            module::Module,
-            ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
-            primitive_objects::PrimitiveObject,
-            promise::Promise,
-            proxy::Proxy,
-            text_processing::string_objects::string_iterator_objects::StringIterator,
-        },
-        execution::{
-            DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ModuleEnvironment,
-            ObjectEnvironment, PrivateEnvironment, Realm, WeakKey,
-        },
-        scripts_and_modules::{
-            module::module_semantics::{
-                ModuleRequest, source_text_module_records::SourceTextModule,
-            },
-            script::Script,
-            source_code::SourceCode,
-        },
-        types::{
-            BUILTIN_STRINGS_LIST, HeapNumber, HeapString, OrdinaryObject, Symbol, Value,
-            bigint::HeapBigInt,
-        },
+        Array, ArrayIterator, AsyncGenerator, AwaitReaction, BUILTIN_STRINGS_LIST, BoundFunction,
+        BuiltinConstructorFunction, BuiltinFunction, BuiltinPromiseFinallyFunction,
+        BuiltinPromiseResolvingFunction, DeclarativeEnvironment, ECMAScriptFunction,
+        EmbedderObject, Error, FinalizationRegistry, FunctionEnvironment, Generator,
+        GlobalEnvironment, HeapBigInt, HeapNumber, HeapString, Map, MapIterator, Module,
+        ModuleEnvironment, ModuleRequest, ObjectEnvironment, ObjectShape, OrdinaryObject,
+        PrimitiveObject, PrivateEnvironment, Promise, PromiseGroup, PromiseReaction,
+        PropertyLookupCache, Proxy, Realm, Script, SourceCode, SourceTextModule, StringIterator,
+        Symbol, Value, WeakKey,
     },
-    heap::indexes::HeapIndexHandle,
+    engine::Executable,
+    heap::{
+        BaseIndex, ElementIndex, Heap, HeapIndexHandle, PropertyKeyIndex,
+        element_array::ElementDescriptor,
+    },
 };
 
 #[derive(Debug, Clone, Default)]

@@ -17,15 +17,11 @@ use oxc_semantic::{AstNodes, Scoping, SemanticBuilder, SemanticBuilderReturn};
 use oxc_span::SourceType;
 
 use crate::{
-    ecmascript::{
-        execution::Agent,
-        types::{HeapString, String},
-    },
-    engine::context::{Bindable, NoGcScope, bindable_handle},
+    ecmascript::{HeapString, String, execution::Agent},
+    engine::{Bindable, NoGcScope, bindable_handle},
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
-        arena_vec_access,
-        indexes::{BaseIndex, HeapIndexHandle, index_handle},
+        arena_vec_access, {BaseIndex, HeapIndexHandle, index_handle},
     },
 };
 
@@ -387,11 +383,10 @@ impl HeapMarkAndSweep for SourceCode<'static> {
 mod test {
     use crate::{
         ecmascript::{
-            execution::{Agent, DefaultHostHooks, agent::Options, initialize_default_realm},
-            scripts_and_modules::source_code::{ParseResult, SourceCode, SourceCodeType},
-            types::String,
+            Agent, DefaultHostHooks, Options, ParseResult, SourceCode, SourceCodeType, String,
+            initialize_default_realm,
         },
-        engine::context::GcScope,
+        engine::GcScope,
     };
 
     #[test]

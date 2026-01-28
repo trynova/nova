@@ -1,12 +1,8 @@
 #![allow(dead_code, unused_variables)]
 
 use nova_vm::{
-    ecmascript::{
-        builtins::ArgumentsList,
-        execution::{Agent, JsResult},
-        types::{Object, Value},
-    },
-    engine::context::{GcScope, NoGcScope},
+    ecmascript::{Agent, ArgumentsList, JsResult, Object, Value},
+    engine::{GcScope, NoGcScope},
 };
 
 fn test_doesnt_need_gc_scope(gc: GcScope<'_, '_>) {
@@ -17,7 +13,7 @@ fn test_doesnt_need_gc_scope_at_all(gc: GcScope<'_, '_>) {
     unimplemented!()
 }
 
-fn test_doesnt_need_gc_scope_with_qualified_path(gc: nova_vm::engine::context::GcScope<'_, '_>) {
+fn test_doesnt_need_gc_scope_with_qualified_path(gc: nova_vm::engine::GcScope<'_, '_>) {
     unimplemented!()
 }
 

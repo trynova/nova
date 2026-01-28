@@ -5,24 +5,14 @@
 use super::Function;
 use crate::{
     ecmascript::{
-        builtins::{
-            ArgumentsList,
-            ordinary::{
-                caches::PropertyLookupCache, ordinary_define_own_property, ordinary_delete,
-                ordinary_get_own_property, ordinary_has_property, ordinary_own_property_keys,
-                ordinary_set, ordinary_try_get, ordinary_try_has_property, ordinary_try_set,
-            },
-        },
-        execution::{
-            Agent, JsResult, ProtoIntrinsics,
-            agent::{TryResult, js_result_into_try, unwrap_try},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, Object, OrdinaryObject,
-            PropertyDescriptor, PropertyKey, SetResult, String, TryGetResult, TryHasResult, Value,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, JsResult,
+        Object, OrdinaryObject, PropertyDescriptor, PropertyKey, PropertyLookupCache,
+        ProtoIntrinsics, SetResult, String, TryGetResult, TryHasResult, TryResult, Value,
+        js_result_into_try, ordinary_define_own_property, ordinary_delete,
+        ordinary_get_own_property, ordinary_has_property, ordinary_own_property_keys, ordinary_set,
+        ordinary_try_get, ordinary_try_has_property, ordinary_try_set, unwrap_try,
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
+    engine::{Bindable, GcScope, NoGcScope},
     heap::{ObjectEntry, ObjectEntryPropertyDescriptor},
 };
 

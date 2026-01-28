@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::agent::{HostHooks, Job};
+use crate::ecmascript::{HostHooks, Job};
 
 /// A default implementation of host hooks, meant for applications that don't
 /// need an event loop or microtasks.

@@ -4,18 +4,11 @@
 
 use crate::{
     ecmascript::{
-        builtins::{ECMAScriptFunction, ecmascript_function::ThisMode},
-        execution::{
-            Agent, JsResult,
-            agent::{ExceptionType, unwrap_try},
-            environments::{
-                DeclarativeEnvironment, DeclarativeEnvironmentRecord, Environment,
-                FunctionEnvironment,
-            },
-        },
-        types::{Function, InternalMethods, Object, String, Value},
+        Agent, DeclarativeEnvironment, DeclarativeEnvironmentRecord, ECMAScriptFunction,
+        Environment, ExceptionType, Function, FunctionEnvironment, InternalMethods, JsResult,
+        Object, String, ThisMode, Value, unwrap_try,
     },
-    engine::context::{Bindable, NoGcScope},
+    engine::{Bindable, NoGcScope},
     heap::{ArenaAccess, ArenaAccessMut, CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 

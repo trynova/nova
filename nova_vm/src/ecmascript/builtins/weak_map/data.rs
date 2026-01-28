@@ -5,11 +5,8 @@
 use ahash::AHashMap;
 
 use crate::{
-    ecmascript::{
-        execution::WeakKey,
-        types::{OrdinaryObject, Value},
-    },
-    engine::context::bindable_handle,
+    ecmascript::{OrdinaryObject, Value, execution::WeakKey},
+    engine::bindable_handle,
     heap::{CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues},
 };
 

@@ -2,20 +2,19 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+mod data;
+
+pub(crate) use data::*;
+
 use crate::{
     ecmascript::{
-        execution::Agent,
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, object_handle},
+        InternalMethods, InternalSlots, Object, OrdinaryObject, execution::Agent, object_handle,
     },
     heap::{
-        CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
-        indexes::BaseIndex,
+        BaseIndex, CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
+        arena_vec_access,
     },
 };
-
-pub(crate) use self::data::EmbedderObjectHeapData;
-
-mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]

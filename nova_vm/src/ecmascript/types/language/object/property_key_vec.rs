@@ -5,12 +5,8 @@
 use std::{marker::PhantomData, ptr::NonNull};
 
 use crate::{
-    ecmascript::execution::Agent,
-    engine::{
-        ScopableCollection, ScopedCollection,
-        context::{Bindable, NoGcScope},
-        rootable::HeapRootCollectionData,
-    },
+    ecmascript::Agent,
+    engine::{Bindable, HeapRootCollectionData, NoGcScope, ScopableCollection, ScopedCollection},
 };
 
 use super::PropertyKey;

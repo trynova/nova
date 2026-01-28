@@ -4,16 +4,10 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::{operations_on_objects::get, type_conversion::to_string},
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin},
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Object, PropertyKey, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType, JsResult,
+        Object, PropertyKey, Realm, String, Value, builders::OrdinaryObjectBuilder, get, to_string,
     },
-    engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
 };
 
 pub(crate) struct ErrorPrototype;

@@ -8,26 +8,12 @@ use ahash::AHasher;
 use wtf8::{Wtf8, Wtf8Buf};
 
 use crate::{
-    SmallInteger, SmallString,
     ecmascript::{
-        abstract_operations::type_conversion::parse_string_to_integer_property_key,
-        execution::Agent,
-        types::{
-            Primitive, PrivateName, String, Symbol, Value,
-            language::{
-                string::HeapString,
-                value::{
-                    INTEGER_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
-                    SYMBOL_DISCRIMINANT,
-                },
-            },
-        },
+        Agent, HeapString, INTEGER_DISCRIMINANT, Primitive, PrivateName, SMALL_STRING_DISCRIMINANT,
+        STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT, SmallInteger, SmallString, String, Symbol, Value,
+        parse_string_to_integer_property_key,
     },
-    engine::{
-        Scoped,
-        context::{Bindable, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
+    engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, Scoped, bindable_handle},
     heap::{ArenaAccess, CompactionLists, HeapMarkAndSweep, PropertyKeyHeapAccess, WorkQueues},
 };
 
