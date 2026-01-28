@@ -1,6 +1,6 @@
 #![allow(dead_code, unused_variables, clippy::disallowed_names)]
 
-type Agent = nova_vm::ecmascript::execution::agent::Agent;
+type Agent = nova_vm::ecmascript::Agent;
 
 fn test_no_params() {
     unimplemented!()

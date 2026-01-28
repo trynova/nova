@@ -1,11 +1,7 @@
 #![allow(dead_code, unused_variables)]
 
 use nova_vm::{
-    ecmascript::{
-        builtins::ArgumentsList,
-        Agent, JsResult,
-        Object, Value,
-    },
+    ecmascript::{Agent, ArgumentsList, JsResult, Object, Value},
     engine::{GcScope, NoGcScope},
 };
 
