@@ -10,7 +10,7 @@ fn test_one_param(_foo: ()) {
     unimplemented!()
 }
 
-fn test_owned_qualified_agent_only(agent: nova_vm::ecmascript::execution::Agent) {
+fn test_owned_qualified_agent_only(agent: nova_vm::ecmascript::Agent) {
     unimplemented!()
 }
 
