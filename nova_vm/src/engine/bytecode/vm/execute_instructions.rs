@@ -1015,8 +1015,9 @@ pub(super) fn execute_instantiate_ordinary_function_expression<'gc>(
     let function_expression = expression.get();
     let identifier = *identifier;
 
-    let (name, env, init_binding) = if let Some(parameter) = identifier {
+    let (name, env, initialize_binding) = if let Some(parameter) = identifier {
         debug_assert!(function_expression.id.is_none());
+        // 1. If name is not present, set name to "".
         let pk = match parameter {
             NamedEvaluationParameter::Result => vm.result.take().unwrap(),
             NamedEvaluationParameter::Stack => *vm.stack.last().unwrap(),
@@ -1029,16 +1030,76 @@ pub(super) fn execute_instantiate_ordinary_function_expression<'gc>(
         )
         .unbind()?
         .bind(gc.nogc());
-        (name, agent.current_lexical_environment(gc.nogc()), false)
-    } else if let Some(binding_identifier) = &function_expression.id {
+        // 2. Let env be the LexicalEnvironment of the running execution
+        //    context.
+        let env = agent.current_lexical_environment(gc.nogc());
+        // 3. Let privateEnv be the running execution context's
+        //    PrivateEnvironment.
+        // 4. Let sourceText be the source text matched by FunctionExpression.
+        // 5. Let closure be OrdinaryFunctionCreate(%Function.prototype%,
+        //    sourceText, FormalParameters, FunctionBody, non-lexical-this, env,
+        //    privateEnv).
+        // 6. Perform SetFunctionName(closure, name).
+        // 7. Perform MakeConstructor(closure).
+        let initialize_binding = false;
+        // 8. Return closure.
+
+        (name, env, initialize_binding)
+    } else if let Some(binding_identifier) = &function_expression.id
+        && function_expression.is_expression()
+    {
+        // 1. Assert: name is not present.
+        assert!(identifier.is_none());
+        // 2. Set name to the StringValue of BindingIdentifier.
         let name = String::from_str(agent, &binding_identifier.name, gc.nogc());
-        let func_env = new_declarative_environment(
-            agent,
-            Some(agent.current_lexical_environment(gc.nogc())),
-            gc.nogc(),
-        );
+        // 3. Let outerEnv be the running execution context's LexicalEnvironment.
+        let outer_env = agent.current_lexical_environment(gc.nogc());
+        // 4. Let funcEnv be NewDeclarativeEnvironment(outerEnv).
+        let func_env = new_declarative_environment(agent, Some(outer_env), gc.nogc());
+        // 5. Perform ! funcEnv.CreateImmutableBinding(name, false).
         func_env.create_immutable_binding(agent, name, false);
-        (name.into(), Environment::Declarative(func_env), true)
+        // 7. Let sourceText be the source text matched by FunctionExpression.
+        // 8. Let closure be OrdinaryFunctionCreate(%Function.prototype%,
+        //    sourceText, FormalParameters, FunctionBody, non-lexical-this,
+        //    funcEnv, privateEnv).
+        // 9. Perform SetFunctionName(closure, name).
+        // 10. Perform MakeConstructor(closure).
+        // 11. Perform ! funcEnv.InitializeBinding(name, closure).
+        let initialize_binding = true;
+        // 12. Return closure.
+
+        // > Note
+        // >
+        // > The BindingIdentifier in a FunctionExpression can be referenced
+        // > from inside the FunctionExpression's FunctionBody to allow the
+        // > function to call itself recursively. However, unlike in a
+        // > FunctionDeclaration, the BindingIdentifier in a FunctionExpression
+        // > cannot be referenced from and does not affect the scope enclosing
+        // > the FunctionExpression.
+
+        (
+            name.into(),
+            Environment::Declarative(func_env),
+            initialize_binding,
+        )
+    } else if let Some(binding_identifier) = &function_expression.id
+        && function_expression.is_declaration()
+    {
+        // 1. Let name be the StringValue of BindingIdentifier.
+        let name = String::from_str(agent, &binding_identifier.name, gc.nogc());
+        // 2. Let sourceText be the source text matched by FunctionDeclaration.
+        // 3. Let F be OrdinaryFunctionCreate(%Function.prototype%, sourceText,
+        //    FormalParameters, FunctionBody, non-lexical-this, env,
+        //    privateEnv).
+        // 4. Perform SetFunctionName(F, name).
+        // 5. Perform MakeConstructor(F).
+        let initialize_binding = false;
+        // 6. Return F.
+        (
+            name.into(),
+            agent.current_lexical_environment(gc.nogc()),
+            initialize_binding,
+        )
     } else {
         (
             String::EMPTY_STRING.into(),
@@ -1047,6 +1108,7 @@ pub(super) fn execute_instantiate_ordinary_function_expression<'gc>(
         )
     };
 
+    // 6. Let privateEnv be the running execution context's PrivateEnvironment.
     let private_env = agent.current_private_environment(gc.nogc());
     let params = OrdinaryFunctionCreateParams {
         function_prototype: None,
@@ -1110,11 +1172,11 @@ pub(super) fn execute_instantiate_ordinary_function_expression<'gc>(
         ));
     }
 
-    if init_binding {
+    if initialize_binding {
         let name = match name {
             PropertyKey::SmallString(data) => data.into(),
             PropertyKey::String(data) => data.unbind().into(),
-            _ => unreachable!("maybe?"),
+            _ => unreachable!(),
         };
 
         unwrap_try(env.try_initialize_binding(agent, name, None, function.into(), gc.nogc()));
