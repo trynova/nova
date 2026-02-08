@@ -2,10 +2,15 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-pub mod duration;
-pub mod error;
-pub mod instant;
-pub mod options;
+mod duration;
+mod error;
+mod instant;
+mod options;
+
+pub use duration::*;
+pub use error::*;
+pub use instant::*;
+pub use options::*;
 
 use temporal_rs::{
     options::{DifferenceSettings, RoundingIncrement, RoundingMode, Unit, UnitGroup},
@@ -14,19 +19,10 @@ use temporal_rs::{
 
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::get,
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::temporal::{
-            instant::instant_prototype::get_temporal_unit_valued_option,
-            options::{get_rounding_increment_option, get_rounding_mode_option},
-        },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, Object, Value},
+        Agent, BUILTIN_STRING_MEMORY, ExceptionType, JsResult, Object, Realm, Value,
+        builders::OrdinaryObjectBuilder, get,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope, trivially_bindable},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, trivially_bindable},
     heap::WellKnownSymbolIndexes,
 };
 
@@ -48,7 +44,7 @@ impl Temporal {
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.Instant.into())
-                    .with_value(instant_constructor.into_value())
+                    .with_value(instant_constructor.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()
@@ -62,7 +58,7 @@ impl Temporal {
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.Duration.into())
-                    .with_value(duration_constructor.into_value())
+                    .with_value(duration_constructor.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()

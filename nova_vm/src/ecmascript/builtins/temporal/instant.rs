@@ -2,63 +2,45 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::ops::{Index, IndexMut};
+mod data;
+mod instant_constructor;
+mod instant_prototype;
 
-pub(crate) mod data;
-pub mod instant_constructor;
-pub mod instant_prototype;
+pub(crate) use data::*;
+pub(crate) use instant_constructor::*;
+pub(crate) use instant_prototype::*;
 
 use temporal_rs::options::{Unit, UnitGroup};
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::{PreferredType, to_primitive_object},
-        builtins::{
-            ordinary::ordinary_create_from_constructor,
-            temporal::{
-                duration::{TemporalDuration, data::DurationHeapData, to_temporal_duration},
-                error::temporal_err_to_js_err,
-                get_difference_settings,
-                options::get_options_object,
-            },
-        },
-        execution::{
-            JsResult, ProtoIntrinsics,
-            agent::{Agent, ExceptionType},
-        },
-        types::{
-            Function, InternalMethods, InternalSlots, IntoFunction, IntoValue, Object,
-            OrdinaryObject, Primitive, String, Value,
-        },
+        Agent, DurationHeapData, ExceptionType, Function, InternalMethods, InternalSlots, JsResult,
+        Object, OrdinaryObject, PreferredType, Primitive, ProtoIntrinsics, String,
+        TemporalDuration, Value, get_difference_settings, get_options_object, object_handle,
+        ordinary_create_from_constructor, temporal_err_to_js_err, to_primitive_object,
+        to_temporal_duration,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
-
-use self::data::InstantRecord;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct TemporalInstant<'a>(BaseIndex<'a, InstantRecord<'static>>);
+object_handle!(TemporalInstant, Instant);
+arena_vec_access!(
+    TemporalInstant,
+    'a,
+    InstantRecord,
+    instants
+);
 
 impl TemporalInstant<'_> {
-    pub(crate) fn inner_instant(self, agent: &Agent) -> &temporal_rs::Instant {
-        &agent[self].instant
-    }
-
-    //TODO
-    pub(crate) const fn _def() -> Self {
-        TemporalInstant(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
+    pub(crate) fn inner_instant<'a>(self, agent: &'a Agent) -> &'a temporal_rs::Instant {
+        &self.unbind().get(agent).instant
     }
 
     /// # Safety
@@ -69,107 +51,26 @@ impl TemporalInstant<'_> {
         agent: &mut Agent,
         epoch_nanoseconds: temporal_rs::Instant,
     ) {
-        agent[self].instant = epoch_nanoseconds;
-    }
-}
-
-bindable_handle!(TemporalInstant);
-
-impl<'a> From<TemporalInstant<'a>> for Value<'a> {
-    fn from(value: TemporalInstant<'a>) -> Self {
-        Value::Instant(value)
-    }
-}
-impl<'a> From<TemporalInstant<'a>> for Object<'a> {
-    fn from(value: TemporalInstant<'a>) -> Self {
-        Object::Instant(value)
-    }
-}
-impl<'a> TryFrom<Value<'a>> for TemporalInstant<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, ()> {
-        match value {
-            Value::Instant(idx) => Ok(idx),
-            _ => Err(()),
-        }
-    }
-}
-impl<'a> TryFrom<Object<'a>> for TemporalInstant<'a> {
-    type Error = ();
-    fn try_from(object: Object<'a>) -> Result<Self, ()> {
-        match object {
-            Object::Instant(idx) => Ok(idx),
-            _ => Err(()),
-        }
+        self.get_mut(agent).instant = epoch_nanoseconds;
     }
 }
 
 impl<'a> InternalSlots<'a> for TemporalInstant<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::TemporalInstant;
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        self.get(agent).object_index.unbind()
     }
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self].object_index.replace(backing_object).is_none());
+        assert!(
+            self.get_mut(agent)
+                .object_index
+                .replace(backing_object)
+                .is_none()
+        );
     }
 }
 
 impl<'a> InternalMethods<'a> for TemporalInstant<'a> {}
-
-// TODO: get rid of Index impls, replace with get/get_mut/get_direct/get_direct_mut functions
-impl Index<TemporalInstant<'_>> for Agent {
-    type Output = InstantRecord<'static>;
-
-    fn index(&self, index: TemporalInstant<'_>) -> &Self::Output {
-        &self.heap.instants[index]
-    }
-}
-
-impl IndexMut<TemporalInstant<'_>> for Agent {
-    fn index_mut(&mut self, index: TemporalInstant) -> &mut Self::Output {
-        &mut self.heap.instants[index]
-    }
-}
-
-impl Index<TemporalInstant<'_>> for Vec<InstantRecord<'static>> {
-    type Output = InstantRecord<'static>;
-
-    fn index(&self, index: TemporalInstant<'_>) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("heap access out of bounds")
-    }
-}
-
-impl IndexMut<TemporalInstant<'_>> for Vec<InstantRecord<'static>> {
-    fn index_mut(&mut self, index: TemporalInstant<'_>) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("heap access out of bounds")
-    }
-}
-
-impl Rootable for TemporalInstant<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::Instant(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::Instant(object) => Some(object),
-            _ => None,
-        }
-    }
-}
 
 impl HeapMarkAndSweep for TemporalInstant<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
@@ -201,7 +102,7 @@ impl<'a> CreateHeapData<InstantRecord<'a>, TemporalInstant<'a>> for Heap {
 /// and returns either a normal completion containing a Temporal.Instant or a
 /// throw completion. It creates a Temporal.Instant instance and fills the
 /// internal slots with valid values.
-fn create_temporal_instant<'gc>(
+pub(crate) fn create_temporal_instant<'gc>(
     agent: &mut Agent,
     epoch_nanoseconds: temporal_rs::Instant,
     new_target: Option<Function>,
@@ -214,7 +115,7 @@ fn create_temporal_instant<'gc>(
             .current_realm_record()
             .intrinsics()
             .temporal_instant()
-            .into_function()
+            .into()
     });
     // 3. Let object be ? OrdinaryCreateFromConstructor(newTarget, "%Temporal.Instant.prototype%", « [[InitializedTemporalInstant]], [[EpochNanoseconds]] »).
     let Object::Instant(object) =
@@ -234,7 +135,7 @@ fn create_temporal_instant<'gc>(
 /// The abstract operation ToTemporalInstant takes argument item (an ECMAScript language value) and
 /// returns either a normal completion containing a Temporal.Instant or a throw completion.
 /// Converts item to a new Temporal.Instant instance if possible, and throws otherwise.
-fn to_temporal_instant<'gc>(
+pub(crate) fn to_temporal_instant<'gc>(
     agent: &mut Agent,
     item: Value,
     mut gc: GcScope<'gc, '_>,
@@ -247,7 +148,7 @@ fn to_temporal_instant<'gc>(
         // TODO: TemporalZonedDateTime::try_from(item)
         if let Ok(item) = TemporalInstant::try_from(item) {
             // i. Return ! CreateTemporalInstant(item.[[EpochNanoseconds]]).
-            return Ok(agent[item].instant);
+            return Ok(*item.inner_instant(agent));
         }
         // b. NOTE: This use of ToPrimitive allows Instant-like objects to be converted.
         // c. Set item to ? ToPrimitive(item, string).
@@ -313,14 +214,15 @@ fn add_duration_to_instant<'gc, const IS_ADD: bool>(
     // 5. Let internalDuration be ToInternalDurationRecordWith24HourDays(duration).
     // 6. Let ns be ? AddInstant(instant.[[EpochNanoseconds]], internalDuration.[[Time]]).
     let ns_result = if IS_ADD {
-        temporal_rs::Instant::add(&agent[instant.get(agent)].instant, &duration.unwrap()).unwrap()
+        temporal_rs::Instant::add(instant.get(agent).inner_instant(agent), &duration.unwrap())
+            .unwrap()
     } else {
-        temporal_rs::Instant::subtract(&agent[instant.get(agent)].instant, &duration.unwrap())
+        temporal_rs::Instant::subtract(instant.get(agent).inner_instant(agent), &duration.unwrap())
             .unwrap()
     };
     // 7. Return ! CreateTemporalInstant(ns).
     let instant = create_temporal_instant(agent, ns_result, None, gc)?;
-    Ok(instant.into_value())
+    Ok(instant.into())
 }
 
 /// [8.5.9 DifferenceTemporalInstant ( operation, instant, other, options )](https://tc39.es/proposal-temporal/#sec-temporal-differencetemporalinstant)

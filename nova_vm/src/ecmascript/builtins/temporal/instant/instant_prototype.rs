@@ -5,37 +5,20 @@ use temporal_rs::{
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{get, try_create_data_property_or_throw},
-            type_conversion::to_number,
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, BigInt, Builtin, BuiltinGetter,
+        ExceptionType, JsResult, Object, PropertyKey, Realm, String, Value,
+        builders::OrdinaryObjectBuilder,
+        builtins::temporal::instant::{
+            add_duration_to_instant, difference_temporal_instant,
+            require_internal_slot_temporal_instant,
         },
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter,
-            ordinary::ordinary_object_create_with_intrinsics,
-            temporal::{
-                error::temporal_err_to_js_err,
-                get_temporal_fractional_second_digits_option,
-                instant::{
-                    add_duration_to_instant, create_temporal_instant, difference_temporal_instant,
-                    require_internal_slot_temporal_instant, to_temporal_instant,
-                },
-                options::{
-                    get_option, get_options_object, get_rounding_increment_option,
-                    get_rounding_mode_option,
-                },
-            },
-        },
-        execution::{
-            Agent, JsResult, Realm,
-            agent::{ExceptionType, unwrap_try},
-        },
-        types::{BUILTIN_STRING_MEMORY, BigInt, IntoValue, Object, PropertyKey, String, Value},
+        create_temporal_instant, get, get_option, get_options_object,
+        get_rounding_increment_option, get_rounding_mode_option,
+        get_temporal_fractional_second_digits_option, ordinary_object_create_null,
+        temporal_err_to_js_err, to_number, to_temporal_instant, try_create_data_property_or_throw,
+        unwrap_try,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::WellKnownSymbolIndexes,
 };
 
@@ -194,7 +177,7 @@ impl TemporalInstantPrototype {
         const ADD: bool = true;
         let result = add_duration_to_instant::<ADD>(agent, instant.unbind(), duration.unbind(), gc)
             .unbind()?;
-        Ok(result.into_value())
+        Ok(result.into())
     }
 
     /// ### [8.3.6 Temporal.Instant.prototype.subtract ( temporalDurationLike )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.subtract)
@@ -216,7 +199,7 @@ impl TemporalInstantPrototype {
         let result =
             add_duration_to_instant::<SUBTRACT>(agent, instant.unbind(), duration.unbind(), gc)
                 .unbind()?;
-        Ok(result.into_value())
+        Ok(result.into())
     }
 
     /// ### [8.3.7 Temporal.Instant.prototype.until ( other [ , options ] )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.until)
@@ -244,7 +227,7 @@ impl TemporalInstantPrototype {
             gc,
         )
         .unbind()?;
-        Ok(result.into_value())
+        Ok(result.into())
     }
 
     /// ### [8.3.8 Temporal.Instant.prototype.since ( other [ , options ] )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.until)
@@ -272,7 +255,7 @@ impl TemporalInstantPrototype {
             gc,
         )
         .unbind()?;
-        Ok(result.into_value())
+        Ok(result.into())
     }
 
     /// ### [8.3.9 Temporal.Instant.prototype.round ( roundTo )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.round)
@@ -305,17 +288,17 @@ impl TemporalInstantPrototype {
             // a. Let paramString be roundTo.
             let param_string = round_to;
             // b. Set roundTo to OrdinaryObjectCreate(null).
-            let round_to = ordinary_object_create_with_intrinsics(agent, None, None, gc.nogc());
+            let round_to = ordinary_object_create_null(agent, gc.nogc());
             // c. Perform ! CreateDataPropertyOrThrow(roundTo, "smallestUnit", paramString).
             unwrap_try(try_create_data_property_or_throw(
                 agent,
                 round_to,
                 BUILTIN_STRING_MEMORY.smallestUnit.into(),
-                param_string.into_value(),
+                param_string.into(),
                 None,
                 gc.nogc(),
             ));
-            round_to
+            round_to.into()
         } else {
             // 5. Else, set roundTo to ? GetOptionsObject(roundTo).
             get_options_object(agent, round_to.unbind(), gc.nogc())
@@ -383,7 +366,7 @@ impl TemporalInstantPrototype {
             .unbind()?
             .bind(gc.nogc());
         // 19. Return ! CreateTemporalInstant(roundedNs).
-        Ok(create_temporal_instant(agent, rounded_ns, None, gc)?.into_value())
+        Ok(create_temporal_instant(agent, rounded_ns, None, gc)?.into())
     }
 
     /// ### [8.3.10 Temporal.Instant.prototype.equals ( other )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.equals)

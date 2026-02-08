@@ -217,7 +217,7 @@ impl<'a> BigInt<'a> {
     pub fn try_into_i128(self, agent: &Agent) -> Option<i128> {
         match self {
             BigInt::BigInt(b) => {
-                let data = &agent[b].data;
+                let data = &b.get(agent).data;
                 let sign = data.sign();
                 let mut digits = data.iter_u64_digits();
                 if digits.len() > 2 {

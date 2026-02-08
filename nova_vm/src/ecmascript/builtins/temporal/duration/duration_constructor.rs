@@ -1,18 +1,11 @@
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_integer_if_integral,
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            temporal::{duration::create_temporal_duration, error::temporal_err_to_js_err},
-        },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        BuiltinIntrinsicConstructor, ExceptionType, Function, JsResult, Object, Realm, String,
+        Value, builders::BuiltinFunctionBuilder, create_temporal_duration, temporal_err_to_js_err,
+        to_integer_if_integral,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::IntrinsicConstructorIndexes,
 };
 
@@ -164,7 +157,7 @@ impl TemporalDurationConstructor {
             .unbind()?
             .bind(gc.nogc());
         create_temporal_duration(agent, duration.unbind(), Some(new_target.get(agent)), gc)
-            .map(|duration| duration.into_value())
+            .map(|duration| duration.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, _gc: NoGcScope) {
@@ -175,7 +168,7 @@ impl TemporalDurationConstructor {
             agent, realm,
         )
         .with_property_capacity(1)
-        .with_prototype_property(duration_prototype.into_object())
+        .with_prototype_property(duration_prototype.into())
         .build();
     }
 }

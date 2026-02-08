@@ -44,7 +44,7 @@ use crate::ecmascript::{
 use crate::ecmascript::{DATE_DISCRIMINANT, Date};
 #[cfg(feature = "temporal")]
 use crate::ecmascript::{
-    DURATION_DISCRIMINANT, PLAIN_TIME_DISCRIMINANT, TemporalDuration, TemporalPlainTime,
+    DURATION_DISCRIMINANT, INSTANT_DISCRIMINANT, TemporalDuration, TemporalInstant,
 };
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::{FLOAT_16_ARRAY_DISCRIMINANT, Float16Array};
@@ -78,9 +78,9 @@ use crate::{
         Agent, ArgumentsList, Array, ArrayIterator, AsyncGenerator, BoundFunction,
         BuiltinConstructorFunction, BuiltinFunction, BuiltinPromiseFinallyFunction,
         BuiltinPromiseResolvingFunction, ECMAScriptFunction, EmbedderObject, Error,
-        FinalizationRegistry, Generator, Instant, JsResult, Map, MapIterator, Module, ObjectShape,
+        FinalizationRegistry, Generator, JsResult, Map, MapIterator, Module, ObjectShape,
         ObjectShapeRecord, PrimitiveObject, Promise, PropertyDescriptor, PropertyLookupCache,
-        PropertyOffset, ProtoIntrinsics, Proxy, StringIterator, TemporalInstant, TryResult,
+        PropertyOffset, ProtoIntrinsics, Proxy, StringIterator, TryResult,
         ordinary_object_create_with_intrinsics,
     },
     engine::{Bindable, GcScope, HeapRootData, NoGcScope, bindable_handle},
@@ -1425,6 +1425,10 @@ impl From<Object<'_>> for HeapRootData {
             Object::Array(d) => Self::Array(d.unbind()),
             #[cfg(feature = "date")]
             Object::Date(d) => Self::Date(d.unbind()),
+            #[cfg(feature = "temporal")]
+            Object::Duration(d) => Self::Duration(d.unbind()),
+            #[cfg(feature = "temporal")]
+            Object::Instant(d) => Self::Instant(d.unbind()),
             Object::Error(d) => Self::Error(d.unbind()),
             Object::FinalizationRegistry(d) => Self::FinalizationRegistry(d.unbind()),
             Object::Map(d) => Self::Map(d.unbind()),

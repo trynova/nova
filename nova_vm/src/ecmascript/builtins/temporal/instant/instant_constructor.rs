@@ -1,22 +1,11 @@
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_big_int,
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            temporal::instant::{
-                create_temporal_instant, data::InstantRecord, to_temporal_instant,
-            },
-        },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{
-            BUILTIN_STRING_MEMORY, BigInt, Function, IntoObject, IntoValue, Object, String, Value,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, BigInt, Builtin,
+        BuiltinIntrinsicConstructor, ExceptionType, Function, InstantRecord, JsResult, Object,
+        Realm, String, Value, builders::BuiltinFunctionBuilder, create_temporal_instant,
+        to_big_int, to_temporal_instant,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{CreateHeapData, IntrinsicConstructorIndexes},
 };
 
@@ -109,7 +98,7 @@ impl TemporalInstantConstructor {
         };
         // 4. Return ? CreateTemporalInstant(epochNanoseconds, NewTarget).
         create_temporal_instant(agent, epoch_nanoseconds, Some(new_target.unbind()), gc)
-            .map(|instant| instant.into_value())
+            .map(|instant| instant.into())
     }
 
     /// ### [8.2.2 Temporal.Instant.from ( item )](https://tc39.es/proposal-temporal/#sec-temporal.instant.from)
@@ -126,7 +115,7 @@ impl TemporalInstantConstructor {
             object_index: None,
             instant,
         });
-        Ok(instant.into_value())
+        Ok(instant.into())
     }
 
     /// ### [8.2.3 Temporal.Instant.fromEpochMilliseconds ( epochMilliseconds )](https://tc39.es/proposal-temporal/#sec-temporal.instant.fromepochmilliseconds)
@@ -167,7 +156,7 @@ impl TemporalInstantConstructor {
 
         // 5. Return ! CreateTemporalInstant(epochNanoseconds).
         let instant = create_temporal_instant(agent, epoch_ns, None, gc)?;
-        let value = instant.into_value();
+        let value = instant.into();
         Ok(value)
     }
 
@@ -200,7 +189,7 @@ impl TemporalInstantConstructor {
         };
         // 3. Return ! CreateTemporalInstant(epochNanoseconds).
         let instant = create_temporal_instant(agent, epoch_nanoseconds, None, gc)?;
-        let value = instant.into_value();
+        let value = instant.into();
         Ok(value)
     }
 
@@ -231,7 +220,7 @@ impl TemporalInstantConstructor {
             agent, realm,
         )
         .with_property_capacity(5)
-        .with_prototype_property(instant_prototype.into_object())
+        .with_prototype_property(instant_prototype.into())
         .with_builtin_function_property::<TemporalInstantFrom>()
         .with_builtin_function_property::<TemporalInstantFromEpochMilliseconds>()
         .with_builtin_function_property::<TemporalInstantFromEpochNanoseconds>()

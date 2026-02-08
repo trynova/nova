@@ -19,7 +19,7 @@ use crate::ecmascript::SharedDataViewRecord;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::try_get_result_into_value;
 #[cfg(feature = "temporal")]
-use crate::ecmascript::{DurationHeapData, InstantRecord, PlainTimeHeapData};
+use crate::ecmascript::{DurationHeapData, InstantRecord};
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, ExceptionType, Function, InternalMethods,
@@ -1656,9 +1656,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
         #[cfg(feature = "temporal")]
         ProtoIntrinsics::TemporalInstant => agent.heap.create(InstantRecord::default()).into(),
         #[cfg(feature = "temporal")]
-        ProtoIntrinsics::TemporalDuration => {
-            agent.heap.create(DurationHeapData::default()).into_object()
-        }
+        ProtoIntrinsics::TemporalDuration => agent.heap.create(DurationHeapData::default()).into(),
         ProtoIntrinsics::TypeError => agent
             .heap
             .create(ErrorHeapData::new(ExceptionType::TypeError, None, None))
