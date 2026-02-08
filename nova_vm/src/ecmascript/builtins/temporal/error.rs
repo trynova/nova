@@ -1,9 +1,6 @@
 use crate::{
-    ecmascript::execution::{
-        Agent,
-        agent::{ExceptionType, JsError},
-    },
-    engine::context::NoGcScope,
+    ecmascript::{Agent, ExceptionType, JsError},
+    engine::NoGcScope,
 };
 use temporal_rs::{TemporalError, error::ErrorKind};
 

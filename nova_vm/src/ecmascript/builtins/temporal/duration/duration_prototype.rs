@@ -1,10 +1,6 @@
 use crate::{
-    ecmascript::{
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        execution::{Agent, Realm},
-        types::BUILTIN_STRING_MEMORY,
-    },
-    engine::context::NoGcScope,
+    ecmascript::{Agent, BUILTIN_STRING_MEMORY, Realm, builders::OrdinaryObjectBuilder},
+    engine::NoGcScope,
     heap::WellKnownSymbolIndexes,
 };
 

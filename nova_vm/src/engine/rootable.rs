@@ -24,12 +24,12 @@ use crate::ecmascript::{
     UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT, Uint8Array, Uint8ClampedArray,
     Uint16Array, Uint32Array,
 };
+#[cfg(feature = "temporal")]
+use crate::ecmascript::{DURATION_DISCRIMINANT, TemporalDuration};
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::{FLOAT_16_ARRAY_DISCRIMINANT, Float16Array};
 #[cfg(feature = "temporal")]
-use crate::ecmascript::{
-    INSTANT_DISCRIMINANT, PLAIN_TIME_DISCRIMINANT, TemporalInstant, TemporalPlainTime,
-};
+use crate::ecmascript::{INSTANT_DISCRIMINANT, TemporalInstant};
 #[cfg(feature = "regexp")]
 use crate::ecmascript::{
     REGEXP_DISCRIMINANT, REGEXP_STRING_ITERATOR_DISCRIMINANT, RegExp, RegExpStringIterator,
@@ -99,7 +99,7 @@ pub(crate) mod private {
     #[cfg(feature = "set")]
     use crate::ecmascript::{Set, SetIterator};
     #[cfg(feature = "temporal")]
-    use crate::ecmascript::{TemporalInstant, TemporalPlainTime};
+    use crate::ecmascript::{TemporalDuration, TemporalInstant};
     #[cfg(feature = "weak-refs")]
     use crate::ecmascript::{WeakKey, WeakMap, WeakRef, WeakSet};
     use crate::{

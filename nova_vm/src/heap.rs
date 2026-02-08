@@ -27,7 +27,7 @@ use crate::ecmascript::{
     VoidArray,
 };
 #[cfg(feature = "temporal")]
-use crate::ecmascript::{DurationHeapData, InstantRecord, PlainTimeHeapData};
+use crate::ecmascript::{DurationHeapData, InstantRecord};
 #[cfg(feature = "regexp")]
 use crate::ecmascript::{RegExpHeapData, RegExpStringIteratorRecord};
 #[cfg(feature = "set")]

@@ -26,8 +26,8 @@ use crate::ecmascript::{SetConstructor, SetIteratorPrototype, SetPrototype};
 use crate::ecmascript::{SharedArrayBufferConstructor, SharedArrayBufferPrototype};
 #[cfg(feature = "temporal")]
 use crate::ecmascript::{
-    TemporalDurationConstructor, TemporalDurationPrototype, TemporalInstantConstructor,
-    TemporalInstantPrototype, TemporalObject,
+    Temporal, TemporalDurationConstructor, TemporalDurationPrototype, TemporalInstantConstructor,
+    TemporalInstantPrototype,
 };
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::{

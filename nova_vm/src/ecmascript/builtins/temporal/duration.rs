@@ -1,140 +1,67 @@
-pub(crate) mod data;
-pub mod duration_constructor;
-pub mod duration_prototype;
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+mod data;
+mod duration_constructor;
+mod duration_prototype;
+
+pub(crate) use data::*;
+pub(crate) use duration_constructor::*;
+pub(crate) use duration_prototype::*;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::get, type_conversion::to_integer_if_integral,
-        },
-        builtins::ordinary::ordinary_create_from_constructor,
-        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
-        types::{
-            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoFunction, Object,
-            OrdinaryObject, String, Value,
-        },
+        Agent, BUILTIN_STRING_MEMORY, ExceptionType, Function, InternalMethods, InternalSlots,
+        JsResult, Object, OrdinaryObject, ProtoIntrinsics, String, Value, get, object_handle,
+        ordinary_create_from_constructor, to_integer_if_integral,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
-use core::ops::{Index, IndexMut};
 
-use self::data::DurationHeapData;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct TemporalDuration<'a>(BaseIndex<'a, DurationHeapData<'static>>);
+object_handle!(TemporalDuration, Duration);
+arena_vec_access!(
+    TemporalDuration,
+    'a,
+    DurationHeapData,
+    durations
+);
 
 impl TemporalDuration<'_> {
-    pub(crate) const fn _def() -> Self {
-        TemporalDuration(BaseIndex::from_u32_index(0))
-    }
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-    pub(crate) fn _inner_duration(self, agent: &Agent) -> &temporal_rs::Duration {
-        &agent[self].duration
+    pub(crate) fn inner_duration(self, agent: &Agent) -> &temporal_rs::Duration {
+        &self.unbind().get(agent).duration
     }
     /// # Safety
     ///
     /// Should be only called once; reinitialising the value is not allowed.
     unsafe fn set_duration(self, agent: &mut Agent, duration: temporal_rs::Duration) {
-        agent[self].duration = duration;
-    }
-}
-
-bindable_handle!(TemporalDuration);
-
-impl<'a> From<TemporalDuration<'a>> for Value<'a> {
-    fn from(value: TemporalDuration<'a>) -> Self {
-        Value::Duration(value)
-    }
-}
-impl<'a> From<TemporalDuration<'a>> for Object<'a> {
-    fn from(value: TemporalDuration<'a>) -> Self {
-        Object::Duration(value)
-    }
-}
-impl<'a> TryFrom<Value<'a>> for TemporalDuration<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, ()> {
-        match value {
-            Value::Duration(idx) => Ok(idx),
-            _ => Err(()),
-        }
+        self.get_mut(agent).duration = duration;
     }
 }
 
 impl<'a> InternalSlots<'a> for TemporalDuration<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::TemporalDuration;
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        self.unbind().get(agent).object_index
     }
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self].object_index.replace(backing_object).is_none());
+        assert!(
+            self.get_mut(agent)
+                .object_index
+                .replace(backing_object)
+                .is_none()
+        );
     }
 }
 
 impl<'a> InternalMethods<'a> for TemporalDuration<'a> {}
-
-impl Index<TemporalDuration<'_>> for Agent {
-    type Output = DurationHeapData<'static>;
-
-    fn index(&self, index: TemporalDuration<'_>) -> &Self::Output {
-        &self.heap.durations[index]
-    }
-}
-
-impl IndexMut<TemporalDuration<'_>> for Agent {
-    fn index_mut(&mut self, index: TemporalDuration) -> &mut Self::Output {
-        &mut self.heap.durations[index]
-    }
-}
-
-impl Index<TemporalDuration<'_>> for Vec<DurationHeapData<'static>> {
-    type Output = DurationHeapData<'static>;
-
-    fn index(&self, index: TemporalDuration<'_>) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("heap access out of bounds")
-    }
-}
-
-impl IndexMut<TemporalDuration<'_>> for Vec<DurationHeapData<'static>> {
-    fn index_mut(&mut self, index: TemporalDuration<'_>) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("heap access out of bounds")
-    }
-}
-
-impl Rootable for TemporalDuration<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::Duration(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::Duration(object) => Some(object),
-            _ => None,
-        }
-    }
-}
 
 impl HeapMarkAndSweep for TemporalDuration<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
@@ -184,7 +111,7 @@ pub(crate) fn create_temporal_duration<'gc>(
             .current_realm_record()
             .intrinsics()
             .temporal_duration()
-            .into_function()
+            .into()
     });
     // 3. Let object be ? OrdinaryCreateFromConstructor(newTarget, "%Temporal.Duration.prototype%", « [[InitializedTemporalDuration]], [[Years]], [[Months]], [[Weeks]], [[Days]], [[Hours]], [[Minutes]], [[Seconds]], [[Milliseconds]], [[Microseconds]], [[Nanoseconds]] »).
     let Object::Duration(object) =
@@ -224,7 +151,7 @@ pub(crate) fn to_temporal_duration<'gc>(
     // 1. If item is an Object and item has an [[InitializedTemporalDuration]] internal slot, then
     if let Ok(obj) = require_internal_slot_temporal_duration(agent, item, gc.nogc()) {
         // a. Return ! CreateTemporalDuration(item.[[Years]], item.[[Months]], item.[[Weeks]], item.[[Days]], item.[[Hours]], item.[[Minutes]], item.[[Seconds]], item.[[Milliseconds]], item.[[Microseconds]], item.[[Nanoseconds]]).
-        return Ok(agent[obj].duration);
+        return Ok(*obj.inner_duration(agent));
     }
 
     // 2. If item is not an Object, then

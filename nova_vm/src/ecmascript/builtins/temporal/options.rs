@@ -8,15 +8,10 @@ use temporal_rs::options::{RoundingIncrement, RoundingMode, Unit};
 
 use crate::{
     ecmascript::{
-        abstract_operations::{operations_on_objects::get, type_conversion::to_string},
-        builtins::{
-            ordinary::ordinary_object_create_with_intrinsics,
-            temporal::instant::instant_prototype::to_integer_with_truncation,
-        },
-        execution::{Agent, JsResult, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Object, PropertyKey, Value},
+        Agent, BUILTIN_STRING_MEMORY, ExceptionType, JsResult, Object, PropertyKey, Value, get,
+        ordinary_object_create_null, to_integer_with_truncation, to_string,
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
+    engine::{Bindable, GcScope, NoGcScope},
 };
 
 pub trait OptionType: Sized {
@@ -51,9 +46,7 @@ pub(crate) fn get_options_object<'gc>(
         // 1. If options is undefined, then
         Value::Undefined => {
             // a. Return OrdinaryObjectCreate(null).
-            Ok(ordinary_object_create_with_intrinsics(
-                agent, None, None, gc,
-            ))
+            Ok(ordinary_object_create_null(agent, gc).into())
         }
         // 2. If options is an Object, then
         value if value.is_object() => {
