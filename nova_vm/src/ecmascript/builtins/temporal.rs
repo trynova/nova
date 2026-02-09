@@ -19,7 +19,7 @@ use temporal_rs::{
 
 use crate::{
     ecmascript::{
-        Agent, BUILTIN_STRING_MEMORY, ExceptionType, JsResult, Object, Realm, Value,
+        Agent, BUILTIN_STRING_MEMORY, ExceptionType, JsResult, Number, Object, Realm, Value,
         builders::OrdinaryObjectBuilder, get,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable, trivially_bindable},
@@ -111,6 +111,7 @@ pub(crate) fn get_temporal_fractional_second_digits_option<'gc>(
     if digits_value.is_undefined() {
         return Ok(temporal_rs::parsers::Precision::Auto);
     }
+    // If already a valid single digit in the range 0-9, return early.
     if let Value::Integer(digits_value) = digits_value
         && (0..=9).contains(&digits_value.into_i64())
     {
@@ -119,8 +120,7 @@ pub(crate) fn get_temporal_fractional_second_digits_option<'gc>(
         ));
     }
     // 3. If digitsValue is not a Number, then
-    if !digits_value.is_number() {
-        let scoped_digits_value = digits_value.scope(agent, gc.nogc());
+    let Ok(digits_number) = Number::try_from(digits_value) else {
         // a. If ? ToString(digitsValue) is not "auto", throw a RangeError exception.
         if digits_value
             .unbind()
@@ -129,16 +129,21 @@ pub(crate) fn get_temporal_fractional_second_digits_option<'gc>(
             .as_bytes(agent)
             != b"auto"
         {
-            // b. Return auto.
-            return Ok(temporal_rs::parsers::Precision::Auto);
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                // TODO(jesper): is the message correct?
+                "fractionalSecondDigits must be a finite number or \"auto\"",
+                gc.into_nogc(),
+            ));
         }
-        // SAFETY: not shared.
-        digits_value = unsafe { scoped_digits_value.take(agent) }.bind(gc.nogc());
-    }
+        // b. Return auto.
+        return Ok(temporal_rs::parsers::Precision::Auto);
+    };
+
     // 4. If digitsValue is NaN, +∞𝔽, or -∞𝔽, throw a RangeError exception.
-    if digits_value.is_nan(agent)
-        || digits_value.is_pos_infinity(agent)
-        || digits_value.is_neg_infinity(agent)
+    if digits_number.is_nan(agent)
+        || digits_number.is_pos_infinity(agent)
+        || digits_number.is_neg_infinity(agent)
     {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::RangeError,
@@ -147,12 +152,7 @@ pub(crate) fn get_temporal_fractional_second_digits_option<'gc>(
         ));
     }
     // 5. Let digitCount be floor(ℝ(digitsValue)).
-    let digit_count = digits_value
-        .unbind()
-        .to_number(agent, gc.reborrow())
-        .unbind()?
-        .bind(gc.nogc());
-    let digit_count = digit_count.into_f64(agent).floor();
+    let digit_count = digits_number.into_f64(agent).floor();
     // 6. If digitCount < 0 or digitCount > 9, throw a RangeError exception.
     if digit_count < 0.0 || digit_count > 9.0 {
         return Err(agent.throw_exception_with_static_message(
@@ -175,18 +175,13 @@ pub(crate) fn get_temporal_fractional_second_digits_option<'gc>(
 /// or a throw completion. It reads unit and rounding options needed by difference operations.
 pub(crate) fn get_difference_settings<'gc, const IS_UNTIL: bool>(
     agent: &mut Agent,
-    options: Object<'gc>,                 // options (an Object)
+    options: Object,                      // options (an Object)
     _unit_group: UnitGroup,               // unitGroup (date, time, or datetime)
-    _disallowed_units: Vec<Unit>,         // disallowedUnits (todo:a List of Temporal units)
+    _disallowed_units: &[Unit],           // disallowedUnits (todo:a List of Temporal units)
     _fallback_smallest_unit: Unit,        // fallbackSmallestUnit (a Temporal unit)
     _smallest_largest_default_unit: Unit, // smallestLargestDefaultUnit (a Temporal unit)
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, DifferenceSettings> {
-    let _unit_group = _unit_group.bind(gc.nogc());
-    let _disallowed_units = _disallowed_units.bind(gc.nogc());
-    let _fallback_smallest_unit = _fallback_smallest_unit.bind(gc.nogc());
-    let _smallest_largest_default_unit = _smallest_largest_default_unit.bind(gc.nogc());
-
     let options = options.scope(agent, gc.nogc());
     // 1. NOTE: The following steps read options and perform independent validation in alphabetical order.
     // 2. Let largestUnit be ? GetTemporalUnitValuedOption(options, "largestUnit", unset).
@@ -221,6 +216,7 @@ pub(crate) fn get_difference_settings<'gc, const IS_UNTIL: bool>(
     )
     .unbind()?
     .bind(gc.nogc());
+    // TODO(jesper): good starting point adding these?
     // 6. Perform ? ValidateTemporalUnitValue(largestUnit, unitGroup, « auto »).
     // 7. If largestUnit is unset, then
     //    a. Set largestUnit to auto.

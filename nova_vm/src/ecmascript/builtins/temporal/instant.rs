@@ -207,6 +207,14 @@ fn add_duration_to_instant<'gc, const IS_ADD: bool>(
     let instant = instant.bind(gc.nogc());
     // 1. Let duration be ? ToTemporalDuration(temporalDurationLike).
     let instant = instant.scope(agent, gc.nogc());
+    // TODO(jesper): added ? here and removed the unwraps, but got gc lifetime error
+    // TODO(jesper): how to check if already Duration? no need to copy
+    // let duration = if let Value::Duration(duration) = duration {
+    //     duration.unbind().get(agent).duration
+    // } else {
+    //     to_temporal_duration(agent, duration.unbind(), gc.reborrow())?
+    // };
+
     let duration = to_temporal_duration(agent, duration.unbind(), gc.reborrow());
     // 2. If operation is subtract, set duration to CreateNegatedTemporalDuration(duration).
     // 3. Let largestUnit be DefaultTemporalLargestUnit(duration).
@@ -260,7 +268,7 @@ fn difference_temporal_instant<'gc, const IS_UNTIL: bool>(
             agent,
             resolved_options.unbind(),
             UnitGroup::Time,
-            vec![],
+            &vec![],
             Unit::Nanosecond,
             Unit::Second,
             gc.reborrow(),
@@ -275,7 +283,7 @@ fn difference_temporal_instant<'gc, const IS_UNTIL: bool>(
             agent,
             resolved_options.unbind(),
             UnitGroup::Time,
-            vec![],
+            &vec![],
             Unit::Nanosecond,
             Unit::Second,
             gc.reborrow(),

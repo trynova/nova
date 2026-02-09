@@ -1,10 +1,14 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 use crate::{
     ecmascript::{Agent, ExceptionType, JsError},
     engine::NoGcScope,
 };
 use temporal_rs::{TemporalError, error::ErrorKind};
 
-pub fn temporal_err_to_js_err<'gc>(
+pub(crate) fn temporal_err_to_js_err<'gc>(
     agent: &mut Agent,
     error: TemporalError,
     gc: NoGcScope<'gc, '_>,
