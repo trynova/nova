@@ -7235,7 +7235,6 @@
   "staging/sm/Iterator/prototype/take/take-more-than-available.js": "FAIL",
   "staging/sm/Iterator/prototype/toArray/create-in-current-realm.js": "FAIL",
   "staging/sm/JSON/parse-with-source.js": "FAIL",
-  "staging/sm/JSON/stringify-gap.js": "FAIL",
   "staging/sm/Math/acosh-approx.js": "FAIL",
   "staging/sm/Math/acosh-exact.js": "FAIL",
   "staging/sm/Math/asinh-approx.js": "FAIL",
