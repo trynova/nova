@@ -5,15 +5,12 @@
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
-        BuiltinIntrinsicConstructor, Error, ExceptionType, Function, JsResult, Object,
-        ProtoIntrinsics, Realm, String, Value, builders::BuiltinFunctionBuilder,
-        ordinary_create_from_constructor, to_string,
+        BuiltinIntrinsicConstructor, ErrorConstructor, ExceptionType, JsResult, Object, Realm,
+        String, Value, builders::BuiltinFunctionBuilder,
     },
-    engine::{Bindable, GcScope, Scopable},
-    heap::{ArenaAccessMut, IntrinsicConstructorIndexes},
+    engine::GcScope,
+    heap::IntrinsicConstructorIndexes,
 };
-
-use super::error_constructor::get_error_cause;
 
 struct EvalErrorConstructor;
 impl Builtin for EvalErrorConstructor {
@@ -88,74 +85,9 @@ impl BuiltinIntrinsicConstructor for URIErrorConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::URIError;
 }
 
+/// ### [20.5.6.1.1 NativeError ( message \[ , options \] )](https://tc39.es/ecma262/#sec-nativeerror)
 pub(crate) struct NativeErrorConstructors;
 impl NativeErrorConstructors {
-    /// ### [20.5.6.1.1 NativeError ( message \[ , options \] )](https://tc39.es/ecma262/#sec-nativeerror)
-    #[inline(always)]
-    fn constructor<'gc>(
-        agent: &mut Agent,
-        error_kind: ExceptionType,
-        arguments: ArgumentsList,
-        new_target: Option<Object>,
-        mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let nogc = gc.nogc();
-        let scoped_message = arguments.get(0).scope(agent, nogc);
-        let options = arguments.get(1).scope(agent, nogc);
-        let new_target = new_target.bind(nogc);
-
-        let intrinsic = match error_kind {
-            ExceptionType::Error => ProtoIntrinsics::Error,
-            ExceptionType::AggregateError => ProtoIntrinsics::AggregateError,
-            ExceptionType::EvalError => ProtoIntrinsics::EvalError,
-            ExceptionType::RangeError => ProtoIntrinsics::RangeError,
-            ExceptionType::ReferenceError => ProtoIntrinsics::ReferenceError,
-            ExceptionType::SyntaxError => ProtoIntrinsics::SyntaxError,
-            ExceptionType::TypeError => ProtoIntrinsics::TypeError,
-            ExceptionType::UriError => ProtoIntrinsics::URIError,
-        };
-
-        // 1. If NewTarget is undefined, let newTarget be the active function
-        //    object; else let newTarget be NewTarget.
-        let new_target = new_target
-            .unwrap_or_else(|| agent.running_execution_context().function.unwrap().into());
-        // 2. Let O be ? OrdinaryCreateFromConstructor(newTarget, "%NativeError.prototype%", « [[ErrorData]] »).
-        let o = ordinary_create_from_constructor(
-            agent,
-            Function::try_from(new_target.unbind()).unwrap(),
-            intrinsic,
-            gc.reborrow(),
-        )
-        .unbind()?
-        .scope(agent, gc.nogc());
-        let message = scoped_message.get(agent).bind(gc.nogc());
-        // 3. If message is not undefined, then
-        let msg = if !message.is_undefined() {
-            // a. Let msg be ? ToString(message).
-            let msg = to_string(agent, message.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
-            // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
-            // Safety: scoped_message is never shared.
-            Some(unsafe { scoped_message.replace_self(agent, msg.unbind()) })
-        } else {
-            None
-        };
-        // 4. Perform ? InstallErrorCause(O, options).
-        // 5. Return O.
-        let cause = get_error_cause(agent, options.get(agent), gc.reborrow()).unbind()?;
-        let gc = gc.into_nogc();
-        let cause = cause.bind(gc);
-        let o = Error::try_from(o.get(agent).bind(gc)).unwrap();
-        // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
-        let msg = msg.map(|msg| msg.get(agent).bind(gc));
-        let heap_data = o.get_mut(agent);
-        heap_data.kind = error_kind;
-        heap_data.message = msg.unbind();
-        heap_data.cause = cause.unbind();
-        Ok(o.into())
-    }
-
     fn eval_error_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -163,7 +95,14 @@ impl NativeErrorConstructors {
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Self::constructor(agent, ExceptionType::EvalError, arguments, new_target, gc)
+        ErrorConstructor::base_constructor(
+            agent,
+            ExceptionType::EvalError,
+            arguments,
+            new_target,
+            gc,
+        )
+        .map(Value::from)
     }
 
     fn range_error_constructor<'gc>(
@@ -173,7 +112,14 @@ impl NativeErrorConstructors {
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Self::constructor(agent, ExceptionType::RangeError, arguments, new_target, gc)
+        ErrorConstructor::base_constructor(
+            agent,
+            ExceptionType::RangeError,
+            arguments,
+            new_target,
+            gc,
+        )
+        .map(Value::from)
     }
 
     fn reference_error_constructor<'gc>(
@@ -183,13 +129,14 @@ impl NativeErrorConstructors {
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Self::constructor(
+        ErrorConstructor::base_constructor(
             agent,
             ExceptionType::ReferenceError,
             arguments,
             new_target,
             gc,
         )
+        .map(Value::from)
     }
 
     fn syntax_error_constructor<'gc>(
@@ -199,7 +146,14 @@ impl NativeErrorConstructors {
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Self::constructor(agent, ExceptionType::SyntaxError, arguments, new_target, gc)
+        ErrorConstructor::base_constructor(
+            agent,
+            ExceptionType::SyntaxError,
+            arguments,
+            new_target,
+            gc,
+        )
+        .map(Value::from)
     }
 
     fn type_error_constructor<'gc>(
@@ -209,7 +163,14 @@ impl NativeErrorConstructors {
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Self::constructor(agent, ExceptionType::TypeError, arguments, new_target, gc)
+        ErrorConstructor::base_constructor(
+            agent,
+            ExceptionType::TypeError,
+            arguments,
+            new_target,
+            gc,
+        )
+        .map(Value::from)
     }
 
     fn uri_error_constructor<'gc>(
@@ -219,7 +180,14 @@ impl NativeErrorConstructors {
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        Self::constructor(agent, ExceptionType::UriError, arguments, new_target, gc)
+        ErrorConstructor::base_constructor(
+            agent,
+            ExceptionType::UriError,
+            arguments,
+            new_target,
+            gc,
+        )
+        .map(Value::from)
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {

@@ -136,6 +136,17 @@ impl<'a> PropertyDescriptor<'a> {
         }
     }
 
+    pub fn non_enumerable_data_descriptor(value: impl Into<Value<'a>>) -> Self {
+        Self {
+            value: Some(value.into()),
+            writable: Some(true),
+            get: None,
+            set: None,
+            enumerable: Some(false),
+            configurable: Some(true),
+        }
+    }
+
     pub fn new_prototype_method_descriptor(function: impl Into<Function<'a>>) -> Self {
         Self {
             value: Some(function.into().unbind().into()),
