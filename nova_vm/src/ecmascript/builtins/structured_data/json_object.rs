@@ -1082,7 +1082,7 @@ fn serialize_json_object<'a, 'b>(
     // 11. Remove the last element of state.[[Stack]].
     state.stack.pop(agent, gc.nogc());
 
-    if state.gap.is_empty() {
+    if !state.gap.is_empty() {
         // 12. Set state.[[Indent]] to stepBack.
         state.indent = step_back;
         // 13. Return final.
