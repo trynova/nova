@@ -16,8 +16,8 @@ use crate::{
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable, bindable_handle},
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, HeapMarkAndSweep, WorkQueues,
-        arena_vec_access, {BaseIndex, HeapIndexHandle, index_handle},
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapIndexHandle, HeapMarkAndSweep, WorkQueues, arena_vec_access, index_handle,
     },
 };
 use core::marker::PhantomData;
@@ -35,11 +35,6 @@ impl core::fmt::Debug for Realm<'_> {
 }
 
 impl<'r> Realm<'r> {
-    pub(crate) fn last(realms: &[RealmRecord]) -> Self {
-        let index = realms.len() - 1;
-        Self::from_index(index)
-    }
-
     /// ### \[\[\HostDefined]]
     pub fn host_defined(self, agent: &Agent) -> Option<HostDefined> {
         self.get(agent).host_defined.clone()
@@ -92,6 +87,14 @@ impl HeapMarkAndSweep for Realm<'static> {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.realms.shift_index(&mut self.0);
+    }
+}
+
+impl<'a> CreateHeapData<RealmRecord<'a>, Realm<'a>> for Heap {
+    fn create(&mut self, data: RealmRecord<'a>) -> Realm<'a> {
+        self.realms.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<RealmRecord<'static>>();
+        Realm(BaseIndex::last(&self.realms))
     }
 }
 
@@ -220,7 +223,7 @@ pub(crate) fn create_realm<'gc>(agent: &mut Agent, gc: NoGcScope<'gc, '_>) -> Re
     };
 
     // 7. Return realmRec.
-    let realm = agent.heap.add_realm(realm_rec, gc);
+    let realm = agent.heap.create(realm_rec).bind(gc);
     Intrinsics::create_intrinsics(agent, realm.unbind(), gc);
     realm
 }

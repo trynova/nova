@@ -47,11 +47,11 @@ use crate::{
         ModuleRequestRecord, NumberHeapData, ObjectRecord, ObjectShapeRecord,
         ObjectShapeTransitionMap, PrimitiveObjectRecord, PromiseFinallyFunctionHeapData,
         PromiseGroupRecord, PromiseHeapData, PromiseReactionRecord,
-        PromiseResolvingFunctionHeapData, PrototypeShapeTable, ProxyHeapData, Realm, RealmRecord,
-        Script, ScriptRecord, SourceCodeHeapData, SourceTextModuleHeap, String,
-        StringIteratorHeapData, StringRecord, SymbolHeapData,
+        PromiseResolvingFunctionHeapData, PrototypeShapeTable, ProxyHeapData, RealmRecord,
+        ScriptRecord, SourceCodeHeapData, SourceTextModuleHeap, String, StringIteratorHeapData,
+        StringRecord, SymbolHeapData,
     },
-    engine::{Bindable, ExecutableHeapData, HeapRootData, NoGcScope},
+    engine::{ExecutableHeapData, HeapRootData},
 };
 #[cfg(feature = "array-buffer")]
 use ahash::AHashMap;
@@ -389,22 +389,6 @@ impl Heap {
             .push(ObjectShapeTransitionMap::ROOT);
 
         heap
-    }
-
-    pub(crate) fn add_realm<'a>(&mut self, realm: RealmRecord, _: NoGcScope<'a, '_>) -> Realm<'a> {
-        self.realms.push(realm.unbind());
-        self.alloc_counter += core::mem::size_of::<RealmRecord<'static>>();
-        Realm::last(&self.realms)
-    }
-
-    pub(crate) fn add_script<'a>(
-        &mut self,
-        script: ScriptRecord,
-        _: NoGcScope<'a, '_>,
-    ) -> Script<'a> {
-        self.scripts.push(script.unbind());
-        self.alloc_counter += core::mem::size_of::<ScriptRecord<'static>>();
-        Script::last(&self.scripts)
     }
 
     /// Allocate a borrowed string onto the Agent heap

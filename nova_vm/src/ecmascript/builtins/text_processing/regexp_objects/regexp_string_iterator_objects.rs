@@ -17,8 +17,8 @@ use crate::{
     },
     engine::{Bindable, NoGcScope, bindable_handle},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, arena_vec_access, {BaseIndex, HeapIndexHandle},
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
 
@@ -94,22 +94,6 @@ impl<'r> RegExpStringIterator<'r> {
     /// Set \[\[Done]] to true.
     pub(crate) fn set_done(self, agent: &mut Agent) {
         self.get_mut(agent).done = true;
-    }
-
-    fn get(self, agent: &Agent) -> &RegExpStringIteratorRecord<'r> {
-        agent
-            .heap
-            .regexp_string_iterators
-            .get(self.get_index())
-            .expect("Couldn't find RegExp String Iterator")
-    }
-
-    fn get_mut(self, agent: &mut Agent) -> &mut RegExpStringIteratorRecord<'static> {
-        agent
-            .heap
-            .regexp_string_iterators
-            .get_mut(self.get_index())
-            .expect("Couldn't find RegExp String Iterator")
     }
 }
 

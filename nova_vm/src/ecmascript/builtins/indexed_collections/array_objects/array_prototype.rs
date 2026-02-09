@@ -19,7 +19,9 @@ use crate::{
         try_to_integer_or_infinity, try_to_string, unwrap_try,
     },
     engine::{Bindable, GcScope, Rootable, Scopable, ScopableCollection, Scoped},
-    heap::{Heap, HeapIndexHandle, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+    heap::{
+        ArenaAccessSoAMut, Heap, HeapIndexHandle, IntrinsicFunctionIndexes, WellKnownSymbolIndexes,
+    },
 };
 
 pub(crate) struct ArrayPrototype;

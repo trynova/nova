@@ -1561,7 +1561,7 @@ impl HeapMarkAndSweep for Agent {
         if let Some(last_filled_global_value) = last_filled_global_value {
             heap.globals
                 .borrow_mut()
-                .drain(last_filled_global_value + 1..);
+                .truncate(last_filled_global_value + 1);
         }
     }
 
