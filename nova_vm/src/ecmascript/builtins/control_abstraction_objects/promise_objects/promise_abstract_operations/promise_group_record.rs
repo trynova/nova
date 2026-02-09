@@ -6,12 +6,12 @@ use crate::{
     ecmascript::{
         Agent, Array, BUILTIN_STRING_MEMORY, ErrorHeapData, ExceptionType, OrdinaryObject, Promise,
         PromiseCapability, PromiseReactionType, PropertyDescriptor, Value,
-        define_property_or_throw,
+        try_define_property_or_throw, unwrap_try,
     },
     engine::{Bindable, GcScope, NoGcScope, bindable_handle},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, ObjectEntry, WorkQueues,
-        arena_vec_access, {BaseIndex, HeapIndexHandle, index_handle},
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, ObjectEntry, WorkQueues, arena_vec_access, index_handle,
     },
 };
 
@@ -36,7 +36,7 @@ pub struct PromiseGroup<'a>(BaseIndex<'a, PromiseGroupRecord<'static>>);
 index_handle!(PromiseGroup);
 arena_vec_access!(PromiseGroup, 'a, PromiseGroupRecord, promise_group_records);
 
-impl<'a> PromiseGroupRecord<'static> {
+impl<'a> PromiseGroupRecord<'a> {
     fn take_result_and_promise(&mut self) -> (Array<'a>, Option<Promise<'a>>) {
         self.remaining_elements_count = self.remaining_elements_count.saturating_sub(1);
 
@@ -57,56 +57,67 @@ impl<'a> PromiseGroup<'a> {
         value: Value<'a>,
         mut gc: GcScope<'a, '_>,
     ) {
+        let group = self.bind(gc.nogc());
         let value = value.bind(gc.nogc());
-        let record = self.get(agent);
+        let record = group.get(agent);
 
         match record.promise_group_type {
             PromiseGroupType::All => match reaction_type {
                 PromiseReactionType::Fulfill => {
-                    self.fulfill(agent, index, value.unbind(), gc.reborrow());
+                    group
+                        .unbind()
+                        .fulfill(agent, index, value.unbind(), gc.reborrow());
                 }
                 PromiseReactionType::Reject => {
-                    self.immediately_reject(agent, value.unbind(), gc.nogc());
+                    group
+                        .unbind()
+                        .immediately_reject(agent, value.unbind(), gc.nogc());
                 }
             },
             PromiseGroupType::AllSettled => {
-                let obj = self
-                    .to_all_settled_obj(agent, reaction_type, value.unbind(), gc.nogc())
-                    .bind(gc.nogc());
-                self.fulfill(agent, index, obj.unbind(), gc.reborrow());
+                let obj = PromiseGroup::to_all_settled_obj(agent, reaction_type, value, gc.nogc());
+                group
+                    .unbind()
+                    .fulfill(agent, index, obj.unbind(), gc.reborrow());
             }
             PromiseGroupType::Any => match reaction_type {
                 PromiseReactionType::Fulfill => {
-                    self.immediately_resolve(agent, value.unbind(), gc.reborrow());
+                    group
+                        .unbind()
+                        .immediately_resolve(agent, value.unbind(), gc.reborrow());
                 }
                 PromiseReactionType::Reject => {
-                    self.reject(agent, index, value.unbind(), gc.reborrow());
+                    group
+                        .unbind()
+                        .reject(agent, index, value.unbind(), gc.into_nogc());
                 }
             },
         }
     }
 
     fn fulfill(self, agent: &mut Agent, index: u32, value: Value<'a>, mut gc: GcScope<'a, '_>) {
-        let promise_group = self.bind(gc.nogc());
+        let group = self.bind(gc.nogc());
         let value = value.bind(gc.nogc());
 
-        let promise_group_record = promise_group.get_mut(agent);
+        let promise_group_record = group.get_mut(agent);
         let (result_array, promise_to_resolve) = promise_group_record.take_result_and_promise();
 
         let elements = result_array.as_mut_slice(agent);
         elements[index as usize] = Some(value.unbind());
 
         if let Some(promise_to_resolve) = promise_to_resolve {
-            promise_group.pop_empty_records(agent);
+            group.pop_empty_records(agent);
 
             let capability = PromiseCapability::from_promise(promise_to_resolve, true);
-            capability.resolve(agent, result_array.unbind().into(), gc.reborrow());
+            capability
+                .unbind()
+                .resolve(agent, result_array.unbind().into(), gc.reborrow());
         }
     }
 
-    fn reject(self, agent: &mut Agent, index: u32, error: Value<'a>, mut gc: GcScope<'a, '_>) {
-        let promise_group = self.bind(gc.nogc());
-        let error = error.bind(gc.nogc());
+    fn reject(self, agent: &mut Agent, index: u32, error: Value<'a>, gc: NoGcScope<'a, '_>) {
+        let promise_group = self.bind(gc);
+        let error = error.bind(gc);
 
         let promise_group_record = promise_group.get_mut(agent);
         let (result_array, promise_to_resolve) = promise_group_record.take_result_and_promise();
@@ -117,14 +128,17 @@ impl<'a> PromiseGroup<'a> {
         if let Some(promise_to_resolve) = promise_to_resolve {
             promise_group.pop_empty_records(agent);
 
-            let aggregate_error = agent.heap.create(ErrorHeapData::new(
-                ExceptionType::AggregateError,
-                None,
-                None,
-            ));
+            let aggregate_error = agent
+                .heap
+                .create(ErrorHeapData::new(
+                    ExceptionType::AggregateError,
+                    None,
+                    None,
+                ))
+                .bind(gc);
 
             let capability = PromiseCapability::from_promise(promise_to_resolve, true);
-            define_property_or_throw(
+            unwrap_try(try_define_property_or_throw(
                 agent,
                 aggregate_error,
                 BUILTIN_STRING_MEMORY.errors.into(),
@@ -136,11 +150,11 @@ impl<'a> PromiseGroup<'a> {
                     enumerable: Some(true),
                     configurable: Some(true),
                 },
-                gc.reborrow(),
-            )
-            .unwrap();
+                None,
+                gc,
+            ));
 
-            capability.reject(agent, aggregate_error.into(), gc.nogc());
+            capability.reject(agent, aggregate_error.into(), gc);
         }
     }
 
@@ -152,7 +166,7 @@ impl<'a> PromiseGroup<'a> {
         let capability = PromiseCapability::from_promise(data.promise, true);
 
         promise_group.pop_empty_records(agent);
-        capability.resolve(agent, value.unbind(), gc);
+        capability.unbind().resolve(agent, value.unbind(), gc);
     }
 
     fn immediately_reject(self, agent: &mut Agent, value: Value<'a>, gc: NoGcScope<'a, '_>) {
@@ -167,7 +181,6 @@ impl<'a> PromiseGroup<'a> {
     }
 
     fn to_all_settled_obj(
-        self,
         agent: &mut Agent,
         reaction_type: PromiseReactionType,
         value: Value<'a>,
@@ -207,22 +220,6 @@ impl<'a> PromiseGroup<'a> {
         .bind(gc);
 
         obj.unbind().into()
-    }
-
-    pub(crate) fn get(self, agent: &Agent) -> &PromiseGroupRecord<'a> {
-        agent
-            .heap
-            .promise_group_records
-            .get(self.get_index())
-            .expect("PromiseGroupRecord not found")
-    }
-
-    pub(crate) fn get_mut(self, agent: &mut Agent) -> &mut PromiseGroupRecord<'static> {
-        agent
-            .heap
-            .promise_group_records
-            .get_mut(self.get_index())
-            .expect("PromiseGroupRecord not found")
     }
 
     fn pop_empty_records(self, agent: &mut Agent) {

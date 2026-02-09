@@ -15,8 +15,8 @@ use crate::{
     },
     engine::{Bindable, NoGcScope},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, arena_vec_access, {BaseIndex, HeapIndexHandle},
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
 
@@ -87,22 +87,6 @@ impl<'sab> SharedArrayBuffer<'sab> {
                 data_block,
             })
             .bind(gc)
-    }
-
-    fn get(self, agent: &Agent) -> &SharedArrayBufferRecord<'sab> {
-        agent
-            .heap
-            .shared_array_buffers
-            .get(self.get_index())
-            .expect("Invalid SharedArrayBuffer")
-    }
-
-    fn get_mut(self, agent: &mut Agent) -> &mut SharedArrayBufferRecord<'static> {
-        agent
-            .heap
-            .shared_array_buffers
-            .get_mut(self.get_index())
-            .expect("Invalid SharedArrayBuffer")
     }
 
     pub fn grow<'gc>(

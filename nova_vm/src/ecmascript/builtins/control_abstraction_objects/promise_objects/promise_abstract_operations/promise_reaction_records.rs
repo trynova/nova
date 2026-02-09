@@ -9,8 +9,8 @@ use crate::{
     },
     engine::{Bindable, bindable_handle},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, arena_vec_access,
-        {BaseIndex, index_handle},
+        BaseIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        arena_vec_access, index_handle,
     },
 };
 

@@ -22,9 +22,10 @@ use crate::{
     },
     engine::{Bindable, GcScope, NoGcScope},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, arena_vec_access, {BaseIndex, HeapIndexHandle},
-        {ElementArrays, ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementsVector},
+        ArenaAccessSoA, ArenaAccessSoAMut, BaseIndex, CompactionLists, CreateHeapData,
+        ElementArrays, ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementsVector,
+        Heap, HeapIndexHandle, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
+        arena_vec_access,
     },
 };
 
@@ -109,26 +110,6 @@ impl<'a> Array<'a> {
         } = &mut agent.heap;
         let elems = self.get_elements_mut(arrays);
         elems.reserve(elements, elems.len().saturating_add(additional))
-    }
-
-    pub(crate) fn get<'agent>(
-        self,
-        agent: &'agent impl AsRef<SoAVec<ArrayHeapData<'static>>>,
-    ) -> ArrayHeapDataRef<'agent, 'a> {
-        agent
-            .as_ref()
-            .get(self.0.get_index_u32())
-            .expect("Invalid Array reference")
-    }
-
-    pub(crate) fn get_mut<'agent>(
-        self,
-        agent: &'agent mut impl AsMut<SoAVec<ArrayHeapData<'static>>>,
-    ) -> ArrayHeapDataMut<'agent, 'static> {
-        agent
-            .as_mut()
-            .get_mut(self.0.get_index_u32())
-            .expect("Invalid Array reference")
     }
 
     pub(crate) fn get_elements(

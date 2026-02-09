@@ -16,7 +16,10 @@ use crate::{
         iterator_step_value, ordinary_create_from_constructor,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable, Scoped, bindable_handle},
-    heap::{CreateHeapData, IntrinsicConstructorIndexes, ObjectEntry, WellKnownSymbolIndexes},
+    heap::{
+        ArenaAccessMut, CreateHeapData, IntrinsicConstructorIndexes, ObjectEntry,
+        WellKnownSymbolIndexes,
+    },
 };
 
 pub(crate) struct PromiseConstructor;

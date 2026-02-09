@@ -12,7 +12,7 @@ use crate::{
     },
     heap::{
         ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        WorkQueues, arena_vec_access, {BaseIndex, HeapIndexHandle, index_handle},
+        WorkQueues, arena_vec_access, {BaseIndex, index_handle},
     },
 };
 
@@ -23,11 +23,6 @@ index_handle!(AwaitReaction);
 arena_vec_access!(AwaitReaction, 'a, AwaitReactionRecord, await_reactions);
 
 impl AwaitReaction<'_> {
-    pub(crate) fn last(scripts: &[AwaitReactionRecord]) -> Self {
-        let index = scripts.len() - 1;
-        Self::from_index(index)
-    }
-
     pub(crate) fn resume(
         self,
         agent: &mut Agent,
@@ -38,7 +33,8 @@ impl AwaitReaction<'_> {
         let reaction = self.bind(gc.nogc());
         let value = value.bind(gc.nogc());
         // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
-        // 3. c. Push asyncContext onto the execution context stack; asyncContext is now the running execution context.
+        // 3. c. Push asyncContext onto the execution context stack;
+        //       asyncContext is now the running execution context.
         let record = reaction.get_mut(agent);
         let execution_context = record.execution_context.take().unwrap();
         let vm = record.vm.take().unwrap();
@@ -46,8 +42,12 @@ impl AwaitReaction<'_> {
         agent.push_execution_context(execution_context);
 
         let reaction = reaction.scope(agent, gc.nogc());
-        // 3. d. Resume the suspended evaluation of asyncContext using NormalCompletion(v) as the result of the operation that suspended it.
-        // 5. d. Resume the suspended evaluation of asyncContext using ThrowCompletion(reason) as the result of the operation that suspended it.
+        // 3. d. Resume the suspended evaluation of asyncContext using
+        //       NormalCompletion(v) as the result of the operation that
+        //       suspended it.
+        // 5. d. Resume the suspended evaluation of asyncContext using
+        //       ThrowCompletion(reason) as the result of the operation that
+        //       suspended it.
         let execution_result = match reaction_type {
             PromiseReactionType::Fulfill => {
                 let executable = async_function.get_executable(agent).scope(agent, gc.nogc());
@@ -63,8 +63,6 @@ impl AwaitReaction<'_> {
             }
         };
 
-        // SAFETY: reaction is not shared.
-        let reaction = unsafe { reaction.take(agent) }.bind(gc.nogc());
         match execution_result {
             ExecutionResult::Return(result) => {
                 // SAFETY: reaction is not shared.
@@ -189,7 +187,7 @@ impl<'a> CreateHeapData<AwaitReactionRecord<'a>, AwaitReaction<'a>> for Heap {
     fn create(&mut self, data: AwaitReactionRecord<'a>) -> AwaitReaction<'a> {
         self.await_reactions.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<AwaitReactionRecord<'static>>();
-        AwaitReaction::last(&self.await_reactions)
+        AwaitReaction(BaseIndex::last(&self.await_reactions))
     }
 }
 

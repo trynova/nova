@@ -1517,28 +1517,6 @@ impl_value_from_n!(i16);
 impl_value_from_n!(u32);
 impl_value_from_n!(i32);
 
-// impl<'n> HeapAccess<Agent> for Number<'n> {
-//     type OutputRef<'a>
-//         = &'a f64
-//     where
-//         Self: 'a,
-//         Agent: 'a;
-
-//     type OutputMut<'a>
-//         = &'a mut f64
-//     where
-//         Self: 'a,
-//         Agent: 'a;
-
-//     fn get<'a>(self, source: &'a Agent) -> Self::OutputRef<'a> {
-//         todo!()
-//     }
-
-//     fn get_mut<'a>(self, source: &'a mut Agent) -> Self::OutputMut<'a> {
-//         todo!()
-//     }
-// }
-
 impl<'a> CreateHeapData<f64, Number<'a>> for Heap {
     fn create(&mut self, data: f64) -> Number<'a> {
         // NOTE: This function cannot currently be implemented

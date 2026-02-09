@@ -9,8 +9,8 @@ use crate::{
     },
     engine::{Bindable, GcScope, Scopable, bindable_handle},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, arena_vec_access, {BaseIndex, HeapIndexHandle},
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
 
@@ -68,22 +68,6 @@ impl<'f> BuiltinPromiseFinallyFunction<'f> {
             resolve_type: PromiseFinallyFunctionType::RejectFinally { on_finally, c },
         });
         (then_finally_closure, catch_finally_closure)
-    }
-
-    fn get(self, agent: &Agent) -> &PromiseFinallyFunctionHeapData<'f> {
-        agent
-            .heap
-            .promise_finally_functions
-            .get(self.get_index())
-            .expect("Promise.prototype.finally handler not found")
-    }
-
-    fn get_mut(self, agent: &mut Agent) -> &mut PromiseFinallyFunctionHeapData<'static> {
-        agent
-            .heap
-            .promise_finally_functions
-            .get_mut(self.get_index())
-            .expect("Promise.prototype.finally handler not found")
     }
 }
 

@@ -15,8 +15,8 @@ use crate::{
     },
     engine::{Bindable, Executable, GcScope, NoGcScope, Scopable, Vm, bindable_handle},
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, HeapMarkAndSweep, WorkQueues,
-        arena_vec_access, {BaseIndex, HeapIndexHandle, index_handle},
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapIndexHandle, HeapMarkAndSweep, WorkQueues, arena_vec_access, index_handle,
     },
     ndt,
 };
@@ -69,10 +69,6 @@ impl Script<'_> {
         self.get(agent).source_code.bind(gc)
     }
 
-    pub(crate) fn last(scripts: &[ScriptRecord]) -> Self {
-        Self::from_index(scripts.len() - 1)
-    }
-
     /// ### \[\[Realm]]
     pub(crate) fn realm<'a>(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> Realm<'a> {
         self.get(agent).realm.bind(gc)
@@ -103,6 +99,14 @@ impl HeapMarkAndSweep for Script<'static> {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.scripts.shift_index(&mut self.0);
+    }
+}
+
+impl<'a> CreateHeapData<ScriptRecord<'a>, Script<'a>> for Heap {
+    fn create(&mut self, data: ScriptRecord<'a>) -> Script<'a> {
+        self.scripts.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<ScriptRecord<'static>>();
+        Script(BaseIndex::last(&self.scripts))
     }
 }
 
@@ -255,8 +259,7 @@ pub fn parse_script<'a>(
         source_code: source_code.unbind(),
     };
     // }
-    let script = agent.heap.add_script(script_record, gc);
-    Ok(script)
+    Ok(agent.heap.create(script_record).bind(gc))
 }
 
 /// ### [16.1.6 ScriptEvaluation ( scriptRecord )](https://tc39.es/ecma262/#sec-runtime-semantics-scriptevaluation)
