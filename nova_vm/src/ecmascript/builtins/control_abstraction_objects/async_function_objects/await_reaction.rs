@@ -67,8 +67,15 @@ impl AwaitReaction<'_> {
         let reaction = unsafe { reaction.take(agent) }.bind(gc.nogc());
         match execution_result {
             ExecutionResult::Return(result) => {
+                // SAFETY: reaction is not shared.
+                let reaction = unsafe { reaction.take(agent) }.bind(gc.nogc());
+
                 // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
-                // 2. d. Remove acAsyncContext from the execution context stack and restore the execution context that is at the top of the execution context stack as the running execution context.
+                //
+                // 2. d. Remove acAsyncContext from the execution context stack
+                //       and restore the execution context that is at the top of
+                //       the execution context stack as the running execution
+                //       context.
                 agent.pop_execution_context();
                 // 2. e. If result is a normal completion, then
                 //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « undefined »).
@@ -82,8 +89,15 @@ impl AwaitReaction<'_> {
                     .resolve(agent, result.unbind(), gc);
             }
             ExecutionResult::Throw(err) => {
+                // SAFETY: reaction is not shared.
+                let reaction = unsafe { reaction.take(agent) }.bind(gc.nogc());
+
                 // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
-                // 2. d. Remove acAsyncContext from the execution context stack and restore the execution context that is at the top of the execution context stack as the running execution context.
+                //
+                // 2. d. Remove acAsyncContext from the execution context stack
+                //       and restore the execution context that is at the top of
+                //       the execution context stack as the running execution
+                //       context.
                 agent.pop_execution_context();
                 // 2. g. i. Assert: result is a throw completion.
                 //       ii. Perform ! Call(promiseCapability.[[Reject]], undefined, « result.[[Value]] »).
@@ -95,21 +109,29 @@ impl AwaitReaction<'_> {
             }
             ExecutionResult::Await { vm, awaited_value } => {
                 // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
-                // 8. Remove asyncContext from the execution context stack and restore the execution context that is at the top of the execution context stack as the running execution context.
+                // 8. Remove asyncContext from the execution context stack and
+                //    restore the execution context that is at the top of the
+                //    execution context stack as the running execution context.
                 let execution_context = agent.pop_execution_context().unwrap();
-                let data = reaction.get_mut(agent);
+                let data = reaction.get(agent).bind(gc.nogc()).get_mut(agent);
                 data.vm = Some(vm);
                 data.execution_context = Some(execution_context);
 
-                // `handler` corresponds to the `fulfilledClosure` and `rejectedClosure` functions,
-                // which resume execution of the function.
-                let handler = PromiseReactionHandler::Await(self);
                 // 2. Let promise be ? PromiseResolve(%Promise%, value).
-                let promise = Promise::resolve(agent, awaited_value.unbind(), gc.reborrow())
-                    .unbind()
-                    .bind(gc.nogc());
+                let promise =
+                    Promise::resolve(agent, awaited_value.unbind(), gc.reborrow()).unbind();
+                let gc = gc.into_nogc();
+                let promise = promise.bind(gc);
+
+                // SAFETY: not shared.
+                let reaction = unsafe { reaction.take(agent) }.bind(gc);
+
+                // `handler` corresponds to the `fulfilledClosure` and
+                // `rejectedClosure` functions, which resume execution of the
+                // function.
+                let handler = PromiseReactionHandler::Await(reaction);
                 // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
-                inner_promise_then(agent, promise, handler, handler, None, gc.nogc());
+                inner_promise_then(agent, promise, handler, handler, None, gc);
             }
             ExecutionResult::Yield { .. } => unreachable!(),
         }
