@@ -1,3 +1,7 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, BigInt, Builtin,
@@ -203,6 +207,7 @@ impl TemporalInstantConstructor {
         let one = args.get(0).bind(gc.nogc());
         let two = args.get(1).bind(gc.nogc());
         let two = two.scope(agent, gc.nogc());
+        // TODO(jesper): how to check if already instant and compare for early return?
         // 1. Set one to ? ToTemporalInstant(one).
         let one_instant = to_temporal_instant(agent, one.unbind(), gc.reborrow()).unbind()?;
         // 2. Set two to ? ToTemporalInstant(two).

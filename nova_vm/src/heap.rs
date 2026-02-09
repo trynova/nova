@@ -228,11 +228,11 @@ impl Heap {
             caches: Caches::with_capacity(1024),
             #[cfg(feature = "date")]
             dates: Vec::with_capacity(1024),
-            // TODO: assign appropriate value for Temporal objects.
+            // TODO(jesper): why 0?
             #[cfg(feature = "temporal")]
-            instants: Vec::with_capacity(1024),
+            instants: Vec::with_capacity(0),
             #[cfg(feature = "temporal")]
-            durations: Vec::with_capacity(1024),
+            durations: Vec::with_capacity(0),
             ecmascript_functions: Vec::with_capacity(1024),
             elements: ElementArrays {
                 e2pow1: ElementArray2Pow1::with_capacity(1024),

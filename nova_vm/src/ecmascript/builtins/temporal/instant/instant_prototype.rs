@@ -240,7 +240,7 @@ impl TemporalInstantPrototype {
         let other = args.get(0).bind(gc.nogc());
         let options = args.get(1).bind(gc.nogc());
         // 1. Let instant be the this value.
-        let instant = this_value;
+        let instant = this_value.bind(gc.nogc());
         // 2. Perform ? RequireInternalSlot(instant, [[InitializedTemporalInstant]]).
         let instant = require_internal_slot_temporal_instant(agent, instant.unbind(), gc.nogc())
             .unbind()?
@@ -274,7 +274,7 @@ impl TemporalInstantPrototype {
             .scope(agent, gc.nogc());
 
         // 3. If roundTo is undefined, then
-        if round_to.unbind().is_undefined() {
+        if round_to.is_undefined() {
             // a. Throw a TypeError exception.
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -284,7 +284,7 @@ impl TemporalInstantPrototype {
         }
 
         // 4. If roundTo is a String, then
-        let round_to = if round_to.unbind().is_string() {
+        let round_to = if round_to.is_string() {
             // a. Let paramString be roundTo.
             let param_string = round_to;
             // b. Set roundTo to OrdinaryObjectCreate(null).
@@ -301,7 +301,7 @@ impl TemporalInstantPrototype {
             round_to.into()
         } else {
             // 5. Else, set roundTo to ? GetOptionsObject(roundTo).
-            get_options_object(agent, round_to.unbind(), gc.nogc())
+            get_options_object(agent, round_to, gc.nogc())
                 .unbind()?
                 .bind(gc.nogc())
         };
@@ -366,7 +366,9 @@ impl TemporalInstantPrototype {
             .unbind()?
             .bind(gc.nogc());
         // 19. Return ! CreateTemporalInstant(roundedNs).
-        Ok(create_temporal_instant(agent, rounded_ns, None, gc)?.into())
+        Ok(create_temporal_instant(agent, rounded_ns, None, gc)
+            .unwrap()
+            .into())
     }
 
     /// ### [8.3.10 Temporal.Instant.prototype.equals ( other )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.equals)

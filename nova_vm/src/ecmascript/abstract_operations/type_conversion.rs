@@ -1559,6 +1559,7 @@ pub(crate) fn try_to_index<'a>(
 /// an integer or a throw completion.
 /// It converts argument to an integer representing its Number value,
 /// or throws a RangeError when that value is not integral.
+#[cfg(feature = "array-buffer")]
 pub(crate) fn to_integer_if_integral<'gc>(
     agent: &mut Agent,
     argument: Value,
