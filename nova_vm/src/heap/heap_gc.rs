@@ -26,8 +26,9 @@ use crate::{
         EmbedderObject, Environments, Error, FinalizationRegistry, FunctionEnvironment, Generator,
         GlobalEnvironment, HeapBigInt, HeapNumber, HeapString, Map, MapIterator, Module,
         ModuleEnvironment, ModuleRequest, ObjectEnvironment, ObjectShape, OrdinaryObject,
-        PrimitiveObject, Promise, PromiseGroup, PromiseReaction, PropertyLookupCache, Proxy, Realm,
-        Script, SourceCode, SourceTextModule, StringIterator, Symbol,
+        PrimitiveObject, PrivateEnvironment, Promise, PromiseGroup, PromiseReaction,
+        PropertyLookupCache, Proxy, Realm, Script, SourceCode, SourceTextModule, StringIterator,
+        Symbol,
     },
     engine::{Bindable, Executable, GcScope},
     heap::{
@@ -167,7 +168,7 @@ pub(crate) fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static
             global: global_environments,
             module: module_environments,
             object: object_environments,
-            private: _private_environments,
+            private: private_environments,
         } = environments;
         let ElementArrays {
             e2pow1,
@@ -289,6 +290,19 @@ pub(crate) fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static
                 if bits.object_environments.set_bit(index, &bits.bits) {
                     // Did mark.
                     object_environments.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+
+        if !queues.private_environments.is_empty() {
+            let mut private_environment_marks: Box<[PrivateEnvironment]> =
+                queues.private_environments.drain(..).collect();
+            private_environment_marks.sort();
+            private_environment_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.private_environments.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    private_environments.get(index).mark_values(&mut queues);
                 }
             });
         }
@@ -1295,7 +1309,7 @@ fn sweep(
         global,
         module,
         object,
-        private: _private_environments,
+        private,
     } = environments;
     let ElementArrays {
         e2pow1,
@@ -1786,6 +1800,16 @@ fn sweep(
                     object,
                     &compactions,
                     &bits.object_environments,
+                    &bits.bits,
+                );
+            });
+        }
+        if !private.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(
+                    private,
+                    &compactions,
+                    &bits.private_environments,
                     &bits.bits,
                 );
             });
