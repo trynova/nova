@@ -204,29 +204,34 @@ fn add_duration_to_instant<'gc, const IS_ADD: bool>(
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Value<'gc>> {
     let duration = duration.bind(gc.nogc());
-    let instant = instant.bind(gc.nogc());
+    let mut instant = instant.bind(gc.nogc());
     // 1. Let duration be ? ToTemporalDuration(temporalDurationLike).
-    let instant = instant.scope(agent, gc.nogc());
-    // TODO(jesper): added ? here and removed the unwraps, but got gc lifetime error
-    // TODO(jesper): how to check if already Duration? no need to copy
-    // let duration = if let Value::Duration(duration) = duration {
-    //     duration.unbind().get(agent).duration
-    // } else {
-    //     to_temporal_duration(agent, duration.unbind(), gc.reborrow())?
-    // };
 
-    let duration = to_temporal_duration(agent, duration.unbind(), gc.reborrow());
+    let duration = if let Value::Duration(duration) = duration {
+        duration.unbind().get(agent).duration
+    } else {
+        let scoped_instant = instant.scope(agent, gc.nogc());
+        let res = to_temporal_duration(agent, duration.unbind(), gc.reborrow()).unbind()?;
+        // SAFETY: not shared
+        unsafe {
+            instant = scoped_instant.take(agent);
+        }
+        res
+    };
+
     // 2. If operation is subtract, set duration to CreateNegatedTemporalDuration(duration).
     // 3. Let largestUnit be DefaultTemporalLargestUnit(duration).
     // 4. If TemporalUnitCategory(largestUnit) is date, throw a RangeError exception.
     // 5. Let internalDuration be ToInternalDurationRecordWith24HourDays(duration).
     // 6. Let ns be ? AddInstant(instant.[[EpochNanoseconds]], internalDuration.[[Time]]).
     let ns_result = if IS_ADD {
-        temporal_rs::Instant::add(instant.get(agent).inner_instant(agent), &duration.unwrap())
-            .unwrap()
+        temporal_rs::Instant::add(instant.inner_instant(agent), &duration)
+            .map_err(|err| temporal_err_to_js_err(agent, err, gc.nogc()))
+            .unbind()?
     } else {
-        temporal_rs::Instant::subtract(instant.get(agent).inner_instant(agent), &duration.unwrap())
-            .unwrap()
+        temporal_rs::Instant::subtract(instant.inner_instant(agent), &duration)
+            .map_err(|err| temporal_err_to_js_err(agent, err, gc.nogc()))
+            .unbind()?
     };
     // 7. Return ! CreateTemporalInstant(ns).
     let instant = create_temporal_instant(agent, ns_result, None, gc)?;

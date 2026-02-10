@@ -48,13 +48,8 @@ impl TemporalDurationConstructor {
                 gc.into_nogc(),
             ));
         };
-        // TODO(jesper): what does this mean?
-        // note: Here you do not want to unbind new_target before calling try_from: if left bound then the
-        // Ok(new_target) would still be bound to the GC lifetime and would be safe. If you didn't scope the
-        // result into a variable shadowing this name, it'd be possible for someone to accidentally use
-        // new_target after free.
 
-        let Ok(new_target) = Function::try_from(new_target.unbind()) else {
+        let Ok(new_target) = Function::try_from(new_target) else {
             unreachable!()
         };
         let new_target = new_target.scope(agent, gc.nogc());

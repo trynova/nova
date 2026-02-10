@@ -5,9 +5,9 @@
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, BigInt, Builtin,
-        BuiltinIntrinsicConstructor, ExceptionType, Function, InstantRecord, JsResult, Object,
-        Realm, String, Value, builders::BuiltinFunctionBuilder, create_temporal_instant,
-        to_big_int, to_temporal_instant,
+        BuiltinIntrinsicConstructor, ExceptionType, Function, InstantRecord, InternalMethods,
+        JsResult, Object, Realm, String, Value, builders::BuiltinFunctionBuilder,
+        create_temporal_instant, to_big_int, to_temporal_instant,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{CreateHeapData, IntrinsicConstructorIndexes},
@@ -206,15 +206,24 @@ impl TemporalInstantConstructor {
     ) -> JsResult<'gc, Value<'gc>> {
         let one = args.get(0).bind(gc.nogc());
         let two = args.get(1).bind(gc.nogc());
-        let two = two.scope(agent, gc.nogc());
-        // TODO(jesper): how to check if already instant and compare for early return?
-        // 1. Set one to ? ToTemporalInstant(one).
-        let one_instant = to_temporal_instant(agent, one.unbind(), gc.reborrow()).unbind()?;
-        // 2. Set two to ? ToTemporalInstant(two).
-        let two_value = two.get(agent).bind(gc.nogc());
-        let two_instant = to_temporal_instant(agent, two_value.unbind(), gc.reborrow()).unbind()?;
+
+        let res = if let (Value::Instant(one), Value::Instant(two)) = (one, two) {
+            one.inner_instant(agent).cmp(two.inner_instant(agent))
+        } else {
+            // TODO(jesper): in the case of one being an instant and not the other, only create one temporal_rs::Instant
+            let two = two.scope(agent, gc.nogc());
+            // 1. Set one to ? ToTemporalInstant(one).
+            let one_instant = to_temporal_instant(agent, one.unbind(), gc.reborrow()).unbind()?;
+            // 2. Set two to ? ToTemporalInstant(two).
+            let two_value = two.get(agent).bind(gc.nogc());
+            let two_instant =
+                to_temporal_instant(agent, two_value.unbind(), gc.reborrow()).unbind()?;
+
+            one_instant.cmp(&two_instant)
+        };
+
         // 3. Return 𝔽(CompareEpochNanoseconds(one.[[EpochNanoseconds]], two.[[EpochNanoseconds]])).
-        Ok((one_instant.cmp(&two_instant) as i8).into())
+        Ok((res as i8).into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, _gc: NoGcScope) {
