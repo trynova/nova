@@ -640,7 +640,7 @@ pub(crate) fn to_integer_with_truncation<'gc>(
     agent: &mut Agent,
     argument: Value,
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, f64> {
+) -> JsResult<'gc, i64> {
     let argument = argument.bind(gc.nogc());
     // 1. Let number be ? ToNumber(argument).
     let number = to_number(agent, argument.unbind(), gc.reborrow())
@@ -657,7 +657,7 @@ pub(crate) fn to_integer_with_truncation<'gc>(
     }
 
     // 3. Return truncate(ℝ(number)).
-    Ok(number.into_f64(agent).trunc())
+    Ok(number.into_f64(agent).trunc() as i64)
 }
 
 /// ### [13.17 GetTemporalUnitValuedOption ( options, key, default )] (https://tc39.es/proposal-temporal/#sec-temporal-gettemporalunitvaluedoption)

@@ -187,10 +187,8 @@ pub(crate) fn get_rounding_increment_option<'gc>(
         .unbind()?
         .bind(gc.nogc());
 
-    // TODO(jesper): https://github.com/trynova/nova/pull/876#discussion_r2611571860
-
     // 4. If integerIncrement < 1 or integerIncrement > 10**9, throw a RangeError exception.
-    if !(1.0..=1_000_000_000.0).contains(&integer_increment) {
+    if !(1..=1_000_000_000).contains(&integer_increment) {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::RangeError,
             "roundingIncrement must be between 1 and 10**9",

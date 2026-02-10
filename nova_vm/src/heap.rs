@@ -228,7 +228,6 @@ impl Heap {
             caches: Caches::with_capacity(1024),
             #[cfg(feature = "date")]
             dates: Vec::with_capacity(1024),
-            // TODO(jesper): why 0?
             #[cfg(feature = "temporal")]
             instants: Vec::with_capacity(0),
             #[cfg(feature = "temporal")]

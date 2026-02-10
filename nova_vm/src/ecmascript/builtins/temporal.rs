@@ -131,7 +131,6 @@ pub(crate) fn get_temporal_fractional_second_digits_option<'gc>(
         {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::RangeError,
-                // TODO(jesper): is the message correct?
                 "fractionalSecondDigits must be a finite number or \"auto\"",
                 gc.into_nogc(),
             ));
@@ -216,7 +215,7 @@ pub(crate) fn get_difference_settings<'gc, const IS_UNTIL: bool>(
     )
     .unbind()?
     .bind(gc.nogc());
-    // TODO(jesper): good starting point adding these?
+    // TODO(jesper): good starting point! check all data and if the values make sense :)
     // 6. Perform ? ValidateTemporalUnitValue(largestUnit, unitGroup, « auto »).
     // 7. If largestUnit is unset, then
     //    a. Set largestUnit to auto.
