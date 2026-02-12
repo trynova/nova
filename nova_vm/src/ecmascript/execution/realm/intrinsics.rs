@@ -26,8 +26,8 @@ use crate::ecmascript::{SetConstructor, SetIteratorPrototype, SetPrototype};
 use crate::ecmascript::{SharedArrayBufferConstructor, SharedArrayBufferPrototype};
 #[cfg(feature = "temporal")]
 use crate::ecmascript::{
-    Temporal, TemporalDurationConstructor, TemporalDurationPrototype, TemporalInstantConstructor,
-    TemporalInstantPrototype,
+    TemporalDurationConstructor, TemporalDurationPrototype, TemporalInstantConstructor,
+    TemporalInstantPrototype, TemporalObject,
 };
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::{
@@ -221,7 +221,7 @@ impl Intrinsics {
         MathObject::create_intrinsic(agent, realm, gc);
 
         #[cfg(feature = "temporal")]
-        Temporal::create_intrinsic(agent, realm, gc);
+        TemporalObject::create_intrinsic(agent, realm, gc);
         #[cfg(feature = "temporal")]
         TemporalInstantPrototype::create_intrinsic(agent, realm, gc);
         #[cfg(feature = "temporal")]

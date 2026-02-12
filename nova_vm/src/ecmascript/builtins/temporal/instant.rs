@@ -14,7 +14,7 @@ use temporal_rs::options::{Unit, UnitGroup};
 
 use crate::{
     ecmascript::{
-        Agent, DurationHeapData, ExceptionType, Function, InternalMethods, InternalSlots, JsResult,
+        Agent, DurationRecord, ExceptionType, Function, InternalMethods, InternalSlots, JsResult,
         Object, OrdinaryObject, PreferredType, Primitive, ProtoIntrinsics, String,
         TemporalDuration, Value, get_difference_settings, get_options_object, object_handle,
         ordinary_create_from_constructor, temporal_err_to_js_err, to_primitive_object,
@@ -304,7 +304,7 @@ fn difference_temporal_instant<'gc, const IS_UNTIL: bool>(
     // 7. Return result.
     let result: temporal_rs::Duration = Default::default(); // TODO
     // 7. Return result.
-    Ok(agent.heap.create(DurationHeapData {
+    Ok(agent.heap.create(DurationRecord {
         object_index: None,
         duration: result,
     }))

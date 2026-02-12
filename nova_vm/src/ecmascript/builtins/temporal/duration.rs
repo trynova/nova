@@ -25,12 +25,12 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct TemporalDuration<'a>(BaseIndex<'a, DurationHeapData<'static>>);
+pub struct TemporalDuration<'a>(BaseIndex<'a, DurationRecord<'static>>);
 object_handle!(TemporalDuration, Duration);
 arena_vec_access!(
     TemporalDuration,
     'a,
-    DurationHeapData,
+    DurationRecord,
     durations
 );
 
@@ -78,10 +78,10 @@ impl HeapSweepWeakReference for TemporalDuration<'static> {
     }
 }
 
-impl<'a> CreateHeapData<DurationHeapData<'a>, TemporalDuration<'a>> for Heap {
-    fn create(&mut self, data: DurationHeapData<'a>) -> TemporalDuration<'a> {
+impl<'a> CreateHeapData<DurationRecord<'a>, TemporalDuration<'a>> for Heap {
+    fn create(&mut self, data: DurationRecord<'a>) -> TemporalDuration<'a> {
         self.durations.push(data.unbind());
-        self.alloc_counter += core::mem::size_of::<DurationHeapData<'static>>();
+        self.alloc_counter += core::mem::size_of::<DurationRecord<'static>>();
         TemporalDuration(BaseIndex::last(&self.durations))
     }
 }
@@ -213,10 +213,8 @@ pub(crate) fn to_temporal_partial_duration_record<'gc>(
     .bind(gc.nogc());
     // 5. If days is not undefined, set result.[[Days]] to ? ToIntegerIfIntegral(days).
     if !days.is_undefined() {
-        let days = to_integer_if_integral(agent, days.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
-        result.days = Some(days.into_i64(agent))
+        let days = to_integer_if_integral(agent, days.unbind(), gc.reborrow()).unbind()? as i64;
+        result.days = Some(days)
     }
     // 6. Let hours be ? Get(temporalDurationLike, "hours").
     let hours = get(
@@ -229,10 +227,8 @@ pub(crate) fn to_temporal_partial_duration_record<'gc>(
     .bind(gc.nogc());
     // 7. If hours is not undefined, set result.[[Hours]] to ? ToIntegerIfIntegral(hours).
     if !hours.is_undefined() {
-        let hours = to_integer_if_integral(agent, hours.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
-        result.hours = Some(hours.into_i64(agent))
+        let hours = to_integer_if_integral(agent, hours.unbind(), gc.reborrow()).unbind()? as i64;
+        result.hours = Some(hours)
     }
     // 8. Let microseconds be ? Get(temporalDurationLike, "microseconds").
     let microseconds = get(
@@ -245,10 +241,9 @@ pub(crate) fn to_temporal_partial_duration_record<'gc>(
     .bind(gc.nogc());
     // 9. If microseconds is not undefined, set result.[[Microseconds]] to ? ToIntegerIfIntegral(microseconds).
     if !microseconds.is_undefined() {
-        let microseconds = to_integer_if_integral(agent, microseconds.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
-        result.microseconds = Some(microseconds.into_i64(agent) as i128);
+        let microseconds =
+            to_integer_if_integral(agent, microseconds.unbind(), gc.reborrow()).unbind()?;
+        result.microseconds = Some(microseconds as i128);
     }
     // 10. Let milliseconds be ? Get(temporalDurationLike, "milliseconds").
     let milliseconds = get(
@@ -261,10 +256,9 @@ pub(crate) fn to_temporal_partial_duration_record<'gc>(
     .bind(gc.nogc());
     // 11. If milliseconds is not undefined, set result.[[Milliseconds]] to ? ToIntegerIfIntegral(milliseconds).
     if !milliseconds.is_undefined() {
-        let milliseconds = to_integer_if_integral(agent, milliseconds.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
-        result.milliseconds = Some(milliseconds.into_i64(agent))
+        let milliseconds =
+            to_integer_if_integral(agent, milliseconds.unbind(), gc.reborrow()).unbind()? as i64;
+        result.milliseconds = Some(milliseconds)
     }
     // 12. Let minutes be ? Get(temporalDurationLike, "minutes").
     let minutes = get(
@@ -277,10 +271,9 @@ pub(crate) fn to_temporal_partial_duration_record<'gc>(
     .bind(gc.nogc());
     // 13. If minutes is not undefined, set result.[[Minutes]] to ? ToIntegerIfIntegral(minutes).
     if !minutes.is_undefined() {
-        let minutes = to_integer_if_integral(agent, minutes.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
-        result.minutes = Some(minutes.into_i64(agent))
+        let minutes =
+            to_integer_if_integral(agent, minutes.unbind(), gc.reborrow()).unbind()? as i64;
+        result.minutes = Some(minutes)
     }
     // 14. Let months be ? Get(temporalDurationLike, "months").
     let months = get(
@@ -293,10 +286,8 @@ pub(crate) fn to_temporal_partial_duration_record<'gc>(
     .bind(gc.nogc());
     // 15. If months is not undefined, set result.[[Months]] to ? ToIntegerIfIntegral(months).
     if !months.is_undefined() {
-        let months = to_integer_if_integral(agent, months.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
-        result.months = Some(months.into_i64(agent))
+        let months = to_integer_if_integral(agent, months.unbind(), gc.reborrow()).unbind()? as i64;
+        result.months = Some(months)
     }
     // 16. Let nanoseconds be ? Get(temporalDurationLike, "nanoseconds").
     let nanoseconds = get(
@@ -309,10 +300,9 @@ pub(crate) fn to_temporal_partial_duration_record<'gc>(
     .bind(gc.nogc());
     // 17. If nanoseconds is not undefined, set result.[[Nanoseconds]] to ? ToIntegerIfIntegral(nanoseconds).
     if !nanoseconds.is_undefined() {
-        let nanoseconds = to_integer_if_integral(agent, nanoseconds.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
-        result.nanoseconds = Some(nanoseconds.into_i64(agent) as i128);
+        let nanoseconds =
+            to_integer_if_integral(agent, nanoseconds.unbind(), gc.reborrow()).unbind()?;
+        result.nanoseconds = Some(nanoseconds as i128);
     }
     // 18. Let seconds be ? Get(temporalDurationLike, "seconds").
     let seconds = get(
@@ -325,10 +315,9 @@ pub(crate) fn to_temporal_partial_duration_record<'gc>(
     .bind(gc.nogc());
     // 19. If seconds is not undefined, set result.[[Seconds]] to ? ToIntegerIfIntegral(seconds).
     if !seconds.is_undefined() {
-        let seconds = to_integer_if_integral(agent, seconds.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
-        result.seconds = Some(seconds.into_i64(agent))
+        let seconds =
+            to_integer_if_integral(agent, seconds.unbind(), gc.reborrow()).unbind()? as i64;
+        result.seconds = Some(seconds)
     }
     // 20. Let weeks be ? Get(temporalDurationLike, "weeks").
     let weeks = get(
@@ -341,10 +330,8 @@ pub(crate) fn to_temporal_partial_duration_record<'gc>(
     .bind(gc.nogc());
     // 21. If weeks is not undefined, set result.[[Weeks]] to ? ToIntegerIfIntegral(weeks).
     if !weeks.is_undefined() {
-        let weeks = to_integer_if_integral(agent, weeks.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
-        result.weeks = Some(weeks.into_i64(agent))
+        let weeks = to_integer_if_integral(agent, weeks.unbind(), gc.reborrow()).unbind()? as i64;
+        result.weeks = Some(weeks)
     }
     // 22. Let years be ? Get(temporalDurationLike, "years").
     let years = get(
@@ -357,10 +344,8 @@ pub(crate) fn to_temporal_partial_duration_record<'gc>(
     .bind(gc.nogc());
     // 23. If years is not undefined, set result.[[Years]] to ? ToIntegerIfIntegral(years).
     if !years.is_undefined() {
-        let years = to_integer_if_integral(agent, years.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
-        result.years = Some(years.into_i64(agent))
+        let years = to_integer_if_integral(agent, years.unbind(), gc.reborrow()).unbind()? as i64;
+        result.years = Some(years)
     }
     // 24. If years is undefined, and months is undefined, and weeks is undefined, and days is undefined, and hours is undefined, and minutes is undefined, and seconds is undefined, and milliseconds is undefined, and microseconds is undefined, and nanoseconds is undefined, throw a TypeError exception.
     if result.years.is_none()
