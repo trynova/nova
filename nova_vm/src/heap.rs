@@ -26,6 +26,8 @@ use crate::ecmascript::{
     ArrayBuffer, ArrayBufferHeapData, DataView, DataViewRecord, DetachKey, TypedArrayRecord,
     VoidArray,
 };
+#[cfg(feature = "temporal")]
+use crate::ecmascript::{DurationRecord, InstantRecord};
 #[cfg(feature = "regexp")]
 use crate::ecmascript::{RegExpHeapData, RegExpStringIteratorRecord};
 #[cfg(feature = "set")]
@@ -75,6 +77,10 @@ pub(crate) struct Heap {
     pub(crate) caches: Caches<'static>,
     #[cfg(feature = "date")]
     pub(crate) dates: Vec<DateHeapData<'static>>,
+    #[cfg(feature = "temporal")]
+    pub(crate) instants: Vec<InstantRecord<'static>>,
+    #[cfg(feature = "temporal")]
+    pub(crate) durations: Vec<DurationRecord<'static>>,
     pub(crate) ecmascript_functions: Vec<ECMAScriptFunctionHeapData<'static>>,
     /// ElementsArrays is where all keys and values arrays live;
     /// Element arrays are static arrays of Values plus
@@ -222,6 +228,10 @@ impl Heap {
             caches: Caches::with_capacity(1024),
             #[cfg(feature = "date")]
             dates: Vec::with_capacity(1024),
+            #[cfg(feature = "temporal")]
+            instants: Vec::with_capacity(0),
+            #[cfg(feature = "temporal")]
+            durations: Vec::with_capacity(0),
             ecmascript_functions: Vec::with_capacity(1024),
             elements: ElementArrays {
                 e2pow1: ElementArray2Pow1::with_capacity(1024),

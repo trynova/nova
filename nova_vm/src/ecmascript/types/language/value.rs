@@ -23,6 +23,8 @@ use crate::ecmascript::{
     SharedFloat32Array, SharedFloat64Array, SharedInt8Array, SharedInt16Array, SharedInt32Array,
     SharedUint8Array, SharedUint8ClampedArray, SharedUint16Array, SharedUint32Array,
 };
+#[cfg(feature = "temporal")]
+use crate::ecmascript::{TemporalDuration, TemporalInstant};
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::{WeakMap, WeakRef, WeakSet};
 use crate::{
@@ -137,6 +139,10 @@ pub enum Value<'a> {
     Array(Array<'a>),
     #[cfg(feature = "date")]
     Date(Date<'a>),
+    #[cfg(feature = "temporal")]
+    Instant(TemporalInstant<'a>),
+    #[cfg(feature = "temporal")]
+    Duration(TemporalDuration<'a>),
     Error(Error<'a>),
     FinalizationRegistry(FinalizationRegistry<'a>),
     Map(Map<'a>),
@@ -272,6 +278,12 @@ pub(crate) const OBJECT_DISCRIMINANT: u8 = value_discriminant(Value::Object(Ordi
 pub(crate) const ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Array(Array::_DEF));
 #[cfg(feature = "date")]
 pub(crate) const DATE_DISCRIMINANT: u8 = value_discriminant(Value::Date(Date::_DEF));
+#[cfg(feature = "temporal")]
+pub(crate) const INSTANT_DISCRIMINANT: u8 =
+    value_discriminant(Value::Instant(TemporalInstant::_DEF));
+#[cfg(feature = "temporal")]
+pub(crate) const DURATION_DISCRIMINANT: u8 =
+    value_discriminant(Value::Duration(TemporalDuration::_DEF));
 pub(crate) const ERROR_DISCRIMINANT: u8 = value_discriminant(Value::Error(Error::_DEF));
 pub(crate) const BUILTIN_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::BuiltinFunction(BuiltinFunction::_DEF));
@@ -916,6 +928,10 @@ impl Rootable for Value<'_> {
             Self::Array(array) => Err(HeapRootData::Array(array.unbind())),
             #[cfg(feature = "date")]
             Self::Date(date) => Err(HeapRootData::Date(date.unbind())),
+            #[cfg(feature = "temporal")]
+            Self::Instant(instant) => Err(HeapRootData::Instant(instant.unbind())),
+            #[cfg(feature = "temporal")]
+            Self::Duration(duration) => Err(HeapRootData::Duration(duration.unbind())),
             Self::Error(error) => Err(HeapRootData::Error(error.unbind())),
             Self::FinalizationRegistry(finalization_registry) => Err(
                 HeapRootData::FinalizationRegistry(finalization_registry.unbind()),
@@ -1077,6 +1093,10 @@ impl Rootable for Value<'_> {
             HeapRootData::Array(array) => Some(Self::Array(array)),
             #[cfg(feature = "date")]
             HeapRootData::Date(date) => Some(Self::Date(date)),
+            #[cfg(feature = "temporal")]
+            HeapRootData::Instant(instant) => Some(Self::Instant(instant)),
+            #[cfg(feature = "temporal")]
+            HeapRootData::Duration(duration) => Some(Self::Duration(duration)),
             HeapRootData::Error(error) => Some(Self::Error(error)),
             HeapRootData::FinalizationRegistry(finalization_registry) => {
                 Some(Self::FinalizationRegistry(finalization_registry))
@@ -1225,6 +1245,10 @@ impl HeapMarkAndSweep for Value<'static> {
             Self::Array(data) => data.mark_values(queues),
             #[cfg(feature = "date")]
             Self::Date(dv) => dv.mark_values(queues),
+            #[cfg(feature = "temporal")]
+            Self::Instant(data) => data.mark_values(queues),
+            #[cfg(feature = "temporal")]
+            Self::Duration(data) => data.mark_values(queues),
             Self::Error(data) => data.mark_values(queues),
             Self::BoundFunction(data) => data.mark_values(queues),
             Self::BuiltinFunction(data) => data.mark_values(queues),
@@ -1245,7 +1269,6 @@ impl HeapMarkAndSweep for Value<'static> {
             Self::WeakRef(data) => data.mark_values(queues),
             #[cfg(feature = "weak-refs")]
             Self::WeakSet(data) => data.mark_values(queues),
-
             #[cfg(feature = "array-buffer")]
             Self::ArrayBuffer(ab) => ab.mark_values(queues),
             #[cfg(feature = "array-buffer")]
@@ -1274,7 +1297,6 @@ impl HeapMarkAndSweep for Value<'static> {
             Self::Float32Array(ta) => ta.mark_values(queues),
             #[cfg(feature = "array-buffer")]
             Self::Float64Array(ta) => ta.mark_values(queues),
-
             #[cfg(feature = "shared-array-buffer")]
             Self::SharedArrayBuffer(data) => data.mark_values(queues),
             #[cfg(feature = "shared-array-buffer")]
@@ -1303,7 +1325,6 @@ impl HeapMarkAndSweep for Value<'static> {
             Self::SharedFloat32Array(sta) => sta.mark_values(queues),
             #[cfg(feature = "shared-array-buffer")]
             Self::SharedFloat64Array(sta) => sta.mark_values(queues),
-
             Self::BuiltinConstructorFunction(data) => data.mark_values(queues),
             Self::BuiltinPromiseResolvingFunction(data) => data.mark_values(queues),
             Self::BuiltinPromiseFinallyFunction(data) => data.mark_values(queues),
@@ -1342,6 +1363,10 @@ impl HeapMarkAndSweep for Value<'static> {
             Self::Array(data) => data.sweep_values(compactions),
             #[cfg(feature = "date")]
             Self::Date(data) => data.sweep_values(compactions),
+            #[cfg(feature = "temporal")]
+            Self::Instant(data) => data.sweep_values(compactions),
+            #[cfg(feature = "temporal")]
+            Self::Duration(data) => data.sweep_values(compactions),
             Self::Error(data) => data.sweep_values(compactions),
             Self::BoundFunction(data) => data.sweep_values(compactions),
             Self::BuiltinFunction(data) => data.sweep_values(compactions),
@@ -1493,6 +1518,10 @@ fn map_object_to_static_string_repr(value: Value) -> String<'static> {
         Object::SharedFloat16Array(_) => BUILTIN_STRING_MEMORY._object_Object_,
         #[cfg(feature = "date")]
         Object::Date(_) => BUILTIN_STRING_MEMORY._object_Object_,
+        #[cfg(feature = "temporal")]
+        Object::Instant(_) => BUILTIN_STRING_MEMORY._object_Object_,
+        #[cfg(feature = "temporal")]
+        Object::Duration(_) => BUILTIN_STRING_MEMORY._object_Object_,
         #[cfg(feature = "set")]
         Object::Set(_) | Object::SetIterator(_) => BUILTIN_STRING_MEMORY._object_Object_,
         #[cfg(feature = "weak-refs")]

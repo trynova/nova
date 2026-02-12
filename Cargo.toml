@@ -52,6 +52,7 @@ unicode-normalization = "0.1.24"
 usdt = { git = "https://github.com/aapoalas/usdt.git", branch = "nova-aarch64-branch" }
 wtf8 = "0.1"
 xsum = "0.1.6"
+temporal_rs = "0.1.0"
 
 [workspace.metadata.dylint]
 libraries = [{ path = "nova_lint" }]
