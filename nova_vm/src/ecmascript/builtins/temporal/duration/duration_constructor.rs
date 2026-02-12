@@ -1,3 +1,7 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
@@ -57,9 +61,7 @@ impl TemporalDurationConstructor {
         let y = if years.get(agent).is_undefined() {
             0
         } else {
-            to_integer_if_integral(agent, years.get(agent), gc.reborrow())
-                .unbind()?
-                .into_i64(agent)
+            to_integer_if_integral(agent, years.get(agent), gc.reborrow()).unbind()? as i64
         }
         .bind(gc.nogc());
 
@@ -67,9 +69,7 @@ impl TemporalDurationConstructor {
         let mo = if months.get(agent).is_undefined() {
             0
         } else {
-            to_integer_if_integral(agent, months.get(agent), gc.reborrow())
-                .unbind()?
-                .into_i64(agent)
+            to_integer_if_integral(agent, months.get(agent), gc.reborrow()).unbind()? as i64
         }
         .bind(gc.nogc());
 
@@ -77,9 +77,7 @@ impl TemporalDurationConstructor {
         let w = if weeks.get(agent).is_undefined() {
             0
         } else {
-            to_integer_if_integral(agent, weeks.get(agent), gc.reborrow())
-                .unbind()?
-                .into_i64(agent)
+            to_integer_if_integral(agent, weeks.get(agent), gc.reborrow()).unbind()? as i64
         }
         .bind(gc.nogc());
 
@@ -87,9 +85,7 @@ impl TemporalDurationConstructor {
         let d = if days.get(agent).is_undefined() {
             0
         } else {
-            to_integer_if_integral(agent, days.get(agent), gc.reborrow())
-                .unbind()?
-                .into_i64(agent)
+            to_integer_if_integral(agent, days.get(agent), gc.reborrow()).unbind()? as i64
         }
         .bind(gc.nogc());
 
@@ -97,9 +93,7 @@ impl TemporalDurationConstructor {
         let h = if hours.get(agent).is_undefined() {
             0
         } else {
-            to_integer_if_integral(agent, hours.get(agent), gc.reborrow())
-                .unbind()?
-                .into_i64(agent)
+            to_integer_if_integral(agent, hours.get(agent), gc.reborrow()).unbind()? as i64
         }
         .bind(gc.nogc());
 
@@ -107,9 +101,7 @@ impl TemporalDurationConstructor {
         let m = if minutes.get(agent).is_undefined() {
             0
         } else {
-            to_integer_if_integral(agent, minutes.get(agent), gc.reborrow())
-                .unbind()?
-                .into_i64(agent)
+            to_integer_if_integral(agent, minutes.get(agent), gc.reborrow()).unbind()? as i64
         }
         .bind(gc.nogc());
 
@@ -117,9 +109,7 @@ impl TemporalDurationConstructor {
         let s = if seconds.get(agent).is_undefined() {
             0
         } else {
-            to_integer_if_integral(agent, seconds.get(agent), gc.reborrow())
-                .unbind()?
-                .into_i64(agent)
+            to_integer_if_integral(agent, seconds.get(agent), gc.reborrow()).unbind()? as i64
         }
         .bind(gc.nogc());
 
@@ -127,9 +117,7 @@ impl TemporalDurationConstructor {
         let ms = if milliseconds.get(agent).is_undefined() {
             0
         } else {
-            to_integer_if_integral(agent, milliseconds.get(agent), gc.reborrow())
-                .unbind()?
-                .into_i64(agent)
+            to_integer_if_integral(agent, milliseconds.get(agent), gc.reborrow()).unbind()? as i64
         }
         .bind(gc.nogc());
 
@@ -137,9 +125,7 @@ impl TemporalDurationConstructor {
         let mis = if microseconds.get(agent).is_undefined() {
             0
         } else {
-            to_integer_if_integral(agent, microseconds.get(agent), gc.reborrow())
-                .unbind()?
-                .into_f64(agent) as i128
+            to_integer_if_integral(agent, microseconds.get(agent), gc.reborrow()).unbind()?
         }
         .bind(gc.nogc());
 
@@ -147,9 +133,7 @@ impl TemporalDurationConstructor {
         let ns = if nanoseconds.get(agent).is_undefined() {
             0
         } else {
-            to_integer_if_integral(agent, nanoseconds.get(agent), gc.reborrow())
-                .unbind()?
-                .into_f64(agent) as i128
+            to_integer_if_integral(agent, nanoseconds.get(agent), gc.reborrow()).unbind()?
         }
         .bind(gc.nogc());
         // 12. Return ? CreateTemporalDuration(y, mo, w, d, h, m, s, ms, mis, ns, NewTarget).

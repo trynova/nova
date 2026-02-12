@@ -9,12 +9,12 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct DurationHeapData<'a> {
+pub(crate) struct DurationRecord<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) duration: temporal_rs::Duration,
 }
 
-impl DurationHeapData<'_> {
+impl DurationRecord<'_> {
     pub fn default() -> Self {
         Self {
             object_index: None,
@@ -24,9 +24,9 @@ impl DurationHeapData<'_> {
 }
 
 trivially_bindable!(temporal_rs::Duration);
-bindable_handle!(DurationHeapData);
+bindable_handle!(DurationRecord);
 
-impl HeapMarkAndSweep for DurationHeapData<'static> {
+impl HeapMarkAndSweep for DurationRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_index,

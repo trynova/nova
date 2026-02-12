@@ -2,10 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::NoGcScope;
 use crate::{
     ecmascript::OrdinaryObject,
-    engine::{bindable_handle, trivially_bindable},
+    engine::{NoGcScope, bindable_handle, trivially_bindable},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 

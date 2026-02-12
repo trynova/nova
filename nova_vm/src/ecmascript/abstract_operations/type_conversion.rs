@@ -1559,12 +1559,12 @@ pub(crate) fn try_to_index<'a>(
 /// an integer or a throw completion.
 /// It converts argument to an integer representing its Number value,
 /// or throws a RangeError when that value is not integral.
-#[cfg(feature = "array-buffer")]
+#[cfg(feature = "temporal")]
 pub(crate) fn to_integer_if_integral<'gc>(
     agent: &mut Agent,
     argument: Value,
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, Number<'gc>> {
+) -> JsResult<'gc, i128> {
     let argument = argument.bind(gc.nogc());
     // 1. Let number be ? ToNumber(argument).
     let number = to_number(agent, argument.unbind(), gc.reborrow())
@@ -1579,8 +1579,11 @@ pub(crate) fn to_integer_if_integral<'gc>(
         ))
     } else {
         // 3. Return ℝ(number).
-        // Ok(number.into_i64(agent)) // TODO: more performant
-        Ok(number.unbind())
+        Ok(match number {
+            Number::Number(n) => *n.get(agent) as i128,
+            Number::Integer(n) => n.into_i64() as i128,
+            Number::SmallF64(n) => n.into_f64() as i128,
+        })
     }
 }
 
