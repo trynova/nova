@@ -20,7 +20,10 @@ use crate::{
         script_var_scoped_declarations, to_int32, to_int32_number, to_number, to_number_primitive,
         to_string,
     },
-    engine::{Bindable, Executable, GcScope, NoGcScope, Scopable, Vm, string_literal_to_wtf8},
+    engine::{
+        Bindable, Executable, ExecutionResult, GcScope, NoGcScope, Scopable, Vm,
+        string_literal_to_wtf8,
+    },
     heap::{ArenaAccess, HeapIndexHandle, IntrinsicFunctionIndexes},
     ndt,
 };
@@ -391,7 +394,17 @@ pub(crate) fn perform_eval<'gc>(
                 // a. Set result to Completion(Evaluation of body).
                 // 30. If result is a normal completion and result.[[Value]] is empty, then
                 // a. Set result to NormalCompletion(undefined).
-                let result = Vm::execute(agent, exe.clone(), None, gc).into_js_result();
+                let result = match Vm::execute(agent, exe.clone(), None, gc.reborrow()) {
+                    ExecutionResult::Return(value) => Ok(value.unbind()),
+                    ExecutionResult::Throw(err) => Err(err.unbind()),
+                    ExecutionResult::Await { .. } | ExecutionResult::Yield { .. } => Err(agent
+                        .throw_exception_with_static_message(
+                            ExceptionType::SyntaxError,
+                            "Invalid eval source text: unexpected await or yield in script.",
+                            gc.nogc(),
+                        )
+                        .unbind()),
+                };
                 // SAFETY: No one can access the bytecode anymore.
                 unsafe { exe.take(agent).try_drop(agent) };
                 result
