@@ -24,6 +24,7 @@ impl DurationRecord<'_> {
 }
 
 trivially_bindable!(temporal_rs::Duration);
+trivially_bindable!(temporal_rs::partial::PartialDuration);
 bindable_handle!(DurationRecord);
 
 impl HeapMarkAndSweep for DurationRecord<'static> {

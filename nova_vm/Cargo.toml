@@ -30,7 +30,7 @@ oxc_semantic = { workspace = true }
 oxc_span = { workspace = true }
 oxc_syntax = { workspace = true }
 rand = { workspace = true }
-regex = { workspace = true }
+regex = { workspace = true, optional = true }
 ryu-js = { workspace = true }
 small_string = { path = "../small_string", version = "0.2.0" }
 soavec = { workspace = true }
@@ -56,22 +56,22 @@ default = [
     "annex-b",
     "temporal",
 ]
-array-buffer = ["ecmascript_atomics"]
+array-buffer = ["dep:ecmascript_atomics"]
 atomics = [
     "array-buffer",
     "shared-array-buffer",
-    "ecmascript_atomics",
-    "ecmascript_futex",
+    "dep:ecmascript_atomics",
+    "dep:ecmascript_futex",
 ]
 date = []
 json = ["dep:sonic-rs"]
 math = []
-regexp = []
-shared-array-buffer = ["array-buffer", "ecmascript_atomics"]
+regexp = ["dep:regex"]
+shared-array-buffer = ["array-buffer", "dep:ecmascript_atomics"]
 weak-refs = []
 set = []
 typescript = []
-temporal = ["temporal_rs"]
+temporal = ["dep:temporal_rs"]
 
 # Enables features defined by [Annex B](https://tc39.es/ecma262/#sec-additional-ecmascript-features-for-web-browsers)
 annex-b = ["annex-b-string", "annex-b-global", "annex-b-date", "annex-b-regexp"]

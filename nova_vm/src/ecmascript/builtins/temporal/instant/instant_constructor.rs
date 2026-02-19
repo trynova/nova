@@ -5,9 +5,9 @@
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, BigInt, Builtin,
-        BuiltinIntrinsicConstructor, ExceptionType, Function, InstantRecord, InternalMethods,
-        JsResult, Object, Realm, String, Value, builders::BuiltinFunctionBuilder,
-        create_temporal_instant, to_big_int, to_temporal_instant,
+        BuiltinIntrinsicConstructor, ExceptionType, Function, InstantRecord, JsResult, Object,
+        Realm, String, Value, builders::BuiltinFunctionBuilder, create_temporal_instant,
+        temporal_err_to_js_err, to_big_int, to_temporal_instant,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{CreateHeapData, IntrinsicConstructorIndexes},
@@ -90,16 +90,11 @@ impl TemporalInstantConstructor {
             epoch_nanoseconds
         };
         // 3. If IsValidEpochNanoseconds(epochNanoseconds) is false, throw a RangeError exception.
-        let Some(epoch_nanoseconds) = epoch_nanoseconds
-            .try_into_i128(agent)
-            .and_then(|nanoseconds| temporal_rs::Instant::try_new(nanoseconds).ok())
-        else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::RangeError,
-                "value out of range",
-                gc.into_nogc(),
-            ));
-        };
+        let epoch_nanoseconds = temporal_rs::Instant::try_new(
+            epoch_nanoseconds.try_into_i128(agent).unwrap_or(i128::MAX),
+        )
+        .map_err(|err| temporal_err_to_js_err(agent, err, gc.nogc()))
+        .unbind()?;
         // 4. Return ? CreateTemporalInstant(epochNanoseconds, NewTarget).
         create_temporal_instant(agent, epoch_nanoseconds, Some(new_target.unbind()), gc)
             .map(|instant| instant.into())
@@ -136,7 +131,7 @@ impl TemporalInstantConstructor {
             .to_number(agent, gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
-        // 2. Set epochMilliseconds to ? NumberToBigInt(epochMilliseconds).
+        // 2. Set epochMilliseconds to ? NumberToBigInt(epochMilliseconds).
         if !epoch_ms_number.is_integer(agent) {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::RangeError,
@@ -147,21 +142,14 @@ impl TemporalInstantConstructor {
         // 3. Let epochNanoseconds be epochMilliseconds × ℤ(10**6).
         // 4. If IsValidEpochNanoseconds(epochNanoseconds) is false, throw a RangeError exception.
         let epoch_ns =
-            match temporal_rs::Instant::from_epoch_milliseconds(epoch_ms_number.into_i64(agent)) {
-                Ok(instant) => instant,
-                Err(_) => {
-                    return Err(agent.throw_exception_with_static_message(
-                        ExceptionType::RangeError,
-                        "epochMilliseconds value out of range",
-                        gc.into_nogc(),
-                    ));
-                }
-            };
+            temporal_rs::Instant::from_epoch_milliseconds(epoch_ms_number.into_i64(agent))
+                .map_err(|err| temporal_err_to_js_err(agent, err, gc.nogc()))
+                .unbind()?;
 
         // 5. Return ! CreateTemporalInstant(epochNanoseconds).
-        let instant = create_temporal_instant(agent, epoch_ns, None, gc)?;
-        let value = instant.into();
-        Ok(value)
+        Ok(create_temporal_instant(agent, epoch_ns, None, gc)
+            .unwrap()
+            .into())
     }
 
     /// ### [8.2.4 Temporal.Instant.fromEpochNanoseconds ( epochNanoseconds )] (https://tc39.es/proposal-temporal/#sec-temporal.instant.fromepochnanoseconds)
@@ -181,20 +169,15 @@ impl TemporalInstantConstructor {
                 .bind(gc.nogc())
         };
         // 2. If IsValidEpochNanoseconds(epochNanoseconds) is false, throw a RangeError exception.
-        let Some(epoch_nanoseconds) = epoch_nanoseconds
-            .try_into_i128(agent)
-            .and_then(|nanoseconds| temporal_rs::Instant::try_new(nanoseconds).ok())
-        else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::RangeError,
-                "epochNanoseconds",
-                gc.into_nogc(),
-            ));
-        };
+        let epoch_nanoseconds = temporal_rs::Instant::try_new(
+            epoch_nanoseconds.try_into_i128(agent).unwrap_or(i128::MAX),
+        )
+        .map_err(|err| temporal_err_to_js_err(agent, err, gc.nogc()))
+        .unbind()?;
         // 3. Return ! CreateTemporalInstant(epochNanoseconds).
-        let instant = create_temporal_instant(agent, epoch_nanoseconds, None, gc)?;
-        let value = instant.into();
-        Ok(value)
+        Ok(create_temporal_instant(agent, epoch_nanoseconds, None, gc)
+            .unwrap()
+            .into())
     }
 
     /// ### [8.2.5 Temporal.Instant.compare ( one, two )](https://tc39.es/proposal-temporal/#sec-temporal.instant.compare)
@@ -216,8 +199,7 @@ impl TemporalInstantConstructor {
             let one_instant = to_temporal_instant(agent, one.unbind(), gc.reborrow()).unbind()?;
             // 2. Set two to ? ToTemporalInstant(two).
             let two_value = two.get(agent).bind(gc.nogc());
-            let two_instant =
-                to_temporal_instant(agent, two_value.unbind(), gc.reborrow()).unbind()?;
+            let two_instant = to_temporal_instant(agent, two_value.unbind(), gc)?;
 
             one_instant.cmp(&two_instant)
         };

@@ -222,17 +222,20 @@ impl<'a> BigInt<'a> {
                 let mut digits = data.iter_u64_digits();
                 if digits.len() > 2 {
                     return None;
-                } else if digits.len() == 1 {
-                    let abs = digits.next().unwrap() as i128;
+                }
+                let lower = digits.next().unwrap();
+                let upper = digits.next();
+                if upper.is_some_and(|u| u.leading_ones() > 0) {
+                    // Top bit is set, this will overflow i128
+                    None
+                } else {
+                    let abs = ((upper.unwrap_or(0) as i128) << 64) + lower as i128;
                     if sign == Sign::Minus {
-                        return Some(abs.neg());
+                        Some(abs.neg())
                     } else {
-                        return Some(abs);
+                        Some(abs)
                     }
                 }
-                // Hard part: check that u64 << 64 + u64 doesn't have an
-                // absolute value overflowing i128.
-                todo!();
             }
             BigInt::SmallBigInt(b) => Some(b.into_i64() as i128),
         }

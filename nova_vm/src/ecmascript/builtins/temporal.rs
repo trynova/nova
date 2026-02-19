@@ -8,9 +8,9 @@ mod instant;
 mod options;
 
 pub use duration::*;
-pub use error::*;
+pub(crate) use error::*;
 pub use instant::*;
-pub use options::*;
+pub(crate) use options::*;
 
 use temporal_rs::{
     options::{DifferenceSettings, RoundingIncrement, RoundingMode, Unit, UnitGroup},
@@ -97,7 +97,7 @@ pub(crate) fn get_temporal_fractional_second_digits_option<'gc>(
 ) -> JsResult<'gc, temporal_rs::parsers::Precision> {
     let options = options.bind(gc.nogc());
     // 1. Let digitsValue be ? Get(options, "fractionalSecondDigits").
-    let mut digits_value = get(
+    let digits_value = get(
         agent,
         options.unbind(),
         BUILTIN_STRING_MEMORY
@@ -153,7 +153,7 @@ pub(crate) fn get_temporal_fractional_second_digits_option<'gc>(
     // 5. Let digitCount be floor(ℝ(digitsValue)).
     let digit_count = digits_number.into_f64(agent).floor();
     // 6. If digitCount < 0 or digitCount > 9, throw a RangeError exception.
-    if digit_count < 0.0 || digit_count > 9.0 {
+    if !(0.0..=9.0).contains(&digit_count) {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::RangeError,
             "fractionalSecondDigits must be between 0 and 9",
@@ -174,13 +174,21 @@ pub(crate) fn get_temporal_fractional_second_digits_option<'gc>(
 /// or a throw completion. It reads unit and rounding options needed by difference operations.
 pub(crate) fn get_difference_settings<'gc, const IS_UNTIL: bool>(
     agent: &mut Agent,
-    options: Object,                      // options (an Object)
+    options: Option<Object>,              // options (an Object)
     _unit_group: UnitGroup,               // unitGroup (date, time, or datetime)
     _disallowed_units: &[Unit],           // disallowedUnits (todo:a List of Temporal units)
     _fallback_smallest_unit: Unit,        // fallbackSmallestUnit (a Temporal unit)
     _smallest_largest_default_unit: Unit, // smallestLargestDefaultUnit (a Temporal unit)
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, DifferenceSettings> {
+    let Some(options) = options else {
+        let mut diff_settings = temporal_rs::options::DifferenceSettings::default();
+        diff_settings.largest_unit = None;
+        diff_settings.smallest_unit = None;
+        diff_settings.rounding_mode = Some(RoundingMode::Trunc);
+        diff_settings.increment = Some(Default::default());
+        return Ok(diff_settings);
+    };
     let options = options.scope(agent, gc.nogc());
     // 1. NOTE: The following steps read options and perform independent validation in alphabetical order.
     // 2. Let largestUnit be ? GetTemporalUnitValuedOption(options, "largestUnit", unset).

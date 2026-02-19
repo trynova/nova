@@ -17,7 +17,7 @@ use crate::{
         Agent, DurationRecord, ExceptionType, Function, InternalMethods, InternalSlots, JsResult,
         Object, OrdinaryObject, PreferredType, Primitive, ProtoIntrinsics, String,
         TemporalDuration, Value, get_difference_settings, get_options_object, object_handle,
-        ordinary_create_from_constructor, temporal_err_to_js_err, to_primitive_object,
+        ordinary_populate_from_constructor, temporal_err_to_js_err, to_primitive_object,
         to_temporal_duration,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable},
@@ -39,19 +39,8 @@ arena_vec_access!(
 );
 
 impl TemporalInstant<'_> {
-    pub(crate) fn inner_instant<'a>(self, agent: &'a Agent) -> &'a temporal_rs::Instant {
+    pub(crate) fn inner_instant(self, agent: &Agent) -> &temporal_rs::Instant {
         &self.unbind().get(agent).instant
-    }
-
-    /// # Safety
-    ///
-    /// Should be only called once; reinitialising the value is not allowed.
-    unsafe fn set_epoch_nanoseconds(
-        self,
-        agent: &mut Agent,
-        epoch_nanoseconds: temporal_rs::Instant,
-    ) {
-        self.get_mut(agent).instant = epoch_nanoseconds;
     }
 }
 
@@ -117,17 +106,25 @@ pub(crate) fn create_temporal_instant<'gc>(
             .temporal_instant()
             .into()
     });
-    // 3. Let object be ? OrdinaryCreateFromConstructor(newTarget, "%Temporal.Instant.prototype%", « [[InitializedTemporalInstant]], [[EpochNanoseconds]] »).
-    let Object::Instant(object) =
-        ordinary_create_from_constructor(agent, new_target, ProtoIntrinsics::TemporalInstant, gc)?
-    else {
-        unreachable!()
-    };
-    // 4. Set object.[[EpochNanoseconds]] to epochNanoseconds.
-    // SAFETY: initialising Instant.
-    unsafe { object.set_epoch_nanoseconds(agent, epoch_nanoseconds) };
+    // 3. Let object be ? OrdinaryCreateFromConstructor(newTarget,
+    // "%Temporal.Instant.prototype%", « [[InitializedTemporalInstant]],
+    // [[EpochNanoseconds]] »).
+    let object = agent.heap.create(InstantRecord {
+        object_index: None,
+        // 4. Set object.[[EpochNanoseconds]] to epochNanoseconds.
+        instant: epoch_nanoseconds,
+    });
     // 5. Return object.
-    Ok(object)
+    Ok(
+        TemporalInstant::try_from(ordinary_populate_from_constructor(
+            agent,
+            object.unbind().into(),
+            new_target,
+            ProtoIntrinsics::TemporalInstant,
+            gc,
+        )?)
+        .unwrap(),
+    )
 }
 
 /// ### [8.5.3 ToTemporalInstant ( item )](https://tc39.es/proposal-temporal/#sec-temporal-totemporalinstant)
@@ -185,30 +182,29 @@ pub(crate) fn to_temporal_instant<'gc>(
     // 9. Let epochNanoseconds be GetUTCEpochNanoseconds(balanced).
     // 10. If IsValidEpochNanoseconds(epochNanoseconds) is false, throw a RangeError exception.
     // 11. Return ! CreateTemporalInstant(epochNanoseconds).
-    let parsed = temporal_rs::Instant::from_utf8(item.as_bytes(agent))
-        .map_err(|e| temporal_err_to_js_err(agent, e, gc.into_nogc()))?;
-    Ok(parsed)
+    temporal_rs::Instant::from_utf8(item.as_bytes(agent))
+        .map_err(|e| temporal_err_to_js_err(agent, e, gc.into_nogc()))
 }
 
 /// [8.5.10 AddDurationToInstant ( operation, instant, temporalDurationLike )](https://tc39.es/proposal-temporal/#sec-temporal-adddurationtoinstant)
-/// The abstract operation AddDurationToInstant takes arguments operation
-/// (add or subtract), instant (a Temporal.Instant),
-/// and temporalDurationLike (an ECMAScript language value)
-/// and returns either a normal completion containing a Temporal.Instant
-/// or a throw completion.
-/// It adds/subtracts temporalDurationLike to/from instant.
+///
+/// The abstract operation AddDurationToInstant takes arguments operation (add
+/// or subtract), instant (a Temporal.Instant), and temporalDurationLike (an
+/// ECMAScript language value) and returns either a normal completion containing
+/// a Temporal.Instant or a throw completion. It adds/subtracts
+/// temporalDurationLike to/from instant.
 fn add_duration_to_instant<'gc, const IS_ADD: bool>(
     agent: &mut Agent,
     instant: TemporalInstant,
     duration: Value,
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, Value<'gc>> {
+) -> JsResult<'gc, TemporalInstant<'gc>> {
     let duration = duration.bind(gc.nogc());
     let mut instant = instant.bind(gc.nogc());
     // 1. Let duration be ? ToTemporalDuration(temporalDurationLike).
 
     let duration = if let Value::Duration(duration) = duration {
-        duration.unbind().get(agent).duration
+        duration.get(agent).duration
     } else {
         let scoped_instant = instant.scope(agent, gc.nogc());
         let res = to_temporal_duration(agent, duration.unbind(), gc.reborrow()).unbind()?;
@@ -234,8 +230,7 @@ fn add_duration_to_instant<'gc, const IS_ADD: bool>(
             .unbind()?
     };
     // 7. Return ! CreateTemporalInstant(ns).
-    let instant = create_temporal_instant(agent, ns_result, None, gc)?;
-    Ok(instant.into())
+    Ok(create_temporal_instant(agent, ns_result, None, gc).unwrap())
 }
 
 /// [8.5.9 DifferenceTemporalInstant ( operation, instant, other, options )](https://tc39.es/proposal-temporal/#sec-temporal-differencetemporalinstant)
@@ -265,48 +260,50 @@ fn difference_temporal_instant<'gc, const IS_UNTIL: bool>(
     let resolved_options = get_options_object(agent, options.get(agent), gc.nogc())
         .unbind()?
         .bind(gc.nogc());
-    // 3. Let settings be ? GetDifferenceSettings(operation, resolvedOptions, time, « », nanosecond, second).
-    let _result;
-    if IS_UNTIL {
+    // 3. Let settings be ? GetDifferenceSettings(operation, resolvedOptions,
+    //    time, « », nanosecond, second).
+    // 4. Let internalDuration be
+    //    DifferenceInstant(instant.[[EpochNanoseconds]],
+    //    other.[[EpochNanoseconds]], settings.[[RoundingIncrement]],
+    //    settings.[[SmallestUnit]], settings.[[RoundingMode]]).
+    // 5. Let result be ! TemporalDurationFromInternal(internalDuration,
+    //    settings.[[LargestUnit]]).
+    // 6. If operation is since, set result to
+    //    CreateNegatedTemporalDuration(result).
+    let duration = if IS_UNTIL {
         const UNTIL: bool = true;
         let settings = get_difference_settings::<UNTIL>(
             agent,
             resolved_options.unbind(),
             UnitGroup::Time,
-            &vec![],
+            &[],
             Unit::Nanosecond,
             Unit::Second,
             gc.reborrow(),
         )
-        .unbind()?
-        .bind(gc.nogc());
-        _result =
-            temporal_rs::Instant::until(&instant.get(agent).inner_instant(agent), &other, settings);
+        .unbind()?;
+        temporal_rs::Instant::until(instant.get(agent).inner_instant(agent), &other, settings)
     } else {
         const SINCE: bool = false;
         let settings = get_difference_settings::<SINCE>(
             agent,
             resolved_options.unbind(),
             UnitGroup::Time,
-            &vec![],
+            &[],
             Unit::Nanosecond,
             Unit::Second,
             gc.reborrow(),
         )
-        .unbind()?
-        .bind(gc.nogc());
-        _result =
-            temporal_rs::Instant::since(&instant.get(agent).inner_instant(agent), &other, settings);
-    }
-    // 4. Let internalDuration be DifferenceInstant(instant.[[EpochNanoseconds]], other.[[EpochNanoseconds]], settings.[[RoundingIncrement]], settings.[[SmallestUnit]], settings.[[RoundingMode]]).
-    // 5. Let result be ! TemporalDurationFromInternal(internalDuration, settings.[[LargestUnit]]).
-    // 6. If operation is since, set result to CreateNegatedTemporsalDuration(result).
-    // 7. Return result.
-    let result: temporal_rs::Duration = Default::default(); // TODO
+        .unbind()?;
+        temporal_rs::Instant::since(instant.get(agent).inner_instant(agent), &other, settings)
+    };
+    let gc = gc.into_nogc();
+    let duration = duration.map_err(|err| temporal_err_to_js_err(agent, err, gc))?;
+
     // 7. Return result.
     Ok(agent.heap.create(DurationRecord {
         object_index: None,
-        duration: result,
+        duration,
     }))
 }
 

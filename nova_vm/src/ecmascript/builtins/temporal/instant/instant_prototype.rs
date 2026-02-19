@@ -1,3 +1,7 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 use temporal_rs::{
     TimeZone,
     options::{RoundingMode, RoundingOptions, ToStringRoundingOptions, Unit},
@@ -6,7 +10,7 @@ use temporal_rs::{
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, BigInt, Builtin, BuiltinGetter,
-        ExceptionType, JsResult, Object, PropertyKey, Realm, String, Value,
+        ExceptionType, JsResult, Object, PropertyKey, Realm, String, StringOptionType, Value,
         builders::OrdinaryObjectBuilder,
         builtins::temporal::instant::{
             add_duration_to_instant, difference_temporal_instant,
@@ -14,9 +18,8 @@ use crate::{
         },
         create_temporal_instant, get, get_option, get_options_object,
         get_rounding_increment_option, get_rounding_mode_option,
-        get_temporal_fractional_second_digits_option, ordinary_object_create_null,
-        temporal_err_to_js_err, to_number, to_temporal_instant, try_create_data_property_or_throw,
-        unwrap_try,
+        get_temporal_fractional_second_digits_option, temporal_err_to_js_err, to_number,
+        to_temporal_instant,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::WellKnownSymbolIndexes,
@@ -175,9 +178,8 @@ impl TemporalInstantPrototype {
             .bind(gc.nogc());
         // 3. Return ? AddDurationToInstant(add, instant, temporalDurationLike).
         const ADD: bool = true;
-        let result = add_duration_to_instant::<ADD>(agent, instant.unbind(), duration.unbind(), gc)
-            .unbind()?;
-        Ok(result.into())
+        add_duration_to_instant::<ADD>(agent, instant.unbind(), duration.unbind(), gc)
+            .map(Value::from)
     }
 
     /// ### [8.3.6 Temporal.Instant.prototype.subtract ( temporalDurationLike )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.subtract)
@@ -196,10 +198,8 @@ impl TemporalInstantPrototype {
             .bind(gc.nogc());
         // 3. Return ? AddDurationToInstant(subtract, instant, temporalDurationLike).
         const SUBTRACT: bool = false;
-        let result =
-            add_duration_to_instant::<SUBTRACT>(agent, instant.unbind(), duration.unbind(), gc)
-                .unbind()?;
-        Ok(result.into())
+        add_duration_to_instant::<SUBTRACT>(agent, instant.unbind(), duration.unbind(), gc)
+            .map(Value::from)
     }
 
     /// ### [8.3.7 Temporal.Instant.prototype.until ( other [ , options ] )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.until)
@@ -219,15 +219,14 @@ impl TemporalInstantPrototype {
             .bind(gc.nogc());
         // 3. Return ? DifferenceTemporalInstant(until, instant, other, options).
         const UNTIL: bool = true;
-        let result = difference_temporal_instant::<UNTIL>(
+        difference_temporal_instant::<UNTIL>(
             agent,
             instant.unbind(),
             other.unbind(),
             options.unbind(),
             gc,
         )
-        .unbind()?;
-        Ok(result.into())
+        .map(Value::from)
     }
 
     /// ### [8.3.8 Temporal.Instant.prototype.since ( other [ , options ] )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.until)
@@ -247,15 +246,14 @@ impl TemporalInstantPrototype {
             .bind(gc.nogc());
         // 3. Return ? DifferenceTemporalInstant(since, instant, other, options).
         const SINCE: bool = false;
-        let result = difference_temporal_instant::<SINCE>(
+        difference_temporal_instant::<SINCE>(
             agent,
             instant.unbind(),
             other.unbind(),
             options.unbind(),
             gc,
         )
-        .unbind()?;
-        Ok(result.into())
+        .map(Value::from)
     }
 
     /// ### [8.3.9 Temporal.Instant.prototype.round ( roundTo )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.round)
@@ -284,63 +282,57 @@ impl TemporalInstantPrototype {
         }
 
         // 4. If roundTo is a String, then
-        let round_to = if round_to.is_string() {
+        let options = if let Ok(round_to) = String::try_from(round_to) {
             // a. Let paramString be roundTo.
-            let param_string = round_to;
             // b. Set roundTo to OrdinaryObjectCreate(null).
-            let round_to = ordinary_object_create_null(agent, gc.nogc());
             // c. Perform ! CreateDataPropertyOrThrow(roundTo, "smallestUnit", paramString).
-            unwrap_try(try_create_data_property_or_throw(
-                agent,
-                round_to,
-                BUILTIN_STRING_MEMORY.smallestUnit.into(),
-                param_string.into(),
-                None,
-                gc.nogc(),
-            ));
-            round_to.into()
+            let mut options = RoundingOptions::default();
+            options.smallest_unit =
+                Some(Unit::from_string(agent, round_to.unbind(), gc.nogc()).unbind()?);
+            options
         } else {
             // 5. Else, set roundTo to ? GetOptionsObject(roundTo).
-            get_options_object(agent, round_to, gc.nogc())
+            let round_to = get_options_object(agent, round_to, gc.nogc())
                 .unbind()?
-                .bind(gc.nogc())
+                .map(|r| r.scope(agent, gc.nogc()));
+
+            // 6. NOTE: The following steps read options and perform independent validation in
+            //    alphabetical order (GetRoundingIncrementOption reads "roundingIncrement" and
+            //    GetRoundingModeOption reads "roundingMode").
+            let mut options = RoundingOptions::default();
+
+            let (rounding_increment, rounding_mode, smallest_unit) =
+                if let Some(round_to) = round_to {
+                    // 7. Let roundingIncrement be ? GetRoundingIncrementOption(roundTo).
+                    let rounding_increment =
+                        get_rounding_increment_option(agent, round_to.get(agent), gc.reborrow())
+                            .unbind()?;
+                    // 8. Let roundingMode be ? GetRoundingModeOption(roundTo, half-expand).
+                    let rounding_mode = get_rounding_mode_option(
+                        agent,
+                        round_to.get(agent),
+                        RoundingMode::default(),
+                        gc.reborrow(),
+                    )
+                    .unbind()?;
+                    // 9. Let smallestUnit be ? GetTemporalUnitValuedOption(roundTo, "smallestUnit", required).
+                    let smallest_unit = get_temporal_unit_valued_option(
+                        agent,
+                        round_to.get(agent),
+                        BUILTIN_STRING_MEMORY.smallestUnit.into(),
+                        gc.reborrow(),
+                    )
+                    .unbind()?;
+                    (rounding_increment, rounding_mode, smallest_unit)
+                } else {
+                    Default::default()
+                };
+
+            options.increment = Some(rounding_increment);
+            options.rounding_mode = Some(rounding_mode);
+            options.smallest_unit = smallest_unit;
+            options
         };
-
-        let round_to = round_to.scope(agent, gc.nogc());
-
-        // 6. NOTE: The following steps read options and perform independent validation in
-        //    alphabetical order (GetRoundingIncrementOption reads "roundingIncrement" and
-        //    GetRoundingModeOption reads "roundingMode").
-        let mut options = RoundingOptions::default();
-
-        // 7. Let roundingIncrement be ? GetRoundingIncrementOption(roundTo).
-        let rounding_increment =
-            get_rounding_increment_option(agent, round_to.get(agent), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
-        options.increment = Some(rounding_increment);
-
-        // 8. Let roundingMode be ? GetRoundingModeOption(roundTo, half-expand).
-        let rounding_mode = get_rounding_mode_option(
-            agent,
-            round_to.get(agent),
-            RoundingMode::default(),
-            gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
-        options.rounding_mode = Some(rounding_mode);
-
-        // 9. Let smallestUnit be ? GetTemporalUnitValuedOption(roundTo, "smallestUnit", required).
-        let smallest_unit = get_temporal_unit_valued_option(
-            agent,
-            round_to.get(agent),
-            BUILTIN_STRING_MEMORY.smallestUnit.into(),
-            gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
-        options.smallest_unit = smallest_unit;
 
         // 10. Perform ? ValidateTemporalUnitValue(smallestUnit, time).
         // 11. If smallestUnit is hour, then
@@ -363,8 +355,7 @@ impl TemporalInstantPrototype {
             .inner_instant(agent)
             .round(options)
             .map_err(|e| temporal_err_to_js_err(agent, e, gc.nogc()))
-            .unbind()?
-            .bind(gc.nogc());
+            .unbind()?;
         // 19. Return ! CreateTemporalInstant(roundedNs).
         Ok(create_temporal_instant(agent, rounded_ns, None, gc)
             .unwrap()
@@ -384,16 +375,19 @@ impl TemporalInstantPrototype {
         // 2. Perform ? RequireInternalSlot(instant, [[InitializedTemporalInstant]]).
         let instant = require_internal_slot_temporal_instant(agent, this_value.unbind(), gc.nogc())
             .unbind()?
-            .scope(agent, gc.nogc());
+            .bind(gc.nogc());
         // 3. Set other to ? ToTemporalInstant(other).
-        let other_instant = to_temporal_instant(agent, other.unbind(), gc.reborrow()).unbind()?;
-        // 4. If instant.[[EpochNanoseconds]] ≠ other.[[EpochNanoseconds]], return false.
-        let instant_val = instant.get(agent).bind(gc.nogc());
-        if *instant_val.inner_instant(agent) != other_instant {
-            return Ok(Value::from(false));
-        }
+        let equal = if let Value::Instant(other) = other {
+            instant.inner_instant(agent) == other.inner_instant(agent)
+        } else {
+            let instant = instant.scope(agent, gc.nogc());
+            let other = to_temporal_instant(agent, other.unbind(), gc.reborrow()).unbind()?;
+            // 4. If instant.[[EpochNanoseconds]] ≠ other.[[EpochNanoseconds]], return false.
+            let instant = instant.get(agent).bind(gc.nogc());
+            instant.inner_instant(agent) == &other
+        };
         // 5. Return true.
-        Ok(Value::from(true))
+        Ok(equal.into())
     }
 
     /// ### [8.3.11 Temporal.Instant.prototype.toString ( [ options ] )](https://tc39.es/proposal-temporal/#sec-temporal.instant.prototype.tostring)
@@ -413,46 +407,49 @@ impl TemporalInstantPrototype {
         // 3. Let resolvedOptions be ? GetOptionsObject(options).
         let resolved_options = get_options_object(agent, options, gc.nogc())
             .unbind()?
-            .scope(agent, gc.nogc());
-        // 4. NOTE: The following steps read options and perform independent
-        //    validation in alphabetical order
-        //    (GetTemporalFractionalSecondDigitsOption reads
-        //    "fractionalSecondDigits" and GetRoundingModeOption reads
-        //    "roundingMode").
-        // 5. Let digits be ? GetTemporalFractionalSecondDigitsOption(resolvedOptions).
-        let digits = get_temporal_fractional_second_digits_option(
-            agent,
-            resolved_options.get(agent),
-            gc.reborrow(),
-        )
-        .unbind()?;
-        // 6. Let roundingMode be ? GetRoundingModeOption(resolvedOptions, trunc).
-        let rounding_mode = get_rounding_mode_option(
-            agent,
-            resolved_options.get(agent),
-            RoundingMode::Trunc,
-            gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
-        // 7. Let smallestUnit be ? GetTemporalUnitValuedOption(resolvedOptions, "smallestUnit", unset).
-        let smallest_unit = get_temporal_unit_valued_option(
-            agent,
-            resolved_options.get(agent),
-            BUILTIN_STRING_MEMORY.smallestUnit.to_property_key(),
-            gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
-        // 8. Let timeZone be ? Get(resolvedOptions, "timeZone").
-        let tz = get(
-            agent,
-            resolved_options.get(agent),
-            BUILTIN_STRING_MEMORY.timeZone.to_property_key(),
-            gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+            .map(|r| r.scope(agent, gc.nogc()));
+        let (digits, rounding_mode, smallest_unit, tz) =
+            if let Some(resolved_options) = resolved_options {
+                // 4. NOTE: The following steps read options and perform independent
+                //    validation in alphabetical order
+                //    (GetTemporalFractionalSecondDigitsOption reads
+                //    "fractionalSecondDigits" and GetRoundingModeOption reads
+                //    "roundingMode").
+                // 5. Let digits be ? GetTemporalFractionalSecondDigitsOption(resolvedOptions).
+                let digits = get_temporal_fractional_second_digits_option(
+                    agent,
+                    resolved_options.get(agent),
+                    gc.reborrow(),
+                )
+                .unbind()?;
+                // 6. Let roundingMode be ? GetRoundingModeOption(resolvedOptions, trunc).
+                let rounding_mode = get_rounding_mode_option(
+                    agent,
+                    resolved_options.get(agent),
+                    RoundingMode::Trunc,
+                    gc.reborrow(),
+                )
+                .unbind()?;
+                // 7. Let smallestUnit be ? GetTemporalUnitValuedOption(resolvedOptions, "smallestUnit", unset).
+                let smallest_unit = get_temporal_unit_valued_option(
+                    agent,
+                    resolved_options.get(agent),
+                    BUILTIN_STRING_MEMORY.smallestUnit.to_property_key(),
+                    gc.reborrow(),
+                )
+                .unbind()?;
+                // 8. Let timeZone be ? Get(resolvedOptions, "timeZone").
+                let tz = get(
+                    agent,
+                    resolved_options.get(agent),
+                    BUILTIN_STRING_MEMORY.timeZone.to_property_key(),
+                    gc.reborrow(),
+                )
+                .unbind()?;
+                (digits, rounding_mode, smallest_unit, tz)
+            } else {
+                Default::default()
+            };
         // 9. Perform ? ValidateTemporalUnitValue(smallestUnit, time).
         if !smallest_unit.is_none_or(|su| su.is_time_unit()) {
             return Err(agent.throw_exception_with_static_message(
@@ -516,12 +513,12 @@ impl TemporalInstantPrototype {
         // 1. Let instant be the this value.
         let value = this_value.bind(gc.nogc());
         // 2. Perform ? RequireInternalSlot(instant, [[InitializedTemporalInstant]]).
-        let instant =
-            require_internal_slot_temporal_instant(agent, value, gc.nogc()).bind(gc.nogc());
+        let instant = require_internal_slot_temporal_instant(agent, value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
         // 3. Return TemporalInstantToString(instant, undefined, AUTO).
         let options: ToStringRoundingOptions = ToStringRoundingOptions::default(); // defaults Precision to Auto
         match instant
-            .unbind()?
             .inner_instant(agent)
             .to_ixdtf_string(Some(TimeZone::utc()), options)
         {
@@ -541,11 +538,11 @@ impl TemporalInstantPrototype {
         let value = this_value.bind(gc.nogc());
         // 2. Perform ? RequireInternalSlot(instant, [[InitializedTemporalInstant]]).
         let instant = require_internal_slot_temporal_instant(agent, value.unbind(), gc.nogc())
+            .unbind()?
             .bind(gc.nogc());
         // 3. Return TemporalInstantToString(instant, undefined, AUTO).
         let options: ToStringRoundingOptions = ToStringRoundingOptions::default();
         match instant
-            .unbind()?
             .inner_instant(agent)
             .to_ixdtf_string(Some(TimeZone::utc()), options)
         {
@@ -588,6 +585,7 @@ impl TemporalInstantPrototype {
         let value = this_value.bind(gc.nogc());
         // 2. Perform ? RequireInternalSlot(instant, [[InitializedTemporalInstant]]).
         let _instant = require_internal_slot_temporal_instant(agent, value.unbind(), gc.nogc())
+            .unbind()?
             .bind(gc.nogc());
         // 3. Set timeZone to ? ToTemporalTimeZoneIdentifier(timeZone).
         let _time_zone = Some(TimeZone::utc());
@@ -662,10 +660,11 @@ pub(crate) fn to_integer_with_truncation<'gc>(
 
 /// ### [13.17 GetTemporalUnitValuedOption ( options, key, default )] (https://tc39.es/proposal-temporal/#sec-temporal-gettemporalunitvaluedoption)
 ///
-/// The abstract operation GetTemporalUnitValuedOption takes arguments options (an Object), key (a
-/// property key), and default (required or unset) and returns either a normal completion
-/// containing either a Temporal unit, unset, or auto, or a throw completion. It attempts to read a
-/// Temporal unit from the specified property of options.
+/// The abstract operation GetTemporalUnitValuedOption takes arguments options
+/// (an Object), key (a property key), and default (required or unset) and
+/// returns either a normal completion containing either a Temporal unit, unset,
+/// or auto, or a throw completion. It attempts to read a Temporal unit from the
+/// specified property of options.
 pub(crate) fn get_temporal_unit_valued_option<'gc>(
     agent: &mut Agent,
     options: Object,

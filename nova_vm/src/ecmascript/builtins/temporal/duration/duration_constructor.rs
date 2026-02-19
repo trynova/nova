@@ -62,87 +62,75 @@ impl TemporalDurationConstructor {
             0
         } else {
             to_integer_if_integral(agent, years.get(agent), gc.reborrow()).unbind()? as i64
-        }
-        .bind(gc.nogc());
+        };
 
         // 3. If months is undefined, let mo be 0; else let mo be ? ToIntegerIfIntegral(months).
         let mo = if months.get(agent).is_undefined() {
             0
         } else {
             to_integer_if_integral(agent, months.get(agent), gc.reborrow()).unbind()? as i64
-        }
-        .bind(gc.nogc());
+        };
 
         // 4. If weeks is undefined, let w be 0; else let w be ? ToIntegerIfIntegral(weeks).
         let w = if weeks.get(agent).is_undefined() {
             0
         } else {
             to_integer_if_integral(agent, weeks.get(agent), gc.reborrow()).unbind()? as i64
-        }
-        .bind(gc.nogc());
+        };
 
         // 5. If days is undefined, let d be 0; else let d be ? ToIntegerIfIntegral(days).
         let d = if days.get(agent).is_undefined() {
             0
         } else {
             to_integer_if_integral(agent, days.get(agent), gc.reborrow()).unbind()? as i64
-        }
-        .bind(gc.nogc());
+        };
 
         // 6. If hours is undefined, let h be 0; else let h be ? ToIntegerIfIntegral(hours).
         let h = if hours.get(agent).is_undefined() {
             0
         } else {
             to_integer_if_integral(agent, hours.get(agent), gc.reborrow()).unbind()? as i64
-        }
-        .bind(gc.nogc());
+        };
 
         // 7. If minutes is undefined, let m be 0; else let m be ? ToIntegerIfIntegral(minutes).
         let m = if minutes.get(agent).is_undefined() {
             0
         } else {
             to_integer_if_integral(agent, minutes.get(agent), gc.reborrow()).unbind()? as i64
-        }
-        .bind(gc.nogc());
+        };
 
         // 8. If seconds is undefined, let s be 0; else let s be ? ToIntegerIfIntegral(seconds).
         let s = if seconds.get(agent).is_undefined() {
             0
         } else {
             to_integer_if_integral(agent, seconds.get(agent), gc.reborrow()).unbind()? as i64
-        }
-        .bind(gc.nogc());
+        };
 
         // 9. If milliseconds is undefined, let ms be 0; else let ms be ? ToIntegerIfIntegral(milliseconds).
         let ms = if milliseconds.get(agent).is_undefined() {
             0
         } else {
             to_integer_if_integral(agent, milliseconds.get(agent), gc.reborrow()).unbind()? as i64
-        }
-        .bind(gc.nogc());
+        };
 
         // 10. If microseconds is undefined, let mis be 0; else let mis be ? ToIntegerIfIntegral(microseconds).
         let mis = if microseconds.get(agent).is_undefined() {
             0
         } else {
             to_integer_if_integral(agent, microseconds.get(agent), gc.reborrow()).unbind()?
-        }
-        .bind(gc.nogc());
+        };
 
         // 11. If nanoseconds is undefined, let ns be 0; else let ns be ? ToIntegerIfIntegral(nanoseconds).
         let ns = if nanoseconds.get(agent).is_undefined() {
             0
         } else {
             to_integer_if_integral(agent, nanoseconds.get(agent), gc.reborrow()).unbind()?
-        }
-        .bind(gc.nogc());
+        };
         // 12. Return ? CreateTemporalDuration(y, mo, w, d, h, m, s, ms, mis, ns, NewTarget).
         let duration = temporal_rs::Duration::new(y, mo, w, d, h, m, s, ms, mis, ns)
             .map_err(|e| temporal_err_to_js_err(agent, e, gc.nogc()))
-            .unbind()?
-            .bind(gc.nogc());
-        create_temporal_duration(agent, duration, Some(new_target.get(agent)), gc)
-            .map(|duration| duration.into())
+            .unbind()?;
+        create_temporal_duration(agent, duration, Some(new_target.get(agent)), gc).map(Value::from)
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, _gc: NoGcScope) {

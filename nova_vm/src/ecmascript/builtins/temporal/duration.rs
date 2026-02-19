@@ -14,7 +14,7 @@ use crate::{
     ecmascript::{
         Agent, BUILTIN_STRING_MEMORY, ExceptionType, Function, InternalMethods, InternalSlots,
         JsResult, Object, OrdinaryObject, ProtoIntrinsics, String, Value, get, object_handle,
-        ordinary_create_from_constructor, to_integer_if_integral,
+        ordinary_populate_from_constructor, temporal_err_to_js_err, to_integer_if_integral,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{
@@ -37,12 +37,6 @@ arena_vec_access!(
 impl TemporalDuration<'_> {
     pub(crate) fn inner_duration(self, agent: &Agent) -> &temporal_rs::Duration {
         &self.unbind().get(agent).duration
-    }
-    /// # Safety
-    ///
-    /// Should be only called once; reinitialising the value is not allowed.
-    unsafe fn set_duration(self, agent: &mut Agent, duration: temporal_rs::Duration) {
-        self.get_mut(agent).duration = duration;
     }
 }
 
@@ -113,51 +107,66 @@ pub(crate) fn create_temporal_duration<'gc>(
             .temporal_duration()
             .into()
     });
-    // 3. Let object be ? OrdinaryCreateFromConstructor(newTarget, "%Temporal.Duration.prototype%", « [[InitializedTemporalDuration]], [[Years]], [[Months]], [[Weeks]], [[Days]], [[Hours]], [[Minutes]], [[Seconds]], [[Milliseconds]], [[Microseconds]], [[Nanoseconds]] »).
-    let Object::Duration(object) =
-        ordinary_create_from_constructor(agent, new_target, ProtoIntrinsics::TemporalDuration, gc)?
-    else {
-        unreachable!()
-    };
-    // 4. Set object.[[Years]] to ℝ(𝔽(years)).
-    // 5. Set object.[[Months]] to ℝ(𝔽(months)).
-    // 6. Set object.[[Weeks]] to ℝ(𝔽(weeks)).
-    // 7. Set object.[[Days]] to ℝ(𝔽(days)).
-    // 8. Set object.[[Hours]] to ℝ(𝔽(hours)).
-    // 9. Set object.[[Minutes]] to ℝ(𝔽(minutes)).
-    // 10. Set object.[[Seconds]] to ℝ(𝔽(seconds)).
-    // 11. Set object.[[Milliseconds]] to ℝ(𝔽(milliseconds)).
-    // 12. Set object.[[Microseconds]] to ℝ(𝔽(microseconds)).
-    // 13. Set object.[[Nanoseconds]] to ℝ(𝔽(nanoseconds)).
-    unsafe { object.set_duration(agent, duration) };
+    // 3. Let object be ? OrdinaryCreateFromConstructor(newTarget,
+    // "%Temporal.Duration.prototype%", « [[InitializedTemporalDuration]],
+    // [[Years]], [[Months]], [[Weeks]], [[Days]], [[Hours]], [[Minutes]],
+    // [[Seconds]], [[Milliseconds]], [[Microseconds]], [[Nanoseconds]] »).
+    let object = agent.heap.create(DurationRecord {
+        object_index: None,
+        // 4. Set object.[[Years]] to ℝ(𝔽(years)).
+        // 5. Set object.[[Months]] to ℝ(𝔽(months)).
+        // 6. Set object.[[Weeks]] to ℝ(𝔽(weeks)).
+        // 7. Set object.[[Days]] to ℝ(𝔽(days)).
+        // 8. Set object.[[Hours]] to ℝ(𝔽(hours)).
+        // 9. Set object.[[Minutes]] to ℝ(𝔽(minutes)).
+        // 10. Set object.[[Seconds]] to ℝ(𝔽(seconds)).
+        // 11. Set object.[[Milliseconds]] to ℝ(𝔽(milliseconds)).
+        // 12. Set object.[[Microseconds]] to ℝ(𝔽(microseconds)).
+        // 13. Set object.[[Nanoseconds]] to ℝ(𝔽(nanoseconds)).
+        duration,
+    });
     // 14. Return object.
-    Ok(object)
+    Ok(
+        TemporalDuration::try_from(ordinary_populate_from_constructor(
+            agent,
+            object.unbind().into(),
+            new_target,
+            ProtoIntrinsics::TemporalDuration,
+            gc,
+        )?)
+        .unwrap(),
+    )
 }
 
-/// Abstract Operations <--->
+// Abstract Operations <--->
 
 /// [7.5.12 ToTemporalDuration ( item )](https://tc39.es/proposal-temporal/#sec-temporal-totemporalduration)
-/// The abstract operation ToTemporalDuration takes argument item
-/// (an ECMAScript language value) and returns either a normal completion containing a
-/// Temporal.Duration or a throw completion. Converts item to a new Temporal.Duration
-/// instance if possible and returns that, and throws otherwise.
-/// It performs the following steps when called:
+///
+/// The abstract operation ToTemporalDuration takes argument item (an ECMAScript
+/// language value) and returns either a normal completion containing a
+/// Temporal.Duration or a throw completion. Converts item to a new
+/// Temporal.Duration instance if possible and returns that, and throws
+/// otherwise. It performs the following steps when called:
 pub(crate) fn to_temporal_duration<'gc>(
     agent: &mut Agent,
     item: Value,
-    gc: GcScope<'gc, '_>,
+    mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, temporal_rs::Duration> {
     let item = item.bind(gc.nogc());
     // 1. If item is an Object and item has an [[InitializedTemporalDuration]] internal slot, then
-    if let Ok(obj) = require_internal_slot_temporal_duration(agent, item, gc.nogc()) {
-        // a. Return ! CreateTemporalDuration(item.[[Years]], item.[[Months]], item.[[Weeks]], item.[[Days]], item.[[Hours]], item.[[Minutes]], item.[[Seconds]], item.[[Milliseconds]], item.[[Microseconds]], item.[[Nanoseconds]]).
-        return Ok(*obj.inner_duration(agent));
+    if let Value::Duration(item) = item {
+        // a. Return ! CreateTemporalDuration(item.[[Years]], item.[[Months]],
+        // item.[[Weeks]], item.[[Days]], item.[[Hours]], item.[[Minutes]],
+        // item.[[Seconds]], item.[[Milliseconds]], item.[[Microseconds]],
+        // item.[[Nanoseconds]]).
+        return Ok(*item.inner_duration(agent));
     }
 
     // 2. If item is not an Object, then
-    if !item.is_object() {
+    let Ok(item) = Object::try_from(item) else {
+        // a. If item is not a String,
         let Ok(item) = String::try_from(item) else {
-            // a. If item is not a String, throw a TypeError exception.
+            // throw a TypeError exception.
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "item is not a string",
@@ -165,13 +174,13 @@ pub(crate) fn to_temporal_duration<'gc>(
             ));
         };
         // b. Return ? ParseTemporalDurationString(item).
-        let parsed = temporal_rs::Duration::from_utf8(item.as_bytes(agent)).unwrap();
-        return Ok(parsed);
-    }
+        return temporal_rs::Duration::from_utf8(item.as_bytes(agent))
+            .map_err(|err| temporal_err_to_js_err(agent, err, gc.into_nogc()));
+    };
     // 3. Let result be a new Partial Duration Record with each field set to 0.
     // 4. Let partial be ? ToTemporalPartialDurationRecord(item).
     let partial =
-        to_temporal_partial_duration_record(agent, Object::try_from(item).unwrap().unbind(), gc);
+        to_temporal_partial_duration_record(agent, item.unbind(), gc.reborrow()).unbind()?;
     // 5. If partial.[[Years]] is not undefined, set result.[[Years]] to partial.[[Years]].
     // 6. If partial.[[Months]] is not undefined, set result.[[Months]] to partial.[[Months]].
     // 7. If partial.[[Weeks]] is not undefined, set result.[[Weeks]] to partial.[[Weeks]].
@@ -182,8 +191,13 @@ pub(crate) fn to_temporal_duration<'gc>(
     // 12. If partial.[[Milliseconds]] is not undefined, set result.[[Milliseconds]] to partial.[[Milliseconds]].
     // 13. If partial.[[Microseconds]] is not undefined, set result.[[Microseconds]] to partial.[[Microseconds]].
     // 14. If partial.[[Nanoseconds]] is not undefined, set result.[[Nanoseconds]] to partial.[[Nanoseconds]].
-    // 15. Return ? CreateTemporalDuration(result.[[Years]], result.[[Months]], result.[[Weeks]], result.[[Days]], result.[[Hours]], result.[[Minutes]], result.[[Seconds]], result.[[Milliseconds]], result.[[Microseconds]], result.[[Nanoseconds]]).
-    Ok(temporal_rs::Duration::from_partial_duration(partial.unwrap()).unwrap())
+    //
+    // 15. Return ? CreateTemporalDuration(result.[[Years]], result.[[Months]],
+    // result.[[Weeks]], result.[[Days]], result.[[Hours]], result.[[Minutes]],
+    // result.[[Seconds]], result.[[Milliseconds]], result.[[Microseconds]],
+    // result.[[Nanoseconds]]).
+    temporal_rs::Duration::from_partial_duration(partial)
+        .map_err(|err| temporal_err_to_js_err(agent, err, gc.into_nogc()))
 }
 
 /// [7.5.18 ToTemporalPartialDurationRecord ( temporalDurationLike )](https://tc39.es/proposal-temporal/#sec-temporal-totemporalpartialdurationrecord)
@@ -347,18 +361,12 @@ pub(crate) fn to_temporal_partial_duration_record<'gc>(
         let years = to_integer_if_integral(agent, years.unbind(), gc.reborrow()).unbind()? as i64;
         result.years = Some(years)
     }
-    // 24. If years is undefined, and months is undefined, and weeks is undefined, and days is undefined, and hours is undefined, and minutes is undefined, and seconds is undefined, and milliseconds is undefined, and microseconds is undefined, and nanoseconds is undefined, throw a TypeError exception.
-    if result.years.is_none()
-        && result.months.is_none()
-        && result.weeks.is_none()
-        && result.days.is_none()
-        && result.hours.is_none()
-        && result.minutes.is_none()
-        && result.seconds.is_none()
-        && result.milliseconds.is_none()
-        && result.microseconds.is_none()
-        && result.nanoseconds.is_none()
-    {
+    // 24. If years is undefined, and months is undefined, and weeks is
+    // undefined, and days is undefined, and hours is undefined, and minutes is
+    // undefined, and seconds is undefined, and milliseconds is undefined, and
+    // microseconds is undefined, and nanoseconds is undefined, throw a
+    // TypeError exception.
+    if result.is_empty() {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Duration must have at least one unit",
@@ -379,12 +387,16 @@ pub(crate) fn _create_negated_temporal_duration<'gc>(
     _item: temporal_rs::Duration,
     mut _gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, temporal_rs::Duration> {
-    // 1. Return ! CreateTemporalDuration(-duration.[[Years]], -duration.[[Months]], -duration.[[Weeks]], -duration.[[Days]], -duration.[[Hours]], -duration.[[Minutes]], -duration.[[Seconds]], -duration.[[Milliseconds]], -duration.[[Microseconds]], -duration.[[Nanoseconds]]).
+    // 1. Return ! CreateTemporalDuration(-duration.[[Years]],
+    // -duration.[[Months]], -duration.[[Weeks]], -duration.[[Days]],
+    // -duration.[[Hours]], -duration.[[Minutes]], -duration.[[Seconds]],
+    // -duration.[[Milliseconds]], -duration.[[Microseconds]],
+    // -duration.[[Nanoseconds]]).
     unimplemented!()
 }
 
 #[inline(always)]
-fn require_internal_slot_temporal_duration<'a>(
+pub(crate) fn _require_internal_slot_temporal_duration<'a>(
     agent: &mut Agent,
     value: Value,
     gc: NoGcScope<'a, '_>,
