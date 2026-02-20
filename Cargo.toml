@@ -18,7 +18,7 @@ authors = ["The Nova Team"]
 ahash = "0.8.12"
 clap = { version = "4.5.48", features = ["derive"] }
 cliclack = "0.3.7"
-console = "0.15.11"
+console = "0.16.2"
 ctrlc = "3.5.0"
 ecmascript_atomics = { version = "0.2.3" }
 ecmascript_futex = { version = "0.1.0" }
@@ -42,16 +42,17 @@ oxc_regular_expression = "0.105.0"
 oxc_semantic = "0.105.0"
 oxc_span = "0.105.0"
 oxc_syntax = "0.105.0"
-rand = "0.9.2"
+rand = "0.10.0"
 regex = "1.12.2"
 ryu-js = "1.0.2"
 soavec = "0.2.0"
 soavec_derive = "0.2.0"
-sonic-rs = "0.3.17"
+sonic-rs = "0.5.6"
 unicode-normalization = "0.1.24"
 usdt = { git = "https://github.com/aapoalas/usdt.git", branch = "nova-aarch64-branch" }
 wtf8 = "0.1"
 xsum = "0.1.6"
+temporal_rs = "0.1.0"
 
 [workspace.metadata.dylint]
 libraries = [{ path = "nova_lint" }]
