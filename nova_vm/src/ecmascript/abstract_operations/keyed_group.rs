@@ -10,13 +10,13 @@ use hashbrown::{HashTable, hash_table::Entry};
 use crate::{
     ecmascript::{PropertyKey, Value, execution::Agent},
     engine::{
-        Bindable, HeapRootCollectionData, NoGcScope, ScopableCollection, ScopedCollection,
-        bindable_handle,
+        Bindable, HeapRootCollection, HeapRootCollectionInner, NoGcScope, ScopableCollection,
+        ScopedCollection, bindable_handle,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
-pub struct KeyedGroup<'a> {
+pub(crate) struct KeyedGroup<'a> {
     // TODO: Use a SoA vector for keys and values.
     keys: Vec<Value<'a>>,
     values: Vec<Vec<Value<'a>>>,
@@ -196,7 +196,8 @@ impl ScopedCollection<'_, Box<KeyedGroup<'static>>> {
         let Some(stack_slot) = stack_ref_collections.get_mut(self.inner as usize) else {
             unreachable!();
         };
-        let HeapRootCollectionData::KeyedGroup(keyed_group) = stack_slot else {
+        let HeapRootCollection(HeapRootCollectionInner::KeyedGroup(keyed_group)) = stack_slot
+        else {
             unreachable!()
         };
         keyed_group.add_collection_keyed_value(agent, key, value);
@@ -216,7 +217,8 @@ impl ScopedCollection<'_, Box<KeyedGroup<'static>>> {
         let Some(stack_slot) = stack_ref_collections.get_mut(self.inner as usize) else {
             unreachable!();
         };
-        let HeapRootCollectionData::KeyedGroup(keyed_group) = stack_slot else {
+        let HeapRootCollection(HeapRootCollectionInner::KeyedGroup(keyed_group)) = stack_slot
+        else {
             unreachable!()
         };
         keyed_group.add_property_keyed_value(agent, key, value);

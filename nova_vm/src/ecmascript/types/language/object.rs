@@ -14,7 +14,7 @@ pub(crate) use data::*;
 pub use internal_methods::*;
 pub use internal_slots::*;
 pub use property_key::*;
-pub use property_key_set::*;
+pub(crate) use property_key_set::*;
 pub use property_key_vec::*;
 pub(crate) use property_storage::*;
 
@@ -241,6 +241,7 @@ impl Object<'_> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
 pub struct OrdinaryObject<'a>(BaseIndex<'a, ObjectRecord<'static>>);
 object_handle!(OrdinaryObject, Object);
 arena_vec_access!(

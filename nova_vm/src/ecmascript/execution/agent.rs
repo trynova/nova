@@ -40,7 +40,7 @@ use crate::{
         parse_script, script_evaluation, to_string, try_get_identifier_reference,
     },
     engine::{
-        Bindable, GcScope, HeapRootCollectionData, HeapRootData, HeapRootDataInner, HeapRootRef,
+        Bindable, GcScope, HeapRootCollection, HeapRootData, HeapRootDataInner, HeapRootRef,
         NoGcScope, Rootable, Vm, bindable_handle,
     },
     heap::{
@@ -807,7 +807,7 @@ pub struct Agent {
     /// Realm a particular stack value points to.
     pub(crate) stack_refs: RefCell<Vec<HeapRootData>>,
     /// Temporary storage for on-stack heap root collections.
-    pub(crate) stack_ref_collections: RefCell<Vec<HeapRootCollectionData>>,
+    pub(crate) stack_ref_collections: RefCell<Vec<HeapRootCollection>>,
     /// Temporary storage for on-stack VMs.
     pub(crate) vm_stack: Vec<NonNull<Vm>>,
     /// ### \[\[KeptAlive]]

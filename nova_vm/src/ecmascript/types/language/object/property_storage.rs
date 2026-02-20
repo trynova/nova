@@ -27,6 +27,7 @@ use crate::{
 use super::{InternalSlots, Object, OrdinaryObject, PropertyKey};
 
 #[derive(Debug, Clone, Copy)]
+#[repr(transparent)]
 pub(crate) struct PropertyStorage<'a>(OrdinaryObject<'a>);
 
 fn verify_writable(

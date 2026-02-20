@@ -7,7 +7,7 @@ use core::marker::PhantomData;
 use crate::{
     ecmascript::Agent,
     engine::{
-        Bindable, HeapRootCollectionData, HeapRootDataInner, HeapRootRef, NoGcScope, Rootable,
+        Bindable, HeapRootCollection, HeapRootDataInner, HeapRootRef, NoGcScope, Rootable,
         ScopeToken,
     },
 };
@@ -340,7 +340,7 @@ impl<'a, T: 'static + RootableCollection> ScopedCollection<'a, T> {
         let index = self.inner;
         let mut stack_ref_collections = agent.stack_ref_collections.borrow_mut();
         let heap_slot = stack_ref_collections.get_mut(index as usize).unwrap();
-        let heap_data = core::mem::replace(heap_slot, HeapRootCollectionData::Empty);
+        let heap_data = core::mem::replace(heap_slot, HeapRootCollection::EMPTY);
         if index as usize == stack_ref_collections.len() - 1 {
             Self::drop_empty_slots(&mut stack_ref_collections);
         }
@@ -350,13 +350,13 @@ impl<'a, T: 'static + RootableCollection> ScopedCollection<'a, T> {
     /// Internal helper function to drop empty slots from the stack. This
     /// method is separate as dropping empty slots should be a reasonably
     /// rare operation.
-    fn drop_empty_slots(stack_ref_collections: &mut Vec<HeapRootCollectionData>) {
+    fn drop_empty_slots(stack_ref_collections: &mut Vec<HeapRootCollection>) {
         // We replaced the last stack item with an Empty, so we can shorten
         // the stack by at least one.
         let last_non_empty_index = stack_ref_collections
             .iter()
             .enumerate()
-            .rfind(|(_, v)| !matches!(v, HeapRootCollectionData::Empty))
+            .rfind(|(_, v)| !v.is_empty())
             .map_or(0, |(index, _)| index + 1);
         debug_assert!(last_non_empty_index < stack_ref_collections.len());
         // SAFETY: The last non-empty index is necessarily within

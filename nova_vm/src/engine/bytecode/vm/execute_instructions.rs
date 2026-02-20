@@ -893,7 +893,7 @@ pub(super) fn execute_copy_data_properties_into_object<'gc>(
         .bind(gc.nogc());
 
     let num_excluded_items = instr.get_first_index();
-    let mut excluded_items = PropertyKeySet::new(gc.nogc());
+    let mut excluded_items = PropertyKeySet::with_capacity(num_excluded_items, gc.nogc());
     assert!(vm.reference.is_none());
     for _ in 0..num_excluded_items {
         let reference = vm.reference_stack.pop().unwrap();

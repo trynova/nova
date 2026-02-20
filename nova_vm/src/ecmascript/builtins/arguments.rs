@@ -93,6 +93,7 @@ use super::{ObjectShape, ScopedArgumentsList};
 ///
 /// This is the ordinary object version of arguments.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
 pub struct UnmappedArguments<'a>(OrdinaryObject<'a>);
 
 /// ### [10.4.4.6 CreateUnmappedArgumentsObject ( argumentsList )](https://tc39.es/ecma262/#sec-createunmappedargumentsobject)

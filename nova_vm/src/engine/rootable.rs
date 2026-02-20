@@ -8,7 +8,7 @@ mod scoped;
 pub use global::*;
 pub use scoped::*;
 
-pub(crate) use private::{HeapRootCollectionData, RootableCollectionSealed, RootableSealed};
+pub(crate) use private::{HeapRootCollection, RootableCollectionSealed, RootableSealed};
 
 #[cfg(feature = "date")]
 use crate::ecmascript::DATE_DISCRIMINANT;
@@ -83,7 +83,7 @@ use crate::{
     heap::HeapMarkAndSweep,
 };
 
-pub(crate) mod private {
+mod private {
     use std::ptr::NonNull;
 
     #[cfg(feature = "date")]
@@ -235,19 +235,30 @@ pub(crate) mod private {
     /// Marker trait to make RootableSealed not implementable outside of nova_vm.
     pub trait RootableCollectionSealed {
         /// Convert a rootable collection value to a heap data representation.
-        fn to_heap_data(self) -> HeapRootCollectionData;
+        fn to_heap_data(self) -> HeapRootCollection;
 
         /// Convert the rooted collection's heap data value to the type itself.
         ///
         /// ## Panics
         ///
         /// If the heap data does not match the type, the method should panic.
-        fn from_heap_data(value: HeapRootCollectionData) -> Self;
+        fn from_heap_data(value: HeapRootCollection) -> Self;
+    }
+
+    #[repr(transparent)]
+    pub struct HeapRootCollection(pub(crate) HeapRootCollectionInner);
+
+    impl HeapRootCollection {
+        pub(crate) const EMPTY: Self = Self(HeapRootCollectionInner::Empty);
+
+        pub(crate) const fn is_empty(&self) -> bool {
+            matches!(self.0, HeapRootCollectionInner::Empty)
+        }
     }
 
     #[derive(Debug)]
     #[repr(u8)]
-    pub enum HeapRootCollectionData {
+    pub(crate) enum HeapRootCollectionInner {
         /// Empty heap root collection data slot: The data was taken from heap.
         Empty,
         /// Not like the others: Arguments list cannot be given to the heap as
@@ -265,7 +276,16 @@ pub(crate) mod private {
         KeyedGroup(Box<KeyedGroup<'static>>),
     }
 
-    impl HeapMarkAndSweep for HeapRootCollectionData {
+    impl HeapMarkAndSweep for HeapRootCollection {
+        fn mark_values(&self, queues: &mut WorkQueues) {
+            self.0.mark_values(queues);
+        }
+
+        fn sweep_values(&mut self, compactions: &CompactionLists) {
+            self.0.sweep_values(compactions);
+        }
+    }
+    impl HeapMarkAndSweep for HeapRootCollectionInner {
         fn mark_values(&self, queues: &mut WorkQueues) {
             match self {
                 Self::Empty => {}
@@ -304,63 +324,67 @@ pub(crate) mod private {
     }
 
     impl RootableCollectionSealed for ArgumentsList<'_, '_> {
-        fn to_heap_data(mut self) -> HeapRootCollectionData {
-            HeapRootCollectionData::ArgumentsList(self.as_mut_slice().into())
+        fn to_heap_data(mut self) -> HeapRootCollection {
+            HeapRootCollection(HeapRootCollectionInner::ArgumentsList(
+                self.as_mut_slice().into(),
+            ))
         }
 
-        fn from_heap_data(_: HeapRootCollectionData) -> Self {
+        fn from_heap_data(_: HeapRootCollection) -> Self {
             unreachable!("ScopedCollection should never try to take ownership of ArgumentsList");
         }
     }
     impl RootableCollectionSealed for Vec<Value<'static>> {
-        fn to_heap_data(self) -> HeapRootCollectionData {
-            HeapRootCollectionData::ValueVec(self.unbind())
+        fn to_heap_data(self) -> HeapRootCollection {
+            HeapRootCollection(HeapRootCollectionInner::ValueVec(self.unbind()))
         }
 
-        fn from_heap_data(value: HeapRootCollectionData) -> Self {
-            let HeapRootCollectionData::ValueVec(value) = value else {
+        fn from_heap_data(value: HeapRootCollection) -> Self {
+            let HeapRootCollection(HeapRootCollectionInner::ValueVec(value)) = value else {
                 unreachable!()
             };
             value
         }
     }
     impl RootableCollectionSealed for Vec<PropertyKey<'static>> {
-        fn to_heap_data(self) -> HeapRootCollectionData {
-            HeapRootCollectionData::PropertyKeyVec(self.unbind())
+        fn to_heap_data(self) -> HeapRootCollection {
+            HeapRootCollection(HeapRootCollectionInner::PropertyKeyVec(self.unbind()))
         }
 
-        fn from_heap_data(value: HeapRootCollectionData) -> Self {
-            let HeapRootCollectionData::PropertyKeyVec(value) = value else {
+        fn from_heap_data(value: HeapRootCollection) -> Self {
+            let HeapRootCollection(HeapRootCollectionInner::PropertyKeyVec(value)) = value else {
                 unreachable!()
             };
             value
         }
     }
     impl RootableCollectionSealed for PropertyKeySet<'static> {
-        fn to_heap_data(self) -> HeapRootCollectionData {
-            HeapRootCollectionData::PropertyKeySet(self.unbind())
+        fn to_heap_data(self) -> HeapRootCollection {
+            HeapRootCollection(HeapRootCollectionInner::PropertyKeySet(self.unbind()))
         }
 
-        fn from_heap_data(value: HeapRootCollectionData) -> Self {
-            let HeapRootCollectionData::PropertyKeySet(value) = value else {
+        fn from_heap_data(value: HeapRootCollection) -> Self {
+            let HeapRootCollection(HeapRootCollectionInner::PropertyKeySet(value)) = value else {
                 unreachable!()
             };
             value
         }
     }
     impl RootableCollectionSealed for Box<KeyedGroup<'static>> {
-        fn to_heap_data(self) -> HeapRootCollectionData {
-            HeapRootCollectionData::KeyedGroup(self.unbind())
+        fn to_heap_data(self) -> HeapRootCollection {
+            HeapRootCollection(HeapRootCollectionInner::KeyedGroup(self.unbind()))
         }
 
-        fn from_heap_data(value: HeapRootCollectionData) -> Self {
-            let HeapRootCollectionData::KeyedGroup(value) = value else {
+        fn from_heap_data(value: HeapRootCollection) -> Self {
+            let HeapRootCollection(HeapRootCollectionInner::KeyedGroup(value)) = value else {
                 unreachable!()
             };
             value
         }
     }
 }
+
+pub use private::*;
 
 use super::Executable;
 
