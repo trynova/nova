@@ -7,6 +7,7 @@ use std::cell::Cell;
 use ahash::{AHashMap, AHashSet};
 use oxc_ast::ast::BindingIdentifier;
 use oxc_ecmascript::BoundNames;
+use oxc_span::Ident;
 
 use crate::{
     ecmascript::{
@@ -22,7 +23,7 @@ use crate::{
     },
 };
 
-use super::{CompileEvaluation, complex_array_pattern, simple_array_pattern};
+use super::{CompileEvaluation, simple_array_pattern};
 
 /// ### [10.2.11 FunctionDeclarationInstantiation ( func, argumentsList )](https://tc39.es/ecma262/#sec-functiondeclarationinstantiation)
 ///
@@ -62,9 +63,7 @@ pub(crate) fn instantiation<'s>(
     let formals = func.formal_parameters();
 
     // 8. Let hasParameterExpressions be ContainsExpression of formals.
-    let has_parameter_expressions = formals
-        .iter_bindings()
-        .any(|binding| binding.contains_expression());
+    let has_parameter_expressions = formals.contains_expression();
 
     // 12. Let functionNames be a new empty List.
     // 13. Let functionsToInitialize be a new empty List.
@@ -108,7 +107,7 @@ pub(crate) fn instantiation<'s>(
         // 17. Else if parameterNames contains "arguments", then
         formals.bound_names(&mut |name| {
             // a. Set argumentsObjectNeeded to false.
-            if arguments_object_needed && name.name.as_str() == "arguments" {
+            if arguments_object_needed && name.name == Ident::new_const("arguments") {
                 arguments_object_needed = false;
             }
         });
@@ -116,13 +115,13 @@ pub(crate) fn instantiation<'s>(
     // 18. Else if hasParameterExpressions is false, then
     if arguments_object_needed && !has_parameter_expressions {
         // a. If functionNames contains "arguments" or
-        if functions.contains_key("arguments") {
+        if functions.contains_key(&Ident::new_const("arguments")) {
             // i. Set argumentsObjectNeeded to false.
             arguments_object_needed = false;
         } else {
             // lexicalNames contains "arguments", then
             body.lexically_declared_names(&mut |binding| {
-                if binding.name == "arguments" {
+                if binding.name == Ident::new_const("arguments") {
                     // i. Set argumentsObjectNeeded to false.
                     arguments_object_needed = false;
                 }
@@ -270,17 +269,15 @@ pub(crate) fn instantiation<'s>(
     if formals.has_parameter() {
         if has_parameter_expressions {
             // Note: ignore errors here for safety.
-            let _ = complex_array_pattern(
-                ctx,
-                formals.items.iter().map(|param| Some(&param.pattern)),
-                formals.rest.as_deref(),
-                !has_duplicates,
-            );
+            let lexical_binding_state = ctx.lexical_binding_state;
+            ctx.lexical_binding_state = !has_duplicates;
+            let _ = formals.compile(ctx);
+            ctx.lexical_binding_state = lexical_binding_state;
         } else {
             simple_array_pattern(
                 ctx,
                 formals.items.iter().map(|param| Some(&param.pattern)),
-                formals.rest.as_deref(),
+                formals.rest.as_ref().map(|r| &r.rest),
                 formals.items.len(),
                 !has_duplicates,
             );

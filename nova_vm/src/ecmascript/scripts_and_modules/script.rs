@@ -202,18 +202,12 @@ pub fn parse_script<'a>(
     agent: &mut Agent,
     source_text: String,
     realm: Realm,
-    strict_mode: bool,
+    strict: bool,
     host_defined: Option<HostDefined>,
     gc: NoGcScope<'a, '_>,
 ) -> ScriptOrErrors<'a> {
     // 1. Let script be ParseText(sourceText, Script).
-    let source_type = if strict_mode {
-        // Strict mode script is equal to module code.
-        SourceCodeType::StrictScript
-    } else {
-        // Loose mode script is just script code.
-        SourceCodeType::Script
-    };
+    let source_type = SourceCodeType::Script { strict };
 
     // SAFETY: Script keeps the SourceCode reference alive in the Heap, thus
     // making the Program's references point to a live Allocator.

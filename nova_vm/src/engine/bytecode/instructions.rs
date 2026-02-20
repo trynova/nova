@@ -1057,9 +1057,9 @@ fn debug_print_identifier(
 }
 
 fn debug_print_binding_pattern(b: &BindingPattern) -> std::string::String {
-    match &b.kind {
-        oxc_ast::ast::BindingPatternKind::BindingIdentifier(b) => b.name.to_string(),
-        oxc_ast::ast::BindingPatternKind::ObjectPattern(b) => {
+    match b {
+        oxc_ast::ast::BindingPattern::BindingIdentifier(b) => b.name.to_string(),
+        oxc_ast::ast::BindingPattern::ObjectPattern(b) => {
             let mut prop_strings = b
                 .properties
                 .iter()
@@ -1079,7 +1079,7 @@ fn debug_print_binding_pattern(b: &BindingPattern) -> std::string::String {
             }
             format!("{{ {} }}", prop_strings.join(", "))
         }
-        oxc_ast::ast::BindingPatternKind::ArrayPattern(b) => {
+        oxc_ast::ast::BindingPattern::ArrayPattern(b) => {
             let mut elem_strings = b
                 .elements
                 .iter()
@@ -1099,7 +1099,7 @@ fn debug_print_binding_pattern(b: &BindingPattern) -> std::string::String {
             }
             format!("{{ {} }}", elem_strings.join(", "))
         }
-        oxc_ast::ast::BindingPatternKind::AssignmentPattern(b) => {
+        oxc_ast::ast::BindingPattern::AssignmentPattern(b) => {
             format!(
                 "{} = {}",
                 debug_print_binding_pattern(&b.left),
