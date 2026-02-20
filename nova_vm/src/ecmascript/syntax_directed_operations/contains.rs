@@ -116,6 +116,10 @@ impl Contains for ast::ArrowFunctionExpression<'_> {
 impl Contains for ast::FormalParameter<'_> {
     fn contains(&self, symbol: ContainsSymbol) -> bool {
         self.pattern.contains(symbol)
+            || self
+                .initializer
+                .as_ref()
+                .is_some_and(|init| init.contains(symbol))
     }
 }
 
