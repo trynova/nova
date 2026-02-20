@@ -17,7 +17,7 @@ use oxc_semantic::{AstNodes, Scoping, SemanticBuilder, SemanticBuilderReturn};
 use oxc_span::SourceType;
 
 use crate::{
-    ecmascript::{Contains, ContainsSymbol, HeapString, String, execution::Agent},
+    ecmascript::{HeapString, String, execution::Agent},
     engine::{Bindable, NoGcScope, bindable_handle},
     heap::{
         ArenaAccess, BaseIndex, CompactionLists, CreateHeapData, Heap, HeapIndexHandle,
@@ -49,13 +49,6 @@ impl SourceCodeType {
         match self {
             SourceCodeType::Eval { strict, .. } | SourceCodeType::Script { strict } => *strict,
             SourceCodeType::Module => true,
-        }
-    }
-
-    fn is_direct_eval(&self) -> bool {
-        match self {
-            SourceCodeType::Eval { direct, .. } => *direct,
-            _ => false,
         }
     }
 }
@@ -227,10 +220,7 @@ impl<'a> SourceCode<'a> {
             return Err(errors);
         }
 
-        let SemanticBuilderReturn {
-            mut errors,
-            semantic,
-        } = SemanticBuilder::new()
+        let SemanticBuilderReturn { errors, semantic } = SemanticBuilder::new()
             .with_check_syntax_error(true)
             .build(&program);
 
@@ -239,52 +229,6 @@ impl<'a> SourceCode<'a> {
         }
         let (scoping, nodes) = semantic.into_scoping_and_nodes();
         let is_strict = source_type.is_strict() || program.has_use_strict_directive();
-
-        // Check some early syntax errors manually in sloppy mode because oxc
-        // skips them in sloppy mode.
-        if !is_strict && !source_type.is_direct_eval() {
-            // ScriptBody : StatementList
-            //
-            // * It is a Syntax Error if StatementList Contains super unless the
-            //   source text containing super is eval code that is being
-            //   processed by a direct eval. Additional early error rules for
-            //   super within direct eval are defined in 19.2.1.1.
-            if Contains::contains(program.body.as_slice(), ContainsSymbol::SuperCall) {
-                errors.push(OxcDiagnostic::error(
-                    "super() is only valid in derived class constructors",
-                ));
-                return Err(errors);
-            }
-            if Contains::contains(program.body.as_slice(), ContainsSymbol::SuperProperty) {
-                errors.push(OxcDiagnostic::error(
-                    "use of super property accesses only valid within methods or eval code within methods",
-                ));
-                return Err(errors);
-            }
-            // * It is a Syntax Error if StatementList Contains NewTarget unless
-            //   the source text containing NewTarget is eval code that is being
-            //   processed by a direct eval. Additional early error rules for
-            //   NewTarget in direct eval are defined in 19.2.1.1.
-            if Contains::contains(program.body.as_slice(), ContainsSymbol::NewTarget) {
-                errors.push(OxcDiagnostic::error(
-                    "new.target only allowed within functions",
-                ));
-                return Err(errors);
-            }
-            // * It is a Syntax Error if ContainsDuplicateLabels of
-            //   StatementList with argument « » is true.
-            //
-            // * It is a Syntax Error if ContainsUndefinedBreakTarget of
-            //   StatementList with argument « » is true.
-            //
-            // * It is a Syntax Error if ContainsUndefinedContinueTarget of
-            //   StatementList with arguments « » and « » is true.
-            //
-            // * It is a Syntax Error if AllPrivateIdentifiersValid of
-            //   StatementList with argument « » is false unless the source text
-            //   containing ScriptBody is eval code that is being processed by a
-            //   direct eval.
-        }
 
         // SAFETY: Caller guarantees that they will drop the Program before
         // SourceCode can be garbage collected.
