@@ -86,6 +86,8 @@ impl<'a> SourceCode<'a> {
         #[cfg(feature = "typescript")] typescript: bool,
         gc: NoGcScope<'a, '_>,
     ) -> Result<ParseResult<'a>, Vec<OxcDiagnostic>> {
+        #[cfg(not(feature = "typescript"))]
+        let typescript = false;
         // If the source code is not a heap string, pad it with whitespace and
         // allocate it on the heap. This makes it safe (for some definition of
         // "safe") for the any functions created referring to this source code
@@ -155,8 +157,7 @@ impl<'a> SourceCode<'a> {
                 // no module declarations or TLA. If that passes and we're
                 // strict, then we parse the script as a module which sets
                 // strict mode on.
-                let source_type =
-                    SourceType::script().with_typescript(cfg!(feature = "typescript"));
+                let source_type = SourceType::script().with_typescript(typescript);
                 let sloppy_result = Parser::new(&allocator, source_text, source_type).parse();
                 if strict {
                     let ParserReturn {
@@ -193,8 +194,7 @@ impl<'a> SourceCode<'a> {
                         );
                     }
 
-                    let source_type =
-                        SourceType::mjs().with_typescript(cfg!(feature = "typescript"));
+                    let source_type = SourceType::mjs().with_typescript(typescript);
                     let strict_result = Parser::new(&allocator, source_text, source_type).parse();
                     if strict_result.panicked {
                         let errors = strict_result.errors;
@@ -207,7 +207,7 @@ impl<'a> SourceCode<'a> {
                 }
             }
             SourceCodeType::Module => {
-                let source_type = SourceType::mjs().with_typescript(cfg!(feature = "typescript"));
+                let source_type = SourceType::mjs().with_typescript(typescript);
                 Parser::new(&allocator, source_text, source_type).parse()
             }
         };
