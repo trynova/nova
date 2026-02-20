@@ -23,6 +23,7 @@ where
     Self: 'a
         + Sized
         + Copy
+        + Bindable
         + Into<Function<'a>>
         + TryFrom<Function<'a>>
         + Into<Object<'a>>

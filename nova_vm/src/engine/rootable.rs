@@ -24,8 +24,12 @@ use crate::ecmascript::{
     UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT, Uint8Array, Uint8ClampedArray,
     Uint16Array, Uint32Array,
 };
+#[cfg(feature = "temporal")]
+use crate::ecmascript::{DURATION_DISCRIMINANT, TemporalDuration};
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::{FLOAT_16_ARRAY_DISCRIMINANT, Float16Array};
+#[cfg(feature = "temporal")]
+use crate::ecmascript::{INSTANT_DISCRIMINANT, TemporalInstant};
 #[cfg(feature = "regexp")]
 use crate::ecmascript::{
     REGEXP_DISCRIMINANT, REGEXP_STRING_ITERATOR_DISCRIMINANT, RegExp, RegExpStringIterator,
@@ -94,6 +98,8 @@ pub(crate) mod private {
     use crate::ecmascript::{RegExp, RegExpStringIterator};
     #[cfg(feature = "set")]
     use crate::ecmascript::{Set, SetIterator};
+    #[cfg(feature = "temporal")]
+    use crate::ecmascript::{TemporalDuration, TemporalInstant};
     #[cfg(feature = "weak-refs")]
     use crate::ecmascript::{WeakKey, WeakMap, WeakRef, WeakSet};
     use crate::{
@@ -127,6 +133,11 @@ pub(crate) mod private {
     impl RootableSealed for BuiltinPromiseFinallyFunction<'_> {}
     #[cfg(feature = "date")]
     impl RootableSealed for Date<'_> {}
+    #[cfg(feature = "temporal")]
+    impl RootableSealed for TemporalInstant<'_> {}
+    #[cfg(feature = "temporal")]
+    impl RootableSealed for TemporalDuration<'_> {}
+    #[cfg(feature = "temporal")]
     impl RootableSealed for ECMAScriptFunction<'_> {}
     impl RootableSealed for EmbedderObject<'_> {}
     impl RootableSealed for Error<'_> {}
@@ -438,6 +449,11 @@ pub enum HeapRootData {
     Array(Array<'static>) = ARRAY_DISCRIMINANT,
     #[cfg(feature = "date")]
     Date(Date<'static>) = DATE_DISCRIMINANT,
+    #[cfg(feature = "temporal")]
+    Instant(TemporalInstant<'static>) = INSTANT_DISCRIMINANT,
+    #[cfg(feature = "temporal")]
+    Duration(TemporalDuration<'static>) = DURATION_DISCRIMINANT,
+    #[cfg(feature = "temporal")]
     Error(Error<'static>) = ERROR_DISCRIMINANT,
     FinalizationRegistry(FinalizationRegistry<'static>) = FINALIZATION_REGISTRY_DISCRIMINANT,
     Map(Map<'static>) = MAP_DISCRIMINANT,
@@ -616,6 +632,10 @@ impl HeapMarkAndSweep for HeapRootData {
             Self::Array(array) => array.mark_values(queues),
             #[cfg(feature = "date")]
             Self::Date(date) => date.mark_values(queues),
+            #[cfg(feature = "temporal")]
+            Self::Instant(instant) => instant.mark_values(queues),
+            #[cfg(feature = "temporal")]
+            Self::Duration(duration) => duration.mark_values(queues),
             Self::Error(error) => error.mark_values(queues),
             Self::FinalizationRegistry(finalization_registry) => {
                 finalization_registry.mark_values(queues)
@@ -765,6 +785,10 @@ impl HeapMarkAndSweep for HeapRootData {
             Self::Array(array) => array.sweep_values(compactions),
             #[cfg(feature = "date")]
             Self::Date(date) => date.sweep_values(compactions),
+            #[cfg(feature = "temporal")]
+            Self::Instant(instant) => instant.sweep_values(compactions),
+            #[cfg(feature = "temporal")]
+            Self::Duration(duration) => duration.sweep_values(compactions),
             Self::Error(error) => error.sweep_values(compactions),
             Self::FinalizationRegistry(finalization_registry) => {
                 finalization_registry.sweep_values(compactions)

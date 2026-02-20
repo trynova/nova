@@ -42,6 +42,10 @@ use crate::ecmascript::{
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::{DATE_DISCRIMINANT, Date};
+#[cfg(feature = "temporal")]
+use crate::ecmascript::{
+    DURATION_DISCRIMINANT, INSTANT_DISCRIMINANT, TemporalDuration, TemporalInstant,
+};
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::{FLOAT_16_ARRAY_DISCRIMINANT, Float16Array};
 #[cfg(feature = "regexp")]
@@ -119,6 +123,10 @@ pub enum Object<'a> {
     Array(Array<'a>) = ARRAY_DISCRIMINANT,
     #[cfg(feature = "date")]
     Date(Date<'a>) = DATE_DISCRIMINANT,
+    #[cfg(feature = "temporal")]
+    Instant(TemporalInstant<'a>) = INSTANT_DISCRIMINANT,
+    #[cfg(feature = "temporal")]
+    Duration(TemporalDuration<'a>) = DURATION_DISCRIMINANT,
     Error(Error<'a>) = ERROR_DISCRIMINANT,
     FinalizationRegistry(FinalizationRegistry<'a>) = FINALIZATION_REGISTRY_DISCRIMINANT,
     Map(Map<'a>) = MAP_DISCRIMINANT,
@@ -645,6 +653,10 @@ impl<'a> From<Object<'a>> for Value<'a> {
             Object::Array(data) => Self::Array(data),
             #[cfg(feature = "date")]
             Object::Date(data) => Self::Date(data),
+            #[cfg(feature = "temporal")]
+            Object::Instant(data) => Value::Instant(data),
+            #[cfg(feature = "temporal")]
+            Object::Duration(data) => Value::Duration(data),
             Object::Error(data) => Self::Error(data),
             Object::FinalizationRegistry(data) => Self::FinalizationRegistry(data),
             Object::Map(data) => Self::Map(data),
@@ -769,6 +781,10 @@ macro_rules! object_delegate {
             Self::Array(data) => data.$method($($arg),+),
             #[cfg(feature = "date")]
             Self::Date(data) => data.$method($($arg),+),
+            #[cfg(feature = "temporal")]
+            Object::Instant(data) => data.$method($($arg),+),
+            #[cfg(feature = "temporal")]
+            Object::Duration(data) => data.$method($($arg),+),
             Self::Error(data) => data.$method($($arg),+),
             Self::BoundFunction(data) => data.$method($($arg),+),
             Self::BuiltinFunction(data) => data.$method($($arg),+),
@@ -1199,6 +1215,10 @@ impl HeapSweepWeakReference for Object<'static> {
             Self::Array(data) => data.sweep_weak_reference(compactions).map(Self::Array),
             #[cfg(feature = "date")]
             Self::Date(data) => data.sweep_weak_reference(compactions).map(Self::Date),
+            #[cfg(feature = "temporal")]
+            Self::Instant(data) => data.sweep_weak_reference(compactions).map(Self::Instant),
+            #[cfg(feature = "temporal")]
+            Self::Duration(data) => data.sweep_weak_reference(compactions).map(Self::Duration),
             Self::Error(data) => data.sweep_weak_reference(compactions).map(Self::Error),
             Self::BoundFunction(data) => data
                 .sweep_weak_reference(compactions)
@@ -1405,6 +1425,10 @@ impl From<Object<'_>> for HeapRootData {
             Object::Array(d) => Self::Array(d.unbind()),
             #[cfg(feature = "date")]
             Object::Date(d) => Self::Date(d.unbind()),
+            #[cfg(feature = "temporal")]
+            Object::Duration(d) => Self::Duration(d.unbind()),
+            #[cfg(feature = "temporal")]
+            Object::Instant(d) => Self::Instant(d.unbind()),
             Object::Error(d) => Self::Error(d.unbind()),
             Object::FinalizationRegistry(d) => Self::FinalizationRegistry(d.unbind()),
             Object::Map(d) => Self::Map(d.unbind()),
@@ -1534,6 +1558,10 @@ impl TryFrom<HeapRootData> for Object<'_> {
             HeapRootData::Array(array) => Ok(Self::Array(array)),
             #[cfg(feature = "date")]
             HeapRootData::Date(date) => Ok(Self::Date(date)),
+            #[cfg(feature = "temporal")]
+            HeapRootData::Instant(instant) => Ok(Self::Instant(instant)),
+            #[cfg(feature = "temporal")]
+            HeapRootData::Duration(duration) => Ok(Self::Duration(duration)),
             HeapRootData::Error(error) => Ok(Self::Error(error)),
             HeapRootData::FinalizationRegistry(finalization_registry) => {
                 Ok(Self::FinalizationRegistry(finalization_registry))

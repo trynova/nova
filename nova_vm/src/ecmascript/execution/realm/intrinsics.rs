@@ -24,6 +24,11 @@ use crate::ecmascript::{RegExpConstructor, RegExpPrototype, RegExpStringIterator
 use crate::ecmascript::{SetConstructor, SetIteratorPrototype, SetPrototype};
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::{SharedArrayBufferConstructor, SharedArrayBufferPrototype};
+#[cfg(feature = "temporal")]
+use crate::ecmascript::{
+    TemporalDurationConstructor, TemporalDurationPrototype, TemporalInstantConstructor,
+    TemporalInstantPrototype, TemporalObject,
+};
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::{
     WeakMapConstructor, WeakMapPrototype, WeakSetConstructor, WeakSetPrototype,
@@ -130,6 +135,10 @@ pub enum ProtoIntrinsics {
     RegExpStringIterator,
     Symbol,
     SyntaxError,
+    #[cfg(feature = "temporal")]
+    TemporalInstant,
+    #[cfg(feature = "temporal")]
+    TemporalDuration,
     TypeError,
     #[cfg(feature = "array-buffer")]
     Uint16Array,
@@ -210,6 +219,17 @@ impl Intrinsics {
         BigIntConstructor::create_intrinsic(agent, realm);
         #[cfg(feature = "math")]
         MathObject::create_intrinsic(agent, realm, gc);
+
+        #[cfg(feature = "temporal")]
+        TemporalObject::create_intrinsic(agent, realm, gc);
+        #[cfg(feature = "temporal")]
+        TemporalInstantPrototype::create_intrinsic(agent, realm, gc);
+        #[cfg(feature = "temporal")]
+        TemporalInstantConstructor::create_intrinsic(agent, realm, gc);
+        #[cfg(feature = "temporal")]
+        TemporalDurationPrototype::create_intrinsic(agent, realm, gc);
+        #[cfg(feature = "temporal")]
+        TemporalDurationConstructor::create_intrinsic(agent, realm, gc);
         #[cfg(feature = "date")]
         DatePrototype::create_intrinsic(agent, realm);
         #[cfg(feature = "date")]
@@ -319,6 +339,10 @@ impl Intrinsics {
             ProtoIntrinsics::String => self.string().into(),
             ProtoIntrinsics::Symbol => self.symbol().into(),
             ProtoIntrinsics::SyntaxError => self.syntax_error().into(),
+            #[cfg(feature = "temporal")]
+            ProtoIntrinsics::TemporalInstant => self.temporal_instant().into(),
+            #[cfg(feature = "temporal")]
+            ProtoIntrinsics::TemporalDuration => self.temporal_duration().into(),
             ProtoIntrinsics::TypeError => self.type_error().into(),
             ProtoIntrinsics::URIError => self.uri_error().into(),
             ProtoIntrinsics::AggregateError => self.aggregate_error().into(),
@@ -408,6 +432,10 @@ impl Intrinsics {
             ProtoIntrinsics::String => self.string_prototype().into(),
             ProtoIntrinsics::Symbol => self.symbol_prototype().into(),
             ProtoIntrinsics::SyntaxError => self.syntax_error_prototype().into(),
+            #[cfg(feature = "temporal")]
+            ProtoIntrinsics::TemporalInstant => self.temporal_instant_prototype().into(),
+            #[cfg(feature = "temporal")]
+            ProtoIntrinsics::TemporalDuration => self.temporal_duration_prototype().into(),
             ProtoIntrinsics::TypeError => self.type_error_prototype().into(),
             ProtoIntrinsics::URIError => self.uri_error_prototype().into(),
             ProtoIntrinsics::AggregateError => self.aggregate_error_prototype().into(),
@@ -912,6 +940,33 @@ impl Intrinsics {
     #[cfg(feature = "math")]
     pub(crate) const fn math(&self) -> OrdinaryObject<'static> {
         IntrinsicObjectIndexes::MathObject.get_backing_object(self.object_index_base)
+    }
+
+    /// %Temporal%
+    pub(crate) const fn temporal(&self) -> OrdinaryObject<'static> {
+        IntrinsicObjectIndexes::Temporal.get_backing_object(self.object_index_base)
+    }
+
+    /// %Temporal.Duration.Prototype%
+    pub(crate) const fn temporal_duration_prototype(&self) -> OrdinaryObject<'static> {
+        IntrinsicObjectIndexes::TemporalDurationPrototype.get_backing_object(self.object_index_base)
+    }
+
+    /// %Temporal.Duration%
+    pub(crate) const fn temporal_duration(&self) -> BuiltinFunction<'static> {
+        IntrinsicConstructorIndexes::TemporalDuration
+            .get_builtin_function(self.builtin_function_index_base)
+    }
+
+    /// %Temporal.Instant.Prototype%
+    pub(crate) const fn temporal_instant_prototype(&self) -> OrdinaryObject<'static> {
+        IntrinsicObjectIndexes::TemporalInstantPrototype.get_backing_object(self.object_index_base)
+    }
+
+    /// %Temporal.Instant%
+    pub(crate) const fn temporal_instant(&self) -> BuiltinFunction<'static> {
+        IntrinsicConstructorIndexes::TemporalInstant
+            .get_builtin_function(self.builtin_function_index_base)
     }
 
     /// %Number.prototype%

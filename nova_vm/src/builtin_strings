@@ -28,7 +28,7 @@ __proto__
 #[cfg(feature = "math")]abs
 #[cfg(feature = "math")]acos
 #[cfg(feature = "math")]acosh
-#[cfg(any(feature = "atomics", feature = "set", feature = "weak-refs"))]add
+#[cfg(any(feature = "atomics", feature = "set", feature = "weak-refs", feature = "temporal"))]add
 AggregateError
 all
 allSettled
@@ -87,6 +87,7 @@ codePointAt
 concat
 configurable
 construct
+compare
 constructor
 copyWithin
 #[cfg(feature = "math")]cos
@@ -94,6 +95,7 @@ copyWithin
 create
 #[cfg(feature = "array-buffer")]DataView
 #[cfg(feature = "date")]Date
+#[cfg(feature = "temporal")]days
 decodeURI
 decodeURIComponent
 default
@@ -106,13 +108,17 @@ description
 #[cfg(feature = "array-buffer")]detached
 done
 #[cfg(feature = "regexp")]dotAll
+#[cfg(feature="temporal")]Duration
 #[cfg(feature = "math")]E
 encodeURI
 encodeURIComponent
 endsWith
 entries
 enumerable
+#[cfg(feature = "temporal")]epochMilliseconds
+#[cfg(feature = "temporal")]epochNanoseconds
 EPSILON
+#[cfg(feature = "temporal")]equals
 Error
 errors
 #[cfg(any(feature = "annex-b-string", feature = "regexp"))]escape
@@ -133,6 +139,7 @@ find
 findIndex
 findLast
 findLastIndex
+#[cfg(feature = "temporal")]fractionalSecondDigits
 #[cfg(feature = "annex-b-string")]fixed
 #[cfg(feature = "regexp")]flags
 flat
@@ -147,6 +154,8 @@ for
 forEach
 freeze
 from
+#[cfg(feature = "temporal")]fromEpochNanoseconds
+#[cfg(feature = "temporal")]fromEpochMilliseconds
 fromCharCode
 fromCodePoint
 fromEntries
@@ -183,6 +192,8 @@ get size
 #[cfg(feature = "array-buffer")]getBigUint64
 #[cfg(feature = "date")]getDate
 #[cfg(feature = "date")]getDay
+#[cfg(feature = "temporal")]get epochMilliseconds
+#[cfg(feature = "temporal")]get epochNanoseconds
 #[cfg(feature = "proposal-float16array")]getFloat16
 #[cfg(feature = "array-buffer")]getFloat32
 #[cfg(feature = "array-buffer")]getFloat64
@@ -225,6 +236,7 @@ hasInstance
 hasOwn
 hasOwnProperty
 #[cfg(feature = "math")]hypot
+#[cfg(feature = "temporal")]hours
 #[cfg(feature = "regexp")]ignoreCase
 #[cfg(feature = "math")]imul
 includes
@@ -250,6 +262,8 @@ isSealed
 #[cfg(feature = "array-buffer")]isView
 isWellFormed
 #[cfg(feature = "annex-b-string")]italics
+#[cfg(feature = "temporal")]Instant
+#[cfg(feature = "temporal")]largestUnit
 Iterator
 iterator
 join
@@ -281,6 +295,10 @@ MAX_SAFE_INTEGER
 MAX_VALUE
 #[cfg(feature = "array-buffer")]maxByteLength
 message
+#[cfg(feature = "temporal")]microseconds
+#[cfg(feature = "temporal")]milliseconds
+#[cfg(feature = "temporal")]minutes
+#[cfg(feature = "temporal")]months
 #[cfg(feature = "math")]min
 MIN_SAFE_INTEGER
 MIN_VALUE
@@ -288,6 +306,7 @@ Module
 #[cfg(feature = "regexp")]multiline
 name
 NaN
+#[cfg(feature = "temporal")]nanoseconds
 NEGATIVE_INFINITY
 next
 normalize
@@ -343,9 +362,12 @@ resolve
 return
 reverse
 revocable
-#[cfg(feature = "math")]round
+#[cfg(any(feature = "math", feature = "temporal"))]round
+#[cfg(feature = "temporal")]roundingMode
+#[cfg(feature = "temporal")]roundingIncrement
 seal
 #[cfg(feature = "regexp")]search
+#[cfg(feature = "temporal")]seconds
 set
 #[cfg(feature = "set")]Set
 set [Symbol.toStringTag]
@@ -381,10 +403,12 @@ setPrototypeOf
 shift
 #[cfg(feature = "math")]sign
 #[cfg(feature = "math")]sin
+#[cfg(feature = "temporal")]since
 #[cfg(feature = "math")]sinh
 size
 slice
 #[cfg(feature = "annex-b-string")]small
+#[cfg(feature = "temporal")]smallestUnit
 some
 sort
 #[cfg(feature = "regexp")]source
@@ -407,6 +431,7 @@ String Iterator
 #[cfg(feature = "array-buffer")]subarray
 #[cfg(feature = "annex-b-string")]substr
 substring
+#[cfg(feature = "temporal")]subtract
 sumPrecise
 #[cfg(feature = "annex-b-string")]sup
 symbol
@@ -426,12 +451,16 @@ Symbol.toPrimitive
 Symbol.toStringTag
 Symbol.unscopables
 SyntaxError
+#[cfg(feature = "temporal")]Temporal
+#[cfg(feature = "temporal")]Temporal.Duration
+#[cfg(feature = "temporal")]Temporal.Instant
 #[cfg(feature = "math")]tan
 #[cfg(feature = "math")]tanh
 #[cfg(feature = "regexp")]test
 then
 throw
 #[cfg(feature = "atomics")]timed-out
+#[cfg(feature = "temporal")]timeZone
 toArray
 #[cfg(feature = "date")]toDateString
 toExponential
@@ -454,6 +483,7 @@ toStringTag
 #[cfg(feature = "date")]toTimeString
 toUpperCase
 #[cfg(feature = "date")]toUTCString
+#[cfg(feature = "temporal")]toZonedDateTimeISO
 toWellFormed
 #[cfg(feature = "array-buffer")]transfer
 #[cfg(feature = "array-buffer")]transferToFixedLength
@@ -478,6 +508,7 @@ undefined
 unregister
 unscopables
 unshift
+#[cfg(feature = "temporal")]until
 URIError
 #[cfg(feature = "date")]UTC
 value
@@ -488,7 +519,9 @@ values
 #[cfg(feature = "weak-refs")]WeakMap
 #[cfg(feature = "weak-refs")]WeakRef
 #[cfg(feature = "weak-refs")]WeakSet
+#[cfg(feature = "temporal")]weeks
 with
 withResolvers
 writable
 #[cfg(feature = "atomics")]xor
+#[cfg(feature = "temporal")]years

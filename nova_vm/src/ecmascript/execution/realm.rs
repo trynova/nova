@@ -575,6 +575,9 @@ pub(crate) fn set_default_global_bindings<'a>(
 
         // 19.4.4 Reflect
         define_property!(intrinsic Reflect, reflect);
+
+        #[cfg(feature = "temporal")]
+        define_property!(intrinsic Temporal, temporal);
     }
 
     // 3. Return global.
