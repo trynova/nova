@@ -24,7 +24,7 @@ use crate::ecmascript::{
     SharedUint8Array, SharedUint8ClampedArray, SharedUint16Array, SharedUint32Array,
 };
 #[cfg(feature = "temporal")]
-use crate::ecmascript::{TemporalDuration, TemporalInstant};
+use crate::ecmascript::{TemporalDuration, TemporalInstant, TemporalPlainTime};
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::{WeakMap, WeakRef, WeakSet};
 use crate::{
@@ -143,6 +143,8 @@ pub enum Value<'a> {
     Instant(TemporalInstant<'a>),
     #[cfg(feature = "temporal")]
     Duration(TemporalDuration<'a>),
+    #[cfg(feature = "temporal")]
+    PlainTime(TemporalPlainTime<'a>),
     Error(Error<'a>),
     FinalizationRegistry(FinalizationRegistry<'a>),
     Map(Map<'a>),
@@ -284,6 +286,8 @@ pub(crate) const INSTANT_DISCRIMINANT: u8 =
 #[cfg(feature = "temporal")]
 pub(crate) const DURATION_DISCRIMINANT: u8 =
     value_discriminant(Value::Duration(TemporalDuration::_DEF));
+#[cfg(feature = "temporal")]
+pub(crate) const PLAIN_TIME_DISCRIMINANT: u8 = value_discriminant(Value::TemporalDuration::_DEF);
 pub(crate) const ERROR_DISCRIMINANT: u8 = value_discriminant(Value::Error(Error::_DEF));
 pub(crate) const BUILTIN_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::BuiltinFunction(BuiltinFunction::_DEF));
@@ -926,6 +930,8 @@ impl Rootable for Value<'_> {
             Self::Instant(instant) => Err(HeapRootData::from(instant)),
             #[cfg(feature = "temporal")]
             Self::Duration(duration) => Err(HeapRootData::from(duration)),
+            #[cfg(feature = "temporal")]
+            Self::PlainTime(plain_time) => Err(HeapRootData::from(plain_time)),
             Self::Error(error) => Err(HeapRootData::from(error)),
             Self::FinalizationRegistry(finalization_registry) => {
                 Err(HeapRootData::from(finalization_registry))
@@ -1060,6 +1066,8 @@ impl Rootable for Value<'_> {
             HeapRootData::Instant(o) => Some(Self::from(o)),
             #[cfg(feature = "temporal")]
             HeapRootData::Duration(o) => Some(Self::from(o)),
+            #[cfg(feature = "temporal")]
+            HeapRootData::PlainTime(o) => Some(Self::from(o)),
             HeapRootData::Error(o) => Some(Self::from(o)),
             HeapRootData::FinalizationRegistry(o) => Some(Self::from(o)),
             HeapRootData::Map(o) => Some(Self::from(o)),
@@ -1205,6 +1213,8 @@ impl HeapMarkAndSweep for Value<'static> {
             Self::Instant(data) => data.mark_values(queues),
             #[cfg(feature = "temporal")]
             Self::Duration(data) => data.mark_values(queues),
+            #[cfg(feature = "temporal")]
+            Self::PlainTime(data) => data.mark_values(queues),
             Self::Error(data) => data.mark_values(queues),
             Self::BoundFunction(data) => data.mark_values(queues),
             Self::BuiltinFunction(data) => data.mark_values(queues),
@@ -1323,6 +1333,8 @@ impl HeapMarkAndSweep for Value<'static> {
             Self::Instant(data) => data.sweep_values(compactions),
             #[cfg(feature = "temporal")]
             Self::Duration(data) => data.sweep_values(compactions),
+            #[cfg(feature = "temporal")]
+            Self::PlainTime(data) => data.sweep_values(compactions),
             Self::Error(data) => data.sweep_values(compactions),
             Self::BoundFunction(data) => data.sweep_values(compactions),
             Self::BuiltinFunction(data) => data.sweep_values(compactions),
@@ -1478,6 +1490,8 @@ fn map_object_to_static_string_repr(value: Value) -> String<'static> {
         Object::Instant(_) => BUILTIN_STRING_MEMORY._object_Object_,
         #[cfg(feature = "temporal")]
         Object::Duration(_) => BUILTIN_STRING_MEMORY._object_Object_,
+        #[cfg(feature = "temporal")]
+        Object::PlainTime(_) => BUILTIN_STRING_MEMORY._object_Object_,
         #[cfg(feature = "set")]
         Object::Set(_) | Object::SetIterator(_) => BUILTIN_STRING_MEMORY._object_Object_,
         #[cfg(feature = "weak-refs")]

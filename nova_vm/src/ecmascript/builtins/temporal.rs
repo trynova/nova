@@ -5,11 +5,13 @@
 mod duration;
 mod error;
 mod instant;
+mod plain_time;
 mod options;
 
 pub use duration::*;
 pub(crate) use error::*;
 pub use instant::*;
+pub use plain_time::*;
 pub(crate) use options::*;
 
 use temporal_rs::{
@@ -36,6 +38,7 @@ impl TemporalObject {
 
         let instant_constructor = intrinsics.temporal_instant();
         let duration_constructor = intrinsics.temporal_duration();
+        let plain_time_constructor = intrinsics.temporal_plain_time();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(3)

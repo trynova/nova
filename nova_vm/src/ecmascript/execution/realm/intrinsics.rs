@@ -970,6 +970,15 @@ impl Intrinsics {
             .get_builtin_function(self.builtin_function_index_base)
     }
 
+    /// %Temporal.PlainTime%
+    pub(crate) const fn temporal_plain_time(&self) -> BuiltinFunction<'static>  {
+        IntrinsicConstructorIndexes::TemporalPlainTime.get_builtin_function(self.builtin_function_index_base)
+    }
+
+    /// %Temporal.PlainTime.Prototype%
+    pub(crate) const fn temporal_plain_time_prototype(&self) -> OrdinaryObject<'static> {
+        IntrinsicObjectIndexes::TemporalPlainTimePrototype.get_backing_object(self.object_index_base)
+    }
     /// %Number.prototype%
     pub(crate) fn number_prototype(&self) -> PrimitiveObject<'static> {
         IntrinsicPrimitiveObjectIndexes::NumberPrototype
