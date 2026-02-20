@@ -40,8 +40,8 @@ use crate::{
         parse_script, script_evaluation, to_string, try_get_identifier_reference,
     },
     engine::{
-        Bindable, GcScope, HeapRootCollection, HeapRootData, HeapRootDataInner, HeapRootRef,
-        NoGcScope, Rootable, Vm, bindable_handle,
+        Bindable, GcScope, HeapRootCollection, HeapRootData, HeapRootRef, NoGcScope, Rootable, Vm,
+        bindable_handle,
     },
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapIndexHandle, HeapMarkAndSweep,
@@ -63,6 +63,7 @@ pub struct Options {
     pub no_block: bool,
 }
 
+/// Result of methods that may throw a JavaScript error.
 pub type JsResult<'a, T> = core::result::Result<T, JsError<'a>>;
 
 impl<'a, T: 'a> From<JsError<'a>> for JsResult<'a, T> {
@@ -92,7 +93,7 @@ impl<'a> JsError<'a> {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(transparent)]
-pub struct JsErrorRootRepr(ValueRootRepr);
+pub(crate) struct JsErrorRootRepr(ValueRootRepr);
 
 impl Rootable for JsError<'_> {
     type RootRepr = JsErrorRootRepr;
@@ -215,6 +216,14 @@ pub(crate) use try_result_ok;
 /// garbage collection.
 pub type TryResult<'a, T> = ControlFlow<TryError<'a>, T>;
 
+/// Returns the contained [`Continue`] value, consuming the self value.
+///
+/// # Panics
+///
+/// Panics if the self value contains [`Break`].
+///
+/// [`Break`]: TryResult::Break
+/// [`Continue`]: TryResult::Continue
 #[inline]
 pub fn unwrap_try<'a, T: 'a>(try_result: TryResult<'a, T>) -> T {
     match try_result {
@@ -1552,7 +1561,7 @@ impl HeapMarkAndSweep for Agent {
             .iter()
             .enumerate()
             .for_each(|(i, &value)| {
-                if value.0 != HeapRootDataInner::Empty {
+                if value != HeapRootData::Empty {
                     value.mark_values(queues);
                     last_filled_global_value = Some(i);
                 }

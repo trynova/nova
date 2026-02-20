@@ -6,10 +6,7 @@
 
 use crate::{
     ecmascript::{Agent, HostDefined, JsResult, Module, ModuleEnvironment, Promise, Realm, String},
-    engine::{
-        Bindable, GcScope, HeapRootData, HeapRootDataInner, HeapRootRef, NoGcScope, Rootable,
-        bindable_handle,
-    },
+    engine::{Bindable, GcScope, HeapRootData, HeapRootRef, NoGcScope, Rootable, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -172,8 +169,8 @@ impl TryFrom<HeapRootData> for InnerAbstractModule<'_> {
     type Error = ();
 
     fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        match value.0 {
-            HeapRootDataInner::SourceTextModule(s) => Ok(Self::SourceTextModule(s)),
+        match value {
+            HeapRootData::SourceTextModule(s) => Ok(Self::SourceTextModule(s)),
             _ => Err(()),
         }
     }

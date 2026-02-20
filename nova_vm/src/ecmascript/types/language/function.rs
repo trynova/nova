@@ -21,7 +21,7 @@ use crate::{
         PropertyKey, PropertyLookupCache, PropertyOffset, ProtoIntrinsics, SetAtOffsetProps,
         SetResult, String, TryGetResult, TryHasResult, TryResult, Value,
     },
-    engine::{Bindable, GcScope, HeapRootData, HeapRootDataInner, NoGcScope, bindable_handle},
+    engine::{Bindable, GcScope, HeapRootData, NoGcScope, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -631,12 +631,8 @@ impl<'a> From<Function<'a>> for HeapRootData {
             Function::BuiltinConstructorFunction(d) => Self::from(d),
             Function::BuiltinPromiseResolvingFunction(d) => Self::from(d),
             Function::BuiltinPromiseFinallyFunction(d) => Self::from(d),
-            Function::BuiltinPromiseCollectorFunction => {
-                Self(HeapRootDataInner::BuiltinPromiseCollectorFunction)
-            }
-            Function::BuiltinProxyRevokerFunction => {
-                Self(HeapRootDataInner::BuiltinProxyRevokerFunction)
-            }
+            Function::BuiltinPromiseCollectorFunction => Self::BuiltinPromiseCollectorFunction,
+            Function::BuiltinProxyRevokerFunction => Self::BuiltinProxyRevokerFunction,
         }
     }
 }
@@ -661,20 +657,20 @@ impl TryFrom<HeapRootData> for Function<'_> {
     type Error = ();
     #[inline]
     fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        match value.0 {
-            HeapRootDataInner::BoundFunction(d) => Ok(Self::BoundFunction(d)),
-            HeapRootDataInner::BuiltinFunction(d) => Ok(Self::BuiltinFunction(d)),
-            HeapRootDataInner::ECMAScriptFunction(d) => Ok(Self::ECMAScriptFunction(d)),
-            HeapRootDataInner::BuiltinConstructorFunction(data) => {
+        match value {
+            HeapRootData::BoundFunction(d) => Ok(Self::BoundFunction(d)),
+            HeapRootData::BuiltinFunction(d) => Ok(Self::BuiltinFunction(d)),
+            HeapRootData::ECMAScriptFunction(d) => Ok(Self::ECMAScriptFunction(d)),
+            HeapRootData::BuiltinConstructorFunction(data) => {
                 Ok(Self::BuiltinConstructorFunction(data))
             }
-            HeapRootDataInner::BuiltinPromiseResolvingFunction(data) => {
+            HeapRootData::BuiltinPromiseResolvingFunction(data) => {
                 Ok(Self::BuiltinPromiseResolvingFunction(data))
             }
-            HeapRootDataInner::BuiltinPromiseCollectorFunction => {
+            HeapRootData::BuiltinPromiseCollectorFunction => {
                 Ok(Self::BuiltinPromiseCollectorFunction)
             }
-            HeapRootDataInner::BuiltinProxyRevokerFunction => Ok(Self::BuiltinProxyRevokerFunction),
+            HeapRootData::BuiltinProxyRevokerFunction => Ok(Self::BuiltinProxyRevokerFunction),
             _ => Err(()),
         }
     }

@@ -8,4 +8,4 @@ mod typed_array_intrinsic_object;
 
 pub(crate) use abstract_operations::*;
 pub(crate) use typed_array_constructors::*;
-pub use typed_array_intrinsic_object::*;
+pub(crate) use typed_array_intrinsic_object::*;

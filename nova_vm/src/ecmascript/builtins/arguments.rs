@@ -76,7 +76,7 @@ use crate::{
         Agent, BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, Number, Object, ObjectRecord,
         OrdinaryObject, Value,
     },
-    engine::{Bindable, HeapRootData, HeapRootDataInner, NoGcScope, bindable_handle},
+    engine::{Bindable, HeapRootData, NoGcScope, bindable_handle},
     heap::{
         CompactionLists, DirectArenaAccess, ElementDescriptor, HeapMarkAndSweep,
         HeapSweepWeakReference, WellKnownSymbols, WorkQueues,
@@ -273,15 +273,15 @@ impl crate::heap::HeapIndexHandle for UnmappedArguments<'_> {
 impl<'a> From<UnmappedArguments<'a>> for HeapRootData {
     #[inline(always)]
     fn from(value: UnmappedArguments<'a>) -> Self {
-        Self(HeapRootDataInner::Arguments(value.unbind()))
+        Self::Arguments(value.unbind())
     }
 }
 impl TryFrom<HeapRootData> for UnmappedArguments<'_> {
     type Error = ();
     #[inline]
     fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        match value.0 {
-            HeapRootDataInner::Arguments(data) => Ok(data),
+        match value {
+            HeapRootData::Arguments(data) => Ok(data),
             _ => Err(()),
         }
     }

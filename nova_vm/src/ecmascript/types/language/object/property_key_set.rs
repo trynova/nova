@@ -7,8 +7,8 @@ use hashbrown::HashTable;
 use crate::{
     ecmascript::{Agent, PropertyKey},
     engine::{
-        Bindable, HeapRootCollection, HeapRootCollectionInner, NoGcScope, ScopableCollection,
-        ScopedCollection, bindable_handle,
+        Bindable, HeapRootCollection, NoGcScope, ScopableCollection, ScopedCollection,
+        bindable_handle,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
@@ -16,7 +16,7 @@ use crate::{
 /// An unordered set of PropertyKeys.
 #[derive(Clone, Default)]
 #[repr(transparent)]
-pub(crate) struct PropertyKeySet<'a>(HashTable<PropertyKey<'a>>);
+pub struct PropertyKeySet<'a>(HashTable<PropertyKey<'a>>);
 
 impl core::fmt::Debug for PropertyKeySet<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -25,19 +25,15 @@ impl core::fmt::Debug for PropertyKeySet<'_> {
 }
 
 impl<'a> PropertyKeySet<'a> {
-    pub(crate) fn new(_: NoGcScope<'a, '_>) -> Self {
+    pub fn new(_: NoGcScope<'a, '_>) -> Self {
         Self(HashTable::new())
     }
 
-    pub(crate) fn with_capacity(capacity: usize, _: NoGcScope<'a, '_>) -> Self {
+    pub fn with_capacity(capacity: usize, _: NoGcScope<'a, '_>) -> Self {
         Self(HashTable::with_capacity(capacity))
     }
 
     /// Insert a PropertyKey into the set.
-    ///
-    /// The insertion might trigger a resize of the underlying hash table,
-    /// requiring rehashing of some or all previous elements. Hence the
-    /// PropertyKeyHeap parameter is needed.
     pub fn insert(&mut self, agent: &Agent, value: PropertyKey) -> bool {
         let hash = value.heap_hash(agent);
         let entry = self.0.entry(hash, |p| *p == value, |p| p.heap_hash(agent));
@@ -69,18 +65,12 @@ impl ScopableCollection for PropertyKeySet<'_> {
 
 impl ScopedCollection<'_, PropertyKeySet<'static>> {
     /// Insert a PropertyKey into the scoped set.
-    ///
-    /// The insertion might trigger a resize of the underlying hash table,
-    /// requiring rehashing of some or all previous elements. Hence the
-    /// PropertyKeyHeap parameter is needed.
     pub fn insert(&mut self, agent: &Agent, value: PropertyKey) -> bool {
         let mut stack_ref_collections = agent.stack_ref_collections.borrow_mut();
         let Some(stack_slot) = stack_ref_collections.get_mut(self.inner as usize) else {
             unreachable!();
         };
-        let HeapRootCollection(HeapRootCollectionInner::PropertyKeySet(property_key_set)) =
-            stack_slot
-        else {
+        let HeapRootCollection::PropertyKeySet(property_key_set) = stack_slot else {
             unreachable!()
         };
         property_key_set.insert(agent, value)
@@ -92,9 +82,7 @@ impl ScopedCollection<'_, PropertyKeySet<'static>> {
         let Some(stack_slot) = stack_ref_collections.get(self.inner as usize) else {
             unreachable!();
         };
-        let HeapRootCollection(HeapRootCollectionInner::PropertyKeySet(property_key_set)) =
-            stack_slot
-        else {
+        let HeapRootCollection::PropertyKeySet(property_key_set) = stack_slot else {
             unreachable!()
         };
         property_key_set.contains(agent, value)

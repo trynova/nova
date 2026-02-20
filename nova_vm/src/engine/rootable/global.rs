@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use crate::{
     ecmascript::Agent,
-    engine::{HeapRootData, HeapRootDataInner, HeapRootRef, NoGcScope, Rootable},
+    engine::{HeapRootData, HeapRootRef, NoGcScope, Rootable},
 };
 
 /// # Global heap root
@@ -13,8 +13,10 @@ use crate::{
 /// pointer to a heap allocation in system programming languages. As long as
 /// the pointer lives, the memory on the heap will not be released.
 #[derive(Debug, PartialEq)]
+#[allow(private_bounds)]
 pub struct Global<T: 'static + Rootable>(T::RootRepr, PhantomData<T>);
 
+#[allow(private_bounds)]
 impl<T: Rootable> Global<T> {
     /// Root the given value into a Global, keeping it from being garbage
     /// collected until the Global is explicitly released.
@@ -30,7 +32,7 @@ impl<T: Rootable> Global<T> {
         let value = heap_root_data;
         let mut globals = agent.heap.globals.borrow_mut();
         let reused_index = globals.iter_mut().enumerate().find_map(|(index, entry)| {
-            if entry.0 == HeapRootDataInner::Empty {
+            if entry == &HeapRootData::Empty {
                 *entry = value;
                 Some(index)
             } else {
@@ -65,7 +67,7 @@ impl<T: Rootable> Global<T> {
                 .borrow_mut()
                 .get_mut(heap_ref.to_index())
                 .unwrap(),
-            HeapRootData(HeapRootDataInner::Empty),
+            HeapRootData::Empty,
         );
         let Some(value) = T::from_heap_data(heap_data) else {
             panic!("Invalid Global returned different type than expected");

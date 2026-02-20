@@ -22,7 +22,7 @@ use crate::{
             Value, Viewable, copy_data_block_bytes, create_byte_data_block,
         },
     },
-    engine::{Bindable, HeapRootData, HeapRootDataInner, NoGcScope, bindable_handle},
+    engine::{Bindable, HeapRootData, NoGcScope, bindable_handle},
     heap::{
         ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
         HeapIndexHandle, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
@@ -382,10 +382,10 @@ impl TryFrom<HeapRootData> for AnyArrayBuffer<'_> {
 
     #[inline]
     fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        match value.0 {
-            HeapRootDataInner::ArrayBuffer(dv) => Ok(AnyArrayBuffer::ArrayBuffer(dv)),
+        match value {
+            HeapRootData::ArrayBuffer(dv) => Ok(AnyArrayBuffer::ArrayBuffer(dv)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootDataInner::SharedArrayBuffer(sdv) => Ok(AnyArrayBuffer::SharedArrayBuffer(sdv)),
+            HeapRootData::SharedArrayBuffer(sdv) => Ok(AnyArrayBuffer::SharedArrayBuffer(sdv)),
             _ => Err(()),
         }
     }

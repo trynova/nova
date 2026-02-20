@@ -8,14 +8,10 @@ pub(crate) use data::*;
 
 use crate::{
     ecmascript::{Agent, BUILTIN_STRING_MEMORY, Primitive, PropertyKey, String, Value},
-    engine::{
-        Bindable, HeapRootData, HeapRootDataInner, HeapRootRef, NoGcScope, Rootable,
-        bindable_handle,
-    },
+    engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, bindable_handle},
     heap::{
         ArenaAccess, BaseIndex, CompactionLists, CreateHeapData, Heap, HeapIndexHandle,
-        HeapMarkAndSweep, HeapSweepWeakReference, WellKnownSymbols, WorkQueues,
-        arena_vec_access,
+        HeapMarkAndSweep, HeapSweepWeakReference, WellKnownSymbols, WorkQueues, arena_vec_access,
     },
 };
 
@@ -40,7 +36,7 @@ enum SymbolRootReprInner {
 
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
-pub struct SymbolRootRepr(SymbolRootReprInner);
+pub(crate) struct SymbolRootRepr(SymbolRootReprInner);
 
 impl<'a> Symbol<'a> {
     /// Return the name for functions created using NamedEvaluation with a
@@ -162,8 +158,8 @@ impl Rootable for Symbol<'_> {
 
     #[inline]
     fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data.0 {
-            HeapRootDataInner::Symbol(s) => Some(s),
+        match heap_data {
+            HeapRootData::Symbol(s) => Some(s),
             _ => None,
         }
     }
@@ -172,8 +168,8 @@ impl TryFrom<HeapRootData> for Symbol<'_> {
     type Error = ();
     #[inline]
     fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        match value.0 {
-            HeapRootDataInner::Symbol(data) => Ok(data),
+        match value {
+            HeapRootData::Symbol(data) => Ok(data),
             _ => Err(()),
         }
     }
@@ -181,11 +177,11 @@ impl TryFrom<HeapRootData> for Symbol<'_> {
 impl TryFrom<Symbol<'_>> for HeapRootData {
     type Error = ();
     #[inline]
-    fn try_from(value: Symbol) -> Result<Self, Self::Error> {
+    fn try_from(value: Symbol) -> Result<Self, ()> {
         if WellKnownSymbols::try_from(value).is_ok() {
             Err(())
         } else {
-            Ok(HeapRootData(HeapRootDataInner::Symbol(value.unbind())))
+            Ok(Self::Symbol(value.unbind()))
         }
     }
 }

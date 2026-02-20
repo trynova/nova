@@ -11,9 +11,7 @@ use crate::{
         Function, FunctionInternalProperties, InternalSlots, JsResult, Object, OrdinaryObject,
         PropertyKey, Realm, ScopedValuesIterator, String, Value, function_handle,
     },
-    engine::{
-        Bindable, GcScope, HeapRootCollection, HeapRootCollectionInner, NoGcScope, bindable_handle,
-    },
+    engine::{Bindable, GcScope, HeapRootCollection, NoGcScope, bindable_handle},
     heap::{
         ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
         HeapMarkAndSweep, HeapSweepWeakReference, IntrinsicConstructorIndexes,
@@ -108,9 +106,7 @@ impl<'slice, 'value> ArgumentsList<'slice, 'value> {
                 .expect("Stack references overflowed");
             let mut stack_ref_collections = agent.stack_ref_collections.borrow_mut();
             let len = stack_ref_collections.len();
-            stack_ref_collections.push(HeapRootCollection(HeapRootCollectionInner::ArgumentsList(
-                slice.into(),
-            )));
+            stack_ref_collections.push(HeapRootCollection::ArgumentsList(slice.into()));
             // Elsewhere we make assumptions about the size of the stack.
             // Thus check it here as well.
             (
@@ -140,8 +136,8 @@ impl<'slice, 'value> ArgumentsList<'slice, 'value> {
             // We take the slice back from the heap by replacing the data
             // with an empty collection, and then truncate the heap stack
             // to its previous size.
-            let HeapRootCollection(HeapRootCollectionInner::ArgumentsList(slice)) =
-                core::mem::replace(stack_slot, HeapRootCollection::EMPTY)
+            let HeapRootCollection::ArgumentsList(slice) =
+                core::mem::replace(stack_slot, HeapRootCollection::Empty)
             else {
                 unreachable!()
             };
@@ -269,7 +265,7 @@ impl<'scope> ScopedArgumentsList<'scope> {
     }
 
     pub fn get<'gc>(&self, agent: &Agent, index: u32, gc: NoGcScope<'gc, '_>) -> Value<'gc> {
-        if let HeapRootCollection(HeapRootCollectionInner::ArgumentsList(args)) = agent
+        if let HeapRootCollection::ArgumentsList(args) = agent
             .stack_ref_collections
             .borrow()
             .get(self.index as usize)
@@ -293,7 +289,7 @@ impl<'scope> ScopedArgumentsList<'scope> {
     }
 
     pub fn len(&self, agent: &Agent) -> usize {
-        if let HeapRootCollection(HeapRootCollectionInner::ArgumentsList(args)) = agent
+        if let HeapRootCollection::ArgumentsList(args) = agent
             .stack_ref_collections
             .borrow()
             .get(self.index as usize)
@@ -309,9 +305,7 @@ impl<'scope> ScopedArgumentsList<'scope> {
         let mut collections = agent.stack_ref_collections.borrow_mut();
         let collection_data: &mut HeapRootCollection =
             collections.get_mut(self.index as usize).unwrap();
-        if let HeapRootCollection(HeapRootCollectionInner::ArgumentsList(args_ref)) =
-            collection_data
-        {
+        if let HeapRootCollection::ArgumentsList(args_ref) = collection_data {
             // SAFETY: args_ref points to a valid exclusively held slice in an
             // above call frame.
             let args: &mut [Value<'static>] = unsafe { args_ref.as_mut() };
@@ -329,7 +323,7 @@ impl<'scope> ScopedArgumentsList<'scope> {
     }
 
     pub(crate) fn iter(&self, agent: &mut Agent) -> ScopedValuesIterator<'_> {
-        if let HeapRootCollection(HeapRootCollectionInner::ArgumentsList(args)) = agent
+        if let HeapRootCollection::ArgumentsList(args) = agent
             .stack_ref_collections
             .borrow()
             .get(self.index as usize)
@@ -351,7 +345,7 @@ impl<'scope> ScopedArgumentsList<'scope> {
     ///
     /// Stack values must not be accessed while this slice is exposed.
     pub(crate) unsafe fn as_non_null_slice(&self, agent: &Agent) -> NonNull<[Value<'static>]> {
-        if let HeapRootCollection(HeapRootCollectionInner::ArgumentsList(args)) = agent
+        if let HeapRootCollection::ArgumentsList(args) = agent
             .stack_ref_collections
             .borrow()
             .get(self.index as usize)
@@ -370,8 +364,10 @@ impl core::fmt::Debug for ScopedArgumentsList<'_> {
     }
 }
 
+/// Calling convention of a builtin method.
 pub type RegularFn =
     for<'gc> fn(&mut Agent, Value, ArgumentsList, GcScope<'gc, '_>) -> JsResult<'gc, Value<'gc>>;
+/// Calling convention of a builtin constructor.
 pub type ConstructorFn = for<'gc> fn(
     &mut Agent,
     Value,
@@ -380,6 +376,7 @@ pub type ConstructorFn = for<'gc> fn(
     GcScope<'gc, '_>,
 ) -> JsResult<'gc, Value<'gc>>;
 
+/// Calling convention of a builtin function.
 #[allow(unpredictable_function_pointer_comparisons)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Behaviour {

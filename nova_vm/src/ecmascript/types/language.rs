@@ -24,4 +24,4 @@ pub use primitive::*;
 pub use string::*;
 pub use symbol::*;
 pub use value::*;
-pub use value_vec::*;
+pub(crate) use value_vec::*;

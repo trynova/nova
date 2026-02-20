@@ -15,7 +15,7 @@ use crate::{
         Agent, DATA_VIEW_DISCRIMINANT, InternalMethods, InternalSlots, Object, OrdinaryObject,
         ProtoIntrinsics, Value, Viewable,
     },
-    engine::{Bindable, HeapRootData, HeapRootDataInner, bindable_handle},
+    engine::{Bindable, HeapRootData, bindable_handle},
     heap::{
         ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
         HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
@@ -504,10 +504,10 @@ impl TryFrom<HeapRootData> for AnyDataView<'_> {
 
     #[inline]
     fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        match value.0 {
-            HeapRootDataInner::DataView(dv) => Ok(AnyDataView::DataView(dv)),
+        match value {
+            HeapRootData::DataView(dv) => Ok(AnyDataView::DataView(dv)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootDataInner::SharedDataView(sdv) => Ok(AnyDataView::SharedDataView(sdv)),
+            HeapRootData::SharedDataView(sdv) => Ok(AnyDataView::SharedDataView(sdv)),
             _ => Err(()),
         }
     }

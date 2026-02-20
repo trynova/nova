@@ -10,7 +10,7 @@ use crate::{
         SYMBOL_DISCRIMINANT, SmallBigInt, SmallF64, SmallInteger, SmallString, Symbol,
         UNDEFINED_DISCRIMINANT, Value,
     },
-    engine::{HeapRootData, HeapRootDataInner, HeapRootRef, Rootable, bindable_handle},
+    engine::{HeapRootData, HeapRootRef, Rootable, bindable_handle},
     heap::WellKnownSymbols,
 };
 
@@ -72,7 +72,7 @@ primitive_value!(bool, Boolean);
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
-pub enum PrimitiveRootRepr {
+pub(crate) enum PrimitiveRootRepr {
     Undefined = UNDEFINED_DISCRIMINANT,
     Null = NULL_DISCRIMINANT,
     Boolean(bool) = BOOLEAN_DISCRIMINANT,
@@ -249,11 +249,11 @@ impl Rootable for Primitive<'_> {
 
     #[inline]
     fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data.0 {
-            HeapRootDataInner::String(p) => Some(Self::String(p)),
-            HeapRootDataInner::Symbol(p) => Some(Self::Symbol(p)),
-            HeapRootDataInner::Number(p) => Some(Self::Number(p)),
-            HeapRootDataInner::BigInt(p) => Some(Self::BigInt(p)),
+        match heap_data {
+            HeapRootData::String(p) => Some(Self::String(p)),
+            HeapRootData::Symbol(p) => Some(Self::Symbol(p)),
+            HeapRootData::Number(p) => Some(Self::Number(p)),
+            HeapRootData::BigInt(p) => Some(Self::BigInt(p)),
             _ => None,
         }
     }

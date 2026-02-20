@@ -7,7 +7,9 @@ use std::ops::ControlFlow;
 
 use wtf8::CodePoint;
 
-use super::{Rootable, Scoped};
+use crate::engine::Rootable;
+
+use super::Scoped;
 
 /// # ZST type representing access to the garbage collector.
 ///

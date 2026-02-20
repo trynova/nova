@@ -55,8 +55,6 @@ use crate::ecmascript::{
         SHARED_UINT_32_ARRAY_DISCRIMINANT,
     },
 };
-use crate::engine::HeapRootDataInner;
-use crate::heap::WellKnownSymbols;
 use crate::{
     ecmascript::{
         ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
@@ -76,7 +74,9 @@ use crate::{
         Value,
     },
     engine::{Bindable, HeapRootData, HeapRootRef, Rootable, bindable_handle},
-    heap::{CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues},
+    heap::{
+        CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WellKnownSymbols, WorkQueues,
+    },
 };
 
 /// ## [6.1 ECMAScript Language Types](https://tc39.es/ecma262/#sec-ecmascript-language-types)
@@ -542,7 +542,7 @@ bindable_handle!(WeakKey);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
-pub enum WeakKeyRootRerp {
+pub(crate) enum WeakKeyRootRerp {
     Symbol(WellKnownSymbols) = SYMBOL_DISCRIMINANT,
     HeapRef(HeapRootRef) = 0x80,
 }
@@ -579,7 +579,7 @@ impl Rootable for WeakKey<'_> {
 
     #[inline]
     fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        if let HeapRootDataInner::Symbol(symbol) = heap_data.0 {
+        if let HeapRootData::Symbol(symbol) = heap_data {
             Some(Self::Symbol(symbol))
         } else if let Ok(object) = Object::try_from(heap_data) {
             Some(Self::from(object))

@@ -17,10 +17,7 @@ use crate::{
         Agent, Primitive, PropertyDescriptor, PropertyKey, SMALL_STRING_DISCRIMINANT,
         STRING_DISCRIMINANT, SmallInteger, Value, primitive_handle, primitive_value,
     },
-    engine::{
-        Bindable, HeapRootData, HeapRootDataInner, HeapRootRef, NoGcScope, Rootable, Scoped,
-        bindable_handle,
-    },
+    engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, Scoped, bindable_handle},
     heap::{
         ArenaAccess, BaseIndex, CompactionLists, CreateHeapData, Heap, HeapIndexHandle,
         HeapMarkAndSweep, HeapSweepWeakReference, StringHeapAccess, WorkQueues, arena_vec_access,
@@ -100,7 +97,7 @@ bindable_handle!(String);
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
-pub enum StringRootRepr {
+pub(crate) enum StringRootRepr {
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
     HeapRef(HeapRootRef) = 0x80,
 }
@@ -137,8 +134,8 @@ impl TryFrom<HeapRootData> for String<'_> {
     type Error = ();
     #[inline]
     fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        match value.0 {
-            HeapRootDataInner::String(data) => Ok(Self::String(data)),
+        match value {
+            HeapRootData::String(data) => Ok(Self::String(data)),
             _ => Err(()),
         }
     }
@@ -847,8 +844,8 @@ impl Rootable for String<'_> {
 
     #[inline]
     fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data.0 {
-            HeapRootDataInner::String(s) => Some(Self::String(s)),
+        match heap_data {
+            HeapRootData::String(s) => Some(Self::String(s)),
             _ => None,
         }
     }

@@ -32,8 +32,8 @@ use crate::{
         new_module_environment, unwrap_try,
     },
     engine::{
-        Bindable, Executable, ExecutionResult, GcScope, GcToken, HeapRootData, HeapRootDataInner,
-         NoGcScope, Scopable, Scoped, Vm, bindable_handle,
+        Bindable, Executable, ExecutionResult, GcScope, GcToken, HeapRootData, NoGcScope, Scopable,
+        Scoped, Vm, bindable_handle,
     },
     heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
     ndt,
@@ -2018,7 +2018,7 @@ bindable_handle!(SourceTextModule);
 
 impl From<SourceTextModule<'_>> for HeapRootData {
     fn from(value: SourceTextModule<'_>) -> Self {
-        HeapRootData(HeapRootDataInner::SourceTextModule(value.unbind()))
+        HeapRootData::SourceTextModule(value.unbind())
     }
 }
 
@@ -2026,8 +2026,8 @@ impl TryFrom<HeapRootData> for SourceTextModule<'_> {
     type Error = ();
 
     fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        match value.0 {
-            HeapRootDataInner::SourceTextModule(v) => Ok(v),
+        match value {
+            HeapRootData::SourceTextModule(v) => Ok(v),
             _ => Err(()),
         }
     }

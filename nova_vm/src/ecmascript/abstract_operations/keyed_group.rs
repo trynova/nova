@@ -10,8 +10,8 @@ use hashbrown::{HashTable, hash_table::Entry};
 use crate::{
     ecmascript::{PropertyKey, Value, execution::Agent},
     engine::{
-        Bindable, HeapRootCollection, HeapRootCollectionInner, NoGcScope, ScopableCollection,
-        ScopedCollection, bindable_handle,
+        Bindable, HeapRootCollection, NoGcScope, ScopableCollection, ScopedCollection,
+        bindable_handle,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
@@ -196,8 +196,7 @@ impl ScopedCollection<'_, Box<KeyedGroup<'static>>> {
         let Some(stack_slot) = stack_ref_collections.get_mut(self.inner as usize) else {
             unreachable!();
         };
-        let HeapRootCollection(HeapRootCollectionInner::KeyedGroup(keyed_group)) = stack_slot
-        else {
+        let HeapRootCollection::KeyedGroup(keyed_group) = stack_slot else {
             unreachable!()
         };
         keyed_group.add_collection_keyed_value(agent, key, value);
@@ -217,8 +216,7 @@ impl ScopedCollection<'_, Box<KeyedGroup<'static>>> {
         let Some(stack_slot) = stack_ref_collections.get_mut(self.inner as usize) else {
             unreachable!();
         };
-        let HeapRootCollection(HeapRootCollectionInner::KeyedGroup(keyed_group)) = stack_slot
-        else {
+        let HeapRootCollection::KeyedGroup(keyed_group) = stack_slot else {
             unreachable!()
         };
         keyed_group.add_property_keyed_value(agent, key, value);

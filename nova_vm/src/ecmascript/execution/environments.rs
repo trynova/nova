@@ -45,9 +45,7 @@ use crate::{
         Agent, InternalMethods, JsResult, Object, PropertyLookupCache, Proxy, Reference, SetResult,
         String, TryError, TryHasResult, TryResult, Value, js_result_into_try,
     },
-    engine::{
-        Bindable, GcScope, HeapRootData, HeapRootDataInner, NoGcScope, Scopable, bindable_handle,
-    },
+    engine::{Bindable, GcScope, HeapRootData, NoGcScope, Scopable, bindable_handle},
     heap::{CompactionLists, HeapIndexHandle, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -680,12 +678,12 @@ impl TryFrom<HeapRootData> for Environment<'_> {
     type Error = ();
 
     fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        match value.0 {
-            HeapRootDataInner::DeclarativeEnvironment(e) => Ok(Self::Declarative(e)),
-            HeapRootDataInner::FunctionEnvironment(e) => Ok(Self::Function(e)),
-            HeapRootDataInner::GlobalEnvironment(e) => Ok(Self::Global(e)),
-            HeapRootDataInner::ModuleEnvironment(e) => Ok(Self::Module(e)),
-            HeapRootDataInner::ObjectEnvironment(e) => Ok(Self::Object(e)),
+        match value {
+            HeapRootData::DeclarativeEnvironment(e) => Ok(Self::Declarative(e)),
+            HeapRootData::FunctionEnvironment(e) => Ok(Self::Function(e)),
+            HeapRootData::GlobalEnvironment(e) => Ok(Self::Global(e)),
+            HeapRootData::ModuleEnvironment(e) => Ok(Self::Module(e)),
+            HeapRootData::ObjectEnvironment(e) => Ok(Self::Object(e)),
             _ => Err(()),
         }
     }
@@ -714,7 +712,7 @@ impl HeapMarkAndSweep for Environment<'static> {
 }
 
 #[derive(Debug)]
-pub struct Environments {
+pub(crate) struct Environments {
     pub(crate) declarative: Vec<DeclarativeEnvironmentRecord>,
     pub(crate) function: Vec<FunctionEnvironmentRecord>,
     pub(crate) global: Vec<GlobalEnvironmentRecord>,

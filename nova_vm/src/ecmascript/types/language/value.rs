@@ -40,8 +40,7 @@ use crate::{
         to_uint32, try_result_into_js, try_to_string,
     },
     engine::{
-        Bindable, GcScope, HeapRootData, HeapRootDataInner, HeapRootRef, NoGcScope, Rootable,
-        Scoped, bindable_handle,
+        Bindable, GcScope, HeapRootData, HeapRootRef, NoGcScope, Rootable, Scoped, bindable_handle,
     },
     heap::{
         ArenaAccess, CompactionLists, HeapIndexHandle, HeapMarkAndSweep, PrimitiveHeapAccess,
@@ -914,12 +913,10 @@ impl Rootable for Value<'_> {
             Self::BuiltinPromiseFinallyFunction(builtin_promise_finally_function) => {
                 Err(HeapRootData::from(builtin_promise_finally_function))
             }
-            Self::BuiltinPromiseCollectorFunction => Err(HeapRootData(
-                HeapRootDataInner::BuiltinPromiseCollectorFunction,
-            )),
-            Self::BuiltinProxyRevokerFunction => Err(HeapRootData(
-                HeapRootDataInner::BuiltinPromiseCollectorFunction,
-            )),
+            Self::BuiltinPromiseCollectorFunction => {
+                Err(HeapRootData::BuiltinPromiseCollectorFunction)
+            }
+            Self::BuiltinProxyRevokerFunction => Err(HeapRootData::BuiltinPromiseCollectorFunction),
             Self::PrimitiveObject(primitive_object) => Err(HeapRootData::from(primitive_object)),
             Self::Arguments(ordinary_object) => Err(HeapRootData::from(ordinary_object)),
             Self::Array(array) => Err(HeapRootData::from(array)),
@@ -1037,135 +1034,133 @@ impl Rootable for Value<'_> {
     }
 
     fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data.0 {
-            HeapRootDataInner::Empty => None,
-            HeapRootDataInner::String(s) => Some(Self::from(s)),
-            HeapRootDataInner::Symbol(s) => Some(Self::from(s)),
-            HeapRootDataInner::Number(n) => Some(Self::from(n)),
-            HeapRootDataInner::BigInt(b) => Some(Self::from(b)),
-            HeapRootDataInner::Object(o) => Some(Self::from(o)),
-            HeapRootDataInner::BoundFunction(f) => Some(Self::from(f)),
-            HeapRootDataInner::BuiltinFunction(f) => Some(Self::from(f)),
-            HeapRootDataInner::ECMAScriptFunction(f) => Some(Self::from(f)),
-            HeapRootDataInner::BuiltinConstructorFunction(f) => Some(Self::from(f)),
-            HeapRootDataInner::BuiltinPromiseResolvingFunction(f) => Some(Self::from(f)),
-            HeapRootDataInner::BuiltinPromiseFinallyFunction(f) => Some(Self::from(f)),
-            HeapRootDataInner::BuiltinPromiseCollectorFunction => {
+        match heap_data {
+            HeapRootData::Empty => None,
+            HeapRootData::String(s) => Some(Self::from(s)),
+            HeapRootData::Symbol(s) => Some(Self::from(s)),
+            HeapRootData::Number(n) => Some(Self::from(n)),
+            HeapRootData::BigInt(b) => Some(Self::from(b)),
+            HeapRootData::Object(o) => Some(Self::from(o)),
+            HeapRootData::BoundFunction(f) => Some(Self::from(f)),
+            HeapRootData::BuiltinFunction(f) => Some(Self::from(f)),
+            HeapRootData::ECMAScriptFunction(f) => Some(Self::from(f)),
+            HeapRootData::BuiltinConstructorFunction(f) => Some(Self::from(f)),
+            HeapRootData::BuiltinPromiseResolvingFunction(f) => Some(Self::from(f)),
+            HeapRootData::BuiltinPromiseFinallyFunction(f) => Some(Self::from(f)),
+            HeapRootData::BuiltinPromiseCollectorFunction => {
                 Some(Self::BuiltinPromiseCollectorFunction)
             }
-            HeapRootDataInner::BuiltinProxyRevokerFunction => {
-                Some(Self::BuiltinProxyRevokerFunction)
-            }
-            HeapRootDataInner::PrimitiveObject(o) => Some(Self::from(o)),
-            HeapRootDataInner::Arguments(o) => Some(Self::from(o)),
-            HeapRootDataInner::Array(o) => Some(Self::from(o)),
+            HeapRootData::BuiltinProxyRevokerFunction => Some(Self::BuiltinProxyRevokerFunction),
+            HeapRootData::PrimitiveObject(o) => Some(Self::from(o)),
+            HeapRootData::Arguments(o) => Some(Self::from(o)),
+            HeapRootData::Array(o) => Some(Self::from(o)),
             #[cfg(feature = "date")]
-            HeapRootDataInner::Date(o) => Some(Self::from(o)),
+            HeapRootData::Date(o) => Some(Self::from(o)),
             #[cfg(feature = "temporal")]
-            HeapRootDataInner::Instant(o) => Some(Self::from(o)),
+            HeapRootData::Instant(o) => Some(Self::from(o)),
             #[cfg(feature = "temporal")]
-            HeapRootDataInner::Duration(o) => Some(Self::from(o)),
-            HeapRootDataInner::Error(o) => Some(Self::from(o)),
-            HeapRootDataInner::FinalizationRegistry(o) => Some(Self::from(o)),
-            HeapRootDataInner::Map(o) => Some(Self::from(o)),
-            HeapRootDataInner::Promise(o) => Some(Self::from(o)),
-            HeapRootDataInner::Proxy(o) => Some(Self::from(o)),
+            HeapRootData::Duration(o) => Some(Self::from(o)),
+            HeapRootData::Error(o) => Some(Self::from(o)),
+            HeapRootData::FinalizationRegistry(o) => Some(Self::from(o)),
+            HeapRootData::Map(o) => Some(Self::from(o)),
+            HeapRootData::Promise(o) => Some(Self::from(o)),
+            HeapRootData::Proxy(o) => Some(Self::from(o)),
             #[cfg(feature = "regexp")]
-            HeapRootDataInner::RegExp(o) => Some(Self::from(o)),
+            HeapRootData::RegExp(o) => Some(Self::from(o)),
             #[cfg(feature = "set")]
-            HeapRootDataInner::Set(o) => Some(Self::from(o)),
+            HeapRootData::Set(o) => Some(Self::from(o)),
             #[cfg(feature = "weak-refs")]
-            HeapRootDataInner::WeakMap(o) => Some(Self::from(o)),
+            HeapRootData::WeakMap(o) => Some(Self::from(o)),
             #[cfg(feature = "weak-refs")]
-            HeapRootDataInner::WeakRef(o) => Some(Self::from(o)),
+            HeapRootData::WeakRef(o) => Some(Self::from(o)),
             #[cfg(feature = "weak-refs")]
-            HeapRootDataInner::WeakSet(o) => Some(Self::from(o)),
+            HeapRootData::WeakSet(o) => Some(Self::from(o)),
 
             #[cfg(feature = "array-buffer")]
-            HeapRootDataInner::ArrayBuffer(ab) => Some(Self::from(ab)),
+            HeapRootData::ArrayBuffer(ab) => Some(Self::from(ab)),
             #[cfg(feature = "array-buffer")]
-            HeapRootDataInner::DataView(dv) => Some(Self::from(dv)),
+            HeapRootData::DataView(dv) => Some(Self::from(dv)),
             #[cfg(feature = "array-buffer")]
-            HeapRootDataInner::Int8Array(ta) => Some(Self::from(ta)),
+            HeapRootData::Int8Array(ta) => Some(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootDataInner::Uint8Array(ta) => Some(Self::from(ta)),
+            HeapRootData::Uint8Array(ta) => Some(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootDataInner::Uint8ClampedArray(ta) => Some(Self::from(ta)),
+            HeapRootData::Uint8ClampedArray(ta) => Some(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootDataInner::Int16Array(ta) => Some(Self::from(ta)),
+            HeapRootData::Int16Array(ta) => Some(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootDataInner::Uint16Array(ta) => Some(Self::from(ta)),
+            HeapRootData::Uint16Array(ta) => Some(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootDataInner::Int32Array(ta) => Some(Self::from(ta)),
+            HeapRootData::Int32Array(ta) => Some(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootDataInner::Uint32Array(ta) => Some(Self::from(ta)),
+            HeapRootData::Uint32Array(ta) => Some(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootDataInner::BigInt64Array(ta) => Some(Self::from(ta)),
+            HeapRootData::BigInt64Array(ta) => Some(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootDataInner::BigUint64Array(ta) => Some(Self::from(ta)),
+            HeapRootData::BigUint64Array(ta) => Some(Self::from(ta)),
             #[cfg(feature = "proposal-float16array")]
-            HeapRootDataInner::Float16Array(ta) => Some(Self::from(ta)),
+            HeapRootData::Float16Array(ta) => Some(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootDataInner::Float32Array(ta) => Some(Self::from(ta)),
+            HeapRootData::Float32Array(ta) => Some(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootDataInner::Float64Array(ta) => Some(Self::from(ta)),
+            HeapRootData::Float64Array(ta) => Some(Self::from(ta)),
 
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootDataInner::SharedArrayBuffer(sab) => Some(Self::from(sab)),
+            HeapRootData::SharedArrayBuffer(sab) => Some(Self::from(sab)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootDataInner::SharedDataView(sdv) => Some(Self::from(sdv)),
+            HeapRootData::SharedDataView(sdv) => Some(Self::from(sdv)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootDataInner::SharedInt8Array(sta) => Some(Self::from(sta)),
+            HeapRootData::SharedInt8Array(sta) => Some(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootDataInner::SharedUint8Array(sta) => Some(Self::from(sta)),
+            HeapRootData::SharedUint8Array(sta) => Some(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootDataInner::SharedUint8ClampedArray(sta) => Some(Self::from(sta)),
+            HeapRootData::SharedUint8ClampedArray(sta) => Some(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootDataInner::SharedInt16Array(sta) => Some(Self::from(sta)),
+            HeapRootData::SharedInt16Array(sta) => Some(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootDataInner::SharedUint16Array(sta) => Some(Self::from(sta)),
+            HeapRootData::SharedUint16Array(sta) => Some(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootDataInner::SharedInt32Array(sta) => Some(Self::from(sta)),
+            HeapRootData::SharedInt32Array(sta) => Some(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootDataInner::SharedUint32Array(sta) => Some(Self::from(sta)),
+            HeapRootData::SharedUint32Array(sta) => Some(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootDataInner::SharedBigInt64Array(sta) => Some(Self::from(sta)),
+            HeapRootData::SharedBigInt64Array(sta) => Some(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootDataInner::SharedBigUint64Array(sta) => Some(Self::from(sta)),
+            HeapRootData::SharedBigUint64Array(sta) => Some(Self::from(sta)),
             #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
-            HeapRootDataInner::SharedFloat16Array(sta) => Some(Self::from(sta)),
+            HeapRootData::SharedFloat16Array(sta) => Some(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootDataInner::SharedFloat32Array(sta) => Some(Self::from(sta)),
+            HeapRootData::SharedFloat32Array(sta) => Some(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootDataInner::SharedFloat64Array(sta) => Some(Self::from(sta)),
+            HeapRootData::SharedFloat64Array(sta) => Some(Self::from(sta)),
 
-            HeapRootDataInner::AsyncGenerator(r#gen) => Some(Self::from(r#gen)),
+            HeapRootData::AsyncGenerator(r#gen) => Some(Self::from(r#gen)),
 
-            HeapRootDataInner::ArrayIterator(array_iterator) => Some(Self::from(array_iterator)),
+            HeapRootData::ArrayIterator(array_iterator) => Some(Self::from(array_iterator)),
             #[cfg(feature = "set")]
-            HeapRootDataInner::SetIterator(set_iterator) => Some(Self::from(set_iterator)),
-            HeapRootDataInner::MapIterator(map_iterator) => Some(Self::from(map_iterator)),
-            HeapRootDataInner::StringIterator(generator) => Some(Self::from(generator)),
+            HeapRootData::SetIterator(set_iterator) => Some(Self::from(set_iterator)),
+            HeapRootData::MapIterator(map_iterator) => Some(Self::from(map_iterator)),
+            HeapRootData::StringIterator(generator) => Some(Self::from(generator)),
             #[cfg(feature = "regexp")]
-            HeapRootDataInner::RegExpStringIterator(generator) => Some(Self::from(generator)),
-            HeapRootDataInner::Generator(generator) => Some(Self::from(generator)),
-            HeapRootDataInner::Module(module) => Some(Self::from(module)),
-            HeapRootDataInner::EmbedderObject(embedder_object) => Some(Self::from(embedder_object)),
-            HeapRootDataInner::Executable(_)
-            | HeapRootDataInner::Realm(_)
-            | HeapRootDataInner::Script(_)
-            | HeapRootDataInner::SourceCode(_)
-            | HeapRootDataInner::SourceTextModule(_)
-            | HeapRootDataInner::AwaitReaction(_)
-            | HeapRootDataInner::PromiseReaction(_)
-            | HeapRootDataInner::PromiseGroup(_)
-            | HeapRootDataInner::DeclarativeEnvironment(_)
-            | HeapRootDataInner::FunctionEnvironment(_)
-            | HeapRootDataInner::GlobalEnvironment(_)
-            | HeapRootDataInner::ModuleEnvironment(_)
-            | HeapRootDataInner::ObjectEnvironment(_)
-            | HeapRootDataInner::PrivateEnvironment(_)
-            | HeapRootDataInner::PropertyLookupCache(_) => None,
+            HeapRootData::RegExpStringIterator(generator) => Some(Self::from(generator)),
+            HeapRootData::Generator(generator) => Some(Self::from(generator)),
+            HeapRootData::Module(module) => Some(Self::from(module)),
+            HeapRootData::EmbedderObject(embedder_object) => Some(Self::from(embedder_object)),
+            HeapRootData::Executable(_)
+            | HeapRootData::Realm(_)
+            | HeapRootData::Script(_)
+            | HeapRootData::SourceCode(_)
+            | HeapRootData::SourceTextModule(_)
+            | HeapRootData::AwaitReaction(_)
+            | HeapRootData::PromiseReaction(_)
+            | HeapRootData::PromiseGroup(_)
+            | HeapRootData::DeclarativeEnvironment(_)
+            | HeapRootData::FunctionEnvironment(_)
+            | HeapRootData::GlobalEnvironment(_)
+            | HeapRootData::ModuleEnvironment(_)
+            | HeapRootData::ObjectEnvironment(_)
+            | HeapRootData::PrivateEnvironment(_)
+            | HeapRootData::PropertyLookupCache(_) => None,
             // Note: Do not use _ => Err(()) to make sure any added
             // HeapRootData Value variants cause compile errors if not handled.
         }
@@ -1174,7 +1169,7 @@ impl Rootable for Value<'_> {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
-pub enum ValueRootRepr {
+pub(crate) enum ValueRootRepr {
     Undefined = UNDEFINED_DISCRIMINANT,
     Null = NULL_DISCRIMINANT,
     Boolean(bool) = BOOLEAN_DISCRIMINANT,

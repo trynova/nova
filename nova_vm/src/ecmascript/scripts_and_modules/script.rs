@@ -27,6 +27,7 @@ use oxc_diagnostics::OxcDiagnostic;
 use oxc_ecmascript::BoundNames;
 use std::{ptr::NonNull, rc::Rc};
 
+/// Host defined data for an ECMAScript Agent, Script, or Module.
 pub type HostDefined = Rc<dyn Any>;
 
 /// ## [16.1 Scripts](https://tc39.es/ecma262/#sec-scripts)
@@ -157,8 +158,6 @@ pub(crate) struct ScriptRecord<'a> {
 // other threads.
 unsafe impl Send for ScriptRecord<'_> {}
 
-pub type ScriptOrErrors<'a> = Result<Script<'a>, Vec<OxcDiagnostic>>;
-
 bindable_handle!(ScriptRecord);
 
 impl HeapMarkAndSweep for ScriptRecord<'static> {
@@ -205,7 +204,7 @@ pub fn parse_script<'a>(
     strict: bool,
     host_defined: Option<HostDefined>,
     gc: NoGcScope<'a, '_>,
-) -> ScriptOrErrors<'a> {
+) -> Result<Script<'a>, Vec<OxcDiagnostic>> {
     // 1. Let script be ParseText(sourceText, Script).
     let source_type = SourceCodeType::Script { strict };
 

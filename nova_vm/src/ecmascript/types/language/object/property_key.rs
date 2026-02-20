@@ -13,10 +13,7 @@ use crate::{
         STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT, SmallInteger, SmallString, String, Symbol, Value,
         parse_string_to_integer_property_key,
     },
-    engine::{
-        Bindable, HeapRootData, HeapRootDataInner, HeapRootRef, NoGcScope, Rootable, Scoped,
-        bindable_handle,
-    },
+    engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, Scoped, bindable_handle},
     heap::{
         ArenaAccess, CompactionLists, HeapMarkAndSweep, PropertyKeyHeapAccess, WellKnownSymbols,
         WorkQueues,
@@ -405,7 +402,7 @@ impl HeapMarkAndSweep for PropertyKey<'static> {
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 #[repr(u8)]
-pub enum PropertyKeyRootRepr {
+pub(crate) enum PropertyKeyRootRepr {
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
     Symbol(WellKnownSymbols) = SYMBOL_DISCRIMINANT,
@@ -451,9 +448,9 @@ impl Rootable for PropertyKey<'_> {
 
     #[inline]
     fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data.0 {
-            HeapRootDataInner::String(s) => Some(Self::String(s)),
-            HeapRootDataInner::Symbol(s) => Some(Self::Symbol(s)),
+        match heap_data {
+            HeapRootData::String(s) => Some(Self::String(s)),
+            HeapRootData::Symbol(s) => Some(Self::Symbol(s)),
             _ => None,
         }
     }

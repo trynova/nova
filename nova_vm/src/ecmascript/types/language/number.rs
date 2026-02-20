@@ -9,8 +9,8 @@ mod small_integer;
 
 pub(crate) use data::*;
 pub(crate) use radix::*;
-pub(crate) use small_f64::*;
-pub(crate) use small_integer::*;
+pub use small_f64::*;
+pub use small_integer::*;
 
 use super::{
     Numeric, Primitive, String, Value,
@@ -18,10 +18,7 @@ use super::{
 };
 use crate::{
     ecmascript::{Agent, numeric_handle, to_int32_number, to_uint32_number},
-    engine::{
-        Bindable, HeapRootData, HeapRootDataInner, HeapRootRef, NoGcScope, Rootable,
-        bindable_handle,
-    },
+    engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, bindable_handle},
     heap::{
         ArenaAccess, BaseIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         NumberHeapAccess, WorkQueues, arena_vec_access,
@@ -1562,7 +1559,7 @@ impl HeapMarkAndSweep for HeapNumber<'static> {
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
-pub enum NumberRootRepr {
+pub(crate) enum NumberRootRepr {
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     SmallF64(SmallF64) = FLOAT_DISCRIMINANT,
     HeapRef(HeapRootRef) = 0x80,
@@ -1596,8 +1593,8 @@ impl Rootable for Number<'_> {
 
     #[inline]
     fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data.0 {
-            HeapRootDataInner::Number(d) => Some(Self::Number(d)),
+        match heap_data {
+            HeapRootData::Number(d) => Some(Self::Number(d)),
             _ => None,
         }
     }

@@ -8,7 +8,7 @@ use hashbrown::{HashTable, hash_table::Entry};
 
 use crate::{
     ecmascript::{Agent, InternalMethods, Object, PropertyKey, TryResult, Value},
-    engine::{Bindable, GcToken, HeapRootData, HeapRootDataInner, NoGcScope, bindable_handle},
+    engine::{Bindable, GcToken, HeapRootData, NoGcScope, bindable_handle},
     heap::{
         AtomicBits, BitRange, CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference,
         PropertyKeyHeap, WeakReference, WorkQueues, sweep_heap_vector_values,
@@ -700,7 +700,7 @@ bindable_handle!(PropertyLookupCache);
 
 impl From<PropertyLookupCache<'_>> for HeapRootData {
     fn from(value: PropertyLookupCache<'_>) -> Self {
-        Self(HeapRootDataInner::PropertyLookupCache(value.unbind()))
+        Self::PropertyLookupCache(value.unbind())
     }
 }
 
@@ -708,8 +708,8 @@ impl TryFrom<HeapRootData> for PropertyLookupCache<'_> {
     type Error = ();
 
     fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        match value.0 {
-            HeapRootDataInner::PropertyLookupCache(p) => Ok(p),
+        match value {
+            HeapRootData::PropertyLookupCache(p) => Ok(p),
             _ => Err(()),
         }
     }

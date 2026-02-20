@@ -10,17 +10,14 @@ pub(crate) use data::*;
 use operators::{
     bigint_bitwise_op, left_shift_bigint, left_shift_i64, right_shift_bigint, right_shift_i64,
 };
-pub(crate) use small_bigint::*;
+pub use small_bigint::*;
 
 use crate::{
     ecmascript::{
         Agent, BIGINT_DISCRIMINANT, ExceptionType, JsResult, Numeric, Primitive,
         SMALL_BIGINT_DISCRIMINANT, SmallInteger, String, Value, primitive_handle, with_radix,
     },
-    engine::{
-        Bindable, HeapRootData, HeapRootDataInner, HeapRootRef, NoGcScope, Rootable,
-        bindable_handle,
-    },
+    engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, bindable_handle},
     heap::{
         ArenaAccess, BaseIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         WorkQueues, arena_vec_access,
@@ -138,7 +135,7 @@ pub enum BigInt<'a> {
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
-pub enum BigIntRootRepr {
+pub(crate) enum BigIntRootRepr {
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
     HeapRef(HeapRootRef) = 0x80,
 }
@@ -868,8 +865,8 @@ impl Rootable for BigInt<'_> {
 
     #[inline]
     fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data.0 {
-            HeapRootDataInner::BigInt(heap_big_int) => Some(Self::BigInt(heap_big_int)),
+        match heap_data {
+            HeapRootData::BigInt(heap_big_int) => Some(Self::BigInt(heap_big_int)),
             _ => None,
         }
     }

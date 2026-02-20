@@ -73,13 +73,14 @@ const fn get_index(n: &'static str) -> usize {
     );
 
     // List
-    list.push_str("pub const BUILTIN_STRINGS_LIST: &[&str] = &[\n");
+    list.push_str("pub(crate) const BUILTIN_STRINGS_LIST: &[&str] = &[\n");
 
     // Struct definition
     struct_def.push_str("#[allow(non_snake_case)]\npub struct BuiltinStrings {\n");
 
     // Struct instantiation
-    struct_const.push_str("pub const BUILTIN_STRING_MEMORY: BuiltinStrings = BuiltinStrings {\n");
+    struct_const
+        .push_str("pub(crate) const BUILTIN_STRING_MEMORY: BuiltinStrings = BuiltinStrings {\n");
     for string in &strings {
         let (cfg, string) = if string.starts_with("#[cfg(") {
             let end_index = string.find(']').expect(

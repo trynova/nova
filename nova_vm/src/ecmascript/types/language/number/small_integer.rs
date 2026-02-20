@@ -60,7 +60,7 @@ impl SmallInteger {
     /// If the value is outside the SmallInteger range, the method panics
     /// in debug mode. In release mode, data may be lost and an invalid
     /// variant may be created.
-    pub unsafe fn from_i64_unchecked(value: i64) -> Self {
+    pub(crate) unsafe fn from_i64_unchecked(value: i64) -> Self {
         debug_assert!((Self::MIN..=Self::MAX).contains(&value));
         let bytes = i64::to_ne_bytes(value);
 
@@ -83,7 +83,7 @@ impl SmallInteger {
     ///
     /// If the value is outside the SmallInteger range, an invalid variant is
     /// created.
-    pub unsafe fn from_small_bigint_unchecked(value: SmallBigInt) -> Self {
+    pub(crate) unsafe fn from_small_bigint_unchecked(value: SmallBigInt) -> Self {
         Self { data: value.data }
     }
 }

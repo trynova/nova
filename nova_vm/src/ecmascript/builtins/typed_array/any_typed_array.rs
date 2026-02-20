@@ -4,6 +4,17 @@
 
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::{FLOAT_16_ARRAY_DISCRIMINANT, Float16Array};
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::{
+    SHARED_BIGINT_64_ARRAY_DISCRIMINANT, SHARED_BIGUINT_64_ARRAY_DISCRIMINANT,
+    SHARED_FLOAT_32_ARRAY_DISCRIMINANT, SHARED_FLOAT_64_ARRAY_DISCRIMINANT,
+    SHARED_INT_8_ARRAY_DISCRIMINANT, SHARED_INT_16_ARRAY_DISCRIMINANT,
+    SHARED_INT_32_ARRAY_DISCRIMINANT, SHARED_UINT_8_ARRAY_DISCRIMINANT,
+    SHARED_UINT_8_CLAMPED_ARRAY_DISCRIMINANT, SHARED_UINT_16_ARRAY_DISCRIMINANT,
+    SHARED_UINT_32_ARRAY_DISCRIMINANT, SharedBigInt64Array, SharedBigUint64Array,
+    SharedFloat32Array, SharedFloat64Array, SharedInt8Array, SharedInt16Array, SharedInt32Array,
+    SharedUint8Array, SharedUint8ClampedArray, SharedUint16Array, SharedUint32Array,
+};
 #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
 use crate::ecmascript::{SHARED_FLOAT_16_ARRAY_DISCRIMINANT, SharedFloat16Array};
 use crate::{
@@ -21,21 +32,6 @@ use crate::{
     },
     engine::{GcScope, HeapRootData, NoGcScope, Scoped, bindable_handle},
     heap::HeapMarkAndSweep,
-};
-#[cfg(feature = "shared-array-buffer")]
-use crate::{
-    ecmascript::{
-        SHARED_BIGINT_64_ARRAY_DISCRIMINANT, SHARED_BIGUINT_64_ARRAY_DISCRIMINANT,
-        SHARED_FLOAT_32_ARRAY_DISCRIMINANT, SHARED_FLOAT_64_ARRAY_DISCRIMINANT,
-        SHARED_INT_8_ARRAY_DISCRIMINANT, SHARED_INT_16_ARRAY_DISCRIMINANT,
-        SHARED_INT_32_ARRAY_DISCRIMINANT, SHARED_UINT_8_ARRAY_DISCRIMINANT,
-        SHARED_UINT_8_CLAMPED_ARRAY_DISCRIMINANT, SHARED_UINT_16_ARRAY_DISCRIMINANT,
-        SHARED_UINT_32_ARRAY_DISCRIMINANT, SharedBigInt64Array, SharedBigUint64Array,
-        SharedFloat32Array, SharedFloat64Array, SharedInt8Array, SharedInt16Array,
-        SharedInt32Array, SharedUint8Array, SharedUint8ClampedArray, SharedUint16Array,
-        SharedUint32Array,
-    },
-    engine::HeapRootDataInner,
 };
 
 /// ## [23.2 TypedArray Objects](https://tc39.es/ecma262/#sec-typedarray-objects)
@@ -1102,44 +1098,44 @@ impl TryFrom<HeapRootData> for AnyTypedArray<'_> {
     type Error = ();
     #[inline]
     fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        match value.0 {
-            HeapRootDataInner::Int8Array(ta) => Ok(Self::from(ta)),
-            HeapRootDataInner::Uint8Array(ta) => Ok(Self::from(ta)),
-            HeapRootDataInner::Uint8ClampedArray(ta) => Ok(Self::from(ta)),
-            HeapRootDataInner::Int16Array(ta) => Ok(Self::from(ta)),
-            HeapRootDataInner::Uint16Array(ta) => Ok(Self::from(ta)),
-            HeapRootDataInner::Int32Array(ta) => Ok(Self::from(ta)),
-            HeapRootDataInner::Uint32Array(ta) => Ok(Self::from(ta)),
-            HeapRootDataInner::BigInt64Array(ta) => Ok(Self::from(ta)),
-            HeapRootDataInner::BigUint64Array(ta) => Ok(Self::from(ta)),
+        match value {
+            HeapRootData::Int8Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::Uint8Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::Uint8ClampedArray(ta) => Ok(Self::from(ta)),
+            HeapRootData::Int16Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::Uint16Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::Int32Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::Uint32Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::BigInt64Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::BigUint64Array(ta) => Ok(Self::from(ta)),
             #[cfg(feature = "proposal-float16array")]
-            HeapRootDataInner::Float16Array(ta) => Ok(Self::from(ta)),
-            HeapRootDataInner::Float32Array(ta) => Ok(Self::from(ta)),
-            HeapRootDataInner::Float64Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::Float16Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::Float32Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::Float64Array(ta) => Ok(Self::from(ta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootDataInner::SharedInt8Array(sta) => Ok(Self::from(sta)),
+            HeapRootData::SharedInt8Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootDataInner::SharedUint8Array(sta) => Ok(Self::from(sta)),
+            HeapRootData::SharedUint8Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootDataInner::SharedUint8ClampedArray(sta) => Ok(Self::from(sta)),
+            HeapRootData::SharedUint8ClampedArray(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootDataInner::SharedInt16Array(sta) => Ok(Self::from(sta)),
+            HeapRootData::SharedInt16Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootDataInner::SharedUint16Array(sta) => Ok(Self::from(sta)),
+            HeapRootData::SharedUint16Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootDataInner::SharedInt32Array(sta) => Ok(Self::from(sta)),
+            HeapRootData::SharedInt32Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootDataInner::SharedUint32Array(sta) => Ok(Self::from(sta)),
+            HeapRootData::SharedUint32Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootDataInner::SharedBigInt64Array(sta) => Ok(Self::from(sta)),
+            HeapRootData::SharedBigInt64Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootDataInner::SharedBigUint64Array(sta) => Ok(Self::from(sta)),
+            HeapRootData::SharedBigUint64Array(sta) => Ok(Self::from(sta)),
             #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
-            HeapRootDataInner::SharedFloat16Array(sta) => Ok(Self::from(sta)),
+            HeapRootData::SharedFloat16Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootDataInner::SharedFloat32Array(sta) => Ok(Self::from(sta)),
+            HeapRootData::SharedFloat32Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootDataInner::SharedFloat64Array(sta) => Ok(Self::from(sta)),
+            HeapRootData::SharedFloat64Array(sta) => Ok(Self::from(sta)),
             _ => Err(()),
         }
     }

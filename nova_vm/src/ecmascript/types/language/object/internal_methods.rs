@@ -676,10 +676,10 @@ impl<'a, T> From<Value<'a>> for ControlFlow<TryGetResult<'a>, T> {
 }
 
 pub struct SetAtOffsetProps<'a> {
-    pub p: PropertyKey<'a>,
-    pub receiver: Value<'a>,
-    pub cache: PropertyLookupCache<'a>,
-    pub value: Value<'a>,
+    pub(crate) p: PropertyKey<'a>,
+    pub(crate) receiver: Value<'a>,
+    pub(crate) cache: PropertyLookupCache<'a>,
+    pub(crate) value: Value<'a>,
 }
 
 /// Early-return conditions for \[\[Set\]\] method's cached variant.
@@ -728,7 +728,7 @@ impl SetResult<'_> {
 
 /// Helper function for calling a Proxy \[\[Set]] trap when triggered by finding
 /// a Proxy used as a prototype.
-pub fn call_proxy_set<'a>(
+pub(crate) fn call_proxy_set<'a>(
     agent: &mut Agent,
     proxy: Proxy,
     p: PropertyKey,

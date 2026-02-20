@@ -381,7 +381,7 @@ impl IntrinsicObjectShapes {
 
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub enum WellKnownSymbols {
+pub(crate) enum WellKnownSymbols {
     AsyncIterator,
     HasInstance,
     IsConcatSpreadable,

@@ -11,7 +11,6 @@ use ecmascript_atomics::{Ordering, RacySlice};
 
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::SHARED_FLOAT_16_ARRAY_DISCRIMINANT;
-use crate::engine::HeapRootDataInner;
 use crate::{
     ecmascript::{
         Agent, AnyArrayBuffer, AnyTypedArray, ArgumentsList, BigInt, CachedBufferByteLength,
@@ -36,9 +35,9 @@ use crate::{
     },
     engine::{Bindable, GcScope, HeapRootData, NoGcScope, Scopable, Scoped, bindable_handle},
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, DirectArenaAccess,
-        DirectArenaAccessMut, Heap, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
-        {BaseIndex, HeapIndexHandle},
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, DirectArenaAccess,
+        DirectArenaAccessMut, Heap, HeapIndexHandle, HeapMarkAndSweep, HeapSweepWeakReference,
+        WorkQueues,
     },
 };
 
@@ -46,11 +45,13 @@ use crate::{
 ///
 /// A generic TypedArray viewing a SharedArrayBuffer with its concrete type
 /// encoded in a type parameter.
+#[allow(private_bounds)]
 pub struct GenericSharedTypedArray<'a, T: Viewable>(
     BaseIndex<'a, SharedTypedArrayRecord<'static>>,
     PhantomData<T>,
 );
 
+#[allow(private_bounds)]
 impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
     pub fn new_from_array_buffer(agent: &mut Agent, sab: SharedArrayBuffer<'ta>) -> Self {
         agent.heap.create(SharedTypedArrayRecord {
@@ -2497,55 +2498,55 @@ impl<'a, T: Viewable> From<GenericSharedTypedArray<'a, T>> for HeapRootData {
     #[inline(always)]
     fn from(value: GenericSharedTypedArray<'a, T>) -> Self {
         if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>() {
-            Self(HeapRootDataInner::SharedUint8Array(unsafe {
+            Self::SharedUint8Array(unsafe {
                 core::mem::transmute::<GenericSharedTypedArray<T>, SharedUint8Array>(value)
-            }))
+            })
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>() {
-            Self(HeapRootDataInner::SharedUint8ClampedArray(unsafe {
+            Self::SharedUint8ClampedArray(unsafe {
                 core::mem::transmute::<GenericSharedTypedArray<T>, SharedUint8ClampedArray>(value)
-            }))
+            })
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>() {
-            Self(HeapRootDataInner::SharedInt8Array(unsafe {
+            Self::SharedInt8Array(unsafe {
                 core::mem::transmute::<GenericSharedTypedArray<T>, SharedInt8Array>(value)
-            }))
+            })
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u16>() {
-            Self(HeapRootDataInner::SharedUint16Array(unsafe {
+            Self::SharedUint16Array(unsafe {
                 core::mem::transmute::<GenericSharedTypedArray<T>, SharedUint16Array>(value)
-            }))
+            })
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i16>() {
-            Self(HeapRootDataInner::SharedInt16Array(unsafe {
+            Self::SharedInt16Array(unsafe {
                 core::mem::transmute::<GenericSharedTypedArray<T>, SharedInt16Array>(value)
-            }))
+            })
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>() {
-            Self(HeapRootDataInner::SharedUint32Array(unsafe {
+            Self::SharedUint32Array(unsafe {
                 core::mem::transmute::<GenericSharedTypedArray<T>, SharedUint32Array>(value)
-            }))
+            })
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>() {
-            Self(HeapRootDataInner::SharedInt32Array(unsafe {
+            Self::SharedInt32Array(unsafe {
                 core::mem::transmute::<GenericSharedTypedArray<T>, SharedInt32Array>(value)
-            }))
+            })
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>() {
-            Self(HeapRootDataInner::SharedBigUint64Array(unsafe {
+            Self::SharedBigUint64Array(unsafe {
                 core::mem::transmute::<GenericSharedTypedArray<T>, SharedBigUint64Array>(value)
-            }))
+            })
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>() {
-            Self(HeapRootDataInner::SharedBigInt64Array(unsafe {
+            Self::SharedBigInt64Array(unsafe {
                 core::mem::transmute::<GenericSharedTypedArray<T>, SharedBigInt64Array>(value)
-            }))
+            })
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>() {
-            Self(HeapRootDataInner::SharedFloat32Array(unsafe {
+            Self::SharedFloat32Array(unsafe {
                 core::mem::transmute::<GenericSharedTypedArray<T>, SharedFloat32Array>(value)
-            }))
+            })
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>() {
-            Self(HeapRootDataInner::SharedFloat64Array(unsafe {
+            Self::SharedFloat64Array(unsafe {
                 core::mem::transmute::<GenericSharedTypedArray<T>, SharedFloat64Array>(value)
-            }))
+            })
         } else {
             #[cfg(feature = "proposal-float16array")]
             if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f16>() {
-                return Self(HeapRootDataInner::SharedFloat16Array(unsafe {
+                return Self::SharedFloat16Array(unsafe {
                     core::mem::transmute::<GenericSharedTypedArray<T>, SharedFloat16Array>(value)
-                }));
+                });
             }
             unreachable!()
         }
@@ -2746,8 +2747,8 @@ impl<T: Viewable> TryFrom<HeapRootData> for GenericSharedTypedArray<'_, T> {
     #[inline]
     fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
         if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>() {
-            match value.0 {
-                HeapRootDataInner::SharedUint8Array(sta) =>
+            match value {
+                HeapRootData::SharedUint8Array(sta) =>
                 // SAFETY: type was checked
                 {
                     Ok(unsafe {
@@ -2759,8 +2760,8 @@ impl<T: Viewable> TryFrom<HeapRootData> for GenericSharedTypedArray<'_, T> {
                 _ => Err(()),
             }
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>() {
-            match value.0 {
-                HeapRootDataInner::SharedUint8ClampedArray(sta) =>
+            match value {
+                HeapRootData::SharedUint8ClampedArray(sta) =>
                 // SAFETY: type was checked
                 {
                     Ok(unsafe {
@@ -2773,8 +2774,8 @@ impl<T: Viewable> TryFrom<HeapRootData> for GenericSharedTypedArray<'_, T> {
                 _ => Err(()),
             }
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>() {
-            match value.0 {
-                HeapRootDataInner::SharedInt8Array(sta) =>
+            match value {
+                HeapRootData::SharedInt8Array(sta) =>
                 // SAFETY: type was checked
                 {
                     Ok(unsafe {
@@ -2784,8 +2785,8 @@ impl<T: Viewable> TryFrom<HeapRootData> for GenericSharedTypedArray<'_, T> {
                 _ => Err(()),
             }
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u16>() {
-            match value.0 {
-                HeapRootDataInner::SharedUint16Array(sta) =>
+            match value {
+                HeapRootData::SharedUint16Array(sta) =>
                 // SAFETY: type was checked
                 {
                     Ok(unsafe {
@@ -2797,8 +2798,8 @@ impl<T: Viewable> TryFrom<HeapRootData> for GenericSharedTypedArray<'_, T> {
                 _ => Err(()),
             }
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i16>() {
-            match value.0 {
-                HeapRootDataInner::SharedInt16Array(sta) =>
+            match value {
+                HeapRootData::SharedInt16Array(sta) =>
                 // SAFETY: type was checked
                 {
                     Ok(unsafe {
@@ -2810,8 +2811,8 @@ impl<T: Viewable> TryFrom<HeapRootData> for GenericSharedTypedArray<'_, T> {
                 _ => Err(()),
             }
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>() {
-            match value.0 {
-                HeapRootDataInner::SharedUint32Array(sta) =>
+            match value {
+                HeapRootData::SharedUint32Array(sta) =>
                 // SAFETY: type was checked
                 {
                     Ok(unsafe {
@@ -2823,8 +2824,8 @@ impl<T: Viewable> TryFrom<HeapRootData> for GenericSharedTypedArray<'_, T> {
                 _ => Err(()),
             }
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>() {
-            match value.0 {
-                HeapRootDataInner::SharedInt32Array(sta) =>
+            match value {
+                HeapRootData::SharedInt32Array(sta) =>
                 // SAFETY: type was checked
                 {
                     Ok(unsafe {
@@ -2836,8 +2837,8 @@ impl<T: Viewable> TryFrom<HeapRootData> for GenericSharedTypedArray<'_, T> {
                 _ => Err(()),
             }
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>() {
-            match value.0 {
-                HeapRootDataInner::SharedBigUint64Array(sta) =>
+            match value {
+                HeapRootData::SharedBigUint64Array(sta) =>
                 // SAFETY: type was checked
                 {
                     Ok(unsafe {
@@ -2849,8 +2850,8 @@ impl<T: Viewable> TryFrom<HeapRootData> for GenericSharedTypedArray<'_, T> {
                 _ => Err(()),
             }
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>() {
-            match value.0 {
-                HeapRootDataInner::SharedBigInt64Array(sta) =>
+            match value {
+                HeapRootData::SharedBigInt64Array(sta) =>
                 // SAFETY: type was checked
                 {
                     Ok(unsafe {
@@ -2862,8 +2863,8 @@ impl<T: Viewable> TryFrom<HeapRootData> for GenericSharedTypedArray<'_, T> {
                 _ => Err(()),
             }
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>() {
-            match value.0 {
-                HeapRootDataInner::SharedFloat32Array(sta) =>
+            match value {
+                HeapRootData::SharedFloat32Array(sta) =>
                 // SAFETY: type was checked
                 {
                     Ok(unsafe {
@@ -2875,8 +2876,8 @@ impl<T: Viewable> TryFrom<HeapRootData> for GenericSharedTypedArray<'_, T> {
                 _ => Err(()),
             }
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>() {
-            match value.0 {
-                HeapRootDataInner::SharedFloat64Array(sta) =>
+            match value {
+                HeapRootData::SharedFloat64Array(sta) =>
                 // SAFETY: type was checked
                 {
                     Ok(unsafe {
@@ -2890,8 +2891,8 @@ impl<T: Viewable> TryFrom<HeapRootData> for GenericSharedTypedArray<'_, T> {
         } else {
             #[cfg(feature = "proposal-float16array")]
             if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f16>() {
-                return match value.0 {
-                    HeapRootDataInner::SharedFloat16Array(sta) =>
+                return match value {
+                    HeapRootData::SharedFloat16Array(sta) =>
                     // SAFETY: type was checked
                     {
                         Ok(unsafe {
@@ -3062,20 +3063,20 @@ impl TryFrom<HeapRootData> for SharedTypedArray<'_> {
     type Error = ();
     #[inline]
     fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        match value.0 {
-            HeapRootDataInner::SharedInt8Array(ta) => Ok(Self::from(ta)),
-            HeapRootDataInner::SharedUint8Array(ta) => Ok(Self::from(ta)),
-            HeapRootDataInner::SharedUint8ClampedArray(ta) => Ok(Self::from(ta)),
-            HeapRootDataInner::SharedInt16Array(ta) => Ok(Self::from(ta)),
-            HeapRootDataInner::SharedUint16Array(ta) => Ok(Self::from(ta)),
-            HeapRootDataInner::SharedInt32Array(ta) => Ok(Self::from(ta)),
-            HeapRootDataInner::SharedUint32Array(ta) => Ok(Self::from(ta)),
-            HeapRootDataInner::SharedBigInt64Array(ta) => Ok(Self::from(ta)),
-            HeapRootDataInner::SharedBigUint64Array(ta) => Ok(Self::from(ta)),
+        match value {
+            HeapRootData::SharedInt8Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::SharedUint8Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::SharedUint8ClampedArray(ta) => Ok(Self::from(ta)),
+            HeapRootData::SharedInt16Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::SharedUint16Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::SharedInt32Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::SharedUint32Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::SharedBigInt64Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::SharedBigUint64Array(ta) => Ok(Self::from(ta)),
             #[cfg(feature = "proposal-float16array")]
-            HeapRootDataInner::SharedFloat16Array(ta) => Ok(Self::from(ta)),
-            HeapRootDataInner::SharedFloat32Array(ta) => Ok(Self::from(ta)),
-            HeapRootDataInner::SharedFloat64Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::SharedFloat16Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::SharedFloat32Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::SharedFloat64Array(ta) => Ok(Self::from(ta)),
             _ => Err(()),
         }
     }
