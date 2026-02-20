@@ -22,10 +22,10 @@ use crate::{
             Value, Viewable, copy_data_block_bytes, create_byte_data_block,
         },
     },
-    engine::{Bindable, HeapRootData, NoGcScope, bindable_handle},
+    engine::{Bindable, HeapRootData, HeapRootDataInner, NoGcScope, bindable_handle},
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, WorkQueues, arena_vec_access, {BaseIndex, HeapIndexHandle},
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapIndexHandle, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
 
@@ -344,9 +344,9 @@ impl<'a> From<AnyArrayBuffer<'a>> for HeapRootData {
     #[inline(always)]
     fn from(value: AnyArrayBuffer<'a>) -> Self {
         match value {
-            AnyArrayBuffer::ArrayBuffer(dv) => Self::ArrayBuffer(dv.unbind()),
+            AnyArrayBuffer::ArrayBuffer(dv) => Self::from(dv),
             #[cfg(feature = "shared-array-buffer")]
-            AnyArrayBuffer::SharedArrayBuffer(sdv) => Self::SharedArrayBuffer(sdv.unbind()),
+            AnyArrayBuffer::SharedArrayBuffer(sdv) => Self::from(sdv),
         }
     }
 }
@@ -382,10 +382,10 @@ impl TryFrom<HeapRootData> for AnyArrayBuffer<'_> {
 
     #[inline]
     fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        match value {
-            HeapRootData::ArrayBuffer(dv) => Ok(AnyArrayBuffer::ArrayBuffer(dv)),
+        match value.0 {
+            HeapRootDataInner::ArrayBuffer(dv) => Ok(AnyArrayBuffer::ArrayBuffer(dv)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedArrayBuffer(sdv) => Ok(AnyArrayBuffer::SharedArrayBuffer(sdv)),
+            HeapRootDataInner::SharedArrayBuffer(sdv) => Ok(AnyArrayBuffer::SharedArrayBuffer(sdv)),
             _ => Err(()),
         }
     }

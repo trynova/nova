@@ -15,7 +15,7 @@ use crate::{
         throw_not_callable, to_boolean, try_get,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable, ScopeToken, Scoped, bindable_handle},
-    heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
+    heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbols, WorkQueues},
 };
 
 /// Marker struct for working with the active iterator of the currently active,
@@ -244,7 +244,7 @@ impl<'a> VmIteratorRecord<'a> {
         let method = get_method(
             agent,
             value.unbind(),
-            PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
+            PropertyKey::Symbol(WellKnownSymbols::Iterator.into()),
             gc.reborrow(),
         )
         .unbind()?
@@ -297,7 +297,7 @@ impl<'a> VmIteratorRecord<'a> {
         let method = get_method(
             agent,
             obj.unbind(),
-            PropertyKey::Symbol(WellKnownSymbolIndexes::AsyncIterator.into()),
+            PropertyKey::Symbol(WellKnownSymbols::AsyncIterator.into()),
             gc.reborrow(),
         )
         .unbind()?
@@ -334,7 +334,7 @@ impl<'a> VmIteratorRecord<'a> {
         let sync_method = get_method(
             agent,
             obj.get(agent),
-            WellKnownSymbolIndexes::Iterator.into(),
+            WellKnownSymbols::Iterator.into(),
             gc.reborrow(),
         )
         .unbind()?

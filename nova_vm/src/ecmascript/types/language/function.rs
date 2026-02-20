@@ -21,7 +21,7 @@ use crate::{
         PropertyKey, PropertyLookupCache, PropertyOffset, ProtoIntrinsics, SetAtOffsetProps,
         SetResult, String, TryGetResult, TryHasResult, TryResult, Value,
     },
-    engine::{Bindable, GcScope, HeapRootData, NoGcScope, bindable_handle},
+    engine::{Bindable, GcScope, HeapRootData, HeapRootDataInner, NoGcScope, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -625,18 +625,18 @@ impl<'a> From<Function<'a>> for HeapRootData {
     #[inline(always)]
     fn from(value: Function<'a>) -> Self {
         match value {
-            Function::BoundFunction(d) => Self::BoundFunction(d.unbind()),
-            Function::BuiltinFunction(d) => Self::BuiltinFunction(d.unbind()),
-            Function::ECMAScriptFunction(d) => Self::ECMAScriptFunction(d.unbind()),
-            Function::BuiltinConstructorFunction(d) => Self::BuiltinConstructorFunction(d.unbind()),
-            Function::BuiltinPromiseResolvingFunction(d) => {
-                Self::BuiltinPromiseResolvingFunction(d.unbind())
+            Function::BoundFunction(d) => Self::from(d),
+            Function::BuiltinFunction(d) => Self::from(d),
+            Function::ECMAScriptFunction(d) => Self::from(d),
+            Function::BuiltinConstructorFunction(d) => Self::from(d),
+            Function::BuiltinPromiseResolvingFunction(d) => Self::from(d),
+            Function::BuiltinPromiseFinallyFunction(d) => Self::from(d),
+            Function::BuiltinPromiseCollectorFunction => {
+                Self(HeapRootDataInner::BuiltinPromiseCollectorFunction)
             }
-            Function::BuiltinPromiseFinallyFunction(d) => {
-                Self::BuiltinPromiseFinallyFunction(d.unbind())
+            Function::BuiltinProxyRevokerFunction => {
+                Self(HeapRootDataInner::BuiltinProxyRevokerFunction)
             }
-            Function::BuiltinPromiseCollectorFunction => Self::BuiltinPromiseCollectorFunction,
-            Function::BuiltinProxyRevokerFunction => Self::BuiltinProxyRevokerFunction,
         }
     }
 }
@@ -661,20 +661,20 @@ impl TryFrom<HeapRootData> for Function<'_> {
     type Error = ();
     #[inline]
     fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        match value {
-            HeapRootData::BoundFunction(d) => Ok(Self::BoundFunction(d)),
-            HeapRootData::BuiltinFunction(d) => Ok(Self::BuiltinFunction(d)),
-            HeapRootData::ECMAScriptFunction(d) => Ok(Self::ECMAScriptFunction(d)),
-            HeapRootData::BuiltinConstructorFunction(data) => {
+        match value.0 {
+            HeapRootDataInner::BoundFunction(d) => Ok(Self::BoundFunction(d)),
+            HeapRootDataInner::BuiltinFunction(d) => Ok(Self::BuiltinFunction(d)),
+            HeapRootDataInner::ECMAScriptFunction(d) => Ok(Self::ECMAScriptFunction(d)),
+            HeapRootDataInner::BuiltinConstructorFunction(data) => {
                 Ok(Self::BuiltinConstructorFunction(data))
             }
-            HeapRootData::BuiltinPromiseResolvingFunction(data) => {
+            HeapRootDataInner::BuiltinPromiseResolvingFunction(data) => {
                 Ok(Self::BuiltinPromiseResolvingFunction(data))
             }
-            HeapRootData::BuiltinPromiseCollectorFunction => {
+            HeapRootDataInner::BuiltinPromiseCollectorFunction => {
                 Ok(Self::BuiltinPromiseCollectorFunction)
             }
-            HeapRootData::BuiltinProxyRevokerFunction => Ok(Self::BuiltinProxyRevokerFunction),
+            HeapRootDataInner::BuiltinProxyRevokerFunction => Ok(Self::BuiltinProxyRevokerFunction),
             _ => Err(()),
         }
     }

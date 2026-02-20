@@ -12,7 +12,7 @@ use crate::{
         throw_not_callable, to_boolean,
     },
     engine::{Bindable, GcScope, Scopable, ScopableCollection},
-    heap::WellKnownSymbolIndexes,
+    heap::WellKnownSymbols,
 };
 
 pub(crate) struct IteratorPrototype;
@@ -21,7 +21,7 @@ struct IteratorPrototypeIterator;
 impl Builtin for IteratorPrototypeIterator {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_iterator_;
     const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::Iterator.to_property_key());
+        Some(WellKnownSymbols::Iterator.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(IteratorPrototype::iterator);
 }
@@ -78,7 +78,7 @@ struct IteratorPrototypeToStringTag;
 impl Builtin for IteratorPrototypeToStringTag {
     const NAME: String<'static> = String::EMPTY_STRING;
     const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::ToStringTag.to_property_key());
+        Some(WellKnownSymbols::ToStringTag.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(IteratorPrototype::get_to_string_tag);
 }
@@ -748,7 +748,7 @@ impl IteratorPrototype {
                 .iterator_prototype()
                 .into(),
             // %Symbol.toStringTag%,
-            WellKnownSymbolIndexes::ToStringTag.to_property_key(),
+            WellKnownSymbols::ToStringTag.to_property_key(),
             // v
             v,
             gc,

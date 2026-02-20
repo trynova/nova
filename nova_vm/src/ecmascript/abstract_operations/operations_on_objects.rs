@@ -24,7 +24,7 @@ use crate::{
         Bindable, GcScope, NoGcScope, Rootable, Scopable, ScopableCollection, Scoped,
         ScopedCollection, Vm, instanceof_operator,
     },
-    heap::{ArenaAccess, ElementDescriptor, ObjectEntry, WellKnownSymbolIndexes},
+    heap::{ArenaAccess, ElementDescriptor, ObjectEntry, WellKnownSymbols},
 };
 
 use super::{
@@ -1360,7 +1360,7 @@ pub(crate) fn species_constructor<'a>(
     let s = get(
         agent,
         c.unbind(),
-        WellKnownSymbolIndexes::Species.into(),
+        WellKnownSymbols::Species.into(),
         gc.reborrow(),
     )
     .unbind()?
@@ -1437,7 +1437,7 @@ pub(crate) fn try_species_constructor<'gc>(
     let s = try_get_result_into_value(try_get(
         agent,
         c,
-        WellKnownSymbolIndexes::Species.into(),
+        WellKnownSymbols::Species.into(),
         None,
         gc,
     ))?;

@@ -11,7 +11,7 @@ use crate::{
         if_abrupt_reject_promise, if_abrupt_reject_promise_m,
     },
     engine::{Bindable, GcScope, Scopable},
-    heap::{ArenaAccess, WellKnownSymbolIndexes},
+    heap::{ArenaAccess, WellKnownSymbols},
 };
 
 pub(crate) struct AsyncGeneratorPrototype;
@@ -243,7 +243,7 @@ impl AsyncGeneratorPrototype {
             .with_builtin_function_property::<AsyncGeneratorPrototypeThrow>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
                     .with_value_readonly(BUILTIN_STRING_MEMORY.AsyncGenerator.into())
                     .with_enumerable(false)
                     .with_configurable(true)

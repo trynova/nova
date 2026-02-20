@@ -17,7 +17,7 @@ use crate::{
     },
     heap::{
         CompactionLists, HeapMarkAndSweep, ObjectEntry, ObjectEntryPropertyDescriptor,
-        WellKnownSymbolIndexes, WorkQueues,
+        WellKnownSymbols, WorkQueues,
     },
 };
 
@@ -186,7 +186,7 @@ pub(crate) fn get_iterator<'a>(
         let method = get_method(
             agent,
             obj.unbind(),
-            PropertyKey::Symbol(WellKnownSymbolIndexes::AsyncIterator.into()),
+            PropertyKey::Symbol(WellKnownSymbols::AsyncIterator.into()),
             gc.reborrow(),
         )
         .unbind()?
@@ -198,7 +198,7 @@ pub(crate) fn get_iterator<'a>(
             let Some(sync_method) = get_method(
                 agent,
                 scoped_obj.get(agent),
-                PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
+                PropertyKey::Symbol(WellKnownSymbols::Iterator.into()),
                 gc.reborrow(),
             )
             .unbind()?
@@ -232,7 +232,7 @@ pub(crate) fn get_iterator<'a>(
         get_method(
             agent,
             obj.unbind(),
-            PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
+            PropertyKey::Symbol(WellKnownSymbols::Iterator.into()),
             gc.reborrow(),
         )
         .unbind()?

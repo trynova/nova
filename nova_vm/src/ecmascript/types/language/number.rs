@@ -18,7 +18,10 @@ use super::{
 };
 use crate::{
     ecmascript::{Agent, numeric_handle, to_int32_number, to_uint32_number},
-    engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, bindable_handle},
+    engine::{
+        Bindable, HeapRootData, HeapRootDataInner, HeapRootRef, NoGcScope, Rootable,
+        bindable_handle,
+    },
     heap::{
         ArenaAccess, BaseIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         NumberHeapAccess, WorkQueues, arena_vec_access,
@@ -1571,7 +1574,7 @@ impl Rootable for Number<'_> {
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match value {
-            Self::Number(d) => Err(HeapRootData::Number(d.unbind())),
+            Self::Number(d) => Err(HeapRootData::from(d)),
             Self::Integer(d) => Ok(Self::RootRepr::Integer(d)),
             Self::SmallF64(d) => Ok(Self::RootRepr::SmallF64(d)),
         }
@@ -1593,8 +1596,8 @@ impl Rootable for Number<'_> {
 
     #[inline]
     fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::Number(d) => Some(Self::Number(d)),
+        match heap_data.0 {
+            HeapRootDataInner::Number(d) => Some(Self::Number(d)),
             _ => None,
         }
     }

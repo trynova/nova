@@ -259,7 +259,9 @@ macro_rules! index_handle {
         impl<'a> From<$name<'a>> for crate::engine::HeapRootData {
             #[inline(always)]
             fn from(value: $name<'a>) -> Self {
-                Self::$variant(crate::engine::Bindable::unbind(value))
+                Self(crate::engine::HeapRootDataInner::$variant(
+                    crate::engine::Bindable::unbind(value),
+                ))
             }
         }
 
@@ -268,8 +270,8 @@ macro_rules! index_handle {
 
             #[inline]
             fn try_from(value: crate::engine::HeapRootData) -> Result<Self, Self::Error> {
-                match value {
-                    crate::engine::HeapRootData::$variant(data) => Ok(data),
+                match value.0 {
+                    crate::engine::HeapRootDataInner::$variant(data) => Ok(data),
                     _ => Err(()),
                 }
             }

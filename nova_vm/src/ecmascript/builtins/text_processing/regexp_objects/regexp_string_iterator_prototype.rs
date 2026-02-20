@@ -11,7 +11,7 @@ use crate::{
         try_result_into_option_js, try_to_string,
     },
     engine::{Bindable, GcScope, Scopable},
-    heap::WellKnownSymbolIndexes,
+    heap::WellKnownSymbols,
 };
 
 /// ### [22.2.9.2 The %RegExpStringIteratorPrototype% Object](https://tc39.es/ecma262/#sec-%regexpstringiteratorprototype%-object)
@@ -176,7 +176,7 @@ impl RegExpStringIteratorPrototype {
             .with_builtin_function_property::<RegExpStringIteratorPrototypeNext>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
                     .with_value_readonly(BUILTIN_STRING_MEMORY.RegExp_String_Iterator.into())
                     .with_enumerable(false)
                     .with_configurable(true)

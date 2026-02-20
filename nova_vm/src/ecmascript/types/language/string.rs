@@ -17,11 +17,13 @@ use crate::{
         Agent, Primitive, PropertyDescriptor, PropertyKey, SMALL_STRING_DISCRIMINANT,
         STRING_DISCRIMINANT, SmallInteger, Value, primitive_handle, primitive_value,
     },
-    engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, Scoped, bindable_handle},
+    engine::{
+        Bindable, HeapRootData, HeapRootDataInner, HeapRootRef, NoGcScope, Rootable, Scoped,
+        bindable_handle,
+    },
     heap::{
-        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, StringHeapAccess, WorkQueues, arena_vec_access,
-        {BaseIndex, HeapIndexHandle},
+        ArenaAccess, BaseIndex, CompactionLists, CreateHeapData, Heap, HeapIndexHandle,
+        HeapMarkAndSweep, HeapSweepWeakReference, StringHeapAccess, WorkQueues, arena_vec_access,
     },
 };
 
@@ -116,7 +118,7 @@ impl<'a> From<String<'a>> for Option<HeapRootData> {
     #[inline(always)]
     fn from(value: String<'a>) -> Self {
         match value {
-            String::String(s) => Some(HeapRootData::String(s.unbind())),
+            String::String(s) => Some(HeapRootData::from(s)),
             String::SmallString(_) => None,
         }
     }
@@ -135,8 +137,8 @@ impl TryFrom<HeapRootData> for String<'_> {
     type Error = ();
     #[inline]
     fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        match value {
-            HeapRootData::String(data) => Ok(Self::String(data)),
+        match value.0 {
+            HeapRootDataInner::String(data) => Ok(Self::String(data)),
             _ => Err(()),
         }
     }
@@ -825,7 +827,7 @@ impl Rootable for String<'_> {
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match value {
-            Self::String(s) => Err(HeapRootData::String(s.unbind())),
+            Self::String(s) => Err(HeapRootData::from(s)),
             Self::SmallString(s) => Ok(Self::RootRepr::SmallString(s)),
         }
     }
@@ -845,8 +847,8 @@ impl Rootable for String<'_> {
 
     #[inline]
     fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::String(s) => Some(Self::String(s)),
+        match heap_data.0 {
+            HeapRootDataInner::String(s) => Some(Self::String(s)),
             _ => None,
         }
     }

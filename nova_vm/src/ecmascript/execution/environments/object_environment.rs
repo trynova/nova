@@ -15,7 +15,7 @@ use crate::{
         try_get_result_into_value, try_has_property, try_result_into_js, try_set,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable},
-    heap::{ArenaAccess, CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
+    heap::{ArenaAccess, CompactionLists, HeapMarkAndSweep, WellKnownSymbols, WorkQueues},
 };
 
 use super::TryHasBindingContinue;
@@ -143,7 +143,7 @@ impl<'e> ObjectEnvironment<'e> {
         let unscopables = match try_get(
             agent,
             binding_object,
-            WellKnownSymbolIndexes::Unscopables.into(),
+            WellKnownSymbols::Unscopables.into(),
             None,
             gc,
         )? {
@@ -219,7 +219,7 @@ impl<'e> ObjectEnvironment<'e> {
         let unscopables = get(
             agent,
             scoped_binding_object.get(agent),
-            PropertyKey::Symbol(WellKnownSymbolIndexes::Unscopables.into()),
+            PropertyKey::Symbol(WellKnownSymbols::Unscopables.into()),
             gc.reborrow(),
         )
         .unbind()?

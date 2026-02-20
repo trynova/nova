@@ -12,7 +12,7 @@ use crate::{
         reg_exp_initialize,
     },
     engine::{Bindable, GcScope, Scopable},
-    heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
+    heap::{IntrinsicConstructorIndexes, WellKnownSymbols},
 };
 
 pub(crate) struct RegExpConstructor;
@@ -39,7 +39,7 @@ impl Builtin for RegExpGetSpecies {
     const LENGTH: u8 = 0;
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_species_;
     const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::Species.to_property_key());
+        Some(WellKnownSymbols::Species.to_property_key());
 }
 impl BuiltinGetter for RegExpGetSpecies {}
 

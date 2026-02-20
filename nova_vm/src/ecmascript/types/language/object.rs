@@ -28,7 +28,7 @@ use crate::ecmascript::{
     FINALIZATION_REGISTRY_DISCRIMINANT, Function, GENERATOR_DISCRIMINANT, MAP_DISCRIMINANT,
     MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, OBJECT_DISCRIMINANT,
     PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT,
-    STRING_ITERATOR_DISCRIMINANT, Value,
+    STRING_ITERATOR_DISCRIMINANT, UnmappedArguments, Value,
 };
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::{
@@ -73,6 +73,7 @@ use crate::ecmascript::{SHARED_FLOAT_16_ARRAY_DISCRIMINANT, SharedFloat16Array};
 use crate::ecmascript::{WEAK_MAP_DISCRIMINANT, WEAK_REF_DISCRIMINANT, WEAK_SET_DISCRIMINANT};
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::{WeakMap, WeakRef, WeakSet};
+use crate::engine::HeapRootDataInner;
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, Array, ArrayIterator, AsyncGenerator, BoundFunction,
@@ -119,7 +120,7 @@ pub enum Object<'a> {
     BuiltinPromiseCollectorFunction = BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
     BuiltinProxyRevokerFunction = BUILTIN_PROXY_REVOKER_FUNCTION,
     PrimitiveObject(PrimitiveObject<'a>) = PRIMITIVE_OBJECT_DISCRIMINANT,
-    Arguments(OrdinaryObject<'a>) = ARGUMENTS_DISCRIMINANT,
+    Arguments(UnmappedArguments<'a>) = ARGUMENTS_DISCRIMINANT,
     Array(Array<'a>) = ARRAY_DISCRIMINANT,
     #[cfg(feature = "date")]
     Date(Date<'a>) = DATE_DISCRIMINANT,
@@ -1407,113 +1408,113 @@ impl From<Object<'_>> for HeapRootData {
     #[inline]
     fn from(value: Object<'_>) -> Self {
         match value {
-            Object::Object(d) => Self::Object(d.unbind()),
-            Object::BoundFunction(d) => Self::BoundFunction(d.unbind()),
-            Object::BuiltinFunction(d) => Self::BuiltinFunction(d.unbind()),
-            Object::ECMAScriptFunction(d) => Self::ECMAScriptFunction(d.unbind()),
-            Object::BuiltinConstructorFunction(d) => Self::BuiltinConstructorFunction(d.unbind()),
-            Object::BuiltinPromiseResolvingFunction(d) => {
-                Self::BuiltinPromiseResolvingFunction(d.unbind())
+            Object::Object(d) => Self::from(d),
+            Object::BoundFunction(d) => Self::from(d),
+            Object::BuiltinFunction(d) => Self::from(d),
+            Object::ECMAScriptFunction(d) => Self::from(d),
+            Object::BuiltinConstructorFunction(d) => Self::from(d),
+            Object::BuiltinPromiseResolvingFunction(d) => Self::from(d),
+            Object::BuiltinPromiseFinallyFunction(d) => Self::from(d),
+            Object::BuiltinPromiseCollectorFunction => {
+                Self(HeapRootDataInner::BuiltinPromiseCollectorFunction)
             }
-            Object::BuiltinPromiseFinallyFunction(d) => {
-                Self::BuiltinPromiseFinallyFunction(d.unbind())
+            Object::BuiltinProxyRevokerFunction => {
+                Self(HeapRootDataInner::BuiltinProxyRevokerFunction)
             }
-            Object::BuiltinPromiseCollectorFunction => Self::BuiltinPromiseCollectorFunction,
-            Object::BuiltinProxyRevokerFunction => Self::BuiltinProxyRevokerFunction,
-            Object::PrimitiveObject(d) => Self::PrimitiveObject(d.unbind()),
-            Object::Arguments(d) => Self::Arguments(d.unbind()),
-            Object::Array(d) => Self::Array(d.unbind()),
+            Object::PrimitiveObject(d) => Self::from(d),
+            Object::Arguments(d) => Self::from(d),
+            Object::Array(d) => Self::from(d),
             #[cfg(feature = "date")]
-            Object::Date(d) => Self::Date(d.unbind()),
+            Object::Date(d) => Self::from(d),
             #[cfg(feature = "temporal")]
-            Object::Duration(d) => Self::Duration(d.unbind()),
+            Object::Duration(d) => Self::from(d),
             #[cfg(feature = "temporal")]
-            Object::Instant(d) => Self::Instant(d.unbind()),
-            Object::Error(d) => Self::Error(d.unbind()),
-            Object::FinalizationRegistry(d) => Self::FinalizationRegistry(d.unbind()),
-            Object::Map(d) => Self::Map(d.unbind()),
-            Object::Promise(d) => Self::Promise(d.unbind()),
-            Object::Proxy(d) => Self::Proxy(d.unbind()),
+            Object::Instant(d) => Self::from(d),
+            Object::Error(d) => Self::from(d),
+            Object::FinalizationRegistry(d) => Self::from(d),
+            Object::Map(d) => Self::from(d),
+            Object::Promise(d) => Self::from(d),
+            Object::Proxy(d) => Self::from(d),
             #[cfg(feature = "regexp")]
-            Object::RegExp(d) => Self::RegExp(d.unbind()),
+            Object::RegExp(d) => Self::from(d),
             #[cfg(feature = "set")]
-            Object::Set(d) => Self::Set(d.unbind()),
+            Object::Set(d) => Self::from(d),
             #[cfg(feature = "weak-refs")]
-            Object::WeakMap(d) => Self::WeakMap(d.unbind()),
+            Object::WeakMap(d) => Self::from(d),
             #[cfg(feature = "weak-refs")]
-            Object::WeakRef(d) => Self::WeakRef(d.unbind()),
+            Object::WeakRef(d) => Self::from(d),
             #[cfg(feature = "weak-refs")]
-            Object::WeakSet(d) => Self::WeakSet(d.unbind()),
+            Object::WeakSet(d) => Self::from(d),
 
             #[cfg(feature = "array-buffer")]
-            Object::ArrayBuffer(d) => Self::ArrayBuffer(d.unbind()),
+            Object::ArrayBuffer(d) => Self::from(d),
             #[cfg(feature = "array-buffer")]
-            Object::DataView(d) => Self::DataView(d.unbind()),
+            Object::DataView(d) => Self::from(d),
             #[cfg(feature = "array-buffer")]
-            Object::Int8Array(d) => Self::Int8Array(d.unbind()),
+            Object::Int8Array(d) => Self::from(d),
             #[cfg(feature = "array-buffer")]
-            Object::Uint8Array(d) => Self::Uint8Array(d.unbind()),
+            Object::Uint8Array(d) => Self::from(d),
             #[cfg(feature = "array-buffer")]
-            Object::Uint8ClampedArray(d) => Self::Uint8ClampedArray(d.unbind()),
+            Object::Uint8ClampedArray(d) => Self::from(d),
             #[cfg(feature = "array-buffer")]
-            Object::Int16Array(d) => Self::Int16Array(d.unbind()),
+            Object::Int16Array(d) => Self::from(d),
             #[cfg(feature = "array-buffer")]
-            Object::Uint16Array(d) => Self::Uint16Array(d.unbind()),
+            Object::Uint16Array(d) => Self::from(d),
             #[cfg(feature = "array-buffer")]
-            Object::Int32Array(d) => Self::Int32Array(d.unbind()),
+            Object::Int32Array(d) => Self::from(d),
             #[cfg(feature = "array-buffer")]
-            Object::Uint32Array(d) => Self::Uint32Array(d.unbind()),
+            Object::Uint32Array(d) => Self::from(d),
             #[cfg(feature = "array-buffer")]
-            Object::BigInt64Array(d) => Self::BigInt64Array(d.unbind()),
+            Object::BigInt64Array(d) => Self::from(d),
             #[cfg(feature = "array-buffer")]
-            Object::BigUint64Array(d) => Self::BigUint64Array(d.unbind()),
+            Object::BigUint64Array(d) => Self::from(d),
             #[cfg(feature = "proposal-float16array")]
-            Object::Float16Array(d) => Self::Float16Array(d.unbind()),
+            Object::Float16Array(d) => Self::from(d),
             #[cfg(feature = "array-buffer")]
-            Object::Float32Array(d) => Self::Float32Array(d.unbind()),
+            Object::Float32Array(d) => Self::from(d),
             #[cfg(feature = "array-buffer")]
-            Object::Float64Array(d) => Self::Float64Array(d.unbind()),
+            Object::Float64Array(d) => Self::from(d),
 
             #[cfg(feature = "shared-array-buffer")]
-            Object::SharedArrayBuffer(d) => Self::SharedArrayBuffer(d.unbind()),
+            Object::SharedArrayBuffer(d) => Self::from(d),
             #[cfg(feature = "shared-array-buffer")]
-            Object::SharedDataView(d) => Self::SharedDataView(d.unbind()),
+            Object::SharedDataView(d) => Self::from(d),
             #[cfg(feature = "shared-array-buffer")]
-            Object::SharedInt8Array(d) => Self::SharedInt8Array(d.unbind()),
+            Object::SharedInt8Array(d) => Self::from(d),
             #[cfg(feature = "shared-array-buffer")]
-            Object::SharedUint8Array(d) => Self::SharedUint8Array(d.unbind()),
+            Object::SharedUint8Array(d) => Self::from(d),
             #[cfg(feature = "shared-array-buffer")]
-            Object::SharedUint8ClampedArray(d) => Self::SharedUint8ClampedArray(d.unbind()),
+            Object::SharedUint8ClampedArray(d) => Self::from(d),
             #[cfg(feature = "shared-array-buffer")]
-            Object::SharedInt16Array(d) => Self::SharedInt16Array(d.unbind()),
+            Object::SharedInt16Array(d) => Self::from(d),
             #[cfg(feature = "shared-array-buffer")]
-            Object::SharedUint16Array(d) => Self::SharedUint16Array(d.unbind()),
+            Object::SharedUint16Array(d) => Self::from(d),
             #[cfg(feature = "shared-array-buffer")]
-            Object::SharedInt32Array(d) => Self::SharedInt32Array(d.unbind()),
+            Object::SharedInt32Array(d) => Self::from(d),
             #[cfg(feature = "shared-array-buffer")]
-            Object::SharedUint32Array(d) => Self::SharedUint32Array(d.unbind()),
+            Object::SharedUint32Array(d) => Self::from(d),
             #[cfg(feature = "shared-array-buffer")]
-            Object::SharedBigInt64Array(d) => Self::SharedBigInt64Array(d.unbind()),
+            Object::SharedBigInt64Array(d) => Self::from(d),
             #[cfg(feature = "shared-array-buffer")]
-            Object::SharedBigUint64Array(d) => Self::SharedBigUint64Array(d.unbind()),
+            Object::SharedBigUint64Array(d) => Self::from(d),
             #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
-            Object::SharedFloat16Array(d) => Self::SharedFloat16Array(d.unbind()),
+            Object::SharedFloat16Array(d) => Self::from(d),
             #[cfg(feature = "shared-array-buffer")]
-            Object::SharedFloat32Array(d) => Self::SharedFloat32Array(d.unbind()),
+            Object::SharedFloat32Array(d) => Self::from(d),
             #[cfg(feature = "shared-array-buffer")]
-            Object::SharedFloat64Array(d) => Self::SharedFloat64Array(d.unbind()),
+            Object::SharedFloat64Array(d) => Self::from(d),
 
-            Object::AsyncGenerator(d) => Self::AsyncGenerator(d.unbind()),
-            Object::ArrayIterator(d) => Self::ArrayIterator(d.unbind()),
+            Object::AsyncGenerator(d) => Self::from(d),
+            Object::ArrayIterator(d) => Self::from(d),
             #[cfg(feature = "set")]
-            Object::SetIterator(d) => Self::SetIterator(d.unbind()),
-            Object::MapIterator(d) => Self::MapIterator(d.unbind()),
-            Object::StringIterator(d) => Self::StringIterator(d.unbind()),
+            Object::SetIterator(d) => Self::from(d),
+            Object::MapIterator(d) => Self::from(d),
+            Object::StringIterator(d) => Self::from(d),
             #[cfg(feature = "regexp")]
-            Object::RegExpStringIterator(d) => Self::RegExpStringIterator(d.unbind()),
-            Object::Generator(d) => Self::Generator(d.unbind()),
-            Object::Module(d) => Self::Module(d.unbind()),
-            Object::EmbedderObject(d) => Self::EmbedderObject(d.unbind()),
+            Object::RegExpStringIterator(d) => Self::from(d),
+            Object::Generator(d) => Self::from(d),
+            Object::Module(d) => Self::from(d),
+            Object::EmbedderObject(d) => Self::from(d),
         }
     }
 }
@@ -1522,152 +1523,134 @@ impl TryFrom<HeapRootData> for Object<'_> {
     type Error = ();
 
     fn try_from(value: HeapRootData) -> Result<Self, ()> {
-        match value {
-            HeapRootData::Empty
-            | HeapRootData::String(_)
-            | HeapRootData::Symbol(_)
-            | HeapRootData::Number(_)
-            | HeapRootData::BigInt(_) => Err(()),
-            HeapRootData::Object(ordinary_object) => Ok(Self::Object(ordinary_object)),
-            HeapRootData::BoundFunction(bound_function) => Ok(Self::BoundFunction(bound_function)),
-            HeapRootData::BuiltinFunction(builtin_function) => {
-                Ok(Self::BuiltinFunction(builtin_function))
+        match value.0 {
+            HeapRootDataInner::Empty
+            | HeapRootDataInner::String(_)
+            | HeapRootDataInner::Symbol(_)
+            | HeapRootDataInner::Number(_)
+            | HeapRootDataInner::BigInt(_) => Err(()),
+            HeapRootDataInner::Object(o) => Ok(Self::from(o)),
+            HeapRootDataInner::BoundFunction(f) => Ok(Self::from(f)),
+            HeapRootDataInner::BuiltinFunction(f) => Ok(Self::from(f)),
+            HeapRootDataInner::ECMAScriptFunction(f) => Ok(Self::from(f)),
+            HeapRootDataInner::BuiltinConstructorFunction(f) => {
+                Ok(Self::BuiltinConstructorFunction(f))
             }
-            HeapRootData::ECMAScriptFunction(ecmascript_function) => {
-                Ok(Self::ECMAScriptFunction(ecmascript_function))
-            }
-            HeapRootData::BuiltinConstructorFunction(builtin_constructor_function) => Ok(
-                Self::BuiltinConstructorFunction(builtin_constructor_function),
-            ),
-            HeapRootData::BuiltinPromiseResolvingFunction(builtin_promise_resolving_function) => {
-                Ok(Self::BuiltinPromiseResolvingFunction(
-                    builtin_promise_resolving_function,
-                ))
-            }
-            HeapRootData::BuiltinPromiseFinallyFunction(builtin_promise_finally_function) => Ok(
-                Self::BuiltinPromiseFinallyFunction(builtin_promise_finally_function),
-            ),
-            HeapRootData::BuiltinPromiseCollectorFunction => {
+            HeapRootDataInner::BuiltinPromiseResolvingFunction(f) => Ok(Self::from(f)),
+            HeapRootDataInner::BuiltinPromiseFinallyFunction(f) => Ok(Self::from(f)),
+            HeapRootDataInner::BuiltinPromiseCollectorFunction => {
                 Ok(Self::BuiltinPromiseCollectorFunction)
             }
-            HeapRootData::BuiltinProxyRevokerFunction => Ok(Self::BuiltinProxyRevokerFunction),
-            HeapRootData::PrimitiveObject(primitive_object) => {
-                Ok(Self::PrimitiveObject(primitive_object))
-            }
-            HeapRootData::Arguments(ordinary_object) => Ok(Self::Arguments(ordinary_object)),
-            HeapRootData::Array(array) => Ok(Self::Array(array)),
+            HeapRootDataInner::BuiltinProxyRevokerFunction => Ok(Self::BuiltinProxyRevokerFunction),
+            HeapRootDataInner::PrimitiveObject(o) => Ok(Self::from(o)),
+            HeapRootDataInner::Arguments(o) => Ok(Self::from(o)),
+            HeapRootDataInner::Array(o) => Ok(Self::from(o)),
             #[cfg(feature = "date")]
-            HeapRootData::Date(date) => Ok(Self::Date(date)),
+            HeapRootDataInner::Date(o) => Ok(Self::from(o)),
             #[cfg(feature = "temporal")]
-            HeapRootData::Instant(instant) => Ok(Self::Instant(instant)),
+            HeapRootDataInner::Instant(o) => Ok(Self::from(o)),
             #[cfg(feature = "temporal")]
-            HeapRootData::Duration(duration) => Ok(Self::Duration(duration)),
-            HeapRootData::Error(error) => Ok(Self::Error(error)),
-            HeapRootData::FinalizationRegistry(finalization_registry) => {
-                Ok(Self::FinalizationRegistry(finalization_registry))
-            }
-            HeapRootData::Map(map) => Ok(Self::Map(map)),
-            HeapRootData::Promise(promise) => Ok(Self::Promise(promise)),
-            HeapRootData::Proxy(proxy) => Ok(Self::Proxy(proxy)),
+            HeapRootDataInner::Duration(o) => Ok(Self::from(o)),
+            HeapRootDataInner::Error(o) => Ok(Self::from(o)),
+            HeapRootDataInner::FinalizationRegistry(o) => Ok(Self::from(o)),
+            HeapRootDataInner::Map(o) => Ok(Self::from(o)),
+            HeapRootDataInner::Promise(o) => Ok(Self::from(o)),
+            HeapRootDataInner::Proxy(o) => Ok(Self::from(o)),
             #[cfg(feature = "regexp")]
-            HeapRootData::RegExp(reg_exp) => Ok(Self::RegExp(reg_exp)),
+            HeapRootDataInner::RegExp(o) => Ok(Self::from(o)),
             #[cfg(feature = "set")]
-            HeapRootData::Set(set) => Ok(Self::Set(set)),
+            HeapRootDataInner::Set(o) => Ok(Self::from(o)),
             #[cfg(feature = "weak-refs")]
-            HeapRootData::WeakMap(weak_map) => Ok(Self::WeakMap(weak_map)),
+            HeapRootDataInner::WeakMap(o) => Ok(Self::from(o)),
             #[cfg(feature = "weak-refs")]
-            HeapRootData::WeakRef(weak_ref) => Ok(Self::WeakRef(weak_ref)),
+            HeapRootDataInner::WeakRef(o) => Ok(Self::from(o)),
             #[cfg(feature = "weak-refs")]
-            HeapRootData::WeakSet(weak_set) => Ok(Self::WeakSet(weak_set)),
+            HeapRootDataInner::WeakSet(o) => Ok(Self::from(o)),
 
             #[cfg(feature = "array-buffer")]
-            HeapRootData::ArrayBuffer(ab) => Ok(Self::ArrayBuffer(ab)),
+            HeapRootDataInner::ArrayBuffer(ab) => Ok(Self::from(ab)),
             #[cfg(feature = "array-buffer")]
-            HeapRootData::DataView(dv) => Ok(Self::DataView(dv)),
+            HeapRootDataInner::DataView(dv) => Ok(Self::from(dv)),
             #[cfg(feature = "array-buffer")]
-            HeapRootData::Int8Array(ta) => Ok(Self::Int8Array(ta)),
+            HeapRootDataInner::Int8Array(ta) => Ok(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootData::Uint8Array(ta) => Ok(Self::Uint8Array(ta)),
+            HeapRootDataInner::Uint8Array(ta) => Ok(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootData::Uint8ClampedArray(ta) => Ok(Self::Uint8ClampedArray(ta)),
+            HeapRootDataInner::Uint8ClampedArray(ta) => Ok(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootData::Int16Array(ta) => Ok(Self::Int16Array(ta)),
+            HeapRootDataInner::Int16Array(ta) => Ok(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootData::Uint16Array(ta) => Ok(Self::Uint16Array(ta)),
+            HeapRootDataInner::Uint16Array(ta) => Ok(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootData::Int32Array(ta) => Ok(Self::Int32Array(ta)),
+            HeapRootDataInner::Int32Array(ta) => Ok(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootData::Uint32Array(ta) => Ok(Self::Uint32Array(ta)),
+            HeapRootDataInner::Uint32Array(ta) => Ok(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootData::BigInt64Array(ta) => Ok(Self::BigInt64Array(ta)),
+            HeapRootDataInner::BigInt64Array(ta) => Ok(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootData::BigUint64Array(ta) => Ok(Self::BigUint64Array(ta)),
+            HeapRootDataInner::BigUint64Array(ta) => Ok(Self::from(ta)),
             #[cfg(feature = "proposal-float16array")]
-            HeapRootData::Float16Array(ta) => Ok(Self::Float16Array(ta)),
+            HeapRootDataInner::Float16Array(ta) => Ok(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootData::Float32Array(ta) => Ok(Self::Float32Array(ta)),
+            HeapRootDataInner::Float32Array(ta) => Ok(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootData::Float64Array(ta) => Ok(Self::Float64Array(ta)),
+            HeapRootDataInner::Float64Array(ta) => Ok(Self::from(ta)),
 
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedArrayBuffer(sab) => Ok(Self::SharedArrayBuffer(sab)),
+            HeapRootDataInner::SharedArrayBuffer(sab) => Ok(Self::from(sab)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedDataView(sdv) => Ok(Self::SharedDataView(sdv)),
+            HeapRootDataInner::SharedDataView(sdv) => Ok(Self::from(sdv)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedInt8Array(sta) => Ok(Self::SharedInt8Array(sta)),
+            HeapRootDataInner::SharedInt8Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedUint8Array(sta) => Ok(Self::SharedUint8Array(sta)),
+            HeapRootDataInner::SharedUint8Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedUint8ClampedArray(sta) => Ok(Self::SharedUint8ClampedArray(sta)),
+            HeapRootDataInner::SharedUint8ClampedArray(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedInt16Array(sta) => Ok(Self::SharedInt16Array(sta)),
+            HeapRootDataInner::SharedInt16Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedUint16Array(sta) => Ok(Self::SharedUint16Array(sta)),
+            HeapRootDataInner::SharedUint16Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedInt32Array(sta) => Ok(Self::SharedInt32Array(sta)),
+            HeapRootDataInner::SharedInt32Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedUint32Array(sta) => Ok(Self::SharedUint32Array(sta)),
+            HeapRootDataInner::SharedUint32Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedBigInt64Array(sta) => Ok(Self::SharedBigInt64Array(sta)),
+            HeapRootDataInner::SharedBigInt64Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedBigUint64Array(sta) => Ok(Self::SharedBigUint64Array(sta)),
+            HeapRootDataInner::SharedBigUint64Array(sta) => Ok(Self::from(sta)),
             #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
-            HeapRootData::SharedFloat16Array(sta) => Ok(Self::SharedFloat16Array(sta)),
+            HeapRootDataInner::SharedFloat16Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedFloat32Array(sta) => Ok(Self::SharedFloat32Array(sta)),
+            HeapRootDataInner::SharedFloat32Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedFloat64Array(sta) => Ok(Self::SharedFloat64Array(sta)),
+            HeapRootDataInner::SharedFloat64Array(sta) => Ok(Self::from(sta)),
 
-            HeapRootData::AsyncGenerator(r#gen) => Ok(Self::AsyncGenerator(r#gen)),
-            HeapRootData::ArrayIterator(array_iterator) => Ok(Self::ArrayIterator(array_iterator)),
+            HeapRootDataInner::AsyncGenerator(o) => Ok(Self::from(o)),
+            HeapRootDataInner::ArrayIterator(o) => Ok(Self::from(o)),
             #[cfg(feature = "set")]
-            HeapRootData::SetIterator(set_iterator) => Ok(Self::SetIterator(set_iterator)),
-            HeapRootData::MapIterator(map_iterator) => Ok(Self::MapIterator(map_iterator)),
-            HeapRootData::StringIterator(map_iterator) => Ok(Self::StringIterator(map_iterator)),
+            HeapRootDataInner::SetIterator(o) => Ok(Self::from(o)),
+            HeapRootDataInner::MapIterator(o) => Ok(Self::from(o)),
+            HeapRootDataInner::StringIterator(o) => Ok(Self::from(o)),
             #[cfg(feature = "regexp")]
-            HeapRootData::RegExpStringIterator(map_iterator) => {
-                Ok(Self::RegExpStringIterator(map_iterator))
-            }
-            HeapRootData::Generator(generator) => Ok(Self::Generator(generator)),
-            HeapRootData::Module(module) => Ok(Self::Module(module)),
-            HeapRootData::EmbedderObject(embedder_object) => {
-                Ok(Self::EmbedderObject(embedder_object))
-            }
-            HeapRootData::AwaitReaction(_)
-            | HeapRootData::PromiseReaction(_)
-            | HeapRootData::PromiseGroup(_)
-            | HeapRootData::Executable(_)
-            | HeapRootData::Realm(_)
-            | HeapRootData::Script(_)
-            | HeapRootData::SourceCode(_)
-            | HeapRootData::SourceTextModule(_)
-            | HeapRootData::DeclarativeEnvironment(_)
-            | HeapRootData::FunctionEnvironment(_)
-            | HeapRootData::GlobalEnvironment(_)
-            | HeapRootData::ModuleEnvironment(_)
-            | HeapRootData::ObjectEnvironment(_)
-            | HeapRootData::PrivateEnvironment(_)
-            | HeapRootData::PropertyLookupCache(_) => Err(()),
+            HeapRootDataInner::RegExpStringIterator(o) => Ok(Self::from(o)),
+            HeapRootDataInner::Generator(o) => Ok(Self::from(o)),
+            HeapRootDataInner::Module(o) => Ok(Self::from(o)),
+            HeapRootDataInner::EmbedderObject(o) => Ok(Self::from(o)),
+            HeapRootDataInner::AwaitReaction(_)
+            | HeapRootDataInner::PromiseReaction(_)
+            | HeapRootDataInner::PromiseGroup(_)
+            | HeapRootDataInner::Executable(_)
+            | HeapRootDataInner::Realm(_)
+            | HeapRootDataInner::Script(_)
+            | HeapRootDataInner::SourceCode(_)
+            | HeapRootDataInner::SourceTextModule(_)
+            | HeapRootDataInner::DeclarativeEnvironment(_)
+            | HeapRootDataInner::FunctionEnvironment(_)
+            | HeapRootDataInner::GlobalEnvironment(_)
+            | HeapRootDataInner::ModuleEnvironment(_)
+            | HeapRootDataInner::ObjectEnvironment(_)
+            | HeapRootDataInner::PrivateEnvironment(_)
+            | HeapRootDataInner::PropertyLookupCache(_) => Err(()),
         }
     }
 }

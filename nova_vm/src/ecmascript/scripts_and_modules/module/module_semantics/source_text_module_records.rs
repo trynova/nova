@@ -32,8 +32,8 @@ use crate::{
         new_module_environment, unwrap_try,
     },
     engine::{
-        Bindable, Executable, ExecutionResult, GcScope, GcToken, HeapRootData, HeapRootRef,
-        NoGcScope, Rootable, Scopable, Scoped, Vm, bindable_handle,
+        Bindable, Executable, ExecutionResult, GcScope, GcToken, HeapRootData, HeapRootDataInner,
+         NoGcScope, Scopable, Scoped, Vm, bindable_handle,
     },
     heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
     ndt,
@@ -2016,25 +2016,19 @@ bindable_handle!(SourceTextModuleRecord);
 
 bindable_handle!(SourceTextModule);
 
-impl Rootable for SourceTextModule<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::SourceTextModule(value.unbind()))
+impl From<SourceTextModule<'_>> for HeapRootData {
+    fn from(value: SourceTextModule<'_>) -> Self {
+        HeapRootData(HeapRootDataInner::SourceTextModule(value.unbind()))
     }
+}
 
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
+impl TryFrom<HeapRootData> for SourceTextModule<'_> {
+    type Error = ();
 
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::SourceTextModule(object) => Some(object),
-            _ => None,
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        match value.0 {
+            HeapRootDataInner::SourceTextModule(v) => Ok(v),
+            _ => Err(()),
         }
     }
 }

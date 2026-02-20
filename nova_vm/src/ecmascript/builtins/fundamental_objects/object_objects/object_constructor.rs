@@ -17,7 +17,7 @@ use crate::{
         to_property_key_simple, try_create_data_property, try_result_into_js, unwrap_try,
     },
     engine::{Bindable, GcScope, Scopable, ScopableCollection, Scoped},
-    heap::{IntrinsicConstructorIndexes, ObjectEntry, WellKnownSymbolIndexes},
+    heap::{IntrinsicConstructorIndexes, ObjectEntry, WellKnownSymbols},
 };
 
 pub(crate) struct ObjectConstructor;
@@ -599,7 +599,7 @@ impl ObjectConstructor {
                     .intrinsics()
                     .array_prototype()
                     .into(),
-                WellKnownSymbolIndexes::Iterator.into(),
+                WellKnownSymbols::Iterator.into(),
                 gc.reborrow(),
             )
             .unbind()?

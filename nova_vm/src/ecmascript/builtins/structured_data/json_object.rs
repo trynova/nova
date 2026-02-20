@@ -19,7 +19,7 @@ use crate::{
     engine::{
         Bindable, GcScope, NoGcScope, Scopable, ScopableCollection, Scoped, ScopedCollection,
     },
-    heap::{ArenaAccess, WellKnownSymbolIndexes},
+    heap::{ArenaAccess, WellKnownSymbols},
 };
 
 pub(crate) struct JSONObject;
@@ -455,7 +455,7 @@ impl JSONObject {
             .with_builtin_function_property::<JSONObjectStringify>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
                     .with_value_readonly(BUILTIN_STRING_MEMORY.JSON.into())
                     .with_enumerable(false)
                     .with_configurable(true)

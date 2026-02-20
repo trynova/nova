@@ -16,7 +16,7 @@ use crate::{
 ///   Copyright (c) 2023-2024 Linus Groh
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub enum Instruction {
+pub(crate) enum Instruction {
     // === HOT INSTRUCTIONS ===
     /// Load the result value and add it to the stack.
     Load,

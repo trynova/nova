@@ -17,7 +17,7 @@ use crate::{
         try_get_prototype_from_constructor, try_result_into_js, try_to_index, typed_array_create,
     },
     engine::{Bindable, GcScope, Scopable},
-    heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
+    heap::{IntrinsicConstructorIndexes, WellKnownSymbols},
 };
 
 pub(crate) struct TypedArrayConstructors;
@@ -849,7 +849,7 @@ fn typed_array_constructor<'gc, T: Viewable>(
             let using_iterator = get_method(
                 agent,
                 first_argument.get(agent),
-                PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
+                PropertyKey::Symbol(WellKnownSymbols::Iterator.into()),
                 gc.reborrow(),
             )
             .unbind()?

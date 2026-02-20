@@ -5,7 +5,7 @@
 use crate::{
     ecmascript::{Agent, BUILTIN_STRING_MEMORY, Realm, builders::OrdinaryObjectBuilder},
     engine::NoGcScope,
-    heap::WellKnownSymbolIndexes,
+    heap::WellKnownSymbols,
 };
 
 pub(crate) struct TemporalDurationPrototype;
@@ -22,7 +22,7 @@ impl TemporalDurationPrototype {
             .with_constructor_property(duration_constructor)
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
                     .with_value_readonly(BUILTIN_STRING_MEMORY.Temporal_Duration.into())
                     .with_enumerable(false)
                     .with_configurable(true)

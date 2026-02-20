@@ -17,7 +17,7 @@ use crate::{
 #[cfg(feature = "regexp")]
 use crate::{
     ecmascript::{PropertyKey, get, to_boolean},
-    heap::WellKnownSymbolIndexes,
+    heap::WellKnownSymbols,
 };
 
 /// ### [7.2.1 RequireObjectCoercible ( argument )](https://tc39.es/ecma262/#sec-requireobjectcoercible)
@@ -151,7 +151,7 @@ pub(crate) fn is_reg_exp<'a>(
     let matcher = get(
         agent,
         argument.unbind(),
-        PropertyKey::Symbol(WellKnownSymbolIndexes::Match.into()),
+        PropertyKey::Symbol(WellKnownSymbols::Match.into()),
         gc,
     )?;
 

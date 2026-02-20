@@ -40,8 +40,8 @@ use crate::{
         parse_script, script_evaluation, to_string, try_get_identifier_reference,
     },
     engine::{
-        Bindable, GcScope, HeapRootCollectionData, HeapRootData, HeapRootRef, NoGcScope, Rootable,
-        Vm, bindable_handle,
+        Bindable, GcScope, HeapRootCollectionData, HeapRootData, HeapRootDataInner, HeapRootRef,
+        NoGcScope, Rootable, Vm, bindable_handle,
     },
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapIndexHandle, HeapMarkAndSweep,
@@ -1552,7 +1552,7 @@ impl HeapMarkAndSweep for Agent {
             .iter()
             .enumerate()
             .for_each(|(i, &value)| {
-                if value != HeapRootData::Empty {
+                if value.0 != HeapRootDataInner::Empty {
                     value.mark_values(queues);
                     last_filled_global_value = Some(i);
                 }

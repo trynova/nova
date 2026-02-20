@@ -11,7 +11,7 @@ use crate::{
         to_property_key_simple, try_result_into_js,
     },
     engine::{Bindable, GcScope, Scopable},
-    heap::WellKnownSymbolIndexes,
+    heap::WellKnownSymbols,
 };
 
 pub(crate) struct ReflectObject;
@@ -679,7 +679,7 @@ impl ReflectObject {
             .with_builtin_function_property::<ReflectObjectSetPrototypeOf>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
                     .with_value_readonly(BUILTIN_STRING_MEMORY.Reflect.into())
                     .with_enumerable(false)
                     .with_configurable(true)

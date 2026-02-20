@@ -6,7 +6,10 @@
 
 use crate::{
     ecmascript::{Agent, HostDefined, JsResult, Module, ModuleEnvironment, Promise, Realm, String},
-    engine::{Bindable, GcScope, HeapRootData, HeapRootRef, NoGcScope, Rootable, bindable_handle},
+    engine::{
+        Bindable, GcScope, HeapRootData, HeapRootDataInner, HeapRootRef, NoGcScope, Rootable,
+        bindable_handle,
+    },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -157,27 +160,21 @@ pub(crate) enum InnerAbstractModule<'a> {
 
 bindable_handle!(InnerAbstractModule);
 
-impl Rootable for InnerAbstractModule<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+impl From<InnerAbstractModule<'_>> for HeapRootData {
+    fn from(value: InnerAbstractModule<'_>) -> Self {
         match value {
-            Self::SourceTextModule(m) => Err(HeapRootData::SourceTextModule(m.unbind())),
+            InnerAbstractModule::SourceTextModule(s) => Self::from(s),
         }
     }
+}
 
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
+impl TryFrom<HeapRootData> for InnerAbstractModule<'_> {
+    type Error = ();
 
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::SourceTextModule(m) => Some(Self::SourceTextModule(m)),
-            _ => None,
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        match value.0 {
+            HeapRootDataInner::SourceTextModule(s) => Ok(Self::SourceTextModule(s)),
+            _ => Err(()),
         }
     }
 }

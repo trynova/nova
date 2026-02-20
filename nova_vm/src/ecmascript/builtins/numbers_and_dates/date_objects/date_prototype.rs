@@ -11,7 +11,7 @@ use crate::{
         to_zero_padded_decimal_string,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable},
-    heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+    heap::{IntrinsicFunctionIndexes, WellKnownSymbols},
 };
 
 pub(crate) struct DatePrototype;
@@ -282,7 +282,7 @@ impl Builtin for DatePrototypeToPrimitive {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_toPrimitive_;
 
     const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::ToPrimitive.to_property_key());
+        Some(WellKnownSymbols::ToPrimitive.to_property_key());
 
     const LENGTH: u8 = 1;
 

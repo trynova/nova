@@ -47,8 +47,8 @@ impl Proxy<'_> {
                     is_callable(*proxy_target, gc).is_some()
                 }
             }
-            ProxyHeapData::RevokedCallable => true,
-            ProxyHeapData::Revoked => false,
+            ProxyHeapData::_RevokedCallable => true,
+            ProxyHeapData::_Revoked => false,
         }
     }
 }

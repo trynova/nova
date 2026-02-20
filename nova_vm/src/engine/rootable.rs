@@ -14,6 +14,7 @@ pub(crate) use private::{HeapRootCollectionData, RootableCollectionSealed, Roota
 use crate::ecmascript::DATE_DISCRIMINANT;
 #[cfg(feature = "date")]
 use crate::ecmascript::Date;
+use crate::ecmascript::UnmappedArguments;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::{
     ARRAY_BUFFER_DISCRIMINANT, ArrayBuffer, BIGINT_64_ARRAY_DISCRIMINANT,
@@ -55,6 +56,8 @@ use crate::ecmascript::{SHARED_FLOAT_16_ARRAY_DISCRIMINANT, SharedFloat16Array};
 use crate::ecmascript::{WEAK_MAP_DISCRIMINANT, WEAK_REF_DISCRIMINANT, WEAK_SET_DISCRIMINANT};
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::{WeakMap, WeakRef, WeakSet};
+use crate::heap::CompactionLists;
+use crate::heap::WorkQueues;
 use crate::{
     ecmascript::{
         ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
@@ -422,7 +425,7 @@ impl<T: Copy + RootableSealed + Into<HeapRootData> + TryFrom<HeapRootData>> Root
 /// values and the `InnerHeapRef` representation.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
-pub enum HeapRootData {
+pub(crate) enum HeapRootDataInner {
     /// Empty heap root data slot. This can be used to reserve a slot, or to
     /// remove a scoped value from the heap.
     Empty,
@@ -445,7 +448,7 @@ pub enum HeapRootData {
     BuiltinPromiseCollectorFunction = BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
     BuiltinProxyRevokerFunction = BUILTIN_PROXY_REVOKER_FUNCTION,
     PrimitiveObject(PrimitiveObject<'static>),
-    Arguments(OrdinaryObject<'static>) = ARGUMENTS_DISCRIMINANT,
+    Arguments(UnmappedArguments<'static>) = ARGUMENTS_DISCRIMINANT,
     Array(Array<'static>) = ARRAY_DISCRIMINANT,
     #[cfg(feature = "date")]
     Date(Date<'static>) = DATE_DISCRIMINANT,
@@ -564,6 +567,22 @@ pub enum HeapRootData {
     PropertyLookupCache(PropertyLookupCache<'static>),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(transparent)]
+pub struct HeapRootData(pub(crate) HeapRootDataInner);
+
+impl From<HeapRootDataInner> for HeapRootData {
+    fn from(value: HeapRootDataInner) -> Self {
+        Self(value)
+    }
+}
+
+impl From<HeapRootData> for HeapRootDataInner {
+    fn from(value: HeapRootData) -> Self {
+        value.0
+    }
+}
+
 /// Internal type that is used to refer from user-controlled memory (stack or
 /// heap) into the Agent heap, indexing into some root list within. The exact
 /// root list being referred to is determined by the wrapping type. Locals
@@ -602,7 +621,16 @@ fn handle_heap_ref_overflow() -> ! {
 }
 
 impl HeapMarkAndSweep for HeapRootData {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.0.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.0.sweep_values(compactions);
+    }
+}
+impl HeapMarkAndSweep for HeapRootDataInner {
+    fn mark_values(&self, queues: &mut WorkQueues) {
         match self {
             Self::Empty => {}
             Self::String(heap_string) => heap_string.mark_values(queues),
@@ -755,7 +783,7 @@ impl HeapMarkAndSweep for HeapRootData {
         }
     }
 
-    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
         match self {
             Self::Empty => {}
             Self::String(heap_string) => heap_string.sweep_values(compactions),

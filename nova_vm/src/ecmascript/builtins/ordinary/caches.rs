@@ -8,7 +8,10 @@ use hashbrown::{HashTable, hash_table::Entry};
 
 use crate::{
     ecmascript::{Agent, InternalMethods, Object, PropertyKey, TryResult, Value},
-    engine::{Bindable, GcToken, HeapRootData, HeapRootRef, NoGcScope, Rootable, bindable_handle},
+    engine::{
+        Bindable, GcToken, HeapRootData, HeapRootDataInner, NoGcScope,
+        bindable_handle,
+    },
     heap::{
         AtomicBits, BitRange, CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference,
         PropertyKeyHeap, WeakReference, WorkQueues, sweep_heap_vector_values,
@@ -698,25 +701,19 @@ impl<'a> PropertyLookupCache<'a> {
 
 bindable_handle!(PropertyLookupCache);
 
-impl<'a> Rootable for PropertyLookupCache<'a> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::PropertyLookupCache(value.unbind()))
+impl From<PropertyLookupCache<'_>> for HeapRootData {
+    fn from(value: PropertyLookupCache<'_>) -> Self {
+        Self(HeapRootDataInner::PropertyLookupCache(value.unbind()))
     }
+}
 
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
+impl TryFrom<HeapRootData> for PropertyLookupCache<'_> {
+    type Error = ();
 
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::PropertyLookupCache(object) => Some(object),
-            _ => None,
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        match value.0 {
+            HeapRootDataInner::PropertyLookupCache(p) => Ok(p),
+            _ => Err(()),
         }
     }
 }

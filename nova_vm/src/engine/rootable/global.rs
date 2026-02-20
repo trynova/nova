@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use crate::{
     ecmascript::Agent,
-    engine::{HeapRootData, HeapRootRef, NoGcScope, Rootable},
+    engine::{HeapRootData, HeapRootDataInner, HeapRootRef, NoGcScope, Rootable},
 };
 
 /// # Global heap root
@@ -30,7 +30,7 @@ impl<T: Rootable> Global<T> {
         let value = heap_root_data;
         let mut globals = agent.heap.globals.borrow_mut();
         let reused_index = globals.iter_mut().enumerate().find_map(|(index, entry)| {
-            if entry == &HeapRootData::Empty {
+            if entry.0 == HeapRootDataInner::Empty {
                 *entry = value;
                 Some(index)
             } else {
@@ -65,7 +65,7 @@ impl<T: Rootable> Global<T> {
                 .borrow_mut()
                 .get_mut(heap_ref.to_index())
                 .unwrap(),
-            HeapRootData::Empty,
+            HeapRootData(HeapRootDataInner::Empty),
         );
         let Some(value) = T::from_heap_data(heap_data) else {
             panic!("Invalid Global returned different type than expected");

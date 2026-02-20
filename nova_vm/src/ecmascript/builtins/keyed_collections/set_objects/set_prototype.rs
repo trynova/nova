@@ -16,7 +16,7 @@ use crate::{
     engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{
         ArenaAccessSoA, ArenaAccessSoAMut, DirectArenaAccessSoA, DirectArenaAccessSoAMut, Heap,
-        IntrinsicFunctionIndexes, PrimitiveHeap, WellKnownSymbolIndexes,
+        IntrinsicFunctionIndexes, PrimitiveHeap, WellKnownSymbols,
     },
 };
 
@@ -452,7 +452,7 @@ impl SetPrototype {
             .with_builtin_intrinsic_function_property::<SetPrototypeValues>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::Iterator.into())
+                    .with_key(WellKnownSymbols::Iterator.into())
                     .with_value(set_prototype_values.into())
                     .with_enumerable(SetPrototypeValues::ENUMERABLE)
                     .with_configurable(SetPrototypeValues::CONFIGURABLE)
@@ -460,7 +460,7 @@ impl SetPrototype {
             })
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
                     .with_value_readonly(BUILTIN_STRING_MEMORY.Set.into())
                     .with_enumerable(false)
                     .with_configurable(true)

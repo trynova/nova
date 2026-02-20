@@ -8,7 +8,7 @@ use crate::{
         Realm, String, Value, builders::OrdinaryObjectBuilder,
     },
     engine::{Bindable, GcScope},
-    heap::WellKnownSymbolIndexes,
+    heap::WellKnownSymbols,
 };
 
 pub(crate) struct AsyncIteratorPrototype;
@@ -17,7 +17,7 @@ struct AsyncIteratorPrototypeIterator;
 impl Builtin for AsyncIteratorPrototypeIterator {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_asyncIterator_;
     const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::AsyncIterator.to_property_key());
+        Some(WellKnownSymbols::AsyncIterator.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(AsyncIteratorPrototype::iterator);
 }

@@ -25,7 +25,7 @@ use crate::{
             iterator::VmIteratorRecord,
         },
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
+    heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbols, WorkQueues},
 };
 
 #[derive(Debug)]
@@ -1357,7 +1357,7 @@ pub(crate) fn instanceof_operator<'a, 'b>(
     let inst_of_handler = if let Some(handler) = try_result_into_option_js(try_get_object_method(
         agent,
         target,
-        WellKnownSymbolIndexes::HasInstance.into(),
+        WellKnownSymbols::HasInstance.into(),
         gc.nogc(),
     )) {
         handler.unbind()?.bind(gc.nogc())
@@ -1367,7 +1367,7 @@ pub(crate) fn instanceof_operator<'a, 'b>(
         let inst_of_handler = get_method(
             agent,
             target.unbind().into(),
-            WellKnownSymbolIndexes::HasInstance.into(),
+            WellKnownSymbols::HasInstance.into(),
             gc.reborrow(),
         )
         .unbind()?

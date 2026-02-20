@@ -18,7 +18,7 @@ use crate::{
         try_create_data_property_or_throw, try_get, unwrap_try,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable, Scoped},
-    heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+    heap::{IntrinsicFunctionIndexes, WellKnownSymbols},
 };
 
 pub(crate) struct RegExpPrototype;
@@ -77,7 +77,7 @@ impl BuiltinGetter for RegExpPrototypeGetIgnoreCase {}
 struct RegExpPrototypeMatch;
 impl Builtin for RegExpPrototypeMatch {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_match_;
-    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbolIndexes::Match.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbols::Match.to_property_key());
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::r#match);
 }
@@ -85,7 +85,7 @@ struct RegExpPrototypeMatchAll;
 impl Builtin for RegExpPrototypeMatchAll {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_matchAll_;
     const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::MatchAll.to_property_key());
+        Some(WellKnownSymbols::MatchAll.to_property_key());
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::match_all);
 }
@@ -102,7 +102,7 @@ struct RegExpPrototypeReplace;
 impl Builtin for RegExpPrototypeReplace {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_replace_;
     const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::Replace.to_property_key());
+        Some(WellKnownSymbols::Replace.to_property_key());
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::replace);
 }
@@ -110,7 +110,7 @@ struct RegExpPrototypeSearch;
 impl Builtin for RegExpPrototypeSearch {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_search_;
     const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::Search.to_property_key());
+        Some(WellKnownSymbols::Search.to_property_key());
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::search);
 }
@@ -125,7 +125,7 @@ impl BuiltinGetter for RegExpPrototypeGetSource {}
 struct RegExpPrototypeSplit;
 impl Builtin for RegExpPrototypeSplit {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_split_;
-    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbolIndexes::Split.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbols::Split.to_property_key());
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::split);
 }

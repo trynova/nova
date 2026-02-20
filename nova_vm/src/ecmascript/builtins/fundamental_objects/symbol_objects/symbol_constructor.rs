@@ -9,7 +9,7 @@ use crate::{
         SymbolHeapData, Value, builders::BuiltinFunctionBuilder, to_string,
     },
     engine::{Bindable, GcScope},
-    heap::{CreateHeapData, IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
+    heap::{CreateHeapData, IntrinsicConstructorIndexes, WellKnownSymbols},
 };
 
 pub(crate) struct SymbolConstructor;
@@ -150,7 +150,7 @@ impl SymbolConstructor {
                 .with_property(|builder| {
                     builder
                         .with_key(BUILTIN_STRING_MEMORY.asyncIterator.into())
-                        .with_value_readonly(WellKnownSymbolIndexes::AsyncIterator.into())
+                        .with_value_readonly(WellKnownSymbols::AsyncIterator.into())
                         .with_enumerable(false)
                         .with_configurable(false)
                         .build()
@@ -159,7 +159,7 @@ impl SymbolConstructor {
                 .with_property(|builder| {
                     builder
                         .with_key(BUILTIN_STRING_MEMORY.hasInstance.into())
-                        .with_value_readonly(WellKnownSymbolIndexes::HasInstance.into())
+                        .with_value_readonly(WellKnownSymbols::HasInstance.into())
                         .with_enumerable(false)
                         .with_configurable(false)
                         .build()
@@ -167,7 +167,7 @@ impl SymbolConstructor {
                 .with_property(|builder| {
                     builder
                         .with_key(BUILTIN_STRING_MEMORY.isConcatSpreadable.into())
-                        .with_value_readonly(WellKnownSymbolIndexes::IsConcatSpreadable.into())
+                        .with_value_readonly(WellKnownSymbols::IsConcatSpreadable.into())
                         .with_enumerable(false)
                         .with_configurable(false)
                         .build()
@@ -175,7 +175,7 @@ impl SymbolConstructor {
                 .with_property(|builder| {
                     builder
                         .with_key(BUILTIN_STRING_MEMORY.iterator.into())
-                        .with_value_readonly(WellKnownSymbolIndexes::Iterator.into())
+                        .with_value_readonly(WellKnownSymbols::Iterator.into())
                         .with_enumerable(false)
                         .with_configurable(false)
                         .build()
@@ -186,7 +186,7 @@ impl SymbolConstructor {
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.r#match.into())
-                    .with_value_readonly(WellKnownSymbolIndexes::Match.into())
+                    .with_value_readonly(WellKnownSymbols::Match.into())
                     .with_enumerable(false)
                     .with_configurable(false)
                     .build()
@@ -194,7 +194,7 @@ impl SymbolConstructor {
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.matchAll.into())
-                    .with_value_readonly(WellKnownSymbolIndexes::MatchAll.into())
+                    .with_value_readonly(WellKnownSymbols::MatchAll.into())
                     .with_enumerable(false)
                     .with_configurable(false)
                     .build()
@@ -205,7 +205,7 @@ impl SymbolConstructor {
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.replace.into())
-                    .with_value_readonly(WellKnownSymbolIndexes::Replace.into())
+                    .with_value_readonly(WellKnownSymbols::Replace.into())
                     .with_enumerable(false)
                     .with_configurable(false)
                     .build()
@@ -213,7 +213,7 @@ impl SymbolConstructor {
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.search.into())
-                    .with_value_readonly(WellKnownSymbolIndexes::Search.into())
+                    .with_value_readonly(WellKnownSymbols::Search.into())
                     .with_enumerable(false)
                     .with_configurable(false)
                     .build()
@@ -221,7 +221,7 @@ impl SymbolConstructor {
         let builder = builder.with_property(|builder| {
             builder
                 .with_key(BUILTIN_STRING_MEMORY.species.into())
-                .with_value_readonly(WellKnownSymbolIndexes::Species.into())
+                .with_value_readonly(WellKnownSymbols::Species.into())
                 .with_enumerable(false)
                 .with_configurable(false)
                 .build()
@@ -230,7 +230,7 @@ impl SymbolConstructor {
         let builder = builder.with_property(|builder| {
             builder
                 .with_key(BUILTIN_STRING_MEMORY.split.into())
-                .with_value_readonly(WellKnownSymbolIndexes::Split.into())
+                .with_value_readonly(WellKnownSymbols::Split.into())
                 .with_enumerable(false)
                 .with_configurable(false)
                 .build()
@@ -239,7 +239,7 @@ impl SymbolConstructor {
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.toPrimitive.into())
-                    .with_value_readonly(WellKnownSymbolIndexes::ToPrimitive.into())
+                    .with_value_readonly(WellKnownSymbols::ToPrimitive.into())
                     .with_enumerable(false)
                     .with_configurable(false)
                     .build()
@@ -247,7 +247,7 @@ impl SymbolConstructor {
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.toStringTag.into())
-                    .with_value_readonly(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_value_readonly(WellKnownSymbols::ToStringTag.into())
                     .with_enumerable(false)
                     .with_configurable(false)
                     .build()
@@ -255,7 +255,7 @@ impl SymbolConstructor {
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.unscopables.into())
-                    .with_value_readonly(WellKnownSymbolIndexes::Unscopables.into())
+                    .with_value_readonly(WellKnownSymbols::Unscopables.into())
                     .with_enumerable(false)
                     .with_configurable(false)
                     .build()

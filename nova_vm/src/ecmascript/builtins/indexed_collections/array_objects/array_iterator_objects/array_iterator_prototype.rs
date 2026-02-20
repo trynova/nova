@@ -15,7 +15,7 @@ use crate::{
         get, length_of_array_like,
     },
     engine::{Bindable, GcScope, Scopable},
-    heap::{ArenaAccess, ArenaAccessMut, WellKnownSymbolIndexes},
+    heap::{ArenaAccess, ArenaAccessMut, WellKnownSymbols},
 };
 
 pub(crate) struct ArrayIteratorPrototype;
@@ -191,7 +191,7 @@ impl ArrayIteratorPrototype {
             .with_builtin_function_property::<ArrayIteratorPrototypeNext>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
                     .with_value_readonly(BUILTIN_STRING_MEMORY.Array_Iterator.into())
                     .with_enumerable(false)
                     .with_configurable(true)

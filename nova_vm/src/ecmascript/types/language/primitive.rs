@@ -10,7 +10,8 @@ use crate::{
         SYMBOL_DISCRIMINANT, SmallBigInt, SmallF64, SmallInteger, SmallString, Symbol,
         UNDEFINED_DISCRIMINANT, Value,
     },
-    engine::{Bindable, HeapRootData, HeapRootRef, Rootable, bindable_handle},
+    engine::{HeapRootData, HeapRootDataInner, HeapRootRef, Rootable, bindable_handle},
+    heap::WellKnownSymbols,
 };
 
 /// ### [4.4.5 primitive value](https://tc39.es/ecma262/#sec-primitive-value)
@@ -76,6 +77,7 @@ pub enum PrimitiveRootRepr {
     Null = NULL_DISCRIMINANT,
     Boolean(bool) = BOOLEAN_DISCRIMINANT,
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
+    Symbol(WellKnownSymbols) = SYMBOL_DISCRIMINANT,
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     SmallF64(SmallF64) = FLOAT_DISCRIMINANT,
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
@@ -208,13 +210,19 @@ impl Rootable for Primitive<'_> {
             Self::Undefined => Ok(Self::RootRepr::Undefined),
             Self::Null => Ok(Self::RootRepr::Null),
             Self::Boolean(p) => Ok(Self::RootRepr::Boolean(p)),
-            Self::String(p) => Err(HeapRootData::String(p.unbind())),
+            Self::String(p) => Err(HeapRootData::from(p)),
             Self::SmallString(p) => Ok(Self::RootRepr::SmallString(p)),
-            Self::Symbol(p) => Err(HeapRootData::Symbol(p.unbind())),
-            Self::Number(p) => Err(HeapRootData::Number(p.unbind())),
+            Self::Symbol(symbol) => {
+                if let Ok(s) = WellKnownSymbols::try_from(symbol) {
+                    Ok(PrimitiveRootRepr::Symbol(s))
+                } else {
+                    Err(HeapRootData::try_from(symbol).unwrap())
+                }
+            }
+            Self::Number(p) => Err(HeapRootData::from(p)),
             Self::Integer(p) => Ok(Self::RootRepr::Integer(p)),
             Self::SmallF64(p) => Ok(Self::RootRepr::SmallF64(p)),
-            Self::BigInt(p) => Err(HeapRootData::BigInt(p.unbind())),
+            Self::BigInt(p) => Err(HeapRootData::from(p)),
             Self::SmallBigInt(p) => Ok(Self::RootRepr::SmallBigInt(p)),
         }
     }
@@ -226,6 +234,7 @@ impl Rootable for Primitive<'_> {
             Self::RootRepr::Null => Ok(Self::Null),
             Self::RootRepr::Boolean(p) => Ok(Self::Boolean(p)),
             Self::RootRepr::SmallString(p) => Ok(Self::SmallString(p)),
+            Self::RootRepr::Symbol(p) => Ok(Self::Symbol(p.into())),
             Self::RootRepr::Integer(p) => Ok(Self::Integer(p)),
             Self::RootRepr::SmallF64(p) => Ok(Self::SmallF64(p)),
             Self::RootRepr::SmallBigInt(p) => Ok(Self::SmallBigInt(p)),
@@ -240,11 +249,11 @@ impl Rootable for Primitive<'_> {
 
     #[inline]
     fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::String(p) => Some(Self::String(p)),
-            HeapRootData::Symbol(p) => Some(Self::Symbol(p)),
-            HeapRootData::Number(p) => Some(Self::Number(p)),
-            HeapRootData::BigInt(p) => Some(Self::BigInt(p)),
+        match heap_data.0 {
+            HeapRootDataInner::String(p) => Some(Self::String(p)),
+            HeapRootDataInner::Symbol(p) => Some(Self::Symbol(p)),
+            HeapRootDataInner::Number(p) => Some(Self::Number(p)),
+            HeapRootDataInner::BigInt(p) => Some(Self::BigInt(p)),
             _ => None,
         }
     }

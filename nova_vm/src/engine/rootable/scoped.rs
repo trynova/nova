@@ -6,7 +6,10 @@ use core::marker::PhantomData;
 
 use crate::{
     ecmascript::Agent,
-    engine::{Bindable, HeapRootCollectionData, HeapRootRef, NoGcScope, Rootable, ScopeToken},
+    engine::{
+        Bindable, HeapRootCollectionData, HeapRootDataInner, HeapRootRef, NoGcScope, Rootable,
+        ScopeToken,
+    },
 };
 
 use super::{HeapRootData, RootableCollection};
@@ -117,7 +120,8 @@ impl<'scope, T: Rootable> Scoped<'scope, T> {
                 let Some(heap_data) = stack_refs.get_mut(index) else {
                     handle_bound_check_failure()
                 };
-                let heap_data = core::mem::replace(heap_data, HeapRootData::Empty);
+                let heap_data =
+                    core::mem::replace(heap_data, HeapRootData(HeapRootDataInner::Empty));
                 if index == stack_refs.len() - 1 {
                     Self::drop_empty_slots(&mut stack_refs);
                 }
@@ -138,7 +142,7 @@ impl<'scope, T: Rootable> Scoped<'scope, T> {
         let last_non_empty_index = stack_refs
             .iter()
             .enumerate()
-            .rfind(|(_, v)| !matches!(v, HeapRootData::Empty))
+            .rfind(|(_, v)| !matches!(v.0, HeapRootDataInner::Empty))
             .map_or(0, |(index, _)| index + 1);
         debug_assert!(last_non_empty_index < stack_refs.len());
         // SAFETY: The last non-empty index is necessarily within

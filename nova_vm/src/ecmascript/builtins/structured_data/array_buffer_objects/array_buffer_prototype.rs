@@ -11,7 +11,7 @@ use crate::{
         try_result_into_js, try_to_index,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable},
-    heap::WellKnownSymbolIndexes,
+    heap::WellKnownSymbols,
 };
 
 pub(crate) struct ArrayBufferPrototype;
@@ -413,7 +413,7 @@ impl ArrayBufferPrototype {
             .with_builtin_function_property::<ArrayBufferPrototypeTransferToFixedLength>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
                     .with_value_readonly(BUILTIN_STRING_MEMORY.ArrayBuffer.into())
                     .with_enumerable(false)
                     .with_configurable(true)

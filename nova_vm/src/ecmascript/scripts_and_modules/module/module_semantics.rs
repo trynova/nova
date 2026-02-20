@@ -23,10 +23,13 @@ use crate::{
         Agent, HostDefined, JsResult, Module, Realm, Script, ScriptOrModule,
         module_namespace_create, types::String,
     },
-    engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, bindable_handle},
+    engine::{
+        Bindable, HeapRootData, HeapRootDataInner, HeapRootRef, NoGcScope, Rootable,
+        bindable_handle,
+    },
     heap::{
-        ArenaAccess, CompactionLists, HeapMarkAndSweep, WorkQueues, arena_vec_access,
-        {BaseIndex, HeapIndexHandle},
+        ArenaAccess, BaseIndex, CompactionLists, HeapIndexHandle, HeapMarkAndSweep, WorkQueues,
+        arena_vec_access,
     },
 };
 
@@ -439,9 +442,9 @@ impl Rootable for InnerReferrer<'_> {
 
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match value {
-            Self::Script(s) => Err(HeapRootData::Script(s.unbind())),
-            Self::SourceTextModule(m) => Err(HeapRootData::SourceTextModule(m.unbind())),
-            Self::Realm(r) => Err(HeapRootData::Realm(r.unbind())),
+            Self::Script(s) => Err(HeapRootData::from(s)),
+            Self::SourceTextModule(m) => Err(HeapRootData::from(m)),
+            Self::Realm(r) => Err(HeapRootData::from(r)),
         }
     }
 
@@ -454,10 +457,10 @@ impl Rootable for InnerReferrer<'_> {
     }
 
     fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::Script(s) => Some(Self::Script(s)),
-            HeapRootData::SourceTextModule(m) => Some(Self::SourceTextModule(m)),
-            HeapRootData::Realm(r) => Some(Self::Realm(r)),
+        match heap_data.0 {
+            HeapRootDataInner::Script(s) => Some(Self::Script(s)),
+            HeapRootDataInner::SourceTextModule(m) => Some(Self::SourceTextModule(m)),
+            HeapRootDataInner::Realm(r) => Some(Self::Realm(r)),
             _ => None,
         }
     }

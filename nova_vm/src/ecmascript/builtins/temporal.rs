@@ -23,7 +23,7 @@ use crate::{
         builders::OrdinaryObjectBuilder, get,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable, trivially_bindable},
-    heap::WellKnownSymbolIndexes,
+    heap::WellKnownSymbols,
 };
 
 pub(crate) struct TemporalObject;
@@ -67,7 +67,7 @@ impl TemporalObject {
             // 1.3.1 Temporal.Now
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
                     .with_value_readonly(BUILTIN_STRING_MEMORY.Temporal.into())
                     .with_enumerable(false)
                     .with_configurable(true)

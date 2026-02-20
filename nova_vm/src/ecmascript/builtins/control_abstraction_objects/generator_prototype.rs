@@ -8,7 +8,7 @@ use crate::{
         ExceptionType, JsResult, Realm, String, Value, builders::OrdinaryObjectBuilder,
     },
     engine::{Bindable, GcScope},
-    heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+    heap::{IntrinsicFunctionIndexes, WellKnownSymbols},
 };
 
 pub(crate) struct GeneratorPrototype;
@@ -133,7 +133,7 @@ impl GeneratorPrototype {
             .with_builtin_function_property::<GeneratorPrototypeThrow>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
                     .with_value_readonly(BUILTIN_STRING_MEMORY.Generator.into())
                     .with_enumerable(false)
                     .with_configurable(true)

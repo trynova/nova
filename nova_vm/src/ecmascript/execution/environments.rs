@@ -46,7 +46,7 @@ use crate::{
         String, TryError, TryHasResult, TryResult, Value, js_result_into_try,
     },
     engine::{
-        Bindable, GcScope, HeapRootData, HeapRootRef, NoGcScope, Rootable, Scopable,
+        Bindable, GcScope, HeapRootData, HeapRootDataInner, NoGcScope, Scopable,
         bindable_handle,
     },
     heap::{CompactionLists, HeapIndexHandle, HeapMarkAndSweep, WorkQueues},
@@ -665,35 +665,29 @@ impl core::fmt::Debug for Environment<'_> {
     }
 }
 
-impl Rootable for Environment<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+impl From<Environment<'_>> for HeapRootData {
+    fn from(value: Environment<'_>) -> Self {
         match value {
-            Environment::Declarative(e) => Err(HeapRootData::DeclarativeEnvironment(e.unbind())),
-            Environment::Function(e) => Err(HeapRootData::FunctionEnvironment(e.unbind())),
-            Environment::Global(e) => Err(HeapRootData::GlobalEnvironment(e.unbind())),
-            Environment::Module(e) => Err(HeapRootData::ModuleEnvironment(e.unbind())),
-            Environment::Object(e) => Err(HeapRootData::ObjectEnvironment(e.unbind())),
+            Environment::Declarative(e) => Self::from(e),
+            Environment::Function(e) => Self::from(e),
+            Environment::Global(e) => Self::from(e),
+            Environment::Module(e) => Self::from(e),
+            Environment::Object(e) => Self::from(e),
         }
     }
+}
 
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
+impl TryFrom<HeapRootData> for Environment<'_> {
+    type Error = ();
 
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::DeclarativeEnvironment(e) => Some(Environment::Declarative(e)),
-            HeapRootData::FunctionEnvironment(e) => Some(Environment::Function(e)),
-            HeapRootData::GlobalEnvironment(e) => Some(Environment::Global(e)),
-            HeapRootData::ModuleEnvironment(e) => Some(Environment::Module(e)),
-            HeapRootData::ObjectEnvironment(e) => Some(Environment::Object(e)),
-            _ => None,
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        match value.0 {
+            HeapRootDataInner::DeclarativeEnvironment(e) => Ok(Self::Declarative(e)),
+            HeapRootDataInner::FunctionEnvironment(e) => Ok(Self::Function(e)),
+            HeapRootDataInner::GlobalEnvironment(e) => Ok(Self::Global(e)),
+            HeapRootDataInner::ModuleEnvironment(e) => Ok(Self::Module(e)),
+            HeapRootDataInner::ObjectEnvironment(e) => Ok(Self::Object(e)),
+            _ => Err(()),
         }
     }
 }

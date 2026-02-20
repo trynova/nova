@@ -13,7 +13,7 @@ use crate::{
         try_result_into_js, try_to_index, try_to_integer_or_infinity,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable},
-    heap::WellKnownSymbolIndexes,
+    heap::WellKnownSymbols,
 };
 
 pub(crate) struct SharedArrayBufferPrototype;
@@ -325,7 +325,7 @@ impl SharedArrayBufferPrototype {
             .with_builtin_function_property::<SharedArrayBufferPrototypeSlice>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
                     .with_value_readonly(BUILTIN_STRING_MEMORY.SharedArrayBuffer.into())
                     .with_enumerable(false)
                     .with_configurable(true)

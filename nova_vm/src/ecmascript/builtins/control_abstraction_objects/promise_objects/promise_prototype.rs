@@ -12,7 +12,7 @@ use crate::{
         new_promise_reaction_job, species_constructor,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable},
-    heap::{ArenaAccessMut, CreateHeapData, WellKnownSymbolIndexes},
+    heap::{ArenaAccessMut, CreateHeapData, WellKnownSymbols},
 };
 
 pub(crate) struct PromisePrototype;
@@ -181,7 +181,7 @@ impl PromisePrototype {
             .with_builtin_function_property::<PromisePrototypeThen>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
                     .with_value_readonly(BUILTIN_STRING_MEMORY.Promise.into())
                     .with_enumerable(false)
                     .with_configurable(true)

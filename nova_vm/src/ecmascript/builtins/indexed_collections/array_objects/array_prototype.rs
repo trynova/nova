@@ -20,7 +20,7 @@ use crate::{
     },
     engine::{Bindable, GcScope, Rootable, Scopable, ScopableCollection, Scoped},
     heap::{
-        ArenaAccessSoAMut, Heap, HeapIndexHandle, IntrinsicFunctionIndexes, WellKnownSymbolIndexes,
+        ArenaAccessSoAMut, Heap, HeapIndexHandle, IntrinsicFunctionIndexes, WellKnownSymbols,
     },
 };
 
@@ -4148,7 +4148,7 @@ impl ArrayPrototype {
             .with_builtin_function_property::<ArrayPrototypeWith>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::Iterator.into())
+                    .with_key(WellKnownSymbols::Iterator.into())
                     .with_value(array_prototype_values.into())
                     .with_enumerable(ArrayPrototypeValues::ENUMERABLE)
                     .with_configurable(ArrayPrototypeValues::CONFIGURABLE)
@@ -4156,7 +4156,7 @@ impl ArrayPrototype {
             })
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::Unscopables.into())
+                    .with_key(WellKnownSymbols::Unscopables.into())
                     .with_value_creator_readonly(|agent| {
                         OrdinaryObjectBuilder::new(agent, realm)
                             .with_property_capacity(16)
@@ -4225,7 +4225,7 @@ fn is_concat_spreadable<'a>(
     let spreadable = get(
         agent,
         o.unbind(),
-        WellKnownSymbolIndexes::IsConcatSpreadable.into(),
+        WellKnownSymbols::IsConcatSpreadable.into(),
         gc.reborrow(),
     )
     .unbind()?;

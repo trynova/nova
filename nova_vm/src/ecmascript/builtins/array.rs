@@ -218,7 +218,7 @@ impl<'a> Array<'a> {
     #[cfg(any(feature = "set", feature = "weak-refs"))]
     pub(crate) fn is_trivially_iterable(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> bool {
         use crate::ecmascript::abstract_operations::try_get_object_method;
-        use crate::heap::WellKnownSymbolIndexes;
+        use crate::heap::WellKnownSymbols;
         if !self.is_dense(agent) {
             // Contains holes or getters, so cannot be iterated without looking
             // into the prototype chain or calling getters.
@@ -227,7 +227,7 @@ impl<'a> Array<'a> {
             let TryResult::Continue(Some(iterator_method)) = try_get_object_method(
                 agent,
                 self.into(),
-                PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
+                PropertyKey::Symbol(WellKnownSymbols::Iterator.into()),
                 gc,
             ) else {
                 // Can't get iterator method without calling a getter or Proxy

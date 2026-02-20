@@ -17,7 +17,10 @@ use crate::{
         Agent, BIGINT_DISCRIMINANT, ExceptionType, JsResult, Numeric, Primitive,
         SMALL_BIGINT_DISCRIMINANT, SmallInteger, String, Value, primitive_handle, with_radix,
     },
-    engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, bindable_handle},
+    engine::{
+        Bindable, HeapRootData, HeapRootDataInner, HeapRootRef, NoGcScope, Rootable,
+        bindable_handle,
+    },
     heap::{
         ArenaAccess, BaseIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         WorkQueues, arena_vec_access,
@@ -845,7 +848,7 @@ impl Rootable for BigInt<'_> {
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match value {
-            Self::BigInt(heap_big_int) => Err(HeapRootData::BigInt(heap_big_int.unbind())),
+            Self::BigInt(heap_big_int) => Err(HeapRootData::from(heap_big_int)),
             Self::SmallBigInt(small_big_int) => Ok(Self::RootRepr::SmallBigInt(small_big_int)),
         }
     }
@@ -865,8 +868,8 @@ impl Rootable for BigInt<'_> {
 
     #[inline]
     fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::BigInt(heap_big_int) => Some(Self::BigInt(heap_big_int)),
+        match heap_data.0 {
+            HeapRootDataInner::BigInt(heap_big_int) => Some(Self::BigInt(heap_big_int)),
             _ => None,
         }
     }

@@ -13,8 +13,14 @@ use crate::{
         STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT, SmallInteger, SmallString, String, Symbol, Value,
         parse_string_to_integer_property_key,
     },
-    engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, Scoped, bindable_handle},
-    heap::{ArenaAccess, CompactionLists, HeapMarkAndSweep, PropertyKeyHeapAccess, WorkQueues},
+    engine::{
+        Bindable, HeapRootData, HeapRootDataInner, HeapRootRef, NoGcScope, Rootable, Scoped,
+        bindable_handle,
+    },
+    heap::{
+        ArenaAccess, CompactionLists, HeapMarkAndSweep, PropertyKeyHeapAccess, WellKnownSymbols,
+        WorkQueues,
+    },
 };
 
 const PRIVATE_NAME_DISCRIMINANT: u8 = SYMBOL_DISCRIMINANT + 0b1000_0000;
@@ -402,6 +408,7 @@ impl HeapMarkAndSweep for PropertyKey<'static> {
 pub enum PropertyKeyRootRepr {
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
+    Symbol(WellKnownSymbols) = SYMBOL_DISCRIMINANT,
     PrivateName(PrivateName) = PRIVATE_NAME_DISCRIMINANT,
     HeapRef(HeapRootRef) = 0x80,
 }
@@ -412,10 +419,16 @@ impl Rootable for PropertyKey<'_> {
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match value {
-            PropertyKey::Integer(small_integer) => Ok(Self::RootRepr::Integer(small_integer)),
-            PropertyKey::SmallString(small_string) => Ok(Self::RootRepr::SmallString(small_string)),
-            PropertyKey::String(heap_string) => Err(HeapRootData::String(heap_string.unbind())),
-            PropertyKey::Symbol(symbol) => Err(HeapRootData::Symbol(symbol.unbind())),
+            PropertyKey::Integer(s) => Ok(Self::RootRepr::Integer(s)),
+            PropertyKey::SmallString(s) => Ok(Self::RootRepr::SmallString(s)),
+            PropertyKey::String(s) => Err(HeapRootData::from(s)),
+            PropertyKey::Symbol(symbol) => {
+                if let Ok(s) = WellKnownSymbols::try_from(symbol) {
+                    Ok(PropertyKeyRootRepr::Symbol(s))
+                } else {
+                    Err(HeapRootData::try_from(symbol).unwrap())
+                }
+            }
             PropertyKey::PrivateName(p) => Ok(Self::RootRepr::PrivateName(p)),
         }
     }
@@ -425,6 +438,7 @@ impl Rootable for PropertyKey<'_> {
         match *value {
             PropertyKeyRootRepr::Integer(small_integer) => Ok(Self::Integer(small_integer)),
             PropertyKeyRootRepr::SmallString(small_string) => Ok(Self::SmallString(small_string)),
+            PropertyKeyRootRepr::Symbol(s) => Ok(Self::Symbol(s.into())),
             PropertyKeyRootRepr::PrivateName(p) => Ok(Self::PrivateName(p)),
             PropertyKeyRootRepr::HeapRef(heap_root_ref) => Err(heap_root_ref),
         }
@@ -437,9 +451,9 @@ impl Rootable for PropertyKey<'_> {
 
     #[inline]
     fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::String(heap_string) => Some(Self::String(heap_string)),
-            HeapRootData::Symbol(symbol) => Some(Self::Symbol(symbol)),
+        match heap_data.0 {
+            HeapRootDataInner::String(s) => Some(Self::String(s)),
+            HeapRootDataInner::Symbol(s) => Some(Self::Symbol(s)),
             _ => None,
         }
     }

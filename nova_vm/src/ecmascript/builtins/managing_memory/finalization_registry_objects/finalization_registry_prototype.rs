@@ -9,7 +9,7 @@ use crate::{
         can_be_held_weakly, same_value,
     },
     engine::{Bindable, GcScope, NoGcScope},
-    heap::WellKnownSymbolIndexes,
+    heap::WellKnownSymbols,
 };
 
 pub(crate) struct FinalizationRegistryPrototype;
@@ -143,7 +143,7 @@ impl FinalizationRegistryPrototype {
             .with_builtin_function_property::<FinalizationRegistryPrototypeUnregister>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
                     .with_value_readonly(BUILTIN_STRING_MEMORY.FinalizationRegistry.into())
                     .with_enumerable(false)
                     .with_configurable(true)
