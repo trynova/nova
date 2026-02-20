@@ -1273,11 +1273,8 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
     type ElementType = T;
 
     #[inline(always)]
-    fn is_detached(self, agent: &Agent) -> bool {
-        self.into_void_array()
-            .get(agent)
-            .viewed_array_buffer
-            .is_detached(agent)
+    fn is_detached(self, _: &Agent) -> bool {
+        false
     }
 
     #[inline(always)]
@@ -1361,7 +1358,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         let buffer = self.into_void_array().get(agent).viewed_array_buffer;
 
         // 2. If IsDetachedBuffer(buffer) is true, then
-        if buffer.is_detached(agent) {
+        if buffer.is_detached() {
             // a. Let byteLength be detached.
             CachedBufferByteLength::detached()
         } else {
@@ -1423,9 +1420,10 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         let byte_length = o.byte_length(agent);
 
         // 5. Let kept be a new empty List.
-        let mut kept = create_byte_data_block(agent, len as u64, gc.nogc())
-            .unbind()?
-            .bind(gc.nogc());
+        let mut kept =
+            create_byte_data_block(agent, len.saturating_mul(size_of::<T>()) as u64, gc.nogc())
+                .unbind()?
+                .bind(gc.nogc());
         // SAFETY: All viewable types are trivially transmutable.
         let (head, kept_slice, _) = unsafe { kept.align_to_mut::<T>() };
         // Should be properly aligned for all T.
