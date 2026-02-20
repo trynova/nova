@@ -14,6 +14,12 @@ use crate::{
     },
 };
 
+/// ### [23.1.5 Array Iterator Objects](https://tc39.es/ecma262/#sec-array-iterator-objects)
+///
+/// An _Array Iterator_ is an object that represents a specific iteration over
+/// some specific Array instance object. There is not a named constructor for
+/// Array Iterator objects. Instead, Array Iterator objects are created by
+/// calling certain methods of Array instance objects.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct ArrayIterator<'a>(BaseIndex<'a, ArrayIteratorHeapData<'static>>);

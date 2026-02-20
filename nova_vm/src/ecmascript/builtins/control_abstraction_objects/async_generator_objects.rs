@@ -22,6 +22,16 @@ use crate::{
     },
 };
 
+/// ## [27.6 AsyncGenerator Objects](https://tc39.es/ecma262/#sec-asyncgenerator-objects)
+///
+/// An AsyncGenerator is created by calling an async generator function and
+/// conforms to both the async iterator interface and the async iterable
+/// interface.
+///
+/// AsyncGenerator instances directly inherit properties from the initial value
+/// of the **"prototype"** property of the async generator function that created
+/// the instance. AsyncGenerator instances indirectly inherit properties from
+/// %AsyncGeneratorPrototype%.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct AsyncGenerator<'a>(BaseIndex<'a, AsyncGeneratorHeapData<'static>>);
