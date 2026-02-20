@@ -28,7 +28,7 @@ use crate::{
         validate_index, validate_typed_array,
     },
     engine::{Bindable, GcScope, Global, NoGcScope, Scopable},
-    heap::{ObjectEntry, WellKnownSymbolIndexes},
+    heap::{ObjectEntry, WellKnownSymbols},
 };
 pub(crate) struct AtomicsObject;
 
@@ -812,7 +812,7 @@ impl AtomicsObject {
             .with_builtin_function_property::<AtomicsObjectXor>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
                     .with_value_readonly(BUILTIN_STRING_MEMORY.Atomics.into())
                     .with_enumerable(false)
                     .with_configurable(true)

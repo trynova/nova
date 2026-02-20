@@ -7,7 +7,7 @@ use hashbrown::HashTable;
 use crate::{
     ecmascript::{Agent, PropertyKey},
     engine::{
-        Bindable, HeapRootCollectionData, NoGcScope, ScopableCollection, ScopedCollection,
+        Bindable, HeapRootCollection, NoGcScope, ScopableCollection, ScopedCollection,
         bindable_handle,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -34,10 +34,6 @@ impl<'a> PropertyKeySet<'a> {
     }
 
     /// Insert a PropertyKey into the set.
-    ///
-    /// The insertion might trigger a resize of the underlying hash table,
-    /// requiring rehashing of some or all previous elements. Hence the
-    /// PropertyKeyHeap parameter is needed.
     pub fn insert(&mut self, agent: &Agent, value: PropertyKey) -> bool {
         let hash = value.heap_hash(agent);
         let entry = self.0.entry(hash, |p| *p == value, |p| p.heap_hash(agent));
@@ -69,16 +65,12 @@ impl ScopableCollection for PropertyKeySet<'_> {
 
 impl ScopedCollection<'_, PropertyKeySet<'static>> {
     /// Insert a PropertyKey into the scoped set.
-    ///
-    /// The insertion might trigger a resize of the underlying hash table,
-    /// requiring rehashing of some or all previous elements. Hence the
-    /// PropertyKeyHeap parameter is needed.
     pub fn insert(&mut self, agent: &Agent, value: PropertyKey) -> bool {
         let mut stack_ref_collections = agent.stack_ref_collections.borrow_mut();
         let Some(stack_slot) = stack_ref_collections.get_mut(self.inner as usize) else {
             unreachable!();
         };
-        let HeapRootCollectionData::PropertyKeySet(property_key_set) = stack_slot else {
+        let HeapRootCollection::PropertyKeySet(property_key_set) = stack_slot else {
             unreachable!()
         };
         property_key_set.insert(agent, value)
@@ -90,7 +82,7 @@ impl ScopedCollection<'_, PropertyKeySet<'static>> {
         let Some(stack_slot) = stack_ref_collections.get(self.inner as usize) else {
             unreachable!();
         };
-        let HeapRootCollectionData::PropertyKeySet(property_key_set) = stack_slot else {
+        let HeapRootCollection::PropertyKeySet(property_key_set) = stack_slot else {
             unreachable!()
         };
         property_key_set.contains(agent, value)

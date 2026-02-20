@@ -25,8 +25,8 @@ use crate::{
     },
     engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, bindable_handle},
     heap::{
-        ArenaAccess, CompactionLists, HeapMarkAndSweep, WorkQueues, arena_vec_access,
-        {BaseIndex, HeapIndexHandle},
+        ArenaAccess, BaseIndex, CompactionLists, HeapIndexHandle, HeapMarkAndSweep, WorkQueues,
+        arena_vec_access,
     },
 };
 
@@ -439,9 +439,9 @@ impl Rootable for InnerReferrer<'_> {
 
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match value {
-            Self::Script(s) => Err(HeapRootData::Script(s.unbind())),
-            Self::SourceTextModule(m) => Err(HeapRootData::SourceTextModule(m.unbind())),
-            Self::Realm(r) => Err(HeapRootData::Realm(r.unbind())),
+            Self::Script(s) => Err(HeapRootData::from(s)),
+            Self::SourceTextModule(m) => Err(HeapRootData::from(m)),
+            Self::Realm(r) => Err(HeapRootData::from(r)),
         }
     }
 

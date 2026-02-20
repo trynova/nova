@@ -478,9 +478,9 @@ impl<'a> TryFrom<Object<'a>> for AnyDataView<'a> {
 impl From<AnyDataView<'_>> for HeapRootData {
     fn from(value: AnyDataView<'_>) -> Self {
         match value {
-            AnyDataView::DataView(dv) => Self::DataView(dv.unbind()),
+            AnyDataView::DataView(dv) => Self::from(dv),
             #[cfg(feature = "shared-array-buffer")]
-            AnyDataView::SharedDataView(sdv) => Self::SharedDataView(sdv.unbind()),
+            AnyDataView::SharedDataView(sdv) => Self::from(sdv),
         }
     }
 }

@@ -2,7 +2,7 @@ use std::{fs, path::PathBuf};
 
 use nova_vm::{
     ecmascript::{
-        Agent, DefaultHostHooks, GcAgent, Object, Options, String, Value, parse_script,
+        Agent, AgentOptions, DefaultHostHooks, GcAgent, Object, String, Value, parse_script,
         script_evaluation,
     },
     engine::{Bindable, GcScope},
@@ -71,7 +71,7 @@ fn garbage_collection_tests() {
     let call_contents =
         fs::read_to_string(d.clone()).expect("Should have been able to read the file");
 
-    let mut agent = GcAgent::new(Options::default(), &DefaultHostHooks);
+    let mut agent = GcAgent::new(AgentOptions::default(), &DefaultHostHooks);
     let create_global_object: Option<for<'a> fn(&mut Agent, GcScope<'a, '_>) -> Object<'a>> = None;
     let create_global_this_value: Option<for<'a> fn(&mut Agent, GcScope<'a, '_>) -> Object<'a>> =
         None;

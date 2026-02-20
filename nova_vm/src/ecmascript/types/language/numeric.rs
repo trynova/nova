@@ -8,7 +8,7 @@ use crate::{
         INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT, Number, Primitive, SMALL_BIGINT_DISCRIMINANT,
         SmallBigInt, SmallF64, SmallInteger, Value,
     },
-    engine::{Bindable, HeapRootData, HeapRootRef, Rootable, bindable_handle},
+    engine::{HeapRootData, HeapRootRef, Rootable, bindable_handle},
 };
 
 /// ### [6.1.6 Numeric Types](https://tc39.es/ecma262/#sec-numeric-types)
@@ -33,7 +33,7 @@ pub enum Numeric<'a> {
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
-pub enum NumericRootRepr {
+pub(crate) enum NumericRootRepr {
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     SmallF64(SmallF64) = FLOAT_DISCRIMINANT,
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
@@ -88,10 +88,10 @@ impl Rootable for Numeric<'_> {
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match value {
-            Self::Number(n) => Err(HeapRootData::Number(n.unbind())),
+            Self::Number(n) => Err(HeapRootData::from(n)),
             Self::Integer(n) => Ok(Self::RootRepr::Integer(n)),
             Self::SmallF64(n) => Ok(Self::RootRepr::SmallF64(n)),
-            Self::BigInt(n) => Err(HeapRootData::BigInt(n.unbind())),
+            Self::BigInt(n) => Err(HeapRootData::from(n)),
             Self::SmallBigInt(n) => Ok(Self::RootRepr::SmallBigInt(n)),
         }
     }

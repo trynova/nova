@@ -9,7 +9,7 @@ use crate::{
         Value, builders::BuiltinFunctionBuilder, get_array_buffer_max_byte_length_option, to_index,
     },
     engine::{Bindable, GcScope, Scopable},
-    heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
+    heap::{IntrinsicConstructorIndexes, WellKnownSymbols},
 };
 
 use super::allocate_shared_array_buffer;
@@ -30,8 +30,7 @@ struct SharedArrayBufferGetSpecies;
 impl Builtin for SharedArrayBufferGetSpecies {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_species_;
 
-    const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::Species.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbols::Species.to_property_key());
 
     const LENGTH: u8 = 0;
 

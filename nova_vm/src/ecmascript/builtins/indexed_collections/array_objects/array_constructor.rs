@@ -14,7 +14,7 @@ use crate::{
         to_object, to_uint32_number, try_create_data_property_or_throw, unwrap_try,
     },
     engine::{Bindable, GcScope, Scopable},
-    heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
+    heap::{IntrinsicConstructorIndexes, WellKnownSymbols},
 };
 
 pub(crate) struct ArrayConstructor;
@@ -51,8 +51,7 @@ impl Builtin for ArrayGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayConstructor::get_species);
     const LENGTH: u8 = 0;
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_species_;
-    const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::Species.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbols::Species.to_property_key());
 }
 impl BuiltinGetter for ArrayGetSpecies {}
 
@@ -229,7 +228,7 @@ impl ArrayConstructor {
         let using_iterator = get_method(
             agent,
             items.unbind(),
-            WellKnownSymbolIndexes::Iterator.into(),
+            WellKnownSymbols::Iterator.into(),
             gc.reborrow(),
         )
         .unbind()?

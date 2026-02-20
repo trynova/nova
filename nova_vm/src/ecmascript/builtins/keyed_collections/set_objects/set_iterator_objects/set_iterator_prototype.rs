@@ -9,7 +9,7 @@ use crate::{
         create_array_from_list, create_iter_result_object,
     },
     engine::{Bindable, GcScope},
-    heap::{ArenaAccess, ArenaAccessMut, ArenaAccessSoA, WellKnownSymbolIndexes},
+    heap::{ArenaAccess, ArenaAccessMut, ArenaAccessSoA, WellKnownSymbols},
 };
 
 pub(crate) struct SetIteratorPrototype;
@@ -101,7 +101,7 @@ impl SetIteratorPrototype {
             .with_builtin_function_property::<SetIteratorPrototypeNext>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
                     .with_value_readonly(BUILTIN_STRING_MEMORY.Set_Iterator.into())
                     .with_enumerable(false)
                     .with_configurable(true)

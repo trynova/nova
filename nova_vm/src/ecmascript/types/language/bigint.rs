@@ -10,7 +10,7 @@ pub(crate) use data::*;
 use operators::{
     bigint_bitwise_op, left_shift_bigint, left_shift_i64, right_shift_bigint, right_shift_i64,
 };
-pub(crate) use small_bigint::*;
+pub use small_bigint::*;
 
 use crate::{
     ecmascript::{
@@ -135,7 +135,7 @@ pub enum BigInt<'a> {
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
-pub enum BigIntRootRepr {
+pub(crate) enum BigIntRootRepr {
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
     HeapRef(HeapRootRef) = 0x80,
 }
@@ -845,7 +845,7 @@ impl Rootable for BigInt<'_> {
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match value {
-            Self::BigInt(heap_big_int) => Err(HeapRootData::BigInt(heap_big_int.unbind())),
+            Self::BigInt(heap_big_int) => Err(HeapRootData::from(heap_big_int)),
             Self::SmallBigInt(small_big_int) => Ok(Self::RootRepr::SmallBigInt(small_big_int)),
         }
     }

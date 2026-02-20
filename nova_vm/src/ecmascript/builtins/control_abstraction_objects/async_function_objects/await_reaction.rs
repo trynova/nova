@@ -18,7 +18,7 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct AwaitReaction<'a>(BaseIndex<'a, AwaitReactionRecord<'static>>);
+pub(crate) struct AwaitReaction<'a>(BaseIndex<'a, AwaitReactionRecord<'static>>);
 index_handle!(AwaitReaction);
 arena_vec_access!(AwaitReaction, 'a, AwaitReactionRecord, await_reactions);
 

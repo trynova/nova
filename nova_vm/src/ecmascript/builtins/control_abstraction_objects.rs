@@ -11,7 +11,7 @@ mod generator_prototype;
 mod iteration;
 mod promise_objects;
 
-pub use async_function_objects::*;
+pub(crate) use async_function_objects::*;
 pub(crate) use async_generator_function_objects::*;
 pub use async_generator_objects::*;
 pub(crate) use generator_function_objects::*;

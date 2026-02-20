@@ -6,7 +6,7 @@ use std::{marker::PhantomData, ptr::NonNull};
 
 use crate::{
     ecmascript::Agent,
-    engine::{Bindable, HeapRootCollectionData, NoGcScope, ScopableCollection, ScopedCollection},
+    engine::{Bindable, HeapRootCollection, NoGcScope, ScopableCollection, ScopedCollection},
 };
 
 use super::PropertyKey;
@@ -27,7 +27,7 @@ impl ScopedCollection<'_, Vec<PropertyKey<'static>>> {
         let Some(stack_slot) = stack_ref_collections.get(self.inner as usize) else {
             unreachable!();
         };
-        let HeapRootCollectionData::PropertyKeyVec(property_key_vec) = stack_slot else {
+        let HeapRootCollection::PropertyKeyVec(property_key_vec) = stack_slot else {
             unreachable!()
         };
         f(property_key_vec)
@@ -42,7 +42,7 @@ impl ScopedCollection<'_, Vec<PropertyKey<'static>>> {
         let Some(stack_slot) = stack_ref_collections.get_mut(self.inner as usize) else {
             unreachable!();
         };
-        let HeapRootCollectionData::PropertyKeyVec(property_key_vec) = stack_slot else {
+        let HeapRootCollection::PropertyKeyVec(property_key_vec) = stack_slot else {
             unreachable!()
         };
         f(property_key_vec)
@@ -94,14 +94,14 @@ unsafe impl<'scope> Bindable for ScopedCollection<'scope, Vec<PropertyKey<'stati
 }
 
 #[repr(transparent)]
-pub struct ScopedPropertyKeysIterator<'a> {
+pub(crate) struct ScopedPropertyKeysIterator<'a> {
     slice: NonNull<[PropertyKey<'static>]>,
     collection: PhantomData<&'a mut ScopedCollection<'a, Vec<PropertyKey<'static>>>>,
 }
 
 #[derive(Clone, Copy)]
 #[repr(transparent)]
-pub struct ScopedPropertyKey<'a> {
+pub(crate) struct ScopedPropertyKey<'a> {
     key: NonNull<PropertyKey<'static>>,
     collection: PhantomData<&'a mut ScopedCollection<'a, Vec<PropertyKey<'static>>>>,
 }

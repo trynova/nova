@@ -8,6 +8,7 @@
 use crate::ecmascript::DATE_DISCRIMINANT;
 #[cfg(feature = "date")]
 use crate::ecmascript::Date;
+use crate::ecmascript::UnmappedArguments;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::{
     ARRAY_BUFFER_DISCRIMINANT, ArrayBuffer, BIGINT_64_ARRAY_DISCRIMINANT,
@@ -73,7 +74,9 @@ use crate::{
         Value,
     },
     engine::{Bindable, HeapRootData, HeapRootRef, Rootable, bindable_handle},
-    heap::{CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues},
+    heap::{
+        CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WellKnownSymbols, WorkQueues,
+    },
 };
 
 /// ## [6.1 ECMAScript Language Types](https://tc39.es/ecma262/#sec-ecmascript-language-types)
@@ -94,7 +97,7 @@ pub(crate) enum WeakKey<'a> {
     BuiltinPromiseCollectorFunction = BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
     BuiltinProxyRevokerFunction = BUILTIN_PROXY_REVOKER_FUNCTION,
     PrimitiveObject(PrimitiveObject<'a>) = PRIMITIVE_OBJECT_DISCRIMINANT,
-    Arguments(OrdinaryObject<'a>) = ARGUMENTS_DISCRIMINANT,
+    Arguments(UnmappedArguments<'a>) = ARGUMENTS_DISCRIMINANT,
     Array(Array<'a>) = ARRAY_DISCRIMINANT,
     #[cfg(feature = "date")]
     Date(Date<'a>) = DATE_DISCRIMINANT,
@@ -537,25 +540,41 @@ impl<'a> TryFrom<WeakKey<'a>> for Object<'a> {
 
 bindable_handle!(WeakKey);
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(u8)]
+pub(crate) enum WeakKeyRootRerp {
+    Symbol(WellKnownSymbols) = SYMBOL_DISCRIMINANT,
+    HeapRef(HeapRootRef) = 0x80,
+}
+
 impl Rootable for WeakKey<'_> {
-    type RootRepr = HeapRootRef;
+    type RootRepr = WeakKeyRootRerp;
 
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match Object::try_from(value) {
             Ok(object) => Err(object.unbind().into()),
-            Err(symbol) => Err(HeapRootData::Symbol(symbol.unbind())),
+            Err(symbol) => {
+                if let Ok(s) = WellKnownSymbols::try_from(symbol) {
+                    Ok(WeakKeyRootRerp::Symbol(s))
+                } else {
+                    Err(HeapRootData::try_from(symbol).unwrap())
+                }
+            }
         }
     }
 
     #[inline]
     fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
+        match *value {
+            WeakKeyRootRerp::Symbol(s) => Ok(Self::Symbol(s.into())),
+            WeakKeyRootRerp::HeapRef(s) => Err(s),
+        }
     }
 
     #[inline]
     fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
+        Self::RootRepr::HeapRef(heap_ref)
     }
 
     #[inline]

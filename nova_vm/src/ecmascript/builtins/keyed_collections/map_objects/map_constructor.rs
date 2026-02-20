@@ -21,7 +21,7 @@ use crate::{
     engine::{Bindable, GcScope, Scopable},
     heap::{
         ArenaAccess, CreateHeapData, Heap, IntrinsicConstructorIndexes, PrimitiveHeap,
-        WellKnownSymbolIndexes,
+        WellKnownSymbols,
     },
 };
 
@@ -45,8 +45,7 @@ impl Builtin for MapGroupBy {
 struct MapGetSpecies;
 impl Builtin for MapGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapConstructor::get_species);
-    const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::Species.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbols::Species.to_property_key());
     const LENGTH: u8 = 0;
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_species_;
 }
@@ -279,7 +278,7 @@ pub(crate) fn add_entries_from_iterable_map_constructor<'a>(
             let using_iterator = get_method(
                 agent,
                 arr_iterable.unbind().into(),
-                WellKnownSymbolIndexes::Iterator.into(),
+                WellKnownSymbols::Iterator.into(),
                 gc.reborrow(),
             )
             .unbind()?

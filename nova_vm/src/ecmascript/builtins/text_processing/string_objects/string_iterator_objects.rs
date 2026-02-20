@@ -11,7 +11,7 @@ use crate::{
     engine::{Bindable, GcScope, NoGcScope, bindable_handle},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WellKnownSymbolIndexes, WorkQueues, arena_vec_access, {BaseIndex, HeapIndexHandle},
+        WellKnownSymbols, WorkQueues, arena_vec_access, {BaseIndex, HeapIndexHandle},
     },
 };
 
@@ -163,7 +163,7 @@ impl StringIteratorPrototype {
             .with_builtin_function_property::<StringIteratorPrototypeNext>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
                     .with_value_readonly(BUILTIN_STRING_MEMORY.String_Iterator.into())
                     .with_enumerable(false)
                     .with_configurable(true)

@@ -12,7 +12,7 @@ use crate::{
         to_uint32_number,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable},
-    heap::{CreateHeapData, ElementStorageMut, Heap, WellKnownSymbolIndexes},
+    heap::{CreateHeapData, ElementStorageMut, Heap, WellKnownSymbols},
 };
 
 /// ### [10.4.2.2 ArrayCreate ( length \[ , proto \] )](https://tc39.es/ecma262/#sec-arraycreate)
@@ -140,7 +140,7 @@ pub(crate) fn array_species_create<'a>(
         c = get(
             agent,
             c_obj.unbind(),
-            WellKnownSymbolIndexes::Species.into(),
+            WellKnownSymbols::Species.into(),
             gc.reborrow(),
         )
         .unbind()?

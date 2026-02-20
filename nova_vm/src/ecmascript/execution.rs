@@ -16,7 +16,7 @@ mod weak_ref_and_finalization_registry;
 
 pub use agent::*;
 pub use default_host_hooks::*;
-pub use environments::*;
+pub(crate) use environments::*;
 pub(crate) use execution_context::*;
 pub use realm::*;
 #[cfg(feature = "weak-refs")]

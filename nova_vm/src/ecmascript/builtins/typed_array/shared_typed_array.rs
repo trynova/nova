@@ -35,9 +35,9 @@ use crate::{
     },
     engine::{Bindable, GcScope, HeapRootData, NoGcScope, Scopable, Scoped, bindable_handle},
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, DirectArenaAccess,
-        DirectArenaAccessMut, Heap, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues,
-        {BaseIndex, HeapIndexHandle},
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, DirectArenaAccess,
+        DirectArenaAccessMut, Heap, HeapIndexHandle, HeapMarkAndSweep, HeapSweepWeakReference,
+        WorkQueues,
     },
 };
 
@@ -45,11 +45,13 @@ use crate::{
 ///
 /// A generic TypedArray viewing a SharedArrayBuffer with its concrete type
 /// encoded in a type parameter.
+#[allow(private_bounds)]
 pub struct GenericSharedTypedArray<'a, T: Viewable>(
     BaseIndex<'a, SharedTypedArrayRecord<'static>>,
     PhantomData<T>,
 );
 
+#[allow(private_bounds)]
 impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
     pub fn new_from_array_buffer(agent: &mut Agent, sab: SharedArrayBuffer<'ta>) -> Self {
         agent.heap.create(SharedTypedArrayRecord {
@@ -2261,104 +2263,57 @@ impl AsMut<Vec<SharedTypedArrayRecord<'static>>> for crate::ecmascript::executio
     }
 }
 impl<'a, T: Viewable> From<GenericSharedTypedArray<'a, T>> for SharedTypedArray<'a> {
+    #[inline(always)]
     fn from(value: GenericSharedTypedArray<'a, T>) -> Self {
         if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>() {
-            // SAFETY: type checked.
             Self::SharedUint8Array(unsafe {
-                core::mem::transmute::<
-                    GenericSharedTypedArray<'a, T>,
-                    GenericSharedTypedArray<'a, u8>,
-                >(value)
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedUint8Array>(value)
             })
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>() {
-            // SAFETY: type checked.
             Self::SharedUint8ClampedArray(unsafe {
-                core::mem::transmute::<
-                    GenericSharedTypedArray<'a, T>,
-                    GenericSharedTypedArray<'a, U8Clamped>,
-                >(value)
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedUint8ClampedArray>(value)
             })
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>() {
-            // SAFETY: type checked.
             Self::SharedInt8Array(unsafe {
-                core::mem::transmute::<
-                    GenericSharedTypedArray<'a, T>,
-                    GenericSharedTypedArray<'a, i8>,
-                >(value)
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedInt8Array>(value)
             })
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u16>() {
-            // SAFETY: type checked.
             Self::SharedUint16Array(unsafe {
-                core::mem::transmute::<
-                    GenericSharedTypedArray<'a, T>,
-                    GenericSharedTypedArray<'a, u16>,
-                >(value)
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedUint16Array>(value)
             })
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i16>() {
-            // SAFETY: type checked.
             Self::SharedInt16Array(unsafe {
-                core::mem::transmute::<
-                    GenericSharedTypedArray<'a, T>,
-                    GenericSharedTypedArray<'a, i16>,
-                >(value)
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedInt16Array>(value)
             })
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>() {
-            // SAFETY: type checked.
             Self::SharedUint32Array(unsafe {
-                core::mem::transmute::<
-                    GenericSharedTypedArray<'a, T>,
-                    GenericSharedTypedArray<'a, u32>,
-                >(value)
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedUint32Array>(value)
             })
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>() {
-            // SAFETY: type checked.
             Self::SharedInt32Array(unsafe {
-                core::mem::transmute::<
-                    GenericSharedTypedArray<'a, T>,
-                    GenericSharedTypedArray<'a, i32>,
-                >(value)
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedInt32Array>(value)
             })
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>() {
-            // SAFETY: type checked.
             Self::SharedBigUint64Array(unsafe {
-                core::mem::transmute::<
-                    GenericSharedTypedArray<'a, T>,
-                    GenericSharedTypedArray<'a, u64>,
-                >(value)
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedBigUint64Array>(value)
             })
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>() {
-            // SAFETY: type checked.
             Self::SharedBigInt64Array(unsafe {
-                core::mem::transmute::<
-                    GenericSharedTypedArray<'a, T>,
-                    GenericSharedTypedArray<'a, i64>,
-                >(value)
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedBigInt64Array>(value)
             })
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>() {
-            // SAFETY: type checked.
             Self::SharedFloat32Array(unsafe {
-                core::mem::transmute::<
-                    GenericSharedTypedArray<'a, T>,
-                    GenericSharedTypedArray<'a, f32>,
-                >(value)
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedFloat32Array>(value)
             })
         } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>() {
-            // SAFETY: type checked.
             Self::SharedFloat64Array(unsafe {
-                core::mem::transmute::<
-                    GenericSharedTypedArray<'a, T>,
-                    GenericSharedTypedArray<'a, f64>,
-                >(value)
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedFloat64Array>(value)
             })
         } else {
             #[cfg(feature = "proposal-float16array")]
             if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f16>() {
-                // SAFETY: type checked.
                 return Self::SharedFloat16Array(unsafe {
-                    core::mem::transmute::<
-                        GenericSharedTypedArray<'a, T>,
-                        GenericSharedTypedArray<'a, f16>,
-                    >(value)
+                    core::mem::transmute::<GenericSharedTypedArray<T>, SharedFloat16Array>(value)
                 });
             }
             unreachable!()
@@ -2368,29 +2323,233 @@ impl<'a, T: Viewable> From<GenericSharedTypedArray<'a, T>> for SharedTypedArray<
 impl<'a, T: Viewable> From<GenericSharedTypedArray<'a, T>> for AnyTypedArray<'a> {
     #[inline(always)]
     fn from(value: GenericSharedTypedArray<'a, T>) -> Self {
-        let value: SharedTypedArray = value.into();
-        value.into()
+        if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>() {
+            Self::SharedUint8Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedUint8Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>() {
+            Self::SharedUint8ClampedArray(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedUint8ClampedArray>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>() {
+            Self::SharedInt8Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedInt8Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u16>() {
+            Self::SharedUint16Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedUint16Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i16>() {
+            Self::SharedInt16Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedInt16Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>() {
+            Self::SharedUint32Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedUint32Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>() {
+            Self::SharedInt32Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedInt32Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>() {
+            Self::SharedBigUint64Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedBigUint64Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>() {
+            Self::SharedBigInt64Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedBigInt64Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>() {
+            Self::SharedFloat32Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedFloat32Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>() {
+            Self::SharedFloat64Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedFloat64Array>(value)
+            })
+        } else {
+            #[cfg(feature = "proposal-float16array")]
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f16>() {
+                return Self::SharedFloat16Array(unsafe {
+                    core::mem::transmute::<GenericSharedTypedArray<T>, SharedFloat16Array>(value)
+                });
+            }
+            unreachable!()
+        }
     }
 }
 impl<'a, T: Viewable> From<GenericSharedTypedArray<'a, T>> for Object<'a> {
     #[inline(always)]
     fn from(value: GenericSharedTypedArray<'a, T>) -> Self {
-        let value: SharedTypedArray = value.into();
-        value.into()
+        if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>() {
+            Self::SharedUint8Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedUint8Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>() {
+            Self::SharedUint8ClampedArray(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedUint8ClampedArray>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>() {
+            Self::SharedInt8Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedInt8Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u16>() {
+            Self::SharedUint16Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedUint16Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i16>() {
+            Self::SharedInt16Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedInt16Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>() {
+            Self::SharedUint32Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedUint32Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>() {
+            Self::SharedInt32Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedInt32Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>() {
+            Self::SharedBigUint64Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedBigUint64Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>() {
+            Self::SharedBigInt64Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedBigInt64Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>() {
+            Self::SharedFloat32Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedFloat32Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>() {
+            Self::SharedFloat64Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedFloat64Array>(value)
+            })
+        } else {
+            #[cfg(feature = "proposal-float16array")]
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f16>() {
+                return Self::SharedFloat16Array(unsafe {
+                    core::mem::transmute::<GenericSharedTypedArray<T>, SharedFloat16Array>(value)
+                });
+            }
+            unreachable!()
+        }
     }
 }
 impl<'a, T: Viewable> From<GenericSharedTypedArray<'a, T>> for Value<'a> {
     #[inline(always)]
     fn from(value: GenericSharedTypedArray<'a, T>) -> Self {
-        let value: SharedTypedArray = value.into();
-        value.into()
+        if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>() {
+            Self::SharedUint8Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedUint8Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>() {
+            Self::SharedUint8ClampedArray(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedUint8ClampedArray>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>() {
+            Self::SharedInt8Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedInt8Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u16>() {
+            Self::SharedUint16Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedUint16Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i16>() {
+            Self::SharedInt16Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedInt16Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>() {
+            Self::SharedUint32Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedUint32Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>() {
+            Self::SharedInt32Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedInt32Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>() {
+            Self::SharedBigUint64Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedBigUint64Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>() {
+            Self::SharedBigInt64Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedBigInt64Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>() {
+            Self::SharedFloat32Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedFloat32Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>() {
+            Self::SharedFloat64Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedFloat64Array>(value)
+            })
+        } else {
+            #[cfg(feature = "proposal-float16array")]
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f16>() {
+                return Self::SharedFloat16Array(unsafe {
+                    core::mem::transmute::<GenericSharedTypedArray<T>, SharedFloat16Array>(value)
+                });
+            }
+            unreachable!()
+        }
     }
 }
 impl<'a, T: Viewable> From<GenericSharedTypedArray<'a, T>> for HeapRootData {
     #[inline(always)]
     fn from(value: GenericSharedTypedArray<'a, T>) -> Self {
-        let value: SharedTypedArray = value.into();
-        value.into()
+        if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u8>() {
+            Self::SharedUint8Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedUint8Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<U8Clamped>() {
+            Self::SharedUint8ClampedArray(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedUint8ClampedArray>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i8>() {
+            Self::SharedInt8Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedInt8Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u16>() {
+            Self::SharedUint16Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedUint16Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i16>() {
+            Self::SharedInt16Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedInt16Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>() {
+            Self::SharedUint32Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedUint32Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>() {
+            Self::SharedInt32Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedInt32Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>() {
+            Self::SharedBigUint64Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedBigUint64Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>() {
+            Self::SharedBigInt64Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedBigInt64Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>() {
+            Self::SharedFloat32Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedFloat32Array>(value)
+            })
+        } else if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>() {
+            Self::SharedFloat64Array(unsafe {
+                core::mem::transmute::<GenericSharedTypedArray<T>, SharedFloat64Array>(value)
+            })
+        } else {
+            #[cfg(feature = "proposal-float16array")]
+            if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f16>() {
+                return Self::SharedFloat16Array(unsafe {
+                    core::mem::transmute::<GenericSharedTypedArray<T>, SharedFloat16Array>(value)
+                });
+            }
+            unreachable!()
+        }
     }
 }
 impl<'a, T: Viewable> TryFrom<SharedTypedArray<'a>> for GenericSharedTypedArray<'a, T> {
@@ -2758,19 +2917,19 @@ impl<'a> From<SharedTypedArray<'a>> for AnyTypedArray<'a> {
     #[inline(always)]
     fn from(value: SharedTypedArray<'a>) -> Self {
         match value {
-            SharedTypedArray::SharedInt8Array(ta) => Self::SharedInt8Array(ta),
-            SharedTypedArray::SharedUint8Array(ta) => Self::SharedUint8Array(ta),
-            SharedTypedArray::SharedUint8ClampedArray(ta) => Self::SharedUint8ClampedArray(ta),
-            SharedTypedArray::SharedInt16Array(ta) => Self::SharedInt16Array(ta),
-            SharedTypedArray::SharedUint16Array(ta) => Self::SharedUint16Array(ta),
-            SharedTypedArray::SharedInt32Array(ta) => Self::SharedInt32Array(ta),
-            SharedTypedArray::SharedUint32Array(ta) => Self::SharedUint32Array(ta),
-            SharedTypedArray::SharedBigInt64Array(ta) => Self::SharedBigInt64Array(ta),
-            SharedTypedArray::SharedBigUint64Array(ta) => Self::SharedBigUint64Array(ta),
+            SharedTypedArray::SharedInt8Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedUint8Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedUint8ClampedArray(ta) => Self::from(ta),
+            SharedTypedArray::SharedInt16Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedUint16Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedInt32Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedUint32Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedBigInt64Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedBigUint64Array(ta) => Self::from(ta),
             #[cfg(feature = "proposal-float16array")]
-            SharedTypedArray::SharedFloat16Array(ta) => Self::SharedFloat16Array(ta),
-            SharedTypedArray::SharedFloat32Array(ta) => Self::SharedFloat32Array(ta),
-            SharedTypedArray::SharedFloat64Array(ta) => Self::SharedFloat64Array(ta),
+            SharedTypedArray::SharedFloat16Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedFloat32Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedFloat64Array(ta) => Self::from(ta),
         }
     }
 }
@@ -2778,19 +2937,19 @@ impl<'a> From<SharedTypedArray<'a>> for Object<'a> {
     #[inline(always)]
     fn from(value: SharedTypedArray<'a>) -> Self {
         match value {
-            SharedTypedArray::SharedInt8Array(ta) => Self::SharedInt8Array(ta),
-            SharedTypedArray::SharedUint8Array(ta) => Self::SharedUint8Array(ta),
-            SharedTypedArray::SharedUint8ClampedArray(ta) => Self::SharedUint8ClampedArray(ta),
-            SharedTypedArray::SharedInt16Array(ta) => Self::SharedInt16Array(ta),
-            SharedTypedArray::SharedUint16Array(ta) => Self::SharedUint16Array(ta),
-            SharedTypedArray::SharedInt32Array(ta) => Self::SharedInt32Array(ta),
-            SharedTypedArray::SharedUint32Array(ta) => Self::SharedUint32Array(ta),
-            SharedTypedArray::SharedBigInt64Array(ta) => Self::SharedBigInt64Array(ta),
-            SharedTypedArray::SharedBigUint64Array(ta) => Self::SharedBigUint64Array(ta),
+            SharedTypedArray::SharedInt8Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedUint8Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedUint8ClampedArray(ta) => Self::from(ta),
+            SharedTypedArray::SharedInt16Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedUint16Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedInt32Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedUint32Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedBigInt64Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedBigUint64Array(ta) => Self::from(ta),
             #[cfg(feature = "proposal-float16array")]
-            SharedTypedArray::SharedFloat16Array(ta) => Self::SharedFloat16Array(ta),
-            SharedTypedArray::SharedFloat32Array(ta) => Self::SharedFloat32Array(ta),
-            SharedTypedArray::SharedFloat64Array(ta) => Self::SharedFloat64Array(ta),
+            SharedTypedArray::SharedFloat16Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedFloat32Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedFloat64Array(ta) => Self::from(ta),
         }
     }
 }
@@ -2798,19 +2957,19 @@ impl<'a> From<SharedTypedArray<'a>> for Value<'a> {
     #[inline(always)]
     fn from(value: SharedTypedArray<'a>) -> Self {
         match value {
-            SharedTypedArray::SharedInt8Array(ta) => Self::SharedInt8Array(ta),
-            SharedTypedArray::SharedUint8Array(ta) => Self::SharedUint8Array(ta),
-            SharedTypedArray::SharedUint8ClampedArray(ta) => Self::SharedUint8ClampedArray(ta),
-            SharedTypedArray::SharedInt16Array(ta) => Self::SharedInt16Array(ta),
-            SharedTypedArray::SharedUint16Array(ta) => Self::SharedUint16Array(ta),
-            SharedTypedArray::SharedInt32Array(ta) => Self::SharedInt32Array(ta),
-            SharedTypedArray::SharedUint32Array(ta) => Self::SharedUint32Array(ta),
-            SharedTypedArray::SharedBigInt64Array(ta) => Self::SharedBigInt64Array(ta),
-            SharedTypedArray::SharedBigUint64Array(ta) => Self::SharedBigUint64Array(ta),
+            SharedTypedArray::SharedInt8Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedUint8Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedUint8ClampedArray(ta) => Self::from(ta),
+            SharedTypedArray::SharedInt16Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedUint16Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedInt32Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedUint32Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedBigInt64Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedBigUint64Array(ta) => Self::from(ta),
             #[cfg(feature = "proposal-float16array")]
-            SharedTypedArray::SharedFloat16Array(ta) => Self::SharedFloat16Array(ta),
-            SharedTypedArray::SharedFloat32Array(ta) => Self::SharedFloat32Array(ta),
-            SharedTypedArray::SharedFloat64Array(ta) => Self::SharedFloat64Array(ta),
+            SharedTypedArray::SharedFloat16Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedFloat32Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedFloat64Array(ta) => Self::from(ta),
         }
     }
 }
@@ -2818,21 +2977,19 @@ impl<'a> From<SharedTypedArray<'a>> for HeapRootData {
     #[inline(always)]
     fn from(value: SharedTypedArray<'a>) -> Self {
         match value {
-            SharedTypedArray::SharedInt8Array(ta) => Self::SharedInt8Array(ta.unbind()),
-            SharedTypedArray::SharedUint8Array(ta) => Self::SharedUint8Array(ta.unbind()),
-            SharedTypedArray::SharedUint8ClampedArray(ta) => {
-                Self::SharedUint8ClampedArray(ta.unbind())
-            }
-            SharedTypedArray::SharedInt16Array(ta) => Self::SharedInt16Array(ta.unbind()),
-            SharedTypedArray::SharedUint16Array(ta) => Self::SharedUint16Array(ta.unbind()),
-            SharedTypedArray::SharedInt32Array(ta) => Self::SharedInt32Array(ta.unbind()),
-            SharedTypedArray::SharedUint32Array(ta) => Self::SharedUint32Array(ta.unbind()),
-            SharedTypedArray::SharedBigInt64Array(ta) => Self::SharedBigInt64Array(ta.unbind()),
-            SharedTypedArray::SharedBigUint64Array(ta) => Self::SharedBigUint64Array(ta.unbind()),
+            SharedTypedArray::SharedInt8Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedUint8Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedUint8ClampedArray(ta) => Self::from(ta),
+            SharedTypedArray::SharedInt16Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedUint16Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedInt32Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedUint32Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedBigInt64Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedBigUint64Array(ta) => Self::from(ta),
             #[cfg(feature = "proposal-float16array")]
-            SharedTypedArray::SharedFloat16Array(ta) => Self::SharedFloat16Array(ta.unbind()),
-            SharedTypedArray::SharedFloat32Array(ta) => Self::SharedFloat32Array(ta.unbind()),
-            SharedTypedArray::SharedFloat64Array(ta) => Self::SharedFloat64Array(ta.unbind()),
+            SharedTypedArray::SharedFloat16Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedFloat32Array(ta) => Self::from(ta),
+            SharedTypedArray::SharedFloat64Array(ta) => Self::from(ta),
         }
     }
 }
@@ -2841,19 +2998,19 @@ impl<'a> TryFrom<AnyTypedArray<'a>> for SharedTypedArray<'a> {
     #[inline]
     fn try_from(value: AnyTypedArray<'a>) -> Result<Self, Self::Error> {
         match value {
-            AnyTypedArray::SharedUint8Array(t) => Ok(Self::SharedUint8Array(t)),
-            AnyTypedArray::SharedInt8Array(t) => Ok(Self::SharedInt8Array(t)),
-            AnyTypedArray::SharedUint8ClampedArray(t) => Ok(Self::SharedUint8ClampedArray(t)),
-            AnyTypedArray::SharedInt16Array(t) => Ok(Self::SharedInt16Array(t)),
-            AnyTypedArray::SharedUint16Array(t) => Ok(Self::SharedUint16Array(t)),
-            AnyTypedArray::SharedInt32Array(t) => Ok(Self::SharedInt32Array(t)),
-            AnyTypedArray::SharedUint32Array(t) => Ok(Self::SharedUint32Array(t)),
-            AnyTypedArray::SharedBigInt64Array(t) => Ok(Self::SharedBigInt64Array(t)),
-            AnyTypedArray::SharedBigUint64Array(t) => Ok(Self::SharedBigUint64Array(t)),
+            AnyTypedArray::SharedUint8Array(t) => Ok(Self::from(t)),
+            AnyTypedArray::SharedInt8Array(t) => Ok(Self::from(t)),
+            AnyTypedArray::SharedUint8ClampedArray(t) => Ok(Self::from(t)),
+            AnyTypedArray::SharedInt16Array(t) => Ok(Self::from(t)),
+            AnyTypedArray::SharedUint16Array(t) => Ok(Self::from(t)),
+            AnyTypedArray::SharedInt32Array(t) => Ok(Self::from(t)),
+            AnyTypedArray::SharedUint32Array(t) => Ok(Self::from(t)),
+            AnyTypedArray::SharedBigInt64Array(t) => Ok(Self::from(t)),
+            AnyTypedArray::SharedBigUint64Array(t) => Ok(Self::from(t)),
             #[cfg(feature = "proposal-float16array")]
-            AnyTypedArray::SharedFloat16Array(t) => Ok(Self::SharedFloat16Array(t)),
-            AnyTypedArray::SharedFloat32Array(t) => Ok(Self::SharedFloat32Array(t)),
-            AnyTypedArray::SharedFloat64Array(t) => Ok(Self::SharedFloat64Array(t)),
+            AnyTypedArray::SharedFloat16Array(t) => Ok(Self::from(t)),
+            AnyTypedArray::SharedFloat32Array(t) => Ok(Self::from(t)),
+            AnyTypedArray::SharedFloat64Array(t) => Ok(Self::from(t)),
             _ => Err(()),
         }
     }
@@ -2863,19 +3020,19 @@ impl<'a> TryFrom<Object<'a>> for SharedTypedArray<'a> {
     #[inline]
     fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
         match value {
-            Object::SharedUint8Array(t) => Ok(Self::SharedUint8Array(t)),
-            Object::SharedInt8Array(t) => Ok(Self::SharedInt8Array(t)),
-            Object::SharedUint8ClampedArray(t) => Ok(Self::SharedUint8ClampedArray(t)),
-            Object::SharedInt16Array(t) => Ok(Self::SharedInt16Array(t)),
-            Object::SharedUint16Array(t) => Ok(Self::SharedUint16Array(t)),
-            Object::SharedInt32Array(t) => Ok(Self::SharedInt32Array(t)),
-            Object::SharedUint32Array(t) => Ok(Self::SharedUint32Array(t)),
-            Object::SharedBigInt64Array(t) => Ok(Self::SharedBigInt64Array(t)),
-            Object::SharedBigUint64Array(t) => Ok(Self::SharedBigUint64Array(t)),
+            Object::SharedUint8Array(t) => Ok(Self::from(t)),
+            Object::SharedInt8Array(t) => Ok(Self::from(t)),
+            Object::SharedUint8ClampedArray(t) => Ok(Self::from(t)),
+            Object::SharedInt16Array(t) => Ok(Self::from(t)),
+            Object::SharedUint16Array(t) => Ok(Self::from(t)),
+            Object::SharedInt32Array(t) => Ok(Self::from(t)),
+            Object::SharedUint32Array(t) => Ok(Self::from(t)),
+            Object::SharedBigInt64Array(t) => Ok(Self::from(t)),
+            Object::SharedBigUint64Array(t) => Ok(Self::from(t)),
             #[cfg(feature = "proposal-float16array")]
-            Object::SharedFloat16Array(t) => Ok(Self::SharedFloat16Array(t)),
-            Object::SharedFloat32Array(t) => Ok(Self::SharedFloat32Array(t)),
-            Object::SharedFloat64Array(t) => Ok(Self::SharedFloat64Array(t)),
+            Object::SharedFloat16Array(t) => Ok(Self::from(t)),
+            Object::SharedFloat32Array(t) => Ok(Self::from(t)),
+            Object::SharedFloat64Array(t) => Ok(Self::from(t)),
             _ => Err(()),
         }
     }
@@ -2885,19 +3042,19 @@ impl<'a> TryFrom<Value<'a>> for SharedTypedArray<'a> {
     #[inline]
     fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
-            Value::SharedInt8Array(sta) => Ok(Self::SharedInt8Array(sta)),
-            Value::SharedUint8Array(sta) => Ok(Self::SharedUint8Array(sta)),
-            Value::SharedUint8ClampedArray(sta) => Ok(Self::SharedUint8ClampedArray(sta)),
-            Value::SharedInt16Array(sta) => Ok(Self::SharedInt16Array(sta)),
-            Value::SharedUint16Array(sta) => Ok(Self::SharedUint16Array(sta)),
-            Value::SharedInt32Array(sta) => Ok(Self::SharedInt32Array(sta)),
-            Value::SharedUint32Array(sta) => Ok(Self::SharedUint32Array(sta)),
-            Value::SharedBigInt64Array(sta) => Ok(Self::SharedBigInt64Array(sta)),
-            Value::SharedBigUint64Array(sta) => Ok(Self::SharedBigUint64Array(sta)),
+            Value::SharedInt8Array(sta) => Ok(Self::from(sta)),
+            Value::SharedUint8Array(sta) => Ok(Self::from(sta)),
+            Value::SharedUint8ClampedArray(sta) => Ok(Self::from(sta)),
+            Value::SharedInt16Array(sta) => Ok(Self::from(sta)),
+            Value::SharedUint16Array(sta) => Ok(Self::from(sta)),
+            Value::SharedInt32Array(sta) => Ok(Self::from(sta)),
+            Value::SharedUint32Array(sta) => Ok(Self::from(sta)),
+            Value::SharedBigInt64Array(sta) => Ok(Self::from(sta)),
+            Value::SharedBigUint64Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "proposal-float16array")]
-            Value::SharedFloat16Array(sta) => Ok(Self::SharedFloat16Array(sta)),
-            Value::SharedFloat32Array(sta) => Ok(Self::SharedFloat32Array(sta)),
-            Value::SharedFloat64Array(sta) => Ok(Self::SharedFloat64Array(sta)),
+            Value::SharedFloat16Array(sta) => Ok(Self::from(sta)),
+            Value::SharedFloat32Array(sta) => Ok(Self::from(sta)),
+            Value::SharedFloat64Array(sta) => Ok(Self::from(sta)),
             _ => Err(()),
         }
     }
@@ -2907,19 +3064,19 @@ impl TryFrom<HeapRootData> for SharedTypedArray<'_> {
     #[inline]
     fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
         match value {
-            HeapRootData::SharedInt8Array(ta) => Ok(Self::SharedInt8Array(ta)),
-            HeapRootData::SharedUint8Array(ta) => Ok(Self::SharedUint8Array(ta)),
-            HeapRootData::SharedUint8ClampedArray(ta) => Ok(Self::SharedUint8ClampedArray(ta)),
-            HeapRootData::SharedInt16Array(ta) => Ok(Self::SharedInt16Array(ta)),
-            HeapRootData::SharedUint16Array(ta) => Ok(Self::SharedUint16Array(ta)),
-            HeapRootData::SharedInt32Array(ta) => Ok(Self::SharedInt32Array(ta)),
-            HeapRootData::SharedUint32Array(ta) => Ok(Self::SharedUint32Array(ta)),
-            HeapRootData::SharedBigInt64Array(ta) => Ok(Self::SharedBigInt64Array(ta)),
-            HeapRootData::SharedBigUint64Array(ta) => Ok(Self::SharedBigUint64Array(ta)),
+            HeapRootData::SharedInt8Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::SharedUint8Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::SharedUint8ClampedArray(ta) => Ok(Self::from(ta)),
+            HeapRootData::SharedInt16Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::SharedUint16Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::SharedInt32Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::SharedUint32Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::SharedBigInt64Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::SharedBigUint64Array(ta) => Ok(Self::from(ta)),
             #[cfg(feature = "proposal-float16array")]
-            HeapRootData::SharedFloat16Array(ta) => Ok(Self::SharedFloat16Array(ta)),
-            HeapRootData::SharedFloat32Array(ta) => Ok(Self::SharedFloat32Array(ta)),
-            HeapRootData::SharedFloat64Array(ta) => Ok(Self::SharedFloat64Array(ta)),
+            HeapRootData::SharedFloat16Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::SharedFloat32Array(ta) => Ok(Self::from(ta)),
+            HeapRootData::SharedFloat64Array(ta) => Ok(Self::from(ta)),
             _ => Err(()),
         }
     }

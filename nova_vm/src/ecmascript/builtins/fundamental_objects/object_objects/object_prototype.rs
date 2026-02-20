@@ -13,7 +13,7 @@ use crate::{
         to_property_key, try_get,
     },
     engine::{Bindable, GcScope},
-    heap::{ArenaAccess, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+    heap::{ArenaAccess, IntrinsicFunctionIndexes, WellKnownSymbols},
 };
 
 pub(crate) struct ObjectPrototype;
@@ -244,7 +244,7 @@ impl ObjectPrototype {
             }
         };
         // 15. Let tag be ? Get(O, @@toStringTag).
-        let key = WellKnownSymbolIndexes::ToStringTag.into();
+        let key = WellKnownSymbols::ToStringTag.into();
         let tag = try_get(
             agent,
             o_or_prototype,
@@ -268,7 +268,7 @@ impl ObjectPrototype {
                 handle_try_get_result(
                     agent,
                     o.unbind(),
-                    WellKnownSymbolIndexes::ToStringTag.into(),
+                    WellKnownSymbols::ToStringTag.into(),
                     tag.unbind(),
                     gc.reborrow(),
                 )

@@ -6,7 +6,7 @@ use core::marker::PhantomData;
 
 use crate::{
     ecmascript::Agent,
-    engine::{Bindable, HeapRootCollectionData, HeapRootRef, NoGcScope, Rootable, ScopeToken},
+    engine::{Bindable, HeapRootCollection, HeapRootRef, NoGcScope, Rootable, ScopeToken},
 };
 
 use super::{HeapRootData, RootableCollection};
@@ -22,6 +22,7 @@ use super::{HeapRootData, RootableCollection};
 /// garbage collection.
 #[derive(Hash, Clone)]
 #[repr(transparent)]
+#[allow(private_bounds)]
 pub struct Scoped<'a, T: 'static + Rootable> {
     pub(crate) inner: T::RootRepr,
     _marker: PhantomData<T>,
@@ -34,6 +35,7 @@ impl<T: 'static + Rootable> core::fmt::Debug for Scoped<'_, T> {
     }
 }
 
+#[allow(private_bounds)]
 impl<T: 'static + Rootable> Scoped<'static, T> {
     #[inline(always)]
     pub(crate) const fn from_root_repr(value: T::RootRepr) -> Scoped<'static, T> {
@@ -45,10 +47,13 @@ impl<T: 'static + Rootable> Scoped<'static, T> {
     }
 }
 
+/// Trait for rooting handles for the duration of the `'scope` lifetime.
+#[allow(private_bounds)]
 pub trait Scopable: Rootable + Bindable
 where
     for<'a> Self::Of<'a>: Rootable + Bindable,
 {
+    /// Root this handle for the `'scope` lifetime.
     fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -60,6 +65,7 @@ where
 
 impl<T: Rootable + Bindable> Scopable for T where for<'a> Self::Of<'a>: Rootable + Bindable {}
 
+#[allow(private_bounds)]
 impl<'scope, T: Rootable> Scoped<'scope, T> {
     /// Unwrap the Scoped value to get access to the inner RootRepr value of
     /// the wrapped type.
@@ -294,6 +300,7 @@ impl<'scope, T: Rootable> Scoped<'scope, T> {
     }
 }
 
+#[allow(private_bounds)]
 pub trait ScopableCollection: Bindable
 where
     Self::Of<'static>: RootableCollection,
@@ -308,6 +315,7 @@ where
 /// # Scoped heap root collection
 #[derive(Debug, Hash, Clone)]
 #[repr(transparent)]
+#[allow(private_bounds)]
 pub struct ScopedCollection<'a, T: 'static + RootableCollection> {
     /// Index to Agent's stack_ref_collections
     pub(crate) inner: u32,
@@ -315,6 +323,7 @@ pub struct ScopedCollection<'a, T: 'static + RootableCollection> {
     _scope: PhantomData<&'a ScopeToken>,
 }
 
+#[allow(private_bounds)]
 impl<'a, T: 'static + RootableCollection> ScopedCollection<'a, T> {
     /// Create a new ScopedCollection by moving a rootable collection onto the
     /// Agent's heap.
@@ -336,7 +345,7 @@ impl<'a, T: 'static + RootableCollection> ScopedCollection<'a, T> {
         let index = self.inner;
         let mut stack_ref_collections = agent.stack_ref_collections.borrow_mut();
         let heap_slot = stack_ref_collections.get_mut(index as usize).unwrap();
-        let heap_data = core::mem::replace(heap_slot, HeapRootCollectionData::Empty);
+        let heap_data = core::mem::replace(heap_slot, HeapRootCollection::Empty);
         if index as usize == stack_ref_collections.len() - 1 {
             Self::drop_empty_slots(&mut stack_ref_collections);
         }
@@ -346,13 +355,13 @@ impl<'a, T: 'static + RootableCollection> ScopedCollection<'a, T> {
     /// Internal helper function to drop empty slots from the stack. This
     /// method is separate as dropping empty slots should be a reasonably
     /// rare operation.
-    fn drop_empty_slots(stack_ref_collections: &mut Vec<HeapRootCollectionData>) {
+    fn drop_empty_slots(stack_ref_collections: &mut Vec<HeapRootCollection>) {
         // We replaced the last stack item with an Empty, so we can shorten
         // the stack by at least one.
         let last_non_empty_index = stack_ref_collections
             .iter()
             .enumerate()
-            .rfind(|(_, v)| !matches!(v, HeapRootCollectionData::Empty))
+            .rfind(|(_, v)| !v.is_empty())
             .map_or(0, |(index, _)| index + 1);
         debug_assert!(last_non_empty_index < stack_ref_collections.len());
         // SAFETY: The last non-empty index is necessarily within

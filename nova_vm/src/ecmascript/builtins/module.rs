@@ -19,7 +19,7 @@ use crate::{
     engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{
         ArenaAccess, BaseIndex, CompactionLists, CreateHeapData, HeapMarkAndSweep,
-        HeapSweepWeakReference, WellKnownSymbolIndexes, WorkQueues, arena_vec_access,
+        HeapSweepWeakReference, WellKnownSymbols, WorkQueues, arena_vec_access,
     },
 };
 
@@ -120,7 +120,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         match property_key {
             PropertyKey::Symbol(symbol) => {
                 // 1. If P is a Symbol, return OrdinaryGetOwnProperty(O, P).
-                if symbol == WellKnownSymbolIndexes::ToStringTag.into() {
+                if symbol == WellKnownSymbols::ToStringTag.into() {
                     TryResult::Continue(Some(PropertyDescriptor {
                         value: Some(BUILTIN_STRING_MEMORY.Module.into()),
                         writable: Some(false),
@@ -181,7 +181,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         match property_key {
             PropertyKey::Symbol(symbol) => {
                 // 1. If P is a Symbol, return OrdinaryGetOwnProperty(O, P).
-                if symbol == WellKnownSymbolIndexes::ToStringTag.into() {
+                if symbol == WellKnownSymbols::ToStringTag.into() {
                     Ok(Some(PropertyDescriptor {
                         value: Some(BUILTIN_STRING_MEMORY.Module.into()),
                         writable: Some(false),
@@ -239,7 +239,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         match property_key {
             PropertyKey::Symbol(symbol) => {
                 // 1. If P is a Symbol, return ! OrdinaryDefineOwnProperty(O, P, Desc).
-                if symbol == WellKnownSymbolIndexes::ToStringTag.into() {
+                if symbol == WellKnownSymbols::ToStringTag.into() {
                     // Note: it's always okay for a field to not exist on the
                     // descriptor. It just means that the defineOwnProperty
                     // isn't trying to change it. Hence the map_or checks below.
@@ -306,7 +306,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         match property_key {
             PropertyKey::Symbol(symbol) => {
                 // 1. If P is a Symbol, return ! OrdinaryDefineOwnProperty(O, P, Desc).
-                if symbol == WellKnownSymbolIndexes::ToStringTag.into() {
+                if symbol == WellKnownSymbols::ToStringTag.into() {
                     // Note: it's always okay for a field to not exist on the
                     // descriptor. It just means that the defineOwnProperty
                     // isn't trying to change it. Hence the is_none_or usage
@@ -401,7 +401,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
             }
             PropertyKey::Symbol(symbol) => {
                 // 1. If P is a Symbol, return ! OrdinaryHasProperty(O, P).
-                if symbol == WellKnownSymbolIndexes::ToStringTag.into() {
+                if symbol == WellKnownSymbols::ToStringTag.into() {
                     TryHasResult::Custom(0, self.bind(gc).into()).into()
                 } else {
                     TryHasResult::Unset.into()
@@ -442,7 +442,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
             // 1. If P is a Symbol, then
             PropertyKey::Symbol(symbol) => {
                 // a. Return ! OrdinaryGet(O, P, Receiver).
-                if symbol == WellKnownSymbolIndexes::ToStringTag.into() {
+                if symbol == WellKnownSymbols::ToStringTag.into() {
                     TryGetResult::Value(BUILTIN_STRING_MEMORY.Module.into()).into()
                 } else {
                     TryGetResult::Unset.into()
@@ -530,7 +530,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
             // 1. If P is a Symbol, then
             PropertyKey::Symbol(symbol) => {
                 // a. Return ! OrdinaryGet(O, P, Receiver).
-                if symbol == WellKnownSymbolIndexes::ToStringTag.into() {
+                if symbol == WellKnownSymbols::ToStringTag.into() {
                     Ok(BUILTIN_STRING_MEMORY.Module.into())
                 } else {
                     Ok(Value::Undefined)
@@ -631,7 +631,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
             PropertyKey::Symbol(symbol) => {
                 // 1. If P is a Symbol, then
                 // a. Return ! OrdinaryDelete(O, P).
-                TryResult::Continue(symbol != WellKnownSymbolIndexes::ToStringTag.into())
+                TryResult::Continue(symbol != WellKnownSymbols::ToStringTag.into())
             }
             PropertyKey::PrivateName(_) => {
                 unreachable!()
@@ -675,7 +675,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         // 3. Return the list-concatenation of exports and symbolKeys.
         let mut own_property_keys = Vec::with_capacity(exports_count + 1);
         exports.for_each(|export_key| own_property_keys.push(export_key));
-        own_property_keys.push(WellKnownSymbolIndexes::ToStringTag.into());
+        own_property_keys.push(WellKnownSymbols::ToStringTag.into());
         TryResult::Continue(own_property_keys)
     }
 

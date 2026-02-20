@@ -6,7 +6,7 @@ use std::{marker::PhantomData, ptr::NonNull};
 
 use crate::{
     ecmascript::{Agent, Value},
-    engine::{Bindable, HeapRootCollectionData, NoGcScope, ScopableCollection, ScopedCollection},
+    engine::{Bindable, HeapRootCollection, NoGcScope, ScopableCollection, ScopedCollection},
 };
 
 impl ScopableCollection for Vec<Value<'_>> {
@@ -25,7 +25,7 @@ impl ScopedCollection<'_, Vec<Value<'static>>> {
         let Some(stack_slot) = stack_ref_collections.get(self.inner as usize) else {
             unreachable!();
         };
-        let HeapRootCollectionData::ValueVec(value_vec) = stack_slot else {
+        let HeapRootCollection::ValueVec(value_vec) = stack_slot else {
             unreachable!()
         };
         f(value_vec)
@@ -40,7 +40,7 @@ impl ScopedCollection<'_, Vec<Value<'static>>> {
         let Some(stack_slot) = stack_ref_collections.get_mut(self.inner as usize) else {
             unreachable!();
         };
-        let HeapRootCollectionData::ValueVec(value_vec) = stack_slot else {
+        let HeapRootCollection::ValueVec(value_vec) = stack_slot else {
             unreachable!()
         };
         f(value_vec)
@@ -99,7 +99,7 @@ unsafe impl<'scope> Bindable for ScopedCollection<'scope, Vec<Value<'static>>> {
 }
 
 #[repr(transparent)]
-pub struct ScopedValuesIterator<'a> {
+pub(crate) struct ScopedValuesIterator<'a> {
     slice: NonNull<[Value<'static>]>,
     collection: PhantomData<&'a [Value<'static>]>,
 }
@@ -115,7 +115,7 @@ impl ScopedValuesIterator<'_> {
 
 #[derive(Clone, Copy)]
 #[repr(transparent)]
-pub struct ScopedValue<'a> {
+pub(crate) struct ScopedValue<'a> {
     key: NonNull<Value<'static>>,
     collection: PhantomData<&'a mut ScopedCollection<'a, Vec<Value<'static>>>>,
 }

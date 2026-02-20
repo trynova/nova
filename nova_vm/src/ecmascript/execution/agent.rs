@@ -40,8 +40,8 @@ use crate::{
         parse_script, script_evaluation, to_string, try_get_identifier_reference,
     },
     engine::{
-        Bindable, GcScope, HeapRootCollectionData, HeapRootData, HeapRootRef, NoGcScope, Rootable,
-        Vm, bindable_handle,
+        Bindable, GcScope, HeapRootCollection, HeapRootData, HeapRootRef, NoGcScope, Rootable, Vm,
+        bindable_handle,
     },
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapIndexHandle, HeapMarkAndSweep,
@@ -54,7 +54,7 @@ use core::{any::Any, cell::RefCell, ops::ControlFlow, ptr::NonNull};
 use std::{collections::TryReserveError, sync::Arc};
 
 #[derive(Debug, Default)]
-pub struct Options {
+pub struct AgentOptions {
     pub disable_gc: bool,
     pub print_internals: bool,
     /// Controls the \[\[CanBlock]] option of the Agent Record. If set to true,
@@ -63,6 +63,7 @@ pub struct Options {
     pub no_block: bool,
 }
 
+/// Result of methods that may throw a JavaScript error.
 pub type JsResult<'a, T> = core::result::Result<T, JsError<'a>>;
 
 impl<'a, T: 'a> From<JsError<'a>> for JsResult<'a, T> {
@@ -92,7 +93,7 @@ impl<'a> JsError<'a> {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(transparent)]
-pub struct JsErrorRootRepr(ValueRootRepr);
+pub(crate) struct JsErrorRootRepr(ValueRootRepr);
 
 impl Rootable for JsError<'_> {
     type RootRepr = JsErrorRootRepr;
@@ -215,6 +216,14 @@ pub(crate) use try_result_ok;
 /// garbage collection.
 pub type TryResult<'a, T> = ControlFlow<TryError<'a>, T>;
 
+/// Returns the contained [`Continue`] value, consuming the self value.
+///
+/// # Panics
+///
+/// Panics if the self value contains [`Break`].
+///
+/// [`Break`]: TryResult::Break
+/// [`Continue`]: TryResult::Continue
 #[inline]
 pub fn unwrap_try<'a, T: 'a>(try_result: TryResult<'a, T>) -> T {
     match try_result {
@@ -653,7 +662,7 @@ impl RealmRoot {
 }
 
 impl GcAgent {
-    pub fn new(options: Options, host_hooks: &'static dyn HostHooks) -> Self {
+    pub fn new(options: AgentOptions, host_hooks: &'static dyn HostHooks) -> Self {
         Self {
             agent: Agent::new(options, host_hooks),
             realm_roots: Vec::with_capacity(1),
@@ -795,7 +804,7 @@ impl GcAgent {
 /// For creating an Agent, see [`GcAgent`](GcAgent).
 pub struct Agent {
     pub(crate) heap: Heap,
-    pub(crate) options: Options,
+    pub(crate) options: AgentOptions,
     #[expect(dead_code)]
     symbol_id: usize,
     pub(crate) global_symbol_registry: AHashMap<String<'static>, Symbol<'static>>,
@@ -807,7 +816,7 @@ pub struct Agent {
     /// Realm a particular stack value points to.
     pub(crate) stack_refs: RefCell<Vec<HeapRootData>>,
     /// Temporary storage for on-stack heap root collections.
-    pub(crate) stack_ref_collections: RefCell<Vec<HeapRootCollectionData>>,
+    pub(crate) stack_ref_collections: RefCell<Vec<HeapRootCollection>>,
     /// Temporary storage for on-stack VMs.
     pub(crate) vm_stack: Vec<NonNull<Vm>>,
     /// ### \[\[KeptAlive]]
@@ -827,7 +836,7 @@ pub struct Agent {
 }
 
 impl Agent {
-    pub(crate) fn new(options: Options, host_hooks: &'static dyn HostHooks) -> Self {
+    pub(crate) fn new(options: AgentOptions, host_hooks: &'static dyn HostHooks) -> Self {
         Self {
             heap: Heap::new(),
             options,

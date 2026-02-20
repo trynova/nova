@@ -45,10 +45,7 @@ use crate::{
         Agent, InternalMethods, JsResult, Object, PropertyLookupCache, Proxy, Reference, SetResult,
         String, TryError, TryHasResult, TryResult, Value, js_result_into_try,
     },
-    engine::{
-        Bindable, GcScope, HeapRootData, HeapRootRef, NoGcScope, Rootable, Scopable,
-        bindable_handle,
-    },
+    engine::{Bindable, GcScope, HeapRootData, NoGcScope, Scopable, bindable_handle},
     heap::{CompactionLists, HeapIndexHandle, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -78,7 +75,7 @@ macro_rules! create_environment_index {
         /// [`NonZeroU32`]: core::num::NonZeroU32
         #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
         #[repr(transparent)]
-        pub struct $index<'a>(crate::heap::BaseIndex<'a, $record>);
+        pub(crate) struct $index<'a>(crate::heap::BaseIndex<'a, $record>);
         crate::heap::index_handle!($index);
 
         impl core::fmt::Debug for $index<'_> {
@@ -665,35 +662,29 @@ impl core::fmt::Debug for Environment<'_> {
     }
 }
 
-impl Rootable for Environment<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+impl From<Environment<'_>> for HeapRootData {
+    fn from(value: Environment<'_>) -> Self {
         match value {
-            Environment::Declarative(e) => Err(HeapRootData::DeclarativeEnvironment(e.unbind())),
-            Environment::Function(e) => Err(HeapRootData::FunctionEnvironment(e.unbind())),
-            Environment::Global(e) => Err(HeapRootData::GlobalEnvironment(e.unbind())),
-            Environment::Module(e) => Err(HeapRootData::ModuleEnvironment(e.unbind())),
-            Environment::Object(e) => Err(HeapRootData::ObjectEnvironment(e.unbind())),
+            Environment::Declarative(e) => Self::from(e),
+            Environment::Function(e) => Self::from(e),
+            Environment::Global(e) => Self::from(e),
+            Environment::Module(e) => Self::from(e),
+            Environment::Object(e) => Self::from(e),
         }
     }
+}
 
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
+impl TryFrom<HeapRootData> for Environment<'_> {
+    type Error = ();
 
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::DeclarativeEnvironment(e) => Some(Environment::Declarative(e)),
-            HeapRootData::FunctionEnvironment(e) => Some(Environment::Function(e)),
-            HeapRootData::GlobalEnvironment(e) => Some(Environment::Global(e)),
-            HeapRootData::ModuleEnvironment(e) => Some(Environment::Module(e)),
-            HeapRootData::ObjectEnvironment(e) => Some(Environment::Object(e)),
-            _ => None,
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        match value {
+            HeapRootData::DeclarativeEnvironment(e) => Ok(Self::Declarative(e)),
+            HeapRootData::FunctionEnvironment(e) => Ok(Self::Function(e)),
+            HeapRootData::GlobalEnvironment(e) => Ok(Self::Global(e)),
+            HeapRootData::ModuleEnvironment(e) => Ok(Self::Module(e)),
+            HeapRootData::ObjectEnvironment(e) => Ok(Self::Object(e)),
+            _ => Err(()),
         }
     }
 }
@@ -721,7 +712,7 @@ impl HeapMarkAndSweep for Environment<'static> {
 }
 
 #[derive(Debug)]
-pub struct Environments {
+pub(crate) struct Environments {
     pub(crate) declarative: Vec<DeclarativeEnvironmentRecord>,
     pub(crate) function: Vec<FunctionEnvironmentRecord>,
     pub(crate) global: Vec<GlobalEnvironmentRecord>,

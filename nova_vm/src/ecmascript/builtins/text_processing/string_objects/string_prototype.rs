@@ -21,7 +21,7 @@ use crate::{
         try_to_integer_or_infinity, try_to_length, try_to_string,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable},
-    heap::{ArenaAccess, HeapIndexHandle, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+    heap::{ArenaAccess, HeapIndexHandle, IntrinsicFunctionIndexes, WellKnownSymbols},
 };
 #[cfg(feature = "regexp")]
 use crate::{
@@ -250,8 +250,7 @@ impl Builtin for StringPrototypeValueOf {
 struct StringPrototypeIterator;
 impl Builtin for StringPrototypeIterator {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_iterator_;
-    const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::Iterator.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbols::Iterator.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::iterator);
 }
@@ -1268,7 +1267,7 @@ impl StringPrototype {
             let matcher = get_object_method(
                 agent,
                 regexp.unbind(),
-                WellKnownSymbolIndexes::Match.to_property_key(),
+                WellKnownSymbols::Match.to_property_key(),
                 gc.reborrow(),
             )
             .unbind()?
@@ -1302,7 +1301,7 @@ impl StringPrototype {
         invoke(
             agent,
             rx.unbind().into(),
-            WellKnownSymbolIndexes::Match.to_property_key(),
+            WellKnownSymbols::Match.to_property_key(),
             Some(ArgumentsList::from_mut_value(&mut unsafe {
                 s.take(agent).into()
             })),
@@ -1388,7 +1387,7 @@ impl StringPrototype {
             let matcher = get_object_method(
                 agent,
                 regexp.unbind(),
-                WellKnownSymbolIndexes::MatchAll.to_property_key(),
+                WellKnownSymbols::MatchAll.to_property_key(),
                 gc.reborrow(),
             )
             .unbind()?
@@ -1428,7 +1427,7 @@ impl StringPrototype {
         invoke(
             agent,
             rx.unbind().into(),
-            WellKnownSymbolIndexes::MatchAll.to_property_key(),
+            WellKnownSymbols::MatchAll.to_property_key(),
             Some(ArgumentsList::from_mut_value(&mut s.unbind().into())),
             gc,
         )
@@ -1669,7 +1668,7 @@ impl StringPrototype {
         #[cfg(feature = "regexp")]
         if let Ok(search_value) = Object::try_from(search_value) {
             // a. Let replacer be ? GetMethod(searchValue, %Symbol.replace%).
-            let symbol = WellKnownSymbolIndexes::Replace.into();
+            let symbol = WellKnownSymbols::Replace.into();
             let replacer = get_object_method(agent, search_value.unbind(), symbol, gc.reborrow())
                 .unbind()?
                 .bind(gc.nogc());
@@ -1832,7 +1831,7 @@ impl StringPrototype {
             }
 
             // c. Let replacer be ? GetMethod(searchValue, %Symbol.replace%).
-            let symbol = WellKnownSymbolIndexes::Replace.into();
+            let symbol = WellKnownSymbols::Replace.into();
             let replacer = get_object_method(agent, search_value.unbind(), symbol, gc.reborrow())
                 .unbind()?
                 .bind(gc.nogc());
@@ -1983,7 +1982,7 @@ impl StringPrototype {
             let searcher = get_object_method(
                 agent,
                 regexp.unbind(),
-                WellKnownSymbolIndexes::Search.to_property_key(),
+                WellKnownSymbols::Search.to_property_key(),
                 gc.reborrow(),
             )
             .unbind()?
@@ -2015,7 +2014,7 @@ impl StringPrototype {
         invoke(
             agent,
             rx.unbind().into(),
-            WellKnownSymbolIndexes::Search.to_property_key(),
+            WellKnownSymbols::Search.to_property_key(),
             Some(ArgumentsList::from_mut_value(&mut string.unbind().into())),
             gc,
         )
@@ -2158,7 +2157,7 @@ impl StringPrototype {
         // 2. If separator is an object, then
         #[cfg(feature = "regexp")]
         if let Ok(separator) = Object::try_from(separator) {
-            let symbol = WellKnownSymbolIndexes::Split.into();
+            let symbol = WellKnownSymbols::Split.into();
             // a. Let splitter be ? GetMethod(separator, %Symbol.split%).
             let splitter = get_object_method(agent, separator.unbind(), symbol, gc.reborrow())
                 .unbind()?

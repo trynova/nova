@@ -8,7 +8,7 @@ use crate::{
         Realm, String, Value, WeakRef, add_to_kept_objects, builders::OrdinaryObjectBuilder,
     },
     engine::{Bindable, GcScope},
-    heap::WellKnownSymbolIndexes,
+    heap::WellKnownSymbols,
 };
 
 pub(crate) struct WeakRefPrototype;
@@ -55,7 +55,7 @@ impl WeakRefPrototype {
             .with_builtin_function_property::<WeakRefPrototypeDeref>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
                     .with_value_readonly(BUILTIN_STRING_MEMORY.WeakRef.into())
                     .with_enumerable(false)
                     .with_configurable(true)

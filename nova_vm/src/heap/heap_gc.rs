@@ -34,7 +34,7 @@ use crate::{
     },
     engine::{Bindable, Executable, GcScope},
     heap::{
-        ElementIndex, Heap, HeapIndexHandle, PropertyKeyIndex, WellKnownSymbolIndexes,
+        ElementIndex, Heap, HeapIndexHandle, PropertyKeyIndex, WellKnownSymbols,
         element_array::ElementArrays,
         heap_bits::{
             CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues, mark_descriptors,
@@ -51,10 +51,8 @@ pub(crate) fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static
     let mut bits = HeapBits::new(&agent.heap);
     bits.strings
         .mark_range(0..(BUILTIN_STRINGS_LIST.len() as u32), &mut bits.bits);
-    bits.symbols.mark_range(
-        0..(WellKnownSymbolIndexes::Unscopables as u32),
-        &mut bits.bits,
-    );
+    bits.symbols
+        .mark_range(0..(WellKnownSymbols::Unscopables as u32), &mut bits.bits);
     let mut queues = WorkQueues::new(&agent.heap, &bits);
     root_realms.iter().for_each(|realm| {
         if let Some(realm) = realm {
@@ -2097,16 +2095,16 @@ fn sweep(
 fn test_heap_gc() {
     use crate::engine::GcScope;
     use crate::{
-        ecmascript::{DefaultHostHooks, Options},
+        ecmascript::{AgentOptions, DefaultHostHooks},
         engine::HeapRootData,
     };
 
-    let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+    let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
 
     let (mut gc, mut scope) = unsafe { GcScope::create_root() };
     let mut gc = GcScope::new(&mut gc, &mut scope);
     assert!(agent.heap.objects.is_empty());
-    let obj = HeapRootData::Object(
+    let obj = HeapRootData::from(
         OrdinaryObject::create_object(&mut agent, None, &[]).expect("Should perform GC here"),
     );
     agent.heap.globals.borrow_mut().push(obj);

@@ -8,4 +8,4 @@ mod typed_array_objects;
 
 pub use array_objects::*;
 #[cfg(feature = "array-buffer")]
-pub use typed_array_objects::*;
+pub(crate) use typed_array_objects::*;

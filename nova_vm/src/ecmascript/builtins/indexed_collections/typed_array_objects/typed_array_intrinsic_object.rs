@@ -24,7 +24,7 @@ use crate::{
         unwrap_try_get_value, unwrap_try_get_value_or_unset,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable},
-    heap::{IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+    heap::{IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, WellKnownSymbols},
 };
 
 use super::abstract_operations::{
@@ -33,7 +33,7 @@ use super::abstract_operations::{
     validate_typed_array,
 };
 
-pub struct TypedArrayIntrinsicObject;
+pub(crate) struct TypedArrayIntrinsicObject;
 
 impl Builtin for TypedArrayIntrinsicObject {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
@@ -61,8 +61,7 @@ impl Builtin for TypedArrayGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(TypedArrayIntrinsicObject::get_species);
     const LENGTH: u8 = 0;
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_species_;
-    const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::Species.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbols::Species.to_property_key());
 }
 impl BuiltinGetter for TypedArrayGetSpecies {}
 impl TypedArrayIntrinsicObject {
@@ -126,7 +125,7 @@ impl TypedArrayIntrinsicObject {
         let using_iterator = get_method(
             agent,
             source.unbind(),
-            WellKnownSymbolIndexes::Iterator.into(),
+            WellKnownSymbols::Iterator.into(),
             gc.reborrow(),
         )
         .unbind()?
@@ -588,8 +587,7 @@ impl Builtin for TypedArrayPrototypeWith {
 struct TypedArrayPrototypeGetToStringTag;
 impl Builtin for TypedArrayPrototypeGetToStringTag {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_toStringTag_;
-    const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::ToStringTag.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbols::ToStringTag.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(TypedArrayPrototype::get_to_string_tag);
 }
@@ -3083,7 +3081,7 @@ impl TypedArrayPrototype {
             .with_builtin_function_getter_property::<TypedArrayPrototypeGetToStringTag>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::Iterator.into())
+                    .with_key(WellKnownSymbols::Iterator.into())
                     .with_value(typed_array_prototype_values.into())
                     .with_enumerable(TypedArrayPrototypeValues::ENUMERABLE)
                     .with_configurable(TypedArrayPrototypeValues::CONFIGURABLE)

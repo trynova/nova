@@ -22,7 +22,7 @@ use crate::{
         to_temporal_instant,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable},
-    heap::WellKnownSymbolIndexes,
+    heap::WellKnownSymbols,
 };
 
 pub(crate) struct TemporalInstantPrototype;
@@ -618,7 +618,7 @@ impl TemporalInstantPrototype {
             .with_builtin_function_property::<TemporalInstantPrototypeToZonedDateTimeISO>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
                     .with_value_readonly(BUILTIN_STRING_MEMORY.Temporal_Instant.into())
                     .with_enumerable(false)
                     .with_configurable(true)

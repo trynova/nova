@@ -9,8 +9,8 @@ mod small_integer;
 
 pub(crate) use data::*;
 pub(crate) use radix::*;
-pub(crate) use small_f64::*;
-pub(crate) use small_integer::*;
+pub use small_f64::*;
+pub use small_integer::*;
 
 use super::{
     Numeric, Primitive, String, Value,
@@ -1559,7 +1559,7 @@ impl HeapMarkAndSweep for HeapNumber<'static> {
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
-pub enum NumberRootRepr {
+pub(crate) enum NumberRootRepr {
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     SmallF64(SmallF64) = FLOAT_DISCRIMINANT,
     HeapRef(HeapRootRef) = 0x80,
@@ -1571,7 +1571,7 @@ impl Rootable for Number<'_> {
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match value {
-            Self::Number(d) => Err(HeapRootData::Number(d.unbind())),
+            Self::Number(d) => Err(HeapRootData::from(d)),
             Self::Integer(d) => Ok(Self::RootRepr::Integer(d)),
             Self::SmallF64(d) => Ok(Self::RootRepr::SmallF64(d)),
         }
@@ -1667,7 +1667,7 @@ pub(crate) use number_value;
 mod tests {
     use super::Number;
     use crate::{
-        ecmascript::{Agent, HostHooks, Job, Options},
+        ecmascript::{Agent, AgentOptions, HostHooks, Job},
         engine::GcScope,
     };
 
@@ -1691,7 +1691,7 @@ mod tests {
     #[test]
     fn test_greater_than() {
         let hooks = Box::leak(Box::new(TestAgentHooks));
-        let mut agent = Agent::new(Options::default(), hooks);
+        let mut agent = Agent::new(AgentOptions::default(), hooks);
         let (mut token, mut scope) = unsafe { GcScope::create_root() };
         let gc = GcScope::new(&mut token, &mut scope);
 

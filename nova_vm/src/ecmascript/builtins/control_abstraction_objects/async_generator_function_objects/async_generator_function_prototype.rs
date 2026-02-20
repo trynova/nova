@@ -4,7 +4,7 @@
 
 use crate::{
     ecmascript::{Agent, Realm, builders::OrdinaryObjectBuilder, types::BUILTIN_STRING_MEMORY},
-    heap::WellKnownSymbolIndexes,
+    heap::WellKnownSymbols,
 };
 
 pub(crate) struct AsyncGeneratorFunctionPrototype;
@@ -31,7 +31,7 @@ impl AsyncGeneratorFunctionPrototype {
             })
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
                     .with_value_readonly(BUILTIN_STRING_MEMORY.AsyncGeneratorFunction.into())
                     .with_enumerable(false)
                     .with_configurable(true)

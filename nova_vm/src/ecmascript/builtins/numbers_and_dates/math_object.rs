@@ -15,7 +15,7 @@ use crate::{
         to_number_primitive, to_uint32, try_length_of_array_like,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable},
-    heap::WellKnownSymbolIndexes,
+    heap::WellKnownSymbols,
 };
 
 pub(crate) struct MathObject;
@@ -2050,7 +2050,7 @@ impl MathObject {
             .with_builtin_function_property::<MathObjectTrunc>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
                     .with_value_readonly(BUILTIN_STRING_MEMORY.Math.into())
                     .with_enumerable(false)
                     .with_configurable(true)

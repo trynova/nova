@@ -32,7 +32,7 @@ pub(crate) struct PromiseGroupRecord<'a> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct PromiseGroup<'a>(BaseIndex<'a, PromiseGroupRecord<'static>>);
+pub(crate) struct PromiseGroup<'a>(BaseIndex<'a, PromiseGroupRecord<'static>>);
 index_handle!(PromiseGroup);
 arena_vec_access!(PromiseGroup, 'a, PromiseGroupRecord, promise_group_records);
 

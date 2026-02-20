@@ -29,7 +29,7 @@ use crate::{
         },
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable, trivially_bindable},
-    heap::{ArenaAccess, CreateHeapData, WellKnownSymbolIndexes},
+    heap::{ArenaAccess, CreateHeapData, WellKnownSymbols},
 };
 
 use super::{
@@ -86,7 +86,7 @@ pub(crate) fn to_primitive_object<'a, 'gc>(
     let exotic_to_prim = get_method(
         agent,
         input.unbind().into(),
-        PropertyKey::Symbol(WellKnownSymbolIndexes::ToPrimitive.into()),
+        PropertyKey::Symbol(WellKnownSymbols::ToPrimitive.into()),
         gc.reborrow(),
     )
     .unbind()?

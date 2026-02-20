@@ -66,7 +66,7 @@ impl SmallBigInt {
     /// ## Safety
     ///
     /// If the value is outside the SmallBigInt range, data is lost.
-    pub unsafe fn from_i64_unchecked(value: i64) -> SmallBigInt {
+    pub(crate) unsafe fn from_i64_unchecked(value: i64) -> SmallBigInt {
         debug_assert!((Self::MIN..=Self::MAX).contains(&value));
         let bytes = i64::to_ne_bytes(value);
 

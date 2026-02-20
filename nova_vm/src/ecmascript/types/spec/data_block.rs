@@ -1139,6 +1139,9 @@ pub(crate) fn copy_shared_data_block_bytes(
     // 7. Return UNUSED.
 }
 
+/// Wrapper type for defining the clamping behaviour of [`Uint8ClampedArray`]s.
+///
+/// [`Uint8ClampedArray`]: crate::ecmascript::Uint8ClampedArray
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct U8Clamped(pub u8);
@@ -1169,7 +1172,9 @@ mod private {
     impl Sealed for f64 {}
 }
 
-pub trait Viewable: 'static + private::Sealed + Copy + PartialEq + core::fmt::Debug {
+pub(crate) trait Viewable:
+    'static + private::Sealed + Copy + PartialEq + core::fmt::Debug
+{
     /// Type of the data in its storage format. This is used with
     /// SharedDataBlock.
     type Storage: RacyStorage;

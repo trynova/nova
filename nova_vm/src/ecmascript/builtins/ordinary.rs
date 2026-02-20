@@ -31,7 +31,7 @@ use crate::{
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable, Scoped},
     heap::{
-        CreateHeapData, WellKnownSymbolIndexes, {ElementStorageRef, PropertyStorageRef},
+        CreateHeapData, WellKnownSymbols, {ElementStorageRef, PropertyStorageRef},
     },
 };
 
@@ -1646,7 +1646,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
         ProtoIntrinsics::Symbol => agent
             .heap
             .create(PrimitiveObjectRecord::new_symbol_object(Symbol::from(
-                WellKnownSymbolIndexes::AsyncIterator,
+                WellKnownSymbols::AsyncIterator,
             )))
             .into(),
         ProtoIntrinsics::SyntaxError => agent

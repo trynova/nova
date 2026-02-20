@@ -24,8 +24,8 @@ use crate::{
     },
     engine::{Bindable, HeapRootData, NoGcScope, bindable_handle},
     heap::{
-        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, WorkQueues, arena_vec_access, {BaseIndex, HeapIndexHandle},
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapIndexHandle, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
 
@@ -344,9 +344,9 @@ impl<'a> From<AnyArrayBuffer<'a>> for HeapRootData {
     #[inline(always)]
     fn from(value: AnyArrayBuffer<'a>) -> Self {
         match value {
-            AnyArrayBuffer::ArrayBuffer(dv) => Self::ArrayBuffer(dv.unbind()),
+            AnyArrayBuffer::ArrayBuffer(dv) => Self::from(dv),
             #[cfg(feature = "shared-array-buffer")]
-            AnyArrayBuffer::SharedArrayBuffer(sdv) => Self::SharedArrayBuffer(sdv.unbind()),
+            AnyArrayBuffer::SharedArrayBuffer(sdv) => Self::from(sdv),
         }
     }
 }

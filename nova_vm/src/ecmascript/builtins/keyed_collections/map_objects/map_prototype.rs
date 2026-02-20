@@ -16,7 +16,7 @@ use crate::{
     engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{
         ArenaAccess, ArenaAccessSoA, Heap, IntrinsicFunctionIndexes, PrimitiveHeap,
-        WellKnownSymbolIndexes,
+        WellKnownSymbols,
     },
 };
 
@@ -506,7 +506,7 @@ impl MapPrototype {
             .with_builtin_function_property::<MapPrototypeValues>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::Iterator.into())
+                    .with_key(WellKnownSymbols::Iterator.into())
                     .with_value(map_prototype_entries.into())
                     .with_enumerable(MapPrototypeValues::ENUMERABLE)
                     .with_configurable(MapPrototypeValues::CONFIGURABLE)
@@ -514,7 +514,7 @@ impl MapPrototype {
             })
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
                     .with_value_readonly(BUILTIN_STRING_MEMORY.Map.into())
                     .with_enumerable(false)
                     .with_configurable(true)

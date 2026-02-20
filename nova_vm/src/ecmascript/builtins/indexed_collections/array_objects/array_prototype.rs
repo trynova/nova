@@ -19,9 +19,7 @@ use crate::{
         try_to_integer_or_infinity, try_to_string, unwrap_try,
     },
     engine::{Bindable, GcScope, Rootable, Scopable, ScopableCollection, Scoped},
-    heap::{
-        ArenaAccessSoAMut, Heap, HeapIndexHandle, IntrinsicFunctionIndexes, WellKnownSymbolIndexes,
-    },
+    heap::{ArenaAccessSoAMut, Heap, HeapIndexHandle, IntrinsicFunctionIndexes, WellKnownSymbols},
 };
 
 pub(crate) struct ArrayPrototype;
@@ -4148,7 +4146,7 @@ impl ArrayPrototype {
             .with_builtin_function_property::<ArrayPrototypeWith>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::Iterator.into())
+                    .with_key(WellKnownSymbols::Iterator.into())
                     .with_value(array_prototype_values.into())
                     .with_enumerable(ArrayPrototypeValues::ENUMERABLE)
                     .with_configurable(ArrayPrototypeValues::CONFIGURABLE)
@@ -4156,7 +4154,7 @@ impl ArrayPrototype {
             })
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::Unscopables.into())
+                    .with_key(WellKnownSymbols::Unscopables.into())
                     .with_value_creator_readonly(|agent| {
                         OrdinaryObjectBuilder::new(agent, realm)
                             .with_property_capacity(16)
@@ -4225,7 +4223,7 @@ fn is_concat_spreadable<'a>(
     let spreadable = get(
         agent,
         o.unbind(),
-        WellKnownSymbolIndexes::IsConcatSpreadable.into(),
+        WellKnownSymbols::IsConcatSpreadable.into(),
         gc.reborrow(),
     )
     .unbind()?;

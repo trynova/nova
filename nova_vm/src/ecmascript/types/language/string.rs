@@ -19,9 +19,8 @@ use crate::{
     },
     engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, Scoped, bindable_handle},
     heap::{
-        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, StringHeapAccess, WorkQueues, arena_vec_access,
-        {BaseIndex, HeapIndexHandle},
+        ArenaAccess, BaseIndex, CompactionLists, CreateHeapData, Heap, HeapIndexHandle,
+        HeapMarkAndSweep, HeapSweepWeakReference, StringHeapAccess, WorkQueues, arena_vec_access,
     },
 };
 
@@ -98,7 +97,7 @@ bindable_handle!(String);
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
-pub enum StringRootRepr {
+pub(crate) enum StringRootRepr {
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
     HeapRef(HeapRootRef) = 0x80,
 }
@@ -116,7 +115,7 @@ impl<'a> From<String<'a>> for Option<HeapRootData> {
     #[inline(always)]
     fn from(value: String<'a>) -> Self {
         match value {
-            String::String(s) => Some(HeapRootData::String(s.unbind())),
+            String::String(s) => Some(HeapRootData::from(s)),
             String::SmallString(_) => None,
         }
     }
@@ -825,7 +824,7 @@ impl Rootable for String<'_> {
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match value {
-            Self::String(s) => Err(HeapRootData::String(s.unbind())),
+            Self::String(s) => Err(HeapRootData::from(s)),
             Self::SmallString(s) => Ok(Self::RootRepr::SmallString(s)),
         }
     }

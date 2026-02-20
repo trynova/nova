@@ -9,7 +9,7 @@ use crate::{
         builders::OrdinaryObjectBuilder,
     },
     engine::{Bindable, GcScope, NoGcScope},
-    heap::{ArenaAccess, WellKnownSymbolIndexes},
+    heap::{ArenaAccess, WellKnownSymbols},
 };
 
 pub(crate) struct SymbolPrototype;
@@ -49,8 +49,7 @@ struct SymbolPrototypeToPrimitive;
 impl Builtin for SymbolPrototypeToPrimitive {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_toPrimitive_;
 
-    const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::ToPrimitive.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbols::ToPrimitive.to_property_key());
 
     const LENGTH: u8 = 1;
 
@@ -125,7 +124,7 @@ impl SymbolPrototype {
             .with_builtin_function_property::<SymbolPrototypeToPrimitive>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
                     .with_value_readonly(BUILTIN_STRING_MEMORY.Symbol.into())
                     .with_enumerable(false)
                     .build()

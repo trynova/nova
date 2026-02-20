@@ -10,9 +10,8 @@ use crate::{
     ecmascript::{Agent, BUILTIN_STRING_MEMORY, Primitive, PropertyKey, String, Value},
     engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, bindable_handle},
     heap::{
-        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, WellKnownSymbolIndexes, WorkQueues, arena_vec_access,
-        {BaseIndex, HeapIndexHandle},
+        ArenaAccess, BaseIndex, CompactionLists, CreateHeapData, Heap, HeapIndexHandle,
+        HeapMarkAndSweep, HeapSweepWeakReference, WellKnownSymbols, WorkQueues, arena_vec_access,
     },
 };
 
@@ -31,13 +30,13 @@ arena_vec_access!(
 #[derive(Debug, Clone, Copy)]
 enum SymbolRootReprInner {
     // Note: Handle a special case of avoiding rooting well-known symbols.
-    WellKnown(WellKnownSymbolIndexes),
+    WellKnown(WellKnownSymbols),
     HeapRef(HeapRootRef),
 }
 
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
-pub struct SymbolRootRepr(SymbolRootReprInner);
+pub(crate) struct SymbolRootRepr(SymbolRootReprInner);
 
 impl<'a> Symbol<'a> {
     /// Return the name for functions created using NamedEvaluation with a
@@ -86,13 +85,13 @@ impl<'a> Symbol<'a> {
     }
 }
 
-impl From<WellKnownSymbolIndexes> for Symbol<'static> {
-    fn from(value: WellKnownSymbolIndexes) -> Self {
+impl From<WellKnownSymbols> for Symbol<'static> {
+    fn from(value: WellKnownSymbols) -> Self {
         Symbol(BaseIndex::from_index_u32(value as u32))
     }
 }
 
-impl WellKnownSymbolIndexes {
+impl WellKnownSymbols {
     pub const fn to_property_key(self) -> PropertyKey<'static> {
         PropertyKey::Symbol(Symbol(BaseIndex::from_index_const(self as u32 as usize)))
     }
@@ -139,9 +138,9 @@ impl Rootable for Symbol<'_> {
 
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        WellKnownSymbolIndexes::try_from(value)
+        WellKnownSymbols::try_from(value)
             .map(|s| SymbolRootRepr(SymbolRootReprInner::WellKnown(s)))
-            .map_err(|_| HeapRootData::Symbol(value.unbind()))
+            .map_err(|_| HeapRootData::try_from(value).unwrap())
     }
 
     #[inline]
@@ -172,6 +171,17 @@ impl TryFrom<HeapRootData> for Symbol<'_> {
         match value {
             HeapRootData::Symbol(data) => Ok(data),
             _ => Err(()),
+        }
+    }
+}
+impl TryFrom<Symbol<'_>> for HeapRootData {
+    type Error = ();
+    #[inline]
+    fn try_from(value: Symbol) -> Result<Self, ()> {
+        if WellKnownSymbols::try_from(value).is_ok() {
+            Err(())
+        } else {
+            Ok(Self::Symbol(value.unbind()))
         }
     }
 }

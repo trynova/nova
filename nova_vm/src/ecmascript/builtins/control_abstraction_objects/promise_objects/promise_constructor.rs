@@ -17,8 +17,7 @@ use crate::{
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable, Scoped, bindable_handle},
     heap::{
-        ArenaAccessMut, CreateHeapData, IntrinsicConstructorIndexes, ObjectEntry,
-        WellKnownSymbolIndexes,
+        ArenaAccessMut, CreateHeapData, IntrinsicConstructorIndexes, ObjectEntry, WellKnownSymbols,
     },
 };
 
@@ -86,8 +85,7 @@ impl Builtin for PromiseGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(PromiseConstructor::get_species);
     const LENGTH: u8 = 0;
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_species_;
-    const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::Species.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbols::Species.to_property_key());
 }
 impl BuiltinGetter for PromiseGetSpecies {}
 
