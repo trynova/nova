@@ -159,14 +159,11 @@ impl<'a> SourceCode<'a> {
             SourceCodeType::Script { strict } | SourceCodeType::Eval { strict, .. } => {
                 // Potentially strict script! We first parse and syntax check
                 // this as a normal script, which checks that the code contains
-                // no module declarations or TLA. If that passes, then we parse
-                // the script as a module, which sets strict mode on.
-                #[allow(unused_mut)]
-                let mut source_type = SourceType::cjs();
-                #[cfg(feature = "typescript")]
-                if typescript {
-                    source_type = source_type.with_typescript(true);
-                }
+                // no module declarations or TLA. If that passes and we're
+                // strict, then we parse the script as a module which sets
+                // strict mode on.
+                let source_type =
+                    SourceType::script().with_typescript(cfg!(feature = "typescript"));
                 let sloppy_result = Parser::new(&allocator, source_text, source_type).parse();
                 if strict {
                     let ParserReturn {
@@ -203,13 +200,8 @@ impl<'a> SourceCode<'a> {
                         );
                     }
 
-                    #[allow(unused_mut)]
-                    let mut source_type = SourceType::mjs();
-                    #[cfg(feature = "typescript")]
-                    if typescript {
-                        source_type = source_type.with_typescript(true);
-                    }
-
+                    let source_type =
+                        SourceType::mjs().with_typescript(cfg!(feature = "typescript"));
                     let strict_result = Parser::new(&allocator, source_text, source_type).parse();
                     if strict_result.panicked {
                         let errors = strict_result.errors;
@@ -222,12 +214,7 @@ impl<'a> SourceCode<'a> {
                 }
             }
             SourceCodeType::Module => {
-                #[allow(unused_mut)]
-                let mut source_type = SourceType::mjs();
-                #[cfg(feature = "typescript")]
-                if typescript {
-                    source_type = source_type.with_typescript(true);
-                }
+                let source_type = SourceType::mjs().with_typescript(cfg!(feature = "typescript"));
                 Parser::new(&allocator, source_text, source_type).parse()
             }
         };
