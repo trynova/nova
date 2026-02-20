@@ -44,9 +44,9 @@ impl<'sab> SharedArrayBuffer<'sab> {
         self.get_data_block(agent).as_racy_slice()
     }
 
-    #[inline]
-    pub fn is_detached(self, agent: &Agent) -> bool {
-        self.get(agent).data_block.is_dangling()
+    #[inline(always)]
+    pub fn is_detached(self) -> bool {
+        false
     }
 
     /// Returns true if the SharedArrayBuffer is growable.

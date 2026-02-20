@@ -269,16 +269,6 @@ pub enum AnyArrayBuffer<'a> {
 }
 bindable_handle!(AnyArrayBuffer);
 
-macro_rules! array_buffer_delegate {
-    ($value: ident, $method: ident, $($arg:expr),*) => {
-        match $value {
-            Self::ArrayBuffer(ta) => ta.$method($($arg),+),
-            #[cfg(feature = "shared-array-buffer")]
-            Self::SharedArrayBuffer(sta) => sta.$method($($arg),+),
-        }
-    };
-}
-
 impl<'ab> AnyArrayBuffer<'ab> {
     /// Returns true if the ArrayBuffer is a SharedArrayBuffer.
     #[inline(always)]
@@ -292,7 +282,11 @@ impl<'ab> AnyArrayBuffer<'ab> {
 
     #[inline(always)]
     pub fn is_detached(self, agent: &Agent) -> bool {
-        array_buffer_delegate!(self, is_detached, agent)
+        match self {
+            Self::ArrayBuffer(ta) => ta.is_detached(agent),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedArrayBuffer(_) => false,
+        }
     }
 
     /// Returns true if the ArrayBuffer is resizable.

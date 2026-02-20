@@ -193,7 +193,7 @@ impl<'gc> SharedDataView<'gc> {
     ) -> T {
         let array_buffer = self.viewed_array_buffer(agent);
         // 1. Assert: IsDetachedBuffer(arrayBuffer) is false.
-        debug_assert!(!array_buffer.is_detached(agent));
+        debug_assert!(!array_buffer.is_detached());
         // 2. Assert: There are sufficient bytes in arrayBuffer starting at byteIndex to represent a value of type.
         // 4. Let elementSize be the Element Size value specified in Table 71 for Element Type type.
         // 3. Let block be arrayBuffer.[[ArrayBufferData]].

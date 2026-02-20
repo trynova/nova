@@ -1270,11 +1270,8 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
     type ElementType = T;
 
     #[inline(always)]
-    fn is_detached(self, agent: &Agent) -> bool {
-        self.into_void_array()
-            .get(agent)
-            .viewed_array_buffer
-            .is_detached(agent)
+    fn is_detached(self, _: &Agent) -> bool {
+        false
     }
 
     #[inline(always)]
@@ -1358,7 +1355,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         let buffer = self.into_void_array().get(agent).viewed_array_buffer;
 
         // 2. If IsDetachedBuffer(buffer) is true, then
-        if buffer.is_detached(agent) {
+        if buffer.is_detached() {
             // a. Let byteLength be detached.
             CachedBufferByteLength::detached()
         } else {
@@ -1419,6 +1416,8 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         let byte_offset = o.byte_offset(agent);
         let byte_length = o.byte_length(agent);
 
+        eprintln!("offset: {byte_offset}, length: {byte_length:?}");
+
         // 5. Let kept be a new empty List.
         let mut kept = create_byte_data_block(agent, len as u64, gc.nogc())
             .unbind()?
@@ -1443,6 +1442,10 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         // 7. Let k be 0.
         // 8. Repeat, while k < len,
         for (k, k_item) in slice.iter().enumerate() {
+            eprintln!(
+                "k: {k:?}, {}, cap: {captured}",
+                k_item.load(Ordering::SeqCst)
+            );
             // b. Let kValue be ! Get(O, Pk).
             let value = T::from_storage(k_item.load(Ordering::Unordered));
             let k_value = value.into_le_value(agent, gc.nogc());
