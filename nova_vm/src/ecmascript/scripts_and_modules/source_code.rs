@@ -218,7 +218,6 @@ impl<'a> SourceCode<'a> {
 
                     strict_result
                 } else {
-                    eprintln!("Sloppy: {:#?}", sloppy_result.program);
                     sloppy_result
                 }
             }
