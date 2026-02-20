@@ -54,7 +54,7 @@ use core::{any::Any, cell::RefCell, ops::ControlFlow, ptr::NonNull};
 use std::{collections::TryReserveError, sync::Arc};
 
 #[derive(Debug, Default)]
-pub struct Options {
+pub struct AgentOptions {
     pub disable_gc: bool,
     pub print_internals: bool,
     /// Controls the \[\[CanBlock]] option of the Agent Record. If set to true,
@@ -662,7 +662,7 @@ impl RealmRoot {
 }
 
 impl GcAgent {
-    pub fn new(options: Options, host_hooks: &'static dyn HostHooks) -> Self {
+    pub fn new(options: AgentOptions, host_hooks: &'static dyn HostHooks) -> Self {
         Self {
             agent: Agent::new(options, host_hooks),
             realm_roots: Vec::with_capacity(1),
@@ -804,7 +804,7 @@ impl GcAgent {
 /// For creating an Agent, see [`GcAgent`](GcAgent).
 pub struct Agent {
     pub(crate) heap: Heap,
-    pub(crate) options: Options,
+    pub(crate) options: AgentOptions,
     #[expect(dead_code)]
     symbol_id: usize,
     pub(crate) global_symbol_registry: AHashMap<String<'static>, Symbol<'static>>,
@@ -836,7 +836,7 @@ pub struct Agent {
 }
 
 impl Agent {
-    pub(crate) fn new(options: Options, host_hooks: &'static dyn HostHooks) -> Self {
+    pub(crate) fn new(options: AgentOptions, host_hooks: &'static dyn HostHooks) -> Self {
         Self {
             heap: Heap::new(),
             options,

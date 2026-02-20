@@ -20,8 +20,7 @@ pub(crate) struct IteratorPrototype;
 struct IteratorPrototypeIterator;
 impl Builtin for IteratorPrototypeIterator {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_iterator_;
-    const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbols::Iterator.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbols::Iterator.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(IteratorPrototype::iterator);
 }
@@ -77,8 +76,7 @@ impl Builtin for IteratorPrototypeToArray {
 struct IteratorPrototypeToStringTag;
 impl Builtin for IteratorPrototypeToStringTag {
     const NAME: String<'static> = String::EMPTY_STRING;
-    const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbols::ToStringTag.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbols::ToStringTag.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(IteratorPrototype::get_to_string_tag);
 }

@@ -94,14 +94,14 @@ unsafe impl<'scope> Bindable for ScopedCollection<'scope, Vec<PropertyKey<'stati
 }
 
 #[repr(transparent)]
-pub struct ScopedPropertyKeysIterator<'a> {
+pub(crate) struct ScopedPropertyKeysIterator<'a> {
     slice: NonNull<[PropertyKey<'static>]>,
     collection: PhantomData<&'a mut ScopedCollection<'a, Vec<PropertyKey<'static>>>>,
 }
 
 #[derive(Clone, Copy)]
 #[repr(transparent)]
-pub struct ScopedPropertyKey<'a> {
+pub(crate) struct ScopedPropertyKey<'a> {
     key: NonNull<PropertyKey<'static>>,
     collection: PhantomData<&'a mut ScopedCollection<'a, Vec<PropertyKey<'static>>>>,
 }

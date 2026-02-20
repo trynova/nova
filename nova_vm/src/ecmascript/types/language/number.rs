@@ -1667,7 +1667,7 @@ pub(crate) use number_value;
 mod tests {
     use super::Number;
     use crate::{
-        ecmascript::{Agent, HostHooks, Job, Options},
+        ecmascript::{Agent, AgentOptions, HostHooks, Job},
         engine::GcScope,
     };
 
@@ -1691,7 +1691,7 @@ mod tests {
     #[test]
     fn test_greater_than() {
         let hooks = Box::leak(Box::new(TestAgentHooks));
-        let mut agent = Agent::new(Options::default(), hooks);
+        let mut agent = Agent::new(AgentOptions::default(), hooks);
         let (mut token, mut scope) = unsafe { GcScope::create_root() };
         let gc = GcScope::new(&mut token, &mut scope);
 

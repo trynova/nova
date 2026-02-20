@@ -379,7 +379,7 @@ impl HeapMarkAndSweep for SourceCode<'static> {
 mod test {
     use crate::{
         ecmascript::{
-            Agent, DefaultHostHooks, Options, ParseResult, SourceCode, SourceCodeType, String,
+            Agent, AgentOptions, DefaultHostHooks, ParseResult, SourceCode, SourceCodeType, String,
             initialize_default_realm,
         },
         engine::GcScope,
@@ -389,7 +389,7 @@ mod test {
     fn script_with_imports() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "import 'foo';", gc.nogc());
@@ -413,7 +413,7 @@ mod test {
     fn strict_script_with_imports() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "import 'foo';", gc.nogc());
@@ -437,7 +437,7 @@ mod test {
     fn parse_and_realloc_source_codes_with_program() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "const foo = 3;", gc.nogc());

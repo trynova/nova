@@ -45,8 +45,7 @@ impl Builtin for MapGroupBy {
 struct MapGetSpecies;
 impl Builtin for MapGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapConstructor::get_species);
-    const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbols::Species.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbols::Species.to_property_key());
     const LENGTH: u8 = 0;
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_species_;
 }

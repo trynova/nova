@@ -15,7 +15,7 @@ pub use internal_methods::*;
 pub use internal_slots::*;
 pub use property_key::*;
 pub(crate) use property_key_set::*;
-pub use property_key_vec::*;
+pub(crate) use property_key_vec::*;
 pub(crate) use property_storage::*;
 
 use crate::ecmascript::{

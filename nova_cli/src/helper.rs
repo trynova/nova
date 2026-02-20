@@ -17,8 +17,8 @@ static START_TIME: LazyLock<std::time::Instant> = LazyLock::new(std::time::Insta
 
 use nova_vm::{
     ecmascript::{
-        Agent, ArgumentsList, Behaviour, BigInt, BuiltinFunctionArgs, ExceptionType, Function,
-        GcAgent, HostHooks, InternalMethods, Job, JsResult, Number, Object, Options,
+        Agent, AgentOptions, ArgumentsList, Behaviour, BigInt, BuiltinFunctionArgs, ExceptionType,
+        Function, GcAgent, HostHooks, InternalMethods, Job, JsResult, Number, Object,
         OrdinaryObject, PropertyDescriptor, PropertyKey, RegularFn, SharedArrayBuffer, String,
         Value, create_builtin_function, parse_script, script_evaluation, unwrap_try,
     },
@@ -411,7 +411,7 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
         let _ = thread::spawn(|| {
             let child_hooks = &*Box::leak(Box::new(child_hooks));
             let mut child_agent = GcAgent::new(
-                Options {
+                AgentOptions {
                     disable_gc: false,
                     print_internals: false,
                     // Always allow children to block.

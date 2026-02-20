@@ -250,8 +250,7 @@ impl Builtin for StringPrototypeValueOf {
 struct StringPrototypeIterator;
 impl Builtin for StringPrototypeIterator {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_iterator_;
-    const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbols::Iterator.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbols::Iterator.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::iterator);
 }

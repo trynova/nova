@@ -43,7 +43,7 @@ pub struct PropertyDescriptor<'a> {
 }
 
 #[derive(Debug)]
-pub struct ScopedPropertyDescriptor<'a> {
+pub(crate) struct ScopedPropertyDescriptor<'a> {
     /// \[\[Value]]
     pub value: Option<Scoped<'a, Value<'static>>>,
 

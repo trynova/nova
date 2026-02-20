@@ -76,7 +76,7 @@ const fn get_index(n: &'static str) -> usize {
     list.push_str("pub(crate) const BUILTIN_STRINGS_LIST: &[&str] = &[\n");
 
     // Struct definition
-    struct_def.push_str("#[allow(non_snake_case)]\npub struct BuiltinStrings {\n");
+    struct_def.push_str("#[allow(non_snake_case)]\npub(crate) struct BuiltinStrings {\n");
 
     // Struct instantiation
     struct_const

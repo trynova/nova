@@ -733,9 +733,9 @@ mod test {
     #[test]
     fn test_default_realm_sanity() {
         use super::initialize_default_realm;
-        use crate::ecmascript::{Agent, DefaultHostHooks, ObjectRecord, Options};
+        use crate::ecmascript::{Agent, AgentOptions, DefaultHostHooks, ObjectRecord};
 
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let gc = GcScope::new(&mut gc, &mut scope);
         initialize_default_realm(&mut agent, gc);

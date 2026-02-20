@@ -26,8 +26,8 @@ use helper::{
 };
 use nova_vm::{
     ecmascript::{
-        AbstractModule, Agent, ExceptionType, GcAgent, GraphLoadingStateRecord, HostDefined,
-        HostHooks, Job, JsResult, ModuleRequest, Object, Options, Referrer, SharedDataBlock,
+        AbstractModule, Agent, AgentOptions, ExceptionType, GcAgent, GraphLoadingStateRecord,
+        HostDefined, HostHooks, Job, JsResult, ModuleRequest, Object, Referrer, SharedDataBlock,
         String as JsString, Value, finish_loading_imported_module, parse_module, parse_script,
         script_evaluation,
     },
@@ -385,7 +385,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let host_hooks: NonNull<CliHostHooks> =
                 NonNull::from(Box::leak(Box::new(CliHostHooks::new())));
             let mut agent = GcAgent::new(
-                Options {
+                AgentOptions {
                     disable_gc: nogc,
                     print_internals: verbose,
                     no_block,
@@ -523,7 +523,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         } => {
             let host_hooks: &CliHostHooks = &*Box::leak(Box::new(CliHostHooks::new()));
             let mut agent = GcAgent::new(
-                Options {
+                AgentOptions {
                     disable_gc,
                     print_internals,
                     // Never allow blocking in the REPL.

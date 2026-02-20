@@ -646,11 +646,11 @@ mod test {
 
     use crate::{
         ecmascript::{
-            Agent, ArgumentsList, Array, BUILTIN_STRING_MEMORY, Behaviour, BuiltinFunctionArgs,
-            DefaultHostHooks, ExceptionType, InternalMethods, JsResult, Number, Object, Options,
-            PropertyKey, SmallInteger, String, TryHasBindingContinue, TryHasResult, Value,
-            create_builtin_function, create_data_property_or_throw, initialize_default_realm,
-            parse_script, script_evaluation, unwrap_try,
+            Agent, AgentOptions, ArgumentsList, Array, BUILTIN_STRING_MEMORY, Behaviour,
+            BuiltinFunctionArgs, DefaultHostHooks, ExceptionType, InternalMethods, JsResult,
+            Number, Object, PropertyKey, SmallInteger, String, TryHasBindingContinue, TryHasResult,
+            Value, create_builtin_function, create_data_property_or_throw,
+            initialize_default_realm, parse_script, script_evaluation, unwrap_try,
         },
         engine::{Bindable, GcScope, Scopable},
         heap::ArenaAccess,
@@ -660,7 +660,7 @@ mod test {
     fn empty_script() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "", gc.nogc());
@@ -675,7 +675,7 @@ mod test {
     fn basic_constants() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "true", gc.nogc());
@@ -690,7 +690,7 @@ mod test {
     fn unary_minus() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "-2", gc.nogc());
@@ -705,7 +705,7 @@ mod test {
     fn unary_void() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "void (2 + 2 + 6)", gc.nogc());
@@ -720,7 +720,7 @@ mod test {
     fn unary_plus() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "+(54)", gc.nogc());
@@ -735,7 +735,7 @@ mod test {
     fn logical_not() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "!true", gc.nogc());
@@ -750,7 +750,7 @@ mod test {
     fn bitwise_not() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "~0b1111", gc.nogc());
@@ -765,7 +765,7 @@ mod test {
     fn unary_typeof() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -855,7 +855,7 @@ mod test {
     fn binary_add() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "2 + 2 + 6", gc.nogc());
@@ -870,7 +870,7 @@ mod test {
     fn var_assign() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "var foo = 3;", gc.nogc());
@@ -884,7 +884,7 @@ mod test {
     fn empty_object() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "var foo = {};", gc.nogc());
@@ -917,7 +917,7 @@ mod test {
     fn non_empty_object() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "var foo = { a: 3 };", gc.nogc());
@@ -954,7 +954,7 @@ mod test {
     fn empty_array() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "var foo = [];", gc.nogc());
@@ -981,7 +981,7 @@ mod test {
     fn non_empty_array() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "var foo = [ 'a', 3 ];", gc.nogc());
@@ -1027,7 +1027,7 @@ mod test {
     fn empty_function() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "function foo() {}", gc.nogc());
@@ -1063,7 +1063,7 @@ mod test {
     fn empty_iife_function_call() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "(function() {})()", gc.nogc());
@@ -1077,7 +1077,7 @@ mod test {
     fn empty_named_function_call() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text =
@@ -1092,7 +1092,7 @@ mod test {
     fn empty_declared_function_call() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "function f() {}; f();", gc.nogc());
@@ -1106,7 +1106,7 @@ mod test {
     fn non_empty_iife_function_call() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text =
@@ -1121,7 +1121,7 @@ mod test {
     fn builtin_function_call() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let global = agent.current_global_object(gc.nogc());
@@ -1180,7 +1180,7 @@ mod test {
     fn if_statement() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "if (true) 3", gc.nogc());
@@ -1200,7 +1200,7 @@ mod test {
     fn if_else_statement() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(
@@ -1228,7 +1228,7 @@ mod test {
     fn static_property_access() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text =
@@ -1243,7 +1243,7 @@ mod test {
     fn deep_static_property_access() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(
@@ -1261,7 +1261,7 @@ mod test {
     fn computed_property_access() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(
@@ -1278,7 +1278,7 @@ mod test {
     fn for_loop() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text =
@@ -1304,7 +1304,7 @@ mod test {
     fn lexical_declarations() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text =
@@ -1343,7 +1343,7 @@ mod test {
     fn lexical_declarations_in_block() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(
@@ -1372,7 +1372,7 @@ mod test {
     fn object_property_assignment() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text =
@@ -1396,7 +1396,7 @@ mod test {
     fn try_catch_not_thrown() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(
@@ -1414,7 +1414,7 @@ mod test {
     fn try_catch_thrown() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1433,7 +1433,7 @@ mod test {
     fn catch_binding() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1455,7 +1455,7 @@ mod test {
     fn throwing_in_try_restores_lexical_environment() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1474,7 +1474,7 @@ mod test {
     fn function_argument_bindings() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1493,7 +1493,7 @@ mod test {
     fn logical_and() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1515,7 +1515,7 @@ mod test {
     fn logical_or() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1537,7 +1537,7 @@ mod test {
     fn nullish_coalescing() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1569,7 +1569,7 @@ mod test {
     fn string_concat() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1612,7 +1612,7 @@ mod test {
     fn property_access_on_functions() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text =
@@ -1656,7 +1656,7 @@ mod test {
     fn name_and_length_on_builtin_functions() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1681,7 +1681,7 @@ mod test {
     fn constructor() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1716,7 +1716,7 @@ mod test {
     fn this_expression() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1746,7 +1746,7 @@ mod test {
     fn symbol_stringification() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1792,7 +1792,7 @@ mod test {
     fn instanceof() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1842,7 +1842,7 @@ mod test {
     fn array_binding_pattern() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text =
@@ -1881,7 +1881,7 @@ mod test {
     fn do_while() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1916,7 +1916,7 @@ mod test {
     fn no_implicit_return() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1932,7 +1932,7 @@ mod test {
     fn for_in_loop() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
