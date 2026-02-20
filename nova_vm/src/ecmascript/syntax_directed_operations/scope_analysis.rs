@@ -14,10 +14,10 @@ use oxc_ast::ast::{
 };
 use oxc_ecmascript::BoundNames;
 
-use oxc_span::Atom;
+use oxc_span::Ident;
 
-pub(crate) fn script_lexically_declared_names<'a>(body: &'a [Statement<'a>]) -> Vec<Atom<'a>> {
-    let mut lexically_declared_names: Vec<Atom<'a>> = vec![];
+pub(crate) fn script_lexically_declared_names<'a>(body: &'a [Statement<'a>]) -> Vec<Ident<'a>> {
+    let mut lexically_declared_names: Vec<Ident<'a>> = vec![];
     // Script : [empty]
     // 1. Return a new empty List.
     // ScriptBody : StatementList
@@ -387,7 +387,7 @@ pub(crate) trait VarDeclaredNames<'a> {
     fn var_declared_names<F: FnMut(&BindingIdentifier<'a>)>(&'a self, f: &mut F);
 }
 
-pub(crate) fn script_var_declared_names<'a>(body: &'a [Statement<'a>]) -> Vec<Atom<'a>> {
+pub(crate) fn script_var_declared_names<'a>(body: &'a [Statement<'a>]) -> Vec<Ident<'a>> {
     let mut var_declared_names = vec![];
     // Script : [empty]
     // 1. Return a new empty List.

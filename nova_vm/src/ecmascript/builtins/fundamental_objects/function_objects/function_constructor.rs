@@ -234,7 +234,7 @@ pub(crate) fn create_dynamic_function<'a>(
         SourceCode::parse_source(
             agent,
             source_string,
-            SourceCodeType::Script,
+            SourceCodeType::Script { strict: false },
             #[cfg(feature = "typescript")]
             false,
             gc.nogc(),

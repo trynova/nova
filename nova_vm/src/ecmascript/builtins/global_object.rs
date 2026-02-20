@@ -11,14 +11,14 @@ use wtf8::{CodePoint, Wtf8Buf};
 
 use crate::{
     ecmascript::{
-        Agent, BUILTIN_STRING_MEMORY, ECMAScriptCodeEvaluationState, Environment, ExceptionType,
-        ExecutionContext, Function, JsResult, LexicallyScopedDeclaration, ParseResult, Primitive,
-        PrivateEnvironment, Realm, STRING_DISCRIMINANT, SourceCode, SourceCodeType, String, Value,
-        VarScopedDeclaration, builders::BuiltinFunctionBuilder, get_this_environment,
-        instantiate_function_object, is_trimmable_whitespace, new_declarative_environment,
-        script_lexically_scoped_declarations, script_var_declared_names,
-        script_var_scoped_declarations, to_int32, to_int32_number, to_number, to_number_primitive,
-        to_string,
+        Agent, BUILTIN_STRING_MEMORY, Contains, ContainsSymbol, ECMAScriptCodeEvaluationState,
+        Environment, ExceptionType, ExecutionContext, Function, JsResult,
+        LexicallyScopedDeclaration, ParseResult, Primitive, PrivateEnvironment, Realm,
+        STRING_DISCRIMINANT, SourceCode, SourceCodeType, String, Value, VarScopedDeclaration,
+        builders::BuiltinFunctionBuilder, get_this_environment, instantiate_function_object,
+        is_trimmable_whitespace, new_declarative_environment, script_lexically_scoped_declarations,
+        script_var_declared_names, script_var_scoped_declarations, to_int32, to_int32_number,
+        to_number, to_number_primitive, to_string,
     },
     engine::{Bindable, Executable, GcScope, NoGcScope, Scopable, Vm, string_literal_to_wtf8},
     heap::{ArenaAccess, HeapIndexHandle, IntrinsicFunctionIndexes},
@@ -159,7 +159,8 @@ pub(crate) fn perform_eval<'gc>(
     // 3. Let evalRealm be the current Realm Record.
     let eval_realm = agent.current_realm(gc.nogc());
 
-    // 4. NOTE: In the case of a direct eval, evalRealm is the realm of both the caller of eval and of the eval function itself.
+    // 4. NOTE: In the case of a direct eval, evalRealm is the realm of both the
+    //    caller of eval and of the eval function itself.
     // 5. Perform ? HostEnsureCanCompileStrings(evalRealm, « », x, direct).
     agent
         .host_hooks
@@ -173,57 +174,56 @@ pub(crate) fn perform_eval<'gc>(
     });
 
     // 6. Let inFunction be false.
-    let mut _in_function = false;
+    let mut in_function = false;
     // 7. Let inMethod be false.
-    let mut _in_method = false;
+    let mut in_method = false;
     // 8. Let inDerivedConstructor be false.
-    let mut _in_derived_constructor = false;
+    let mut in_derived_constructor = false;
     // 9. Let inClassFieldInitializer be false.
-    let _in_class_field_initializer = false;
+    let in_class_field_initializer = false;
 
     // 10. If direct is true, then
-    if direct {
-        // a. Let thisEnvRec be GetThisEnvironment().
-        let this_env_rec = get_this_environment(agent, gc.nogc());
-        // b. If thisEnvRec is a Function Environment Record, then
-        if let Environment::Function(this_env_rec) = this_env_rec {
-            // i. Let F be thisEnvRec.[[FunctionObject]].
-            let f = this_env_rec.get_function_object(agent);
-            // ii. Set inFunction to true.
-            _in_function = true;
-            // iii. Set inMethod to thisEnvRec.HasSuperBinding().
-            _in_method = this_env_rec.has_super_binding(agent);
-            // iv. If F.[[ConstructorKind]] is derived, set inDerivedConstructor to true.
-            _in_derived_constructor = match f {
-                Function::ECMAScriptFunction(f) => f
-                    .get(agent)
-                    .ecmascript_function
-                    .constructor_status
-                    .is_derived_class(),
-                Function::BuiltinConstructorFunction(f) => f.get(agent).is_derived,
-                _ => false,
-            };
+    //     a. Let thisEnvRec be GetThisEnvironment().
+    //     b. If thisEnvRec is a Function Environment Record, then
+    if direct && let Environment::Function(this_env_rec) = get_this_environment(agent, gc.nogc()) {
+        // i. Let F be thisEnvRec.[[FunctionObject]].
+        let f = this_env_rec.get_function_object(agent);
+        // ii. Set inFunction to true.
+        in_function = true;
+        // iii. Set inMethod to thisEnvRec.HasSuperBinding().
+        in_method = this_env_rec.has_super_binding(agent);
+        // iv. If F.[[ConstructorKind]] is derived, set inDerivedConstructor to
+        //     true.
+        in_derived_constructor = match f {
+            Function::ECMAScriptFunction(f) => f
+                .get(agent)
+                .ecmascript_function
+                .constructor_status
+                .is_derived_class(),
+            Function::BuiltinConstructorFunction(f) => f.get(agent).is_derived,
+            _ => false,
+        };
 
-            // TODO:
-            // v. Let classFieldInitializerName be F.[[ClassFieldInitializerName]].
-            // vi. If classFieldInitializerName is not empty, set inClassFieldInitializer to true.
-        }
+        // TODO:
+        // v. Let classFieldInitializerName be
+        //    F.[[ClassFieldInitializerName]].
+        // vi. If classFieldInitializerName is not empty, set
+        //     inClassFieldInitializer to true.
     }
 
-    // 11. Perform the following substeps in an implementation-defined order, possibly interleaving parsing and error detection:
+    // 11. Perform the following substeps in an implementation-defined order,
+    //     possibly interleaving parsing and error detection:
     // a. Let script be ParseText(x, Script).
-    let source_type = if strict_caller {
-        SourceCodeType::StrictScript
-    } else {
-        SourceCodeType::Script
+    let source_type = SourceCodeType::Eval {
+        direct,
+        strict: strict_caller,
     };
     // SAFETY: Script is only kept alive for the duration of this call, and any
     // references made to it by functions being created in the eval call will
     // take a copy of the SourceCode. The SourceCode is also kept in the
     // evaluation context and thus cannot be garbage collected while the eval
-    // call happens.
-    // The Program thus refers to a valid, live Allocator for the duration of
-    // this call.
+    // call happens. The Program thus refers to a valid, live Allocator for the
+    // duration of this call.
     let parse_result = unsafe {
         SourceCode::parse_source(
             agent,
@@ -271,10 +271,43 @@ pub(crate) fn perform_eval<'gc>(
 
     // TODO:
     // d. Let body be the ScriptBody of script.
-    // e. If inFunction is false and body Contains NewTarget, throw a SyntaxError exception.
-    // f. If inMethod is false and body Contains SuperProperty, throw a SyntaxError exception.
-    // g. If inDerivedConstructor is false and body Contains SuperCall, throw a SyntaxError exception.
-    // h. If inClassFieldInitializer is true and ContainsArguments of body is true, throw a SyntaxError exception.
+    // e. If inFunction is false and body Contains NewTarget,
+    if !in_function && Contains::contains(body, ContainsSymbol::NewTarget) {
+        // throw a SyntaxError exception.
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::SyntaxError,
+            "new.target only allowed within functions",
+            gc.into_nogc(),
+        ));
+    }
+    // f. If inMethod is false and body Contains SuperProperty,
+    if !in_method && Contains::contains(body, ContainsSymbol::SuperProperty) {
+        // throw a SyntaxError exception.
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::SyntaxError,
+            "use of super property accesses only valid within methods or eval code within methods",
+            gc.into_nogc(),
+        ));
+    }
+    // g. If inDerivedConstructor is false and body Contains SuperCall,
+    if !in_derived_constructor && Contains::contains(body, ContainsSymbol::SuperCall) {
+        // throw a SyntaxError exception.
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::SyntaxError,
+            "super() is only valid in derived class constructors",
+            gc.into_nogc(),
+        ));
+    }
+    // h. If inClassFieldInitializer is true and ContainsArguments of body is
+    //    true,
+    if in_class_field_initializer && Contains::contains(body, ContainsSymbol::Arguments) {
+        // throw a SyntaxError exception.
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::SyntaxError,
+            "arguments is not valid in fields",
+            gc.into_nogc(),
+        ));
+    }
 
     // 12. If strictCaller is true, let strictEval be true.
     // 13. Else, let strictEval be ScriptIsStrict of script.
@@ -284,8 +317,10 @@ pub(crate) fn perform_eval<'gc>(
     }
 
     // 14. Let runningContext be the running execution context.
-    // 15. NOTE: If direct is true, runningContext will be the execution context that performed the direct eval. If direct is false, runningContext will be the execution context for the invocation of the eval function.
-
+    // 15. NOTE: If direct is true, runningContext will be the execution context
+    //     that performed the direct eval. If direct is false, runningContext
+    //     will be the execution context for the invocation of the eval
+    //     function.
     // 16. If direct is true, then
     let mut ecmascript_code = if direct {
         let ECMAScriptCodeEvaluationState {

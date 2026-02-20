@@ -134,7 +134,7 @@ fn for_in_of_body_evaluation<'s, 'gc>(
     // 4. Let destructuring be IsDestructuring of lhs.
     let destructuring = if let ast::ForStatementLeft::VariableDeclaration(lhs) = lhs {
         assert_eq!(lhs.declarations.len(), 1);
-        lhs.declarations[0].id.kind.is_destructuring_pattern()
+        lhs.declarations[0].id.is_destructuring_pattern()
     } else {
         lhs.is_assignment_target_pattern()
     };
@@ -214,8 +214,8 @@ fn for_in_of_body_evaluation<'s, 'gc>(
                     ast::ForStatementLeft::VariableDeclaration(decl) => {
                         assert_eq!(decl.declarations.len(), 1);
                         let declaration = decl.declarations.first().unwrap();
-                        let ast::BindingPatternKind::BindingIdentifier(binding_identifier) =
-                            &declaration.id.kind
+                        let ast::BindingPattern::BindingIdentifier(binding_identifier) =
+                            &declaration.id
                         else {
                             unreachable!()
                         };

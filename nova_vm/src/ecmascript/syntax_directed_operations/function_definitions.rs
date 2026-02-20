@@ -26,13 +26,39 @@ pub(crate) trait ContainsExpression {
     fn contains_expression(&self) -> bool;
 }
 
+impl ContainsExpression for ast::FormalParameters<'_> {
+    fn contains_expression(&self) -> bool {
+        self.items.iter().any(|p| p.contains_expression())
+            || self
+                .rest
+                .as_ref()
+                .is_some_and(|rest| rest.contains_expression())
+    }
+}
+
+impl ContainsExpression for ast::FormalParameter<'_> {
+    fn contains_expression(&self) -> bool {
+        //  SingleNameBinding : BindingIdentifier Initializer
+        // 1. Return true.
+        self.initializer.is_some() ||
+        // Patterns
+        self.pattern.contains_expression()
+    }
+}
+
+impl ContainsExpression for ast::FormalParameterRest<'_> {
+    fn contains_expression(&self) -> bool {
+        self.rest.argument.contains_expression()
+    }
+}
+
 impl ContainsExpression for ast::BindingPattern<'_> {
     fn contains_expression(&self) -> bool {
-        match &self.kind {
-            ast::BindingPatternKind::BindingIdentifier(_) => false,
-            ast::BindingPatternKind::ObjectPattern(pattern) => pattern.contains_expression(),
-            ast::BindingPatternKind::ArrayPattern(pattern) => pattern.contains_expression(),
-            ast::BindingPatternKind::AssignmentPattern(_) => true,
+        match &self {
+            ast::BindingPattern::BindingIdentifier(_) => false,
+            ast::BindingPattern::ObjectPattern(pattern) => pattern.contains_expression(),
+            ast::BindingPattern::ArrayPattern(pattern) => pattern.contains_expression(),
+            ast::BindingPattern::AssignmentPattern(_) => true,
         }
     }
 }
