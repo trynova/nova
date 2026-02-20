@@ -8,4 +8,4 @@ mod await_reaction;
 
 pub(crate) use async_function_constructor::*;
 pub(crate) use async_function_prototype::*;
-pub use await_reaction::*;
+pub(crate) use await_reaction::*;

@@ -15,7 +15,7 @@ mod source_code;
 
 pub use module::*;
 pub use script::*;
-pub use source_code::*;
+pub(crate) use source_code::*;
 
 #[derive(Clone, Copy)]
 pub(crate) enum ScriptOrModule<'a> {

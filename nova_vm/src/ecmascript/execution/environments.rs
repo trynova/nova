@@ -46,8 +46,7 @@ use crate::{
         String, TryError, TryHasResult, TryResult, Value, js_result_into_try,
     },
     engine::{
-        Bindable, GcScope, HeapRootData, HeapRootDataInner, NoGcScope, Scopable,
-        bindable_handle,
+        Bindable, GcScope, HeapRootData, HeapRootDataInner, NoGcScope, Scopable, bindable_handle,
     },
     heap::{CompactionLists, HeapIndexHandle, HeapMarkAndSweep, WorkQueues},
 };
@@ -78,7 +77,7 @@ macro_rules! create_environment_index {
         /// [`NonZeroU32`]: core::num::NonZeroU32
         #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
         #[repr(transparent)]
-        pub struct $index<'a>(crate::heap::BaseIndex<'a, $record>);
+        pub(crate) struct $index<'a>(crate::heap::BaseIndex<'a, $record>);
         crate::heap::index_handle!($index);
 
         impl core::fmt::Debug for $index<'_> {

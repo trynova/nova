@@ -27,7 +27,7 @@ use crate::{
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct SourceCode<'a>(BaseIndex<'a, SourceCodeHeapData<'static>>);
+pub(crate) struct SourceCode<'a>(BaseIndex<'a, SourceCodeHeapData<'static>>);
 index_handle!(SourceCode);
 arena_vec_access!(SourceCode, 'a, SourceCodeHeapData, source_codes);
 

@@ -133,7 +133,7 @@ bindable_handle!(PromiseReactionRecord);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct PromiseReaction<'a>(BaseIndex<'a, PromiseReactionRecord<'static>>);
+pub(crate) struct PromiseReaction<'a>(BaseIndex<'a, PromiseReactionRecord<'static>>);
 index_handle!(PromiseReaction);
 arena_vec_access!(PromiseReaction, 'a, PromiseReactionRecord, promise_reaction_records);
 

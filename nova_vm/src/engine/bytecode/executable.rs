@@ -97,7 +97,7 @@ pub(crate) struct ArrowFunctionExpression {
 /// Reference to a heap-allocated executable VM bytecode.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Executable<'a>(BaseIndex<'a, ExecutableHeapData<'static>>);
+pub(crate) struct Executable<'a>(BaseIndex<'a, ExecutableHeapData<'static>>);
 index_handle!(Executable);
 arena_vec_access!(Executable, 'a, ExecutableHeapData, executables);
 
