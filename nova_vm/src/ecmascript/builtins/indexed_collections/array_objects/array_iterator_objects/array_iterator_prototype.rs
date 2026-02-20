@@ -33,10 +33,10 @@ impl ArrayIteratorPrototype {
     fn next<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _arguments: ArgumentsList,
+        _arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let this_value = this_value.bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let this_value = this_value, gc);
         // 27.5.3.2 GeneratorValidate ( generator, generatorBrand )
         // 3. If generator.[[GeneratorBrand]] is not generatorBrand, throw a TypeError exception.
         let Value::ArrayIterator(iterator) = this_value else {
@@ -46,15 +46,15 @@ impl ArrayIteratorPrototype {
                 gc.into_nogc(),
             ));
         };
-        let mut iterator = iterator.bind(gc.nogc());
+        crate::engine::bind!(let mut iterator = iterator, gc);
 
         // 23.1.5.1 CreateArrayIterator ( array, kind ), step 1. b
         // NOTE: We set `array` to None when the generator in the spec text has returned.
-        let Some(array) = iterator.get(agent).array else {
+        let Some(array) = iterator.get(agent).local().array else {
             return create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
                 .map(|o| o.into());
         };
-        let mut array = array.bind(gc.nogc());
+        crate::engine::bind!(let mut array = array, gc);
 
         let len: i64 = match array {
             // ii. Else,
@@ -80,38 +80,36 @@ impl ArrayIteratorPrototype {
                 } else {
                     let scoped_iterator = iterator.scope(agent, gc.nogc());
                     let scoped_array = array.scope(agent, gc.nogc());
-                    let res =
-                        length_of_array_like(agent, array.unbind(), gc.reborrow()).unbind()?;
-                    array = unsafe { scoped_array.take(agent) }.bind(gc.nogc());
-                    iterator = unsafe { scoped_iterator.take(agent) }.bind(gc.nogc());
+                    let res = length_of_array_like(agent, array, gc.reborrow())?;
+                    array = unsafe { scoped_array.take(agent).local() };
+                    iterator = unsafe { scoped_iterator.take(agent).local() };
                     res
                 }
                 #[cfg(not(feature = "array-buffer"))]
                 {
                     let scoped_iterator = iterator.scope(agent, gc.nogc());
                     let scoped_array = array.scope(agent, gc.nogc());
-                    let res =
-                        length_of_array_like(agent, array.unbind(), gc.reborrow()).unbind()?;
-                    array = unsafe { scoped_array.take(agent) }.bind(gc.nogc());
-                    iterator = unsafe { scoped_iterator.take(agent) }.bind(gc.nogc());
+                    let res = length_of_array_like(agent, array, gc.reborrow())?;
+                    array = unsafe { scoped_array.take(agent).local() };
+                    iterator = unsafe { scoped_iterator.take(agent).local() };
                     res
                 }
             }
         };
 
         // iii. If index ≥ len, return NormalCompletion(undefined).
-        if iterator.get(agent).next_index >= len {
+        if iterator.get(agent).local().next_index >= len {
             iterator.get_mut(agent).array = None;
             return create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
                 .map(|o| o.into());
         }
 
         // iv. Let indexNumber be 𝔽(index).
-        let index = iterator.get(agent).next_index;
+        let index = iterator.get(agent).local().next_index;
         // viii. Set index to index + 1.
         iterator.get_mut(agent).next_index += 1;
 
-        let result = match iterator.get(agent).kind {
+        let result = match iterator.get(agent).local().kind {
             // v. If kind is key, then
             CollectionIteratorKind::Key => {
                 // 1. Let result be indexNumber.
@@ -132,14 +130,7 @@ impl ArrayIteratorPrototype {
                 };
                 match fast_path_result {
                     Some(result) => result,
-                    None => get(
-                        agent,
-                        array.unbind(),
-                        index.try_into().unwrap(),
-                        gc.reborrow(),
-                    )
-                    .unbind()?
-                    .bind(gc.nogc()),
+                    None => get(agent, array, index.try_into().unwrap(), gc.reborrow())?,
                 }
             }
             // 4. Else,
@@ -156,28 +147,16 @@ impl ArrayIteratorPrototype {
                 };
                 let value = match fast_path_result {
                     Some(result) => result,
-                    None => get(
-                        agent,
-                        array.unbind(),
-                        index.try_into().unwrap(),
-                        gc.reborrow(),
-                    )
-                    .unbind()?
-                    .bind(gc.nogc()),
+                    None => get(agent, array, index.try_into().unwrap(), gc.reborrow())?,
                 };
                 // a. Assert: kind is key+value.
                 // b. Let result be CreateArrayFromList(« indexNumber, elementValue »).
-                create_array_from_list(
-                    agent,
-                    &[index.try_into().unwrap(), value.unbind()],
-                    gc.nogc(),
-                )
-                .into()
+                create_array_from_list(agent, &[index.try_into().unwrap(), value], gc.nogc()).into()
             }
         };
 
         // vii. Perform ? GeneratorYield(CreateIteratorResultObject(result, false)).
-        create_iter_result_object(agent, result.unbind(), false, gc.into_nogc()).map(|o| o.into())
+        create_iter_result_object(agent, result, false, gc.into_nogc()).map(|o| o.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {

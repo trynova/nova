@@ -55,7 +55,7 @@ impl Function<'_> {
         this_argument: Value,
         args: &mut [Value],
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         self.internal_call(
             agent,
             this_argument,
@@ -80,12 +80,12 @@ impl Function<'_> {
     /// Returns the name of the function.
     pub fn name<'a>(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> String<'a> {
         match self {
-            Function::BoundFunction(f) => f.get_name(agent).bind(gc),
-            Function::BuiltinFunction(f) => f.get_name(agent).bind(gc),
-            Function::ECMAScriptFunction(f) => f.get_name(agent).bind(gc),
-            Function::BuiltinConstructorFunction(f) => f.get_name(agent).bind(gc),
-            Function::BuiltinPromiseResolvingFunction(f) => f.get_name(agent).bind(gc),
-            Function::BuiltinPromiseFinallyFunction(f) => f.get_name(agent).bind(gc),
+            Function::BoundFunction(f) => f.get_name(agent),
+            Function::BuiltinFunction(f) => f.get_name(agent),
+            Function::ECMAScriptFunction(f) => f.get_name(agent),
+            Function::BuiltinConstructorFunction(f) => f.get_name(agent),
+            Function::BuiltinPromiseResolvingFunction(f) => f.get_name(agent),
+            Function::BuiltinPromiseFinallyFunction(f) => f.get_name(agent),
             _ => todo!(),
         }
     }
@@ -360,7 +360,7 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         property_key: PropertyKey,
         receiver: Value,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         match self {
             Function::BoundFunction(x) => x.internal_get(agent, property_key, receiver, gc),
             Function::BuiltinFunction(x) => x.internal_get(agent, property_key, receiver, gc),
@@ -526,9 +526,9 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         self,
         agent: &mut Agent,
         this_argument: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         match self {
             Function::BoundFunction(x) => x.internal_call(agent, this_argument, arguments, gc),
             Function::BuiltinFunction(x) => x.internal_call(agent, this_argument, arguments, gc),
@@ -550,7 +550,7 @@ impl<'a> InternalMethods<'a> for Function<'a> {
     fn internal_construct<'gc>(
         self,
         agent: &mut Agent,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Function,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Object<'gc>> {
@@ -625,16 +625,14 @@ impl<'a> From<Function<'a>> for HeapRootData {
     #[inline(always)]
     fn from(value: Function<'a>) -> Self {
         match value {
-            Function::BoundFunction(d) => Self::BoundFunction(d.unbind()),
-            Function::BuiltinFunction(d) => Self::BuiltinFunction(d.unbind()),
-            Function::ECMAScriptFunction(d) => Self::ECMAScriptFunction(d.unbind()),
-            Function::BuiltinConstructorFunction(d) => Self::BuiltinConstructorFunction(d.unbind()),
+            Function::BoundFunction(d) => Self::BoundFunction(d),
+            Function::BuiltinFunction(d) => Self::BuiltinFunction(d),
+            Function::ECMAScriptFunction(d) => Self::ECMAScriptFunction(d),
+            Function::BuiltinConstructorFunction(d) => Self::BuiltinConstructorFunction(d),
             Function::BuiltinPromiseResolvingFunction(d) => {
-                Self::BuiltinPromiseResolvingFunction(d.unbind())
+                Self::BuiltinPromiseResolvingFunction(d)
             }
-            Function::BuiltinPromiseFinallyFunction(d) => {
-                Self::BuiltinPromiseFinallyFunction(d.unbind())
-            }
+            Function::BuiltinPromiseFinallyFunction(d) => Self::BuiltinPromiseFinallyFunction(d),
             Function::BuiltinPromiseCollectorFunction => Self::BuiltinPromiseCollectorFunction,
             Function::BuiltinProxyRevokerFunction => Self::BuiltinProxyRevokerFunction,
         }

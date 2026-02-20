@@ -45,11 +45,11 @@ impl BigIntConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let value = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let value = arguments.get(0), gc);
 
         // 1. If NewTarget is not undefined,
         if new_target.is_some() {
@@ -61,14 +61,7 @@ impl BigIntConstructor {
             ));
         }
         // 2. Let prim be ? ToPrimitive(value, number).
-        let prim = to_primitive(
-            agent,
-            value.unbind(),
-            Some(PreferredType::Number),
-            gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        let prim = to_primitive(agent, value, Some(PreferredType::Number), gc.reborrow())?;
         // 3. If prim is a Number,
         if let Ok(prim) = Number::try_from(prim) {
             // return ? NumberToBigInt(prim).
@@ -83,7 +76,7 @@ impl BigIntConstructor {
             Ok(BigInt::from_i64(agent, prim.into_i64_(agent)).into())
         } else {
             // 4. Otherwise, return ? ToBigInt(prim).
-            to_big_int_primitive(agent, prim.unbind(), gc.into_nogc()).map(|result| result.into())
+            to_big_int_primitive(agent, prim, gc.into_nogc()).map(|result| result.into())
         }
     }
 
@@ -91,14 +84,12 @@ impl BigIntConstructor {
     fn as_int_n<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let bits = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let bits = arguments.get(0), gc);
         let bigint = arguments.get(1).scope(agent, gc.nogc());
-        let bits = to_index(agent, bits.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let bits = to_index(agent, bits, gc.reborrow())?;
         let Ok(bits) = u32::try_from(bits) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::RangeError,
@@ -106,9 +97,7 @@ impl BigIntConstructor {
                 gc.into_nogc(),
             ));
         };
-        let bigint = to_big_int(agent, bigint.get(agent), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let bigint = to_big_int(agent, bigint.get(agent).local(), gc.reborrow())?;
         if bits == 0 {
             return Ok(BigInt::zero().into());
         }
@@ -117,7 +106,7 @@ impl BigIntConstructor {
             Some(divisor) => {
                 match bigint {
                     BigInt::BigInt(bigint) => {
-                        let modulo = &bigint.get(agent).data % divisor;
+                        let modulo = &bigint.get(agent).local().data % divisor;
                         // SAFETY: This cannot overflow since 2^bits didn't.
                         let divisor_half = divisor >> 1;
                         if let Ok(modulo) = i64::try_from(&modulo) {
@@ -148,7 +137,7 @@ impl BigIntConstructor {
                     num_bigint::BigInt::from_bytes_le(num_bigint::Sign::Plus, &[2]).pow(bits);
                 match bigint {
                     BigInt::BigInt(bigint) => {
-                        let modulo = &bigint.get(agent).data % &divisor;
+                        let modulo = &bigint.get(agent).local().data % &divisor;
                         let divisor_half = &divisor >> 1;
                         if let Ok(modulo) = i64::try_from(&modulo) {
                             // Maybe safe? Maybe not.
@@ -165,7 +154,7 @@ impl BigIntConstructor {
                     BigInt::SmallBigInt(_) => {
                         // Probably safe: The divisor is bigger than i64 but
                         // value is i54.
-                        Ok(bigint.unbind().into())
+                        Ok(bigint.into())
                     }
                 }
             }
@@ -176,14 +165,12 @@ impl BigIntConstructor {
     fn as_uint_n<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let bits = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let bits = arguments.get(0), gc);
         let bigint = arguments.get(1).scope(agent, gc.nogc());
-        let bits = to_index(agent, bits.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let bits = to_index(agent, bits, gc.reborrow())?;
         let Ok(bits) = u32::try_from(bits) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::RangeError,
@@ -191,14 +178,12 @@ impl BigIntConstructor {
                 gc.into_nogc(),
             ));
         };
-        let bigint = to_big_int(agent, bigint.get(agent), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let bigint = to_big_int(agent, bigint.get(agent).local(), gc.reborrow())?;
 
         match 2i64.checked_pow(bits) {
             Some(modulus) => match bigint {
                 BigInt::BigInt(int) => {
-                    let int = &int.get(agent).data;
+                    let int = &int.get(agent).local().data;
                     Ok(
                         BigInt::from_num_bigint(agent, ((int % modulus) + modulus) % modulus)
                             .into(),
@@ -215,7 +200,7 @@ impl BigIntConstructor {
                     num_bigint::BigInt::from_bytes_le(num_bigint::Sign::Plus, &[2]).pow(bits);
                 match bigint {
                     BigInt::BigInt(int) => {
-                        let int = &int.get(agent).data;
+                        let int = &int.get(agent).local().data;
                         let result = ((int % &modulus) + &modulus) % &modulus;
                         Ok(BigInt::from_num_bigint(agent, result).into())
                     }

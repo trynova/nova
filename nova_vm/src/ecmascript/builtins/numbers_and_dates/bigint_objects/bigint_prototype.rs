@@ -46,9 +46,9 @@ impl BigIntPrototype {
     fn to_locale_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         Self::to_string(agent, this_value, arguments, gc)
     }
 
@@ -60,24 +60,20 @@ impl BigIntPrototype {
     fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let x = this_big_int_value(agent, this_value, gc.nogc())
-            .unbind()?
-            .scope(agent, gc.nogc());
-        let radix = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        let x = this_big_int_value(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
+        crate::engine::bind!(let radix = arguments.get(0), gc);
         // 2. If radix is undefined, let radixMV be 10.
         if radix.is_undefined() || radix == Value::from(10u8) {
             // 5. Return BigInt::toString(x, 10).
-            Ok(BigInt::to_string_radix_10(agent, x.get(agent), gc.nogc())
-                .unbind()
-                .into())
+            Ok(BigInt::to_string_radix_10(agent, x.get(agent).local(), gc.nogc()).into())
         } else {
             // 3. Else, let radixMV be ? ToIntegerOrInfinity(radix).
-            let radix = to_integer_or_infinity(agent, radix.unbind(), gc.reborrow()).unbind()?;
+            let radix = to_integer_or_infinity(agent, radix, gc.reborrow())?;
             let gc = gc.into_nogc();
-            let radix = radix.bind(gc);
+            crate::engine::bind!(let radix = radix, gc);
             // 4. If radixMV is not in the inclusive interval from 2 to 36, throw a RangeError exception.
             if !(2..=36).contains(&radix) {
                 return Err(agent.throw_exception_with_static_message(
@@ -88,7 +84,7 @@ impl BigIntPrototype {
             }
             let radix = radix.into_i64() as u32;
             // 5. Return BigInt::toString(x, radixMV).
-            Ok(BigInt::to_string_radix_n(agent, x.get(agent), radix, gc).into())
+            Ok(BigInt::to_string_radix_n(agent, x.get(agent).local(), radix, gc).into())
         }
     }
 
@@ -96,9 +92,9 @@ impl BigIntPrototype {
     fn value_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Return ? ThisBigIntValue(this value).
         this_big_int_value(agent, this_value, gc.into_nogc()).map(|result| result.into())
     }
@@ -140,11 +136,11 @@ fn this_big_int_value<'a>(
 ) -> JsResult<'a, BigInt<'a>> {
     match value {
         // 1. If value is a BigInt, return value.
-        Value::BigInt(value) => Ok(value.unbind().into()),
+        Value::BigInt(value) => Ok(value.into()),
         Value::SmallBigInt(value) => Ok(value.into()),
         // 2. If value is an Object and value has a [[BigIntData]] internal slot, then
         Value::PrimitiveObject(value) if value.is_bigint_object(agent) => {
-            match value.get(agent).data.bind(gc) {
+            match value.get(agent).local().data {
                 // b. Return value.[[BigIntData]].
                 PrimitiveObjectData::BigInt(value) => Ok(value.into()),
                 PrimitiveObjectData::SmallBigInt(value) => Ok(value.into()),

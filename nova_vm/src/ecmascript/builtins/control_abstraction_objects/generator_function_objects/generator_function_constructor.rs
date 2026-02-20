@@ -30,40 +30,35 @@ impl GeneratorFunctionConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let new_target = new_target.bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let new_target = new_target, gc);
         // 2. If bodyArg is not present, set bodyArg to the empty String.
         let (parameter_args, body_arg) = if arguments.is_empty() {
             (&[] as &[Value], String::EMPTY_STRING.into())
         } else {
             let (last, others) = arguments.split_last().unwrap();
-            (others, last.bind(gc.nogc()))
+            (others, last)
         };
         let constructor = if let Some(new_target) = new_target {
             Function::try_from(new_target).unwrap()
         } else {
-            agent
-                .running_execution_context()
-                .function
-                .unwrap()
-                .bind(gc.nogc())
+            agent.running_execution_context().function.unwrap()
         };
 
         // 3. Return ? CreateDynamicFunction(C, NewTarget, generator, parameterArgs, bodyArg).
         let f = create_dynamic_function(
             agent,
-            constructor.unbind(),
+            constructor,
             DynamicFunctionKind::Generator,
             parameter_args,
-            body_arg.unbind(),
+            body_arg,
             gc.reborrow(),
-        )
-        .unbind()?;
+        )?;
         let gc = gc.into_nogc();
-        let f = f.bind(gc);
+        crate::engine::bind!(let f = f, gc);
         // 20.2.1.1.1 CreateDynamicFunction ( constructor, newTarget, kind, parameterArgs, bodyArg )
         // 30. If kind is generator, then
         //   a. Let prototype be OrdinaryObjectCreate(%GeneratorFunction.prototype.prototype%).
@@ -89,7 +84,7 @@ impl GeneratorFunctionConstructor {
             // PropertyDescriptor {
             PropertyDescriptor {
                 // [[Value]]: prototype,
-                value: Some(prototype.unbind().into()),
+                value: Some(prototype.into()),
                 // [[Writable]]: true,
                 writable: Some(true),
                 // [[Enumerable]]: false,

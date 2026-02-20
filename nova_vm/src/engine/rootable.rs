@@ -300,7 +300,7 @@ pub(crate) mod private {
     }
     impl RootableCollectionSealed for Vec<Value<'static>> {
         fn to_heap_data(self) -> HeapRootCollectionData {
-            HeapRootCollectionData::ValueVec(self.unbind())
+            HeapRootCollectionData::ValueVec(self)
         }
 
         fn from_heap_data(value: HeapRootCollectionData) -> Self {
@@ -312,7 +312,7 @@ pub(crate) mod private {
     }
     impl RootableCollectionSealed for Vec<PropertyKey<'static>> {
         fn to_heap_data(self) -> HeapRootCollectionData {
-            HeapRootCollectionData::PropertyKeyVec(self.unbind())
+            HeapRootCollectionData::PropertyKeyVec(self)
         }
 
         fn from_heap_data(value: HeapRootCollectionData) -> Self {
@@ -324,7 +324,7 @@ pub(crate) mod private {
     }
     impl RootableCollectionSealed for PropertyKeySet<'static> {
         fn to_heap_data(self) -> HeapRootCollectionData {
-            HeapRootCollectionData::PropertyKeySet(self.unbind())
+            HeapRootCollectionData::PropertyKeySet(self)
         }
 
         fn from_heap_data(value: HeapRootCollectionData) -> Self {
@@ -336,7 +336,7 @@ pub(crate) mod private {
     }
     impl RootableCollectionSealed for Box<KeyedGroup<'static>> {
         fn to_heap_data(self) -> HeapRootCollectionData {
-            HeapRootCollectionData::KeyedGroup(self.unbind())
+            HeapRootCollectionData::KeyedGroup(self)
         }
 
         fn from_heap_data(value: HeapRootCollectionData) -> Self {

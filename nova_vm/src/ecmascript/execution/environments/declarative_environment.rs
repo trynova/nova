@@ -50,7 +50,7 @@ impl DeclarativeEnvironmentRecord {
         // 2. Set env.[[OuterEnv]] to E.
         // 3. Return env.
         DeclarativeEnvironmentRecord {
-            outer_env: outer_env.unbind(),
+            outer_env: outer_env,
             bindings: AHashMap::default(),
         }
     }
@@ -70,7 +70,7 @@ impl DeclarativeEnvironmentRecord {
         // uninitialized. If D is true, record that the newly created binding
         // may be deleted by a subsequent DeleteBinding call.
         self.bindings.insert(
-            name.unbind(),
+            name,
             Binding {
                 value: None,
                 // Strictness only seems to matter for immutable bindings.
@@ -91,7 +91,7 @@ impl DeclarativeEnvironmentRecord {
         // uninitialized. If S is true, record that the newly created binding is
         // a strict binding.
         self.bindings.insert(
-            name.unbind(),
+            name,
             Binding {
                 value: None,
                 strict: is_strict,
@@ -105,13 +105,13 @@ impl DeclarativeEnvironmentRecord {
     /// ### [9.1.1.1.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-declarative-environment-records-initializebinding-n-v)
     pub(super) fn initialize_binding(&mut self, name: String, value: Value) {
         // 1. Assert: envRec must have an uninitialized binding for N.
-        let binding = self.bindings.get_mut(&name.unbind()).unwrap();
+        let binding = self.bindings.get_mut(&name).unwrap();
         debug_assert!(binding.value.is_none());
 
         // 2. Set the bound value for N in envRec to V.
         // 3. Record that the binding for N in envRec has been initialized.
         // Note: Initialization status of N is determined by the Some/None.
-        binding.value = Some(value.unbind());
+        binding.value = Some(value);
 
         // 4. Return UNUSED.
     }
@@ -138,11 +138,11 @@ impl DeclarativeEnvironmentRecord {
     }
 
     pub(crate) fn get_binding(&self, name: String) -> Option<&Binding> {
-        self.bindings.get(&name.unbind())
+        self.bindings.get(&name)
     }
 
     fn get_binding_mut(&mut self, name: String) -> Option<&mut Binding> {
-        self.bindings.get_mut(&name.unbind())
+        self.bindings.get_mut(&name)
     }
 
     /// ### [9.1.1.1.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-deletebinding-n)
@@ -156,7 +156,7 @@ impl DeclarativeEnvironmentRecord {
         }
 
         // 3. Remove the binding for N from envRec.
-        self.bindings.remove(&name.unbind());
+        self.bindings.remove(&name);
 
         // 4. Return true.
         true
@@ -289,7 +289,7 @@ impl<'e> DeclarativeEnvironment<'e> {
     ) -> JsResult<'a, ()> {
         let env_rec = self.get_mut(agent);
         // 1. If envRec does not have a binding for N, then
-        let Some(binding) = env_rec.bindings.get_mut(&name.unbind()) else {
+        let Some(binding) = env_rec.bindings.get_mut(&name) else {
             // a. If S is true, throw a ReferenceError exception.
             if is_strict {
                 let error_message = format!(
@@ -331,7 +331,7 @@ impl<'e> DeclarativeEnvironment<'e> {
         // 4. Else if the binding for N in envRec is a mutable binding, then
         if binding.mutable {
             // a. Change its bound value to V.
-            binding.value = Some(value.unbind());
+            binding.value = Some(value);
         }
         // 5. Else,
         else {
@@ -370,7 +370,7 @@ impl<'e> DeclarativeEnvironment<'e> {
         let env_rec = &self.get(agent);
         // Delegate to heap data record method.
         match env_rec.get_binding_value(name, is_strict) {
-            Some(res) => Ok(res.bind(gc)),
+            Some(res) => Ok(res),
             None => {
                 // 2. If the binding for N in envRec is an uninitialized binding, throw
                 // a ReferenceError exception.

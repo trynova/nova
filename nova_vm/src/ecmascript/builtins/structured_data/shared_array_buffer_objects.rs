@@ -31,9 +31,9 @@ fn allocate_shared_array_buffer<'a>(
     constructor: Object,
     byte_length: u64,
     max_byte_length: Option<u64>,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> JsResult<'a, SharedArrayBuffer<'a>> {
-    let constructor = constructor.bind(gc.nogc());
+    crate::engine::bind!(let constructor = constructor, gc);
     // 1. Let slots be « [[ArrayBufferData]] ».
     // 2. If maxByteLength is present and maxByteLength is not empty, let
     //    allocatingGrowableBuffer be true; otherwise let allocatingGrowableBuffer
@@ -58,16 +58,15 @@ fn allocate_shared_array_buffer<'a>(
     //    "%SharedArrayBuffer.prototype%", slots).
     let Object::SharedArrayBuffer(obj) = ordinary_create_from_constructor(
         agent,
-        Function::try_from(constructor).unwrap().unbind(),
+        Function::try_from(constructor).unwrap(),
         ProtoIntrinsics::SharedArrayBuffer,
         gc.reborrow(),
-    )
-    .unbind()?
+    )?
     else {
         unreachable!()
     };
     let gc = gc.into_nogc();
-    let obj = obj.bind(gc);
+    crate::engine::bind!(let obj = obj, gc);
     // 6. If allocatingGrowableBuffer is true, let allocLength be
     //    maxByteLength; otherwise let allocLength be byteLength.
     // 7. Let block be ? CreateSharedByteDataBlock(allocLength).

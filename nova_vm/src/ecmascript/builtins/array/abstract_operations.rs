@@ -49,8 +49,7 @@ pub(crate) fn array_create<'a>(
         } else {
             Some(
                 OrdinaryObject::create_object(agent, Some(proto), &[])
-                    .expect("Should perform GC here")
-                    .bind(gc),
+                    .expect("Should perform GC here"),
             )
         }
     } else {
@@ -68,7 +67,7 @@ pub(crate) fn array_create<'a>(
     let data = ArrayHeapData {
         // 4. Set A.[[Prototype]] to proto.
         object_index,
-        elements: elements.bind(gc),
+        elements: elements,
     };
 
     // 7. Return A.
@@ -94,12 +93,12 @@ pub(crate) fn array_species_create<'a>(
     agent: &mut Agent,
     original_array: Object,
     length: usize,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, Object<'a>> {
+    mut gc: GcScope,
+) -> JsResult<'static, Object<'static>> {
     let nogc = gc.nogc();
-    let original_array = original_array.bind(nogc);
+    crate::engine::bind!(let original_array = original_array, gc);
     // 1. Let isArray be ? IsArray(originalArray).
-    let original_is_array = is_array(agent, original_array, nogc).unbind()?;
+    let original_is_array = is_array(agent, original_array, nogc)?;
     // 2. If isArray is false, return ? ArrayCreate(length).
     if !original_is_array {
         let new_array = array_create(agent, length, length, None, gc.into_nogc())?;
@@ -108,20 +107,16 @@ pub(crate) fn array_species_create<'a>(
     // 3. Let C be ? Get(originalArray, "constructor").
     let mut c = get(
         agent,
-        original_array.unbind(),
+        original_array,
         BUILTIN_STRING_MEMORY.constructor.into(),
         gc.reborrow(),
-    )
-    .unbind()?
-    .bind(gc.nogc());
+    )?;
     // 4. If IsConstructor(C) is true, then
     if let Some(c_func) = is_constructor(agent, c) {
         // a. Let thisRealm be the current Realm Record.
         let this_realm = agent.current_realm(gc.nogc());
         // b. Let realmC be ? GetFunctionRealm(C).
-        let realm_c = get_function_realm(agent, c_func, gc.nogc())
-            .unbind()?
-            .bind(gc.nogc());
+        let realm_c = get_function_realm(agent, c_func, gc.nogc())?;
         // c. If thisRealm and realmC are not the same Realm Record, then
         if this_realm != realm_c {
             // i. If SameValue(C, realmC.[[Intrinsics]].[[%Array%]]) is true, set C to undefined.
@@ -139,12 +134,10 @@ pub(crate) fn array_species_create<'a>(
         // a. Set C to ? Get(C, @@species).
         c = get(
             agent,
-            c_obj.unbind(),
+            c_obj,
             WellKnownSymbolIndexes::Species.into(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         // b. If C is null, set C to undefined.
         if c.is_null() {
             c = Value::Undefined;
@@ -167,8 +160,8 @@ pub(crate) fn array_species_create<'a>(
     let length = Value::from_f64(agent, length as f64, gc.nogc());
     construct(
         agent,
-        c.unbind(),
-        Some(ArgumentsList::from_mut_value(&mut length.unbind())),
+        c,
+        Some(ArgumentsList::from_mut_value(&mut length)),
         None,
         gc,
     )
@@ -181,10 +174,10 @@ pub(crate) fn array_set_length<'a>(
     agent: &mut Agent,
     a: Array,
     desc: PropertyDescriptor,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, bool> {
-    let a = a.bind(gc.nogc());
-    let desc = desc.bind(gc.nogc());
+    mut gc: GcScope,
+) -> JsResult<'static, bool> {
+    crate::engine::bind!(let a = a, gc);
+    crate::engine::bind!(let desc = desc, gc);
     // 1. If Desc does not have a [[Value]] field, then
     let Some(desc_value) = desc.value else {
         // a. Return ! OrdinaryDefineOwnProperty(A, "length", Desc).
@@ -201,16 +194,14 @@ pub(crate) fn array_set_length<'a>(
     // 3. Let newLen be ? ToUint32(Desc.[[Value]]).
     let a = a.scope(agent, gc.nogc());
     let scoped_desc_value = desc_value.scope(agent, gc.nogc());
-    let new_len = to_uint32(agent, desc_value.unbind(), gc.reborrow()).unbind()?;
+    let new_len = to_uint32(agent, desc_value, gc.reborrow())?;
     // 4. Let numberLen be ? ToNumber(Desc.[[Value]]).
     let number_len = to_number(
         agent,
         // SAFETY: scoped_desc_value is not shared.
-        unsafe { scoped_desc_value.take(agent) },
+        unsafe { scoped_desc_value.take(agent).local() },
         gc.reborrow(),
-    )
-    .unbind()?
-    .bind(gc.nogc());
+    )?;
     // 5. If SameValueZero(newLen, numberLen) is false, throw a RangeError exception.
     if !Number::same_value_zero_(agent, number_len, new_len.into()) {
         return Err(agent.throw_exception_with_static_message(
@@ -220,7 +211,7 @@ pub(crate) fn array_set_length<'a>(
         ));
     }
     let gc = gc.into_nogc();
-    let a = a.get(agent).bind(gc);
+    crate::engine::bind!(let a = a.get(agent).local(), gc);
     // 6. Set newLenDesc.[[Value]] to newLen.
     // 7. Let oldLenDesc be OrdinaryGetOwnProperty(A, "length").
     array_set_length_handling(

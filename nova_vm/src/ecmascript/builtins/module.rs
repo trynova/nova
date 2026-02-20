@@ -177,7 +177,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         property_key: PropertyKey,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Option<PropertyDescriptor<'gc>>> {
-        let property_key = property_key.bind(gc.nogc());
+        crate::engine::bind!(let property_key = property_key, gc);
         match property_key {
             PropertyKey::Symbol(symbol) => {
                 // 1. If P is a Symbol, return OrdinaryGetOwnProperty(O, P).
@@ -212,10 +212,10 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     Ok(None)
                 } else {
                     // 4. Let value be ? O.[[Get]](P, O).
-                    let value = self.internal_get(agent, property_key.unbind(), self.into(), gc)?;
+                    let value = self.internal_get(agent, property_key, self.into(), gc)?;
                     // 5. Return PropertyDescriptor { [[Value]]: value, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: false }.
                     Ok(Some(PropertyDescriptor {
-                        value: Some(value.unbind()),
+                        value: Some(value),
                         writable: Some(true),
                         get: None,
                         set: None,
@@ -300,9 +300,9 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         property_descriptor: PropertyDescriptor,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
-        let o = self.bind(gc.nogc());
-        let property_key = property_key.bind(gc.nogc());
-        let property_descriptor = property_descriptor.bind(gc.nogc());
+        crate::engine::bind!(let o = self, gc);
+        crate::engine::bind!(let property_key = property_key, gc);
+        crate::engine::bind!(let property_descriptor = property_descriptor, gc);
         match property_key {
             PropertyKey::Symbol(symbol) => {
                 // 1. If P is a Symbol, return ! OrdinaryDefineOwnProperty(O, P, Desc).
@@ -335,9 +335,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     ..
                 } = property_descriptor;
                 let value = value.map(|v| v.scope(agent, gc.nogc()));
-                let current =
-                    o.unbind()
-                        .internal_get_own_property(agent, property_key.unbind(), gc)?;
+                let current = o.internal_get_own_property(agent, property_key, gc)?;
                 // 3. If current is undefined, return false.
                 let Some(current) = current else {
                     return Ok(false);
@@ -362,7 +360,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                 if let Some(value) = value {
                     Ok(same_value(
                         agent,
-                        value.get(agent),
+                        value.get(agent).local(),
                         current.value.unwrap_or(Value::Undefined),
                     ))
                 } else {
@@ -393,7 +391,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                 let exports: &[String] = &self.get(agent).exports;
                 // 3. If exports contains P, return true.
                 if exports.contains(&p) {
-                    TryHasResult::Custom(1, self.bind(gc).into()).into()
+                    TryHasResult::Custom(1, self.into()).into()
                 } else {
                     // 4. Return false.
                     TryHasResult::Unset.into()
@@ -402,7 +400,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
             PropertyKey::Symbol(symbol) => {
                 // 1. If P is a Symbol, return ! OrdinaryHasProperty(O, P).
                 if symbol == WellKnownSymbolIndexes::ToStringTag.into() {
-                    TryHasResult::Custom(0, self.bind(gc).into()).into()
+                    TryHasResult::Custom(0, self.into()).into()
                 } else {
                     TryHasResult::Unset.into()
                 }
@@ -481,7 +479,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     let Some(binding_name) = binding_name else {
                         // a. Return GetModuleNamespace(targetModule).
                         return TryGetResult::Value(
-                            get_module_namespace(agent, target_module.unbind(), gc).into(),
+                            get_module_namespace(agent, target_module, gc).into(),
                         )
                         .into();
                     };
@@ -516,9 +514,9 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         property_key: PropertyKey,
         _receiver: Value,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let property_key = property_key.bind(gc);
+        crate::engine::bind!(let property_key = property_key, gc);
 
         // NOTE: ResolveExport is side-effect free. Each time this operation
         // is called with a specific exportName, resolveSet pair as arguments
@@ -569,7 +567,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     // 9. If binding.[[BindingName]] is NAMESPACE, then
                     let Some(binding_name) = binding_name else {
                         // a. Return GetModuleNamespace(targetModule).
-                        return Ok(get_module_namespace(agent, target_module.unbind(), gc).into());
+                        return Ok(get_module_namespace(agent, target_module, gc).into());
                     };
                     // 10. Let targetEnv be targetModule.[[Environment]].
                     let target_env = target_module.environment(agent, gc);
@@ -601,8 +599,8 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         self,
         _: &mut Agent,
         _: PropertyKey,
-        _: Value,
-        _: Value,
+        _: Value<'static>,
+        _: Value<'static>,
         _: Option<PropertyLookupCache>,
         _: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, SetResult<'gc>> {
@@ -613,8 +611,8 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         self,
         _: &mut Agent,
         _: PropertyKey,
-        _: Value,
-        _: Value,
+        _: Value<'static>,
+        _: Value<'static>,
         _: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
         Ok(false)
@@ -665,8 +663,8 @@ impl<'a> InternalMethods<'a> for Module<'a> {
     ) -> TryResult<'gc, Vec<PropertyKey<'gc>>> {
         // 1. Let exports be O.[[Exports]].
         let exports = self
-            .bind(gc)
             .get(agent)
+            .local()
             .exports
             .iter()
             .map(|string| PropertyKey::from(*string));

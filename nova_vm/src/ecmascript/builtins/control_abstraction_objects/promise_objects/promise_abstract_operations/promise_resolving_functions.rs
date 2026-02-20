@@ -54,7 +54,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseResolvingFunction<'a> 
 
     #[inline(always)]
     fn get_function_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index.unbind()
+        self.get(agent).object_index
     }
 
     fn set_function_backing_object(
@@ -74,15 +74,15 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseResolvingFunction<'a> 
         self,
         agent: &mut Agent,
         _this_value: Value,
-        arguments_list: ArgumentsList,
+        arguments_list: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        agent.check_call_depth(gc.nogc()).unbind()?;
-        let arguments_list = arguments_list.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        agent.check_call_depth(gc.nogc())?;
+        crate::engine::bind!(let arguments_list = arguments_list.get(0), gc);
         let promise_capability = self.get(agent).promise_capability.clone();
         match self.get(agent).resolve_type {
             PromiseResolvingFunctionType::Resolve => {
-                promise_capability.resolve(agent, arguments_list.unbind(), gc)
+                promise_capability.resolve(agent, arguments_list, gc)
             }
             PromiseResolvingFunctionType::Reject => {
                 promise_capability.reject(agent, arguments_list, gc.nogc())
@@ -99,7 +99,7 @@ impl<'a> CreateHeapData<PromiseResolvingFunctionHeapData<'a>, BuiltinPromiseReso
         &mut self,
         data: PromiseResolvingFunctionHeapData<'a>,
     ) -> BuiltinPromiseResolvingFunction<'a> {
-        self.promise_resolving_functions.push(data.unbind());
+        self.promise_resolving_functions.push(data);
         self.alloc_counter +=
             core::mem::size_of::<Option<PromiseResolvingFunctionHeapData<'static>>>();
 

@@ -356,18 +356,16 @@ impl<'a> Reference<'a> {
     pub(crate) fn set_referenced_name_to_property_key(&mut self, referenced_name: PropertyKey) {
         match self {
             Reference::PropertyExpression(v) => {
-                *self = Self::new_property_reference(v.base, referenced_name.unbind(), false)
+                *self = Self::new_property_reference(v.base, referenced_name, false)
             }
             Reference::PropertyExpressionStrict(v) => {
-                *self = Self::new_property_reference(v.base, referenced_name.unbind(), true)
+                *self = Self::new_property_reference(v.base, referenced_name, true)
             }
             Reference::SuperExpression(v) => {
-                *self =
-                    Self::new_super_reference(v.base, referenced_name.unbind(), v.this_value, false)
+                *self = Self::new_super_reference(v.base, referenced_name, v.this_value, false)
             }
             Reference::SuperExpressionStrict(v) => {
-                *self =
-                    Self::new_super_reference(v.base, referenced_name.unbind(), v.this_value, true)
+                *self = Self::new_super_reference(v.base, referenced_name, v.this_value, true)
             }
             _ => unreachable!(),
         }
@@ -466,7 +464,7 @@ pub(crate) fn get_value<'gc>(
     agent: &mut Agent,
     reference: &Reference,
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, Value<'gc>> {
+) -> JsResult<'static, Value<'static>> {
     // 1. If V is not a Reference Record, return V.
     // Note: we never perform GetValue on Reference Records, as we know
     // statically if it's needed or not.
@@ -487,13 +485,13 @@ pub(crate) fn get_value<'gc>(
         | Reference::SuperExpression(_)
         | Reference::SuperExpressionStrict(_) => {
             // a. Let baseObj be ? ToObject(V.[[Base]]).
-            let base = reference.base_value().bind(gc.nogc());
-            let referenced_name = reference.referenced_name_value().bind(gc.nogc());
+            crate::engine::bind!(let base = reference.base_value(), gc);
+            crate::engine::bind!(let referenced_name = reference.referenced_name_value(), gc);
             if base.is_undefined() || base.is_null() {
                 return Err(throw_read_undefined_or_null_error(
                     agent,
-                    referenced_name.unbind(),
-                    base.unbind(),
+                    referenced_name,
+                    base,
                     gc.into_nogc(),
                 ));
             }
@@ -501,23 +499,16 @@ pub(crate) fn get_value<'gc>(
             let base = base.scope(agent, gc.nogc());
             // c. If V.[[ReferencedName]] is not a property key, then
             // i. Set V.[[ReferencedName]] to ? ToPropertyKey(V.[[ReferencedName]]).
-            let referenced_name = to_property_key(agent, referenced_name.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let referenced_name = to_property_key(agent, referenced_name, gc.reborrow())?;
             // SAFETY: not shared.
-            let base = unsafe { base.take(agent) }.bind(gc.nogc());
-            let this_value = this_value.map_or(base, |v| unsafe { v.take(agent) }.bind(gc.nogc()));
+            crate::engine::bind!(let base = unsafe { base.take(agent).local() }, gc);
+            crate::engine::bind!(let this_value = this_value.map_or(base, |v| unsafe { v.take(agent).local() }), gc);
             if let Ok(base_obj) = Object::try_from(base) {
                 // d. Return ? baseObj.[[Get]](V.[[ReferencedName]], GetThisValue(V)).
-                base_obj.unbind().internal_get(
-                    agent,
-                    referenced_name.unbind(),
-                    this_value.unbind(),
-                    gc,
-                )
+                base_obj.internal_get(agent, referenced_name, this_value, gc)
             } else {
                 // base is not an object; we handle primitives separately.
-                handle_primitive_get_value(agent, referenced_name.unbind(), base.unbind(), gc)
+                handle_primitive_get_value(agent, referenced_name, base, gc)
             }
         }
         Reference::Property(_)
@@ -525,28 +516,23 @@ pub(crate) fn get_value<'gc>(
         | Reference::Super(_)
         | Reference::SuperStrict(_) => {
             // a. Let baseObj be ? ToObject(V.[[Base]]).
-            let base = reference.base_value().bind(gc.nogc());
+            crate::engine::bind!(let base = reference.base_value(), gc);
             let base_obj = Object::try_from(base);
-            let referenced_name = reference.referenced_name_property_key().bind(gc.nogc());
+            crate::engine::bind!(let referenced_name = reference.referenced_name_property_key(), gc);
             // b. If IsPrivateReference(V) is true, then
             if let PropertyKey::PrivateName(referenced_name) = referenced_name {
                 // i. Return ? PrivateGet(baseObj, V.[[ReferencedName]]).
                 if let Ok(base_obj) = base_obj {
-                    private_get(agent, base_obj.unbind(), referenced_name.unbind(), gc)
+                    private_get(agent, base_obj, referenced_name, gc)
                 } else {
                     Err(throw_no_private_name_error(agent, gc.into_nogc()))
                 }
             } else if let Ok(base_obj) = base_obj {
                 // d. Return ? baseObj.[[Get]](V.[[ReferencedName]], GetThisValue(V)).
-                base_obj.unbind().internal_get(
-                    agent,
-                    referenced_name.unbind(),
-                    get_this_value(reference),
-                    gc,
-                )
+                base_obj.internal_get(agent, referenced_name, get_this_value(reference), gc)
             } else {
                 // base is not an object; we handle primitives separately.
-                handle_primitive_get_value(agent, referenced_name.unbind(), base.unbind(), gc)
+                handle_primitive_get_value(agent, referenced_name, base, gc)
             }
         }
         Reference::Variable(v) | Reference::VariableStrict(v) => {
@@ -564,8 +550,8 @@ fn handle_primitive_get_value<'a>(
     agent: &mut Agent,
     referenced_name: PropertyKey,
     value: Value,
-    gc: GcScope<'a, '_>,
-) -> JsResult<'a, Value<'a>> {
+    gc: GcScope,
+) -> JsResult<'static, Value<'static>> {
     // Primitive value. annoying stuff.
     if referenced_name.is_private_name() {
         // i. Return ? PrivateGet(baseObj, V.[[ReferencedName]]).
@@ -586,7 +572,7 @@ fn handle_primitive_get_value<'a>(
             .current_realm_record()
             .intrinsics()
             .boolean_prototype()
-            .internal_get(agent, referenced_name.unbind(), value, gc),
+            .internal_get(agent, referenced_name, value, gc),
         Value::String(_) | Value::SmallString(_) => {
             let string = String::try_from(value).unwrap();
             if let Some(prop_desc) = string.get_property_descriptor(agent, referenced_name) {
@@ -596,24 +582,24 @@ fn handle_primitive_get_value<'a>(
                     .current_realm_record()
                     .intrinsics()
                     .string_prototype()
-                    .internal_get(agent, referenced_name.unbind(), value, gc)
+                    .internal_get(agent, referenced_name, value, gc)
             }
         }
         Value::Symbol(_) => agent
             .current_realm_record()
             .intrinsics()
             .symbol_prototype()
-            .internal_get(agent, referenced_name.unbind(), value, gc),
+            .internal_get(agent, referenced_name, value, gc),
         Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => agent
             .current_realm_record()
             .intrinsics()
             .number_prototype()
-            .internal_get(agent, referenced_name.unbind(), value, gc),
+            .internal_get(agent, referenced_name, value, gc),
         Value::BigInt(_) | Value::SmallBigInt(_) => agent
             .current_realm_record()
             .intrinsics()
             .big_int_prototype()
-            .internal_get(agent, referenced_name.unbind(), value, gc),
+            .internal_get(agent, referenced_name, value, gc),
         _ => unreachable!(),
     }
 }
@@ -761,7 +747,7 @@ pub(crate) fn try_get_value<'gc>(
     cache: Option<PropertyLookupCache>,
     gc: NoGcScope<'gc, '_>,
 ) -> ControlFlow<TryError<'gc>, TryGetValueContinue<'gc>> {
-    let cache = cache.bind(gc);
+    crate::engine::bind!(let cache = cache, gc);
     // 1. If V is not a Reference Record, return V.
     // Note: we never perform GetValue on Reference Records, as we know
     // statically if it's needed or not.
@@ -783,9 +769,9 @@ pub(crate) fn try_get_value<'gc>(
         | Reference::SuperExpression(_)
         | Reference::SuperExpressionStrict(_) => {
             // a. Let baseObj be ? ToObject(V.[[Base]]).
-            let this_value = get_this_value(reference).bind(gc);
-            let referenced_name = reference.referenced_name_value().bind(gc);
-            let base = reference.base_value().bind(gc);
+            crate::engine::bind!(let this_value = get_this_value(reference), gc);
+            crate::engine::bind!(let referenced_name = reference.referenced_name_value(), gc);
+            crate::engine::bind!(let base = reference.base_value(), gc);
             if base.is_undefined() || base.is_null() {
                 return throw_read_undefined_or_null_error(agent, referenced_name, base, gc).into();
             }
@@ -812,9 +798,9 @@ pub(crate) fn try_get_value<'gc>(
         | Reference::Super(_)
         | Reference::SuperStrict(_) => {
             // a. Let baseObj be ? ToObject(V.[[Base]]).
-            let base = reference.base_value().bind(gc);
-            let base_obj = Object::try_from(base).bind(gc);
-            let referenced_name = reference.referenced_name_property_key().bind(gc);
+            crate::engine::bind!(let base = reference.base_value(), gc);
+            crate::engine::bind!(let base_obj = Object::try_from(base), gc);
+            crate::engine::bind!(let referenced_name = reference.referenced_name_property_key(), gc);
             // b. If IsPrivateReference(V) is true, then
             if let PropertyKey::PrivateName(referenced_name) = referenced_name {
                 // i. Return ? PrivateGet(baseObj, V.[[ReferencedName]]).
@@ -831,7 +817,7 @@ pub(crate) fn try_get_value<'gc>(
                 }
             } else if let Ok(base_obj) = base_obj {
                 // d. Return ? baseObj.[[Get]](V.[[ReferencedName]], GetThisValue(V)).
-                let this_value = reference.this_value(agent).bind(gc);
+                crate::engine::bind!(let this_value = reference.this_value(agent), gc);
                 base_obj
                     .try_get(agent, referenced_name, this_value, cache, gc)
                     .map_continue(|c| {
@@ -845,13 +831,13 @@ pub(crate) fn try_get_value<'gc>(
         Reference::Variable(v) | Reference::VariableStrict(v) => {
             // 4. Else,
             // a. Let base be V.[[Base]].
-            let base = v.base.bind(gc);
+            crate::engine::bind!(let base = v.base, gc);
             // b. Assert: base is an Environment Record.
             // c. Return ? base.GetBindingValue(V.[[ReferencedName]], V.[[Strict]]) (see 9.1).
             TryGetValueContinue::Value(base.try_get_binding_value(
                 agent,
-                v.referenced_name.bind(gc),
-                v.cache.bind(gc),
+                v.referenced_name,
+                v.cache,
                 reference.strict(),
                 gc,
             )?)
@@ -869,9 +855,9 @@ pub(crate) fn put_value<'a>(
     agent: &mut Agent,
     reference: &Reference,
     w: Value,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> JsResult<'a, ()> {
-    let w = w.bind(gc.nogc());
+    crate::engine::bind!(let w = w, gc);
     // 1. If V is not a Reference Record, throw a ReferenceError exception.
     match reference {
         // 2. If IsUnresolvableReference(V) is true, then
@@ -881,10 +867,10 @@ pub(crate) fn put_value<'a>(
             // c. Perform ? Set(globalObj, V.[[ReferencedName]], W, false).
             set(
                 agent,
-                global_obj.unbind(),
+                global_obj,
                 // Note: variable names cannot be numeric.
                 referenced_name.to_property_key(),
-                w.unbind(),
+                w,
                 false,
                 gc,
             )?;
@@ -905,57 +891,48 @@ pub(crate) fn put_value<'a>(
         | Reference::SuperExpression(_)
         | Reference::SuperExpressionStrict(_) => {
             // a. Let baseObj be ? ToObject(V.[[Base]]).
-            let base_obj = to_object(agent, reference.base_value(), gc.nogc())
-                .unbind()?
-                .scope(agent, gc.nogc());
+            let base_obj =
+                to_object(agent, reference.base_value(), gc.nogc())?.scope(agent, gc.nogc());
             let this_value = get_this_value(reference).scope(agent, gc.nogc());
             let w = w.scope(agent, gc.nogc());
-            let referenced_name = reference.referenced_name_value().bind(gc.nogc());
+            crate::engine::bind!(let referenced_name = reference.referenced_name_value(), gc);
             // c. If V.[[ReferencedName]] is not a property key, then
             // i. Set V.[[ReferencedName]] to ? ToPropertyKey(V.[[ReferencedName]]).
-            let referenced_name = to_property_key(agent, referenced_name.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let referenced_name = to_property_key(agent, referenced_name, gc.reborrow())?;
             let scoped_referenced_name = if reference.strict() {
                 Some(referenced_name.scope(agent, gc.nogc()))
             } else {
                 None
             };
             // c. Let succeeded be ? baseObj.[[Set]](V.[[ReferencedName]], W, GetThisValue(V)).
-            let succeeded = base_obj
-                .get(agent)
-                .internal_set(
-                    agent,
-                    referenced_name.unbind(),
-                    // SAFETY: not shared.
-                    unsafe { w.take(agent) },
-                    // SAFETY: not shared.
-                    unsafe { this_value.take(agent) },
-                    gc.reborrow(),
-                )
-                .unbind()?;
+            let succeeded = base_obj.get(agent).local().internal_set(
+                agent,
+                referenced_name,
+                // SAFETY: not shared.
+                unsafe { w.take(agent).local() },
+                // SAFETY: not shared.
+                unsafe { this_value.take(agent).local() },
+                gc.reborrow(),
+            )?;
             // d. If succeeded is false and V.[[Strict]] is true,
             if !succeeded && let Some(scoped_referenced_name) = scoped_referenced_name {
                 // throw a TypeError exception.
                 // SAFETY: not shared.
                 let base_obj_repr = unsafe {
-                    Value::from(base_obj.take(agent))
-                        .string_repr(agent, gc.reborrow())
-                        .unbind()
-                        .bind(gc.nogc())
+                    Value::from(base_obj.take(agent).local()).string_repr(agent, gc.reborrow())?
                 };
                 // SAFETY: not shared.
-                let referenced_name = unsafe { scoped_referenced_name.take(agent) }.bind(gc.nogc());
+                crate::engine::bind!(let referenced_name = unsafe { scoped_referenced_name.take(agent).local() }, gc);
                 return Err(throw_cannot_set_property(
                     agent,
-                    base_obj_repr.unbind().into(),
-                    referenced_name.unbind(),
+                    base_obj_repr.into(),
+                    referenced_name,
                     gc.into_nogc(),
                 ));
             }
             if let Some(scoped_referenced_name) = scoped_referenced_name {
                 // SAFETY: not shared.
-                let _ = unsafe { scoped_referenced_name.take(agent) }.bind(gc.nogc());
+                unsafe { scoped_referenced_name.take(agent).local() };
             };
             // e. Return UNUSED.
             Ok(())
@@ -965,21 +942,13 @@ pub(crate) fn put_value<'a>(
         | Reference::Super(_)
         | Reference::SuperStrict(_) => {
             // a. Let baseObj be ? ToObject(V.[[Base]]).
-            let base_obj = to_object(agent, reference.base_value(), gc.nogc())
-                .unbind()?
-                .bind(gc.nogc());
-            let referenced_name = reference.referenced_name_property_key().bind(gc.nogc());
-            let this_value = get_this_value(reference).bind(gc.nogc());
+            let base_obj = to_object(agent, reference.base_value(), gc.nogc())?;
+            crate::engine::bind!(let referenced_name = reference.referenced_name_property_key(), gc);
+            crate::engine::bind!(let this_value = get_this_value(reference), gc);
             // b. If IsPrivateReference(V) is true, then
             if let PropertyKey::PrivateName(referenced_name) = referenced_name {
                 // i. Return ? PrivateSet(baseObj, V.[[ReferencedName]], W).
-                return private_set(
-                    agent,
-                    base_obj.unbind(),
-                    referenced_name.unbind(),
-                    w.unbind(),
-                    gc,
-                );
+                return private_set(agent, base_obj, referenced_name, w, gc);
             }
             let scoped_strict_error_data = if reference.strict() {
                 Some((
@@ -990,41 +959,31 @@ pub(crate) fn put_value<'a>(
                 None
             };
             // c. Let succeeded be ? baseObj.[[Set]](V.[[ReferencedName]], W, GetThisValue(V)).
-            let succeeded = base_obj
-                .unbind()
-                .internal_set(
-                    agent,
-                    referenced_name.unbind(),
-                    w.unbind(),
-                    this_value.unbind(),
-                    gc.reborrow(),
-                )
-                .unbind()?;
+            let succeeded =
+                base_obj.internal_set(agent, referenced_name, w, this_value, gc.reborrow())?;
             if !succeeded
                 && let Some((scoped_referenced_name, scoped_base_obj)) = scoped_strict_error_data
             {
                 // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
                 // SAFETY: not shared.
                 let base_obj_repr = unsafe {
-                    Value::from(scoped_base_obj.take(agent))
-                        .string_repr(agent, gc.reborrow())
-                        .unbind()
-                        .bind(gc.nogc())
+                    Value::from(scoped_base_obj.take(agent).local())
+                        .string_repr(agent, gc.reborrow())?
                 };
                 // SAFETY: not shared.
-                let referenced_name = unsafe { scoped_referenced_name.take(agent) }.bind(gc.nogc());
+                crate::engine::bind!(let referenced_name = unsafe { scoped_referenced_name.take(agent).local() }, gc);
                 return Err(throw_cannot_set_property(
                     agent,
-                    base_obj_repr.unbind().into(),
-                    referenced_name.unbind(),
+                    base_obj_repr.into(),
+                    referenced_name,
                     gc.into_nogc(),
                 ));
             }
             if let Some((scoped_referenced_name, scoped_base_obj)) = scoped_strict_error_data {
                 // SAFETY: not shared.
-                let _ = unsafe { scoped_base_obj.take(agent) }.bind(gc.nogc());
+                unsafe { scoped_base_obj.take(agent).local() };
                 // SAFETY: not shared.
-                let _ = unsafe { scoped_referenced_name.take(agent) }.bind(gc.nogc());
+                unsafe { scoped_referenced_name.take(agent).local() };
             };
             // e. Return UNUSED.
             Ok(())
@@ -1035,14 +994,7 @@ pub(crate) fn put_value<'a>(
             let base = v.base;
             // b. Assert: base is an Environment Record.
             // c. Return ? base.SetMutableBinding(V.[[ReferencedName]], W, V.[[Strict]]) (see 9.1).
-            base.set_mutable_binding(
-                agent,
-                v.referenced_name,
-                v.cache,
-                w.unbind(),
-                reference.strict(),
-                gc,
-            )
+            base.set_mutable_binding(agent, v.referenced_name, v.cache, w, reference.strict(), gc)
         }
     }
     // NOTE
@@ -1073,10 +1025,10 @@ pub(crate) fn try_put_value<'gc>(
             // c. Perform ? Set(globalObj, V.[[ReferencedName]], W, false).
             try_set(
                 agent,
-                global_obj.unbind(),
+                global_obj,
                 // Note: variable names cannot be numeric.
                 referenced_name.to_property_key(),
-                w.unbind(),
+                w,
                 false,
                 cache,
                 gc,
@@ -1218,7 +1170,7 @@ pub(crate) fn initialize_referenced_binding<'a>(
     agent: &mut Agent,
     v: Reference,
     w: Value,
-    gc: GcScope<'a, '_>,
+    gc: GcScope,
 ) -> JsResult<'a, ()> {
     // 1. Assert: IsUnresolvableReference(V) is false.
     // 2. Let base be V.[[Base]].

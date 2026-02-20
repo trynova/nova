@@ -58,17 +58,17 @@ struct IndirectBinding<'a> {
 impl ModuleEnvironmentRecord {
     fn new(dcl_env: DeclarativeEnvironment) -> Self {
         Self {
-            declarative_environment: dcl_env.unbind(),
+            declarative_environment: dcl_env,
             indirect_bindings: Default::default(),
         }
     }
 
     fn has_indirect_binding(&self, name: String) -> bool {
-        self.indirect_bindings.contains_key(&name.unbind())
+        self.indirect_bindings.contains_key(&name)
     }
 
     fn get_indirect_binding(&self, name: String) -> Option<&IndirectBinding<'static>> {
-        self.indirect_bindings.get(&name.unbind())
+        self.indirect_bindings.get(&name)
     }
 }
 
@@ -273,7 +273,7 @@ impl<'e> ModuleEnvironment<'e> {
         //    a ReferenceError exception.
         let value = binding.value?;
         // 5. Return the value currently bound to N in envRec.
-        Some(value.bind(gc))
+        Some(value)
     }
 }
 
@@ -341,10 +341,10 @@ pub(crate) fn create_import_binding(
             .get_module_environment_mut(env_rec)
             .indirect_bindings
             .insert(
-                n.unbind(),
+                n,
                 IndirectBinding {
-                    m: m.unbind(),
-                    n2: n2.unbind(),
+                    m: m,
+                    n2: n2,
                 },
             )
             .is_none();
@@ -376,10 +376,10 @@ pub(crate) fn create_indirect_import_binding(
         .get_module_environment_mut(env_rec)
         .indirect_bindings
         .insert(
-            n.unbind(),
+            n,
             IndirectBinding {
-                m: m.unbind(),
-                n2: n2.unbind(),
+                m: m,
+                n2: n2,
             },
         )
         .is_none();

@@ -32,11 +32,11 @@ impl FinalizationRegistryConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let cleanup_callback = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let cleanup_callback = arguments.get(0), gc);
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
@@ -73,25 +73,24 @@ impl FinalizationRegistryConstructor {
             new_target,
             ProtoIntrinsics::FinalizationRegistry,
             gc.reborrow(),
-        )
-        .unbind()?
+        )?
         else {
             // SAFETY: ProtoIntrinsics guarded.
             unsafe { unreachable_unchecked() }
         };
         let gc = gc.into_nogc();
-        let finalization_registry = finalization_registry.bind(gc);
+        crate::engine::bind!(let finalization_registry = finalization_registry, gc);
         // SAFETY: not shared.
-        let cleanup_callback = unsafe { cleanup_callback.take(agent) }.bind(gc);
+        crate::engine::bind!(let cleanup_callback = unsafe { cleanup_callback.take(agent).local() }, gc);
         // 4. Let fn be the active function object.
         // 5. Set finalizationRegistry.[[Realm]] to fn.[[Realm]].
         let realm = match agent.active_function_object(gc) {
             Function::BoundFunction(_) => {
                 unreachable!("bound function constructing FinalizationRegistry")
             }
-            Function::BuiltinFunction(f) => f.get(agent).realm.bind(gc),
-            Function::ECMAScriptFunction(f) => f.get(agent).ecmascript_function.realm.bind(gc),
-            Function::BuiltinConstructorFunction(f) => f.get(agent).realm.bind(gc),
+            Function::BuiltinFunction(f) => f.get(agent).local().realm,
+            Function::ECMAScriptFunction(f) => f.get(agent).local().ecmascript_function.realm,
+            Function::BuiltinConstructorFunction(f) => f.get(agent).local().realm,
             Function::BuiltinPromiseResolvingFunction(_) => {
                 unreachable!("builtin promise resolving function constructing FinalizationRegistry")
             }

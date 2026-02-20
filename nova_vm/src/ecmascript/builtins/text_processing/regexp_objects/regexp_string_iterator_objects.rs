@@ -40,9 +40,9 @@ pub(crate) fn create_reg_exp_string_iterator<'gc>(
     agent.heap.create(RegExpStringIteratorRecord {
         backing_object: None,
         // 2. Set iterator.[[IteratingRegExp]] to R.
-        iterating_regexp: r.bind(gc),
+        iterating_regexp: r,
         // 3. Set iterator.[[IteratedString]] to S.
-        iterated_string: s.bind(gc),
+        iterated_string: s,
         // 4. Set iterator.[[Global]] to global.
         global,
         // 5. Set iterator.[[Unicode]] to fullUnicode.
@@ -117,7 +117,7 @@ impl<'a> InternalSlots<'a> for RegExpStringIterator<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::RegExpStringIterator;
 
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).backing_object.unbind()
+        self.get(agent).backing_object
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
@@ -163,7 +163,7 @@ bindable_handle!(RegExpStringIteratorRecord);
 
 impl<'a> CreateHeapData<RegExpStringIteratorRecord<'a>, RegExpStringIterator<'a>> for Heap {
     fn create(&mut self, data: RegExpStringIteratorRecord<'a>) -> RegExpStringIterator<'a> {
-        self.regexp_string_iterators.push(data.unbind());
+        self.regexp_string_iterators.push(data);
         self.alloc_counter += core::mem::size_of::<RegExpStringIteratorRecord<'static>>();
         RegExpStringIterator(BaseIndex::<RegExpStringIteratorRecord>::last(
             &self.regexp_string_iterators,

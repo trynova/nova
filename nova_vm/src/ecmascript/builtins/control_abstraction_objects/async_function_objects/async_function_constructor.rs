@@ -28,10 +28,10 @@ impl AsyncFunctionConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 2. If bodyArg is not present, set bodyArg to the empty String.
         let (parameter_args, body_arg) = if arguments.is_empty() {
             (&[] as &[Value], String::EMPTY_STRING.into())
@@ -50,7 +50,7 @@ impl AsyncFunctionConstructor {
             constructor,
             DynamicFunctionKind::Async,
             parameter_args,
-            body_arg.unbind(),
+            body_arg,
             gc,
         )?
         .into())

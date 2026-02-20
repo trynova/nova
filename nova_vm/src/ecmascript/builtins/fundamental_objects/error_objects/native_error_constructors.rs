@@ -95,14 +95,14 @@ impl NativeErrorConstructors {
     fn constructor<'gc>(
         agent: &mut Agent,
         error_kind: ExceptionType,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let nogc = gc.nogc();
         let scoped_message = arguments.get(0).scope(agent, nogc);
         let options = arguments.get(1).scope(agent, nogc);
-        let new_target = new_target.bind(nogc);
+        crate::engine::bind!(let new_target = new_target, gc);
 
         let intrinsic = match error_kind {
             ExceptionType::Error => ProtoIntrinsics::Error,
@@ -122,67 +122,64 @@ impl NativeErrorConstructors {
         // 2. Let O be ? OrdinaryCreateFromConstructor(newTarget, "%NativeError.prototype%", « [[ErrorData]] »).
         let o = ordinary_create_from_constructor(
             agent,
-            Function::try_from(new_target.unbind()).unwrap(),
+            Function::try_from(new_target).unwrap(),
             intrinsic,
             gc.reborrow(),
-        )
-        .unbind()?
+        )?
         .scope(agent, gc.nogc());
-        let message = scoped_message.get(agent).bind(gc.nogc());
+        crate::engine::bind!(let message = scoped_message.get(agent).local(), gc);
         // 3. If message is not undefined, then
         let msg = if !message.is_undefined() {
             // a. Let msg be ? ToString(message).
-            let msg = to_string(agent, message.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let msg = to_string(agent, message, gc.reborrow())?;
             // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
             // Safety: scoped_message is never shared.
-            Some(unsafe { scoped_message.replace_self(agent, msg.unbind()) })
+            Some(unsafe { scoped_message.replace_self(agent, msg) })
         } else {
             None
         };
         // 4. Perform ? InstallErrorCause(O, options).
         // 5. Return O.
-        let cause = get_error_cause(agent, options.get(agent), gc.reborrow()).unbind()?;
+        let cause = get_error_cause(agent, options.get(agent).local(), gc.reborrow())?;
         let gc = gc.into_nogc();
-        let cause = cause.bind(gc);
-        let o = Error::try_from(o.get(agent).bind(gc)).unwrap();
+        crate::engine::bind!(let cause = cause, gc);
+        crate::engine::bind!(let o = Error::try_from(o.get(agent).local()), gc);
         // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
-        let msg = msg.map(|msg| msg.get(agent).bind(gc));
+        crate::engine::bind!(let msg = msg.map(|msg| msg.get(agent).local()), gc);
         let heap_data = o.get_mut(agent);
         heap_data.kind = error_kind;
-        heap_data.message = msg.unbind();
-        heap_data.cause = cause.unbind();
+        heap_data.message = msg;
+        heap_data.cause = cause;
         Ok(o.into())
     }
 
     fn eval_error_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         Self::constructor(agent, ExceptionType::EvalError, arguments, new_target, gc)
     }
 
     fn range_error_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         Self::constructor(agent, ExceptionType::RangeError, arguments, new_target, gc)
     }
 
     fn reference_error_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         Self::constructor(
             agent,
             ExceptionType::ReferenceError,
@@ -195,30 +192,30 @@ impl NativeErrorConstructors {
     fn syntax_error_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         Self::constructor(agent, ExceptionType::SyntaxError, arguments, new_target, gc)
     }
 
     fn type_error_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         Self::constructor(agent, ExceptionType::TypeError, arguments, new_target, gc)
     }
 
     fn uri_error_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         Self::constructor(agent, ExceptionType::UriError, arguments, new_target, gc)
     }
 

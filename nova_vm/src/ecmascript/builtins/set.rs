@@ -30,14 +30,14 @@ impl<'a> InternalSlots<'a> for Set<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index.unbind()
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
             self.get_mut(agent)
                 .object_index
-                .replace(backing_object.unbind())
+                .replace(backing_object)
                 .is_none()
         );
     }
@@ -64,9 +64,7 @@ impl HeapSweepWeakReference for Set<'static> {
 impl<'a> CreateHeapData<SetHeapData<'a>, Set<'a>> for Heap {
     fn create(&mut self, data: SetHeapData<'a>) -> Set<'a> {
         let i = self.sets.len();
-        self.sets
-            .push(data.unbind())
-            .expect("Failed to allocate Set");
+        self.sets.push(data).expect("Failed to allocate Set");
         self.alloc_counter += core::mem::size_of::<SetHeapData<'static>>();
         Set(BaseIndex::from_index_u32(i))
     }

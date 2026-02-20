@@ -72,21 +72,19 @@ impl NumberPrototype {
     fn to_exponential<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let nogc = gc.nogc();
-        let fraction_digits = arguments.get(0).bind(nogc);
+        let fraction_digits = arguments.get(0);
         // Let x be ? ThisNumberValue(this value).
         let fraction_digits_is_undefined = fraction_digits.is_undefined();
-        let x = this_number_value(agent, this_value, nogc)
-            .unbind()?
-            .scope(agent, nogc);
+        let x = this_number_value(agent, this_value, nogc)?.scope(agent, nogc);
         // 2. Let f be ? ToIntegerOrInfinity(fractionDigits).
-        let f = to_integer_or_infinity(agent, fraction_digits.unbind(), gc.reborrow()).unbind()?;
+        let f = to_integer_or_infinity(agent, fraction_digits, gc.reborrow())?;
         // No GC can happen after this point.
         let gc = gc.into_nogc();
-        let x = x.get(agent).bind(gc);
+        crate::engine::bind!(let x = x.get(agent).local(), gc);
 
         // 3. Assert: If fractionDigits is undefined, then f is 0.
         debug_assert!(!fraction_digits_is_undefined || f.into_i64() == 0);
@@ -134,21 +132,19 @@ impl NumberPrototype {
     fn to_fixed<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let nogc = gc.nogc();
-        let fraction_digits = arguments.get(0).bind(nogc);
+        let fraction_digits = arguments.get(0);
         // Let x be ? ThisNumberValue(this value).
-        let x = this_number_value(agent, this_value, nogc)
-            .unbind()?
-            .scope(agent, nogc);
+        let x = this_number_value(agent, this_value, nogc)?.scope(agent, nogc);
         // 2. Let f be ? ToIntegerOrInfinity(fractionDigits).
         let fraction_digits_is_undefined = fraction_digits.is_undefined();
-        let f = to_integer_or_infinity(agent, fraction_digits.unbind(), gc.reborrow()).unbind()?;
+        let f = to_integer_or_infinity(agent, fraction_digits, gc.reborrow())?;
         // No GC is possible after this point.
         let gc = gc.into_nogc();
-        let x = x.get(agent).bind(gc);
+        crate::engine::bind!(let x = x.get(agent).local(), gc);
         // 3. Assert: If fractionDigits is undefined, then f is 0.
         debug_assert!(!fraction_digits_is_undefined || f.into_i64() == 0);
         // 4. If f is not finite, throw a RangeError exception.
@@ -183,9 +179,9 @@ impl NumberPrototype {
     fn to_locale_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         Self::to_string(agent, this_value, arguments, gc)
     }
 
@@ -197,33 +193,31 @@ impl NumberPrototype {
     fn to_precision<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let nogc = gc.nogc();
-        let precision = arguments.get(0).bind(nogc);
+        let precision = arguments.get(0);
 
         // 1. Let x be ? ThisNumberValue(this value).
-        let x = this_number_value(agent, this_value, nogc)
-            .unbind()?
-            .bind(nogc);
+        let x = this_number_value(agent, this_value, nogc)?;
 
         // 2. If precision is undefined, return ! ToString(x).
         if precision.is_undefined() {
             // Skip: We know ToString calls Number::toString(argument, 10).
             // Note: That is not `Number.prototype.toString`, but the abstract
             // operation Number::toString.
-            return Ok(Number::to_string_radix_10(agent, x.unbind(), gc.into_nogc()).into());
+            return Ok(Number::to_string_radix_10(agent, x, gc.into_nogc()).into());
         }
 
         let x = x.scope(agent, nogc);
 
         // 3. Let p be ? ToIntegerOrInfinity(precision).
-        let p = to_integer_or_infinity(agent, precision.unbind(), gc.reborrow()).unbind()?;
+        let p = to_integer_or_infinity(agent, precision, gc.reborrow())?;
         // No GC can occur after this point.
         let gc = gc.into_nogc();
 
-        let x = x.get(agent).bind(gc);
+        crate::engine::bind!(let x = x.get(agent).local(), gc);
 
         // 4. If x is not finite, return Number::toString(x, 10).
         if !x.is_finite_(agent) {
@@ -449,24 +443,20 @@ impl NumberPrototype {
     fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Let x be ? ThisNumberValue(this value).
-        let x = this_number_value(agent, this_value, gc.nogc())
-            .unbind()?
-            .bind(gc.nogc());
-        let radix = arguments.get(0).bind(gc.nogc());
+        let x = this_number_value(agent, this_value, gc.nogc())?;
+        crate::engine::bind!(let radix = arguments.get(0), gc);
         // 2. If radix is undefined, let radixMV be 10.
         if radix.is_undefined() || radix == Value::from(10u8) {
             // 5. Return Number::toString(x, 10).
-            Ok(Number::to_string_radix_10(agent, x.unbind(), gc.nogc())
-                .unbind()
-                .into())
+            Ok(Number::to_string_radix_10(agent, x, gc.nogc()).into())
         } else {
             let x = x.scope(agent, gc.nogc());
             // 3. Else, let radixMV be ? ToIntegerOrInfinity(radix).
-            let radix = to_integer_or_infinity(agent, radix.unbind(), gc.reborrow()).unbind()?;
+            let radix = to_integer_or_infinity(agent, radix, gc.reborrow())?;
             let gc = gc.into_nogc();
             // 4. If radixMV is not in the inclusive interval from 2 to 36, throw a RangeError exception.
             if !(2..=36).contains(&radix) {
@@ -478,7 +468,7 @@ impl NumberPrototype {
             }
             let radix = radix.into_i64() as u32;
             // 5. Return Number::toString(x, radixMV).
-            Ok(Number::to_string_radix_n(agent, x.get(agent), radix, gc).into())
+            Ok(Number::to_string_radix_n(agent, x.get(agent).local(), radix, gc).into())
         }
     }
 
@@ -486,9 +476,9 @@ impl NumberPrototype {
     fn value_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Return ? ThisNumberValue(this value).
         this_number_value(agent, this_value, gc.into_nogc()).map(|result| result.into())
     }
@@ -560,7 +550,7 @@ fn this_number_value<'gc>(
 ) -> JsResult<'gc, Number<'gc>> {
     // 1. If value is a Number, return value.
     if let Ok(value) = Number::try_from(value) {
-        return Ok(value.bind(gc));
+        return Ok(value);
     }
     // 2. If value is an Object and value has a [[NumberData]] internal slot, then
     if let Ok(value) = PrimitiveObject::try_from(value)
@@ -568,9 +558,9 @@ fn this_number_value<'gc>(
     {
         // a. Let n be value.[[NumberData]].
         // b. Assert: n is a Number.
-        let n: Number = value.get(agent).data.try_into().unwrap();
+        let n: Number = value.get(agent).local().data.try_into().unwrap();
         // c. Return n.
-        return Ok(n.bind(gc));
+        return Ok(n);
     }
     // 3. Throw a TypeError exception.
     Err(agent.throw_exception_with_static_message(ExceptionType::TypeError, "Not a Number", gc))

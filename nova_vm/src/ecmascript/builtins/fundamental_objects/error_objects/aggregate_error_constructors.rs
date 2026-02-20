@@ -33,10 +33,10 @@ impl AggregateErrorConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let errors = arguments.get(0).scope(agent, gc.nogc());
         let message = arguments.get(1).scope(agent, gc.nogc());
         let options = arguments.get(2);
@@ -48,46 +48,35 @@ impl AggregateErrorConstructor {
         // 2. Let O be ? OrdinaryCreateFromConstructor(newTarget, "%AggregateError.prototype%", « [[ErrorData]] »).
         let o = ordinary_create_from_constructor(
             agent,
-            new_target.unbind(),
+            new_target,
             ProtoIntrinsics::AggregateError,
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
-        let o = Error::try_from(o.unbind()).unwrap();
+        )?;
+        let o = Error::try_from(o).unwrap();
         // 3. If message is not undefined, then
-        let message = message.get(agent).bind(gc.nogc());
+        crate::engine::bind!(let message = message.get(agent).local(), gc);
         let message = if !message.is_undefined() {
             // a. Let msg be ? ToString(message).
-            Some(
-                to_string(agent, message.unbind(), gc.reborrow())
-                    .unbind()?
-                    .scope(agent, gc.nogc()),
-            )
+            Some(to_string(agent, message, gc.reborrow())?.scope(agent, gc.nogc()))
         } else {
             None
         };
         // 4. Perform ? InstallErrorCause(O, options).
-        let cause = get_error_cause(agent, options, gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let cause = get_error_cause(agent, options, gc.reborrow())?;
         // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
-        let message = message.map(|message| message.get(agent).bind(gc.nogc()));
+        crate::engine::bind!(let message = message.map(|message| message.get(agent).local()), gc);
         let heap_data = o.get_mut(agent);
         heap_data.kind = ExceptionType::AggregateError;
-        heap_data.message = message.unbind();
-        heap_data.cause = cause.unbind();
+        heap_data.message = message;
+        heap_data.cause = cause;
         // 5. Let errorsList be ? IteratorToList(? GetIterator(errors, sync)).
-        let Some(iterator_record) = get_iterator(agent, errors.get(agent), false, gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc())
-            .into_iterator_record()
+        let Some(iterator_record) =
+            get_iterator(agent, errors.get(agent).local(), false, gc.reborrow())?
+                .into_iterator_record()
         else {
             return Err(throw_not_callable(agent, gc.into_nogc()));
         };
-        let errors_list = iterator_to_list(agent, iterator_record.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let errors_list = iterator_to_list(agent, iterator_record, gc.reborrow())?;
         // 6. Perform ! DefinePropertyOrThrow(O, "errors", PropertyDescriptor {
         let property_descriptor = PropertyDescriptor {
             // [[Configurable]]: true,
@@ -97,21 +86,16 @@ impl AggregateErrorConstructor {
             // [[Writable]]: true,
             writable: Some(true),
             // [[Value]]: CreateArrayFromList(errorsList)
-            value: Some(
-                create_array_from_scoped_list(agent, errors_list, gc.nogc())
-                    .unbind()
-                    .into(),
-            ),
+            value: Some(create_array_from_scoped_list(agent, errors_list, gc.nogc()).into()),
             ..Default::default()
         };
         define_property_or_throw(
             agent,
-            o.unbind(),
+            o,
             PropertyKey::from(BUILTIN_STRING_MEMORY.errors),
             property_descriptor,
             gc.reborrow(),
-        )
-        .unbind()?;
+        )?;
         // }).
         // 7. Return O.
         Ok(o.into())

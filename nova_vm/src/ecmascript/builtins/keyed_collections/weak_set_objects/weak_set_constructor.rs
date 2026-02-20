@@ -32,12 +32,12 @@ impl WeakSetConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let scoped_iterable = arguments.get(0).scope(agent, gc.nogc());
-        let new_target = new_target.bind(gc.nogc());
+        crate::engine::bind!(let new_target = new_target, gc);
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
@@ -51,51 +51,43 @@ impl WeakSetConstructor {
         // 3. Set set.[[WeakSetData]] to a new empty List.
         let Object::WeakSet(set) = ordinary_create_from_constructor(
             agent,
-            new_target.unbind(),
+            new_target,
             ProtoIntrinsics::WeakSet,
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc()) else {
+        )?
+        else {
             unreachable!()
         };
-        let iterable = scoped_iterable.get(agent).bind(gc.nogc());
+        crate::engine::bind!(let iterable = scoped_iterable.get(agent).local(), gc);
         // 4. If iterable is either undefined or null, return set.
         if iterable.is_undefined() || iterable.is_null() {
-            return Ok(set.unbind().into());
+            return Ok(set.into());
         }
         let scoped_set = set.scope(agent, gc.nogc());
         // 5. Let adder be ? Get(set, "add").
-        let adder = get(
-            agent,
-            set.unbind(),
-            BUILTIN_STRING_MEMORY.add.into(),
-            gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        let adder = get(agent, set, BUILTIN_STRING_MEMORY.add.into(), gc.reborrow())?;
         // 6. If IsCallable(adder) is false, throw a TypeError exception.
         let Some(adder) = is_callable(adder, gc.nogc()) else {
             return Err(throw_not_callable(agent, gc.into_nogc()));
         };
-        let iterable = scoped_iterable.get(agent).bind(gc.nogc());
+        crate::engine::bind!(let iterable = scoped_iterable.get(agent).local(), gc);
         if WeakSet::is_weak_set_prototype_add(agent, adder) {
             // Adder function is the normal WeakSet.prototype.add; if the Array
             // is trivially iterable then we can skip all the complicated song
             // and dance.
             match iterable {
                 Value::Array(iterable) if iterable.is_trivially_iterable(agent, gc.nogc()) => {
-                    let iterable = iterable.unbind();
+                    let iterable = iterable;
                     let gc = gc.into_nogc();
-                    let set = scoped_set.get(agent).bind(gc);
-                    let iterable = iterable.bind(gc);
+                    crate::engine::bind!(let set = scoped_set.get(agent).local(), gc);
+                    crate::engine::bind!(let iterable = iterable, gc);
                     weak_set_add_trivially_iterable_array_elements(agent, set, iterable, gc)?;
                     return Ok(set.into());
                 }
                 _ => {}
             }
         }
-        weak_set_constructor_slow_path(agent, scoped_set, adder.unbind(), scoped_iterable, gc)
+        weak_set_constructor_slow_path(agent, scoped_set, adder, scoped_iterable, gc)
             .map(|set| set.into())
     }
 
@@ -119,7 +111,7 @@ fn weak_set_constructor_slow_path<'a>(
     scoped_set: Scoped<WeakSet>,
     adder: Function,
     scoped_iterable: Scoped<Value>,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> JsResult<'a, WeakSet<'a>> {
     let adder = adder.scope(agent, gc.nogc());
     // 7. Let iteratorRecord be ? GetIterator(iterable, sync).
@@ -127,10 +119,13 @@ fn weak_set_constructor_slow_path<'a>(
         iterator,
         next_method,
         ..
-    }) = get_iterator(agent, scoped_iterable.get(agent), false, gc.reborrow())
-        .unbind()?
-        .bind(gc.nogc())
-        .into_iterator_record()
+    }) = get_iterator(
+        agent,
+        scoped_iterable.get(agent).local(),
+        false,
+        gc.reborrow(),
+    )?
+    .into_iterator_record()
     else {
         return Err(throw_not_callable(agent, gc.into_nogc()));
     };
@@ -142,29 +137,27 @@ fn weak_set_constructor_slow_path<'a>(
         let next = iterator_step_value(
             agent,
             IteratorRecord {
-                iterator: iterator.get(agent),
-                next_method: next_method.get(agent),
+                iterator: iterator.get(agent).local(),
+                next_method: next_method.get(agent).local(),
             },
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         // b. If next is done, return set.
         let Some(next) = next else {
-            return Ok(scoped_set.get(agent));
+            return Ok(scoped_set.get(agent).local());
         };
-        let set = scoped_set.get(agent).bind(gc.nogc());
+        crate::engine::bind!(let set = scoped_set.get(agent).local(), gc);
         // c. Let status be Completion(Call(adder, set, « next »)).
         let status = call_function(
             agent,
-            adder.get(agent),
-            set.unbind().into(),
-            Some(ArgumentsList::from_mut_value(&mut next.unbind())),
+            adder.get(agent).local(),
+            set.into(),
+            Some(ArgumentsList::from_mut_value(&mut next)),
             gc.reborrow(),
         );
         let iterator_record = IteratorRecord {
-            iterator: iterator.get(agent),
-            next_method: next_method.get(agent),
+            iterator: iterator.get(agent).local(),
+            next_method: next_method.get(agent).local(),
         };
         // d. IfAbruptCloseIterator(status, iteratorRecord).
         if_abrupt_close_iterator!(agent, status, iterator_record, gc);

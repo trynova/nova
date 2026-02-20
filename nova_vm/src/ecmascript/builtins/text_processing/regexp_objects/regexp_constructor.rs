@@ -55,19 +55,17 @@ impl RegExpConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let pattern = arguments.get(0).bind(gc.nogc());
-        let flags = arguments.get(1).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let pattern = arguments.get(0), gc);
+        crate::engine::bind!(let flags = arguments.get(1), gc);
         let scoped_pattern = pattern.scope(agent, gc.nogc());
         let scoped_flags = flags.scope(agent, gc.nogc());
         let flags_is_undefined = flags.is_undefined();
         // 1. Let patternIsRegExp be ? IsRegExp(pattern).
-        let pattern_is_reg_exp = is_reg_exp(agent, pattern.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let pattern_is_reg_exp = is_reg_exp(agent, pattern, gc.reborrow())?;
         // 2. If NewTarget is undefined, then
         let new_target = if new_target.is_none() {
             // a. Let newTarget be the active function object.
@@ -78,17 +76,15 @@ impl RegExpConstructor {
                 // i. Let patternConstructor be ? Get(pattern, "constructor").
                 let pattern_constructor = get(
                     agent,
-                    Object::try_from(scoped_pattern.get(agent)).unwrap(),
+                    Object::try_from(scoped_pattern.get(agent).local()).unwrap(),
                     BUILTIN_STRING_MEMORY.constructor.into(),
                     gc.reborrow(),
-                )
-                .unbind()?
-                .bind(gc.nogc());
+                )?;
                 // SAFETY: not shared.
-                let new_target = unsafe { new_target.take(agent) }.bind(gc.nogc());
+                crate::engine::bind!(let new_target = unsafe { new_target.take(agent).local() }, gc);
                 // ii. If SameValue(newTarget, patternConstructor) is true, return pattern.
                 if Value::from(new_target) == pattern_constructor {
-                    return Ok(scoped_pattern.get(agent));
+                    return Ok(scoped_pattern.get(agent).local());
                 }
                 new_target.into()
             } else {
@@ -101,7 +97,7 @@ impl RegExpConstructor {
             unsafe { new_target.unwrap_unchecked() }
         };
         let new_target = new_target.scope(agent, gc.nogc());
-        let pattern = scoped_pattern.get(agent).bind(gc.nogc());
+        crate::engine::bind!(let pattern = scoped_pattern.get(agent).local(), gc);
         // 4. If pattern is an Object and pattern has a [[RegExpMatcher]] internal slot, then
         let (p, f) = if let Value::RegExp(pattern) = pattern {
             // a. Let P be pattern.[[OriginalSource]].
@@ -119,12 +115,10 @@ impl RegExpConstructor {
             // a. Let P be ? Get(pattern, "source").
             let mut p = get(
                 agent,
-                Object::try_from(pattern).unwrap().unbind(),
+                Object::try_from(pattern).unwrap(),
                 BUILTIN_STRING_MEMORY.source.into(),
                 gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc());
+            )?;
             // b. If flags is undefined, then
             let f = if flags_is_undefined {
                 let scoped_p = p.scope(agent, gc.nogc());
@@ -132,14 +126,12 @@ impl RegExpConstructor {
                 let f = get(
                     agent,
                     // SAFETY: not shared.
-                    Object::try_from(unsafe { scoped_pattern.take(agent) }).unwrap(),
+                    Object::try_from(unsafe { scoped_pattern.take(agent).local() }).unwrap(),
                     BUILTIN_STRING_MEMORY.flags.into(),
                     gc.reborrow(),
-                )
-                .unbind()?
-                .bind(gc.nogc());
+                )?;
                 // SAFETY: not shared
-                p = unsafe { scoped_p.take(agent) }.bind(gc.nogc());
+                p = unsafe { scoped_p.take(agent).local() };
                 f.scope(agent, gc.nogc())
             } else {
                 // c. Else,
@@ -160,14 +152,12 @@ impl RegExpConstructor {
         let o = reg_exp_alloc(
             agent,
             // SAFETY: not shared.
-            Function::try_from(unsafe { new_target.take(agent) })
+            Function::try_from(unsafe { new_target.take(agent).local() })
                 .expect("Proxy constructors not yet supported"),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         // 8. Return ? RegExpInitialize(O, P, F).
-        reg_exp_initialize(agent, o.unbind(), p, f, gc).map(|o| o.into())
+        reg_exp_initialize(agent, o, p, f, gc).map(|o| o.into())
     }
 
     /// ### [22.2.5.1 RegExp.escape ( S )](https://tc39.es/ecma262/#sec-regexp.escape)
@@ -182,12 +172,12 @@ impl RegExpConstructor {
     /// > string for representation inside a pattern.
     fn escape<'gc>(
         agent: &mut Agent,
-        _: Value,
-        args: ArgumentsList,
+        _: Value<'static>,
+        args: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let s = args.get(0).bind(gc);
+        crate::engine::bind!(let s = args.get(0), gc);
         // 1. If S is not a String, throw a TypeError exception.
         let Ok(s) = String::try_from(s) else {
             return Err(agent.throw_exception_with_static_message(
@@ -244,10 +234,10 @@ impl RegExpConstructor {
     fn get_species<'gc>(
         _: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        Ok(this_value.unbind())
+    ) -> JsResult<'static, Value<'static>> {
+        Ok(this_value)
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {

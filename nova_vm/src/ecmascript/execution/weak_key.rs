@@ -523,8 +523,8 @@ impl Rootable for WeakKey<'_> {
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match Object::try_from(value) {
-            Ok(object) => Err(object.unbind().into()),
-            Err(symbol) => Err(HeapRootData::Symbol(symbol.unbind())),
+            Ok(object) => Err(object.into()),
+            Err(symbol) => Err(HeapRootData::Symbol(symbol)),
         }
     }
 

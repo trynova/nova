@@ -34,7 +34,7 @@ impl PromiseResolveThenableJob {
         // a. Let resolvingFunctions be CreateResolvingFunctions(promiseToResolve).
         // Note: We do not take the Promise from the Global yet. It must be taken
         // out later, lest we start leaking memory here.
-        let promise = promise_to_resolve.get(agent, gc.nogc()).bind(gc.nogc());
+        crate::engine::bind!(let promise = promise_to_resolve.get(agent, gc.nogc()), gc);
         let promise_capability = PromiseCapability::from_promise(promise, false);
         let resolve_function = agent.heap.create(PromiseResolvingFunctionHeapData {
             object_index: None,
@@ -51,23 +51,21 @@ impl PromiseResolveThenableJob {
         // TODO: Add the HostCallJobCallback host hook. For now we're using its default
         // implementation, which is calling the thenable, since only browsers should use a different
         // implementation.
-        let then = then.take(agent).bind(gc.nogc());
-        let thenable = thenable.take(agent).bind(gc.nogc());
+        crate::engine::bind!(let then = then.take(agent).local(), gc);
+        crate::engine::bind!(let thenable = thenable.take(agent).local(), gc);
         let then_call_result = call_function(
             agent,
-            then.unbind(),
-            thenable.unbind().into(),
+            then,
+            thenable.into(),
             Some(ArgumentsList::from_mut_slice(&mut [
-                resolve_function.unbind().into(),
-                reject_function.unbind().into(),
+                resolve_function.into(),
+                reject_function.into(),
             ])),
             gc.reborrow(),
-        )
-        .unbind()
-        .bind(gc.nogc());
+        )?;
 
         // Note: Now we must take the Promise from the Global.
-        let promise = promise_to_resolve.take(agent).bind(gc.nogc());
+        crate::engine::bind!(let promise = promise_to_resolve.take(agent).local(), gc);
         let promise_capability = PromiseCapability::from_promise(promise, false);
 
         // c. If thenCallResult is an abrupt completion, then
@@ -98,11 +96,11 @@ pub(crate) fn new_promise_resolve_thenable_job(
     };
     // 6. Return the Record { [[Job]]: job, [[Realm]]: thenRealm }.
     Job {
-        realm: Some(then_realm.unbind()),
+        realm: Some(then_realm),
         inner: InnerJob::PromiseResolveThenable(PromiseResolveThenableJob {
-            promise_to_resolve: Global::new(agent, promise_to_resolve.unbind()),
-            thenable: Global::new(agent, thenable.unbind()),
-            then: Global::new(agent, then.unbind()),
+            promise_to_resolve: Global::new(agent, promise_to_resolve),
+            thenable: Global::new(agent, thenable),
+            then: Global::new(agent, then),
         }),
     }
 }
@@ -115,10 +113,10 @@ pub(crate) struct PromiseReactionJob {
 impl PromiseReactionJob {
     pub(crate) fn run<'a>(self, agent: &mut Agent, mut gc: GcScope<'a, '_>) -> JsResult<'a, ()> {
         let Self { reaction, argument } = self;
-        let reaction = reaction.take(agent).bind(gc.nogc());
-        let argument = argument.take(agent).bind(gc.nogc());
+        crate::engine::bind!(let reaction = reaction.take(agent).local(), gc);
+        crate::engine::bind!(let argument = argument.take(agent).local(), gc);
 
-        let reaction_data = reaction.get(agent);
+        let reaction_data = reaction.get(agent).local();
 
         let (handler_result, promise_capability) = match reaction_data.handler {
             PromiseReactionHandler::Empty => {
@@ -142,34 +140,22 @@ impl PromiseReactionJob {
                 let reaction = reaction.scope(agent, gc.nogc());
                 let result = call_function(
                     agent,
-                    callback.unbind(),
+                    callback,
                     Value::Undefined,
-                    Some(ArgumentsList::from_mut_value(&mut argument.unbind())),
+                    Some(ArgumentsList::from_mut_value(&mut argument)),
                     gc.reborrow(),
-                )
-                .unbind()
-                .bind(gc.nogc());
+                )?;
                 // SAFETY: reaction is not shared.
-                let reaction = unsafe { reaction.take(agent) };
+                let reaction = unsafe { reaction.take(agent).local() };
                 (
                     result,
-                    reaction
-                        .get(agent)
-                        .capability
-                        .clone()
-                        .unwrap()
-                        .bind(gc.nogc()),
+                    reaction.get(agent).local().capability.clone().unwrap(),
                 )
             }
             PromiseReactionHandler::Await(await_reaction) => {
                 assert!(reaction_data.capability.is_none());
                 let reaction_type = reaction_data.reaction_type;
-                await_reaction.unbind().resume(
-                    agent,
-                    reaction_type,
-                    argument.unbind(),
-                    gc.reborrow(),
-                );
+                await_reaction.resume(agent, reaction_type, argument, gc.reborrow());
                 // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
                 // 5. f. Return undefined.
                 return Ok(());
@@ -177,16 +163,11 @@ impl PromiseReactionJob {
             PromiseReactionHandler::AsyncGenerator(async_generator) => {
                 assert!(reaction_data.capability.is_none());
                 let reaction_type = reaction_data.reaction_type;
-                async_generator.unbind().resume_await(
-                    agent,
-                    reaction_type,
-                    argument.unbind(),
-                    gc.reborrow(),
-                );
+                async_generator.resume_await(agent, reaction_type, argument, gc.reborrow());
                 return Ok(());
             }
             PromiseReactionHandler::AsyncFromSyncIterator { done } => {
-                let capability = reaction_data.capability.clone().unwrap().bind(gc.nogc());
+                crate::engine::bind!(let capability = reaction_data.capability.clone().unwrap(), gc);
                 // 9. Let unwrap be a new Abstract Closure with parameters (v)
                 //    that captures done and performs the following steps when
                 //    called:
@@ -203,18 +184,10 @@ impl PromiseReactionJob {
                 //    performs the following steps when called:
                 // i. Return ? IteratorClose(syncIteratorRecord, ThrowCompletion(error)).
                 let err = JsError::new(argument);
-                let err =
-                    iterator_close_with_error(agent, object.unbind(), err.unbind(), gc.reborrow())
-                        .unbind()
-                        .bind(gc.nogc());
+                let err = iterator_close_with_error(agent, object, err, gc.reborrow())?;
                 // SAFETY: reaction is not shared.
-                let reaction = unsafe { reaction.take(agent) }.bind(gc.nogc());
-                let capability = reaction
-                    .get(agent)
-                    .capability
-                    .clone()
-                    .unwrap()
-                    .bind(gc.nogc());
+                crate::engine::bind!(let reaction = unsafe { reaction.take(agent).local() }, gc);
+                let capability = reaction.get(agent).local().capability.clone().unwrap();
                 (Err(err), capability)
             }
             PromiseReactionHandler::AsyncModule(module) => {
@@ -222,17 +195,12 @@ impl PromiseReactionJob {
                 match reaction_data.reaction_type {
                     PromiseReactionType::Fulfill => {
                         // a. Perform AsyncModuleExecutionFulfilled(module).
-                        async_module_execution_fulfilled(agent, module.unbind(), gc);
+                        async_module_execution_fulfilled(agent, module, gc);
                     }
                     PromiseReactionType::Reject => {
                         let error = JsError::new(argument);
                         // a. Perform AsyncModuleExecutionRejected(module, error).
-                        async_module_execution_rejected(
-                            agent,
-                            module.unbind(),
-                            error.unbind(),
-                            gc.into_nogc(),
-                        );
+                        async_module_execution_rejected(agent, module, error, gc.into_nogc());
                     }
                 }
                 // b. Return undefined.
@@ -242,7 +210,7 @@ impl PromiseReactionJob {
                 assert!(reaction_data.capability.is_none());
                 match reaction_data.reaction_type {
                     PromiseReactionType::Fulfill => {
-                        link_and_evaluate(agent, promise.unbind(), module.unbind(), gc);
+                        link_and_evaluate(agent, promise, module, gc);
                         return Ok(());
                     }
                     PromiseReactionType::Reject => {
@@ -259,12 +227,7 @@ impl PromiseReactionJob {
                 assert!(reaction_data.capability.is_none());
                 match reaction_data.reaction_type {
                     PromiseReactionType::Fulfill => {
-                        import_get_module_namespace(
-                            agent,
-                            promise.unbind(),
-                            module.unbind(),
-                            gc.into_nogc(),
-                        );
+                        import_get_module_namespace(agent, promise, module, gc.into_nogc());
                         return Ok(());
                     }
                     PromiseReactionType::Reject => (
@@ -278,13 +241,7 @@ impl PromiseReactionJob {
                 index,
             } => {
                 let reaction_type = reaction_data.reaction_type;
-                promise_group.unbind().settle(
-                    agent,
-                    reaction_type,
-                    index,
-                    argument.unbind(),
-                    gc.reborrow(),
-                );
+                promise_group.settle(agent, reaction_type, index, argument, gc.reborrow());
                 return Ok(());
             }
         };
@@ -302,9 +259,7 @@ impl PromiseReactionJob {
             // i. Else,
             Ok(value) => {
                 // i. Return ? Call(promiseCapability.[[Resolve]], undefined, « handlerResult.[[Value]] »).
-                promise_capability
-                    .unbind()
-                    .resolve(agent, value.unbind(), gc)
+                promise_capability.resolve(agent, value, gc)
             }
         };
         Ok(())
@@ -318,7 +273,7 @@ pub(crate) fn new_promise_reaction_job(
     argument: Value,
     gc: NoGcScope,
 ) -> Job {
-    let handler_realm = match reaction.get(agent).handler {
+    let handler_realm = match reaction.get(agent).local().handler {
         // 3. If reaction.[[Handler]] is not empty, then
         PromiseReactionHandler::JobCallback(callback) => {
             // a. Let getHandlerRealmResult be Completion(GetFunctionRealm(reaction.[[Handler]].[[Callback]])).
@@ -336,6 +291,7 @@ pub(crate) fn new_promise_reaction_job(
         PromiseReactionHandler::Await(await_reaction) => Some(
             await_reaction
                 .get(agent)
+                .local()
                 .execution_context
                 .as_ref()
                 .unwrap()
@@ -353,10 +309,10 @@ pub(crate) fn new_promise_reaction_job(
     };
 
     // 4. Return the Record { [[Job]]: job, [[Realm]]: handlerRealm }.
-    let reaction = Global::new(agent, reaction.unbind());
-    let argument = Global::new(agent, argument.unbind());
+    let reaction = Global::new(agent, reaction);
+    let argument = Global::new(agent, argument);
     Job {
-        realm: handler_realm.unbind(),
+        realm: handler_realm,
         inner: InnerJob::PromiseReaction(PromiseReactionJob { reaction, argument }),
     }
 }

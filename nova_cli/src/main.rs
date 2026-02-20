@@ -264,7 +264,7 @@ impl HostHooks for CliHostHooks {
             gc,
         )
         .map(|m| {
-            let global_m = Global::new(agent, m.unbind().into());
+            let global_m = Global::new(agent, m.into());
             module_map.add(specifier_target, global_m);
             m.into()
         })
@@ -350,7 +350,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 mut gc: GcScope<'gc, '_>,
             ) -> JsResult<'gc, ()> {
                 while let Some(job) = host_hooks.pop_promise_job() {
-                    job.run(agent, gc.reborrow()).unbind()?.bind(gc.nogc());
+                    job.run(agent, gc.reborrow())?;
                 }
                 Ok(())
             }
@@ -372,7 +372,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             "Uncaught exception: {}",
                             error
                                 .value()
-                                .unbind()
+
                                 .string_repr(agent, gc)
                                 .as_wtf8(agent)
                                 .to_string_lossy()
@@ -426,7 +426,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let result = if module && last_index == index {
                             let module = match parse_module(
                                 agent,
-                                source_text.unbind(),
+                                source_text,
                                 realm,
                                 Some(Rc::new(absolute_path.clone())),
                                 gc.nogc(),
@@ -439,15 +439,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 }
                             };
                             module_map
-                                .add(absolute_path, Global::new(agent, module.unbind().into()));
+                                .add(absolute_path, Global::new(agent, module.into()));
                             agent
                                 .run_parsed_module(
-                                    module.unbind(),
+                                    module,
                                     Some(module_map.clone()),
                                     gc.reborrow(),
-                                )
-                                .unbind()
-                                .bind(gc.nogc())
+                                )?
                         } else {
                             let script = match parse_script(
                                 agent,
@@ -464,9 +462,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     exit_with_parse_errors(errors, &path, &source_text)
                                 }
                             };
-                            script_evaluation(agent, script.unbind(), gc.reborrow())
-                                .unbind()
-                                .bind(gc.nogc())
+                            script_evaluation(agent, script,gc.reborrow())?
                         };
 
                         let result = if let Ok(result) = result
@@ -474,16 +470,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         {
                             let result = result.scope(agent, gc.nogc());
                             let microtask_result =
-                                run_microtask_queue(agent, host_hooks, gc.reborrow())
-                                    .unbind()
-                                    .bind(gc.nogc());
+                                run_microtask_queue(agent, host_hooks, gc.reborrow())?;
                             // SAFETY: not shared.
-                            microtask_result.map(|_| unsafe { result.take(agent) }.bind(gc.nogc()))
+                            microtask_result.map(|_| unsafe { result.take(agent).local() })
                         } else {
                             result
                         };
 
-                        print_result(agent, result.unbind(), verbose, gc);
+                        print_result(agent, result,verbose, gc);
                         Ok(())
                     },
                 )?;
@@ -495,15 +489,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     while let Some(job) = host_hooks.pop_macrotask() {
                         agent.run_job(job, |agent, result, mut gc| {
                             let result = if result.is_ok() && host_hooks.has_promise_jobs() {
-                                run_microtask_queue(agent, host_hooks, gc.reborrow())
-                                    .unbind()
-                                    .bind(gc.nogc())
+                                run_microtask_queue(agent, host_hooks, gc.reborrow())?
                             } else {
                                 result
                             };
                             print_result(
                                 agent,
-                                result.map(|_| Value::Undefined).unbind(),
+                                result.map(|_| Value::Undefined),
                                 false,
                                 gc,
                             );
@@ -577,7 +569,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 exit_with_parse_errors(errors, "<stdin>", &placeholder);
                             }
                         };
-                    let result = script_evaluation(agent, script.unbind(), gc.reborrow());
+                    let result = script_evaluation(agent, script,gc.reborrow());
                     match result {
                         Ok(result) => {
                             println!("{result:?}\n");
@@ -587,7 +579,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 "Uncaught exception: {}",
                                 error
                                     .value()
-                                    .unbind()
+
                                     .string_repr(agent, gc)
                                     .to_string_lossy(agent)
                             );

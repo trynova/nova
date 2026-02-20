@@ -32,7 +32,7 @@ pub(crate) fn validate_non_revoked_proxy<'a>(
     let ProxyHeapData::NonRevoked {
         proxy_handler: handler,
         proxy_target: target,
-    } = proxy.get(agent)
+    } = proxy.get(agent).local()
     else {
         // 1. If proxy.[[ProxyTarget]] is null, throw a TypeError exception.
         // 2. Assert: proxy.[[ProxyHandler]] is not null.
@@ -45,8 +45,8 @@ pub(crate) fn validate_non_revoked_proxy<'a>(
 
     // 3. Return unused.
     Ok(NonRevokedProxy {
-        target: target.bind(gc),
-        handler: handler.bind(gc),
+        target: target,
+        handler: handler,
     })
 }
 
@@ -65,7 +65,7 @@ pub(crate) fn try_validate_non_revoked_proxy<'a>(
     let ProxyHeapData::NonRevoked {
         proxy_handler: handler,
         proxy_target: target,
-    } = proxy.get(agent)
+    } = proxy.get(agent).local()
     else {
         // 1. If proxy.[[ProxyTarget]] is null, throw a TypeError exception.
         // 2. Assert: proxy.[[ProxyHandler]] is not null.
@@ -74,7 +74,7 @@ pub(crate) fn try_validate_non_revoked_proxy<'a>(
 
     // 3. Return unused.
     Some(NonRevokedProxy {
-        target: target.bind(gc),
-        handler: handler.bind(gc),
+        target: target,
+        handler: handler,
     })
 }

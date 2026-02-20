@@ -31,7 +31,7 @@ pub(crate) fn require_object_coercible<'gc>(
     agent: &mut Agent,
     argument: Value,
     gc: NoGcScope<'gc, '_>,
-) -> JsResult<'gc, Value<'gc>> {
+) -> JsResult<'static, Value<'static>> {
     if argument.is_undefined() || argument.is_null() {
         Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
@@ -39,7 +39,7 @@ pub(crate) fn require_object_coercible<'gc>(
             gc,
         ))
     } else {
-        Ok(argument.bind(gc))
+        Ok(argument)
     }
 }
 
@@ -53,7 +53,7 @@ pub(crate) fn is_array<'a, 'gc>(
     argument: impl Into<Value<'a>>,
     gc: NoGcScope<'gc, '_>,
 ) -> JsResult<'gc, bool> {
-    let argument = argument.into().bind(gc);
+    crate::engine::bind!(let argument = argument.into(), gc);
 
     match argument {
         // 1. If argument is not an Object, return false.
@@ -91,7 +91,7 @@ pub(crate) fn is_callable<'a, 'b>(
     // 2. If argument has a [[Call]] internal method, return true.
     // 3. Return false.
     if let Ok(f) = argument.try_into() {
-        Some(f.unbind())
+        Some(f)
     } else {
         // TODO: Once this handles callable Proxies, remove special case in
         // Proxy::is_callable.
@@ -136,9 +136,9 @@ pub(crate) fn is_constructor<'a>(
 pub(crate) fn is_reg_exp<'a>(
     agent: &mut Agent,
     argument: Value,
-    gc: GcScope<'a, '_>,
-) -> JsResult<'a, bool> {
-    let argument = argument.bind(gc.nogc());
+    gc: GcScope,
+) -> JsResult<'static, bool> {
+    crate::engine::bind!(let argument = argument, gc);
 
     // 1. If argument is not an Object, return false.
     let Ok(argument) = Object::try_from(argument) else {
@@ -150,7 +150,7 @@ pub(crate) fn is_reg_exp<'a>(
     // 2. Let matcher be ? Get(argument, %Symbol.match%).
     let matcher = get(
         agent,
-        argument.unbind(),
+        argument,
         PropertyKey::Symbol(WellKnownSymbolIndexes::Match.into()),
         gc,
     )?;
@@ -173,8 +173,8 @@ pub(crate) fn is_reg_exp<'a>(
 pub(crate) fn is_reg_exp<'a>(
     _agent: &mut Agent,
     _argument: Value,
-    _gc: GcScope<'a, '_>,
-) -> JsResult<'a, bool> {
+    _gc: GcScope,
+) -> JsResult<'static, bool> {
     Ok(false)
 }
 
@@ -187,8 +187,8 @@ pub(crate) fn is_reg_exp<'a>(
 pub(crate) fn is_extensible<'a>(
     agent: &mut Agent,
     o: Object,
-    gc: GcScope<'a, '_>,
-) -> JsResult<'a, bool> {
+    gc: GcScope,
+) -> JsResult<'static, bool> {
     // 1. Return ? O.[[IsExtensible]]().
     o.internal_is_extensible(agent, gc)
 }
@@ -310,7 +310,7 @@ pub(crate) fn same_value_non_number<'a, T: Copy + Into<Value<'a>>>(
     // 3. If x is a BigInt, then
     if let (Ok(x), Ok(y)) = (BigInt::try_from(x), BigInt::try_from(y)) {
         // a. Return BigInt::equal(x, y).
-        return BigInt::equal(agent, x.unbind(), y.unbind());
+        return BigInt::equal(agent, x, y);
     }
 
     // 4. If x is a String, then
@@ -353,23 +353,21 @@ pub(crate) fn is_less_than<'a, const LEFT_FIRST: bool>(
     let (px, py, gc) = match (Primitive::try_from(x.into()), Primitive::try_from(y.into())) {
         (Ok(px), Ok(py)) => {
             let gc = gc.into_nogc();
-            (px.bind(gc), py.bind(gc), gc)
+            (px, py, gc)
         }
         (Ok(px), Err(_)) => {
             let px = px.scope(agent, gc.nogc());
-            let py = to_primitive(agent, y.into(), Some(PreferredType::Number), gc.reborrow())
-                .unbind()?;
+            let py = to_primitive(agent, y.into(), Some(PreferredType::Number), gc.reborrow())?;
             let gc = gc.into_nogc();
-            let px = px.get(agent);
-            (px.bind(gc), py.bind(gc), gc)
+            let px = px.get(agent).local();
+            (px, py, gc)
         }
         (Err(_), Ok(py)) => {
             let py = py.scope(agent, gc.nogc());
-            let px = to_primitive(agent, x.into(), Some(PreferredType::Number), gc.reborrow())
-                .unbind()?;
+            let px = to_primitive(agent, x.into(), Some(PreferredType::Number), gc.reborrow())?;
             let gc = gc.into_nogc();
-            let py = py.get(agent);
-            (px.bind(gc), py.bind(gc), gc)
+            let py = py.get(agent).local();
+            (px, py, gc)
         }
         (Err(_), Err(_)) => {
             if LEFT_FIRST {
@@ -378,19 +376,17 @@ pub(crate) fn is_less_than<'a, const LEFT_FIRST: bool>(
                 // b. Let py be ? ToPrimitive(y, NUMBER).
                 let y: Value = y.into();
                 let y = y.scope(agent, gc.nogc());
-                let px = to_primitive(agent, x.into(), Some(PreferredType::Number), gc.reborrow())
-                    .unbind()?
+                let px = to_primitive(agent, x.into(), Some(PreferredType::Number), gc.reborrow())?
                     .scope(agent, gc.nogc());
                 let py = to_primitive(
                     agent,
-                    y.get(agent),
+                    y.get(agent).local(),
                     Some(PreferredType::Number),
                     gc.reborrow(),
-                )
-                .unbind()?;
+                )?;
                 let gc = gc.into_nogc();
-                let px = px.get(agent);
-                (px.bind(gc), py.bind(gc), gc)
+                let px = px.get(agent).local();
+                (px, py, gc)
             } else {
                 // 2. Else,
                 // a. NOTE: The order of evaluation needs to be reversed to preserve left to right evaluation.
@@ -398,19 +394,17 @@ pub(crate) fn is_less_than<'a, const LEFT_FIRST: bool>(
                 // c. Let px be ? ToPrimitive(x, NUMBER).
                 let x: Value = x.into();
                 let x = x.scope(agent, gc.nogc());
-                let py = to_primitive(agent, y.into(), Some(PreferredType::Number), gc.reborrow())
-                    .unbind()?
+                let py = to_primitive(agent, y.into(), Some(PreferredType::Number), gc.reborrow())?
                     .scope(agent, gc.nogc());
                 let px = to_primitive(
                     agent,
-                    x.get(agent),
+                    x.get(agent).local(),
                     Some(PreferredType::Number),
                     gc.reborrow(),
-                )
-                .unbind()?;
+                )?;
                 let gc = gc.into_nogc();
-                let py = py.get(agent);
-                (px.bind(gc), py.bind(gc), gc)
+                let py = py.get(agent).local();
+                (px, py, gc)
             }
         }
     };
@@ -468,7 +462,7 @@ pub(crate) fn is_less_than<'a, const LEFT_FIRST: bool>(
             };
 
             // i. Let ny be StringToBigInt(py).
-            let ny = string_to_big_int(agent, py, gc).unbind()?.bind(gc);
+            crate::engine::bind!(let ny = string_to_big_int(agent, py, gc)?, gc);
             // ii. If ny is undefined, return undefined.
             // iii. Return BigInt::lessThan(px, ny).
             return Ok(Some(BigInt::less_than(agent, px, ny)));
@@ -484,7 +478,7 @@ pub(crate) fn is_less_than<'a, const LEFT_FIRST: bool>(
             };
 
             // i. Let nx be StringToBigInt(px).
-            let nx = string_to_big_int(agent, px, gc).unbind()?.bind(gc);
+            crate::engine::bind!(let nx = string_to_big_int(agent, px, gc)?, gc);
             // ii. If nx is undefined, return undefined.
             // iii. Return BigInt::lessThan(nx, py).
             return Ok(Some(BigInt::less_than(agent, nx, py)));
@@ -492,10 +486,10 @@ pub(crate) fn is_less_than<'a, const LEFT_FIRST: bool>(
 
         // c. NOTE: Because px and py are primitive values, evaluation order is not important.
         // d. Let nx be ? ToNumeric(px).
-        let nx = to_numeric_primitive(agent, px, gc).unbind()?.bind(gc);
+        crate::engine::bind!(let nx = to_numeric_primitive(agent, px, gc)?, gc);
 
         // e. Let ny be ? ToNumeric(py).
-        let ny = to_numeric_primitive(agent, py, gc).unbind()?.bind(gc);
+        crate::engine::bind!(let ny = to_numeric_primitive(agent, py, gc)?, gc);
 
         // f. If Type(nx) is Type(ny), then
         if is_same_type(nx, ny) {
@@ -536,30 +530,46 @@ pub(crate) fn is_less_than<'a, const LEFT_FIRST: bool>(
 
         // k. If ℝ(nx) < ℝ(ny), return true; otherwise return false.
         Ok(Some(match (nx, ny) {
-            (Numeric::Number(x), Numeric::Number(y)) => x != y && x.get(agent) < y.get(agent),
-            (Numeric::Number(x), Numeric::Integer(y)) => *x.get(agent) < y.into_i64() as f64,
-            (Numeric::Number(x), Numeric::SmallF64(y)) => *x.get(agent) < y.into_f64(),
-            (Numeric::Integer(x), Numeric::Number(y)) => (x.into_i64() as f64) < *y.get(agent),
+            (Numeric::Number(x), Numeric::Number(y)) => {
+                x != y && x.get(agent).local() < y.get(agent).local()
+            }
+            (Numeric::Number(x), Numeric::Integer(y)) => {
+                *x.get(agent).local() < y.into_i64() as f64
+            }
+            (Numeric::Number(x), Numeric::SmallF64(y)) => *x.get(agent).local() < y.into_f64(),
+            (Numeric::Integer(x), Numeric::Number(y)) => {
+                (x.into_i64() as f64) < *y.get(agent).local()
+            }
             (Numeric::Integer(x), Numeric::Integer(y)) => x.into_i64() < y.into_i64(),
-            (Numeric::Number(x), Numeric::BigInt(y)) => y.get(agent).ge(x.get(agent)),
-            (Numeric::Number(x), Numeric::SmallBigInt(y)) => *x.get(agent) < y.into_i64() as f64,
+            (Numeric::Number(x), Numeric::BigInt(y)) => {
+                y.get(agent).local().ge(x.get(agent).local())
+            }
+            (Numeric::Number(x), Numeric::SmallBigInt(y)) => {
+                *x.get(agent).local() < y.into_i64() as f64
+            }
             (Numeric::Integer(x), Numeric::SmallF64(y)) => (x.into_i64() as f64) < y.into_f64(),
-            (Numeric::Integer(x), Numeric::BigInt(y)) => y.get(agent).ge(&x.into_i64()),
+            (Numeric::Integer(x), Numeric::BigInt(y)) => y.get(agent).local().ge(&x.into_i64()),
             (Numeric::Integer(x), Numeric::SmallBigInt(y)) => x.into_i64() < y.into_i64(),
-            (Numeric::SmallF64(x), Numeric::Number(y)) => x.into_f64() < *y.get(agent),
+            (Numeric::SmallF64(x), Numeric::Number(y)) => x.into_f64() < *y.get(agent).local(),
             (Numeric::SmallF64(x), Numeric::Integer(y)) => x.into_f64() < y.into_i64() as f64,
             (Numeric::SmallF64(x), Numeric::SmallF64(y)) => x.into_f64() < y.into_f64(),
-            (Numeric::SmallF64(x), Numeric::BigInt(y)) => y.get(agent).ge(&x.into_f64()),
+            (Numeric::SmallF64(x), Numeric::BigInt(y)) => y.get(agent).local().ge(&x.into_f64()),
             (Numeric::SmallF64(x), Numeric::SmallBigInt(y)) => x.into_f64() < y.into_i64() as f64,
-            (Numeric::BigInt(x), Numeric::Number(y)) => x.get(agent).le(y.get(agent)),
-            (Numeric::BigInt(x), Numeric::Integer(y)) => x.get(agent).le(&y.into_i64()),
-            (Numeric::BigInt(x), Numeric::SmallF64(y)) => x.get(agent).le(&y.into_f64()),
-            (Numeric::BigInt(x), Numeric::BigInt(y)) => x.get(agent).data < y.get(agent).data,
-            (Numeric::BigInt(x), Numeric::SmallBigInt(y)) => x.get(agent).le(&y.into_i64()),
-            (Numeric::SmallBigInt(x), Numeric::Number(y)) => (x.into_i64() as f64) < *y.get(agent),
+            (Numeric::BigInt(x), Numeric::Number(y)) => {
+                x.get(agent).local().le(y.get(agent).local())
+            }
+            (Numeric::BigInt(x), Numeric::Integer(y)) => x.get(agent).local().le(&y.into_i64()),
+            (Numeric::BigInt(x), Numeric::SmallF64(y)) => x.get(agent).local().le(&y.into_f64()),
+            (Numeric::BigInt(x), Numeric::BigInt(y)) => {
+                x.get(agent).local().data < y.get(agent).local().data
+            }
+            (Numeric::BigInt(x), Numeric::SmallBigInt(y)) => x.get(agent).local().le(&y.into_i64()),
+            (Numeric::SmallBigInt(x), Numeric::Number(y)) => {
+                (x.into_i64() as f64) < *y.get(agent).local()
+            }
             (Numeric::SmallBigInt(x), Numeric::Integer(y)) => x.into_i64() < y.into_i64(),
             (Numeric::SmallBigInt(x), Numeric::SmallF64(y)) => (x.into_i64() as f64) < y.into_f64(),
-            (Numeric::SmallBigInt(x), Numeric::BigInt(y)) => y.get(agent).ge(&x.into_i64()),
+            (Numeric::SmallBigInt(x), Numeric::BigInt(y)) => y.get(agent).local().ge(&x.into_i64()),
             (Numeric::SmallBigInt(x), Numeric::SmallBigInt(y)) => x.into_i64() < y.into_i64(),
         }))
     }
@@ -575,8 +585,8 @@ pub(crate) fn is_loosely_equal<'a>(
     agent: &mut Agent,
     x: impl Into<Value<'a>> + Copy,
     y: impl Into<Value<'a>> + Copy,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, bool> {
+    mut gc: GcScope,
+) -> JsResult<'static, bool> {
     let x: Value = x.into();
     let y: Value = y.into();
 
@@ -604,7 +614,7 @@ pub(crate) fn is_loosely_equal<'a>(
         // IsStrictlyEqual, which calls Number::equal.
         let gc = gc.into_nogc();
         let y = string_to_number(agent, y, gc);
-        return Ok(Number::equal_(agent, x.bind(gc), y.bind(gc)));
+        return Ok(Number::equal_(agent, x, y));
     }
 
     // 6. If x is a String and y is a Number, return ! IsLooselyEqual(! ToNumber(x), y).
@@ -614,7 +624,7 @@ pub(crate) fn is_loosely_equal<'a>(
         // IsStrictlyEqual, which calls Number::equal.
         let gc = gc.into_nogc();
         let x = string_to_number(agent, x, gc);
-        return Ok(Number::equal_(agent, x.bind(gc), y.bind(gc)));
+        return Ok(Number::equal_(agent, x, y));
     }
 
     // 7. If x is a BigInt and y is a String, then
@@ -626,7 +636,7 @@ pub(crate) fn is_loosely_equal<'a>(
             // c. Return ! IsLooselyEqual(x, n).
             // Note: IsLooselyEqual with two BigInts calls IsStrictlyEqual
             // which eventually calls BigInt::euqla
-            return Ok(BigInt::equal(agent, x.bind(gc), n.bind(gc)));
+            return Ok(BigInt::equal(agent, x, n));
         } else {
             return Ok(false);
         }
@@ -644,7 +654,7 @@ pub(crate) fn is_loosely_equal<'a>(
             // c. Return ! IsLooselyEqual(x, n).
             // Note: IsLooselyEqual with two BigInts calls IsStrictlyEqual
             // which eventually calls BigInt::euqla
-            return Ok(BigInt::equal(agent, y.bind(gc), n.bind(gc)));
+            return Ok(BigInt::equal(agent, y, n));
         } else {
             return Ok(false);
         }
@@ -665,19 +675,15 @@ pub(crate) fn is_loosely_equal<'a>(
     // 11. If x is either a String, a Number, a BigInt, or a Symbol and y is an Object, return ! IsLooselyEqual(x, ? ToPrimitive(y)).
     if (x.is_string() || x.is_number() || x.is_bigint() || x.is_symbol()) && y.is_object() {
         let x = x.scope(agent, gc.nogc());
-        let y = to_primitive(agent, y, None, gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
-        return Ok(is_loosely_equal(agent, x.get(agent), y.unbind(), gc).unwrap());
+        let y = to_primitive(agent, y, None, gc.reborrow())?;
+        return Ok(is_loosely_equal(agent, x.get(agent).local(), y, gc).unwrap());
     }
 
     // 12. If x is an Object and y is either a String, a Number, a BigInt, or a Symbol, return ! IsLooselyEqual(? ToPrimitive(x), y).
     if x.is_object() && (y.is_string() || y.is_number() || y.is_bigint() || y.is_symbol()) {
         let y = y.scope(agent, gc.nogc());
-        let x = to_primitive(agent, x, None, gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
-        return Ok(is_loosely_equal(agent, x.unbind(), y.get(agent), gc).unwrap());
+        let x = to_primitive(agent, x, None, gc.reborrow())?;
+        return Ok(is_loosely_equal(agent, x, y.get(agent).local(), gc).unwrap());
     }
 
     // 13. If x is a BigInt and y is a Number, or if x is a Number and y is a BigInt, then
@@ -699,7 +705,7 @@ pub(crate) fn is_loosely_equal<'a>(
 
         // Compare BigInt with f64 using precise comparison.
         return Ok(match a {
-            BigInt::BigInt(heap_big_int) => heap_big_int.get(agent) == &b,
+            BigInt::BigInt(heap_big_int) => heap_big_int.get(agent).local() == &b,
             BigInt::SmallBigInt(small_big_int) => small_big_int.into_i64() as f64 == b,
         });
     }

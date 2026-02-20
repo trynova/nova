@@ -369,7 +369,7 @@ impl<'gc> ElementsVector<'gc> {
                 &mut elements.e2pow32.values[self.elements_index][self.len as usize]
             }
         };
-        *next_over_end = value.map(Value::unbind);
+        *next_over_end = value;
         if let Some(descriptor) = descriptor {
             let descriptors_map = match self.cap {
                 ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => unreachable!(),
@@ -386,9 +386,9 @@ impl<'gc> ElementsVector<'gc> {
                 ElementArrayKey::E32 => &mut elements.e2pow32.descriptors,
             };
             descriptors_map
-                .entry(self.elements_index.unbind())
+                .entry(self.elements_index)
                 .or_default()
-                .insert(self.len, descriptor.unbind());
+                .insert(self.len, descriptor);
         }
         self.len += 1;
         Ok(())
@@ -884,7 +884,6 @@ impl<'a> ElementDescriptor<'a> {
     ) -> PropertyDescriptor<'a> {
         let descriptor =
             descriptor.unwrap_or(&ElementDescriptor::WritableEnumerableConfigurableData);
-        let value = value.map(Value::unbind);
         match descriptor {
             ElementDescriptor::WritableEnumerableConfigurableData => PropertyDescriptor {
                 value,
@@ -1091,7 +1090,7 @@ impl<'a> ElementDescriptor<'a> {
             | ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor { get, .. }
             | ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor { get, .. }
             | ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor { get, .. } => {
-                Some(get.bind(gc))
+                Some(get)
             }
             _ => None,
         }
@@ -1107,7 +1106,7 @@ impl<'a> ElementDescriptor<'a> {
             | ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor { set, .. }
             | ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor { set, .. }
             | ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor { set, .. } => {
-                Some(set.bind(gc))
+                Some(set)
             }
             _ => None,
         }
@@ -1231,7 +1230,7 @@ impl<const N: usize> ElementArray<N> {
                 .get_mut(vector.elements_index.get_index())
                 .unwrap()
                 .as_mut_slice()[0..vector.len() as usize],
-            descriptors: self.descriptors.entry(vector.elements_index.unbind()),
+            descriptors: self.descriptors.entry(vector.elements_index),
         }
     }
 
@@ -1357,7 +1356,7 @@ impl<const N: usize> ElementArray<N> {
                 .filter(|(k, _)| **k != removal_index)
                 .map(|(k, v)| {
                     let k = if *k > removal_index { k - 1 } else { *k };
-                    (k, v.unbind())
+                    (k, v)
                 })
                 .collect::<AHashMap<u32, ElementDescriptor>>();
             let inserted_new = self.descriptors.insert(key, descriptors).is_none();
@@ -1487,7 +1486,7 @@ impl<const N: usize> PropertyKeyArray<N> {
 
     unsafe fn push_key(&mut self, index: PropertyKeyIndex, len: u32, key: PropertyKey) {
         let keys = self.keys[index.get_index()].as_mut_slice();
-        let previous = keys[len as usize].replace(key.unbind());
+        let previous = keys[len as usize].replace(key);
         debug_assert!(previous.is_none());
     }
 
@@ -2074,37 +2073,37 @@ impl ElementArrays {
         match new_cap {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => unreachable!(),
             ElementArrayKey::E1 => {
-                k2pow1.get_uninit(new_key)[len as usize] = Some(key.unbind());
+                k2pow1.get_uninit(new_key)[len as usize] = Some(key);
             }
             ElementArrayKey::E2 => {
-                k2pow2.get_uninit(new_key)[len as usize] = Some(key.unbind());
+                k2pow2.get_uninit(new_key)[len as usize] = Some(key);
             }
             ElementArrayKey::E3 => {
-                k2pow3.get_uninit(new_key)[len as usize] = Some(key.unbind());
+                k2pow3.get_uninit(new_key)[len as usize] = Some(key);
             }
             ElementArrayKey::E4 => {
-                k2pow4.get_uninit(new_key)[len as usize] = Some(key.unbind());
+                k2pow4.get_uninit(new_key)[len as usize] = Some(key);
             }
             ElementArrayKey::E6 => {
-                k2pow6.get_uninit(new_key)[len as usize] = Some(key.unbind());
+                k2pow6.get_uninit(new_key)[len as usize] = Some(key);
             }
             ElementArrayKey::E8 => {
-                k2pow8.get_uninit(new_key)[len as usize] = Some(key.unbind());
+                k2pow8.get_uninit(new_key)[len as usize] = Some(key);
             }
             ElementArrayKey::E10 => {
-                k2pow10.get_uninit(new_key)[len as usize] = Some(key.unbind());
+                k2pow10.get_uninit(new_key)[len as usize] = Some(key);
             }
             ElementArrayKey::E12 => {
-                k2pow12.get_uninit(new_key)[len as usize] = Some(key.unbind());
+                k2pow12.get_uninit(new_key)[len as usize] = Some(key);
             }
             ElementArrayKey::E16 => {
-                k2pow16.get_uninit(new_key)[len as usize] = Some(key.unbind());
+                k2pow16.get_uninit(new_key)[len as usize] = Some(key);
             }
             ElementArrayKey::E24 => {
-                k2pow24.get_uninit(new_key)[len as usize] = Some(key.unbind());
+                k2pow24.get_uninit(new_key)[len as usize] = Some(key);
             }
             ElementArrayKey::E32 => {
-                k2pow32.get_uninit(new_key)[len as usize] = Some(key.unbind());
+                k2pow32.get_uninit(new_key)[len as usize] = Some(key);
             }
         }
         Ok((new_cap, new_key))
@@ -2215,7 +2214,7 @@ impl ElementArrays {
             // We need to grow our backing store.
             let (new_cap, new_index) = self.copy_keys_with_addition(*cap, *index, *len, key)?;
             *cap = new_cap;
-            *index = new_index.unbind();
+            *index = new_index;
         }
         *len += 1;
         Ok(())
@@ -3052,7 +3051,7 @@ impl ElementArrays {
                 descriptors
                     .as_mut()
                     .unwrap()
-                    .insert(index as u32, descriptor.unbind());
+                    .insert(index as u32, descriptor);
             }
         });
         self.allocate_object_property_storage(length, &values, descriptors)
@@ -3088,7 +3087,7 @@ impl ElementArrays {
                 descriptors
                     .as_mut()
                     .unwrap()
-                    .insert(index as u32, descriptor.unbind());
+                    .insert(index as u32, descriptor);
             }
         }
         self.allocate_object_property_storage(length, &values, descriptors)
@@ -3242,7 +3241,7 @@ impl ElementArrays {
         &self,
         vector: &ElementsVector,
     ) -> ElementStorageRef<'_, 'static> {
-        self.get_element_storage_raw(vector.elements_index.unbind(), vector.cap, vector.len())
+        self.get_element_storage_raw(vector.elements_index, vector.cap, vector.len())
     }
 
     /// Get shared access to the elements storage of an object or an array.
@@ -3309,7 +3308,7 @@ impl ElementArrays {
             e2pow32,
             ..
         } = self;
-        let index = index.unbind();
+        let index = index;
         match cap {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => unreachable!(),
             ElementArrayKey::E1 => e2pow1.get_descriptors_and_values_mut_raw(index, len),
@@ -3389,7 +3388,7 @@ impl ElementArrays {
             e2pow32,
             ..
         } = self;
-        let index = index.unbind();
+        let index = index;
         match cap {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => unreachable!(),
             ElementArrayKey::E1 => e2pow1.get_descriptors_and_values_uninit_raw(index),
@@ -3451,37 +3450,37 @@ impl ElementArrays {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => return None,
             ElementArrayKey::E1 => self
                 .e2pow1
-                .get_descriptors_and_values_mut_raw(values_index.unbind(), len),
+                .get_descriptors_and_values_mut_raw(values_index, len),
             ElementArrayKey::E2 => self
                 .e2pow2
-                .get_descriptors_and_values_mut_raw(values_index.unbind(), len),
+                .get_descriptors_and_values_mut_raw(values_index, len),
             ElementArrayKey::E3 => self
                 .e2pow3
-                .get_descriptors_and_values_mut_raw(values_index.unbind(), len),
+                .get_descriptors_and_values_mut_raw(values_index, len),
             ElementArrayKey::E4 => self
                 .e2pow4
-                .get_descriptors_and_values_mut_raw(values_index.unbind(), len),
+                .get_descriptors_and_values_mut_raw(values_index, len),
             ElementArrayKey::E6 => self
                 .e2pow6
-                .get_descriptors_and_values_mut_raw(values_index.unbind(), len),
+                .get_descriptors_and_values_mut_raw(values_index, len),
             ElementArrayKey::E8 => self
                 .e2pow8
-                .get_descriptors_and_values_mut_raw(values_index.unbind(), len),
+                .get_descriptors_and_values_mut_raw(values_index, len),
             ElementArrayKey::E10 => self
                 .e2pow10
-                .get_descriptors_and_values_mut_raw(values_index.unbind(), len),
+                .get_descriptors_and_values_mut_raw(values_index, len),
             ElementArrayKey::E12 => self
                 .e2pow12
-                .get_descriptors_and_values_mut_raw(values_index.unbind(), len),
+                .get_descriptors_and_values_mut_raw(values_index, len),
             ElementArrayKey::E16 => self
                 .e2pow16
-                .get_descriptors_and_values_mut_raw(values_index.unbind(), len),
+                .get_descriptors_and_values_mut_raw(values_index, len),
             ElementArrayKey::E24 => self
                 .e2pow24
-                .get_descriptors_and_values_mut_raw(values_index.unbind(), len),
+                .get_descriptors_and_values_mut_raw(values_index, len),
             ElementArrayKey::E32 => self
                 .e2pow32
-                .get_descriptors_and_values_mut_raw(values_index.unbind(), len),
+                .get_descriptors_and_values_mut_raw(values_index, len),
         };
         Some(PropertyStorageMut::from_keys_and_elements(keys, elements))
     }

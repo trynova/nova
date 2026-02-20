@@ -102,7 +102,7 @@ fn rehash_map_data(
 ) {
     let hasher = |value: Value| {
         let mut hasher = AHasher::default();
-        value.unbind().hash(arena, &mut hasher);
+        value.hash(arena, &mut hasher);
         hasher.finish()
     };
     let hashes = {

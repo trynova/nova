@@ -33,12 +33,12 @@ impl DataViewConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. If NewTarget is undefined, throw a TypeError exception.
-        let Some(new_target) = new_target.bind(gc.nogc()) else {
+        let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "calling a builtin DataView constructor without new is forbidden",
@@ -49,22 +49,19 @@ impl DataViewConstructor {
             .unwrap()
             .scope(agent, gc.nogc());
 
-        let buffer = arguments.get(0).bind(gc.nogc());
-        let byte_offset = arguments.get(1).bind(gc.nogc());
+        crate::engine::bind!(let buffer = arguments.get(0), gc);
+        crate::engine::bind!(let byte_offset = arguments.get(1), gc);
         let byte_length = arguments.get(2).scope(agent, gc.nogc());
 
         // 2. Perform ? RequireInternalSlot(buffer, [[ArrayBufferData]]).
-        let scoped_buffer = require_internal_slot_any_array_buffer(agent, buffer, gc.nogc())
-            .unbind()?
+        let scoped_buffer = require_internal_slot_any_array_buffer(agent, buffer, gc.nogc())?
             .scope(agent, gc.nogc());
 
         // 3. Let offset be ? ToIndex(byteOffset).
-        let offset = to_index(agent, byte_offset.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc()) as usize;
+        let offset = to_index(agent, byte_offset, gc.reborrow())? as usize;
 
         // 4. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
-        let buffer = scoped_buffer.get(agent).bind(gc.nogc());
+        crate::engine::bind!(let buffer = scoped_buffer.get(agent).local(), gc);
         if buffer.is_detached(agent) {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -90,7 +87,7 @@ impl DataViewConstructor {
         let buffer_is_shared = buffer.is_shared();
 
         // 8. If byteLength is undefined, then
-        let byte_length = byte_length.get(agent).bind(gc.nogc());
+        crate::engine::bind!(let byte_length = byte_length.get(agent).local(), gc);
         let view_byte_length = if byte_length.is_undefined() {
             // a. If bufferIsFixedLength is true, then
             if buffer_is_fixed_length {
@@ -104,9 +101,7 @@ impl DataViewConstructor {
         } else {
             // 9. Else,
             // a. Let viewByteLength be ? ToIndex(byteLength).
-            let view_byte_length = to_index(agent, byte_length.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc()) as usize;
+            let view_byte_length = to_index(agent, byte_length, gc.reborrow())? as usize;
             // b. If offset + viewByteLength > bufferByteLength, throw a RangeError exception.
             if offset + view_byte_length > buffer_byte_length {
                 return Err(agent.throw_exception_with_static_message(
@@ -121,7 +116,7 @@ impl DataViewConstructor {
         // 10. Let O be ? OrdinaryCreateFromConstructor(NewTarget, "%DataView.prototype%", « [[DataView]], [[ViewedArrayBuffer]], [[ByteLength]], [[ByteOffset]] »).
         let o = ordinary_create_from_constructor(
             agent,
-            new_target.get(agent),
+            new_target.get(agent).local(),
             if buffer_is_shared {
                 #[cfg(feature = "shared-array-buffer")]
                 {
@@ -135,11 +130,10 @@ impl DataViewConstructor {
                 ProtoIntrinsics::DataView
             },
             gc.reborrow(),
-        )
-        .unbind()?;
+        )?;
         let gc = gc.into_nogc();
-        let o = o.bind(gc);
-        let buffer = scoped_buffer.get(agent).bind(gc);
+        crate::engine::bind!(let o = o, gc);
+        crate::engine::bind!(let buffer = scoped_buffer.get(agent).local(), gc);
         // 11. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
         if buffer.is_detached(agent) {
             return Err(agent.throw_exception_with_static_message(

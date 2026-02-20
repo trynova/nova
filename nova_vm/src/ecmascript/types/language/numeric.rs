@@ -88,10 +88,10 @@ impl Rootable for Numeric<'_> {
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match value {
-            Self::Number(n) => Err(HeapRootData::Number(n.unbind())),
+            Self::Number(n) => Err(HeapRootData::Number(n)),
             Self::Integer(n) => Ok(Self::RootRepr::Integer(n)),
             Self::SmallF64(n) => Ok(Self::RootRepr::SmallF64(n)),
-            Self::BigInt(n) => Err(HeapRootData::BigInt(n.unbind())),
+            Self::BigInt(n) => Err(HeapRootData::BigInt(n)),
             Self::SmallBigInt(n) => Ok(Self::RootRepr::SmallBigInt(n)),
         }
     }

@@ -41,7 +41,7 @@ impl<'a> ActiveIterator<'a> {
         let iterator = Self { scope: PhantomData };
         // Check that the iterator is found: this panics if the VM stack is
         // empty or the active VM's iterator stack is empty.
-        let _ = iterator.get(agent);
+        let _ = iterator.get(agent).local();
         iterator
     }
 
@@ -54,10 +54,10 @@ impl<'a> ActiveIterator<'a> {
         agent: &mut Agent,
         value: Option<Value>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         match self.get(agent) {
             VmIteratorRecord::InvalidIterator { .. } => {
-                Err(throw_not_callable(agent, gc.into_nogc()).unbind())
+                Err(throw_not_callable(agent, gc.into_nogc()))
             }
             VmIteratorRecord::ObjectProperties(_) => {
                 // I believe it is impossible to do yield* on object properties.
@@ -65,8 +65,7 @@ impl<'a> ActiveIterator<'a> {
             }
             VmIteratorRecord::ArrayValues(_) => ArrayValuesIterator::new(self)
                 .next(agent, gc.reborrow())
-                .unbind()
-                .and_then(|r| convert_to_iter_result_object(agent, r.unbind(), gc.into_nogc()))
+                .and_then(|r| convert_to_iter_result_object(agent, r, gc.into_nogc()))
                 .map(|o| o.into()),
             VmIteratorRecord::AsyncFromSyncGenericIterator(_) => {
                 Ok(AsyncFromSyncGenericIterator::new(self)
@@ -140,7 +139,7 @@ impl<'a> ActiveIterator<'a> {
     ) -> JsResult<'gc, Option<Value<'gc>>> {
         match self.get(agent) {
             VmIteratorRecord::InvalidIterator { .. } => {
-                Err(throw_not_callable(agent, gc.into_nogc()).unbind())
+                Err(throw_not_callable(agent, gc.into_nogc()))
             }
             VmIteratorRecord::ObjectProperties(_) => {
                 ObjectPropertiesIterator::new(self).step_value(agent, gc)
@@ -233,29 +232,23 @@ impl<'a> VmIteratorRecord<'a> {
     /// Iterator Record or a throw completion.
     ///
     /// This method version performs the SYNC version of the method.
-    pub(super) fn from_value(
-        agent: &mut Agent,
-        obj: Value,
-        mut gc: GcScope<'a, '_>,
-    ) -> JsResult<'a, Self> {
-        let value = obj.bind(gc.nogc());
+    pub(super) fn from_value(agent: &mut Agent, obj: Value, mut gc: GcScope) -> JsResult<'a, Self> {
+        crate::engine::bind!(let value = obj, gc);
         let scoped_value = value.scope(agent, gc.nogc());
         // a. Let method be ? GetMethod(obj, %Symbol.iterator%).
         let method = get_method(
             agent,
-            value.unbind(),
+            value,
             PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         // 3. If method is undefined, throw a TypeError exception.
         let Some(method) = method else {
             return Err(throw_iterator_method_undefined(agent, gc.into_nogc()));
         };
 
         // SAFETY: scoped_value is not shared.
-        let value = unsafe { scoped_value.take(agent).bind(gc.nogc()) };
+        let value = unsafe { scoped_value.take(agent).local() };
         // 4. Return ? GetIteratorFromMethod(obj, method).
         match value {
             // Optimisation: Check if we're using the Array values iterator on
@@ -269,13 +262,10 @@ impl<'a> VmIteratorRecord<'a> {
                         .into() =>
             {
                 Ok(VmIteratorRecord::ArrayValues(
-                    ArrayValuesIteratorRecord::new(array.unbind()),
+                    ArrayValuesIteratorRecord::new(array),
                 ))
             }
-            _ => Ok(
-                get_iterator_from_method(agent, value.unbind(), method.unbind(), gc)?
-                    .into_vm_iterator_record(),
-            ),
+            _ => Ok(get_iterator_from_method(agent, value, method, gc)?.into_vm_iterator_record()),
         }
     }
 
@@ -289,65 +279,57 @@ impl<'a> VmIteratorRecord<'a> {
     pub(super) fn async_from_value(
         agent: &mut Agent,
         obj: Value,
-        mut gc: GcScope<'a, '_>,
+        mut gc: GcScope,
     ) -> JsResult<'a, Self> {
-        let obj = obj.bind(gc.nogc());
+        crate::engine::bind!(let obj = obj, gc);
         let scoped_obj = obj.scope(agent, gc.nogc());
         // a. Let method be ? GetMethod(obj, %Symbol.asyncIterator%).
         let method = get_method(
             agent,
-            obj.unbind(),
+            obj,
             PropertyKey::Symbol(WellKnownSymbolIndexes::AsyncIterator.into()),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         // b. If method is undefined, then
         let Some(method) = method else {
             return Self::async_from_sync_value(agent, scoped_obj, gc);
         };
 
         // SAFETY: scoped_value is not shared.
-        let obj = unsafe { scoped_obj.take(agent).bind(gc.nogc()) };
+        let obj = unsafe { scoped_obj.take(agent).local() };
 
         // 4. Return ? GetIteratorFromMethod(obj, method).
         if let Some(array) = Array::is_iterable_array(agent, obj, method) {
             // Optimisation: if we're using the Array values iterator on
             // an Array then we can use a special iterator case.
             Ok(VmIteratorRecord::ArrayValues(
-                ArrayValuesIteratorRecord::new(array.unbind()),
+                ArrayValuesIteratorRecord::new(array),
             ))
         } else {
-            Ok(
-                get_iterator_from_method(agent, obj.unbind(), method.unbind(), gc)?
-                    .into_vm_iterator_record(),
-            )
+            Ok(get_iterator_from_method(agent, obj, method, gc)?.into_vm_iterator_record())
         }
     }
 
     fn async_from_sync_value(
         agent: &mut Agent,
         obj: Scoped<Value>,
-        mut gc: GcScope<'a, '_>,
+        mut gc: GcScope,
     ) -> JsResult<'a, Self> {
         // i. Let syncMethod be ? GetMethod(obj, %Symbol.iterator%).
         let sync_method = get_method(
             agent,
-            obj.get(agent),
+            obj.get(agent).local(),
             WellKnownSymbolIndexes::Iterator.into(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         // ii. If syncMethod is undefined, throw a TypeError exception.
         let Some(sync_method) = sync_method else {
             return Err(throw_iterator_method_undefined(agent, gc.into_nogc()));
         };
         // SAFETY: obj is not shared.
-        let obj = unsafe { obj.take(agent) }.bind(gc.nogc());
+        crate::engine::bind!(let obj = unsafe { obj.take(agent).local() }, gc);
         // iii. Let syncIteratorRecord be ? GetIteratorFromMethod(obj, syncMethod).
-        let sync_iterator_record =
-            get_iterator_from_method(agent, obj.unbind(), sync_method.unbind(), gc)?;
+        let sync_iterator_record = get_iterator_from_method(agent, obj, sync_method, gc)?;
         // iv. Return CreateAsyncFromSyncIterator(syncIteratorRecord).
         Ok(create_async_from_sync_iterator(sync_iterator_record))
     }
@@ -402,10 +384,7 @@ impl<'a> ObjectPropertiesIterator<'a> {
             if !self.object_is_visited(agent) {
                 let keys = self
                     .object(agent, gc.nogc())
-                    .unbind()
-                    .internal_own_property_keys(agent, gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc());
+                    .internal_own_property_keys(agent, gc.reborrow())?;
                 let mut remaining_keys = Vec::with_capacity(keys.len());
                 for key in keys {
                     if let PropertyKey::Symbol(_) = key {
@@ -418,30 +397,19 @@ impl<'a> ObjectPropertiesIterator<'a> {
             }
             while let Some((object, next_key)) = self.next_remaining_key(agent, gc.nogc()) {
                 let scoped_next_key = next_key.scope(agent, gc.nogc());
-                let desc = object
-                    .unbind()
-                    .internal_get_own_property(agent, next_key.unbind(), gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc());
+                let desc = object.internal_get_own_property(agent, next_key, gc.reborrow())?;
                 // SAFETY: scoped_next_key is not shared.
-                let next_key = unsafe { scoped_next_key.take(agent) }.bind(gc.nogc());
+                crate::engine::bind!(let next_key = unsafe { scoped_next_key.take(agent).local() }, gc);
                 if let Some(desc) = desc {
                     self.mark_key_visited(agent, next_key);
                     if desc.enumerable == Some(true) {
-                        return Ok(Some(Self::convert_result(
-                            agent,
-                            next_key.unbind(),
-                            gc.into_nogc(),
-                        )));
+                        return Ok(Some(Self::convert_result(agent, next_key, gc.into_nogc())));
                     }
                 }
             }
             let prototype = self
                 .object(agent, gc.nogc())
-                .unbind()
-                .internal_get_prototype_of(agent, gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+                .internal_get_prototype_of(agent, gc.reborrow())?;
             if let Some(prototype) = prototype {
                 self.set_object(agent, prototype);
             } else {
@@ -458,13 +426,13 @@ impl<'a> ObjectPropertiesIterator<'a> {
         match result {
             PropertyKey::Integer(int) => Value::from_string(agent, int.into_i64().to_string(), gc),
             PropertyKey::SmallString(data) => Value::SmallString(data),
-            PropertyKey::String(data) => Value::String(data.bind(gc)),
+            PropertyKey::String(data) => Value::String(data),
             _ => unreachable!(),
         }
     }
 
     fn object<'gc>(&self, agent: &Agent, gc: NoGcScope<'gc, '_>) -> Object<'gc> {
-        self.get(agent).object.bind(gc)
+        self.get(agent).object
     }
 
     fn object_is_visited(&self, agent: &Agent) -> bool {
@@ -473,12 +441,12 @@ impl<'a> ObjectPropertiesIterator<'a> {
 
     fn set_remaining_keys(&mut self, agent: &mut Agent, mut remaining_keys: Vec<PropertyKey>) {
         remaining_keys.reverse();
-        self.get_mut(agent).remaining_keys = Some(remaining_keys.unbind());
+        self.get_mut(agent).remaining_keys = Some(remaining_keys);
     }
 
     fn set_object(&mut self, agent: &mut Agent, object: Object) {
         let iter = self.get_mut(agent);
-        iter.object = object.unbind();
+        iter.object = object;
         iter.remaining_keys = None;
     }
 
@@ -498,7 +466,7 @@ impl<'a> ObjectPropertiesIterator<'a> {
                 // Skip visited keys.
                 continue;
             }
-            return Some((iter_ref.object.bind(gc), next_key.bind(gc)));
+            return Some((iter_ref.object, next_key));
         }
     }
 
@@ -510,7 +478,7 @@ impl<'a> ObjectPropertiesIterator<'a> {
     }
 
     fn get<'agent>(&self, agent: &'agent Agent) -> &'agent ObjectPropertiesIteratorRecord<'a> {
-        let VmIteratorRecord::ObjectProperties(iter) = self.iter.get(agent) else {
+        let VmIteratorRecord::ObjectProperties(iter) = self.iter.get(agent).local() else {
             unreachable!()
         };
         iter
@@ -549,12 +517,12 @@ impl<'a> ObjectPropertiesIteratorRecord<'a> {
 
     fn set_remaining_keys(&mut self, mut remaining_keys: Vec<PropertyKey>) {
         remaining_keys.reverse();
-        self.remaining_keys = Some(remaining_keys.unbind());
+        self.remaining_keys = Some(remaining_keys);
     }
 
     fn set_object(&mut self, object: Object) {
         let iter = self;
-        iter.object = object.unbind();
+        iter.object = object;
         iter.remaining_keys = None;
     }
 
@@ -569,7 +537,7 @@ impl<'a> ObjectPropertiesIteratorRecord<'a> {
                 // Skip visited keys.
                 continue;
             }
-            return Some((self.object.bind(gc), next_key.bind(gc)));
+            return Some((self.object, next_key));
         }
     }
 
@@ -589,7 +557,7 @@ impl<'a> ObjectPropertiesIteratorRecord<'a> {
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, Option<Value<'gc>>> {
         loop {
-            let object = self.object.bind(gc);
+            crate::engine::bind!(let object = self.object, gc);
             if !self.object_is_visited() {
                 let keys = object.try_own_property_keys(agent, gc)?;
                 let mut remaining_keys = Vec::with_capacity(keys.len());
@@ -647,11 +615,11 @@ impl<'a> ArrayValuesIterator<'a> {
         if let Some(element_value) = array.as_slice(agent)[index as usize] {
             // Fast path: If the element at this index has a Value, then it is
             // not an accessor nor a hole. Yield the result as-is.
-            return Ok(Some(element_value.unbind()));
+            return Ok(Some(element_value));
         }
         // 1. Let elementKey be ! ToString(indexNumber).
         // 2. Let elementValue be ? Get(array, elementKey).
-        let element_value = get(agent, array.unbind(), index.into(), gc)?;
+        let element_value = get(agent, array, index.into(), gc)?;
         // a. Let result be elementValue.
         // vii. Perform ? GeneratorYield(CreateIterResultObject(result, false)).
         Ok(Some(element_value))
@@ -673,9 +641,7 @@ impl<'a> ArrayValuesIterator<'a> {
                 .into(),
             BUILTIN_STRING_MEMORY.throw.into(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         // 2. If throw is not undefined, then
         if let Some(throw) = throw {
             // i. Let innerResult be
@@ -701,9 +667,7 @@ impl<'a> ArrayValuesIterator<'a> {
                 .into(),
             BUILTIN_STRING_MEMORY.r#return.into(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         // 2. If return is not undefined, then
         if let Some(r#return) = r#return {
             // i. Let innerResult be
@@ -721,7 +685,7 @@ impl<'a> ArrayValuesIterator<'a> {
         let VmIteratorRecord::ArrayValues(iter) = self.iter.get_mut(agent) else {
             unreachable!()
         };
-        let array = iter.array.bind(gc);
+        crate::engine::bind!(let array = iter.array, gc);
         // iv. Let indexNumber be 𝔽(index).
         let index = iter.index;
         let mut iter = NonNull::from(iter);
@@ -759,7 +723,7 @@ impl<'a> ArrayValuesIteratorRecord<'a> {
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
     ) -> Option<(Array<'gc>, u32)> {
-        let array = self.array.bind(gc);
+        crate::engine::bind!(let array = self.array, gc);
         // iv. Let indexNumber be 𝔽(index).
         let index = self.index;
         // 1. Let len be ? LengthOfArrayLike(array).
@@ -786,11 +750,11 @@ impl<'a> ArrayValuesIteratorRecord<'a> {
         if let Some(element_value) = array.as_slice(agent)[index as usize] {
             // Fast path: If the element at this index has a Value, then it is
             // not an accessor nor a hole. Yield the result as-is.
-            return TryResult::Continue(Some(element_value.unbind()));
+            return TryResult::Continue(Some(element_value));
         }
         // 1. Let elementKey be ! ToString(indexNumber).
         // 2. Let elementValue be ? Get(array, elementKey).
-        let element_value = match try_get(agent, array.unbind(), index.into(), None, gc)? {
+        let element_value = match try_get(agent, array, index.into(), None, gc)? {
             TryGetResult::Unset => Value::Undefined,
             TryGetResult::Value(value) => value,
             TryGetResult::Get(_) | TryGetResult::Proxy(_) => {
@@ -819,11 +783,11 @@ impl<'a> GenericIterator<'a> {
         agent: &mut Agent,
         value: Option<Value>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let iter = self.get(agent);
-        let next_method = iter.next_method.bind(gc.nogc());
-        let iterator = iter.iterator.bind(gc.nogc());
-        let value = value.bind(gc.nogc());
+        crate::engine::bind!(let next_method = iter.next_method, gc);
+        crate::engine::bind!(let iterator = iter.iterator, gc);
+        crate::engine::bind!(let value = value, gc);
 
         // 1. If value is not present, then
         if let Some(value) = value {
@@ -831,20 +795,14 @@ impl<'a> GenericIterator<'a> {
             // a. Let result be Completion(Call(iteratorRecord.[[NextMethod]], iteratorRecord.[[Iterator]], « value »)).
             call_function(
                 agent,
-                next_method.unbind(),
-                iterator.unbind().into(),
-                Some(ArgumentsList::from_mut_value(&mut value.unbind())),
+                next_method,
+                iterator.into(),
+                Some(ArgumentsList::from_mut_value(&mut value)),
                 gc,
             )
         } else {
             // a. Let result be Completion(Call(iteratorRecord.[[NextMethod]], iteratorRecord.[[Iterator]])).
-            call_function(
-                agent,
-                next_method.unbind(),
-                iterator.unbind().into(),
-                None,
-                gc,
-            )
+            call_function(agent, next_method, iterator.into(), None, gc)
         }
     }
 
@@ -854,32 +812,22 @@ impl<'a> GenericIterator<'a> {
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Option<Value<'gc>>> {
         let iter = self.get(agent);
-        let next_method = iter.next_method.bind(gc.nogc());
-        let iterator = iter.iterator.bind(gc.nogc());
+        crate::engine::bind!(let next_method = iter.next_method, gc);
+        crate::engine::bind!(let iterator = iter.iterator, gc);
 
-        let result = call_function(
-            agent,
-            next_method.unbind(),
-            iterator.unbind().into(),
-            None,
-            gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        let result = call_function(agent, next_method, iterator.into(), None, gc.reborrow())?;
         let Ok(result) = Object::try_from(result) else {
             return Err(throw_iterator_returned_non_object(agent, gc.into_nogc()));
         };
-        let result = result.unbind().bind(gc.nogc());
+        let result = result;
         let scoped_result = result.scope(agent, gc.nogc());
         // 1. Return ToBoolean(? Get(iterResult, "done")).
         let done = get(
             agent,
-            result.unbind(),
+            result,
             BUILTIN_STRING_MEMORY.done.into(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         let done = to_boolean(agent, done);
         if done {
             Ok(None)
@@ -887,7 +835,7 @@ impl<'a> GenericIterator<'a> {
             // 1. Return ? Get(iterResult, "value").
             let value = get(
                 agent,
-                scoped_result.get(agent),
+                scoped_result.get(agent).local(),
                 BUILTIN_STRING_MEMORY.value.into(),
                 gc,
             )?;
@@ -902,27 +850,25 @@ impl<'a> GenericIterator<'a> {
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Option<Value<'gc>>> {
         let received_value = received_value.scope(agent, gc.nogc());
-        let iterator = self.get(agent).iterator.bind(gc.nogc());
+        crate::engine::bind!(let iterator = self.get(agent).iterator, gc);
         // 1. Let throw be ? GetMethod(iterator, "throw").
         let throw = get_object_method(
             agent,
-            iterator.unbind(),
+            iterator,
             BUILTIN_STRING_MEMORY.throw.into(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         // 2. If throw is not undefined, then
         if let Some(throw) = throw {
-            let iterator = self.get(agent).iterator.bind(gc.nogc());
+            crate::engine::bind!(let iterator = self.get(agent).iterator, gc);
             // i. Return Call(throw, iterator, « received.[[Value]] »).
             Ok(Some(call_function(
                 agent,
-                throw.unbind(),
-                iterator.unbind().into(),
+                throw,
+                iterator.into(),
                 // SAFETY: not shared.
                 Some(ArgumentsList::from_mut_value(&mut unsafe {
-                    received_value.take(agent)
+                    received_value.take(agent).local()
                 })),
                 gc,
             )?))
@@ -938,35 +884,33 @@ impl<'a> GenericIterator<'a> {
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Option<Value<'gc>>> {
         let value = value.map(|v| v.scope(agent, gc.nogc()));
-        let iterator = iterator.bind(gc.nogc());
+        crate::engine::bind!(let iterator = iterator, gc);
         let scoped_iterator = iterator.scope(agent, gc.nogc());
         // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
         // 2. Let iterator be iteratorRecord.[[Iterator]].
         // 3. Let innerResult be Completion(GetMethod(iterator, "return")).
         let r#return = get_object_method(
             agent,
-            iterator.unbind(),
+            iterator,
             BUILTIN_STRING_MEMORY.r#return.into(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         // 4. If completion is a throw completion, return ? completion.
         // 5. If innerResult is a throw completion, return ? innerResult.
         // 4. If innerResult is a normal completion, then
         // a. Let return be innerResult.[[Value]].
         // b. If return is undefined, ...
         if let Some(r#return) = r#return {
-            let iterator = unsafe { scoped_iterator.take(agent) }.bind(gc.nogc());
+            crate::engine::bind!(let iterator = unsafe { scoped_iterator.take(agent).local() }, gc);
             // c. Set innerResult to Completion(Call(return, iterator)).
             // d. If innerResult is a normal completion, set innerResult to
             //    Completion(innerResult.[[Value]]).
             // SAFETY: not shared.
-            let mut value = value.map(|v| unsafe { v.take(agent) });
+            let mut value = value.map(|v| unsafe { v.take(agent).local() });
             Ok(Some(call_function(
                 agent,
-                r#return.unbind(),
-                iterator.unbind().into(),
+                r#return,
+                iterator.into(),
                 value.as_mut().map(ArgumentsList::from_mut_value),
                 gc,
             )?))
@@ -977,7 +921,7 @@ impl<'a> GenericIterator<'a> {
     }
 
     fn get<'agent>(&self, agent: &'agent Agent) -> &'agent IteratorRecord<'a> {
-        match self.iter.get(agent) {
+        match self.iter.get(agent).local() {
             VmIteratorRecord::GenericIterator(iter) => iter,
             _ => unreachable!(),
         }
@@ -1007,8 +951,8 @@ impl<'a> AsyncFromSyncGenericIterator<'a> {
         // 4. Let syncIteratorRecord be O.[[SyncIteratorRecord]].
         // 5. If value is present, then
         let iter = self.get(agent);
-        let sync_iterator_record = iter.bind(gc.nogc());
-        AsyncFromSyncIteratorPrototype::next(agent, sync_iterator_record.unbind(), value, gc)
+        crate::engine::bind!(let sync_iterator_record = iter, gc);
+        AsyncFromSyncIteratorPrototype::next(agent, sync_iterator_record, value, gc)
     }
 
     /// ### [27.1.6.2.2 %AsyncFromSyncIteratorPrototype%.return ( \[ value \] )](https://tc39.es/ecma262/#sec-%asyncfromsynciteratorprototype%.return)
@@ -1023,8 +967,8 @@ impl<'a> AsyncFromSyncGenericIterator<'a> {
         // 4. Let syncIteratorRecord be O.[[SyncIteratorRecord]].
         // 5. Let syncIterator be syncIteratorRecord.[[Iterator]].
         let iter = self.get(agent);
-        let sync_iterator = iter.iterator.bind(gc.nogc());
-        AsyncFromSyncIteratorPrototype::r#return(agent, sync_iterator.unbind(), value, gc)
+        crate::engine::bind!(let sync_iterator = iter.iterator, gc);
+        AsyncFromSyncIteratorPrototype::r#return(agent, sync_iterator, value, gc)
     }
 
     /// ### [27.1.6.2.3 %AsyncFromSyncIteratorPrototype%.throw ( \[ value \] )](https://tc39.es/ecma262/#sec-%asyncfromsynciteratorprototype%.throw)
@@ -1043,12 +987,12 @@ impl<'a> AsyncFromSyncGenericIterator<'a> {
         // 4. Let syncIteratorRecord be O.[[SyncIteratorRecord]].
         // 5. Let syncIterator be syncIteratorRecord.[[Iterator]].
         let iter = self.get(agent);
-        let sync_iterator = iter.iterator.bind(gc.nogc());
-        AsyncFromSyncIteratorPrototype::throw(agent, sync_iterator.unbind(), value, gc)
+        crate::engine::bind!(let sync_iterator = iter.iterator, gc);
+        AsyncFromSyncIteratorPrototype::throw(agent, sync_iterator, value, gc)
     }
 
     fn get<'agent>(&self, agent: &'agent Agent) -> &'agent IteratorRecord<'a> {
-        match self.iter.get(agent) {
+        match self.iter.get(agent).local() {
             VmIteratorRecord::AsyncFromSyncGenericIterator(iter) => iter,
             _ => unreachable!(),
         }

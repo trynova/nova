@@ -65,9 +65,9 @@ impl<'a> Caches<'a> {
         addition_index: u32,
         gc: NoGcScope,
     ) {
-        let o = o.unbind();
-        let shape = shape.unbind();
-        let key = key.unbind();
+        let o = o;
+        let shape = shape;
+        let key = key;
         let self_index = PropertyOffset::new(addition_index);
         let prototype_index = PropertyOffset::new_prototype(addition_index);
         let hash = key.heap_hash(agent);
@@ -192,8 +192,8 @@ impl<'a> Caches<'a> {
         removal_index: u32,
     ) {
         let caches = &mut agent.heap.caches;
-        let o = o.unbind();
-        let shape = shape.unbind();
+        let o = o;
+        let shape = shape;
         let self_index = PropertyOffset::new(removal_index);
         let proto_index = PropertyOffset::new_prototype(removal_index);
         if self_index.is_none() && proto_index.is_none() {
@@ -385,10 +385,10 @@ impl<'a> Caches<'a> {
         cache: PropertyLookupCache,
     ) {
         let previous = self.current_cache_to_populate.replace(CacheToPopulate {
-            receiver: receiver.unbind(),
-            cache: cache.unbind(),
-            key: key.unbind(),
-            shape: shape.unbind(),
+            receiver: receiver,
+            cache: cache,
+            key: key,
+            shape: shape,
         });
         debug_assert!(previous.is_none());
     }
@@ -475,7 +475,7 @@ impl<'a> PropertyLookupCache<'a> {
                     .property_lookup_cache_prototypes
                     .push(PropertyLookupCacheRecordPrototypes::new());
                 let cache = PropertyLookupCache::last(&caches.property_lookup_caches);
-                e.insert((key.unbind(), WeakReference(cache.unbind())));
+                e.insert((key, WeakReference(cache)));
                 cache
             }
         }
@@ -530,7 +530,7 @@ impl<'a> PropertyLookupCache<'a> {
             record.next = Some(next_to_create);
             caches
                 .property_lookup_caches
-                .push(PropertyLookupCacheRecord::with_shape_and_offset(shape, offset).unbind());
+                .push(PropertyLookupCacheRecord::with_shape_and_offset(shape, offset));
             caches
                 .property_lookup_cache_prototypes
                 .push(PropertyLookupCacheRecordPrototypes::new());
@@ -573,7 +573,7 @@ impl<'a> PropertyLookupCache<'a> {
             record.next = Some(next_to_create);
             caches
                 .property_lookup_caches
-                .push(PropertyLookupCacheRecord::with_shape_and_offset(shape, offset).unbind());
+                .push(PropertyLookupCacheRecord::with_shape_and_offset(shape, offset));
             caches
                 .property_lookup_cache_prototypes
                 .push(PropertyLookupCacheRecordPrototypes::new());
@@ -610,7 +610,7 @@ impl<'a> PropertyLookupCache<'a> {
             record.next = Some(next_to_create);
             caches
                 .property_lookup_caches
-                .push(PropertyLookupCacheRecord::with_shape_and_offset(shape, offset).unbind());
+                .push(PropertyLookupCacheRecord::with_shape_and_offset(shape, offset));
             caches
                 .property_lookup_cache_prototypes
                 .push(PropertyLookupCacheRecordPrototypes::new());
@@ -638,7 +638,7 @@ impl<'a> PropertyLookupCache<'a> {
             let (record, prototypes) = cache.get_record_mut(caches);
             if let Some(i) = record.insert(shape, offset) {
                 debug_assert!(offset.is_prototype_property());
-                let previous = prototypes.prototypes[i as usize].replace(prototype.unbind());
+                let previous = prototypes.prototypes[i as usize].replace(prototype);
                 debug_assert!(previous.is_none());
                 return;
             }
@@ -649,10 +649,10 @@ impl<'a> PropertyLookupCache<'a> {
             record.next = Some(next_to_create);
             caches
                 .property_lookup_caches
-                .push(PropertyLookupCacheRecord::with_shape_and_offset(shape, offset).unbind());
+                .push(PropertyLookupCacheRecord::with_shape_and_offset(shape, offset));
             caches
                 .property_lookup_cache_prototypes
-                .push(PropertyLookupCacheRecordPrototypes::with_prototype(prototype).unbind());
+                .push(PropertyLookupCacheRecordPrototypes::with_prototype(prototype));
             let cache = PropertyLookupCache::last(&caches.property_lookup_caches);
             debug_assert_eq!(cache, next_to_create);
             break;
@@ -702,7 +702,7 @@ impl<'a> Rootable for PropertyLookupCache<'a> {
     type RootRepr = HeapRootRef;
 
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::PropertyLookupCache(value.unbind()))
+        Err(HeapRootData::PropertyLookupCache(value))
     }
 
     fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
@@ -770,7 +770,7 @@ impl<'a> PropertyLookupCacheRecord<'a> {
             .enumerate()
             .find(|(_, s)| s.is_none())
         {
-            *slot = Some(shape.unbind());
+            *slot = Some(shape);
             self.offsets[i] = offset;
             Some(i as u8)
         } else {
@@ -787,12 +787,12 @@ impl<'a> PropertyLookupCacheRecord<'a> {
             .enumerate()
             .find(|(_, s)| s.is_none_or(|s| s == shape))
         {
-            if slot == &Some(shape.unbind()) {
+            if slot == &Some(shape) {
                 // Duplicate found.
                 debug_assert_eq!(self.offsets[i], offset);
                 return Some(i as u8);
             }
-            *slot = Some(shape.unbind());
+            *slot = Some(shape);
             self.offsets[i] = offset;
             Some(i as u8)
         } else {

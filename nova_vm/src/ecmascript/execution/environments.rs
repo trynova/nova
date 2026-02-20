@@ -228,8 +228,8 @@ impl<'e> Environment<'e> {
         self,
         agent: &mut Agent,
         name: String,
-        gc: GcScope<'a, '_>,
-    ) -> JsResult<'a, bool> {
+        gc: GcScope,
+    ) -> JsResult<'static, bool> {
         match self {
             Environment::Declarative(e) => Ok(e.has_binding(agent, name)),
             Environment::Function(e) => Ok(e.has_binding(agent, name)),
@@ -284,7 +284,7 @@ impl<'e> Environment<'e> {
         agent: &mut Agent,
         name: String,
         is_deletable: bool,
-        gc: GcScope<'a, '_>,
+        gc: GcScope,
     ) -> JsResult<'a, ()> {
         match self {
             Environment::Declarative(e) => {
@@ -386,7 +386,7 @@ impl<'e> Environment<'e> {
         name: String,
         cache: Option<PropertyLookupCache>,
         value: Value,
-        gc: GcScope<'a, '_>,
+        gc: GcScope,
     ) -> JsResult<'a, ()> {
         match self {
             Environment::Declarative(e) => {
@@ -461,7 +461,7 @@ impl<'e> Environment<'e> {
         cache: Option<PropertyLookupCache>,
         value: Value,
         is_strict: bool,
-        gc: GcScope<'a, '_>,
+        gc: GcScope,
     ) -> JsResult<'a, ()> {
         match self {
             Environment::Declarative(e) => {
@@ -524,22 +524,21 @@ impl<'e> Environment<'e> {
         agent: &mut Agent,
         name: String,
         is_strict: bool,
-        gc: GcScope<'a, '_>,
-    ) -> JsResult<'a, Value<'a>> {
+        gc: GcScope,
+    ) -> JsResult<'static, Value<'static>> {
         match self {
             Environment::Declarative(e) => {
                 let gc = gc.into_nogc();
-                e.bind(gc).get_binding_value(agent, name, is_strict, gc)
+                e.get_binding_value(agent, name, is_strict, gc)
             }
             Environment::Function(e) => {
                 let gc = gc.into_nogc();
-                e.bind(gc).get_binding_value(agent, name, is_strict, gc)
+                e.get_binding_value(agent, name, is_strict, gc)
             }
             Environment::Global(e) => e.get_binding_value(agent, name, is_strict, gc),
             Environment::Module(e) => {
                 let gc = gc.into_nogc();
-                e.bind(gc)
-                    .env_get_binding_value(agent, name, is_strict, gc.into_nogc())
+                e.env_get_binding_value(agent, name, is_strict, gc.into_nogc())
             }
             Environment::Object(e) => e.get_binding_value(agent, name, is_strict, gc),
         }
@@ -580,8 +579,8 @@ impl<'e> Environment<'e> {
         self,
         agent: &mut Agent,
         name: String,
-        gc: GcScope<'a, '_>,
-    ) -> JsResult<'a, bool> {
+        gc: GcScope,
+    ) -> JsResult<'static, bool> {
         match self {
             Environment::Declarative(e) => Ok(e.delete_binding(agent, name)),
             Environment::Function(e) => Ok(e.delete_binding(agent, name)),
@@ -670,11 +669,11 @@ impl Rootable for Environment<'_> {
 
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match value {
-            Environment::Declarative(e) => Err(HeapRootData::DeclarativeEnvironment(e.unbind())),
-            Environment::Function(e) => Err(HeapRootData::FunctionEnvironment(e.unbind())),
-            Environment::Global(e) => Err(HeapRootData::GlobalEnvironment(e.unbind())),
-            Environment::Module(e) => Err(HeapRootData::ModuleEnvironment(e.unbind())),
-            Environment::Object(e) => Err(HeapRootData::ObjectEnvironment(e.unbind())),
+            Environment::Declarative(e) => Err(HeapRootData::DeclarativeEnvironment(e)),
+            Environment::Function(e) => Err(HeapRootData::FunctionEnvironment(e)),
+            Environment::Global(e) => Err(HeapRootData::GlobalEnvironment(e)),
+            Environment::Module(e) => Err(HeapRootData::ModuleEnvironment(e)),
+            Environment::Object(e) => Err(HeapRootData::ObjectEnvironment(e)),
         }
     }
 
@@ -805,9 +804,9 @@ pub(crate) fn try_get_identifier_reference<'a>(
     strict: bool,
     gc: NoGcScope<'a, '_>,
 ) -> TryResult<'a, Reference<'a>> {
-    let env = env.bind(gc);
-    let name = name.bind(gc);
-    let cache = cache.bind(gc);
+    crate::engine::bind!(let env = env, gc);
+    crate::engine::bind!(let name = name, gc);
+    crate::engine::bind!(let cache = cache, gc);
     // 1. If env is null, then
     // 2. Let exists be ? env.HasBinding(name).
     let exists = if let ControlFlow::Continue(TryHasBindingContinue::Result(exists)) =
@@ -862,13 +861,13 @@ pub(crate) fn get_identifier_reference<'a, 'b>(
     strict: bool,
     mut gc: GcScope<'a, 'b>,
 ) -> JsResult<'a, Reference<'a>> {
-    let env = env.bind(gc.nogc());
-    let mut name = name.bind(gc.nogc());
-    let mut cache = cache.bind(gc.nogc());
+    crate::engine::bind!(let env = env, gc);
+    crate::engine::bind!(let mut name = name, gc);
+    crate::engine::bind!(let mut cache = cache, gc);
 
     // 1. If env is null, then
     let Some(mut env) = env else {
-        let name = name.unbind().bind(gc.into_nogc());
+        crate::engine::bind!(let name = name, gc);
         // a. Return the Reference Record {
         // [[Base]]: UNRESOLVABLE,
         // [[ReferencedName]]: name,
@@ -886,20 +885,12 @@ pub(crate) fn get_identifier_reference<'a, 'b>(
         let env_scoped = env.scope(agent, gc.nogc());
         let name_scoped = name.scope(agent, gc.nogc());
         let cache_scoped = cache.map(|c| c.scope(agent, gc.nogc()));
-        let exists = handle_try_has_binding_result_cold(
-            agent,
-            env.unbind(),
-            name.unbind(),
-            exists.unbind(),
-            gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        let exists = handle_try_has_binding_result_cold(agent, env, name, exists, gc.reborrow())?;
         // SAFETY: not shared.
         unsafe {
-            cache = cache_scoped.map(|c| c.take(agent));
-            name = name_scoped.take(agent);
-            env = env_scoped.take(agent);
+            cache = cache_scoped.map(|c| c.take(agent).local());
+            name = name_scoped.take(agent).local();
+            env = env_scoped.take(agent).local();
         }
         exists
     };
@@ -910,7 +901,7 @@ pub(crate) fn get_identifier_reference<'a, 'b>(
         // [[Base]]: env,
         // [[ReferencedName]]: name,
         // [[Strict]]: strict,
-        Ok(Reference::new_variable_reference(env, name, cache, strict).unbind())
+        Ok(Reference::new_variable_reference(env, name, cache, strict))
         // [[ThisValue]]: EMPTY
         // }.
     }
@@ -920,14 +911,7 @@ pub(crate) fn get_identifier_reference<'a, 'b>(
         let outer = env.get_outer_env(agent);
 
         // b. Return ? GetIdentifierReference(outer, name, strict).
-        get_identifier_reference(
-            agent,
-            outer.unbind(),
-            name.unbind(),
-            cache.unbind(),
-            strict,
-            gc,
-        )
+        get_identifier_reference(agent, outer, name, cache, strict, gc)
     }
 }
 
@@ -938,20 +922,18 @@ fn handle_try_has_binding_result_cold<'a>(
     env: Environment,
     name: String,
     exists: ControlFlow<TryError, TryHasBindingContinue>,
-    gc: GcScope<'a, '_>,
-) -> JsResult<'a, bool> {
+    gc: GcScope,
+) -> JsResult<'static, bool> {
     match exists {
         ControlFlow::Continue(c) => match c {
             TryHasBindingContinue::Result(exists) => Ok(exists),
             TryHasBindingContinue::Proxy(proxy) => {
-                proxy
-                    .unbind()
-                    .internal_has_property(agent, name.to_property_key(), gc)
+                proxy.internal_has_property(agent, name.to_property_key(), gc)
             }
         },
         ControlFlow::Break(b) => match b {
-            TryError::Err(err) => Err(err.unbind().bind(gc.into_nogc())),
-            _ => env.unbind().has_binding(agent, name.unbind(), gc),
+            TryError::Err(err) => Err(err),
+            _ => env.has_binding(agent, name, gc),
         },
     }
 }

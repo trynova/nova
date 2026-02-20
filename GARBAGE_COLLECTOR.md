@@ -68,7 +68,7 @@ Here, we can use scoping to solve the problem:
 fn method(agent: &mut Agent, obj: Object, gc: GcToken) -> JsResult<Object> {
     let scoped_obj = obj.scope(agent, gc.nogc());
     delete(agent, obj, "key".into(), gc.reborrow())?;
-    Ok(scoped_obj.get(agent))
+    Ok(scoped_obj.get(agent).local())
 }
 ```
 
@@ -114,10 +114,10 @@ like this:
 
 ```rs
 fn method(agent: &mut Agent, obj: Object, gc: GcToken) -> JsResult<Object> {
-    let obj = obj.bind(gc.nogc());
+    crate::engine::bind!(let obj = obj, gc);
     let scoped_obj = obj.scope(agent, gc.nogc());
-    delete(agent, obj.unbind(), "key".into(), gc.reborrow())?;
-    Ok(scoped_obj.get(agent))
+    delete(agent, obj,"key".into(), gc.reborrow())?;
+    Ok(scoped_obj.get(agent).local())
 }
 ```
 
@@ -127,14 +127,14 @@ would look something like this:
 ```rs
 fn method(agent: &'agent mut Agent, obj: Object<'obj>, gc: GcToken<'gc, 'scope>) -> JsResult<'gc, Object<'gc>> {
     let nogc: NoGcToken<'nogc, 'scope> = gc.nogc(); // [1]
-    let obj: Object<'nogc> = obj.bind(gc.nogc());
+    let obj: Object<'nogc> = gc.join(&obj);
     let scoped_obj: Scoped<'scope, Object<'static>> = obj.scope(agent, gc.nogc()); // [2]
     {
-        let obj_unbind: Object<'static> = obj.unbind(); // [3]
+        let obj_unbind: Object<'static> = obj; // [3]
         let gc_reborrow: GcToken<'gcrb, 'scope> = gc.reborrow(); // [4]
         delete(agent, obj_unbind, "key".into(), gc_reborrow)?;
     }
-    let scoped_obj_get: Object<'static> = scoped_obj.get(agent); // [5]
+    let scoped_obj_get: Object<'static> = scoped_obj.get(agent).local(); // [5]
     Ok(scoped_obj_get)
 }
 ```
@@ -177,11 +177,11 @@ and the different APIs related to the `GcToken`.
 Example:
 
 ```rs
-fn method(agent: &mut Agent, a: Object, b: Value, c: PropertyKey, d: ArgumentsList, gc: GcToken) {
+fn method(agent: &mut Agent, a: Object, b: Value, c: PropertyKey, d: ArgumentsList<'_, 'static>, gc: GcToken) {
     let nogc = gc.nogc(); // Perfectly okay to avoid repeating `gc.nogc()` in each call.
-    let a = a.bind(nogc);
-    let b = b.bind(nogc);
-    let c = c.bind(nogc);
+    crate::engine::bind!(let a = a, gc);
+    crate::engine::bind!(let b = b, gc);
+    crate::engine::bind!(let c = c, gc);
     let arg0 = arguments.get(0).bind(nogc);
     let arg1 = arguments.get(1).bind(nogc);
     let arg2 = arguments.get(2).bind(nogc);
@@ -203,10 +203,10 @@ Example:
 ```rs
 method(
     agent,
-    a.unbind(),
-    b.unbind(),
-    c.unbind(),
-    ArgumentsList(&[arg0.unbind(), arg1.unbind(), arg2.unbind()]),
+    a,
+    b,
+    c,
+    ArgumentsList(&[arg0, arg1,arg2]),
     gc.reborrow()
 );
 ```
@@ -219,7 +219,7 @@ don't need to explicitly unbind the result from as it is already
 Example:
 
 ```rs
-method(agent, scoped_a.get(agent), gc.reborrow());
+method(agent, scoped_a.get(agent).local(), gc.reborrow());
 ```
 
 ### Immediately "rebind" return values from methods that take `GcToken`
@@ -227,8 +227,8 @@ method(agent, scoped_a.get(agent), gc.reborrow());
 Example:
 
 ```rs
-let result = method(agent, a.unbind(), gc.reborrow())
-    .unbind().bind(gc.nogc());
+let result = method(agent, a,gc.reborrow())
+    ;
 ```
 
 The reason to do this is that the `result` as returned from `method` extends the
@@ -237,7 +237,7 @@ the `result` says that as long as it lives, the `gc: GcToken` cannot be used nor
 can any other `Value`s exist. The exact reason for why it works like this is
 some fairly obscure Rust lifetime trivia having to do with internal mutability.
 
-In our case, a quick `.unbind().bind(gc.nogc())` allows us to drop the exclusive
+In our case, a quick `` allows us to drop the exclusive
 borrow on the `GcToken` and replace it with, effectively, a shared borrow on the
 `GcToken`. This gives us the `GcToken` binding we wanted.
 
@@ -245,9 +245,9 @@ Exception: This does not need to be done if you're simply returning the result
 immediately:
 
 ```rs
-fn call<'a>(agent: &mut Agent, a: Value, gc: GcToken<'a, '_>) -> JsResult<'a, Value<'a>> {
-    let a = a.bind(gc.nogc());
-    method(agent, a.unbind(), gc.reborrow()) // No need to rebind the result
+fn call<'a>(agent: &mut Agent, a: Value, gc: GcToken<'a, '_>) -> JsResult<'static, Value<'static>> {
+    crate::engine::bind!(let a = a, gc);
+    method(agent, a,gc.reborrow()) // No need to rebind the result
 }
 ```
 
@@ -256,7 +256,7 @@ fn call<'a>(agent: &mut Agent, a: Value, gc: GcToken<'a, '_>) -> JsResult<'a, Va
 Example:
 
 ```rs
-let a = scoped_a.get(agent).bind(gc.nogc());
+crate::engine::bind!(let a = scoped_a.get(agent).local(), gc);
 ```
 
 This ensures that no odd bugs occur.
@@ -265,7 +265,7 @@ Exception: If the result is immediately used without assigning to a variable,
 binding can be skipped.
 
 ```rs
-scoped_a.get(agent).internal_delete(agent, scoped_b.get(agent), gc.reborrow());
+scoped_a.get(agent).local().internal_delete(agent, scoped_b.get(agent).local(), gc.reborrow());
 ```
 
 Here it is perfectly okay to skip the binding for both `scoped_a` and `scoped_b`
@@ -276,9 +276,9 @@ as the borrow checker would force you to again unbind both `Value`s immediately.
 Example:
 
 ```rs
-let result = method(agent, a.unbind(), gc.reborrow())
-    .unbind().bind(gc.nogc());
-a.internal_set_prototype(agent, result.unbind(), gc.reborrow()); // Error! `gc` is immutably borrowed here but mutably borrowed above
+let result = method(agent, a,gc.reborrow())
+    ;
+a.internal_set_prototype(agent, result,gc.reborrow()); // Error! `gc` is immutably borrowed here but mutably borrowed above
 ```
 
 If you cannot figure out a way around the borrow checker error (it is absolutely
@@ -286,9 +286,9 @@ correct in erroring here), then scope the offending `Value`:
 
 ```rs
 let scoped_a = a.scope(agent, gc.nogc());
-let result = method(agent, a.unbind(), gc.reborrow())
-    .unbind().bind(gc.nogc());
-scoped_a.get(agent).internal_set_prototype(agent, result.unbind(), gc.reborrow());
+let result = method(agent, a,gc.reborrow())
+    ;
+scoped_a.get(agent).local().internal_set_prototype(agent, result,gc.reborrow());
 ```
 
 ### NEVER unbind a `Value` into a local variable
@@ -296,7 +296,7 @@ scoped_a.get(agent).internal_set_prototype(agent, result.unbind(), gc.reborrow()
 **Bad example:**
 
 ```rs
-let a = a.unbind();
+let a = a;
 ```
 
 This makes the borrow checker consider this `Value` valid to use for the entire
@@ -307,10 +307,10 @@ Exception: If you need to temporarily unbind the `Value` from a lifetime to use
 the `into_nogc` method, this can be done:
 
 ```rs
-let a = a.unbind();
+let a = a;
 // No garbage collection or JS call can happen after this point. We no longer need the GcToken.
 let gc = gc.into_nogc();
-let a = a.bind(gc); // With this we're back to being bound; temporary unbinding like this is okay.
+crate::engine::bind!(let a = a, gc); // With this we're back to being bound; temporary unbinding like this is okay.
 ```
 
 **Bad example:**
@@ -319,10 +319,10 @@ let a = a.bind(gc); // With this we're back to being bound; temporary unbinding 
 between:
 
 ```rs
-let a = a.unbind();
-method(agent, b.unbind(), gc.reborrow()); // GC can trigger here!
+let a = a;
+method(agent, b,gc.reborrow()); // GC can trigger here!
 let gc = gc.into_nogc();
-let a = a.bind(gc); // We're back to being bound but GC might have triggered while we were unbound!
+crate::engine::bind!(let a = a, gc); // We're back to being bound but GC might have triggered while we were unbound!
 ```
 
 This is absolutely incorrect and will one day lead to a weird bug.
@@ -334,11 +334,11 @@ This is absolutely incorrect and will one day lead to a weird bug.
 ```rs
 let a = a.scope(agent, gc.nogc());
 call(agent, gc.reborrow());
-let a = a.get(agent).bind(gc.nogc());
+crate::engine::bind!(let a = a.get(agent).local(), gc);
 no_gc_method(agent, a, gc.nogc());
 let a = a.scope(agent, gc.nogc());
 other_Call(agent, gc.reborrow());
-let a = a.get(agent).bind(gc.nogc());
+crate::engine::bind!(let a = a.get(agent).local(), gc);
 no_gc_method(agent, a, gc.nogc());
 let a = a.scope(agent, gc.nogc());
 // etc...

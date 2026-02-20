@@ -38,11 +38,11 @@ impl WeakMapConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let iterable = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let iterable = arguments.get(0), gc);
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
@@ -66,8 +66,7 @@ impl WeakMapConstructor {
             new_target,
             ProtoIntrinsics::WeakMap,
             gc.reborrow(),
-        )
-        .unbind()?
+        )?
         else {
             // SAFETY: ProtoIntrinsics guarded.
             unsafe { unreachable_unchecked() }
@@ -81,12 +80,10 @@ impl WeakMapConstructor {
         // 5. Let adder be ? Get(map, "set").
         let adder = get(
             agent,
-            map.unbind(),
+            map,
             BUILTIN_STRING_MEMORY.set.to_property_key(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         // 6. If IsCallable(adder) is false, throw a TypeError exception.
         let Some(adder) = is_callable(adder, gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
@@ -99,10 +96,10 @@ impl WeakMapConstructor {
         add_entries_from_iterable(
             agent,
             // SAFETY: not shared.
-            unsafe { scoped_map.take(agent) },
+            unsafe { scoped_map.take(agent).local() },
             // SAFETY: not shared.
-            unsafe { iterable.take(agent) },
-            adder.unbind(),
+            unsafe { iterable.take(agent).local() },
+            adder,
             gc,
         )
         .map(|m| m.into())

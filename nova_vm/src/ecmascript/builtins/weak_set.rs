@@ -30,7 +30,7 @@ impl WeakSet<'_> {
         let Function::BuiltinFunction(function) = function else {
             return false;
         };
-        let Behaviour::Regular(behaviour) = function.get(agent).behaviour else {
+        let Behaviour::Regular(behaviour) = function.get(agent).local().behaviour else {
             return false;
         };
         // We allow a function address comparison here against best advice: it
@@ -55,14 +55,14 @@ impl<'a> InternalSlots<'a> for WeakSet<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index.unbind()
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
             self.get_mut(agent)
                 .object_index
-                .replace(backing_object.unbind())
+                .replace(backing_object)
                 .is_none()
         );
     }
@@ -72,7 +72,7 @@ impl<'a> InternalMethods<'a> for WeakSet<'a> {}
 
 impl<'a> CreateHeapData<WeakSetHeapData<'a>, WeakSet<'a>> for Heap {
     fn create(&mut self, data: WeakSetHeapData<'a>) -> WeakSet<'a> {
-        self.weak_sets.push(data.unbind());
+        self.weak_sets.push(data);
         self.alloc_counter += core::mem::size_of::<WeakSetHeapData<'static>>();
         WeakSet(BaseIndex::last(&self.weak_sets))
     }

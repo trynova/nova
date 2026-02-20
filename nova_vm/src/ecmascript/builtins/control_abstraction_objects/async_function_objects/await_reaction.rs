@@ -35,14 +35,14 @@ impl AwaitReaction<'_> {
         value: Value,
         mut gc: GcScope,
     ) {
-        let reaction = self.bind(gc.nogc());
-        let value = value.bind(gc.nogc());
+        crate::engine::bind!(let reaction = self, gc);
+        crate::engine::bind!(let value = value, gc);
         // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
         // 3. c. Push asyncContext onto the execution context stack; asyncContext is now the running execution context.
         let record = reaction.get_mut(agent);
         let execution_context = record.execution_context.take().unwrap();
         let vm = record.vm.take().unwrap();
-        let async_function = record.async_executable.unwrap().bind(gc.nogc());
+        crate::engine::bind!(let async_function = record.async_executable.unwrap(), gc);
         agent.push_execution_context(execution_context);
 
         let reaction = reaction.scope(agent, gc.nogc());
@@ -51,20 +51,16 @@ impl AwaitReaction<'_> {
         let execution_result = match reaction_type {
             PromiseReactionType::Fulfill => {
                 let executable = async_function.get_executable(agent).scope(agent, gc.nogc());
-                vm.resume(agent, executable, value.unbind(), gc.reborrow())
-                    .unbind()
-                    .bind(gc.nogc())
+                vm.resume(agent, executable, value, gc.reborrow())?
             }
             PromiseReactionType::Reject => {
                 let executable = async_function.get_executable(agent).scope(agent, gc.nogc());
-                vm.resume_throw(agent, executable, value.unbind(), gc.reborrow())
-                    .unbind()
-                    .bind(gc.nogc())
+                vm.resume_throw(agent, executable, value, gc.reborrow())?
             }
         };
 
         // SAFETY: reaction is not shared.
-        let reaction = unsafe { reaction.take(agent) }.bind(gc.nogc());
+        crate::engine::bind!(let reaction = unsafe { reaction.take(agent).local() }, gc);
         match execution_result {
             ExecutionResult::Return(result) => {
                 // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
@@ -75,11 +71,10 @@ impl AwaitReaction<'_> {
                 //    f. Else if result is a return completion, then
                 //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « result.[[Value]] »).
                 reaction
-                    .get(agent)
+                    .get(agent).local()
                     .return_promise_capability
                     .clone()
-                    .unbind()
-                    .resolve(agent, result.unbind(), gc);
+                    .resolve(agent, result, gc);
             }
             ExecutionResult::Throw(err) => {
                 // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
@@ -88,10 +83,10 @@ impl AwaitReaction<'_> {
                 // 2. g. i. Assert: result is a throw completion.
                 //       ii. Perform ! Call(promiseCapability.[[Reject]], undefined, « result.[[Value]] »).
                 reaction
-                    .get(agent)
+                    .get(agent).local()
                     .return_promise_capability
                     .clone()
-                    .reject(agent, err.value().unbind(), gc.nogc());
+                    .reject(agent, err.value(), gc.nogc());
             }
             ExecutionResult::Await { vm, awaited_value } => {
                 // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
@@ -105,9 +100,7 @@ impl AwaitReaction<'_> {
                 // which resume execution of the function.
                 let handler = PromiseReactionHandler::Await(self);
                 // 2. Let promise be ? PromiseResolve(%Promise%, value).
-                let promise = Promise::resolve(agent, awaited_value.unbind(), gc.reborrow())
-                    .unbind()
-                    .bind(gc.nogc());
+                let promise = Promise::resolve(agent, awaited_value, gc.reborrow())?;
                 // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
                 inner_promise_then(agent, promise, handler, handler, None, gc.nogc());
             }
@@ -165,7 +158,7 @@ pub(crate) struct AwaitReactionRecord<'a> {
 
 impl<'a> CreateHeapData<AwaitReactionRecord<'a>, AwaitReaction<'a>> for Heap {
     fn create(&mut self, data: AwaitReactionRecord<'a>) -> AwaitReaction<'a> {
-        self.await_reactions.push(data.unbind());
+        self.await_reactions.push(data);
         self.alloc_counter += core::mem::size_of::<AwaitReactionRecord<'static>>();
         AwaitReaction::last(&self.await_reactions)
     }

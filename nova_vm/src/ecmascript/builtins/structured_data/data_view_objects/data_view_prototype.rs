@@ -189,9 +189,9 @@ impl DataViewPrototype {
     fn get_buffer<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[DataView]]).
         let gc = gc.into_nogc();
@@ -209,9 +209,9 @@ impl DataViewPrototype {
     fn get_byte_length<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[DataView]]).
         let gc = gc.into_nogc();
@@ -240,9 +240,9 @@ impl DataViewPrototype {
     fn get_byte_offset<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[DataView]]).
         let gc = gc.into_nogc();
@@ -267,15 +267,14 @@ impl DataViewPrototype {
     fn get_big_int64<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let byte_offset = arguments.get(0);
         let little_endian = to_boolean(agent, arguments.get(1));
         // 1. Let v be the this value.
         // 2. Return ? GetViewValue(v, byteOffset, littleEndian, bigint64).
         get_view_value::<i64>(agent, this_value, byte_offset, little_endian, gc.reborrow())
-            .unbind()
             .map(|v| v.into_ne_value(agent, gc.into_nogc()).into())
     }
 
@@ -283,15 +282,14 @@ impl DataViewPrototype {
     fn get_big_uint64<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let byte_offset = arguments.get(0);
         let little_endian = to_boolean(agent, arguments.get(1));
         // 1. Let v be the this value.
         // 2. Return ? GetViewValue(v, byteOffset, littleEndian, biguint64).
         get_view_value::<u64>(agent, this_value, byte_offset, little_endian, gc.reborrow())
-            .unbind()
             .map(|v| v.into_ne_value(agent, gc.into_nogc()).into())
     }
 
@@ -300,16 +298,15 @@ impl DataViewPrototype {
     fn get_float16<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let byte_offset = arguments.get(0);
         // 2. If littleEndian is not present, set littleEndian to false.
         let little_endian = to_boolean(agent, arguments.get(1));
         // 1. Let v be the this value.
         // 3. Return ? GetViewValue(v, byteOffset, littleEndian, float16).
         get_view_value::<f16>(agent, this_value, byte_offset, little_endian, gc.reborrow())
-            .unbind()
             .map(|v| v.into_ne_value(agent, gc.into_nogc()).into())
     }
 
@@ -317,16 +314,15 @@ impl DataViewPrototype {
     fn get_float32<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let byte_offset = arguments.get(0);
         // 2. If littleEndian is not present, set littleEndian to false.
         let little_endian = to_boolean(agent, arguments.get(1));
         // 1. Let v be the this value.
         // 3. Return ? GetViewValue(v, byteOffset, littleEndian, float32).
         get_view_value::<f32>(agent, this_value, byte_offset, little_endian, gc.reborrow())
-            .unbind()
             .map(|v| v.into_ne_value(agent, gc.into_nogc()).into())
     }
 
@@ -334,16 +330,15 @@ impl DataViewPrototype {
     fn get_float64<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let byte_offset = arguments.get(0);
         // 2. If littleEndian is not present, set littleEndian to false.
         let little_endian = to_boolean(agent, arguments.get(1));
         // 1. Let v be the this value.
         // 3. Return ? GetViewValue(v, byteOffset, littleEndian, float64).
         get_view_value::<f64>(agent, this_value, byte_offset, little_endian, gc.reborrow())
-            .unbind()
             .map(|v| v.into_ne_value(agent, gc.into_nogc()).into())
     }
 
@@ -351,14 +346,13 @@ impl DataViewPrototype {
     fn get_int8<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let byte_offset = arguments.get(0);
         // 1. Let v be the this value.
         // 2. Return ? GetViewValue(v, byteOffset, true, int8).
         get_view_value::<i8>(agent, this_value, byte_offset, true, gc.reborrow())
-            .unbind()
             .map(|v| v.into_ne_value(agent, gc.into_nogc()).into())
     }
 
@@ -366,16 +360,15 @@ impl DataViewPrototype {
     fn get_int16<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let byte_offset = arguments.get(0);
         // 2. If littleEndian is not present, set littleEndian to false.
         let little_endian = to_boolean(agent, arguments.get(1));
         // 1. Let v be the this value.
         // 3. Return ? GetViewValue(v, byteOffset, littleEndian, int16).
         get_view_value::<i16>(agent, this_value, byte_offset, little_endian, gc.reborrow())
-            .unbind()
             .map(|v| v.into_ne_value(agent, gc.into_nogc()).into())
     }
 
@@ -383,16 +376,15 @@ impl DataViewPrototype {
     fn get_int32<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let byte_offset = arguments.get(0);
         // 2. If littleEndian is not present, set littleEndian to false.
         let little_endian = to_boolean(agent, arguments.get(1));
         // 1. Let v be the this value.
         // 3. Return ? GetViewValue(v, byteOffset, littleEndian, int32).
         get_view_value::<i32>(agent, this_value, byte_offset, little_endian, gc.reborrow())
-            .unbind()
             .map(|v| v.into_ne_value(agent, gc.into_nogc()).into())
     }
 
@@ -400,14 +392,13 @@ impl DataViewPrototype {
     fn get_uint8<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let byte_offset = arguments.get(0);
         // 1. Let v be the this value.
         // 2. Return ? GetViewValue(v, byteOffset, true, uint8).
         get_view_value::<u8>(agent, this_value, byte_offset, true, gc.reborrow())
-            .unbind()
             .map(|v| v.into_ne_value(agent, gc.into_nogc()).into())
     }
 
@@ -415,16 +406,15 @@ impl DataViewPrototype {
     fn get_uint16<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let byte_offset = arguments.get(0);
         // 2. If littleEndian is not present, set littleEndian to false.
         let little_endian = to_boolean(agent, arguments.get(1));
         // 1. Let v be the this value.
         // 3. Return ? GetViewValue(v, byteOffset, littleEndian, uint16).
         get_view_value::<u16>(agent, this_value, byte_offset, little_endian, gc.reborrow())
-            .unbind()
             .map(|v| v.into_ne_value(agent, gc.into_nogc()).into())
     }
 
@@ -432,16 +422,15 @@ impl DataViewPrototype {
     fn get_uint32<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let byte_offset = arguments.get(0);
         // 2. If littleEndian is not present, set littleEndian to false.
         let little_endian = to_boolean(agent, arguments.get(1));
         // 1. Let v be the this value.
         // 3. Return ? GetViewValue(v, byteOffset, littleEndian, uint32).
         get_view_value::<u32>(agent, this_value, byte_offset, little_endian, gc.reborrow())
-            .unbind()
             .map(|v| v.into_ne_value(agent, gc.into_nogc()).into())
     }
 
@@ -449,9 +438,9 @@ impl DataViewPrototype {
     fn set_big_int64<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         let little_endian = to_boolean(agent, arguments.get(2));
@@ -464,9 +453,9 @@ impl DataViewPrototype {
     fn set_big_uint64<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         let little_endian = to_boolean(agent, arguments.get(2));
@@ -480,9 +469,9 @@ impl DataViewPrototype {
     fn set_float16<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         // 2. If littleEndian is not present, set littleEndian to false.
@@ -496,9 +485,9 @@ impl DataViewPrototype {
     fn set_float32<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         // 2. If littleEndian is not present, set littleEndian to false.
@@ -512,9 +501,9 @@ impl DataViewPrototype {
     fn set_float64<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         // 2. If littleEndian is not present, set littleEndian to false.
@@ -528,9 +517,9 @@ impl DataViewPrototype {
     fn set_int8<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         // 1. Let v be the this value.
@@ -542,9 +531,9 @@ impl DataViewPrototype {
     fn set_int16<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         // 2. If littleEndian is not present, set littleEndian to false.
@@ -558,9 +547,9 @@ impl DataViewPrototype {
     fn set_int32<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         // 2. If littleEndian is not present, set littleEndian to false.
@@ -574,9 +563,9 @@ impl DataViewPrototype {
     fn set_uint8<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         // 1. Let v be the this value.
@@ -588,9 +577,9 @@ impl DataViewPrototype {
     fn set_uint16<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         // 2. If littleEndian is not present, set littleEndian to false.
@@ -604,9 +593,9 @@ impl DataViewPrototype {
     fn set_uint32<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         // 2. If littleEndian is not present, set littleEndian to false.
@@ -680,9 +669,9 @@ pub(crate) fn require_internal_slot_data_view<'a>(
 ) -> JsResult<'a, AnyDataView<'a>> {
     match o {
         // 1. Perform ? RequireInternalSlot(O, [[DataView]]).
-        Value::DataView(dv) => Ok(AnyDataView::DataView(dv.unbind().bind(gc))),
+        Value::DataView(dv) => Ok(AnyDataView::DataView(dv)),
         #[cfg(feature = "shared-array-buffer")]
-        Value::SharedDataView(sdv) => Ok(AnyDataView::SharedDataView(sdv.unbind().bind(gc))),
+        Value::SharedDataView(sdv) => Ok(AnyDataView::SharedDataView(sdv)),
         _ => Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Expected this to be DataView",

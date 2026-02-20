@@ -35,10 +35,10 @@ impl FunctionConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 2. If bodyArg is not present, set bodyArg to the empty String.
         let (parameter_args, body_arg) = if arguments.is_empty() {
             (&[] as &[Value], String::EMPTY_STRING.into())
@@ -60,15 +60,13 @@ impl FunctionConstructor {
             parameter_args,
             body_arg,
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         // 20.2.1.1.1 CreateDynamicFunction ( constructor, newTarget, kind, parameterArgs, bodyArg )
         // 32. Else if kind is normal, then
         //   a. Perform MakeConstructor(F).
-        make_constructor(agent, f.unbind(), None, None, gc.nogc());
+        make_constructor(agent, f, None, None, gc.nogc());
 
-        Ok(f.unbind().into())
+        Ok(f.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -127,21 +125,20 @@ pub(crate) fn create_dynamic_function<'a>(
     kind: DynamicFunctionKind,
     parameter_args: &[Value],
     body_arg: Value,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> JsResult<'a, ECMAScriptFunction<'a>> {
-    let mut constructor = constructor.bind(gc.nogc());
+    crate::engine::bind!(let mut constructor = constructor, gc);
     // 11. Perform ? HostEnsureCanCompileStrings(currentRealm, parameterStrings, bodyString, false).
     agent
         .host_hooks
-        .ensure_can_compile_strings(agent.current_realm(gc.nogc()), gc.nogc())
-        .unbind()?;
+        .ensure_can_compile_strings(agent.current_realm(gc.nogc()), gc.nogc())?;
 
     let source_string = {
         let parameter_strings_vec;
         let parameter_strings_slice;
         let body_string;
         if body_arg.is_string() && parameter_args.iter().all(|arg| arg.is_string()) {
-            body_string = String::try_from(body_arg).unwrap().bind(gc.nogc());
+            body_string = String::try_from(body_arg).unwrap();
             parameter_strings_slice =
                 // Safety: All the strings were checked to be strings.
                 unsafe { core::mem::transmute::<&[Value], &[String<'_>]>(parameter_args) };
@@ -150,17 +147,15 @@ pub(crate) fn create_dynamic_function<'a>(
             let gc = gc.nogc();
             let mut parameter_strings = Vec::with_capacity(parameter_args.len());
             for param in parameter_args {
-                parameter_strings.push(
-                    to_string_primitive(agent, Primitive::try_from(*param).unwrap(), gc)
-                        .unbind()?
-                        .bind(gc),
-                );
+                parameter_strings.push(to_string_primitive(
+                    agent,
+                    Primitive::try_from(*param).unwrap(),
+                    gc,
+                )?);
             }
             parameter_strings_vec = parameter_strings;
             parameter_strings_slice = &parameter_strings_vec;
-            body_string = to_string_primitive(agent, Primitive::try_from(body_arg).unwrap(), gc)
-                .unbind()?
-                .bind(gc);
+            body_string = to_string_primitive(agent, Primitive::try_from(body_arg).unwrap(), gc)?;
         } else {
             // Some of the parameters are non-primitives. This means we'll be
             // calling into JavaScript during this work.
@@ -169,22 +164,19 @@ pub(crate) fn create_dynamic_function<'a>(
             for param in parameter_args {
                 // Each parameter has to be rooted in case the next parameter
                 // or the body argument is the one that calls to JavaScript.
-                parameter_string_roots.push(
-                    to_string(agent, *param, gc.reborrow())
-                        .unbind()?
-                        .scope(agent, gc.nogc()),
-                );
+                parameter_string_roots
+                    .push(to_string(agent, *param, gc.reborrow())?.scope(agent, gc.nogc()));
             }
-            let body_string_unbound = body_arg.to_string(agent, gc.reborrow()).unbind()?;
+            let body_string_unbound = body_arg.to_string(agent, gc.reborrow())?;
             // We've done all our potential JavaScript calling: Now we rest.
             let gc = gc.nogc();
-            body_string = body_string_unbound.bind(gc);
+            body_string = body_string_unbound;
             let parameter_strings = parameter_string_roots
                 .into_iter()
-                .map(|param_root| param_root.get(agent).bind(gc))
+                .map(|param_root| param_root.get(agent).local())
                 .collect::<Vec<_>>();
 
-            constructor = scoped_constructor.get(agent).bind(gc);
+            constructor = scoped_constructor.get(agent).local();
             parameter_strings_vec = parameter_strings;
             parameter_strings_slice = &parameter_strings_vec;
         }
@@ -287,30 +279,21 @@ pub(crate) fn create_dynamic_function<'a>(
     let params = OrdinaryFunctionCreateParams {
         function_prototype: get_prototype_from_constructor(
             agent,
-            constructor.unbind(),
+            constructor,
             kind.intrinsic_prototype(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc()),
+        )?,
         // SAFETY: source_code was not shared.
-        source_code: Some(unsafe { source_code.take(agent) }),
+        source_code: Some(unsafe { source_code.take(agent).local() }),
         source_text: function.span,
         ast: FunctionAstRef::from(function),
         lexical_this: false,
-        env: Environment::Global(
-            agent
-                .current_realm_record()
-                .global_env
-                .unwrap()
-                .unbind()
-                .bind(gc.nogc()),
-        ),
+        env: Environment::Global(agent.current_realm_record().global_env.unwrap()?),
         private_env: None,
     };
-    let f = ordinary_function_create(agent, params, gc.nogc()).unbind();
+    let f = ordinary_function_create(agent, params, gc.nogc());
     let gc = gc.into_nogc();
-    let f = f.bind(gc);
+    crate::engine::bind!(let f = f, gc);
 
     set_function_name(
         agent,

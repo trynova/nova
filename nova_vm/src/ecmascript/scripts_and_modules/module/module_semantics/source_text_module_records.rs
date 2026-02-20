@@ -126,7 +126,7 @@ impl<'m> SourceTextModule<'m> {
         agent: &Agent,
         gc: NoGcScope<'a, '_>,
     ) -> SourceCode<'a> {
-        self.get(agent).source_code.bind(gc)
+        self.get(agent).source_code
     }
 
     fn get<'a>(
@@ -179,7 +179,7 @@ impl<'m> SourceTextModule<'m> {
         let source_text_module_records = &mut agent.heap.source_text_module_records;
         self.get_mut(source_text_module_records)
             .cyclic_fields
-            .insert_loaded_module(requests, request.unbind(), module.unbind())
+            .insert_loaded_module(requests, request, module)
     }
 
     /// Get the requested modules as a slice.
@@ -230,7 +230,7 @@ impl<'m> SourceTextModule<'m> {
         assert!(
             self.get_mut(agent)
                 .compiled_bytecode
-                .replace(executable.unbind())
+                .replace(executable)
                 .is_none()
         );
     }
@@ -246,12 +246,7 @@ impl<'m> SourceTextModule<'m> {
     ///
     /// Panics if \[\[ImportMeta]] is already set.
     pub(crate) fn set_import_meta(self, agent: &mut Agent, object: OrdinaryObject<'m>) {
-        assert!(
-            self.get_mut(agent)
-                .import_meta
-                .replace(object.unbind())
-                .is_none()
-        );
+        assert!(self.get_mut(agent).import_meta.replace(object).is_none());
     }
 
     /// ### \[\[ImportEntries]]
@@ -313,7 +308,7 @@ impl<'m> SourceTextModule<'m> {
         // not run, the reference stays valid.
         unsafe {
             core::mem::transmute::<&[ModuleRequest], &'m [ModuleRequest<'m>]>(
-                &self.unbind().get(agent).star_export_entries,
+                &self.get(agent).star_export_entries,
             )
         }
     }
@@ -561,7 +556,7 @@ impl AbstractModuleSlots for SourceTextModule<'_> {
         agent: &Agent,
         gc: NoGcScope<'a, '_>,
     ) -> Option<ModuleEnvironment<'a>> {
-        self.get(agent).abstract_fields.environment().bind(gc)
+        self.get(agent).abstract_fields.environment()
     }
 
     fn set_environment(self, agent: &mut Agent, env: ModuleEnvironment) {
@@ -569,7 +564,7 @@ impl AbstractModuleSlots for SourceTextModule<'_> {
     }
 
     fn namespace<'a>(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> Option<Module<'a>> {
-        self.get(agent).abstract_fields.namespace().bind(gc)
+        self.get(agent).abstract_fields.namespace()
     }
 
     fn set_namespace(self, agent: &mut Agent, namespace: Module) {
@@ -577,7 +572,7 @@ impl AbstractModuleSlots for SourceTextModule<'_> {
     }
 
     fn realm<'a>(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> Realm<'a> {
-        self.get(agent).abstract_fields.realm().bind(gc)
+        self.get(agent).abstract_fields.realm()
     }
 
     fn host_defined(self, agent: &Agent) -> Option<HostDefined> {
@@ -607,7 +602,7 @@ impl AbstractModuleMethods for SourceTextModule<'_> {
         host_defined: Option<HostDefined>,
         gc: NoGcScope<'a, '_>,
     ) -> Promise<'a> {
-        let module = self.bind(gc);
+        crate::engine::bind!(let module = self, gc);
         // 1. If hostDefined is not present, let hostDefined be empty.
         // 2. Let pc be ! NewPromiseCapability(%Promise%).
         // 3. Let state be the GraphLoadingState Record {
@@ -644,7 +639,7 @@ impl AbstractModuleMethods for SourceTextModule<'_> {
         export_start_set: &mut Vec<SourceTextModule<'a>>,
         gc: NoGcScope<'a, '_>,
     ) -> Vec<String<'a>> {
-        let module = self.bind(gc);
+        crate::engine::bind!(let module = self, gc);
         // 1. Assert: module.[[Status]] is not new.
         debug_assert!(!matches!(
             module.status(agent),
@@ -731,8 +726,8 @@ impl AbstractModuleMethods for SourceTextModule<'_> {
         resolve_set: &mut Vec<ResolveSetEntry<'a>>,
         gc: NoGcScope<'a, '_>,
     ) -> Option<ResolvedBinding<'a>> {
-        let module = self.bind(gc);
-        let export_name = export_name.bind(gc);
+        crate::engine::bind!(let module = self, gc);
+        crate::engine::bind!(let export_name = export_name, gc);
         // 1. Assert: module.[[Status]] is not new.
         debug_assert!(!matches!(
             module.status(agent),
@@ -888,7 +883,7 @@ impl AbstractModuleMethods for SourceTextModule<'_> {
     /// thrown and this module's \[\[Status]] remains unlinked. (Most of the
     /// work is done by the auxiliary function InnerModuleLinking.)
     fn link<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> JsResult<'a, ()> {
-        let module = self.bind(gc);
+        crate::engine::bind!(let module = self, gc);
         // 1. Assert: module.[[Status]] is one of unlinked, linked, evaluating-async, or evaluated.
         debug_assert!(matches!(
             module.status(agent),
@@ -941,7 +936,7 @@ impl AbstractModuleMethods for SourceTextModule<'_> {
     /// component return the same Promise. (Most of the work is done by the
     /// auxiliary function InnerModuleEvaluation.)
     fn evaluate<'gc>(self, agent: &mut Agent, mut gc: GcScope<'gc, '_>) -> Promise<'gc> {
-        let mut module = self.bind(gc.nogc());
+        crate::engine::bind!(let mut module = self, gc);
         // 1. Assert: This call to Evaluate is not happening at the same time
         //    as another call to Evaluate within the surrounding agent.
         // 2. Assert: module.[[Status]] is one of linked, evaluating-async, or
@@ -963,7 +958,7 @@ impl AbstractModuleMethods for SourceTextModule<'_> {
         // 4. If module.[[TopLevelCapability]] is not empty, then
         if let Some(top_level_capability) = module.top_level_capability(agent) {
             // a. Return module.[[TopLevelCapability]].[[Promise]].
-            return top_level_capability.promise.unbind().bind(gc.into_nogc());
+            return top_level_capability.promise;
         }
         // 5. Let stack be a new empty List.
         let mut stack = vec![];
@@ -979,15 +974,13 @@ impl AbstractModuleMethods for SourceTextModule<'_> {
             &mut stack,
             0,
             gc.reborrow(),
-        )
-        .unbind()
-        .bind(gc.nogc());
-        let module = scoped_module.get(agent).bind(gc.nogc());
+        )?;
+        crate::engine::bind!(let module = scoped_module.get(agent).local(), gc);
         // 9. If result is an abrupt completion, then
         if let Err(result) = result {
             // a. For each Cyclic Module Record m of stack, do
             for m in stack {
-                let m = m.get(agent).bind(gc.nogc());
+                crate::engine::bind!(let m = m.get(agent).local(), gc);
                 // i. Assert: m.[[Status]] is evaluating.
                 debug_assert!(matches!(
                     m.status(agent),
@@ -1005,14 +998,14 @@ impl AbstractModuleMethods for SourceTextModule<'_> {
             ));
             // c. Assert: module.[[EvaluationError]] and result are the same Completion Record.
             debug_assert_eq!(module.evaluation_error(agent, gc.nogc()), Err(result));
-            let module = module.unbind();
-            let result = result.unbind();
+            let module = module;
+            let result = result;
             let gc = gc.into_nogc();
-            let module = module.bind(gc);
-            let result = result.bind(gc);
-            let capability = module.top_level_capability(agent).bind(gc).unwrap();
+            crate::engine::bind!(let module = module, gc);
+            crate::engine::bind!(let result = result, gc);
+            crate::engine::bind!(let capability = module.top_level_capability(agent), gc);
             // d. Perform ! Call(capability.[[Reject]], undefined, « result.[[Value]] »).
-            capability.reject(agent, result.value().unbind(), gc);
+            capability.reject(agent, result.value(), gc);
             return capability.promise();
         }
         // 10. Else,
@@ -1025,10 +1018,10 @@ impl AbstractModuleMethods for SourceTextModule<'_> {
         debug_assert!(module.evaluation_error(agent, gc.nogc()).is_ok());
         // d. Assert: stack is empty.
         debug_assert!(stack.is_empty());
-        let module = module.unbind();
+        let module = module;
         let gc = gc.into_nogc();
-        let module = module.bind(gc);
-        let capability = module.top_level_capability(agent).bind(gc).unwrap();
+        crate::engine::bind!(let module = module, gc);
+        crate::engine::bind!(let capability = module.top_level_capability(agent), gc);
         // c. If module.[[Status]] is evaluated, then
         if matches!(module.status(agent), CyclicModuleRecordStatus::Evaluated) {
             // i. NOTE: This implies that evaluation of module completed
@@ -1106,7 +1099,6 @@ impl CyclicModuleSlots for SourceTextModule<'_> {
             .cyclic_fields
             .top_level_capability()
             .cloned()
-            .unbind()
     }
 
     fn set_top_level_capability(self, agent: &mut Agent, capability: PromiseCapability) {
@@ -1127,7 +1119,7 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
         agent: &mut Agent,
         gc: NoGcScope<'a, '_>,
     ) -> JsResult<'a, ()> {
-        let module = self.bind(gc);
+        crate::engine::bind!(let module = self, gc);
         // 1. For each ExportEntry Record e of module.[[IndirectExportEntries]], do
         for e in module.indirect_export_entries(agent) {
             // a. Assert: e.[[ExportName]] is not null.
@@ -1226,22 +1218,22 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
             ecmascript_code: Some(ECMAScriptCodeEvaluationState {
                 // 14. Set the LexicalEnvironment of moduleContext to
                 //     module.[[Environment]].
-                lexical_environment: env.unbind().into(),
+                lexical_environment: env.into(),
                 // 13. Set the VariableEnvironment of moduleContext to
                 //     module.[[Environment]].
-                variable_environment: env.unbind().into(),
+                variable_environment: env.into(),
                 // 15. Set the PrivateEnvironment of moduleContext to null.
                 private_environment: None,
                 is_strict_mode: true,
-                source_code: module.source_code(agent).unbind(),
+                source_code: module.source_code(agent),
             }),
             // 9. Set the Function of moduleContext to null.
             function: None,
             // 10. Assert: module.[[Realm]] is not undefined.
             // 11. Set the Realm of moduleContext to module.[[Realm]].
-            realm: realm.unbind(),
+            realm: realm,
             // 12. Set the ScriptOrModule of moduleContext to module.
-            script_or_module: Some(ScriptOrModule::SourceTextModule(module.unbind())),
+            script_or_module: Some(ScriptOrModule::SourceTextModule(module)),
         };
         // 16. Set module.[[Context]] to moduleContext.
         // 17. Push moduleContext onto the execution context stack;
@@ -1341,7 +1333,7 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
     }
 
     fn bind_environment(self, agent: &mut Agent, gc: NoGcScope) {
-        let module = self.bind(gc);
+        crate::engine::bind!(let module = self, gc);
         let env = module
             .environment(agent, gc)
             .expect("Attempted to bind environment of unlinked module");
@@ -1392,10 +1384,10 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
         self,
         agent: &mut Agent,
         capability: Option<PromiseCapability>,
-        mut gc: GcScope<'a, '_>,
+        mut gc: GcScope,
     ) -> JsResult<'a, ()> {
-        let module = self.bind(gc.nogc());
-        let capability = capability.bind(gc.nogc());
+        crate::engine::bind!(let module = self, gc);
+        crate::engine::bind!(let capability = capability, gc);
 
         let mut id = 0;
         ndt::module_evaluation_start!(|| {
@@ -1419,20 +1411,20 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
             ecmascript_code: Some(ECMAScriptCodeEvaluationState {
                 // 7. Set the LexicalEnvironment of moduleContext to
                 //    module.[[Environment]].
-                lexical_environment: environment.unbind().into(),
+                lexical_environment: environment.into(),
                 // 6. Set the VariableEnvironment of moduleContext to
                 //    module.[[Environment]].
-                variable_environment: environment.unbind().into(),
+                variable_environment: environment.into(),
                 private_environment: None,
                 is_strict_mode: true,
-                source_code: source_code.unbind(),
+                source_code: source_code,
             }),
             // 2. Set the Function of moduleContext to null.
             function: None,
             // 3. Set the Realm of moduleContext to module.[[Realm]].
-            realm: module.realm(agent, gc.nogc()).unbind(),
+            realm: module.realm(agent, gc.nogc()),
             // 4. Set the ScriptOrModule of moduleContext to module.
-            script_or_module: Some(module.unbind().into()),
+            script_or_module: Some(module.into()),
         };
 
         // 8. Suspend the running execution context.
@@ -1447,10 +1439,7 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
             //    module.[[ECMAScriptCode]]).
             let bytecode =
                 Executable::compile_module(agent, module, gc.nogc()).scope(agent, gc.nogc());
-            let result = Vm::execute(agent, bytecode.clone(), None, gc.reborrow())
-                .into_js_result()
-                .unbind()
-                .bind(gc.into_nogc());
+            let result = Vm::execute(agent, bytecode.clone(), None, gc.reborrow()).into_js_result();
             // d. Suspend moduleContext and remove it from the execution
             //    context stack.
             agent.pop_execution_context();
@@ -1466,13 +1455,7 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
                 unreachable!()
             };
             // b. Perform AsyncBlockStart(capability, module.[[ECMAScriptCode]], moduleContext).
-            async_module_start(
-                agent,
-                capability.unbind(),
-                module.unbind(),
-                module_context,
-                gc,
-            );
+            async_module_start(agent, capability, module, module_context, gc);
             Ok(())
         };
 
@@ -1488,6 +1471,7 @@ fn create_id(agent: &Agent, module: SourceTextModule) -> u64 {
     u64::try_from(
         module
             .get(agent)
+            .local()
             .ecmascript_code
             .cast::<()>()
             .as_ptr()
@@ -1503,8 +1487,8 @@ fn async_module_start(
     async_context: ExecutionContext,
     mut gc: GcScope,
 ) {
-    let promise_capability = promise_capability.bind(gc.nogc());
-    let module = module.bind(gc.nogc());
+    crate::engine::bind!(let promise_capability = promise_capability, gc);
+    crate::engine::bind!(let module = module, gc);
     let scoped_module = module.scope(agent, gc.nogc());
     let promise = promise_capability.promise().scope(agent, gc.nogc());
 
@@ -1517,9 +1501,7 @@ fn async_module_start(
     agent.push_execution_context(async_context);
     // 5. Resume the suspended evaluation of asyncContext. Let result be the
     //    value returned by the resumed computation.
-    let result = Vm::execute(agent, bytecode.clone(), None, gc.reborrow())
-        .unbind()
-        .bind(gc.nogc());
+    let result = Vm::execute(agent, bytecode.clone(), None, gc.reborrow())?;
 
     // AsyncBlockStart will run the module until it returns, throws or
     // gets suspended with an await.
@@ -1528,12 +1510,12 @@ fn async_module_start(
             let _ = agent.pop_execution_context().unwrap();
             // SAFETY: not shared.
             let promise = unsafe {
-                let _ = bytecode.take(agent);
-                let promise = promise.take(agent).bind(gc.nogc());
-                let _ = scoped_module.take(agent);
+                let _ = bytecode.take(agent).local();
+                crate::engine::bind!(let promise = promise.take(agent).local(), gc);
+                let _ = scoped_module.take(agent).local();
                 promise
             };
-            let result = result.unbind().bind(gc.nogc());
+            let result = result;
             let promise_capability = PromiseCapability::from_promise(promise, true);
             // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
             // 2. e. If result is a normal completion, then
@@ -1546,12 +1528,12 @@ fn async_module_start(
             let _ = agent.pop_execution_context().unwrap();
             // SAFETY: not shared.
             let promise = unsafe {
-                let _ = bytecode.take(agent);
-                let promise = promise.take(agent).bind(gc.nogc());
-                let _ = scoped_module.take(agent);
+                let _ = bytecode.take(agent).local();
+                crate::engine::bind!(let promise = promise.take(agent).local(), gc);
+                let _ = scoped_module.take(agent).local();
                 promise
             };
-            let err = err.unbind().bind(gc.nogc());
+            let err = err;
             let promise_capability = PromiseCapability::from_promise(promise, true);
             // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
             // 2. g. i. Assert: result is a throw completion.
@@ -1562,9 +1544,9 @@ fn async_module_start(
             let async_context = agent.pop_execution_context().unwrap();
             // SAFETY: not shared.
             let (bytecode, promise, module) = unsafe {
-                let bytecode = bytecode.take(agent);
-                let promise = promise.take(agent).bind(gc.nogc());
-                let module = scoped_module.take(agent);
+                let bytecode = bytecode.take(agent).local();
+                crate::engine::bind!(let promise = promise.take(agent).local(), gc);
+                let module = scoped_module.take(agent).local();
                 (bytecode, promise, module)
             };
             let promise_capability = PromiseCapability::from_promise(promise, true);
@@ -1582,25 +1564,15 @@ fn async_module_start(
             // `handler` corresponds to the `fulfilledClosure` and `rejectedClosure` functions,
             // which resume execution of the function.
             // 2. Let promise be ? PromiseResolve(%Promise%, value).
-            let resolve_promise = Promise::resolve(agent, awaited_value.unbind(), gc.reborrow())
-                .unbind()
-                .bind(gc.nogc());
+            let resolve_promise = Promise::resolve(agent, awaited_value, gc.reborrow())?;
 
             module.set_executable(agent, bytecode);
 
             // SAFETY: handler is not shared.
-            let handler =
-                PromiseReactionHandler::Await(unsafe { handler.take(agent) }.bind(gc.nogc()));
+            let handler = PromiseReactionHandler::Await(unsafe { handler.take(agent).local() });
 
             // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
-            inner_promise_then(
-                agent,
-                resolve_promise.unbind(),
-                handler,
-                handler,
-                None,
-                gc.nogc(),
-            );
+            inner_promise_then(agent, resolve_promise, handler, handler, None, gc.nogc());
         }
         ExecutionResult::Yield { .. } => unreachable!(),
     }
@@ -1617,7 +1589,7 @@ pub fn parse_module<'a>(
     host_defined: Option<HostDefined>,
     gc: NoGcScope<'a, '_>,
 ) -> ModuleOrErrors<'a> {
-    let realm = realm.bind(gc);
+    crate::engine::bind!(let realm = realm, gc);
     // 1. Let body be ParseText(sourceText, Module).
     // SAFETY: Script keeps the SourceCode reference alive in the Heap, thus
     // making the Program's references point to a live Allocator.
@@ -1814,7 +1786,7 @@ pub fn parse_module<'a>(
                         let local_name = ee
                             .id
                             .as_ref()
-                            .map_or(BUILTIN_STRING_MEMORY._default_.bind(gc), |local_name| {
+                            .map_or(BUILTIN_STRING_MEMORY._default_, |local_name| {
                                 String::from_str(agent, local_name.name.as_str(), gc)
                             });
                         // 3. Return a List whose sole element is a new ExportEntry Record {
@@ -1965,50 +1937,47 @@ pub fn parse_module<'a>(
     // 11. Let async be body Contains await.
     let r#async = Contains::contains(body, ContainsSymbol::Await);
     // 12. Return Source Text Module Record {
-    Ok(agent
-        .heap
-        .create(SourceTextModuleRecord {
-            // [[Realm]]: realm,
-            // [[Environment]]: empty,
-            // [[Namespace]]: empty,
-            // [[HostDefined]]: hostDefined,
-            abstract_fields: AbstractModuleRecord::new(realm, host_defined),
-            // [[CycleRoot]]: empty,
-            // [[HasTLA]]: async,
-            // [[AsyncEvaluationOrder]]: unset,
-            // [[TopLevelCapability]]: empty,
-            // [[AsyncParentModules]]: « »,
-            // [[PendingAsyncDependencies]]: empty,
-            // [[Status]]: new,
-            // [[EvaluationError]]: empty,
-            // [[RequestedModules]]: requestedModules,
-            // [[LoadedModules]]: « »,
-            // [[DFSIndex]]: empty,
-            // [[DFSAncestorIndex]]: empty
-            cyclic_fields: CyclicModuleRecord::new(r#async, requested_modules.into_boxed_slice()),
-            // [[ECMAScriptCode]]: body,
-            // SAFETY: We are moving the Program onto the heap together with the
-            // SourceCode reference: the latter will keep alive the allocation that
-            // Program points to. Hence, we can unbind the Program from the garbage
-            // collector lifetime here.
-            ecmascript_code: NonNull::from(body),
-            compiled_bytecode: None,
-            // [[Context]]: empty,
-            context: Default::default(),
-            // [[ImportMeta]]: empty,
-            import_meta: Default::default(),
-            // [[ImportEntries]]: importEntries,
-            import_entries: import_entries.into_boxed_slice(),
-            // [[LocalExportEntries]]: localExportEntries,
-            local_export_entries: local_export_entries.into_boxed_slice(),
-            // [[IndirectExportEntries]]: indirectExportEntries,
-            indirect_export_entries: indirect_export_entries.into_boxed_slice(),
-            // [[StarExportEntries]]: starExportEntries,
-            star_export_entries: star_export_entries.into_boxed_slice(),
+    Ok(agent.heap.create(SourceTextModuleRecord {
+        // [[Realm]]: realm,
+        // [[Environment]]: empty,
+        // [[Namespace]]: empty,
+        // [[HostDefined]]: hostDefined,
+        abstract_fields: AbstractModuleRecord::new(realm, host_defined),
+        // [[CycleRoot]]: empty,
+        // [[HasTLA]]: async,
+        // [[AsyncEvaluationOrder]]: unset,
+        // [[TopLevelCapability]]: empty,
+        // [[AsyncParentModules]]: « »,
+        // [[PendingAsyncDependencies]]: empty,
+        // [[Status]]: new,
+        // [[EvaluationError]]: empty,
+        // [[RequestedModules]]: requestedModules,
+        // [[LoadedModules]]: « »,
+        // [[DFSIndex]]: empty,
+        // [[DFSAncestorIndex]]: empty
+        cyclic_fields: CyclicModuleRecord::new(r#async, requested_modules.into_boxed_slice()),
+        // [[ECMAScriptCode]]: body,
+        // SAFETY: We are moving the Program onto the heap together with the
+        // SourceCode reference: the latter will keep alive the allocation that
+        // Program points to. Hence, we can unbind the Program from the garbage
+        // collector lifetime here.
+        ecmascript_code: NonNull::from(body),
+        compiled_bytecode: None,
+        // [[Context]]: empty,
+        context: Default::default(),
+        // [[ImportMeta]]: empty,
+        import_meta: Default::default(),
+        // [[ImportEntries]]: importEntries,
+        import_entries: import_entries.into_boxed_slice(),
+        // [[LocalExportEntries]]: localExportEntries,
+        local_export_entries: local_export_entries.into_boxed_slice(),
+        // [[IndirectExportEntries]]: indirectExportEntries,
+        indirect_export_entries: indirect_export_entries.into_boxed_slice(),
+        // [[StarExportEntries]]: starExportEntries,
+        star_export_entries: star_export_entries.into_boxed_slice(),
 
-            source_code,
-        })
-        .unbind())
+        source_code,
+    }))
     // }.
 }
 
@@ -2020,7 +1989,7 @@ impl Rootable for SourceTextModule<'_> {
     type RootRepr = HeapRootRef;
 
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::SourceTextModule(value.unbind()))
+        Err(HeapRootData::SourceTextModule(value))
     }
 
     fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
@@ -2043,7 +2012,7 @@ impl<'a> CreateHeapData<SourceTextModuleRecord<'a>, SourceTextModule<'a>> for He
     fn create(&mut self, data: SourceTextModuleRecord<'a>) -> SourceTextModule<'a> {
         let index = u32::try_from(self.source_text_module_records.len())
             .expect("SourceTextModuleRecord count overflowed");
-        self.source_text_module_records.push(data.unbind());
+        self.source_text_module_records.push(data);
         self.alloc_counter += core::mem::size_of::<SourceTextModuleRecord<'static>>();
         SourceTextModule(index, PhantomData)
     }

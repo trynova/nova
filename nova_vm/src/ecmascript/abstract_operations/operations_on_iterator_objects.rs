@@ -46,17 +46,11 @@ pub(crate) fn get_iterator_direct<'gc>(
     obj: Object,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Option<IteratorRecord<'gc>>> {
-    let obj = obj.bind(gc.nogc());
+    crate::engine::bind!(let obj = obj, gc);
 
     let scoped_obj = obj.scope(agent, gc.nogc());
     // 1. Let nextMethod be ? Get(obj, "next").
-    let next_method = get(
-        agent,
-        obj.unbind(),
-        BUILTIN_STRING_MEMORY.next.into(),
-        gc.reborrow(),
-    )
-    .unbind()?;
+    let next_method = get(agent, obj, BUILTIN_STRING_MEMORY.next.into(), gc.reborrow())?;
     let gc = gc.into_nogc();
 
     let Some(next_method) = is_callable(next_method, gc) else {
@@ -65,9 +59,10 @@ pub(crate) fn get_iterator_direct<'gc>(
 
     // 2. Let iteratorRecord be the Iterator Record { [[Iterator]]: obj, [[NextMethod]]: nextMethod, [[Done]]: false }.
     let iterator_record = IteratorRecord {
-        iterator: scoped_obj.get(agent).bind(gc),
+        iterator: scoped_obj.get(agent).local(),
         next_method,
     };
+    crate::engine::bind!(iterator_record, gc);
 
     // 3. Return iteratorRecord.
     Ok(Some(iterator_record))
@@ -125,14 +120,12 @@ pub(crate) fn get_iterator_from_method<'a>(
     agent: &mut Agent,
     obj: Value,
     method: Function,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, MaybeInvalidIteratorRecord<'a>> {
-    let obj = obj.bind(gc.nogc());
-    let method = method.bind(gc.nogc());
+    mut gc: GcScope,
+) -> JsResult<'static, MaybeInvalidIteratorRecord<'static>> {
+    crate::engine::bind!(let obj = obj, gc);
+    crate::engine::bind!(let method = method, gc);
     // 1. Let iterator be ? Call(method, obj).
-    let iterator = call_function(agent, method.unbind(), obj.unbind(), None, gc.reborrow())
-        .unbind()?
-        .bind(gc.nogc());
+    let iterator = call_function(agent, method, obj, None, gc.reborrow())?;
 
     // 2. If iterator is not an Object, throw a TypeError exception.
     let Ok(iterator) = Object::try_from(iterator) else {
@@ -147,14 +140,13 @@ pub(crate) fn get_iterator_from_method<'a>(
     // 3. Let nextMethod be ? Get(iterator, "next").
     let next_method = get(
         agent,
-        iterator.unbind(),
+        iterator,
         BUILTIN_STRING_MEMORY.next.into(),
         gc.reborrow(),
-    )
-    .unbind()?;
+    )?;
     let gc = gc.into_nogc();
     // SAFETY: not shared.
-    let iterator = unsafe { scoped_iterator.take(agent).bind(gc) };
+    let iterator = unsafe { scoped_iterator.take(agent).local() };
 
     let next_method = is_callable(next_method, gc);
 
@@ -176,33 +168,30 @@ pub(crate) fn get_iterator<'a>(
     agent: &mut Agent,
     obj: Value,
     is_async: bool,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, MaybeInvalidIteratorRecord<'a>> {
-    let obj = obj.bind(gc.nogc());
+    mut gc: GcScope,
+) -> JsResult<'static, MaybeInvalidIteratorRecord<'static>> {
+    crate::engine::bind!(let obj = obj, gc);
     let scoped_obj = obj.scope(agent, gc.nogc());
     // 1. If kind is async, then
     let method = if is_async {
         // a. Let method be ? GetMethod(obj, @@asyncIterator).
         let method = get_method(
             agent,
-            obj.unbind(),
+            obj,
             PropertyKey::Symbol(WellKnownSymbolIndexes::AsyncIterator.into()),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
 
         // b. If method is undefined, then
         if method.is_none() {
             // i. Let syncMethod be ? GetMethod(obj, @@iterator).
             let Some(sync_method) = get_method(
                 agent,
-                scoped_obj.get(agent),
+                scoped_obj.get(agent).local(),
                 PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
                 gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc()) else {
+            )?
+            else {
                 // ii. If syncMethod is undefined, throw a TypeError exception.
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
@@ -214,12 +203,10 @@ pub(crate) fn get_iterator<'a>(
             // iii. Let syncIteratorRecord be ? GetIteratorFromMethod(obj, syncMethod).
             let _sync_iterator_record = get_iterator_from_method(
                 agent,
-                scoped_obj.get(agent),
-                sync_method.unbind(),
+                scoped_obj.get(agent).local(),
+                sync_method,
                 gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc());
+            )?;
 
             // iv. Return CreateAsyncFromSyncIterator(syncIteratorRecord).
             todo!("Implement create_async_from_sync_iterator(sync_iterator_record)")
@@ -231,12 +218,10 @@ pub(crate) fn get_iterator<'a>(
         // a. Let method be ? GetMethod(obj, @@iterator).
         get_method(
             agent,
-            obj.unbind(),
+            obj,
             PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc())
+        )?
     };
 
     // 3. If method is undefined, throw a TypeError exception.
@@ -249,7 +234,7 @@ pub(crate) fn get_iterator<'a>(
     };
 
     // 4. Return ? GetIteratorFromMethod(obj, method).
-    get_iterator_from_method(agent, scoped_obj.get(agent), method.unbind(), gc)
+    get_iterator_from_method(agent, scoped_obj.get(agent).local(), method, gc)
 }
 
 /// ### [7.4.6 IteratorNext ( iteratorRecord [ , value ] )](https://tc39.es/ecma262/#sec-iteratornext)
@@ -264,8 +249,8 @@ pub(crate) fn iterator_next<'a>(
     // SAFETY: The value is immediately passed to Call and never used again:
     // We don't need to bind/unbind/worry about its lifetime.
     mut value: Option<Value<'static>>,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, Object<'a>> {
+    mut gc: GcScope,
+) -> JsResult<'static, Object<'static>> {
     // 1. If value is not present, then
     // a. Let result be ? Call(iteratorRecord.[[NextMethod]], iteratorRecord.[[Iterator]]).
     // 2. Else,
@@ -276,10 +261,9 @@ pub(crate) fn iterator_next<'a>(
         iterator_record.iterator.into(),
         value.as_mut().map(ArgumentsList::from_mut_value),
         gc.reborrow(),
-    )
-    .unbind()?;
+    )?;
     let gc = gc.into_nogc();
-    let result = result.bind(gc);
+    crate::engine::bind!(let result = result, gc);
 
     // 3. If result is not an Object, throw a TypeError exception.
     // 4. Return result.
@@ -300,8 +284,8 @@ pub(crate) fn iterator_next<'a>(
 pub(crate) fn iterator_complete<'a>(
     agent: &mut Agent,
     iter_result: Object,
-    gc: GcScope<'a, '_>,
-) -> JsResult<'a, bool> {
+    gc: GcScope,
+) -> JsResult<'static, bool> {
     // 1. Return ToBoolean(? Get(iterResult, "done")).
     let done = get(agent, iter_result, BUILTIN_STRING_MEMORY.done.into(), gc)?;
     Ok(to_boolean(agent, done))
@@ -315,8 +299,8 @@ pub(crate) fn iterator_complete<'a>(
 pub(crate) fn iterator_value<'a>(
     agent: &mut Agent,
     iter_result: Object,
-    gc: GcScope<'a, '_>,
-) -> JsResult<'a, Value<'a>> {
+    gc: GcScope,
+) -> JsResult<'static, Value<'static>> {
     // 1. Return ? Get(iterResult, "value").
     get(agent, iter_result, BUILTIN_STRING_MEMORY.value.into(), gc)
 }
@@ -336,16 +320,14 @@ pub(crate) fn iterator_value<'a>(
 pub(crate) fn iterator_step<'a>(
     agent: &mut Agent,
     iterator_record: IteratorRecord,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, Option<Object<'a>>> {
+    mut gc: GcScope,
+) -> JsResult<'static, Option<Object<'static>>> {
     // 1. Let result be ? IteratorNext(iteratorRecord).
-    let result = iterator_next(agent, iterator_record, None, gc.reborrow())
-        .unbind()?
-        .bind(gc.nogc());
+    let result = iterator_next(agent, iterator_record, None, gc.reborrow())?;
     let scoped_result = result.scope(agent, gc.nogc());
 
     // 2. Let done be ? IteratorComplete(result).
-    let done = iterator_complete(agent, result.unbind(), gc.reborrow()).unbind()?;
+    let done = iterator_complete(agent, result, gc.reborrow())?;
 
     // 3. If done is true, return false.
     if done {
@@ -354,9 +336,7 @@ pub(crate) fn iterator_step<'a>(
 
     // 4. Return result.
     // SAFETY: scoped_result is never shared.
-    Ok(Some(unsafe {
-        scoped_result.take(agent).bind(gc.into_nogc())
-    }))
+    Ok(Some(unsafe { scoped_result.take(agent).local() }))
 }
 
 /// ### [7.4.10 IteratorStepValue ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratorstepvalue)
@@ -370,7 +350,7 @@ pub(crate) fn iterator_step<'a>(
 pub(crate) fn iterator_step_value<'a>(
     agent: &mut Agent,
     iterator_record: IteratorRecord,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> JsResult<'a, Option<Value<'a>>> {
     // 1. Let result be Completion(IteratorNext(iteratorRecord)).
     let result = iterator_next(agent, iterator_record, None, gc.reborrow());
@@ -381,26 +361,25 @@ pub(crate) fn iterator_step_value<'a>(
             // a. Set iteratorRecord.[[Done]] to true.
 
             // b. Return ? result.
-            return Err(err.unbind());
+            return Err(err);
         }
         // 3. Set result to ! result.
-        Ok(result) => result.unbind().bind(gc.nogc()),
+        Ok(result) => result,
     };
     let scoped_result = result.scope(agent, gc.nogc());
 
     // 4. Let done be Completion(IteratorComplete(result)).
-    let done = iterator_complete(agent, result.unbind(), gc.reborrow())
-        .unbind()
-        .bind(gc.nogc());
+    let done = iterator_complete(agent, result, gc.reborrow());
+    crate::engine::bind!(done, gc);
     // SAFETY: scoped_result is never shared.
-    let result = unsafe { scoped_result.take(agent) }.bind(gc.nogc());
+    crate::engine::bind!(let result = unsafe { scoped_result.take(agent).local() }, gc);
 
     // 5. If done is a throw completion, then
     let done = match done {
         Err(err) => {
             // a. Set iteratorRecord.[[Done]] to true.
             // b. Return ? done.
-            return Err(err.unbind());
+            return Err(err);
         }
         // 6. Set done to ! done.
         Ok(done) => done,
@@ -414,12 +393,7 @@ pub(crate) fn iterator_step_value<'a>(
     }
 
     // 8. Let value be Completion(Get(result, "value")).
-    let value = get(
-        agent,
-        result.unbind(),
-        BUILTIN_STRING_MEMORY.value.into(),
-        gc,
-    );
+    let value = get(agent, result, BUILTIN_STRING_MEMORY.value.into(), gc);
 
     // 9. If value is a throw completion, then
     // a. Set iteratorRecord.[[Done]] to true.
@@ -438,9 +412,9 @@ pub(crate) fn iterator_close_with_value<'a>(
     agent: &mut Agent,
     iterator: Object,
     completion: Value,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, Value<'a>> {
-    let mut iterator = iterator.bind(gc.nogc());
+    mut gc: GcScope,
+) -> JsResult<'static, Value<'static>> {
+    crate::engine::bind!(let mut iterator = iterator, gc);
     let completion = completion.scope(agent, gc.nogc());
     // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
     // 2. Let iterator be iteratorRecord.[[Iterator]].
@@ -456,14 +430,12 @@ pub(crate) fn iterator_close_with_value<'a>(
         let scoped_iterator = iterator.scope(agent, gc.nogc());
         let inner_result = get_object_method(
             agent,
-            iterator.unbind(),
+            iterator,
             BUILTIN_STRING_MEMORY.r#return.into(),
             gc.reborrow(),
-        )
-        .unbind()
-        .bind(gc.nogc());
+        );
         // SAFETY: scoped_iterator is not shared.
-        iterator = unsafe { scoped_iterator.take(agent) }.bind(gc.nogc());
+        iterator = unsafe { scoped_iterator.take(agent).local() };
         inner_result
     };
     // 4. If innerResult.[[Type]] is normal, then
@@ -473,27 +445,19 @@ pub(crate) fn iterator_close_with_value<'a>(
             // b. If return is undefined, return ? completion.
             let Some(return_function) = return_function else {
                 // SAFETY: completion is not shared.
-                return Ok(unsafe { completion.take(agent) });
+                return Ok(unsafe { completion.take(agent).local() });
             };
             // c. Set innerResult to Completion(Call(return, iterator)).
-            call_function(
-                agent,
-                return_function.unbind(),
-                iterator.unbind().into(),
-                None,
-                gc.reborrow(),
-            )
-            .unbind()
-            .bind(gc.nogc())
+            call_function(agent, return_function, iterator.into(), None, gc.reborrow())
         }
         Err(inner_result) => Err(inner_result),
     };
     // SAFETY: completion is not shared.
-    let completion = unsafe { completion.take(agent) }.bind(gc.nogc());
+    crate::engine::bind!(let completion = unsafe { completion.take(agent).local() }, gc);
 
     // 5. If completion.[[Type]] is throw, return ? completion.
     // 6. If innerResult.[[Type]] is throw, return ? innerResult.
-    let inner_result = inner_result.unbind()?.bind(gc.nogc());
+    let inner_result = inner_result?;
     // 7. If innerResult.[[Value]] is not an Object, throw a TypeError exception.
     if !inner_result.is_object() {
         return Err(agent.throw_exception_with_static_message(
@@ -503,7 +467,7 @@ pub(crate) fn iterator_close_with_value<'a>(
         ));
     }
     // 8. Return ? completion.
-    Ok(completion.unbind())
+    Ok(completion)
 }
 
 /// ### [7.4.11 IteratorClose ( iteratorRecord, completion )](https://tc39.es/ecma262/#sec-iteratorclose)
@@ -517,9 +481,9 @@ pub(crate) fn iterator_close_with_error<'a>(
     agent: &mut Agent,
     iterator: Object,
     completion: JsError,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> JsError<'a> {
-    let mut iterator = iterator.bind(gc.nogc());
+    crate::engine::bind!(let mut iterator = iterator, gc);
     let completion = completion.scope(agent, gc.nogc());
     // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
     // 2. Let iterator be iteratorRecord.[[Iterator]].
@@ -535,14 +499,12 @@ pub(crate) fn iterator_close_with_error<'a>(
         let scoped_iterator = iterator.scope(agent, gc.nogc());
         let inner_result = get_object_method(
             agent,
-            iterator.unbind(),
+            iterator,
             BUILTIN_STRING_MEMORY.r#return.into(),
             gc.reborrow(),
-        )
-        .unbind()
-        .bind(gc.nogc());
+        );
         // SAFETY: scoped_iterator is not shared.
-        iterator = unsafe { scoped_iterator.take(agent) }.bind(gc.nogc());
+        iterator = unsafe { scoped_iterator.take(agent).local() };
         inner_result
     };
     // 4. If innerResult.[[Type]] is normal, then
@@ -550,17 +512,11 @@ pub(crate) fn iterator_close_with_error<'a>(
         // a. Let return be innerResult.[[Value]].
         // b. If return is undefined, return ? completion.
         // c. Set innerResult to Completion(Call(return, iterator)).
-        let _ = call_function(
-            agent,
-            r#return.unbind(),
-            iterator.unbind().into(),
-            None,
-            gc.reborrow(),
-        );
+        let _ = call_function(agent, r#return, iterator.into(), None, gc.reborrow());
     }
     // 5. If completion.[[Type]] is throw, return ? completion.
     // SAFETY: completion is not shared.
-    unsafe { completion.take(agent) }
+    unsafe { completion.take(agent).local() }
 }
 
 macro_rules! if_abrupt_close_iterator {
@@ -571,13 +527,13 @@ macro_rules! if_abrupt_close_iterator {
             return Err(
                 crate::ecmascript::abstract_operations::iterator_close_with_error(
                     $agent,
-                    $iterator_record.iterator.unbind(),
-                    err.unbind(),
+                    $iterator_record.iterator,
+                    err,
                     $gc,
                 ),
             );
         } else if let Ok(value) = $value {
-            value.unbind().bind($gc.nogc())
+            value
         } else {
             unreachable!();
         }
@@ -609,6 +565,7 @@ pub(crate) fn create_iter_result_object<'a>(
                 .current_realm_record()
                 .intrinsics()
                 .object_prototype()
+                .local()
                 .into(),
         ),
         &[
@@ -624,7 +581,7 @@ pub(crate) fn create_iter_result_object<'a>(
             ObjectEntry {
                 key: PropertyKey::from(BUILTIN_STRING_MEMORY.done),
                 value: ObjectEntryPropertyDescriptor::Data {
-                    value: done.into(),
+                    value: Value::from(done).local(),
                     writable: true,
                     enumerable: true,
                     configurable: true,
@@ -652,14 +609,9 @@ pub(crate) fn iterator_to_list<'a, 'b>(
     // 3. Repeat, while next is not false,
     // a. Set next to ? IteratorStep(iteratorRecord).
     // b. If next is not false, then
-    while let Some(next) = iterator_step(agent, iterator_record, gc.reborrow())
-        .unbind()?
-        .bind(gc.nogc())
-    {
+    while let Some(next) = iterator_step(agent, iterator_record, gc.reborrow())? {
         // i. Let nextValue be ? IteratorValue(next).
-        let next_value = iterator_value(agent, next.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let next_value = iterator_value(agent, next, gc.reborrow())?;
         // ii. Append nextValue to values.
         values.push(agent, next_value);
     }

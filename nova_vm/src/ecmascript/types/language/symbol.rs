@@ -64,7 +64,7 @@ impl<'a> Symbol<'a> {
             String::from_string(agent, format!("[{description}]"), gc)
         } else {
             // b. If description is undefined, set name to the empty String.
-            String::EMPTY_STRING.bind(gc)
+            String::EMPTY_STRING
         }
     }
 
@@ -116,7 +116,7 @@ impl HeapSweepWeakReference for Symbol<'static> {
 
 impl<'a> CreateHeapData<SymbolHeapData<'a>, Symbol<'a>> for Heap {
     fn create(&mut self, data: SymbolHeapData<'a>) -> Symbol<'a> {
-        self.symbols.push(data.unbind());
+        self.symbols.push(data);
         self.alloc_counter += core::mem::size_of::<SymbolHeapData<'static>>();
         Symbol(BaseIndex::last(&self.symbols))
     }
@@ -141,7 +141,7 @@ impl Rootable for Symbol<'_> {
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         WellKnownSymbolIndexes::try_from(value)
             .map(|s| SymbolRootRepr(SymbolRootReprInner::WellKnown(s)))
-            .map_err(|_| HeapRootData::Symbol(value.unbind()))
+            .map_err(|_| HeapRootData::Symbol(value))
     }
 
     #[inline]

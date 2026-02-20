@@ -50,11 +50,11 @@ impl SymbolConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let description = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let description = arguments.get(0), gc);
         // 1. If NewTarget is not undefined, throw a TypeError exception.
         if new_target.is_some() {
             return Err(agent.throw_exception_with_static_message(
@@ -69,7 +69,7 @@ impl SymbolConstructor {
             None
         } else {
             // 3. Else, let descString be ? ToString(description).
-            Some(to_string(agent, description.unbind(), gc)?.unbind())
+            Some(to_string(agent, description, gc)?)
         };
 
         // 4. Return a new Symbol whose [[Description]] is descString.
@@ -85,31 +85,27 @@ impl SymbolConstructor {
     fn r#for<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let key = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let key = arguments.get(0), gc);
         // 1. Let stringKey be ? ToString(key).
-        let string_key = to_string(agent, key.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let string_key = to_string(agent, key, gc.reborrow())?;
 
         // 2. For each element e of the GlobalSymbolRegistry List, do
         //        a. If e.[[Key]] is stringKey, return e.[[Symbol]].
-        if let Some(&symbol) = agent.global_symbol_registry.get(&string_key.unbind()) {
+        if let Some(&symbol) = agent.global_symbol_registry.get(&string_key) {
             return Ok(symbol.into());
         }
 
         // 3. Assert: The GlobalSymbolRegistry List does not currently contain an entry for stringKey.
         // 4. Let newSymbol be a new Symbol whose [[Description]] is stringKey.
         let new_symbol = agent.heap.create(SymbolHeapData {
-            descriptor: Some(string_key.unbind()),
+            descriptor: Some(string_key),
         });
 
         // 5. Append the GlobalSymbolRegistry Record { [[Key]]: stringKey, [[Symbol]]: newSymbol } to the GlobalSymbolRegistry List.
-        agent
-            .global_symbol_registry
-            .insert(string_key.unbind(), new_symbol);
+        agent.global_symbol_registry.insert(string_key, new_symbol);
 
         // 6. Return newSymbol.
         Ok(new_symbol.into())
@@ -119,13 +115,13 @@ impl SymbolConstructor {
     fn key_for<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let sym = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let sym = arguments.get(0), gc);
 
         // 1. If sym is not a Symbol, throw a TypeError exception.
-        let symbol = match sym.unbind().try_into() {
+        let symbol = match sym.try_into() {
             Ok(symbol) => symbol,
             Err(_) => {
                 return Err(agent.throw_exception_with_static_message(

@@ -89,7 +89,7 @@ impl<'a> SourceCode<'a> {
                         // SAFETY: Caller guarantees to keep SourceCode from being
                         // garbage collected until the parsed Program is dropped.
                         // Thus the source text is kept from garbage collection.
-                        (source.unbind(), unsafe {
+                        (source, unsafe {
                             core::mem::transmute::<&str, &'static str>(source_text)
                         })
                     }
@@ -104,7 +104,7 @@ impl<'a> SourceCode<'a> {
                         // SAFETY: Caller guarantees to keep SourceCode from being
                         // garbage collected until the parsed Program is dropped.
                         // Thus the source text is kept from garbage collection.
-                        (source.unbind(), unsafe {
+                        (source, unsafe {
                             core::mem::transmute::<&str, &'static str>(source_text)
                         })
                     }
@@ -253,7 +253,7 @@ impl<'a> SourceCode<'a> {
         // "allocator" field is dropped last.
         let nodes = unsafe { core::mem::transmute::<AstNodes, AstNodes<'static>>(nodes) };
         let source_code = agent.heap.create(SourceCodeHeapData {
-            source: source.unbind(),
+            source: source,
             scoping,
             nodes,
             allocator,
@@ -293,6 +293,7 @@ impl<'a> SourceCode<'a> {
             self.get(agent)
                 .source
                 .get(agent)
+                .local()
                 .as_str()
                 .unwrap_unchecked()
         }
@@ -339,7 +340,7 @@ impl Debug for SourceCodeHeapData<'_> {
 
 impl<'a> CreateHeapData<SourceCodeHeapData<'a>, SourceCode<'a>> for Heap {
     fn create(&mut self, data: SourceCodeHeapData<'a>) -> SourceCode<'a> {
-        self.source_codes.push(data.unbind());
+        self.source_codes.push(data);
         self.alloc_counter += core::mem::size_of::<SourceCodeHeapData<'static>>();
         SourceCode(BaseIndex::last(&self.source_codes))
     }

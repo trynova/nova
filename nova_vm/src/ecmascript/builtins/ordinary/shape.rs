@@ -32,7 +32,7 @@ pub struct ObjectShape<'a>(
     // Non-zero u31; zero is reserved for None.
     // The top bit is reserved for OrdinaryObject extensible bit.
     NonZeroU32,
-    PhantomData<&'a GcToken>,
+    PhantomData<fn(&'a GcToken)>,
 );
 bindable_handle!(ObjectShape);
 
@@ -324,7 +324,7 @@ impl<'a> ObjectShape<'a> {
             // Our current shape keys is something like [a, b, None, None], and
             // we want to add c as the third key. In this case we can just add
             // it directly and create a new shape with the same keys.
-            slot.replace(key.unbind());
+            slot.replace(key);
             ObjectShapeRecord::create(prototype, keys_index, cap, len.checked_add(1).unwrap())
         } else {
             // Our current shape keys is something like [a, b, x] and we want
@@ -684,7 +684,7 @@ impl<'a> ObjectShape<'a> {
     ) -> Self {
         if self.is_intrinsic(agent) {
             // Intrinsic shape; set the prototype field directly.
-            self.get_mut(agent).prototype = prototype.unbind();
+            self.get_mut(agent).prototype = prototype;
             return self;
         }
         let original_len = self.len(agent);
@@ -722,7 +722,7 @@ impl<'a> ObjectShape<'a> {
                     ObjectShapeTransitionMap::with_parent(shape),
                 ));
                 shape.add_transition(agent, *key, next_shape);
-                shape = next_shape.unbind();
+                shape = next_shape;
             }
             break;
         }
@@ -946,8 +946,8 @@ impl<'a> ObjectShapeTransitionMap<'a> {
 
     /// Insert a new transition into
     pub(crate) fn insert(&mut self, key: PropertyKey, shape: ObjectShape, heap: &PropertyKeyHeap) {
-        let key = key.unbind();
-        let shape = shape.unbind();
+        let key = key;
+        let shape = shape;
         let hash = key.heap_hash(heap);
         match self
             .table
@@ -999,9 +999,7 @@ impl PrototypeShapeTable {
         prototype: Object<'a>,
         shape: ObjectShape<'a>,
     ) {
-        let previous = self
-            .table
-            .insert(prototype.unbind(), WeakReference(shape.unbind()));
+        let previous = self.table.insert(prototype, WeakReference(shape));
         assert!(previous.is_none(), "Re-set prototype root Object Shape");
     }
 }
@@ -1122,8 +1120,8 @@ impl<'a> CreateHeapData<(ObjectShapeRecord<'a>, ObjectShapeTransitionMap<'a>), O
                 "Object Shape has zero capacity but non-zero keys index"
             );
         }
-        self.object_shapes.push(record.unbind());
-        self.object_shape_transitions.push(transitions.unbind());
+        self.object_shapes.push(record);
+        self.object_shape_transitions.push(transitions);
         self.alloc_counter += core::mem::size_of::<ObjectShapeRecord>()
             + core::mem::size_of::<ObjectShapeTransitionMap>();
         let shape = ObjectShape::last(&self.object_shapes);

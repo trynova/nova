@@ -700,7 +700,7 @@ impl GcAgent {
             create_global_this_value,
             initialize_global_object,
         );
-        self.root_realm(realm.unbind())
+        self.root_realm(realm)
     }
 
     /// Creates a default realm suitable for basic testing only.
@@ -874,7 +874,7 @@ impl Agent {
         assert!(!self.execution_context_stack.is_empty());
         let identifier = self.current_realm_id_internal();
         let _ = self.pop_execution_context();
-        identifier.unbind()
+        identifier
     }
 
     /// Creates a new Realm
@@ -943,7 +943,7 @@ impl Agent {
         self.push_execution_context(ExecutionContext {
             ecmascript_code: None,
             function: None,
-            realm: realm.unbind(),
+            realm: realm,
             script_or_module: None,
         });
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
@@ -977,8 +977,8 @@ impl Agent {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
 
-        let result = job.run(self, gc.reborrow()).unbind().bind(gc.nogc());
-        let result = then(self, result.unbind(), gc);
+        let result = job.run(self, gc.reborrow());
+        let result = then(self, result, gc);
         assert_eq!(
             self.execution_context_stack.len(),
             execution_stack_depth_before_call + 1
@@ -989,8 +989,8 @@ impl Agent {
 
     /// Get current Realm's global environment.
     #[cfg(test)]
-    pub(crate) fn current_global_env<'a>(&self, gc: NoGcScope<'a, '_>) -> GlobalEnvironment<'a> {
-        let realm = self.current_realm(gc);
+    pub(crate) fn current_global_env(&self) -> GlobalEnvironment<'static> {
+        let realm = self.current_realm();
         let Some(e) = realm.get(self).global_env else {
             panic_corrupted_agent()
         };
@@ -998,21 +998,21 @@ impl Agent {
     }
 
     /// Get current Realm's global object.
-    pub fn current_global_object<'a>(&self, gc: NoGcScope<'a, '_>) -> Object<'a> {
-        self.current_realm(gc).get(self).global_object
+    pub fn current_global_object(&self) -> Object<'static> {
+        self.current_realm().get(self).global_object
     }
 
     /// Get the [current Realm](https://tc39.es/ecma262/#current-realm).
-    pub fn current_realm<'a>(&self, gc: NoGcScope<'a, '_>) -> Realm<'a> {
-        self.current_realm_id_internal().bind(gc)
+    pub fn current_realm(&self) -> Realm<'static> {
+        self.current_realm_id_internal()
     }
 
-    /// Set the current executiono context's Realm.
+    /// Set the current execution context's Realm.
     pub(crate) fn set_current_realm(&mut self, realm: Realm) {
         let Some(ctx) = self.execution_context_stack.last_mut() else {
             panic_corrupted_agent()
         };
-        ctx.realm = realm.unbind();
+        ctx.realm = realm;
     }
 
     /// Internal method to get current Realm's identifier without binding.
@@ -1039,7 +1039,7 @@ impl Agent {
         message: &'static str,
         gc: NoGcScope<'a, '_>,
     ) -> Value<'a> {
-        let message = String::from_static_str(self, message, gc).unbind();
+        let message = String::from_static_str(self, message, gc);
         self.heap
             .create(ErrorHeapData::new(kind, Some(message), None))
             .into()
@@ -1062,10 +1062,7 @@ impl Agent {
         message: &'static str,
         gc: NoGcScope<'a, '_>,
     ) -> JsError<'a> {
-        JsError(
-            self.create_exception_with_static_message(kind, message, gc)
-                .unbind(),
-        )
+        JsError(self.create_exception_with_static_message(kind, message, gc))
     }
 
     #[must_use]
@@ -1075,7 +1072,7 @@ impl Agent {
         message: std::string::String,
         gc: NoGcScope<'a, '_>,
     ) -> JsError<'a> {
-        let message = String::from_string(self, message, gc).unbind();
+        let message = String::from_string(self, message, gc);
         JsError(
             self.heap
                 .create(ErrorHeapData::new(kind, Some(message), None))
@@ -1087,13 +1084,12 @@ impl Agent {
     pub fn throw_exception_with_message<'a>(
         &mut self,
         kind: ExceptionType,
-        message: String,
+        message: String<'a>,
         gc: NoGcScope<'a, '_>,
     ) -> JsError<'a> {
         JsError(
             self.heap
-                .create(ErrorHeapData::new(kind, Some(message.unbind()), None))
-                .bind(gc)
+                .create(ErrorHeapData::new(kind, Some(message), None))
                 .into(),
         )
     }
@@ -1142,7 +1138,7 @@ impl Agent {
     /// Returns the realm of the previous execution context.
     ///
     /// See steps 6-8 of [27.6.3.8 AsyncGeneratorYield ( value )](https://tc39.es/ecma262/#sec-asyncgeneratoryield).
-    pub(crate) fn get_previous_context_realm<'a>(&self, gc: NoGcScope<'a, '_>) -> Realm<'a> {
+    pub(crate) fn get_previous_context_realm(&self) -> Realm<'static> {
         // 6. Assert: The execution context stack has at least two elements.
         assert!(self.execution_context_stack.len() >= 2);
         // 7. Let previousContext be the second to top element of the execution
@@ -1150,7 +1146,7 @@ impl Agent {
         let previous_context =
             &self.execution_context_stack[self.execution_context_stack.len() - 2];
         // 8. Let previousRealm be previousContext's Realm.
-        previous_context.realm.bind(gc)
+        previous_context.realm
     }
 
     pub(crate) fn push_execution_context(&mut self, context: ExecutionContext) {
@@ -1166,7 +1162,7 @@ impl Agent {
             .execution_context_stack
             .last()
             .and_then(|s| s.ecmascript_code.as_ref())
-            .map(|e| e.source_code.bind(gc))
+            .map(|e| e.source_code)
         else {
             panic_corrupted_agent()
         };
@@ -1179,7 +1175,7 @@ impl Agent {
             .execution_context_stack
             .last()
             .and_then(|s| s.ecmascript_code.as_ref())
-            .map(|e| e.lexical_environment.bind(gc))
+            .map(|e| e.lexical_environment)
         else {
             panic_corrupted_agent()
         };
@@ -1195,7 +1191,7 @@ impl Agent {
             .execution_context_stack
             .last()
             .and_then(|s| s.ecmascript_code.as_ref())
-            .map(|e| e.variable_environment.bind(gc))
+            .map(|e| e.variable_environment)
         else {
             panic_corrupted_agent()
         };
@@ -1211,7 +1207,7 @@ impl Agent {
             .execution_context_stack
             .last()
             .and_then(|s| s.ecmascript_code.as_ref())
-            .map(|e| e.private_environment.bind(gc))
+            .map(|e| e.private_environment)
         else {
             panic_corrupted_agent()
         };
@@ -1225,7 +1221,7 @@ impl Agent {
             .last_mut()
             .and_then(|s| s.ecmascript_code.as_mut())
             .map(|e| {
-                e.lexical_environment = env.unbind();
+                e.lexical_environment = env;
             })
         else {
             panic_corrupted_agent()
@@ -1239,7 +1235,7 @@ impl Agent {
             .last_mut()
             .and_then(|s| s.ecmascript_code.as_mut())
             .map(|e| {
-                e.variable_environment = env.unbind();
+                e.variable_environment = env;
             })
         else {
             panic_corrupted_agent()
@@ -1253,7 +1249,7 @@ impl Agent {
             .last_mut()
             .and_then(|s| s.ecmascript_code.as_mut())
             .map(|e| {
-                e.private_environment = env.unbind();
+                e.private_environment = env;
             })
         else {
             panic_corrupted_agent()
@@ -1293,11 +1289,7 @@ impl Agent {
 
     /// Panics if no active function object exists.
     pub(crate) fn active_function_object<'a>(&self, gc: NoGcScope<'a, '_>) -> Function<'a> {
-        let Some(f) = self
-            .execution_context_stack
-            .last()
-            .and_then(|s| s.function.bind(gc))
-        else {
+        let Some(f) = self.execution_context_stack.last().and_then(|s| s.function) else {
             panic_corrupted_agent()
         };
         f
@@ -1316,7 +1308,7 @@ impl Agent {
         let Some(s) = self
             .execution_context_stack
             .last()
-            .map(|s| s.script_or_module.bind(gc))
+            .map(|s| s.script_or_module)
         else {
             panic_corrupted_agent()
         };
@@ -1335,7 +1327,7 @@ impl Agent {
         &mut self,
         source_text: String,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let realm = self.current_realm(gc.nogc());
         let script = match parse_script(self, source_text, realm, false, None, gc.nogc()) {
             Ok(script) => script,
@@ -1350,7 +1342,7 @@ impl Agent {
                 ));
             }
         };
-        script_evaluation(self, script.unbind(), gc)
+        script_evaluation(self, script, gc)
     }
 
     /// Run a parsed SourceTextModule in the current Realm.
@@ -1363,8 +1355,8 @@ impl Agent {
         module: SourceTextModule,
         host_defined: Option<HostDefined>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let module = module.bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let module = module, gc);
         let Some(result) = module
             .load_requested_modules(self, host_defined, gc.nogc())
             .try_get_result(self, gc.nogc())
@@ -1375,13 +1367,11 @@ impl Agent {
                 gc.into_nogc(),
             ));
         };
-        result.unbind()?;
+        result?;
 
-        module.link(self, gc.nogc()).unbind()?;
+        module.link(self, gc.nogc())?;
         if let Some(result) = module
-            .unbind()
             .evaluate(self, gc.reborrow())
-            .unbind()
             .try_get_result(self, gc.into_nogc())
         {
             // Note: module resolved synchronously.
@@ -1454,15 +1444,13 @@ pub(crate) fn resolve_binding<'a, 'b>(
     env: Option<Environment>,
     gc: GcScope<'a, 'b>,
 ) -> JsResult<'a, Reference<'a>> {
-    let name = name.bind(gc.nogc());
-    let env = env
-        .unwrap_or_else(|| {
-            // 1. If env is not present or env is undefined, then
-            //    a. Set env to the running execution context's LexicalEnvironment.
-            agent.current_lexical_environment(gc.nogc())
-        })
-        .bind(gc.nogc());
-    let cache = cache.bind(gc.nogc());
+    crate::engine::bind!(let name = name, gc);
+    let env = env.unwrap_or_else(|| {
+        // 1. If env is not present or env is undefined, then
+        //    a. Set env to the running execution context's LexicalEnvironment.
+        agent.current_lexical_environment(gc.nogc())
+    });
+    crate::engine::bind!(let cache = cache, gc);
 
     // 2. Assert: env is an Environment Record.
     // Implicit from env's type.
@@ -1471,14 +1459,7 @@ pub(crate) fn resolve_binding<'a, 'b>(
     let strict = agent.is_evaluating_strict_code();
 
     // 4. Return ? GetIdentifierReference(env, name, strict).
-    get_identifier_reference(
-        agent,
-        Some(env.unbind()),
-        name.unbind(),
-        cache.unbind(),
-        strict,
-        gc,
-    )
+    get_identifier_reference(agent, Some(env), name, cache, strict, gc)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

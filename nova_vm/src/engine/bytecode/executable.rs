@@ -256,12 +256,12 @@ impl<'gc> Executable<'gc> {
         index: usize,
         gc: NoGcScope<'gc, '_>,
     ) -> PropertyLookupCache<'gc> {
-        self.get(agent).caches[index].bind(gc)
+        self.get(agent).caches[index]
     }
 
     #[inline]
     fn fetch_constant(self, agent: &Agent, index: usize, gc: NoGcScope<'gc, '_>) -> Value<'gc> {
-        self.get(agent).constants[index].bind(gc)
+        self.get(agent).constants[index]
     }
 
     #[inline]
@@ -270,7 +270,7 @@ impl<'gc> Executable<'gc> {
         let Ok(value) = String::try_from(value) else {
             handle_identifier_failure()
         };
-        value.bind(gc)
+        value
     }
 
     #[inline]
@@ -282,7 +282,7 @@ impl<'gc> Executable<'gc> {
     ) -> PropertyKey<'gc> {
         let value = self.get(agent).constants[index];
         // SAFETY: caller wants a PropertyKey.
-        unsafe { PropertyKey::from_value_unchecked(value).bind(gc) }
+        unsafe { PropertyKey::from_value_unchecked(value) }
     }
 
     fn fetch_function_expression<'a>(
@@ -320,7 +320,7 @@ impl<'gc> Executable<'gc> {
         index: usize,
         gc: NoGcScope<'gc, '_>,
     ) -> ObjectShape<'gc> {
-        self.get(agent).shapes[index].bind(gc)
+        self.get(agent).shapes[index]
     }
 }
 
@@ -431,7 +431,7 @@ impl Scoped<'_, Executable<'static>> {
 impl<'a> CreateHeapData<ExecutableHeapData<'a>, Executable<'a>> for Heap {
     fn create(&mut self, data: ExecutableHeapData<'a>) -> Executable<'a> {
         let index = u32::try_from(self.executables.len()).expect("Executables overflowed");
-        self.executables.push(data.unbind());
+        self.executables.push(data);
         self.alloc_counter += core::mem::size_of::<ExecutableHeapData<'static>>();
         // SAFETY: After pushing to executables, the vector cannot be empty.
         Executable(BaseIndex::from_index_u32(index))

@@ -55,7 +55,7 @@ pub(crate) fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static
     let mut queues = WorkQueues::new(&agent.heap, &bits);
     root_realms.iter().for_each(|realm| {
         if let Some(realm) = realm {
-            queues.realms.push(realm.unbind());
+            queues.realms.push(realm);
         }
     });
     queues.object_shapes.push(ObjectShape::NULL);

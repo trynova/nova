@@ -103,13 +103,12 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
 
     pub(super) fn create_bigint(&mut self, literal: &str, radix: u32) -> BigInt<'gc> {
         if let Ok(result) = i64::from_str_radix(literal, radix) {
-            BigInt::from_i64(self.agent, result).bind(self.gc)
+            BigInt::from_i64(self.agent, result)
         } else {
             BigInt::from_num_bigint(
                 self.agent,
                 num_bigint::BigInt::from_str_radix(literal, radix).unwrap(),
             )
-            .bind(self.gc)
         }
     }
 
@@ -147,15 +146,15 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
     pub(super) fn finish(self) -> Executable<'gc> {
         self.agent.heap.create(ExecutableHeapData {
             instructions: self.instructions.into_boxed_slice(),
-            caches: self.caches.unbind().into_boxed_slice(),
-            constants: self.constants.unbind().into_boxed_slice(),
-            shapes: self.shapes.unbind().into_boxed_slice(),
-            function_expressions: self.function_expressions.unbind().into_boxed_slice(),
+            caches: self.caches.into_boxed_slice(),
+            constants: self.constants.into_boxed_slice(),
+            shapes: self.shapes.into_boxed_slice(),
+            function_expressions: self.function_expressions.into_boxed_slice(),
             arrow_function_expressions: self.arrow_function_expressions.into_boxed_slice(),
             class_initializer_bytecodes: self
                 .class_initializer_bytecodes
                 .into_iter()
-                .map(|(exe, b)| (exe.unbind(), b))
+                .map(|(exe, b)| (exe, b))
                 .collect(),
         })
     }

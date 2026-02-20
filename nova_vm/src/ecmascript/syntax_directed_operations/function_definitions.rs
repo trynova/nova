@@ -146,7 +146,7 @@ pub(crate) fn instantiate_ordinary_function_object<'a>(
             BUILTIN_STRING_MEMORY.prototype.to_property_key(),
             PropertyDescriptor {
                 // [[Value]]: prototype,
-                value: Some(prototype.unbind().into()),
+                value: Some(prototype.into()),
                 // [[Writable]]: true,
                 writable: Some(true),
                 // [[Enumerable]]: false,
@@ -199,35 +199,35 @@ impl<'a> CompileFunctionBodyData<'a> {
 pub(crate) fn evaluate_function_body<'gc>(
     agent: &mut Agent,
     function_object: ECMAScriptFunction,
-    arguments_list: ArgumentsList,
+    arguments_list: ArgumentsList<'_, 'static>,
     gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, Value<'gc>> {
-    let arguments_list = arguments_list.bind(gc.nogc());
-    let function_object = function_object.bind(gc.nogc());
+) -> JsResult<'static, Value<'static>> {
+    crate::engine::bind!(let arguments_list = arguments_list, gc);
+    crate::engine::bind!(let function_object = function_object, gc);
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
-    //function_declaration_instantiation(agent, function_object, arguments_list).unbind()?.bind(gc.nogc());
+    //function_declaration_instantiation(agent, function_object, arguments_list)?;
     // 2. Return ? Evaluation of FunctionStatementList.
-    let exe = if let Some(exe) = function_object.get(agent).compiled_bytecode {
-        exe.bind(gc.nogc())
+    let exe = if let Some(exe) = function_object.get(agent).local().compiled_bytecode {
+        exe
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object, gc.nogc());
         let exe = Executable::compile_function_body(agent, data, gc.nogc());
-        function_object.get_mut(agent).compiled_bytecode = Some(exe.unbind());
+        function_object.get_mut(agent).compiled_bytecode = Some(exe);
         exe
     };
     let exe = exe.scope(agent, gc.nogc());
-    Vm::execute(agent, exe, Some(arguments_list.unbind().as_mut_slice()), gc).into_js_result()
+    Vm::execute(agent, exe, Some(arguments_list.as_mut_slice()), gc).into_js_result()
 }
 
 /// ### [15.8.4 Runtime Semantics: EvaluateAsyncFunctionBody](https://tc39.es/ecma262/#sec-runtime-semantics-evaluateasyncfunctionbody)
 pub(crate) fn evaluate_async_function_body<'a>(
     agent: &mut Agent,
     function_object: ECMAScriptFunction,
-    arguments_list: ArgumentsList,
-    mut gc: GcScope<'a, '_>,
+    arguments_list: ArgumentsList<'_, 'static>,
+    mut gc: GcScope,
 ) -> Promise<'a> {
-    let arguments_list = arguments_list.bind(gc.nogc());
-    let function_object = function_object.bind(gc.nogc());
+    crate::engine::bind!(let arguments_list = arguments_list, gc);
+    crate::engine::bind!(let function_object = function_object, gc);
     let scoped_function_object = function_object.scope(agent, gc.nogc());
     // 1. Let promiseCapability be ! NewPromiseCapability(%Promise%).
     let PromiseCapability {
@@ -242,12 +242,12 @@ pub(crate) fn evaluate_async_function_body<'a>(
     // Note: FunctionDeclarationInstantiation is performed as the first part of
     // the compiled function body; we do not need to run it and
     // AsyncFunctionStart separately.
-    let exe = if let Some(exe) = function_object.get(agent).compiled_bytecode {
-        exe.bind(gc.nogc())
+    let exe = if let Some(exe) = function_object.get(agent).local().compiled_bytecode {
+        exe
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object, gc.nogc());
         let exe = Executable::compile_function_body(agent, data, gc.nogc());
-        function_object.get_mut(agent).compiled_bytecode = Some(exe.unbind());
+        function_object.get_mut(agent).compiled_bytecode = Some(exe);
         exe
     };
     let exe = exe.scope(agent, gc.nogc());
@@ -257,25 +257,23 @@ pub(crate) fn evaluate_async_function_body<'a>(
     match Vm::execute(
         agent,
         exe,
-        Some(arguments_list.unbind().as_mut_slice()),
+        Some(arguments_list.as_mut_slice()),
         gc.reborrow(),
     ) {
         ExecutionResult::Return(result) => {
-            let result = result.unbind().bind(gc.nogc());
-            let promise = promise.get(agent).bind(gc.nogc());
+            let result = result;
+            crate::engine::bind!(let promise = promise.get(agent).local(), gc);
             let promise_capability = PromiseCapability::from_promise(promise, must_be_unresolved);
             // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
             // 2. e. If result is a normal completion, then
             //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « undefined »).
             //    f. Else if result is a return completion, then
             //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « result.[[Value]] »).
-            promise_capability
-                .unbind()
-                .resolve(agent, result.unbind(), gc.reborrow());
+            promise_capability.resolve(agent, result, gc.reborrow());
         }
         ExecutionResult::Throw(err) => {
-            let err = err.unbind().bind(gc.nogc());
-            let promise = promise.get(agent).bind(gc.nogc());
+            let err = err;
+            crate::engine::bind!(let promise = promise.get(agent).local(), gc);
             let promise_capability = PromiseCapability::from_promise(promise, must_be_unresolved);
             // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
             // 2. g. i. Assert: result is a throw completion.
@@ -287,11 +285,9 @@ pub(crate) fn evaluate_async_function_body<'a>(
             // `handler` corresponds to the `fulfilledClosure` and `rejectedClosure` functions,
             // which resume execution of the function.
             // 2. Let promise be ? PromiseResolve(%Promise%, value).
-            let resolve_promise = Promise::resolve(agent, awaited_value.unbind(), gc.reborrow())
-                .unbind()
-                .bind(gc.nogc());
+            let resolve_promise = Promise::resolve(agent, awaited_value, gc.reborrow())?;
 
-            let promise = promise.get(agent).bind(gc.nogc());
+            crate::engine::bind!(let promise = promise.get(agent).local(), gc);
             let promise_capability = PromiseCapability::from_promise(promise, must_be_unresolved);
 
             // NOTE: the execution context has to be cloned because it will be popped when we
@@ -299,27 +295,20 @@ pub(crate) fn evaluate_async_function_body<'a>(
             // cloning it would mess up the execution context stack.
             let handler = PromiseReactionHandler::Await(agent.heap.create(AwaitReactionRecord {
                 vm: Some(vm),
-                async_executable: Some(scoped_function_object.get(agent).into()),
+                async_executable: Some(scoped_function_object.get(agent).local().into()),
                 execution_context: Some(agent.running_execution_context().clone()),
                 return_promise_capability: promise_capability,
             }));
 
             // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
-            inner_promise_then(
-                agent,
-                resolve_promise.unbind(),
-                handler,
-                handler,
-                None,
-                gc.nogc(),
-            );
+            inner_promise_then(agent, resolve_promise, handler, handler, None, gc.nogc());
         }
         ExecutionResult::Yield { .. } => unreachable!(),
     }
     //}
 
     // 5. Return Completion Record { [[Type]]: return, [[Value]]: promiseCapability.[[Promise]], [[Target]]: empty }.
-    promise.get(agent).bind(gc.into_nogc())
+    promise.get(agent).local()
 }
 
 /// ### [15.5.2 Runtime Semantics: EvaluateGeneratorBody](https://tc39.es/ecma262/#sec-runtime-semantics-evaluategeneratorbody)
@@ -330,18 +319,18 @@ pub(crate) fn evaluate_async_function_body<'a>(
 pub(crate) fn evaluate_generator_body<'gc>(
     agent: &mut Agent,
     function_object: ECMAScriptFunction,
-    arguments_list: ArgumentsList,
+    arguments_list: ArgumentsList<'_, 'static>,
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, Value<'gc>> {
-    let arguments_list = arguments_list.bind(gc.nogc());
-    let function_object = function_object.bind(gc.nogc());
+) -> JsResult<'static, Value<'static>> {
+    crate::engine::bind!(let arguments_list = arguments_list, gc);
+    crate::engine::bind!(let function_object = function_object, gc);
 
-    let exe = if let Some(exe) = function_object.get(agent).compiled_bytecode {
+    let exe = if let Some(exe) = function_object.get(agent).local().compiled_bytecode {
         exe.scope(agent, gc.nogc())
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object, gc.nogc());
         let exe = Executable::compile_function_body(agent, data, gc.nogc());
-        function_object.get_mut(agent).compiled_bytecode = Some(exe.unbind());
+        function_object.get_mut(agent).compiled_bytecode = Some(exe);
         exe.scope(agent, gc.nogc())
     };
 
@@ -353,11 +342,11 @@ pub(crate) fn evaluate_generator_body<'gc>(
     let vm = match Vm::execute(
         agent,
         exe.clone(),
-        Some(arguments_list.unbind().as_mut_slice()),
+        Some(arguments_list.as_mut_slice()),
         gc.reborrow(),
     ) {
         ExecutionResult::Throw(err) => {
-            return Err(err.unbind().bind(gc.into_nogc()));
+            return Err(err);
         }
         ExecutionResult::Yield { vm, yielded_value } => {
             debug_assert!(yielded_value.is_undefined());
@@ -372,23 +361,20 @@ pub(crate) fn evaluate_generator_body<'gc>(
     // 3. Set G.[[GeneratorBrand]] to empty.
     // 4. Perform GeneratorStart(G, FunctionBody).
     // 5. Return Completion Record { [[Type]]: return, [[Value]]: G, [[Target]]: empty }.
-    let g = agent
-        .heap
-        .create(GeneratorHeapData {
-            object_index: None,
-            generator_state: Some(GeneratorState::SuspendedStart(SuspendedGeneratorState {
-                vm,
-                // SAFETY: exe is not shared.
-                executable: unsafe { exe.take(agent) },
-                execution_context: agent.running_execution_context().clone(),
-            })),
-        })
-        .bind(gc.nogc());
+    let g = agent.heap.create(GeneratorHeapData {
+        object_index: None,
+        generator_state: Some(GeneratorState::SuspendedStart(SuspendedGeneratorState {
+            vm,
+            // SAFETY: exe is not shared.
+            executable: unsafe { exe.take(agent).local() },
+            execution_context: agent.running_execution_context().clone(),
+        })),
+    });
     ordinary_populate_from_constructor(
         agent,
-        g.unbind().into(),
+        g.into(),
         // SAFETY: not shared.
-        unsafe { function_object.take(agent) }.into(),
+        unsafe { function_object.take(agent).local() }.into(),
         ProtoIntrinsics::Generator,
         gc,
     )
@@ -404,18 +390,18 @@ pub(crate) fn evaluate_generator_body<'gc>(
 pub(crate) fn evaluate_async_generator_body<'gc>(
     agent: &mut Agent,
     function_object: ECMAScriptFunction,
-    arguments_list: ArgumentsList,
+    arguments_list: ArgumentsList<'_, 'static>,
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, Value<'gc>> {
-    let function_object = function_object.bind(gc.nogc());
-    let arguments_list = arguments_list.bind(gc.nogc());
+) -> JsResult<'static, Value<'static>> {
+    crate::engine::bind!(let function_object = function_object, gc);
+    crate::engine::bind!(let arguments_list = arguments_list, gc);
 
-    let exe = if let Some(exe) = function_object.get(agent).compiled_bytecode {
+    let exe = if let Some(exe) = function_object.get(agent).local().compiled_bytecode {
         exe.scope(agent, gc.nogc())
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object, gc.nogc());
         let exe = Executable::compile_function_body(agent, data, gc.nogc());
-        function_object.get_mut(agent).compiled_bytecode = Some(exe.unbind());
+        function_object.get_mut(agent).compiled_bytecode = Some(exe);
         exe.scope(agent, gc.nogc())
     };
 
@@ -427,11 +413,11 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
     let vm = match Vm::execute(
         agent,
         exe.clone(),
-        Some(arguments_list.unbind().as_mut_slice()),
+        Some(arguments_list.as_mut_slice()),
         gc.reborrow(),
     ) {
         ExecutionResult::Throw(err) => {
-            return Err(err.unbind().bind(gc.into_nogc()));
+            return Err(err);
         }
         ExecutionResult::Yield { vm, yielded_value } => {
             debug_assert!(yielded_value.is_undefined());
@@ -448,24 +434,21 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
     // 4. Set generator.[[AsyncGeneratorState]] to suspended-start.
     // 5. Perform AsyncGeneratorStart(generator, FunctionBody).
     // 6. Return ReturnCompletion(generator).
-    let generator = agent
-        .heap
-        .create(AsyncGeneratorHeapData {
-            object_index: None,
-            // SAFETY: exe is not shared.
-            executable: Some(unsafe { exe.take(agent) }),
-            async_generator_state: Some(AsyncGeneratorState::SuspendedStart {
-                vm,
-                execution_context: agent.running_execution_context().clone(),
-                queue: VecDeque::new(),
-            }),
-        })
-        .bind(gc.nogc());
+    let generator = agent.heap.create(AsyncGeneratorHeapData {
+        object_index: None,
+        // SAFETY: exe is not shared.
+        executable: Some(unsafe { exe.take(agent).local() }),
+        async_generator_state: Some(AsyncGeneratorState::SuspendedStart {
+            vm,
+            execution_context: agent.running_execution_context().clone(),
+            queue: VecDeque::new(),
+        }),
+    });
     ordinary_populate_from_constructor(
         agent,
-        generator.unbind().into(),
+        generator.into(),
         // SAFETY: not shared.
-        unsafe { function_object.take(agent) }.into(),
+        unsafe { function_object.take(agent).local() }.into(),
         ProtoIntrinsics::AsyncGenerator,
         gc,
     )

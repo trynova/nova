@@ -47,7 +47,7 @@ impl<'a> InternalSlots<'a> for Date<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index.unbind()
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
@@ -80,7 +80,7 @@ impl HeapSweepWeakReference for Date<'static> {
 
 impl<'a> CreateHeapData<DateHeapData<'a>, Date<'a>> for Heap {
     fn create(&mut self, data: DateHeapData<'a>) -> Date<'a> {
-        self.dates.push(data.unbind());
+        self.dates.push(data);
         self.alloc_counter += core::mem::size_of::<DateHeapData<'static>>();
         Date(BaseIndex::last(&self.dates))
     }

@@ -26,10 +26,10 @@ impl IteratorConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        _args: ArgumentsList,
+        _args: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. If NewTarget is either undefined or the active function object, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
@@ -49,7 +49,7 @@ impl IteratorConstructor {
         // 2. Return ? OrdinaryCreateFromConstructor(NewTarget, "%Iterator.prototype%").
         ordinary_create_from_constructor(
             agent,
-            Function::try_from(new_target.unbind()).unwrap(),
+            Function::try_from(new_target).unwrap(),
             ProtoIntrinsics::Iterator,
             gc,
         )

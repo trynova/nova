@@ -49,13 +49,13 @@ impl WeakMapPrototype {
     fn delete<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let key = arguments.get(0).bind(gc);
+        crate::engine::bind!(let key = arguments.get(0), gc);
         // 1. Let M be the this value.
-        let m = this_value.bind(gc);
+        crate::engine::bind!(let m = this_value, gc);
         // 2. Perform ? RequireInternalSlot(M, [[WeakMapData]]).
         let m = require_internal_slot_weak_map_data(agent, m, gc)?;
         // 3. If CanBeHeldWeakly(key) is false,
@@ -76,13 +76,13 @@ impl WeakMapPrototype {
     fn get<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let key = arguments.get(0).bind(gc);
+        crate::engine::bind!(let key = arguments.get(0), gc);
         // 1. Let M be the this value.
-        let m = this_value.bind(gc);
+        crate::engine::bind!(let m = this_value, gc);
         // 2. Perform ? RequireInternalSlot(M, [[WeakMapData]]).
         let m = require_internal_slot_weak_map_data(agent, m, gc)?;
         // 3. If CanBeHeldWeakly(key) is false,
@@ -100,13 +100,13 @@ impl WeakMapPrototype {
     fn has<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let key = arguments.get(0).bind(gc);
+        crate::engine::bind!(let key = arguments.get(0), gc);
         // 1. Let M be the this value.
-        let m = this_value.bind(gc);
+        crate::engine::bind!(let m = this_value, gc);
         // 2. Perform ? RequireInternalSlot(M, [[WeakMapData]]).
         let m = require_internal_slot_weak_map_data(agent, m, gc)?;
         // 3. If CanBeHeldWeakly(key) is false,
@@ -124,14 +124,14 @@ impl WeakMapPrototype {
     fn set<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let key = arguments.get(0).bind(gc);
-        let value = arguments.get(1).bind(gc);
+        crate::engine::bind!(let key = arguments.get(0), gc);
+        crate::engine::bind!(let value = arguments.get(1), gc);
         // 1. Let M be the this value.
-        let m = this_value.bind(gc);
+        crate::engine::bind!(let m = this_value, gc);
         // 2. Perform ? RequireInternalSlot(M, [[WeakMapData]]).
         let m = require_internal_slot_weak_map_data(agent, m, gc)?;
         // 3. If CanBeHeldWeakly(key) is false, throw a TypeError exception.
@@ -182,7 +182,7 @@ fn require_internal_slot_weak_map_data<'a>(
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, WeakMap<'a>> {
     match value {
-        Value::WeakMap(map) => Ok(map.bind(gc)),
+        Value::WeakMap(map) => Ok(map),
         _ => Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Object is not a WeakMap",

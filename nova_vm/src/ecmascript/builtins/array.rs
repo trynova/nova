@@ -48,13 +48,10 @@ pub(crate) static ARRAY_INDEX_RANGE: RangeInclusive<i64> = 0..=(i64::pow(2, 32) 
 impl<'a> Array<'a> {
     /// Allocate a new Array in the Agent heap with 0 capacity.
     pub fn new(agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Self {
-        agent
-            .heap
-            .create(ArrayHeapData {
-                object_index: None,
-                elements: ElementsVector::EMPTY,
-            })
-            .bind(gc)
+        agent.heap.create(ArrayHeapData {
+            object_index: None,
+            elements: ElementsVector::EMPTY,
+        })
     }
 
     /// Get a reference to the next Array that will be allocated.
@@ -79,13 +76,10 @@ impl<'a> Array<'a> {
             .heap
             .elements
             .allocate_elements_with_length(capacity as usize)?;
-        Ok(agent
-            .heap
-            .create(ArrayHeapData {
-                object_index: None,
-                elements,
-            })
-            .bind(gc))
+        Ok(agent.heap.create(ArrayHeapData {
+            object_index: None,
+            elements,
+        }))
     }
 
     /// Push a Value into this Array.
@@ -310,14 +304,14 @@ impl<'a> InternalSlots<'a> for Array<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index.unbind()
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
             self.get_mut(agent)
                 .object_index
-                .replace(backing_object.unbind())
+                .replace(backing_object)
                 .is_none()
         );
     }
@@ -376,7 +370,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
-        let array = self.bind(gc);
+        crate::engine::bind!(let array = self, gc);
         if let Some(index) = property_key.into_u32() {
             let elements = array.get_elements(agent);
             let length = elements.len();
@@ -389,7 +383,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 descriptors,
             } = elements.get_storage(agent);
             // We checked that we're within the vector bounds.
-            let value = values[index as usize].bind(gc);
+            crate::engine::bind!(let value = values[index as usize], gc);
             let descriptor = descriptors.and_then(|d| d.get(&index));
             return if value.is_none() && descriptor.is_none() {
                 TryResult::Continue(None)
@@ -409,17 +403,14 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 ..Default::default()
             }))
         } else if let Some(backing_object) = array.get_backing_object(agent) {
-            TryResult::Continue(
-                ordinary_get_own_property(
-                    agent,
-                    self.into(),
-                    backing_object,
-                    property_key,
-                    cache,
-                    gc,
-                )
-                .bind(gc),
-            )
+            TryResult::Continue(ordinary_get_own_property(
+                agent,
+                self.into(),
+                backing_object,
+                property_key,
+                cache,
+                gc,
+            ))
         } else {
             TryResult::Continue(None)
         }
@@ -535,15 +526,15 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         property_descriptor: PropertyDescriptor,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
-        let property_key = property_key.bind(gc.nogc());
-        let property_descriptor = property_descriptor.bind(gc.nogc());
+        crate::engine::bind!(let property_key = property_key, gc);
+        crate::engine::bind!(let property_descriptor = property_descriptor, gc);
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
-            array_set_length(agent, self, property_descriptor.unbind(), gc)
+            array_set_length(agent, self, property_descriptor, gc)
         } else {
             Ok(unwrap_try(self.try_define_own_property(
                 agent,
-                property_key.unbind(),
-                property_descriptor.unbind(),
+                property_key,
+                property_descriptor,
                 None,
                 gc.into_nogc(),
             )))
@@ -557,7 +548,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, TryHasResult<'gc>> {
-        let array = self.bind(gc);
+        crate::engine::bind!(let array = self, gc);
         if property_key == BUILTIN_STRING_MEMORY.length.into() {
             return TryHasResult::Custom(u32::MAX, array.into()).into();
         } else if let Some(index) = property_key.into_u32() {
@@ -664,9 +655,9 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, TryGetResult<'gc>> {
-        let array = self.bind(gc);
-        let property_key = property_key.bind(gc);
-        let receiver = receiver.bind(gc);
+        crate::engine::bind!(let array = self, gc);
+        crate::engine::bind!(let property_key = property_key, gc);
+        crate::engine::bind!(let receiver = receiver, gc);
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             return TryGetResult::Value(array.len(agent).into()).into();
         } else if let Some(index) = property_key.into_u32() {
@@ -713,11 +704,11 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         property_key: PropertyKey,
         receiver: Value,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let nogc = gc.nogc();
-        let array = self.bind(nogc);
-        let property_key = property_key.bind(nogc);
-        let receiver = receiver.bind(nogc);
+        crate::engine::bind!(let array = self, gc);
+        crate::engine::bind!(let property_key = property_key, gc);
+        crate::engine::bind!(let receiver = receiver, gc);
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             return Ok(array.len(agent).into());
         } else if let Some(index) = property_key.into_u32() {
@@ -727,7 +718,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 // indexing should never fail.
                 let element = values[index as usize];
                 if let Some(element) = element {
-                    return Ok(element.unbind());
+                    return Ok(element);
                 }
                 // No value at this index; this might be a getter or setter.
                 let ElementStorageRef { descriptors, .. } = array.get_storage(agent);
@@ -736,7 +727,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 {
                     return if let Some(getter) = descriptor.getter_function(nogc) {
                         // 7. Return ? Call(getter, Receiver).
-                        call_function(agent, getter.unbind(), receiver.unbind(), None, gc)
+                        call_function(agent, getter, receiver, None, gc)
                     } else {
                         // Accessor with no getter.
                         debug_assert!(descriptor.is_accessor_descriptor());
@@ -751,13 +742,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             if let Some(backing_object) = array.get_backing_object(agent) {
                 // Note: this looks up in the prototype chain as well, so we
                 // don't need to fall-through if this returns false or such.
-                return ordinary_get(
-                    agent,
-                    backing_object.unbind(),
-                    property_key.unbind(),
-                    receiver.unbind(),
-                    gc,
-                );
+                return ordinary_get(agent, backing_object, property_key, receiver, gc);
             }
         }
         // 3. Let parent be ? O.[[GetPrototypeOf]]().
@@ -766,7 +751,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         // 4. If parent is not null, then
         if let Some(parent) = parent {
             // a. Return ? parent.[[HasProperty]](P).
-            return parent.internal_get(agent, property_key.unbind(), receiver.unbind(), gc);
+            return parent.internal_get(agent, property_key, receiver, gc);
         }
         Ok(Value::Undefined)
     }
@@ -846,9 +831,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
 impl<'a> CreateHeapData<ArrayHeapData<'a>, Array<'a>> for Heap {
     fn create(&mut self, data: ArrayHeapData<'a>) -> Array<'a> {
         let i = self.arrays.len();
-        self.arrays
-            .push(data.unbind())
-            .expect("Failed to allocate Array");
+        self.arrays.push(data).expect("Failed to allocate Array");
         self.alloc_counter += core::mem::size_of::<ArrayHeapData<'static>>();
         Array(BaseIndex::from_index_u32(i))
     }
@@ -1109,7 +1092,7 @@ fn mutate_data_descriptor(
             values,
             descriptors,
         } = agent.heap.elements.get_element_storage_mut(elements);
-        values[index as usize] = descriptor_value.unbind();
+        values[index as usize] = descriptor_value;
         if let Entry::Occupied(mut descriptors) = descriptors {
             let descs = descriptors.get_mut();
             descs.remove(&index);
@@ -1154,7 +1137,7 @@ fn insert_data_descriptor(
     } else {
         agent.heap.alloc_counter += core::mem::size_of::<Option<Value>>();
         agent.heap.elements.get_values_mut(elements)[index as usize] =
-            Some(descriptor_value.unwrap_or(Value::Undefined).unbind());
+            Some(descriptor_value.unwrap_or(Value::Undefined));
     }
 }
 
@@ -1169,11 +1152,11 @@ fn insert_element_descriptor(
         values,
         descriptors,
     } = agent.heap.elements.get_element_storage_mut(elements);
-    values[index as usize] = descriptor_value.unbind();
+    values[index as usize] = descriptor_value;
     match descriptors {
         Entry::Occupied(e) => {
             let descriptors = e.into_mut();
-            let inserted = descriptors.insert(index, descriptor.unbind()).is_none();
+            let inserted = descriptors.insert(index, descriptor).is_none();
             if inserted {
                 agent.heap.alloc_counter += core::mem::size_of::<(u32, ElementDescriptor)>();
             }
@@ -1181,7 +1164,7 @@ fn insert_element_descriptor(
         Entry::Vacant(vacant_entry) => {
             agent.heap.alloc_counter += core::mem::size_of::<(u32, ElementDescriptor)>();
             let mut descriptors = AHashMap::with_capacity(1);
-            descriptors.insert(index, descriptor.unbind());
+            descriptors.insert(index, descriptor);
             vacant_entry.insert(descriptors);
         }
     }

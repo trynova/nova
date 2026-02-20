@@ -24,7 +24,7 @@ impl SetIterator<'_> {
     pub(crate) fn from_set(agent: &mut Agent, set: Set, kind: CollectionIteratorKind) -> Self {
         agent.heap.create(SetIteratorHeapData {
             object_index: None,
-            set: Some(set.unbind()),
+            set: Some(set),
             next_index: 0,
             kind,
         })
@@ -36,14 +36,14 @@ impl<'a> InternalSlots<'a> for SetIterator<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index.unbind()
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
             self.get_mut(agent)
                 .object_index
-                .replace(backing_object.unbind())
+                .replace(backing_object)
                 .is_none()
         );
     }
@@ -53,7 +53,7 @@ impl<'a> InternalMethods<'a> for SetIterator<'a> {}
 
 impl<'a> CreateHeapData<SetIteratorHeapData<'a>, SetIterator<'a>> for Heap {
     fn create(&mut self, data: SetIteratorHeapData<'a>) -> SetIterator<'a> {
-        self.set_iterators.push(data.unbind());
+        self.set_iterators.push(data);
         self.alloc_counter += core::mem::size_of::<SetIteratorHeapData<'static>>();
         SetIterator(BaseIndex::last(&self.set_iterators))
     }

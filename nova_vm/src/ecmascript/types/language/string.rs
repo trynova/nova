@@ -116,7 +116,7 @@ impl<'a> From<String<'a>> for Option<HeapRootData> {
     #[inline(always)]
     fn from(value: String<'a>) -> Self {
         match value {
-            String::String(s) => Some(HeapRootData::String(s.unbind())),
+            String::String(s) => Some(HeapRootData::String(s)),
             String::SmallString(_) => None,
         }
     }
@@ -284,7 +284,7 @@ impl<'a> String<'a> {
         fn push_string_to_wtf8(agent: &Agent, buf: &mut Wtf8Buf, string: String) {
             match string {
                 String::String(s) => {
-                    buf.push_wtf8(s.get(agent).as_wtf8());
+                    buf.push_wtf8(s.get(agent).local().as_wtf8());
                 }
                 String::SmallString(s) => {
                     buf.push_wtf8(s.as_wtf8());
@@ -310,8 +310,8 @@ impl<'a> String<'a> {
                 Status::ExistingString(s) => {
                     let s = *s;
                     let mut result =
-                        Wtf8Buf::with_capacity(s.get(agent).len() + string.len_(agent));
-                    result.push_wtf8(s.get(agent).as_wtf8());
+                        Wtf8Buf::with_capacity(s.get(agent).local().len() + string.len_(agent));
+                    result.push_wtf8(s.get(agent).local().as_wtf8());
                     push_string_to_wtf8(agent, &mut result, *string);
                     status = Status::String(result)
                 }
@@ -339,7 +339,7 @@ impl<'a> String<'a> {
 
         match status {
             Status::Empty => String::EMPTY_STRING,
-            Status::ExistingString(idx) => String::String(idx.bind(gc)),
+            Status::ExistingString(idx) => String::String(idx),
             Status::SmallString { data, len } => {
                 // SAFETY: Since SmallStrings are guaranteed UTF-8, `&data[..len]` is the result of
                 // concatenating UTF-8 strings, which is always valid UTF-8.
@@ -347,7 +347,7 @@ impl<'a> String<'a> {
                 // SAFETY: small statuses are guaranteed to be 7 bytes or fewer.
                 unsafe { SmallString::from_str_unchecked(str_slice) }.into()
             }
-            Status::String(string) => agent.heap.create(string).bind(gc),
+            Status::String(string) => agent.heap.create(string),
         }
     }
 
@@ -359,7 +359,7 @@ impl<'a> String<'a> {
 
     pub(crate) fn len_(self, agent: &impl StringHeapAccess) -> usize {
         match self {
-            String::String(s) => s.get(agent).len(),
+            String::String(s) => s.get(agent).local().len(),
             String::SmallString(s) => s.len(),
         }
     }
@@ -372,7 +372,7 @@ impl<'a> String<'a> {
 
     pub(crate) fn utf16_len_(self, agent: &impl StringHeapAccess) -> usize {
         match self {
-            String::String(s) => s.get(agent).utf16_len(),
+            String::String(s) => s.get(agent).local().utf16_len(),
             String::SmallString(s) => s.utf16_len(),
         }
     }
@@ -384,7 +384,7 @@ impl<'a> String<'a> {
 
     pub(crate) fn char_code_at_(self, agent: &impl StringHeapAccess, idx: usize) -> CodePoint {
         match self {
-            String::String(s) => s.get(agent).char_code_at(idx),
+            String::String(s) => s.get(agent).local().char_code_at(idx),
             String::SmallString(s) => s.char_code_at(idx),
         }
     }
@@ -400,7 +400,7 @@ impl<'a> String<'a> {
         utf16_idx: usize,
     ) -> CodePoint {
         match self {
-            String::String(s) => s.get(agent).code_point_at(utf16_idx),
+            String::String(s) => s.get(agent).local().code_point_at(utf16_idx),
             String::SmallString(s) => s.code_point_at(utf16_idx),
         }
     }
@@ -424,7 +424,7 @@ impl<'a> String<'a> {
         utf16_idx: usize,
     ) -> Option<usize> {
         match self {
-            String::String(s) => s.get(agent).utf8_index(utf16_idx),
+            String::String(s) => s.get(agent).local().utf8_index(utf16_idx),
             String::SmallString(s) => s.utf8_index(utf16_idx),
         }
     }
@@ -443,7 +443,7 @@ impl<'a> String<'a> {
 
     pub(crate) fn utf16_index_(self, agent: &impl StringHeapAccess, utf8_idx: usize) -> usize {
         match self {
-            String::String(s) => s.get(agent).utf16_index(utf8_idx),
+            String::String(s) => s.get(agent).local().utf16_index(utf8_idx),
             String::SmallString(s) => s.utf16_index(utf8_idx),
         }
     }
@@ -456,7 +456,7 @@ impl<'a> String<'a> {
     /// `String` value to the garbage collector lifetime:
     ///
     /// ```rust,ignore
-    /// let string = string.bind(gc.nogc());
+    /// crate::engine::bind!(let string = string, gc);
     /// ```
     ///
     /// If the string has not been properly bound (and is not internally a
@@ -476,7 +476,7 @@ impl<'a> String<'a> {
             // As `&self` is bound to the GC lfietime, the StringHeapData will
             // not be dropped while the `&str` is being used.
             String::String(s) => unsafe {
-                std::mem::transmute::<Cow<str>, Cow<str>>(s.get(agent).to_string_lossy())
+                std::mem::transmute::<Cow<str>, Cow<str>>(s.get(agent).local().to_string_lossy())
             },
             String::SmallString(s) => s.to_string_lossy(),
         }
@@ -495,7 +495,7 @@ impl<'a> String<'a> {
             // As `&self` is bound to the GC lfietime, the StringHeapData will
             // not be dropped while the `&str` is being used.
             String::String(s) => {
-                Some(unsafe { std::mem::transmute::<&str, &str>(s.get(agent).as_str()?) })
+                Some(unsafe { std::mem::transmute::<&str, &str>(s.get(agent).local().as_str()?) })
             }
             String::SmallString(s) => s.as_str(),
         }
@@ -514,7 +514,7 @@ impl<'a> String<'a> {
             // As `&self` is bound to the GC lfietime, the StringHeapData will
             // not be dropped while the `&str` is being used.
             String::String(s) => unsafe {
-                std::mem::transmute::<&Wtf8, &Wtf8>(s.get(agent).as_wtf8())
+                std::mem::transmute::<&Wtf8, &Wtf8>(s.get(agent).local().as_wtf8())
             },
             String::SmallString(s) => s.as_wtf8(),
         }
@@ -533,7 +533,7 @@ impl<'a> String<'a> {
             // As `&self` is bound to the GC lfietime, the StringHeapData will
             // not be dropped while the `&str` is being used.
             String::String(s) => unsafe {
-                std::mem::transmute::<&[u8], &[u8]>(s.get(agent).as_bytes())
+                std::mem::transmute::<&[u8], &[u8]>(s.get(agent).local().as_bytes())
             },
             String::SmallString(s) => s.as_bytes(),
         }
@@ -549,8 +549,8 @@ impl<'a> String<'a> {
     pub(crate) fn eq_(agent: &impl StringHeapAccess, x: Self, y: Self) -> bool {
         match (x, y) {
             (Self::String(x), Self::String(y)) => {
-                let x = &x.unbind().get(agent);
-                let y = &y.unbind().get(agent);
+                let x = &x.get(agent).local();
+                let y = &y.get(agent).local();
                 x == y
             }
             (Self::SmallString(x), Self::SmallString(y)) => x == y,
@@ -672,7 +672,7 @@ impl<'gc> String<'gc> {
         gc: NoGcScope<'gc, '_>,
     ) -> Self {
         if let Ok(value) = String::try_from(str) {
-            value.bind(gc)
+            value
         } else {
             let found =
                 Self::find_equal_string_direct(strings, string_lookup_table, string_hasher, str);
@@ -685,7 +685,6 @@ impl<'gc> String<'gc> {
                         *alloc_counter += core::mem::size_of::<HeapString>();
                         Self::insert_string_with_hash(strings, string_lookup_table, data, hash)
                     })
-                    .bind(gc)
                 }
             }
         }
@@ -731,11 +730,11 @@ impl<'gc> String<'gc> {
         string: std::string::String,
         gc: NoGcScope<'gc, '_>,
     ) -> Self {
-        agent.heap.create(string).bind(gc)
+        agent.heap.create(string)
     }
 
     pub fn from_wtf8_buf(agent: &mut Agent, string: Wtf8Buf, gc: NoGcScope<'gc, '_>) -> Self {
-        agent.heap.create(string).bind(gc)
+        agent.heap.create(string)
     }
 
     pub fn from_static_str(agent: &mut Agent, str: &'static str, _gc: NoGcScope<'gc, '_>) -> Self {
@@ -825,7 +824,7 @@ impl Rootable for String<'_> {
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match value {
-            Self::String(s) => Err(HeapRootData::String(s.unbind())),
+            Self::String(s) => Err(HeapRootData::String(s)),
             Self::SmallString(s) => Ok(Self::RootRepr::SmallString(s)),
         }
     }

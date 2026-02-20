@@ -56,7 +56,7 @@ impl<'m> AbstractModuleRecord<'m> {
     /// Set \[\[Environment]] to env.
     pub(super) fn set_environment(&mut self, env: ModuleEnvironment) {
         assert!(
-            self.environment.replace(env.unbind()).is_none(),
+            self.environment.replace(env).is_none(),
             "Attempted to set module environment twice"
         );
     }
@@ -69,7 +69,7 @@ impl<'m> AbstractModuleRecord<'m> {
     /// Set \[\[Namespace]] to namespace.
     pub(super) fn set_namespace(&mut self, namespace: Module) {
         assert!(
-            self.namespace.replace(namespace.unbind()).is_none(),
+            self.namespace.replace(namespace).is_none(),
             "Attempted to set module namespace twice"
         );
     }
@@ -162,7 +162,7 @@ impl Rootable for InnerAbstractModule<'_> {
 
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match value {
-            Self::SourceTextModule(m) => Err(HeapRootData::SourceTextModule(m.unbind())),
+            Self::SourceTextModule(m) => Err(HeapRootData::SourceTextModule(m)),
         }
     }
 

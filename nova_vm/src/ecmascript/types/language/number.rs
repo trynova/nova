@@ -65,7 +65,7 @@ impl<'a> Number<'a> {
             // SAFETY: Number was not representable as a
             // stack-allocated Number.
             let id = unsafe { Self::alloc_number(&mut agent.heap, value) };
-            Number::Number(id.unbind().bind(gc))
+            Number::Number(id)
         }
     }
 
@@ -82,7 +82,7 @@ impl<'a> Number<'a> {
                 // SAFETY: Number was not representable as a
                 // stack-allocated Number.
                 let id = unsafe { Self::alloc_number(&mut agent.heap, value) };
-                Number::Number(id.unbind().bind(gc))
+                Number::Number(id)
             }
         }
     }
@@ -101,7 +101,7 @@ impl<'a> Number<'a> {
                 // SAFETY: Number was not representable as a
                 // stack-allocated Number.
                 let id = unsafe { Self::alloc_number(&mut agent.heap, value) };
-                Number::Number(id.unbind().bind(gc))
+                Number::Number(id)
             }
         }
     }
@@ -136,7 +136,7 @@ impl<'a> Number<'a> {
         T: NumberHeapAccess,
     {
         match self {
-            Number::Number(n) => n.get(agent).is_nan(),
+            Number::Number(n) => n.get(agent).local().is_nan(),
             Number::Integer(_) => false,
             Number::SmallF64(n) => n.into_f64().is_nan(),
         }
@@ -152,7 +152,7 @@ impl<'a> Number<'a> {
         T: NumberHeapAccess,
     {
         match self {
-            Number::Number(n) => f64::to_bits(0.0) == f64::to_bits(*n.get(agent)),
+            Number::Number(n) => f64::to_bits(0.0) == f64::to_bits(*n.get(agent).local()),
             Number::Integer(n) => 0i64 == n.into_i64(),
             Number::SmallF64(n) => n.into_f64().to_bits() == 0.0f64.to_bits(),
         }
@@ -168,7 +168,7 @@ impl<'a> Number<'a> {
         T: NumberHeapAccess,
     {
         match self {
-            Number::Number(n) => f64::to_bits(-0.0) == f64::to_bits(*n.get(agent)),
+            Number::Number(n) => f64::to_bits(-0.0) == f64::to_bits(*n.get(agent).local()),
             Number::Integer(_) => false,
             Number::SmallF64(n) => n.into_f64().to_bits() == (-0.0f64).to_bits(),
         }
@@ -184,7 +184,7 @@ impl<'a> Number<'a> {
         T: NumberHeapAccess,
     {
         match self {
-            Number::Number(n) => *n.get(agent) == f64::INFINITY,
+            Number::Number(n) => *n.get(agent).local() == f64::INFINITY,
             Number::Integer(_) => false,
             Number::SmallF64(n) => n.into_f64() == f64::INFINITY,
         }
@@ -200,7 +200,7 @@ impl<'a> Number<'a> {
         T: NumberHeapAccess,
     {
         match self {
-            Number::Number(n) => *n.get(agent) == f64::NEG_INFINITY,
+            Number::Number(n) => *n.get(agent).local() == f64::NEG_INFINITY,
             Number::Integer(_) => false,
             Number::SmallF64(n) => n.into_f64() == f64::NEG_INFINITY,
         }
@@ -216,7 +216,7 @@ impl<'a> Number<'a> {
         T: NumberHeapAccess,
     {
         match self {
-            Number::Number(n) => n.get(agent).is_finite(),
+            Number::Number(n) => n.get(agent).local().is_finite(),
             Number::Integer(_) => true,
             Number::SmallF64(n) => n.into_f64().is_finite(),
         }
@@ -232,7 +232,7 @@ impl<'a> Number<'a> {
         T: NumberHeapAccess,
     {
         match self {
-            Number::Number(n) => n.get(agent).fract() == 0.0,
+            Number::Number(n) => n.get(agent).local().fract() == 0.0,
             Number::Integer(_) => true,
             Number::SmallF64(n) => n.into_f64().fract() == 0.0,
         }
@@ -248,7 +248,7 @@ impl<'a> Number<'a> {
         T: NumberHeapAccess,
     {
         match self {
-            Number::Number(n) => &0.0 != n.get(agent),
+            Number::Number(n) => &0.0 != n.get(agent).local(),
             Number::Integer(n) => 0i64 != n.into_i64(),
             Number::SmallF64(n) => !n.into_f64().is_zero(),
         }
@@ -269,7 +269,7 @@ impl<'a> Number<'a> {
         match self {
             Number::Integer(n) => 1i64 == n.into_i64(),
             Number::Number(n) => {
-                debug_assert_ne!(*n.get(agent), 1.0);
+                debug_assert_ne!(*n.get(agent).local(), 1.0);
                 false
             }
             Number::SmallF64(n) => {
@@ -291,7 +291,7 @@ impl<'a> Number<'a> {
         match self {
             Number::Integer(n) => -1i64 == n.into_i64(),
             Number::Number(n) => {
-                debug_assert_ne!(*n.get(agent), -1.0);
+                debug_assert_ne!(*n.get(agent).local(), -1.0);
                 false
             }
             Number::SmallF64(n) => {
@@ -311,7 +311,7 @@ impl<'a> Number<'a> {
         T: NumberHeapAccess,
     {
         match self {
-            Number::Number(n) => n.get(agent).is_sign_positive(),
+            Number::Number(n) => n.get(agent).local().is_sign_positive(),
             Number::Integer(n) => n.into_i64() >= 0,
             Number::SmallF64(n) => n.into_f64().is_sign_positive(),
         }
@@ -327,7 +327,7 @@ impl<'a> Number<'a> {
         T: NumberHeapAccess,
     {
         match self {
-            Number::Number(n) => n.get(agent).is_sign_negative(),
+            Number::Number(n) => n.get(agent).local().is_sign_negative(),
             Number::Integer(n) => n.into_i64().is_negative(),
             Number::SmallF64(n) => n.into_f64().is_sign_negative(),
         }
@@ -337,7 +337,7 @@ impl<'a> Number<'a> {
     pub fn truncate(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Self {
         match self {
             Number::Number(n) => {
-                let n = n.get(agent).trunc();
+                let n = n.get(agent).local().trunc();
                 Number::from_f64(agent, n, gc)
             }
             Number::Integer(_) => self,
@@ -355,7 +355,7 @@ impl<'a> Number<'a> {
         T: NumberHeapAccess,
     {
         match self {
-            Number::Number(n) => *n.get(agent),
+            Number::Number(n) => *n.get(agent).local(),
             Number::Integer(n) => n.into_i64() as f64,
             Number::SmallF64(n) => n.into_f64(),
         }
@@ -371,7 +371,7 @@ impl<'a> Number<'a> {
         T: NumberHeapAccess,
     {
         match self {
-            Number::Number(n) => *n.get(agent) as f32,
+            Number::Number(n) => *n.get(agent).local() as f32,
             Number::Integer(n) => Into::<i64>::into(n) as f32,
             Number::SmallF64(n) => n.into_f64() as f32,
         }
@@ -389,7 +389,7 @@ impl<'a> Number<'a> {
         T: NumberHeapAccess,
     {
         match self {
-            Number::Number(n) => *n.get(agent) as f16,
+            Number::Number(n) => *n.get(agent).local() as f16,
             Number::Integer(n) => Into::<i64>::into(n) as f16,
             Number::SmallF64(n) => n.into_f64() as f16,
         }
@@ -411,7 +411,7 @@ impl<'a> Number<'a> {
         T: NumberHeapAccess,
     {
         match self {
-            Number::Number(n) => *n.get(agent) as i64,
+            Number::Number(n) => *n.get(agent).local() as i64,
             Number::Integer(n) => Into::<i64>::into(n),
             Number::SmallF64(n) => n.into_f64() as i64,
         }
@@ -433,7 +433,7 @@ impl<'a> Number<'a> {
         T: NumberHeapAccess,
     {
         match self {
-            Number::Number(n) => *n.get(agent) as usize,
+            Number::Number(n) => *n.get(agent).local() as usize,
             Number::Integer(n) => {
                 let i64 = Into::<i64>::into(n);
                 if i64 < 0 {
@@ -457,22 +457,22 @@ impl<'a> Number<'a> {
     {
         match (x, y) {
             // Optimisation: First compare by-reference; only read from heap if needed.
-            (Number::Number(x), Number::Number(y)) => x == y || x.get(agent) == y.get(agent),
+            (Number::Number(x), Number::Number(y)) => x == y || x.get(agent).local() == y.get(agent).local(),
             (Number::Integer(x), Number::Integer(y)) => x == y,
             (Number::SmallF64(x), Number::SmallF64(y)) => x == y,
             (Number::Number(x), Number::Integer(y)) => {
                 // Optimisation: Integers should never be allocated into the heap as f64s.
-                debug_assert!(*x.get(agent) != y.into_i64() as f64);
+                debug_assert!(*x.get(agent).local() != y.into_i64() as f64);
                 false
             }
             (Number::Number(x), Number::SmallF64(y)) => {
                 // Optimisation: f32s should never be allocated into the heap
-                debug_assert!(*x.get(agent) != y.into_f64());
+                debug_assert!(*x.get(agent).local() != y.into_f64());
                 false
             }
             (Number::Integer(x), Number::Number(y)) => {
                 // Optimisation: Integers should never be allocated into the heap as f64s.
-                debug_assert!((x.into_i64() as f64) != *y.get(agent));
+                debug_assert!((x.into_i64() as f64) != *y.get(agent).local());
                 false
             }
             (Number::Integer(x), Number::SmallF64(y)) => {
@@ -484,7 +484,7 @@ impl<'a> Number<'a> {
             }
             (Number::SmallF64(x), Number::Number(y)) => {
                 // Optimisation: f32s should never be allocated into the heap
-                debug_assert!(&x.into_f64() != y.get(agent));
+                debug_assert!(&x.into_f64() != y.get(agent).local());
                 false
             }
             (Number::SmallF64(x), Number::Integer(y)) => {
@@ -499,7 +499,7 @@ impl<'a> Number<'a> {
 
     pub fn is_odd_integer(self, agent: &mut Agent) -> bool {
         match self {
-            Number::Number(n) => n.get(agent).rem_euclid(2.0) == 1.0,
+            Number::Number(n) => n.get(agent).local().rem_euclid(2.0) == 1.0,
             Number::Integer(n) => i64::from(n).rem_euclid(2) == 1,
             Number::SmallF64(n) => n.into_f64().rem_euclid(2.0) == 1.0,
         }
@@ -508,7 +508,7 @@ impl<'a> Number<'a> {
     pub fn abs(self, agent: &mut Agent) -> Self {
         match self {
             Number::Number(n) => {
-                let n = *n.get(agent);
+                let n = *n.get(agent).local();
                 if n > 0.0 { self } else { agent.heap.create(-n) }
             }
             Number::Integer(n) => {
@@ -541,7 +541,7 @@ impl<'a> Number<'a> {
         // 2. Return the result of negating x; that is, compute a Number with the same magnitude but opposite sign.
         match x {
             Number::Number(n) => {
-                let value = n.get(agent);
+                let value = n.get(agent).local();
                 agent.heap.create(-value)
             }
             Number::Integer(n) => {
@@ -1089,13 +1089,13 @@ impl<'a> Number<'a> {
 
         // 11. If ℝ(x) < ℝ(y), return true. Otherwise, return false.
         Some(match (x, y) {
-            (Number::Number(x), Number::Number(y)) => x.get(agent) < y.get(agent),
-            (Number::Number(x), Number::Integer(y)) => x.get(agent) < &(y.into_i64() as f64),
-            (Number::Number(x), Number::SmallF64(y)) => x.get(agent) < &y.into_f64(),
-            (Number::Integer(x), Number::Number(y)) => &(x.into_i64() as f64) < y.get(agent),
+            (Number::Number(x), Number::Number(y)) => x.get(agent).local() < y.get(agent).local(),
+            (Number::Number(x), Number::Integer(y)) => x.get(agent).local() < &(y.into_i64() as f64),
+            (Number::Number(x), Number::SmallF64(y)) => x.get(agent).local() < &y.into_f64(),
+            (Number::Integer(x), Number::Number(y)) => &(x.into_i64() as f64) < y.get(agent).local(),
             (Number::Integer(x), Number::Integer(y)) => x.into_i64() < y.into_i64(),
             (Number::Integer(x), Number::SmallF64(y)) => (x.into_i64() as f64) < y.into_f64(),
-            (Number::SmallF64(x), Number::Number(y)) => &x.into_f64() < y.get(agent),
+            (Number::SmallF64(x), Number::Number(y)) => &x.into_f64() < y.get(agent).local(),
             (Number::SmallF64(x), Number::Integer(y)) => x.into_f64() < y.into_i64() as f64,
             (Number::SmallF64(x), Number::SmallF64(y)) => x.into_f64() < y.into_f64(),
         })
@@ -1282,7 +1282,7 @@ impl<'a> Number<'a> {
                         .to_ascii_lowercase()
                     }
                     Number::Number(x) => {
-                        let x = *x.get(agent);
+                        let x = *x.get(agent).local();
                         let mut string = lexical::to_string_with_options::<_, RADIX>(
                             x,
                             &lexical::write_float_options::JAVASCRIPT_LITERAL,
@@ -1313,7 +1313,7 @@ impl<'a> Number<'a> {
         match x {
             Number::Number(x) => {
                 let mut buffer = ryu_js::Buffer::new();
-                String::from_string(agent, buffer.format(*x.get(agent)).to_string(), gc)
+                String::from_string(agent, buffer.format(*x.get(agent).local()).to_string(), gc)
             }
             Number::Integer(x) => String::from_string(agent, x.into_i64().to_string(), gc),
             Number::SmallF64(x) => {
@@ -1329,7 +1329,7 @@ impl<'a> Number<'a> {
         T: NumberHeapAccess,
     {
         match self {
-            Self::Number(n) => *n.get(agent),
+            Self::Number(n) => *n.get(agent).local(),
             Self::Integer(i) => i.into_i64() as f64,
             Self::SmallF64(f) => f.into_f64(),
         }
@@ -1593,7 +1593,7 @@ impl Rootable for Number<'_> {
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match value {
-            Self::Number(d) => Err(HeapRootData::Number(d.unbind())),
+            Self::Number(d) => Err(HeapRootData::Number(d)),
             Self::Integer(d) => Ok(Self::RootRepr::Integer(d)),
             Self::SmallF64(d) => Ok(Self::RootRepr::SmallF64(d)),
         }

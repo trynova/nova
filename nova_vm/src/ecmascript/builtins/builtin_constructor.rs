@@ -50,7 +50,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinConstructorFunction<'a> {
 
     #[inline(always)]
     fn get_function_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).backing_object.unbind()
+        self.get(agent).backing_object
     }
 
     fn set_function_backing_object(
@@ -76,10 +76,10 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinConstructorFunction<'a> {
     fn function_call<'gc>(
         self,
         agent: &mut Agent,
-        _: Value,
-        _: ArgumentsList,
+        _: Value<'static>,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
         // ii. If NewTarget is undefined, throw a TypeError exception.
         Err(agent.throw_exception_with_static_message(
@@ -98,7 +98,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinConstructorFunction<'a> {
     fn function_construct<'gc>(
         self,
         agent: &mut Agent,
-        arguments_list: ArgumentsList,
+        arguments_list: ArgumentsList<'_, 'static>,
         new_target: Function,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Object<'gc>> {
@@ -117,7 +117,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinConstructorFunction<'a> {
 
 #[inline(never)]
 fn create_id(agent: &Agent, f: BuiltinConstructorFunction) -> u64 {
-    ((f.0.get_index_u32() as u64) << 32) | f.get(agent).source_text.start as u64
+    ((f.0.get_index_u32() as u64) << 32) | f.get(agent).local().source_text.start as u64
 }
 
 /// ### [10.3.3 BuiltinCallOrConstruct ( F, thisArgument, argumentsList, newTarget )](https://tc39.es/ecma262/#sec-builtincallorconstruct)
@@ -130,19 +130,19 @@ fn create_id(agent: &Agent, f: BuiltinConstructorFunction) -> u64 {
 fn builtin_call_or_construct<'a>(
     agent: &mut Agent,
     f: BuiltinConstructorFunction,
-    arguments_list: ArgumentsList,
+    arguments_list: ArgumentsList<'_, 'static>,
     new_target: Function,
-    gc: GcScope<'a, '_>,
-) -> JsResult<'a, Object<'a>> {
-    let f = f.bind(gc.nogc());
-    let arguments_list = arguments_list.bind(gc.nogc());
-    let new_target = new_target.bind(gc.nogc());
+    gc: GcScope,
+) -> JsResult<'static, Object<'static>> {
+    crate::engine::bind!(let f = f, gc);
+    crate::engine::bind!(let arguments_list = arguments_list, gc);
+    crate::engine::bind!(let new_target = new_target, gc);
     // 1. Let callerContext be the running execution context.
     let caller_context = agent.running_execution_context();
     // 2. If callerContext is not already suspended, suspend callerContext.
     caller_context.suspend();
     // 5. Let calleeRealm be F.[[Realm]].
-    let heap_data = &f.get(agent);
+    let heap_data = &f.get(agent).local();
     let callee_realm = heap_data.realm;
     let is_derived = heap_data.is_derived;
     // 3. Let calleeContext be a new execution context.
@@ -150,9 +150,9 @@ fn builtin_call_or_construct<'a>(
         // 8. Perform any necessary implementation-defined initialization of calleeContext.
         ecmascript_code: None,
         // 4. Set the Function of calleeContext to F.
-        function: Some(f.unbind().into()),
+        function: Some(f.into()),
         // 6. Set the Realm of calleeContext to calleeRealm.
-        realm: callee_realm.unbind(),
+        realm: callee_realm,
         // 7. Set the ScriptOrModule of calleeContext to null.
         script_or_module: None,
     };
@@ -162,14 +162,9 @@ fn builtin_call_or_construct<'a>(
     // the specification of F. If thisArgument is uninitialized, the this value is uninitialized; otherwise,
     // thisArgument provides the this value. argumentsList provides the named parameters. newTarget provides the NewTarget value.
     let result = if is_derived {
-        derived_class_default_constructor(
-            agent,
-            arguments_list.unbind(),
-            new_target.unbind().into(),
-            gc,
-        )
+        derived_class_default_constructor(agent, arguments_list, new_target.into(), gc)
     } else {
-        base_class_default_constructor(agent, new_target.unbind().into(), gc)
+        base_class_default_constructor(agent, new_target.into(), gc)
     };
     // 11. NOTE: If F is defined in this document, “the specification of F” is the behaviour specified for it via
     // algorithm steps or other means.
@@ -262,28 +257,25 @@ pub(crate) fn create_builtin_constructor<'a>(
         .expect("Should perform GC here");
 
     // 13. Return func.
-    agent
-        .heap
-        .create(BuiltinConstructorRecord {
-            // 10. Perform SetFunctionLength(func, length).
-            // Skipped as length of builtin constructors is always 0.
-            // 8. Set func.[[Realm]] to realm.
-            realm,
-            compiled_initializer_bytecode: args.compiled_initializer_bytecode,
-            is_derived: args.is_derived,
-            backing_object: Some(backing_object),
-            environment: args.env,
-            private_environment: args.private_env,
-            source_text: args.source_text,
-            source_code: args.source_code,
-            class_name: args.class_name,
-        })
-        .bind(gc)
+    agent.heap.create(BuiltinConstructorRecord {
+        // 10. Perform SetFunctionLength(func, length).
+        // Skipped as length of builtin constructors is always 0.
+        // 8. Set func.[[Realm]] to realm.
+        realm,
+        compiled_initializer_bytecode: args.compiled_initializer_bytecode,
+        is_derived: args.is_derived,
+        backing_object: Some(backing_object),
+        environment: args.env,
+        private_environment: args.private_env,
+        source_text: args.source_text,
+        source_code: args.source_code,
+        class_name: args.class_name,
+    })
 }
 
 impl<'a> CreateHeapData<BuiltinConstructorRecord<'a>, BuiltinConstructorFunction<'a>> for Heap {
     fn create(&mut self, data: BuiltinConstructorRecord) -> BuiltinConstructorFunction<'a> {
-        self.builtin_constructors.push(data.unbind());
+        self.builtin_constructors.push(data);
         self.alloc_counter += core::mem::size_of::<BuiltinConstructorRecord<'static>>();
 
         BuiltinConstructorFunction(BaseIndex::last(&self.builtin_constructors))

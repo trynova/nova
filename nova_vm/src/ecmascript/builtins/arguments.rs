@@ -71,12 +71,12 @@ pub(crate) fn create_unmapped_arguments_object<'a, 'b>(
         .current_realm_record()
         .intrinsics()
         .array_prototype_values()
-        .bind(gc);
+        ;
     let throw_type_error = agent
         .current_realm_record()
         .intrinsics()
         .throw_type_error()
-        .bind(gc);
+        ;
     let storage = obj.get_elements_storage_mut(agent);
     let values = storage.values;
     let descriptors = storage.descriptors.or_insert(AHashMap::with_capacity(3));
@@ -90,19 +90,19 @@ pub(crate) fn create_unmapped_arguments_object<'a, 'b>(
     // }).
 
     // "length"
-    values[0] = Some(len_value.unbind().into());
+    values[0] = Some(len_value.into());
     // "callee"
     values[1] = None;
     // Iterator
-    values[2] = Some(array_prototype_values.unbind().into());
+    values[2] = Some(array_prototype_values.into());
     // "length"
     descriptors.insert(0, ElementDescriptor::WritableUnenumerableConfigurableData);
     // "callee"
     descriptors.insert(
         1,
         ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor {
-            get: throw_type_error.unbind().into(),
-            set: throw_type_error.unbind().into(),
+            get: throw_type_error.into(),
+            set: throw_type_error.into(),
         },
     );
     // Iterator

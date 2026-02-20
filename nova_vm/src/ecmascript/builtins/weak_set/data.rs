@@ -20,17 +20,17 @@ pub(crate) struct WeakSetHeapData<'a> {
 impl WeakSetHeapData<'_> {
     /// Add a weakly holdable to the WeakSet.
     pub(crate) fn add(&mut self, value: WeakKey) {
-        self.weak_set_data.insert(value.unbind());
+        self.weak_set_data.insert(value);
     }
 
     /// Remove a weakly holdable from the WeakSet.
     pub(crate) fn delete(&mut self, value: WeakKey) -> bool {
-        self.weak_set_data.remove(&value.unbind())
+        self.weak_set_data.remove(&value)
     }
 
     /// Returns true if the WeakSet contains the given weakly holdable key.
     pub(crate) fn has(&self, value: WeakKey) -> bool {
-        self.weak_set_data.contains(&value.unbind())
+        self.weak_set_data.contains(&value)
     }
 }
 

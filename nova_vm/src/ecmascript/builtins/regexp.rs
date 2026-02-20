@@ -140,14 +140,14 @@ impl<'a> InternalSlots<'a> for RegExp<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index.unbind()
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
             self.get_mut(agent)
                 .object_index
-                .replace(backing_object.unbind())
+                .replace(backing_object)
                 .is_none()
         );
     }
@@ -190,7 +190,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
     ) -> TryResult<'gc, TryHasResult<'gc>> {
         if property_key == BUILTIN_STRING_MEMORY.lastIndex.into() {
             // lastIndex always exists
-            TryHasResult::Custom(0, self.bind(gc).into()).into()
+            TryHasResult::Custom(0, self.into()).into()
         } else {
             ordinary_try_has_property(
                 agent,
@@ -259,8 +259,8 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         property_key: PropertyKey,
         receiver: Value,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let property_key = property_key.bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let property_key = property_key, gc);
         if property_key == BUILTIN_STRING_MEMORY.lastIndex.into() {
             // Regardless of the backing object, we might have a valid value
             // for lastIndex.
@@ -269,7 +269,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
             }
         }
         if let Some(backing_object) = self.get_backing_object(agent) {
-            backing_object.internal_get(agent, property_key.unbind(), receiver, gc)
+            backing_object.internal_get(agent, property_key, receiver, gc)
         } else {
             // a. Let parent be ? O.[[GetPrototypeOf]]().
             // Note: We know statically what this ends up doing.
@@ -279,7 +279,7 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
                 .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE);
 
             // c. Return ? parent.[[Get]](P, Receiver).
-            parent.internal_get(agent, property_key.unbind(), receiver, gc)
+            parent.internal_get(agent, property_key, receiver, gc)
         }
     }
 
@@ -404,7 +404,7 @@ impl HeapSweepWeakReference for RegExp<'static> {
 
 impl<'a> CreateHeapData<RegExpHeapData<'a>, RegExp<'a>> for Heap {
     fn create(&mut self, data: RegExpHeapData<'a>) -> RegExp<'a> {
-        self.regexps.push(data.unbind());
+        self.regexps.push(data);
         self.alloc_counter += core::mem::size_of::<RegExpHeapData<'static>>();
         RegExp(BaseIndex::last(&self.regexps))
     }

@@ -79,52 +79,38 @@ impl ObjectPrototype {
     fn has_own_property<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let p = to_property_key(agent, arguments.get(0), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
-        let o = to_object(agent, this_value, gc.nogc())
-            .unbind()?
-            .bind(gc.nogc());
-        has_own_property(agent, o.unbind(), p.unbind(), gc).map(|result| result.into())
+    ) -> JsResult<'static, Value<'static>> {
+        let p = to_property_key(agent, arguments.get(0), gc.reborrow())?;
+        let o = to_object(agent, this_value, gc.nogc())?;
+        has_own_property(agent, o, p, gc).map(|result| result.into())
     }
 
     fn is_prototype_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let v = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let v = arguments.get(0), gc);
         let Ok(v) = Object::try_from(v) else {
             return Ok(false.into());
         };
-        let o = to_object(agent, this_value, gc.nogc())
-            .unbind()?
-            .bind(gc.nogc());
-        let result = is_prototype_of_loop(agent, o.unbind(), v.unbind(), gc)?;
+        let o = to_object(agent, this_value, gc.nogc())?;
+        let result = is_prototype_of_loop(agent, o, v, gc)?;
         Ok(result.into())
     }
 
     fn property_is_enumerable<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let p = to_property_key(agent, arguments.get(0), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
-        let o = to_object(agent, this_value, gc.nogc())
-            .unbind()?
-            .bind(gc.nogc());
-        let desc = o
-            .unbind()
-            .internal_get_own_property(agent, p.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        let p = to_property_key(agent, arguments.get(0), gc.reborrow())?;
+        let o = to_object(agent, this_value, gc.nogc())?;
+        let desc = o.internal_get_own_property(agent, p, gc.reborrow())?;
         if let Some(desc) = desc {
             Ok(desc.enumerable.unwrap_or(false).into())
         } else {
@@ -135,9 +121,9 @@ impl ObjectPrototype {
     fn to_locale_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _arguments: ArgumentsList,
+        _arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let o = this_value;
         let p = PropertyKey::from(BUILTIN_STRING_MEMORY.toString);
         invoke(agent, o, p, None, gc)
@@ -146,10 +132,10 @@ impl ObjectPrototype {
     fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _arguments: ArgumentsList,
+        _arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let builtin_tag_with_object_concatenation = match this_value.bind(gc.nogc()) {
+    ) -> JsResult<'static, Value<'static>> {
+        let builtin_tag_with_object_concatenation = match this_value {
             // 1. If the this value is undefined, return "[object Undefined]".
             Value::Undefined => return Ok(BUILTIN_STRING_MEMORY._object_Undefined_.into()),
             // 2. If the this value is null, return "[object Null]".
@@ -171,9 +157,7 @@ impl ObjectPrototype {
             // 4. Let isArray be ? IsArray(O).
             // 5. If isArray is true, let builtinTag be "Array".
             // 17. Return the string-concatenation of "[object ", tag, and "]".
-            Value::Array(_) | Value::Proxy(_)
-                if is_array(agent, this_value, gc.nogc()).unbind()? =>
-            {
+            Value::Array(_) | Value::Proxy(_) if is_array(agent, this_value, gc.nogc())? => {
                 BUILTIN_STRING_MEMORY._object_Array_
             }
             // 12. Else if O has a [[DateValue]] internal slot, let builtinTag be "Date".
@@ -199,7 +183,7 @@ impl ObjectPrototype {
             // 17. Return the string-concatenation of "[object ", tag, and "]".
             #[cfg(feature = "regexp")]
             Value::RegExp(_) => BUILTIN_STRING_MEMORY._object_RegExp_,
-            Value::PrimitiveObject(idx) => match &idx.get(agent).data {
+            Value::PrimitiveObject(idx) => match &idx.get(agent).local().data {
                 // 9. Else if O has a [[BooleanData]] internal slot, let builtinTag be "Boolean".
                 // 17. Return the string-concatenation of "[object ", tag, and "]".
                 PrimitiveObjectData::Boolean(_) => BUILTIN_STRING_MEMORY._object_Boolean_,
@@ -257,7 +241,7 @@ impl ObjectPrototype {
             ControlFlow::Continue(TryGetResult::Unset) => Value::Undefined,
             ControlFlow::Continue(TryGetResult::Value(v)) => v,
             ControlFlow::Break(TryError::Err(e)) => {
-                return Err(e.unbind().bind(gc.into_nogc()));
+                return Err(e);
             }
             _ => {
                 // No such luck: Getting @@toStringTag would call a getter,
@@ -267,13 +251,11 @@ impl ObjectPrototype {
                 let o = to_object(agent, this_value, gc.nogc()).unwrap();
                 handle_try_get_result(
                     agent,
-                    o.unbind(),
+                    o,
                     WellKnownSymbolIndexes::ToStringTag.into(),
-                    tag.unbind(),
+                    tag,
                     gc.reborrow(),
-                )
-                .unbind()?
-                .bind(gc.nogc())
+                )?
             }
         };
         if let Ok(tag) = String::try_from(tag) {
@@ -289,9 +271,9 @@ impl ObjectPrototype {
     fn value_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _arguments: ArgumentsList,
+        _arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         to_object(agent, this_value, gc.into_nogc()).map(|result| result.into())
     }
 

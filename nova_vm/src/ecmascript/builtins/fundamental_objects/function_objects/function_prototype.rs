@@ -87,8 +87,8 @@ impl Builtin for FunctionPrototypeHasInstance {
 impl FunctionPrototype {
     fn behaviour(
         _: &mut Agent,
-        _: Value,
-        _: ArgumentsList,
+        _: Value<'static>,
+        _: ArgumentsList<'_, 'static>,
         _: GcScope,
     ) -> JsResult<'static, Value<'static>> {
         Ok(Value::Undefined)
@@ -98,12 +98,12 @@ impl FunctionPrototype {
     fn apply<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        args: ArgumentsList,
+        args: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let this_value = this_value.bind(gc.nogc());
-        let this_arg = args.get(0).bind(gc.nogc());
-        let arg_array = args.get(1).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let this_value = this_value, gc);
+        crate::engine::bind!(let this_arg = args.get(0), gc);
+        crate::engine::bind!(let arg_array = args.get(1), gc);
         // 1. Let func be the this value.
         let Some(func) = is_callable(this_value, gc.nogc()) else {
             // 2. If IsCallable(func) is false, throw a TypeError exception.
@@ -117,21 +117,19 @@ impl FunctionPrototype {
             // 3. If argArray is either undefined or null, then
             //   a. TODO: Perform PrepareForTailCall().
             //   b. Return ? Call(func, thisArg).
-            return call_function(agent, func.unbind(), this_arg.unbind(), None, gc);
+            return call_function(agent, func, this_arg, None, gc);
         }
         let func = func.scope(agent, gc.nogc());
         let this_arg = this_arg.scope(agent, gc.nogc());
         // 4. Let argList be ? CreateListFromArrayLike(argArray).
-        let args_list = create_list_from_array_like(agent, arg_array.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let args_list = create_list_from_array_like(agent, arg_array, gc.reborrow())?;
         // 5. TODO: Perform PrepareForTailCall().
         // 6.Return ? Call(func, thisArg, argList).
         call_function(
             agent,
-            func.get(agent),
-            this_arg.get(agent),
-            Some(ArgumentsList::from_mut_slice(&mut args_list.unbind())),
+            func.get(agent).local(),
+            this_arg.get(agent).local(),
+            Some(ArgumentsList::from_mut_slice(&mut args_list)),
             gc,
         )
     }
@@ -151,11 +149,11 @@ impl FunctionPrototype {
     fn bind<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        args: ArgumentsList,
+        args: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let this_value = this_value.bind(gc.nogc());
-        let this_arg = args.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let this_value = this_value, gc);
+        crate::engine::bind!(let this_arg = args.get(0), gc);
         let args = if args.len() > 1 { &args[1..] } else { &[] };
         let args_len = args.len();
         // 1. Let Target be the this value.
@@ -170,23 +168,15 @@ impl FunctionPrototype {
         };
         let scoped_target = target.scope(agent, gc.nogc());
         // 3. Let F be ? BoundFunctionCreate(Target, thisArg, args).
-        let mut f = bound_function_create(
-            agent,
-            target.unbind(),
-            this_arg.unbind(),
-            args,
-            gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
-        target = scoped_target.get(agent);
+        let mut f = bound_function_create(agent, target, this_arg, args, gc.reborrow())?;
+        target = scoped_target.get(agent).local();
         let mut scoped_f = None;
         // 4. Let L be 0.
         let mut l = 0;
         // 5. Let targetHasLength be ? HasOwnProperty(Target, "length").
         let target_has_length = if let TryResult::Continue(result) = try_has_own_property(
             agent,
-            scoped_target.get(agent).into(),
+            scoped_target.get(agent).local().into(),
             BUILTIN_STRING_MEMORY.length.into(),
             None,
             gc.nogc(),
@@ -199,10 +189,9 @@ impl FunctionPrototype {
                 target.into(),
                 BUILTIN_STRING_MEMORY.length.into(),
                 gc.reborrow(),
-            )
-            .unbind()?;
-            f = scoped_f.as_ref().unwrap().get(agent).bind(gc.nogc());
-            target = scoped_target.get(agent);
+            )?;
+            f = scoped_f.as_ref().unwrap().get(agent).local();
+            target = scoped_target.get(agent).local();
             result
         };
         // 6. If targetHasLength is true, then
@@ -219,7 +208,7 @@ impl FunctionPrototype {
                 ControlFlow::Continue(TryGetResult::Unset) => Value::Undefined,
                 ControlFlow::Continue(TryGetResult::Value(v)) => v,
                 ControlFlow::Break(TryError::Err(e)) => {
-                    return Err(e.unbind().bind(gc.into_nogc()));
+                    return Err(e);
                 }
                 _ => {
                     if scoped_f.is_none() {
@@ -227,15 +216,13 @@ impl FunctionPrototype {
                     }
                     let result = handle_try_get_result(
                         agent,
-                        target.unbind(),
+                        target,
                         BUILTIN_STRING_MEMORY.length.to_property_key(),
-                        target_len.unbind(),
+                        target_len,
                         gc.reborrow(),
-                    )
-                    .unbind()?
-                    .bind(gc.nogc());
-                    f = scoped_f.as_ref().unwrap().get(agent).bind(gc.nogc());
-                    target = scoped_target.get(agent);
+                    )?;
+                    f = scoped_f.as_ref().unwrap().get(agent).local();
+                    target = scoped_target.get(agent).local();
                     result
                 }
             };
@@ -286,21 +273,19 @@ impl FunctionPrototype {
         let target_name = match target_name {
             ControlFlow::Continue(TryGetResult::Unset) => Value::Undefined,
             ControlFlow::Continue(TryGetResult::Value(v)) => v,
-            ControlFlow::Break(TryError::Err(e)) => return Err(e.unbind().bind(gc.into_nogc())),
+            ControlFlow::Break(TryError::Err(e)) => return Err(e),
             _ => {
                 if scoped_f.is_none() {
                     scoped_f = Some(f.scope(agent, gc.nogc()));
                 }
                 let result = handle_try_get_result(
                     agent,
-                    target.unbind(),
+                    target,
                     BUILTIN_STRING_MEMORY.length.to_property_key(),
-                    target_name.unbind(),
+                    target_name,
                     gc.reborrow(),
-                )
-                .unbind()?
-                .bind(gc.nogc());
-                f = scoped_f.as_ref().unwrap().get(agent).bind(gc.nogc());
+                )?;
+                f = scoped_f.as_ref().unwrap().get(agent).local();
                 result
             }
         };
@@ -316,18 +301,18 @@ impl FunctionPrototype {
         );
         // 11. Return F.
 
-        Ok(f.unbind().into())
+        Ok(f.into())
     }
 
     fn call<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        args: ArgumentsList,
+        args: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let nogc = gc.nogc();
-        let this_value = this_value.bind(nogc);
-        let this_arg = args.get(0).bind(nogc);
+        crate::engine::bind!(let this_value = this_value, gc);
+        let this_arg = args.get(0);
         let Some(func) = is_callable(this_value, nogc) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -341,16 +326,16 @@ impl FunctionPrototype {
         } else {
             args
         };
-        call_function(agent, func.unbind(), this_arg.unbind(), Some(args), gc)
+        call_function(agent, func, this_arg, Some(args), gc)
     }
 
     fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let this_value = this_value.bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let this_value = this_value, gc);
         // Let func be the this value.
         let Ok(func) = Function::try_from(this_value) else {
             // 5. Throw a TypeError exception.
@@ -367,12 +352,12 @@ impl FunctionPrototype {
             // HostHasSourceTextAvailable(func) is true, then
             Function::ECMAScriptFunction(idx) => {
                 // a. Return CodePointsToString(func.[[SourceText]]).
-                let data = &idx.get(agent).ecmascript_function;
+                let data = &idx.get(agent).local().ecmascript_function;
                 let span = data.source_text;
                 let source_text = data.source_code.get_source_text(agent)
                     [(span.start as usize)..(span.end as usize)]
                     .to_string();
-                Ok(Value::from_string(agent, source_text, gc.nogc()).unbind())
+                Ok(Value::from_string(agent, source_text, gc.nogc()))
             }
             // 3. If func is a built-in function object, return an
             // implementation-defined String source code representation of func.
@@ -382,14 +367,14 @@ impl FunctionPrototype {
             // String that would be matched by NativeFunctionAccessor_opt
             // PropertyName must be the value of func.[[InitialName]].
             Function::BuiltinFunction(idx) => {
-                let data = &idx.get(agent);
+                let data = &idx.get(agent).local();
                 let initial_name = data.initial_name.map_or_else(
                     || "function () {{ [ native code ] }}".into(),
                     |initial_name| match initial_name {
                         crate::ecmascript::types::String::String(idx) => {
                             format!(
                                 "function {}() {{ [ native code ] }}",
-                                idx.get(agent).to_string_lossy()
+                                idx.get(agent).local().to_string_lossy()
                             )
                         }
                         crate::ecmascript::types::String::SmallString(string) => {
@@ -400,11 +385,13 @@ impl FunctionPrototype {
                         }
                     },
                 );
-                Ok(Value::from_string(agent, initial_name, gc.nogc()).unbind())
+                Ok(Value::from_string(agent, initial_name, gc.nogc()))
             }
-            Function::BuiltinConstructorFunction(_) => {
-                Ok(Value::from_static_str(agent, "class { [ native code ] }", gc.nogc()).unbind())
-            }
+            Function::BuiltinConstructorFunction(_) => Ok(Value::from_static_str(
+                agent,
+                "class { [ native code ] }",
+                gc.nogc(),
+            )),
             // 4. If func is an Object and IsCallable(func) is true, return an
             // implementation-defined String source code representation of func.
             // The representation must have the syntax of a NativeFunction.
@@ -412,10 +399,11 @@ impl FunctionPrototype {
             | Function::BuiltinPromiseResolvingFunction(_)
             | Function::BuiltinPromiseFinallyFunction(_) => {
                 // Promise resolving and finally functions have no initial name.
-                Ok(
-                    Value::from_static_str(agent, "function () { [ native code ] }", gc.nogc())
-                        .unbind(),
-                )
+                Ok(Value::from_static_str(
+                    agent,
+                    "function () { [ native code ] }",
+                    gc.nogc(),
+                ))
             }
             Function::BuiltinPromiseCollectorFunction | Function::BuiltinProxyRevokerFunction => {
                 unreachable!()
@@ -430,9 +418,9 @@ impl FunctionPrototype {
     fn has_instance<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        args: ArgumentsList,
+        args: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let v = args.get(0);
         let f = this_value;
         ordinary_has_instance(agent, f, v, gc).map(|result| result.into())
@@ -497,10 +485,10 @@ impl BuiltinIntrinsic for ThrowTypeError {
 impl ThrowTypeError {
     fn behaviour<'gc>(
         agent: &mut Agent,
-        _: Value,
-        _: ArgumentsList,
+        _: Value<'static>,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         Err(agent.throw_exception_with_static_message(ExceptionType::TypeError, "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them", gc.into_nogc()))
     }
 

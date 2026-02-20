@@ -33,9 +33,9 @@ pub(crate) fn allocate_array_buffer<'a>(
     constructor: Function,
     byte_length: u64,
     max_byte_length: Option<u64>,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> JsResult<'a, ArrayBuffer<'a>> {
-    let constructor = constructor.bind(gc.nogc());
+    crate::engine::bind!(let constructor = constructor, gc);
     // 1. Let slots be « [[ArrayBufferData]], [[ArrayBufferByteLength]], [[ArrayBufferDetachKey]] ».
     // 2. If maxByteLength is present and maxByteLength is not EMPTY, let allocatingResizableBuffer be true; otherwise let allocatingResizableBuffer be false.
     // 3. If allocatingResizableBuffer is true, then
@@ -53,17 +53,16 @@ pub(crate) fn allocate_array_buffer<'a>(
     // 4. Let obj be ? OrdinaryCreateFromConstructor(constructor, "%ArrayBuffer.prototype%", slots).
     let Object::ArrayBuffer(obj) = ordinary_create_from_constructor(
         agent,
-        constructor.unbind(),
+        constructor,
         ProtoIntrinsics::ArrayBuffer,
         gc.reborrow(),
-    )
-    .unbind()?
-    .bind(gc.nogc()) else {
+    )?
+    else {
         unreachable!()
     };
-    let obj = obj.unbind();
+    let obj = obj;
     let gc = gc.into_nogc();
-    let obj = obj.bind(gc);
+    crate::engine::bind!(let obj = obj, gc);
     // 5. Let block be ? CreateByteDataBlock(byteLength).
     // 8. If allocatingResizableBuffer is true, then
     let buffer = if let Some(max_byte_length) = max_byte_length {
@@ -94,7 +93,7 @@ pub(crate) fn allocate_array_buffer<'a>(
 pub(crate) fn is_detached_buffer(agent: &Agent, array_buffer: ArrayBuffer) -> bool {
     // 1. If arrayBuffer.[[ArrayBufferData]] is null, return true.
     // 2. Return false.
-    array_buffer.get(agent).is_detached()
+    array_buffer.get(agent).local().is_detached()
 }
 
 /// ### [25.1.3.4 DetachArrayBuffer ( arrayBuffer \[ , key \] )](https://tc39.es/ecma262/#sec-detacharraybuffer)
@@ -137,9 +136,9 @@ pub(crate) fn detach_array_buffer<'a>(
 pub(crate) fn get_array_buffer_max_byte_length_option<'a>(
     agent: &mut Agent,
     options: Value,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> JsResult<'a, Option<u64>> {
-    let options = options.bind(gc.nogc());
+    crate::engine::bind!(let options = options, gc);
     // 1. If options is not an Object, return EMPTY.
     let options = if let Ok(options) = Object::try_from(options) {
         options
@@ -149,18 +148,16 @@ pub(crate) fn get_array_buffer_max_byte_length_option<'a>(
     // 2. Let maxByteLength be ? Get(options, "maxByteLength").
     let max_byte_length = get(
         agent,
-        options.unbind(),
+        options,
         BUILTIN_STRING_MEMORY.maxByteLength.into(),
         gc.reborrow(),
-    )
-    .unbind()?
-    .bind(gc.nogc());
+    )?;
     // 3. If maxByteLength is undefined, return EMPTY.
     if max_byte_length.is_undefined() {
         return Ok(None);
     }
     // 4. Return ? ToIndex(maxByteLength).
-    Ok(Some(to_index(agent, max_byte_length.unbind(), gc)? as u64))
+    Ok(Some(to_index(agent, max_byte_length, gc)? as u64))
 }
 
 /// ### [25.1.3.8 IsFixedLengthArrayBuffer ( arrayBuffer )](https://tc39.es/ecma262/#sec-isfixedlengtharraybuffer)
@@ -278,7 +275,7 @@ pub(crate) fn get_value_from_buffer<'a, T: Viewable>(
         AnyArrayBuffer::ArrayBuffer(ab) => {
             let _ = order;
             // 3. Let block be arrayBuffer.[[ArrayBufferData]].
-            let block = ab.get(agent).get_data_block();
+            let block = ab.get(agent).local().get_data_block();
             // a. Let rawValue be a List whose elements are bytes from block at indices
             //    in the interval from byteIndex (inclusive) to byteIndex + elementSize
             //    (exclusive).

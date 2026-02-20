@@ -73,16 +73,16 @@ impl<'b> ScopedPropertyDescriptor<'b> {
     /// Return the property descriptor as unscoped.
     pub(crate) fn get<'a>(&self, agent: &Agent, gc: NoGcScope<'a, 'b>) -> PropertyDescriptor<'a> {
         PropertyDescriptor {
-            value: self.value.as_ref().map(|v| v.get(agent).bind(gc)),
+            value: self.value.as_ref().map(|v| v.get(agent).local()),
             writable: self.writable,
             get: self
                 .get
                 .as_ref()
-                .map(|f| f.as_ref().map(|f| f.get(agent).bind(gc))),
+                .map(|f| f.as_ref().map(|f| f.get(agent).local())),
             set: self
                 .set
                 .as_ref()
-                .map(|f| f.as_ref().map(|f| f.get(agent).bind(gc))),
+                .map(|f| f.as_ref().map(|f| f.get(agent).local())),
             enumerable: self.enumerable,
             configurable: self.configurable,
         }
@@ -93,16 +93,16 @@ impl<'b> ScopedPropertyDescriptor<'b> {
     pub(crate) fn take<'a>(self, agent: &Agent, gc: NoGcScope<'a, 'b>) -> PropertyDescriptor<'a> {
         PropertyDescriptor {
             // SAFETY: PropertyDescriptor cannot be shared.
-            value: self.value.map(|v| unsafe { v.take(agent).bind(gc) }),
+            value: self.value.map(|v| unsafe { v.take(agent).local() }),
             writable: self.writable,
             // SAFETY: PropertyDescriptor cannot be shared.
             get: self
                 .get
-                .map(|f| f.map(|f| unsafe { f.take(agent).bind(gc) })),
+                .map(|f| f.map(|f| unsafe { f.take(agent).local() })),
             // SAFETY: PropertyDescriptor cannot be shared.
             set: self
                 .set
-                .map(|f| f.map(|f| unsafe { f.take(agent).bind(gc) })),
+                .map(|f| f.map(|f| unsafe { f.take(agent).local() })),
             enumerable: self.enumerable,
             configurable: self.configurable,
         }
@@ -138,7 +138,7 @@ impl<'a> PropertyDescriptor<'a> {
 
     pub fn new_prototype_method_descriptor(function: impl Into<Function<'a>>) -> Self {
         Self {
-            value: Some(function.into().unbind().into()),
+            value: Some(function.into().into()),
             writable: Some(true),
             enumerable: Some(false),
             configurable: Some(true),
@@ -268,7 +268,7 @@ impl<'a> PropertyDescriptor<'a> {
         .expect("Should perform GC here");
 
         // 10. Return obj.
-        Some(obj.bind(gc))
+        Some(obj)
     }
 
     /// ### [6.2.6.5 ToPropertyDescriptor ( Obj )](https://tc39.es/ecma262/#sec-topropertydescriptor)
@@ -279,13 +279,13 @@ impl<'a> PropertyDescriptor<'a> {
     pub fn to_property_descriptor(
         agent: &mut Agent,
         obj: Value,
-        mut gc: GcScope<'a, '_>,
+        mut gc: GcScope,
     ) -> JsResult<'a, Self> {
-        let obj = obj.bind(gc.nogc());
+        crate::engine::bind!(let obj = obj, gc);
 
         // 1. If Obj is not an Object, throw a TypeError exception.
         let Ok(obj) = Object::try_from(obj) else {
-            let obj_repr = obj.unbind().string_repr(agent, gc.reborrow());
+            let obj_repr = obj.string_repr(agent, gc.reborrow());
             let error_message = format!(
                 "Property descriptor must be an object, got '{}'.",
                 obj_repr.to_string_lossy_(agent)
@@ -304,22 +304,19 @@ impl<'a> PropertyDescriptor<'a> {
         // 3. Let hasEnumerable be ? HasProperty(Obj, "enumerable").
         let has_enumerable = has_property(
             agent,
-            obj.unbind(),
+            obj,
             BUILTIN_STRING_MEMORY.enumerable.into(),
             gc.reborrow(),
-        )
-        .unbind()?;
+        )?;
         // 4. If hasEnumerable is true, then
         if has_enumerable {
             // a. Let enumerable be ToBoolean(? Get(Obj, "enumerable")).
             let enumerable = get(
                 agent,
-                scoped_obj.get(agent),
+                scoped_obj.get(agent).local(),
                 BUILTIN_STRING_MEMORY.enumerable.into(),
                 gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc());
+            )?;
             let enumerable = to_boolean(agent, enumerable);
             // b. Set desc.[[Enumerable]] to enumerable.
             desc.enumerable = Some(enumerable);
@@ -327,22 +324,19 @@ impl<'a> PropertyDescriptor<'a> {
         // 5. Let hasConfigurable be ? HasProperty(Obj, "configurable").
         let has_configurable = has_property(
             agent,
-            scoped_obj.get(agent),
+            scoped_obj.get(agent).local(),
             BUILTIN_STRING_MEMORY.configurable.into(),
             gc.reborrow(),
-        )
-        .unbind()?;
+        )?;
         // 6. If hasConfigurable is true, then
         if has_configurable {
             // a. Let configurable be ToBoolean(? Get(Obj, "configurable")).
             let configurable = get(
                 agent,
-                scoped_obj.get(agent),
+                scoped_obj.get(agent).local(),
                 BUILTIN_STRING_MEMORY.configurable.into(),
                 gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc());
+            )?;
             let configurable = to_boolean(agent, configurable);
             // b. Set desc.[[Configurable]] to configurable.
             desc.configurable = Some(configurable);
@@ -350,44 +344,38 @@ impl<'a> PropertyDescriptor<'a> {
         // 7. Let hasValue be ? HasProperty(Obj, "value").
         let has_value = has_property(
             agent,
-            scoped_obj.get(agent),
+            scoped_obj.get(agent).local(),
             BUILTIN_STRING_MEMORY.value.into(),
             gc.reborrow(),
-        )
-        .unbind()?;
+        )?;
         // 8. If hasValue is true, then
         if has_value {
             // a. Let value be ? Get(Obj, "value").
             let value = get(
                 agent,
-                scoped_obj.get(agent),
+                scoped_obj.get(agent).local(),
                 BUILTIN_STRING_MEMORY.value.into(),
                 gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc());
+            )?;
             // b. Set desc.[[Value]] to value.
-            desc.value = Some(value.unbind());
+            desc.value = Some(value);
         }
         // 9. Let hasWritable be ? HasProperty(Obj, "writable").
         let has_writable = has_property(
             agent,
-            scoped_obj.get(agent),
+            scoped_obj.get(agent).local(),
             BUILTIN_STRING_MEMORY.writable.into(),
             gc.reborrow(),
-        )
-        .unbind()?;
+        )?;
         // 10. If hasWritable is true, then
         if has_writable {
             // a. Let writable be ToBoolean(? Get(Obj, "writable")).
             let writable = get(
                 agent,
-                scoped_obj.get(agent),
+                scoped_obj.get(agent).local(),
                 BUILTIN_STRING_MEMORY.writable.into(),
                 gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc());
+            )?;
             let writable = to_boolean(agent, writable);
             // b. Set desc.[[Writable]] to writable.
             desc.writable = Some(writable);
@@ -395,22 +383,19 @@ impl<'a> PropertyDescriptor<'a> {
         // 11. Let hasGet be ? HasProperty(Obj, "get").
         let has_get = has_property(
             agent,
-            scoped_obj.get(agent),
+            scoped_obj.get(agent).local(),
             BUILTIN_STRING_MEMORY.get.into(),
             gc.reborrow(),
-        )
-        .unbind()?;
+        )?;
         // 12. If hasGet is true, then
         if has_get {
             // a. Let getter be ? Get(Obj, "get").
             let getter = get(
                 agent,
-                scoped_obj.get(agent),
+                scoped_obj.get(agent).local(),
                 BUILTIN_STRING_MEMORY.get.into(),
                 gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc());
+            )?;
             // b. If IsCallable(getter) is false and getter is not undefined,
             // throw a TypeError exception.
             if !getter.is_undefined() {
@@ -422,7 +407,7 @@ impl<'a> PropertyDescriptor<'a> {
                     ));
                 };
                 // c. Set desc.[[Get]] to getter.
-                desc.get = Some(Some(getter.unbind()));
+                desc.get = Some(Some(getter));
             } else {
                 desc.get = Some(None);
             }
@@ -430,22 +415,19 @@ impl<'a> PropertyDescriptor<'a> {
         // 13. Let hasSet be ? HasProperty(Obj, "set").
         let has_set = has_property(
             agent,
-            scoped_obj.get(agent),
+            scoped_obj.get(agent).local(),
             BUILTIN_STRING_MEMORY.set.into(),
             gc.reborrow(),
-        )
-        .unbind()?;
+        )?;
         // 14. If hasSet is true, then
         if has_set {
             // a. Let setter be ? Get(Obj, "set").
             let setter = get(
                 agent,
-                scoped_obj.get(agent),
+                scoped_obj.get(agent).local(),
                 BUILTIN_STRING_MEMORY.set.into(),
                 gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc());
+            )?;
             // b. If IsCallable(setter) is false and setter is not undefined,
             // throw a TypeError exception.
             if !setter.is_undefined() {
@@ -457,14 +439,14 @@ impl<'a> PropertyDescriptor<'a> {
                     ));
                 };
                 // c. Set desc.[[Set]] to setter.
-                desc.set = Some(Some(setter.unbind()));
+                desc.set = Some(Some(setter));
             } else {
                 desc.set = Some(None);
             }
         }
 
         // SAFETY: scoped_obj has not been shared.
-        let _ = unsafe { scoped_obj.take(agent) };
+        let _ = unsafe { scoped_obj.take(agent).local() };
 
         // 15. If desc has a [[Get]] field or desc has a [[Set]] field, then
         if desc.get.is_some() || desc.set.is_some() {
@@ -554,7 +536,7 @@ impl<'a> PropertyDescriptor<'a> {
             // a. Let value be ? Get(Obj, "value").
             let value = try_get_result_into_value(try_get(agent, obj, key, cache, gc))?;
             // b. Set desc.[[Value]] to value.
-            desc.value = Some(value.unbind());
+            desc.value = Some(value);
         }
         // 9. Let hasWritable be ? HasProperty(Obj, "writable").
         let key = BUILTIN_STRING_MEMORY.writable.into();
@@ -603,7 +585,7 @@ impl<'a> PropertyDescriptor<'a> {
                         .into();
                 };
                 // c. Set desc.[[Get]] to getter.
-                desc.get = Some(Some(getter.unbind()));
+                desc.get = Some(Some(getter));
             } else {
                 desc.get = Some(None);
             }
@@ -636,7 +618,7 @@ impl<'a> PropertyDescriptor<'a> {
                         .into();
                 };
                 // c. Set desc.[[Set]] to setter.
-                desc.set = Some(Some(setter.unbind()));
+                desc.set = Some(Some(setter));
             } else {
                 desc.set = Some(None);
             }

@@ -41,10 +41,7 @@ impl<'fr> FinalizationRegistry<'fr> {
         if queue.is_empty() {
             return;
         }
-        let do_request_cleanup = self
-            .get_mut(agent)
-            .cleanup
-            .push_cleanup_queue(queue.unbind());
+        let do_request_cleanup = self.get_mut(agent).cleanup.push_cleanup_queue(queue);
         if do_request_cleanup {
             agent
                 .host_hooks
@@ -125,7 +122,7 @@ impl<'fr> InternalSlots<'fr> for FinalizationRegistry<'fr> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index.unbind()
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
@@ -144,7 +141,7 @@ impl<'a> CreateHeapData<FinalizationRegistryRecord<'a>, FinalizationRegistry<'a>
     fn create(&mut self, data: FinalizationRegistryRecord<'a>) -> FinalizationRegistry<'a> {
         let i = self.finalization_registrys.len();
         self.finalization_registrys
-            .push(data.unbind())
+            .push(data)
             .expect("Failed to allocate FinalizationRegistry");
         self.alloc_counter += core::mem::size_of::<FinalizationRegistryRecord<'static>>();
         FinalizationRegistry(BaseIndex::from_index_u32(i))

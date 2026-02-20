@@ -34,7 +34,7 @@ pub(crate) fn async_generator_validate<'a>(
     // 4. If generator.[[GeneratorBrand]] is not generatorBrand, throw a TypeError exception.
     // 5. Return unused.
     if let Value::AsyncGenerator(generator) = generator {
-        Ok(generator.unbind())
+        Ok(generator)
     } else {
         Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
@@ -57,7 +57,7 @@ pub(crate) fn async_generator_enqueue(
 ) {
     // 1. Let request be AsyncGeneratorRequest { [[Completion]]: completion, [[Capability]]: promiseCapability }.
     let request = AsyncGeneratorRequest {
-        completion: completion.unbind(),
+        completion: completion,
         capability: promise_capability,
     };
     // 2. Append request to generator.[[AsyncGeneratorQueue]].
@@ -78,7 +78,7 @@ fn async_generator_complete_step(
     realm: Option<Realm>,
     gc: NoGcScope,
 ) {
-    let completion = completion.bind(gc);
+    crate::engine::bind!(let completion = completion, gc);
     // 1. Assert: generator.[[AsyncGeneratorQueue]] is not empty.
     assert!(!generator.queue_is_empty(agent));
     // 2. Let next be the first element of generator.[[AsyncGeneratorQueue]].
@@ -138,8 +138,8 @@ pub(crate) fn async_generator_resume(
     mut gc: GcScope,
 ) {
     let nogc = gc.nogc();
-    let generator = generator.bind(nogc);
-    let completion = completion.bind(nogc);
+    crate::engine::bind!(let generator = generator, gc);
+    crate::engine::bind!(let completion = completion, gc);
     // 1. Assert: generator.[[AsyncGeneratorState]] is either suspended-start or suspended-yield.
     // 2. Let genContext be generator.[[AsyncGeneratorContext]].
     // 5. Set generator.[[AsyncGeneratorState]] to executing.
@@ -160,20 +160,20 @@ pub(crate) fn async_generator_resume(
     //    Completion Record returned by the resumed computation.
     let execution_result = match completion {
         AsyncGeneratorRequestCompletion::Ok(value) => {
-            vm.resume(agent, executable, value.unbind(), gc.reborrow())
+            vm.resume(agent, executable, value, gc.reborrow())
         }
         AsyncGeneratorRequestCompletion::Err(err) => {
-            vm.resume_throw(agent, executable, err.value().unbind(), gc.reborrow())
+            vm.resume_throw(agent, executable, err.value(), gc.reborrow())
         }
         AsyncGeneratorRequestCompletion::Return(value) => {
-            vm.resume_return(agent, executable, value.unbind(), gc.reborrow())
+            vm.resume_return(agent, executable, value, gc.reborrow())
         }
     };
     // 8. Assert: result is never an abrupt completion.
     // 9. Assert: When we return here, genContext has already been removed from
     //    the execution context stack and callerContext is the currently
     //    running execution context.
-    resume_handle_result(agent, execution_result.unbind(), scoped_generator, gc);
+    resume_handle_result(agent, execution_result, scoped_generator, gc);
     // 10. Return unused.
 }
 
@@ -187,7 +187,7 @@ pub(super) fn resume_handle_result(
         ExecutionResult::Return(result) => {
             // Function is done.
             let _ = agent.pop_execution_context().unwrap();
-            let generator = scoped_generator.get(agent).bind(gc.nogc());
+            crate::engine::bind!(let generator = scoped_generator.get(agent).local(), gc);
             // AsyncGeneratorStart step 4:
             // g. Set acGenerator.[[AsyncGeneratorState]] to draining-queue.
             generator.transition_to_draining_queue(agent);
@@ -196,7 +196,7 @@ pub(super) fn resume_handle_result(
             // j. Perform AsyncGeneratorCompleteStep(acGenerator, result, true).
             async_generator_complete_step(
                 agent,
-                generator.unbind(),
+                generator,
                 AsyncGeneratorRequestCompletion::Ok(result),
                 true,
                 None,
@@ -209,14 +209,14 @@ pub(super) fn resume_handle_result(
         ExecutionResult::Throw(err) => {
             // Function is done.
             let _ = agent.pop_execution_context().unwrap();
-            let generator = scoped_generator.get(agent).bind(gc.nogc());
+            crate::engine::bind!(let generator = scoped_generator.get(agent).local(), gc);
             // AsyncGeneratorStart step 4:
             // g. Set acGenerator.[[AsyncGeneratorState]] to draining-queue.
             generator.transition_to_draining_queue(agent);
             // j. Perform AsyncGeneratorCompleteStep(acGenerator, result, true).
             async_generator_complete_step(
                 agent,
-                generator.unbind(),
+                generator,
                 AsyncGeneratorRequestCompletion::Err(err),
                 true,
                 None,
@@ -255,18 +255,17 @@ fn async_generator_perform_await(
 ) {
     // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
     let execution_context = agent.pop_execution_context().unwrap();
-    let generator = scoped_generator.get(agent).bind(gc.nogc());
+    let generator = scoped_generator.get(agent).local();
+    gc.join(&generator);
     generator.transition_to_awaiting(agent, vm, kind, execution_context);
     // 8. Remove asyncContext from the execution context stack and
     //    restore the execution context that is at the top of the
     //    execution context stack as the running execution context.
-    let handler = PromiseReactionHandler::AsyncGenerator(generator.unbind());
     // 2. Let promise be ? PromiseResolve(%Promise%, value).
-    let promise = Promise::resolve(agent, awaited_value, gc.reborrow())
-        .unbind()
-        .bind(gc.nogc());
+    let promise = Promise::resolve(agent, awaited_value, gc.reborrow());
 
     // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
+    let handler = PromiseReactionHandler::AsyncGenerator(generator);
     inner_promise_then(agent, promise, handler, handler, None, gc.nogc());
 }
 
@@ -282,34 +281,37 @@ fn async_generator_unwrap_yield_resumption(
     resumption_value: AsyncGeneratorRequestCompletion,
     mut gc: GcScope,
 ) {
-    let resumption_value = resumption_value.bind(gc.nogc());
+    crate::engine::bind!(let resumption_value = resumption_value, gc);
     // 1. If resumptionValue is not a return completion, return ? resumptionValue.
     let execution_result = match resumption_value {
         AsyncGeneratorRequestCompletion::Ok(v) => {
             let executable = generator
                 .get(agent)
+                .local()
                 .get_executable(agent, gc.nogc())
                 .scope(agent, gc.nogc());
-            vm.resume(agent, executable, v.unbind(), gc.reborrow())
+            vm.resume(agent, executable, v, gc.reborrow())
         }
         AsyncGeneratorRequestCompletion::Err(e) => {
             let executable = generator
                 .get(agent)
+                .local()
                 .get_executable(agent, gc.nogc())
                 .scope(agent, gc.nogc());
-            vm.resume_throw(agent, executable, e.value().unbind(), gc.reborrow())
+            vm.resume_throw(agent, executable, e.value(), gc.reborrow())
         }
         AsyncGeneratorRequestCompletion::Return(value) => {
             let executable = generator
                 .get(agent)
+                .local()
                 .get_executable(agent, gc.nogc())
                 .scope(agent, gc.nogc());
             // 2. Let awaited be Completion(Await(resumptionValue.[[Value]])).
             // Note: the Await instruction is performed in the bytecode.
-            vm.resume_return(agent, executable, value.unbind(), gc.reborrow())
+            vm.resume_return(agent, executable, value, gc.reborrow())
         }
     };
-    resume_handle_result(agent, execution_result.unbind(), generator, gc);
+    resume_handle_result(agent, execution_result, generator, gc);
 }
 
 /// ### [27.6.3.8 AsyncGeneratorYield ( value )](https://tc39.es/ecma262/#sec-asyncgeneratoryield)
@@ -337,11 +339,11 @@ pub(super) fn async_generator_yield(
     // 6. Assert: The execution context stack has at least two elements.
     // 7. Let previousContext be the second to top element of the execution context stack.
     // 8. Let previousRealm be previousContext's Realm.
-    let previous_realm = agent.get_previous_context_realm(gc.nogc());
+    crate::engine::bind!(let previous_realm = agent.get_previous_context_realm(), gc);
     // 9. Perform AsyncGeneratorCompleteStep(generator, completion, false, previousRealm).
     async_generator_complete_step(
         agent,
-        generator.get(agent),
+        generator.get(agent).local(),
         completion,
         false,
         Some(previous_realm),
@@ -349,24 +351,18 @@ pub(super) fn async_generator_yield(
     );
     // 10. Let queue be generator.[[AsyncGeneratorQueue]].
     // 11. If queue is not empty, then
-    if !generator.get(agent).queue_is_empty(agent) {
+    if !generator.get(agent).local().queue_is_empty(agent) {
         // a. NOTE: Execution continues without suspending the generator.
         // b. Let toYield be the first element of queue.
-        let to_yield = generator.get(agent).peek_first(agent, gc.nogc());
+        let to_yield = generator.get(agent).peek_first(agent);
         // c. Let resumptionValue be Completion(toYield.[[Completion]]).
         let resumption_value = to_yield.completion;
         // d. Return ? AsyncGeneratorUnwrapYieldResumption(resumptionValue).
-        async_generator_unwrap_yield_resumption(
-            agent,
-            vm,
-            generator,
-            resumption_value.unbind(),
-            gc,
-        );
+        async_generator_unwrap_yield_resumption(agent, vm, generator, resumption_value, gc);
     } else {
         // 12. Else,
         // a. Set generator.[[AsyncGeneratorState]] to suspended-yield.
-        let generator = generator.get(agent).bind(gc.nogc());
+        crate::engine::bind!(let generator = generator.get(agent), gc);
         let gen_context = agent.pop_execution_context().unwrap();
         // b. Remove genContext from the execution context stack and restore
         //    the execution context that is at the top of the execution context
@@ -390,14 +386,14 @@ pub(crate) fn async_generator_await_return(
     scoped_generator: Scoped<AsyncGenerator>,
     mut gc: GcScope,
 ) {
-    let generator = scoped_generator.get(agent).bind(gc.nogc());
+    crate::engine::bind!(let generator = scoped_generator.get(agent).local(), gc);
     // 1. Assert: generator.[[AsyncGeneratorState]] is draining-queue.
     assert!(generator.is_draining_queue(agent));
     // 2. Let queue be generator.[[AsyncGeneratorQueue]].
     // 3. Assert: queue is not empty.
     assert!(!generator.queue_is_empty(agent));
     // 4. Let next be the first element of queue.
-    let next = generator.peek_first(agent, gc.nogc());
+    let next = generator.peek_first(agent);
     // 5. Let completion be Completion(next.[[Completion]]).
     let completion = next.completion;
     // 6. Assert: completion is a return completion.
@@ -411,16 +407,13 @@ pub(crate) fn async_generator_await_return(
     //         c. Return unused.
     // 9. Assert: promiseCompletion is a normal completion.
     // 10. Let promise be promiseCompletion.[[Value]].
-    let promise = Promise::resolve(agent, value.unbind(), gc.reborrow())
-        .unbind()
-        .bind(gc.nogc());
+    let promise = Promise::resolve(agent, value, gc.reborrow())?;
     // 11. ... onFulfilled ...
     // 12. Let onFulfilled be CreateBuiltinFunction(fulfilledClosure, 1, "", « »).
     // 13. ... onRejected ...
     // 14. Let onRejected be CreateBuiltinFunction(rejectedClosure, 1, "", « »).
     // 15. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
-    let handler =
-        PromiseReactionHandler::AsyncGenerator(scoped_generator.get(agent).bind(gc.nogc()));
+    let handler = PromiseReactionHandler::AsyncGenerator(scoped_generator.get(agent).local());
     inner_promise_then(agent, promise, handler, handler, None, gc.nogc());
     // 16. Return unused.
 }
@@ -431,8 +424,8 @@ pub(crate) fn async_generator_await_return_on_fulfilled(
     value: Value,
     gc: GcScope,
 ) {
-    let generator = generator.bind(gc.nogc());
-    let value = value.bind(gc.nogc());
+    crate::engine::bind!(let generator = generator, gc);
+    crate::engine::bind!(let value = value, gc);
     // 11. Let fulfilledClosure be a new Abstract Closure with parameters
     //     (value) that captures generator and performs the following steps
     //     when called:
@@ -443,7 +436,7 @@ pub(crate) fn async_generator_await_return_on_fulfilled(
     let scoped_generator = generator.scope(agent, gc.nogc());
     async_generator_complete_step(
         agent,
-        generator.unbind(),
+        generator,
         AsyncGeneratorRequestCompletion::Ok(value),
         true,
         None,
@@ -460,8 +453,8 @@ pub(crate) fn async_generator_await_return_on_rejected(
     value: Value,
     gc: GcScope,
 ) {
-    let generator = generator.bind(gc.nogc());
-    let value = value.bind(gc.nogc());
+    crate::engine::bind!(let generator = generator, gc);
+    crate::engine::bind!(let value = value, gc);
     // 13. Let rejectedClosure be a new Abstract Closure with parameters
     //     (reason) that captures generator and performs the following steps
     //     when called:
@@ -472,8 +465,8 @@ pub(crate) fn async_generator_await_return_on_rejected(
     // c. Perform AsyncGeneratorCompleteStep(generator, result, true).
     async_generator_complete_step(
         agent,
-        generator.unbind(),
-        AsyncGeneratorRequestCompletion::Err(JsError::new(value.unbind())),
+        generator,
+        AsyncGeneratorRequestCompletion::Err(JsError::new(value)),
         true,
         None,
         gc.nogc(),
@@ -494,7 +487,7 @@ fn async_generator_drain_queue(
     scoped_generator: Scoped<AsyncGenerator>,
     mut gc: GcScope,
 ) {
-    let generator = scoped_generator.get(agent).bind(gc.nogc());
+    crate::engine::bind!(let generator = scoped_generator.get(agent).local(), gc);
     let data = generator.get_mut(agent);
     // Assert: generator.[[AsyncGeneratorState]] is draining-queue.
     // 2. Let queue be generator.[[AsyncGeneratorQueue]].
@@ -514,7 +507,7 @@ fn async_generator_drain_queue(
     // 5. Repeat, while done is false,
     loop {
         // a. Let next be the first element of queue.
-        let next = generator.peek_first(agent, gc.nogc());
+        let next = generator.peek_first(agent);
         // b. Let completion be Completion(next.[[Completion]]).
         let completion = next.completion;
         // c. If completion is a return completion, then

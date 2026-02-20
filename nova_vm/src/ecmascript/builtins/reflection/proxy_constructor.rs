@@ -38,13 +38,13 @@ impl ProxyConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let target = arguments.get(0).bind(gc);
-        let handler = arguments.get(1).bind(gc);
+        crate::engine::bind!(let target = arguments.get(0), gc);
+        crate::engine::bind!(let handler = arguments.get(1), gc);
         // 1. If NewTarget is undefined, throw a TypeError exception.
         if new_target.is_none() {
             return Err(agent.throw_exception_with_static_message(
@@ -61,9 +61,9 @@ impl ProxyConstructor {
     fn revocable<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
+        _arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Let proxy be ? ProxyCreate(target, handler).
         // 2. Let revokerClosure be a new Abstract Closure with no parameters that captures nothing and performs the following steps when called:
         //        a. Let F be the active function object.

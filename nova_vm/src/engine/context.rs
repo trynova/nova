@@ -127,6 +127,11 @@ impl<'a, 'b> GcScope<'a, 'b> {
         }
     }
 
+    /// Bind a handle to the garbage collector lifetime, ensuring that the
+    /// handle is invalidated if a garbage collection safepoint is reached.
+    #[inline(always)]
+    pub fn join<'gc, T: Bindable<'gc>>(&'gc self, _: &T) {}
+
     /// Create a GcScope marker that inherits the current GcScope's lifetimes.
     /// This reborrowing is necessary to ensure that only one GcScope is active
     /// at any point in time, and the existence of the active GcScope binds any
@@ -186,6 +191,11 @@ impl<'a, 'b> GcScope<'a, 'b> {
 }
 
 impl<'a, 'b> NoGcScope<'a, 'b> {
+    /// Bind a handle to the garbage collector lifetime, ensuring that the
+    /// handle is invalidated if a garbage collection safepoint is reached.
+    #[inline(always)]
+    pub fn join<T: Bindable<'a>>(self, _: &T) {}
+
     #[allow(unknown_lints, gc_scope_is_only_passed_by_value)]
     #[inline]
     pub(crate) fn from_gc(_: &GcScope<'a, 'b>) -> Self {
@@ -226,7 +236,7 @@ impl<'a, 'b> NoGcScope<'a, 'b> {
 /// ```rust,compile_fail
 /// let result = unsafe { core::mem::transmute::<Value<'a>, Value<'b>(value) };
 /// ```
-pub unsafe trait Bindable: Sized {
+pub unsafe trait Bindable<'a>: Sized {
     /// Bound representation of self. This must always be effectively equal to
     /// `Self<'a>`. Note that we cannot write `Self<'a>` directly because
     /// `Self` cannot have lifetime parameters attached to it.
@@ -247,17 +257,14 @@ pub unsafe trait Bindable: Sized {
     ///   type Of<'a> = MyType<'a>;
     ///
     ///   #[inline(always)]
-    ///   fn unbind(self) -> Self::Of<'static> {
+    ///   fn local<'a>(self) -> Self::Of<'a> {
     ///     unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    ///   }
-    ///
-    ///   #[inline(always)]
-    ///   fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-    ///     unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     ///   }
     /// }
     /// ```
-    type Of<'a>;
+    type Of<'l>
+    where
+        Self: 'l;
 
     /// Unbind this value from the garbage collector lifetime. This is
     /// necessary for eg. when using the value as a parameter in a call that
@@ -281,7 +288,7 @@ pub unsafe trait Bindable: Sized {
     ///
     /// ```rust,ignore
     /// // Unbind a value to allow passing it as a parameter.
-    /// function_call(agent, value.unbind(), gc.reborrow());
+    /// function_call(agent, value,gc.reborrow());
     /// ```
     ///
     /// ```rust,ignore
@@ -290,113 +297,53 @@ pub unsafe trait Bindable: Sized {
     /// if cond {
     ///   // Note: `result` is bound to a local temporary created in
     ///   // `gc.reborrow()`, which is why this will not work without unbind.
-    ///   return Ok(result.unbind());
+    ///   return Ok(result);
     /// }
     /// ```
     ///
     /// ```rust,ignore
     /// // Unbind a value temporarily to immediately rebind it with a
     /// // `NoGcScope`.
-    /// let result = function_call(agent, gc.reborrow()).unbind();
+    /// let result = function_call(agent, gc.reborrow());
     /// let gc = gc.into_nogc();
-    /// let result = result.bind(gc);
+    /// crate::engine::bind!(let result = result, gc);
     /// ```
     ///
     /// *Incrrect* usage of this function: unbind a value into a variable
     /// without immediate rebinding.
     /// ```rust,ignore
-    /// let result = try_function_call(agent, gc.nogc()).unbind();
+    /// let result = try_function_call(agent, gc.nogc());
     /// function_call(agent, result, gc.reborrow());
     /// // Note: `result` is use-after-free because of above `gc.reborrow()`.
     /// return Ok(result);
     /// ```
-    fn unbind(self) -> Self::Of<'static>;
-
-    /// Bind this value to the garbage collector lifetime. This is necessary to
-    /// enable the borrow checker to check that bindable values are not
-    /// use-after-free.
-    ///
-    ///
-    ///
-    /// This function's implementation must be equivalent to a (recursive)
-    /// `memcpy`. The intention is that the entire function optimises to
-    /// nothing in the final binary.
-    ///
-    /// ## Safety
-    ///
-    /// This function is always safe to use. It is required to call it in the
-    /// following places:
-    ///
-    /// 1. Bind every bindable argument when a function with a garbage
-    ///    collector safepoint is entered.
-    /// 2. Bind a bindable value when it is copied from the engine heap.
-    ///
-    /// ## Examples
-    ///
-    /// ```rust
-    /// use nova_vm::ecmascript::{Agent, ArgumentsList, JsResult, Value};
-    /// use nova_vm::engine::{GcScope, Bindable};
-    /// fn function_call<'gc>(
-    ///   agent: &mut Agent,
-    ///   this_value: Value,
-    ///   arguments: ArgumentsList,
-    ///   gc: GcScope<'gc, '_>
-    /// ) -> Value<'gc> {
-    ///   // Bind every bindable argument when a function with a garbage
-    ///   // collector safepoint is entered.
-    ///   // Note: Because this function takes `GcScope`, it should contain a
-    ///   // safepoint.
-    ///   let nogc = gc.nogc();
-    ///   let this_value = this_value.bind(nogc);
-    ///   let arg0 = arguments.get(0).bind(nogc);
-    ///   // ...
-    ///   Value::Undefined
-    /// }
-    /// ```
-    ///
-    /// ```rust,ignore
-    /// // Bind a bindable value when it is copied from the engine heap.
-    /// let first = array.get(agent).as_slice()[0].bind(gc.nogc());
-    /// ```
-    ///
-    /// *Incorrect* usage of this function: skip binding arguments when a
-    /// function with a garbage collector safepoint is entered.
-    /// ```rust
-    /// use nova_vm::ecmascript::{ArgumentsList, Agent, JsResult, Value};
-    /// use nova_vm::engine::{GcScope, Bindable};
-    /// fn function_call<'gc>(
-    ///   agent: &mut Agent,
-    ///   this_value: Value,
-    ///   arguments: ArgumentsList,
-    ///   mut gc: GcScope<'gc, '_>
-    /// ) -> Value<'gc> {
-    ///   // Note: This is still technically fine due to no preceding `GcScope`
-    ///   // usage.
-    ///   let string = this_value.to_string(agent, gc.reborrow());
-    ///   // Note: `arguments` is use-after-free because of above
-    ///   // `gc.reborrow()`.
-    ///   let value = arguments.get(0).bind(gc.nogc());
-    ///   // ...
-    ///   Value::Undefined
-    /// }
-    /// ```
-    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a>;
+    fn local<'l>(&'l self) -> Self::Of<'l>;
 }
+
+macro_rules! bind {
+    ($handle:ident, $gc:ident) => {
+        $gc.join(&$handle);
+    };
+    (let $handle:ident = $handle_creation: expr, $gc:ident) => {
+        let $handle = $handle_creation.local();
+        $gc.join(&$handle);
+    };
+    (let mut $handle:ident = $handle_creation: expr, $gc:ident) => {
+        let mut $handle = $handle_creation.local();
+        $gc.join(&$handle);
+    };
+}
+pub(crate) use bind;
 
 macro_rules! bindable_handle {
     ($self:ident) => {
         // SAFETY: Bindable handle.
-        unsafe impl crate::engine::Bindable for $self<'_> {
-            type Of<'a> = $self<'a>;
+        unsafe impl<'a> crate::engine::Bindable<'a> for $self<'a> {
+            type Of<'l> = $self<'l>;
 
             #[inline(always)]
-            fn unbind(self) -> Self::Of<'static> {
-                unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-            }
-
-            #[inline(always)]
-            fn bind<'a>(self, _: crate::engine::NoGcScope<'a, '_>) -> Self::Of<'a> {
-                unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+            fn local<'l>(self) -> Self::Of<'l> {
+                unsafe { core::mem::transmute::<Self, Self::Of<'l>>(self) }
             }
         }
     };
@@ -406,16 +353,11 @@ pub(crate) use bindable_handle;
 macro_rules! trivially_bindable {
     ($self:ty) => {
         // SAFETY: Trivially safe.
-        unsafe impl crate::engine::Bindable for $self {
-            type Of<'a> = Self;
+        unsafe impl<'a> crate::engine::Bindable<'a> for $self {
+            type Of<'l> = Self;
 
             #[inline(always)]
-            fn unbind(self) -> Self::Of<'static> {
-                self
-            }
-
-            #[inline(always)]
-            fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+            fn local<'l>(self) -> Self::Of<'l> {
                 self
             }
         }
@@ -444,60 +386,37 @@ trivially_bindable!(f64);
 trivially_bindable!(CodePoint);
 
 // SAFETY: Trivially safe.
-unsafe impl<'b, T: 'static + Rootable> Bindable for Scoped<'b, T> {
-    type Of<'a> = Scoped<'b, T>;
+unsafe impl<'a, 'b, T: 'static + Rootable> Bindable<'a> for Scoped<'b, T> {
+    type Of<'l> = Scoped<'b, T>;
 
     #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        self
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+    fn local<'l>(self) -> Self::Of<'l> {
         self
     }
 }
 
 // SAFETY: The blanket impls are safe if the implementors are.
-unsafe impl<T: Bindable> Bindable for Option<T> {
-    type Of<'a> = Option<T::Of<'a>>;
+unsafe impl<'a, T: Bindable<'a>> Bindable<'a> for Option<T> {
+    type Of<'l> = Option<T::Of<'l>>;
 
     // Note: Option is simple enough to always inline the code.
     #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
+    fn local<'l>(self) -> Self::Of<'l> {
         const {
             assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
             assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
         }
-        self.map(T::unbind)
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        const {
-            assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
-            assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
-        }
-        self.map(|t| t.bind(gc))
+        self.map(T::local)
     }
 }
 
 // SAFETY: The blanket impls are safe if the implementors are.
-unsafe impl<T: Bindable> Bindable for Box<T> {
-    type Of<'a> = Box<T::Of<'a>>;
+unsafe impl<'a, T: Bindable<'a>> Bindable<'a> for Box<T> {
+    type Of<'l> = Box<T::Of<'l>>;
 
     // Note: Box is simple enough to always inline the code.
     #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        const {
-            assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
-            assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
-        }
-        unsafe { std::mem::transmute::<_, _>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _: NoGcScope<'a, '_>) -> Self::Of<'a> {
+    fn local<'l>(self) -> Self::Of<'l> {
         const {
             assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
             assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
@@ -507,63 +426,42 @@ unsafe impl<T: Bindable> Bindable for Box<T> {
 }
 
 // SAFETY: The blanket impls are safe if the implementors are.
-unsafe impl<T: Bindable, E: Bindable> Bindable for Result<T, E> {
-    type Of<'a> = Result<T::Of<'a>, E::Of<'a>>;
+unsafe impl<'a, T: Bindable<'a>, E: Bindable<'a>> Bindable<'a> for Result<T, E> {
+    type Of<'l> = Result<T::Of<'l>, E::Of<'l>>;
 
     #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
+    fn local<'l>(self) -> Self::Of<'l> {
         const {
             assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
             assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
         }
-        self.map(T::unbind).map_err(E::unbind)
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        const {
-            assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
-            assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
-        }
-        self.map(|t| t.bind(gc)).map_err(|e| e.bind(gc))
+        self.map(T::local).map_err(E::local)
     }
 }
 
 // SAFETY: The blanket impls are safe if the implementors are.
-unsafe impl<T: Bindable, E: Bindable> Bindable for ControlFlow<T, E> {
-    type Of<'a> = ControlFlow<T::Of<'a>, E::Of<'a>>;
+unsafe impl<'a, T: Bindable<'a>, E: Bindable<'a>> Bindable<'a> for ControlFlow<T, E> {
+    type Of<'l> = ControlFlow<T::Of<'l>, E::Of<'l>>;
 
     #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
+    fn local<'l>(self) -> Self::Of<'l> {
         const {
             assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
             assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
         }
         match self {
-            ControlFlow::Continue(c) => ControlFlow::Continue(c.unbind()),
-            ControlFlow::Break(b) => ControlFlow::Break(b.unbind()),
-        }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        const {
-            assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
-            assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
-        }
-        match self {
-            ControlFlow::Continue(c) => ControlFlow::Continue(c.bind(gc)),
-            ControlFlow::Break(b) => ControlFlow::Break(b.bind(gc)),
+            ControlFlow::Continue(c) => ControlFlow::Continue(c),
+            ControlFlow::Break(b) => ControlFlow::Break(b),
         }
     }
 }
 
 // SAFETY: The blanket impls are safe if the implementors are.
-unsafe impl<T: Bindable> Bindable for Vec<T> {
-    type Of<'a> = Vec<T::Of<'a>>;
+unsafe impl<'a, T: Bindable<'a>> Bindable<'a> for Vec<T> {
+    type Of<'l> = Vec<T::Of<'l>>;
 
     #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
+    fn local<'l>(self) -> Self::Of<'l> {
         const {
             // Note: These checks do not guarantee that the Vec transmute is
             // truly safe: Vec is free to rearrange its fields if its type
@@ -573,127 +471,73 @@ unsafe impl<T: Bindable> Bindable for Vec<T> {
         }
         // SAFETY: We assume that T properly implements Bindable. In that case
         // we can safely transmute the lifetime out of the T's in the Vec.
-        unsafe { core::mem::transmute::<Vec<T>, Vec<T::Of<'static>>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        const {
-            // Note: These checks do not guarantee that the Vec transmute is
-            // truly safe: Vec is free to rearrange its fields if its type
-            // parameter changes. These checks will only catch flagrant misuse.
-            assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
-            assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
-        }
-        // SAFETY: We assume that T properly implements Bindable. In that case
-        // we can safely transmute the lifetime out of the T's in the Vec.
-        unsafe { core::mem::transmute::<Vec<T>, Vec<T::Of<'a>>>(self) }
+        unsafe { core::mem::transmute::<Vec<T>, Vec<T::Of<'l>>>(self) }
     }
 }
 
 // SAFETY: The blanket impls are safe if the implementors are.
-unsafe impl<T: Bindable> Bindable for Box<[T]> {
-    type Of<'gc> = Box<[T::Of<'gc>]>;
+unsafe impl<'a, T: Bindable<'a>> Bindable<'a> for Box<[T]> {
+    type Of<'l> = Box<[T::Of<'l>]>;
 
-    fn unbind(self) -> Self::Of<'static> {
+    fn local<'l>(self) -> Self::Of<'l> {
         const {
             assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
             assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
         }
         // SAFETY: We assume that T properly implements Bindable. In that case
         // we can safely transmute the lifetime out of the T's in the slice.
-        unsafe { core::mem::transmute::<Box<[T]>, Box<[T::Of<'static>]>>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        const {
-            assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
-            assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
-        }
-        // SAFETY: We assume that T properly implements Bindable. In that case
-        // we can safely transmute the lifetime into the T's in the slice.
-        unsafe { core::mem::transmute::<Box<[T]>, Box<[T::Of<'a>]>>(self) }
+        unsafe { core::mem::transmute::<Box<[T]>, Box<[T::Of<'l>]>>(self) }
     }
 }
 
 // SAFETY: The blanket impls are safe if the implementors are.
-unsafe impl<'slice, T: Bindable> Bindable for &'slice [T]
+unsafe impl<'a, 'slice, T: Bindable<'a>> Bindable<'a> for &'slice [T]
 where
-    for<'gc> <T as Bindable>::Of<'gc>: 'slice,
+    for<'l> <T as Bindable<'a>>::Of<'l>: 'slice,
 {
-    type Of<'gc> = &'slice [T::Of<'gc>];
+    type Of<'l> = &'slice [T::Of<'l>];
 
-    fn unbind(self) -> Self::Of<'static> {
+    fn local<'l>(self) -> Self::Of<'l> {
         const {
             assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
             assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
         }
         // SAFETY: We assume that T properly implements Bindable. In that case
         // we can safely transmute the lifetime out of the T's in the slice.
-        unsafe { core::mem::transmute::<&'slice [T], &'slice [T::Of<'static>]>(self) }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        const {
-            assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
-            assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
-        }
-        // SAFETY: We assume that T properly implements Bindable. In that case
-        // we can safely transmute the lifetime into the T's in the slice.
-        unsafe { core::mem::transmute::<&'slice [T], &'slice [T::Of<'a>]>(self) }
+        unsafe { core::mem::transmute::<&'slice [T], &'slice [T::Of<'l>]>(self) }
     }
 }
 
 // SAFETY: The blanket impls are safe if the implementors are.
-unsafe impl<T: Bindable, U: Bindable> Bindable for (T, U) {
-    type Of<'gc> = (T::Of<'gc>, U::Of<'gc>);
+unsafe impl<'a, T: Bindable<'a>, U: Bindable<'a>> Bindable<'a> for (T, U) {
+    type Of<'l> = (T::Of<'l>, U::Of<'l>);
 
-    fn unbind(self) -> Self::Of<'static> {
-        (self.0.unbind(), self.1.unbind())
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        (self.0.bind(gc), self.1.bind(gc))
+    fn local<'l>(self) -> Self::Of<'l> {
+        (self.0.local(), self.1.local())
     }
 }
 
 // SAFETY: The blanket impls are safe if the implementors are.
-unsafe impl<T: Bindable, U: Bindable, V: Bindable> Bindable for (T, U, V) {
-    type Of<'gc> = (T::Of<'gc>, U::Of<'gc>, V::Of<'gc>);
+unsafe impl<'a, T: Bindable<'a>, U: Bindable<'a>, V: Bindable<'a>> Bindable<'a> for (T, U, V) {
+    type Of<'l> = (T::Of<'l>, U::Of<'l>, V::Of<'l>);
 
-    fn unbind(self) -> Self::Of<'static> {
-        (self.0.unbind(), self.1.unbind(), self.2.unbind())
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        (self.0.bind(gc), self.1.bind(gc), self.2.bind(gc))
+    fn local<'l>(self) -> Self::Of<'l> {
+        (self.0.local(), self.1.local(), self.2.local())
     }
 }
 
 // SAFETY: The blanket impls are safe if the implementors are.
-unsafe impl<T: Bindable, U: Bindable, V: Bindable, W: Bindable> Bindable for (T, U, V, W) {
-    type Of<'gc> = (T::Of<'gc>, U::Of<'gc>, V::Of<'gc>, W::Of<'gc>);
+unsafe impl<'a, T: Bindable<'a>, U: Bindable<'a>, V: Bindable<'a>, W: Bindable<'a>> Bindable<'a>
+    for (T, U, V, W)
+{
+    type Of<'l> = (T::Of<'l>, U::Of<'l>, V::Of<'l>, W::Of<'l>);
 
-    fn unbind(self) -> Self::Of<'static> {
+    fn local<'l>(self) -> Self::Of<'l> {
         (
-            self.0.unbind(),
-            self.1.unbind(),
-            self.2.unbind(),
-            self.3.unbind(),
-        )
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        (
-            self.0.bind(gc),
-            self.1.bind(gc),
-            self.2.bind(gc),
-            self.3.bind(gc),
+            self.0.local(),
+            self.1.local(),
+            self.2.local(),
+            self.3.local(),
         )
     }
 }
@@ -704,25 +548,8 @@ unsafe impl<T: Bindable, U: Bindable, V: Bindable, W: Bindable, X: Bindable> Bin
 {
     type Of<'gc> = (T::Of<'gc>, U::Of<'gc>, V::Of<'gc>, W::Of<'gc>, X::Of<'gc>);
 
-    fn unbind(self) -> Self::Of<'static> {
-        (
-            self.0.unbind(),
-            self.1.unbind(),
-            self.2.unbind(),
-            self.3.unbind(),
-            self.4.unbind(),
-        )
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        (
-            self.0.bind(gc),
-            self.1.bind(gc),
-            self.2.bind(gc),
-            self.3.bind(gc),
-            self.4.bind(gc),
-        )
+    fn local<'a>(self) -> Self::Of<'a> {
+        (self.0, self.1, self.2, self.3, self.4)
     }
 }
 
@@ -739,26 +566,7 @@ unsafe impl<T: Bindable, U: Bindable, V: Bindable, W: Bindable, X: Bindable, Y: 
         Y::Of<'gc>,
     );
 
-    fn unbind(self) -> Self::Of<'static> {
-        (
-            self.0.unbind(),
-            self.1.unbind(),
-            self.2.unbind(),
-            self.3.unbind(),
-            self.4.unbind(),
-            self.5.unbind(),
-        )
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        (
-            self.0.bind(gc),
-            self.1.bind(gc),
-            self.2.bind(gc),
-            self.3.bind(gc),
-            self.4.bind(gc),
-            self.5.bind(gc),
-        )
+    fn local<'a>(self) -> Self::Of<'a> {
+        (self.0, self.1, self.2, self.3, self.4, self.5)
     }
 }

@@ -25,13 +25,13 @@ impl WeakRefPrototype {
     fn deref<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
         // 1. Let weakRef be the this value.
         // 2. Perform ? RequireInternalSlot(weakRef, [[WeakRefTarget]]).
-        let Value::WeakRef(weak_ref) = this_value.bind(gc) else {
+        let Value::WeakRef(weak_ref) = this_value else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Receiver of WeakRef.deref call is not a WeakRef",

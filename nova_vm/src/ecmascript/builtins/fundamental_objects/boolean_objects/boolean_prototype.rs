@@ -36,9 +36,9 @@ impl BooleanPrototype {
     fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let b = this_boolean_value(agent, this_value, gc.into_nogc())?;
         if b {
             Ok(BUILTIN_STRING_MEMORY.r#true.into())
@@ -50,9 +50,9 @@ impl BooleanPrototype {
     fn value_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         this_boolean_value(agent, this_value, gc.into_nogc()).map(|result| result.into())
     }
 
@@ -92,13 +92,13 @@ fn this_boolean_value<'a>(
     agent: &mut Agent,
     value: Value,
     gc: NoGcScope<'a, '_>,
-) -> JsResult<'a, bool> {
+) -> JsResult<'static, bool> {
     // 1. If value is a Boolean, return value.
     if let Value::Boolean(value) = value {
         return Ok(value);
     } else if let Value::PrimitiveObject(value) = value {
         // 2. If value is an Object and value has a [[BooleanData]] internal slot, then
-        if let PrimitiveObjectData::Boolean(b) = value.get(agent).data {
+        if let PrimitiveObjectData::Boolean(b) = value.get(agent).local().data {
             // a. Let b be value.[[BooleanData]].
             // b. Assert: b is a Boolean.
             // c. Return b.

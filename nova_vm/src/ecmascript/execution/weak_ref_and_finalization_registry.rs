@@ -51,15 +51,14 @@ pub(crate) struct FinalizationRegistryCleanupJob {
 impl FinalizationRegistryCleanupJob {
     pub(crate) fn new(agent: &mut Agent, finalization_registry: FinalizationRegistry) -> Self {
         Self {
-            finalization_registry: Global::new(agent, finalization_registry.unbind()),
+            finalization_registry: Global::new(agent, finalization_registry),
         }
     }
     pub(crate) fn run<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) {
-        let finalization_registry = self.finalization_registry.take(agent).bind(gc.nogc());
+        crate::engine::bind!(let finalization_registry = self.finalization_registry.take(agent).local(), gc);
         // 1. Let cleanupResult be
         //    Completion(CleanupFinalizationRegistry(finalizationRegistry)).
-        let cleanup_result =
-            cleanup_finalization_registry(agent, finalization_registry.unbind(), gc);
+        let cleanup_result = cleanup_finalization_registry(agent, finalization_registry, gc);
         // 2. If cleanupResult is an abrupt completion, perform any host-defined steps for reporting the error.
         if cleanup_result.is_err() {
             let _ = cleanup_result;
@@ -78,7 +77,7 @@ pub(crate) fn cleanup_finalization_registry<'gc>(
     finalization_registry: FinalizationRegistry,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let finalization_registry = finalization_registry.bind(gc.nogc());
+    crate::engine::bind!(let finalization_registry = finalization_registry, gc);
     // 1. Assert: finalizationRegistry has [[Cells]] and [[CleanupCallback]]
     //    internal slots.
     // 2. Let callback be finalizationRegistry.[[CleanupCallback]].
@@ -97,9 +96,9 @@ pub(crate) fn cleanup_finalization_registry<'gc>(
         // 2. Return ? Call(jobCallback.[[Callback]], V, argumentsList).
         let _ = call_function(
             agent,
-            callback.unbind(),
+            callback,
             Value::Undefined,
-            Some(ArgumentsList::from_mut_value(&mut value.unbind())),
+            Some(ArgumentsList::from_mut_value(&mut value)),
             gc,
         )?;
     } else {
@@ -108,30 +107,26 @@ pub(crate) fn cleanup_finalization_registry<'gc>(
         let queue = queue.scope(agent, gc.nogc());
         let result = call_function(
             agent,
-            callback.unbind(),
+            callback,
             Value::Undefined,
-            Some(ArgumentsList::from_mut_value(&mut value.unbind())),
+            Some(ArgumentsList::from_mut_value(&mut value)),
             gc.reborrow(),
-        )
-        .unbind()
-        .bind(gc.nogc());
+        )?;
         let mut err_and_i = None;
         if let Err(err) = result {
-            err_and_i = Some((err.unbind(), 0));
+            err_and_i = Some((err, 0));
         } else {
             for (i, value) in queue.iter(agent).enumerate() {
                 let value = value.get(gc.nogc());
                 let result = call_function(
                     agent,
-                    scoped_callback.get(agent),
+                    scoped_callback.get(agent).local(),
                     Value::Undefined,
-                    Some(ArgumentsList::from_mut_value(&mut value.unbind())),
+                    Some(ArgumentsList::from_mut_value(&mut value)),
                     gc.reborrow(),
-                )
-                .unbind()
-                .bind(gc.nogc());
+                )?;
                 if let Err(err) = result {
-                    err_and_i = Some((err.unbind(), i));
+                    err_and_i = Some((err, i));
                     break;
                 }
             }
@@ -141,14 +136,14 @@ pub(crate) fn cleanup_finalization_registry<'gc>(
         // FinalizationRegistry. This will re-request cleanup of the registry
         // if necessary.
         if let Some((err, i)) = err_and_i {
-            let err = err.unbind();
+            let err = err;
             let gc = gc.into_nogc();
-            let err = err.bind(gc);
-            let mut queue = queue.take(agent).bind(gc);
+            crate::engine::bind!(let err = err, gc);
+            crate::engine::bind!(let mut queue = queue.take(agent).local(), gc);
             // Drain all elements that were found so far.
             queue.drain(0..i);
-            let finalization_registry = unsafe { finalization_registry.take(agent) }.bind(gc);
-            let _ = unsafe { scoped_callback.take(agent) };
+            crate::engine::bind!(let finalization_registry = unsafe { finalization_registry.take(agent).local() }, gc);
+            let _ = unsafe { scoped_callback.take(agent).local() };
             if !queue.is_empty() {
                 finalization_registry.add_cleanups(agent, queue);
             }

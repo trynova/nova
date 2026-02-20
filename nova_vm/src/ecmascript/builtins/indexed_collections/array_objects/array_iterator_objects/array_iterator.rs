@@ -28,7 +28,7 @@ impl<'a> ArrayIterator<'a> {
     ) -> Self {
         agent.heap.create(ArrayIteratorHeapData {
             object_index: None,
-            array: Some(array.unbind()),
+            array: Some(array),
             next_index: 0,
             kind,
         })
@@ -40,14 +40,14 @@ impl<'a> InternalSlots<'a> for ArrayIterator<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index.unbind()
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
             self.get_mut(agent)
                 .object_index
-                .replace(backing_object.unbind())
+                .replace(backing_object)
                 .is_none()
         );
     }
@@ -57,7 +57,7 @@ impl<'a> InternalMethods<'a> for ArrayIterator<'a> {}
 
 impl<'a> CreateHeapData<ArrayIteratorHeapData<'a>, ArrayIterator<'a>> for Heap {
     fn create(&mut self, data: ArrayIteratorHeapData<'a>) -> ArrayIterator<'a> {
-        self.array_iterators.push(data.unbind());
+        self.array_iterators.push(data);
         self.alloc_counter += core::mem::size_of::<ArrayIteratorHeapData<'static>>();
         ArrayIterator(BaseIndex::last(&self.array_iterators))
     }

@@ -76,7 +76,7 @@ impl<'slice, 'value> ArgumentsList<'slice, 'value> {
         &mut self,
         agent: &mut Agent,
         work: impl FnOnce(&mut Agent, ScopedArgumentsList<'_>, GcScope<'a, '_>) -> R,
-        mut gc: GcScope<'a, '_>,
+        mut gc: GcScope,
     ) -> R
     where
         R: 'a,
@@ -225,18 +225,11 @@ impl<'slice, 'value> ArgumentsList<'slice, 'value> {
 }
 
 // SAFETY: Properly implemented as a lifetime transmute.
-unsafe impl<'slice> Bindable for ArgumentsList<'slice, '_> {
-    type Of<'a> = ArgumentsList<'slice, 'a>;
+unsafe impl<'slice, 'a> Bindable<'a> for ArgumentsList<'slice, 'a> {
+    type Of<'l> = ArgumentsList<'slice, 'l>;
 
     #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe {
-            core::mem::transmute::<ArgumentsList<'slice, '_>, ArgumentsList<'slice, 'static>>(self)
-        }
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+    fn local<'l>(self) -> Self::Of<'a> {
         unsafe {
             core::mem::transmute::<ArgumentsList<'slice, '_>, ArgumentsList<'slice, 'a>>(self)
         }
@@ -285,7 +278,6 @@ impl<'scope> ScopedArgumentsList<'scope> {
                 args.as_ref()
                     .get(index as usize)
                     .unwrap_or(&Value::Undefined)
-                    .bind(gc)
             }
         } else {
             unreachable!()
@@ -314,7 +306,7 @@ impl<'scope> ScopedArgumentsList<'scope> {
             // above call frame.
             let args: &mut [Value<'static>] = unsafe { args_ref.as_mut() };
             if let Some((first, rest)) = args.split_first_mut() {
-                let result = first.unbind().bind(gc);
+                crate::engine::bind!(let result = first, gc);
                 let rest = NonNull::from(rest);
                 *args_ref = rest;
                 Some(result)
@@ -368,15 +360,19 @@ impl core::fmt::Debug for ScopedArgumentsList<'_> {
     }
 }
 
-pub type RegularFn =
-    for<'gc> fn(&mut Agent, Value, ArgumentsList, GcScope<'gc, '_>) -> JsResult<'gc, Value<'gc>>;
-pub type ConstructorFn = for<'gc> fn(
+pub type RegularFn = fn(
     &mut Agent,
-    Value,
-    ArgumentsList,
-    Option<Object>,
-    GcScope<'gc, '_>,
-) -> JsResult<'gc, Value<'gc>>;
+    Value<'static>,
+    ArgumentsList<'_, 'static>,
+    GcScope,
+) -> JsResult<'static, Value<'static>>;
+pub type ConstructorFn = fn(
+    &mut Agent,
+    Value<'static>,
+    ArgumentsList<'_, 'static>,
+    Option<Object<'static>>,
+    GcScope,
+) -> JsResult<'static, Value<'static>>;
 
 #[allow(unpredictable_function_pointer_comparisons)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -523,7 +519,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
 
     #[inline(always)]
     fn get_function_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index.unbind()
+        self.get(agent).object_index
     }
 
     fn set_function_backing_object(
@@ -534,7 +530,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
         assert!(
             self.get_mut(agent)
                 .object_index
-                .replace(backing_object.unbind())
+                .replace(backing_object)
                 .is_none()
         );
     }
@@ -550,9 +546,9 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
         self,
         agent: &mut Agent,
         this_argument: Value,
-        arguments_list: ArgumentsList,
+        arguments_list: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let mut id = 0;
         ndt::builtin_call_start!(|| {
             let args = create_name_and_id(agent, self);
@@ -575,7 +571,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
     fn function_construct<'gc>(
         self,
         agent: &mut Agent,
-        arguments_list: ArgumentsList,
+        arguments_list: ArgumentsList<'_, 'static>,
         new_target: Function,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Object<'gc>> {
@@ -596,7 +592,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
 
 #[inline(never)]
 fn create_name_and_id<'a>(agent: &'a Agent, f: BuiltinFunction<'a>) -> (Cow<'a, str>, u64) {
-    let id = match f.get(agent).behaviour {
+    let id = match f.get(agent).local().behaviour {
         Behaviour::Regular(f) => f as usize as u64,
         Behaviour::Constructor(f) => f as usize as u64,
     };
@@ -615,22 +611,22 @@ fn builtin_call_or_construct<'gc>(
     agent: &mut Agent,
     f: BuiltinFunction,
     this_argument: Option<Value>,
-    arguments_list: ArgumentsList,
+    arguments_list: ArgumentsList<'_, 'static>,
     new_target: Option<Function>,
     gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, Value<'gc>> {
-    agent.check_call_depth(gc.nogc()).unbind()?;
+) -> JsResult<'static, Value<'static>> {
+    agent.check_call_depth(gc.nogc())?;
 
-    let f = f.bind(gc.nogc());
-    let this_argument = this_argument.bind(gc.nogc());
-    let arguments_list = arguments_list.bind(gc.nogc());
-    let new_target = new_target.bind(gc.nogc());
+    crate::engine::bind!(let f = f, gc);
+    crate::engine::bind!(let this_argument = this_argument, gc);
+    crate::engine::bind!(let arguments_list = arguments_list, gc);
+    crate::engine::bind!(let new_target = new_target, gc);
     // 1. Let callerContext be the running execution context.
     let caller_context = agent.running_execution_context();
     // 2. If callerContext is not already suspended, suspend callerContext.
     caller_context.suspend();
     // 5. Let calleeRealm be F.[[Realm]].
-    let heap_data = &f.get(agent);
+    let heap_data = &f.get(agent).local();
     let callee_realm = heap_data.realm;
     let func = heap_data.behaviour;
     // 3. Let calleeContext be a new execution context.
@@ -638,9 +634,9 @@ fn builtin_call_or_construct<'gc>(
         // 8. Perform any necessary implementation-defined initialization of calleeContext.
         ecmascript_code: None,
         // 4. Set the Function of calleeContext to F.
-        function: Some(f.unbind().into()),
+        function: Some(f.into()),
         // 6. Set the Realm of calleeContext to calleeRealm.
-        realm: callee_realm.unbind(),
+        realm: callee_realm,
         // 7. Set the ScriptOrModule of calleeContext to null.
         script_or_module: None,
     };
@@ -660,17 +656,17 @@ fn builtin_call_or_construct<'gc>(
             } else {
                 func(
                     agent,
-                    this_argument.unwrap_or(Value::Undefined).unbind(),
-                    arguments_list.unbind(),
+                    this_argument.unwrap_or(Value::Undefined),
+                    arguments_list,
                     gc,
                 )
             }
         }
         Behaviour::Constructor(func) => func(
             agent,
-            this_argument.unwrap_or(Value::Undefined).unbind(),
-            arguments_list.unbind(),
-            new_target.map(|target| target.unbind().into()),
+            this_argument.unwrap_or(Value::Undefined),
+            arguments_list,
+            new_target.map(|target| target.into()),
             gc,
         ),
     };
@@ -778,23 +774,20 @@ pub fn create_builtin_function<'a>(
     };
 
     // 13. Return func.
-    agent
-        .heap
-        .create(BuiltinFunctionHeapData {
-            behaviour,
-            initial_name: Some(initial_name),
-            // 10. Perform SetFunctionLength(func, length).
-            length: args.length as u8,
-            // 8. Set func.[[Realm]] to realm.
-            realm,
-            object_index,
-        })
-        .bind(gc)
+    agent.heap.create(BuiltinFunctionHeapData {
+        behaviour,
+        initial_name: Some(initial_name),
+        // 10. Perform SetFunctionLength(func, length).
+        length: args.length as u8,
+        // 8. Set func.[[Realm]] to realm.
+        realm,
+        object_index,
+    })
 }
 
 impl<'a> CreateHeapData<BuiltinFunctionHeapData<'a>, BuiltinFunction<'a>> for Heap {
     fn create(&mut self, data: BuiltinFunctionHeapData<'a>) -> BuiltinFunction<'a> {
-        self.builtin_functions.push(data.unbind());
+        self.builtin_functions.push(data);
         self.alloc_counter += core::mem::size_of::<BuiltinFunctionHeapData<'static>>();
         BuiltinFunction(BaseIndex::last(&self.builtin_functions))
     }

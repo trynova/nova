@@ -14,9 +14,9 @@ use crate::{
 pub(crate) fn base_class_default_constructor<'a>(
     agent: &mut Agent,
     new_target: Object,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, Object<'a>> {
-    let new_target = new_target.bind(gc.nogc());
+    mut gc: GcScope,
+) -> JsResult<'static, Object<'static>> {
+    crate::engine::bind!(let new_target = new_target, gc);
     // ii. If NewTarget is undefined, throw a TypeError exception.
     // Note: We've already checked this at an earlier level.
 
@@ -31,27 +31,25 @@ pub(crate) fn base_class_default_constructor<'a>(
     // 2. Let result be ? OrdinaryCreateFromConstructor(NewTarget, "%Object.prototype%").
     let result = ordinary_create_from_constructor(
         agent,
-        Function::try_from(new_target.unbind()).unwrap(),
+        Function::try_from(new_target).unwrap(),
         ProtoIntrinsics::Object,
         gc.reborrow(),
-    )
-    .unbind()?
-    .bind(gc.nogc());
+    )?;
     let scoped_result = result.scope(agent, gc.nogc());
     // vi. Perform ? InitializeInstanceElements(result, F).
-    initialize_instance_elements(agent, result.unbind(), f.get(agent), gc.reborrow()).unbind()?;
+    initialize_instance_elements(agent, result, f.get(agent).local(), gc.reborrow())?;
 
     // vii. Return result.
-    Ok(scoped_result.get(agent).bind(gc.into_nogc()))
+    Ok(scoped_result.get(agent).local())
 }
 
 pub(crate) fn derived_class_default_constructor<'a>(
     agent: &mut Agent,
-    args: ArgumentsList,
+    args: ArgumentsList<'_, 'static>,
     new_target: Object,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, Object<'a>> {
-    let new_target = new_target.bind(gc.nogc());
+    mut gc: GcScope,
+) -> JsResult<'static, Object<'static>> {
+    crate::engine::bind!(let new_target = new_target, gc);
     // i. Let args be the List of arguments that was passed to this function by [[Call]] or [[Construct]].
     // ii. If NewTarget is undefined, throw a TypeError exception.
     // Note: We've already checked this at an earlier level.
@@ -79,17 +77,15 @@ pub(crate) fn derived_class_default_constructor<'a>(
     // 4. Let result be ? Construct(func, args, NewTarget).
     let result = construct(
         agent,
-        func.unbind(),
+        func,
         Some(args),
-        Some(Function::try_from(new_target.unbind()).unwrap()),
+        Some(Function::try_from(new_target).unwrap()),
         gc.reborrow(),
-    )
-    .unbind()?
-    .bind(gc.nogc());
+    )?;
     let scoped_result = result.scope(agent, gc.nogc());
     // vi. Perform ? InitializeInstanceElements(result, F).
-    initialize_instance_elements(agent, result.unbind(), f.get(agent), gc.reborrow()).unbind()?;
+    initialize_instance_elements(agent, result, f.get(agent).local(), gc.reborrow())?;
 
     // vii. Return result.
-    Ok(scoped_result.get(agent).bind(gc.into_nogc()))
+    Ok(scoped_result.get(agent).local())
 }

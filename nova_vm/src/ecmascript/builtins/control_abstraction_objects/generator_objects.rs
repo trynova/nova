@@ -28,12 +28,18 @@ impl Generator<'_> {
         self,
         agent: &mut Agent,
         value: Value,
-        mut gc: GcScope<'a, '_>,
-    ) -> JsResult<'a, Value<'a>> {
-        let value = value.bind(gc.nogc());
-        let generator = self.bind(gc.nogc());
+        mut gc: GcScope,
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let value = value, gc);
+        crate::engine::bind!(let generator = self, gc);
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
-        match generator.get(agent).generator_state.as_ref().unwrap() {
+        match generator
+            .get(agent)
+            .local()
+            .generator_state
+            .as_ref()
+            .unwrap()
+        {
             GeneratorState::Executing => {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
@@ -79,12 +85,12 @@ impl Generator<'_> {
         // 9. Resume the suspended evaluation of genContext using NormalCompletion(value) as the
         // result of the operation that suspended it. Let result be the value returned by the
         // resumed computation.
-        let execution_result = vm.resume(agent, executable.clone(), value.unbind(), gc.reborrow());
+        let execution_result = vm.resume(agent, executable.clone(), value, gc.reborrow());
 
-        let execution_result = execution_result.unbind();
+        let execution_result = execution_result;
         let gc = gc.into_nogc();
-        let generator = saved.get(agent).bind(gc);
-        let execution_result = execution_result.bind(gc);
+        crate::engine::bind!(let generator = saved.get(agent).local(), gc);
+        crate::engine::bind!(let execution_result = execution_result, gc);
 
         // GeneratorStart: 4.f. Remove acGenContext from the execution context stack and restore the
         // execution context that is at the top of the execution context stack as the running
@@ -121,7 +127,7 @@ impl Generator<'_> {
                 generator.get_mut(agent).generator_state = Some(GeneratorState::Completed);
                 // k. i. Assert: result is a throw completion.
                 //    ii. Return ? result.
-                Err(err.unbind())
+                Err(err)
             }
             ExecutionResult::Yield { vm, yielded_value } => {
                 // Yield:
@@ -132,7 +138,7 @@ impl Generator<'_> {
                 generator.get_mut(agent).generator_state =
                     Some(GeneratorState::SuspendedYield(SuspendedGeneratorState {
                         vm,
-                        executable: executable.get(agent),
+                        executable: executable.get(agent).local(),
                         execution_context,
                     }));
                 // 8. Resume callerContext passing NormalCompletion(iterNextObj). ...
@@ -149,12 +155,18 @@ impl Generator<'_> {
         self,
         agent: &mut Agent,
         value: Value,
-        mut gc: GcScope<'a, '_>,
-    ) -> JsResult<'a, Value<'a>> {
-        let value = value.bind(gc.nogc());
-        let generator = self.bind(gc.nogc());
+        mut gc: GcScope,
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let value = value, gc);
+        crate::engine::bind!(let generator = self, gc);
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
-        match generator.get(agent).generator_state.as_ref().unwrap() {
+        match generator
+            .get(agent)
+            .local()
+            .generator_state
+            .as_ref()
+            .unwrap()
+        {
             GeneratorState::SuspendedStart(_) => {
                 // 2. If state is suspended-start, then
                 // a. Set generator.[[GeneratorState]] to completed.
@@ -166,7 +178,7 @@ impl Generator<'_> {
 
                 // 3. If state is completed, then
                 // b. Return ? abruptCompletion.
-                return Err(JsError::new(value.unbind()));
+                return Err(JsError::new(value));
             }
             GeneratorState::SuspendedYield(_) => {
                 // 4. Assert: state is suspended-yield.
@@ -181,7 +193,7 @@ impl Generator<'_> {
             GeneratorState::Completed => {
                 // 3. If state is completed, then
                 //    b. Return ? abruptCompletion.
-                return Err(JsError::new(value.unbind()));
+                return Err(JsError::new(value));
             }
         };
 
@@ -210,15 +222,13 @@ impl Generator<'_> {
         // 10. Resume the suspended evaluation of genContext using NormalCompletion(value) as the
         // result of the operation that suspended it. Let result be the value returned by the
         // resumed computation.
-        let execution_result = vm
-            .resume_throw(agent, executable.clone(), value.unbind(), gc.reborrow())
-            .unbind();
+        let execution_result = vm.resume_throw(agent, executable.clone(), value, gc.reborrow());
         let gc = gc.into_nogc();
-        let execution_result = execution_result.bind(gc);
+        crate::engine::bind!(let execution_result = execution_result, gc);
         // SAFETY: shared but not stored by resume.
-        let executable = unsafe { executable.take(agent).bind(gc) };
+        let executable = unsafe { executable.take(agent).local() };
         // SAFETY: not shared.
-        let generator = unsafe { generator.take(agent).bind(gc) };
+        let generator = unsafe { generator.take(agent).local() };
 
         // GeneratorStart: 4.f. Remove acGenContext from the execution context stack and restore the
         // execution context that is at the top of the execution context stack as the running
@@ -233,8 +243,7 @@ impl Generator<'_> {
         match execution_result {
             ExecutionResult::Return(result) => {
                 generator.get_mut(agent).generator_state = Some(GeneratorState::Completed);
-                create_iter_result_object(agent, result.unbind(), true, gc.into_nogc())
-                    .map(|o| o.into())
+                create_iter_result_object(agent, result, true, gc.into_nogc()).map(|o| o.into())
             }
             ExecutionResult::Throw(err) => {
                 generator.get_mut(agent).generator_state = Some(GeneratorState::Completed);
@@ -244,10 +253,10 @@ impl Generator<'_> {
                 generator.get_mut(agent).generator_state =
                     Some(GeneratorState::SuspendedYield(SuspendedGeneratorState {
                         vm,
-                        executable: executable.unbind(),
+                        executable: executable,
                         execution_context,
                     }));
-                Ok(yielded_value.unbind())
+                Ok(yielded_value)
             }
             ExecutionResult::Await { .. } => unreachable!(),
         }
@@ -259,12 +268,18 @@ impl Generator<'_> {
         self,
         agent: &mut Agent,
         abrupt_completion: Value,
-        mut gc: GcScope<'a, '_>,
-    ) -> JsResult<'a, Value<'a>> {
-        let abrupt_completion = abrupt_completion.bind(gc.nogc());
-        let generator = self.bind(gc.nogc());
+        mut gc: GcScope,
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let abrupt_completion = abrupt_completion, gc);
+        crate::engine::bind!(let generator = self, gc);
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
-        match generator.get(agent).generator_state.as_ref().unwrap() {
+        match generator
+            .get(agent)
+            .local()
+            .generator_state
+            .as_ref()
+            .unwrap()
+        {
             GeneratorState::SuspendedStart(_) => {
                 // 2. If state is suspended-start, then
                 // a. Set generator.[[GeneratorState]] to completed.
@@ -276,13 +291,8 @@ impl Generator<'_> {
 
                 // 3. If abruptCompletion is a return completion, then
                 // i. Return CreateIteratorResultObject(abruptCompletion.[[Value]], true).
-                return create_iter_result_object(
-                    agent,
-                    abrupt_completion.unbind(),
-                    true,
-                    gc.into_nogc(),
-                )
-                .map(|o| o.into());
+                return create_iter_result_object(agent, abrupt_completion, true, gc.into_nogc())
+                    .map(|o| o.into());
             }
             GeneratorState::SuspendedYield(_) => {
                 // 4. Assert: state is suspended-yield.
@@ -297,13 +307,8 @@ impl Generator<'_> {
             GeneratorState::Completed => {
                 // 3. If abruptCompletion is a return completion, then
                 // i. Return CreateIteratorResultObject(abruptCompletion.[[Value]], true).
-                return create_iter_result_object(
-                    agent,
-                    abrupt_completion.unbind(),
-                    true,
-                    gc.into_nogc(),
-                )
-                .map(|o| o.into());
+                return create_iter_result_object(agent, abrupt_completion, true, gc.into_nogc())
+                    .map(|o| o.into());
             }
         };
 
@@ -334,20 +339,14 @@ impl Generator<'_> {
         //     abruptCompletion as the result of the operation that suspended
         //     it. Let result be the Completion Record returned by the resumed
         //     computation.
-        let execution_result = vm
-            .resume_return(
-                agent,
-                executable.clone(),
-                abrupt_completion.unbind(),
-                gc.reborrow(),
-            )
-            .unbind();
+        let execution_result =
+            vm.resume_return(agent, executable.clone(), abrupt_completion, gc.reborrow());
         let gc = gc.into_nogc();
-        let execution_result = execution_result.bind(gc);
+        crate::engine::bind!(let execution_result = execution_result, gc);
         // SAFETY: shared but not stored by resume.
-        let executable = unsafe { executable.take(agent).bind(gc) };
+        let executable = unsafe { executable.take(agent).local() };
         // SAFETY: not shared.
-        let generator = unsafe { generator.take(agent).bind(gc) };
+        let generator = unsafe { generator.take(agent).local() };
 
         // GeneratorStart: 4.f. Remove acGenContext from the execution context stack and restore the
         // execution context that is at the top of the execution context stack as the running
@@ -372,7 +371,7 @@ impl Generator<'_> {
                 generator.get_mut(agent).generator_state =
                     Some(GeneratorState::SuspendedYield(SuspendedGeneratorState {
                         vm,
-                        executable: executable.unbind(),
+                        executable: executable,
                         execution_context,
                     }));
                 Ok(yielded_value)
@@ -387,7 +386,7 @@ impl<'a> InternalSlots<'a> for Generator<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index.unbind()
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
@@ -404,7 +403,7 @@ impl<'a> InternalMethods<'a> for Generator<'a> {}
 
 impl<'a> CreateHeapData<GeneratorHeapData<'a>, Generator<'a>> for Heap {
     fn create(&mut self, data: GeneratorHeapData<'a>) -> Generator<'a> {
-        self.generators.push(data.unbind());
+        self.generators.push(data);
         self.alloc_counter += core::mem::size_of::<GeneratorHeapData<'static>>();
         Generator(BaseIndex::last(&self.generators))
     }

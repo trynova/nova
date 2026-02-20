@@ -2659,7 +2659,7 @@ fn compile_create_iterator_result_object(ctx: &mut CompileContext, done: bool) {
         .current_realm_record()
         .intrinsics()
         .object_prototype()
-        .bind(gc);
+        ;
     let shape = ObjectShape::get_shape_for_prototype(agent, Some(prototype.into()))
         .get_child_shape(agent, BUILTIN_STRING_MEMORY.value.to_property_key())
         .expect("Should perform GC here")
@@ -4575,7 +4575,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::TSEnum
 
         let keys_memory = agent.heap.elements.get_keys_uninit_raw(cap, index);
         for (slot, key) in keys_memory.iter_mut().zip(property_keys.iter()) {
-            *slot = Some(key.unbind());
+            *slot = Some(key);
         }
 
         let shape = agent.heap.create(ObjectShapeRecord::create(

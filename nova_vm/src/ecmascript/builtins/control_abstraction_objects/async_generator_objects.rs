@@ -34,7 +34,7 @@ impl AsyncGenerator<'_> {
         agent: &Agent,
         gc: NoGcScope<'gc, '_>,
     ) -> Executable<'gc> {
-        self.get(agent).executable.unwrap().bind(gc)
+        self.get(agent).executable.unwrap()
     }
 
     /// Returns true if the state of the AsyncGenerator is DRAINING-QUEUE or
@@ -101,18 +101,8 @@ impl AsyncGenerator<'_> {
         }
     }
 
-    pub(crate) fn peek_first<'a, 'gc>(
-        self,
-        agent: &'a mut Agent,
-        gc: NoGcScope<'gc, '_>,
-    ) -> &'a AsyncGeneratorRequest<'gc> {
-        match self
-            .bind(gc)
-            .get_mut(agent)
-            .async_generator_state
-            .as_mut()
-            .unwrap()
-        {
+    pub(crate) fn peek_first(self, agent: &mut Agent) -> &AsyncGeneratorRequest<'static> {
+        match self.get_mut(agent).async_generator_state.as_mut().unwrap() {
             AsyncGeneratorState::ExecutingAwait { queue, .. }
             | AsyncGeneratorState::SuspendedStart { queue, .. }
             | AsyncGeneratorState::SuspendedYield { queue, .. }
@@ -122,18 +112,14 @@ impl AsyncGenerator<'_> {
         }
     }
 
-    pub(crate) fn pop_first<'gc>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'gc, '_>,
-    ) -> AsyncGeneratorRequest<'gc> {
+    pub(crate) fn pop_first(self, agent: &mut Agent) -> AsyncGeneratorRequest<'static> {
         match self.get_mut(agent).async_generator_state.as_mut().unwrap() {
             AsyncGeneratorState::ExecutingAwait { queue, .. }
             | AsyncGeneratorState::SuspendedStart { queue, .. }
             | AsyncGeneratorState::SuspendedYield { queue, .. }
             | AsyncGeneratorState::Executing(queue)
             | AsyncGeneratorState::DrainingQueue(queue)
-            | AsyncGeneratorState::Completed(queue) => queue.pop_front().unwrap().bind(gc),
+            | AsyncGeneratorState::Completed(queue) => queue.pop_front().unwrap(),
         }
     }
 
@@ -144,7 +130,7 @@ impl AsyncGenerator<'_> {
             | AsyncGeneratorState::SuspendedYield { queue, .. }
             | AsyncGeneratorState::Executing(queue)
             | AsyncGeneratorState::DrainingQueue(queue)
-            | AsyncGeneratorState::Completed(queue) => queue.push_back(request.unbind()),
+            | AsyncGeneratorState::Completed(queue) => queue.push_back(request),
         }
     }
 
@@ -241,16 +227,16 @@ impl AsyncGenerator<'_> {
         value: Value,
         mut gc: GcScope,
     ) {
-        let value = value.bind(gc.nogc());
+        crate::engine::bind!(let value = value, gc);
         if self.is_draining_queue(agent) {
             // We're coming here because return was called.
             match reaction_type {
                 PromiseReactionType::Fulfill => {
                     // AsyncGeneratorAwaitReturn onFulfilled
-                    async_generator_await_return_on_fulfilled(agent, self, value.unbind(), gc);
+                    async_generator_await_return_on_fulfilled(agent, self, value, gc);
                 }
                 PromiseReactionType::Reject => {
-                    async_generator_await_return_on_rejected(agent, self, value.unbind(), gc);
+                    async_generator_await_return_on_rejected(agent, self, value, gc);
                 }
             }
             return;
@@ -277,13 +263,18 @@ impl AsyncGenerator<'_> {
         let execution_result = match kind {
             AsyncGeneratorAwaitKind::Await => {
                 // Await only.
-                let executable = self.get(agent).executable.unwrap().scope(agent, gc.nogc());
+                let executable = self
+                    .get(agent)
+                    .local()
+                    .executable
+                    .unwrap()
+                    .scope(agent, gc.nogc());
                 match reaction_type {
                     PromiseReactionType::Fulfill => {
-                        vm.resume(agent, executable, value.unbind(), gc.reborrow())
+                        vm.resume(agent, executable, value, gc.reborrow())
                     }
                     PromiseReactionType::Reject => {
-                        vm.resume_throw(agent, executable, value.unbind(), gc.reborrow())
+                        vm.resume_throw(agent, executable, value, gc.reborrow())
                     }
                 }
             }
@@ -292,12 +283,17 @@ impl AsyncGenerator<'_> {
                 if reaction_type == PromiseReactionType::Reject {
                     // ? Yield ( ? Await ( Value ) ), so Yield doesn't get
                     // performed at all and value is just thrown.
-                    let executable = self.get(agent).executable.unwrap().scope(agent, gc.nogc());
-                    vm.resume_throw(agent, executable, value.unbind(), gc.reborrow())
+                    let executable = self
+                        .get(agent)
+                        .local()
+                        .executable
+                        .unwrap()
+                        .scope(agent, gc.nogc());
+                    vm.resume_throw(agent, executable, value, gc.reborrow())
                 } else {
                     async_generator_yield(
                         agent,
-                        value.unbind(),
+                        value,
                         scoped_generator.clone(),
                         vm,
                         gc.reborrow(),
@@ -306,7 +302,7 @@ impl AsyncGenerator<'_> {
                 }
             }
         };
-        resume_handle_result(agent, execution_result.unbind(), scoped_generator, gc);
+        resume_handle_result(agent, execution_result, scoped_generator, gc);
     }
 }
 
@@ -315,14 +311,14 @@ impl<'a> InternalSlots<'a> for AsyncGenerator<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index.unbind()
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
             self.get_mut(agent)
                 .object_index
-                .replace(backing_object.unbind())
+                .replace(backing_object)
                 .is_none()
         );
     }
@@ -332,7 +328,7 @@ impl<'a> InternalMethods<'a> for AsyncGenerator<'a> {}
 
 impl<'a> CreateHeapData<AsyncGeneratorHeapData<'a>, AsyncGenerator<'a>> for Heap {
     fn create(&mut self, data: AsyncGeneratorHeapData<'a>) -> AsyncGenerator<'a> {
-        self.async_generators.push(data.unbind());
+        self.async_generators.push(data);
         self.alloc_counter += core::mem::size_of::<AsyncGeneratorHeapData<'static>>();
         AsyncGenerator(BaseIndex::last(&self.async_generators))
     }

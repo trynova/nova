@@ -27,9 +27,9 @@ impl SetIteratorPrototype {
     fn next<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _arguments: ArgumentsList,
+        _arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
         // 27.5.3.2 GeneratorValidate ( generator, generatorBrand )
         // 3. If generator.[[GeneratorBrand]] is not generatorBrand, throw a TypeError exception.
@@ -40,11 +40,11 @@ impl SetIteratorPrototype {
                 gc,
             ));
         };
-        let iterator = iterator.bind(gc);
+        crate::engine::bind!(let iterator = iterator, gc);
 
         // 24.2.6.1 CreateSetIterator ( set, kind )
         // NOTE: We set `set` to None when the generator in the spec text has returned.
-        let Some(set) = iterator.get(agent).set else {
+        let Some(set) = iterator.get(agent).local().set else {
             return create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
                 .map(|o| o.into());
         };
@@ -52,24 +52,24 @@ impl SetIteratorPrototype {
         // b. Let entries be set.[[SetData]].
         // c. Let numEntries be the number of elements in entries.
         // d. Repeat, while index < numEntries,
-        while iterator.get(agent).next_index < set.get(agent).values.len() {
+        while iterator.get(agent).local().next_index < set.get(agent).local().values.len() {
             // i. Let e be entries[index].
             // ii. Set index to index + 1.
-            let index = iterator.get(agent).next_index;
+            let index = iterator.get(agent).local().next_index;
             iterator.get_mut(agent).next_index += 1;
 
             // iii. if e is not EMPTY, then
-            let Some(e) = set.get(agent).values[index] else {
+            let Some(e) = set.get(agent).local().values[index] else {
                 continue;
             };
 
-            let result = match iterator.get(agent).kind {
+            let result = match iterator.get(agent).local().kind {
                 CollectionIteratorKind::Key => unreachable!(),
                 CollectionIteratorKind::KeyAndValue => {
                     // 1. If kind is KEY+VALUE, then
                     //   a. Let result be CreateArrayFromList(« e, e »).
                     //   b. Perform ? GeneratorYield(CreateIteratorResultObject(result, false)).
-                    create_array_from_list(agent, &[e.unbind(), e.unbind()], gc).into()
+                    create_array_from_list(agent, &[e, e], gc).into()
                 }
                 CollectionIteratorKind::Value => {
                     // 2. Else,
@@ -79,11 +79,14 @@ impl SetIteratorPrototype {
                 }
             };
 
-            return create_iter_result_object(agent, result.unbind(), false, gc.into_nogc())
+            return create_iter_result_object(agent, result, false, gc.into_nogc())
                 .map(|o| o.into());
         }
 
-        debug_assert_eq!(iterator.get(agent).next_index, set.get(agent).values.len());
+        debug_assert_eq!(
+            iterator.get(agent).local().next_index,
+            set.get(agent).local().values.len()
+        );
 
         // e. Return undefined.
         iterator.get_mut(agent).set = None;

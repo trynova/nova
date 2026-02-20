@@ -60,7 +60,7 @@ impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {
         gc: NoGcScope<'gc, '_>,
     ) -> TryGetResult<'gc> {
         let offset = offset.get_property_offset();
-        let obj = self.bind(gc);
+        crate::engine::bind!(let obj = self, gc);
         let data = obj.get_elements_storage(agent);
         if let Some(v) = data.values[offset as usize] {
             v.into()
@@ -233,7 +233,7 @@ pub(crate) fn ordinary_get_own_property<'a>(
     // 4. If X is a data property, then
     if let Some(value) = value {
         // a. Set D.[[Value]] to the value of X's [[Value]] attribute.
-        descriptor.value = Some(value.bind(gc));
+        descriptor.value = Some(value);
 
         // b. Set D.[[Writable]] to the value of X's [[Writable]] attribute.
         descriptor.writable = Some(x.is_none_or(|x| x.is_writable().unwrap()));
@@ -598,7 +598,7 @@ pub(crate) fn ordinary_try_has_property<'gc>(
             } else {
                 TryHasResult::Offset(
                     offset.get_property_offset() as u32,
-                    prototype.unwrap_or(object).bind(gc),
+                    prototype.unwrap_or(object),
                 )
                 .into()
             };
@@ -635,7 +635,7 @@ pub(crate) fn ordinary_try_has_property<'gc>(
                 cache.insert_prototype_lookup_offset(agent, shape, offset, object);
             }
         }
-        return TryHasResult::Offset(offset, object.bind(gc)).into();
+        return TryHasResult::Offset(offset, object).into();
     };
 
     // 3. Let parent be ? O.[[GetPrototypeOf]]().
@@ -686,10 +686,10 @@ pub(crate) fn ordinary_has_property<'a>(
     object: Object,
     backing_object: OrdinaryObject,
     property_key: PropertyKey,
-    gc: GcScope<'a, '_>,
-) -> JsResult<'a, bool> {
-    let backing_object = backing_object.bind(gc.nogc());
-    let property_key = property_key.bind(gc.nogc());
+    gc: GcScope,
+) -> JsResult<'static, bool> {
+    crate::engine::bind!(let backing_object = backing_object, gc);
+    crate::engine::bind!(let property_key = property_key, gc);
     // 1. Let hasOwn be ? O.[[GetOwnProperty]](P).
 
     let has_own = backing_object
@@ -724,14 +724,12 @@ pub(crate) fn ordinary_has_property<'a>(
     };
 
     // 3. Let parent be ? O.[[GetPrototypeOf]]().
-    let parent = backing_object.internal_prototype(agent).bind(gc.nogc());
+    crate::engine::bind!(let parent = backing_object.internal_prototype(agent), gc);
 
     // 4. If parent is not null, then
     if let Some(parent) = parent {
         // a. Return ? parent.[[HasProperty]](P).
-        return parent
-            .unbind()
-            .internal_has_property(agent, property_key.unbind(), gc);
+        return parent.internal_has_property(agent, property_key, gc);
     }
 
     if let Some(CacheToPopulate {
@@ -758,15 +756,11 @@ pub(crate) fn ordinary_has_property_entry<'a, 'gc>(
     property_key: PropertyKey,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, bool> {
-    let property_key = property_key.bind(gc.nogc());
+    crate::engine::bind!(let property_key = property_key, gc);
     match object.get_backing_object(agent) {
-        Some(backing_object) => ordinary_has_property(
-            agent,
-            object.into(),
-            backing_object,
-            property_key.unbind(),
-            gc,
-        ),
+        Some(backing_object) => {
+            ordinary_has_property(agent, object.into(), backing_object, property_key, gc)
+        }
         None => {
             // 3. Let parent be ? O.[[GetPrototypeOf]]().
             let parent = unwrap_try(object.try_get_prototype_of(agent, gc.nogc()));
@@ -774,9 +768,7 @@ pub(crate) fn ordinary_has_property_entry<'a, 'gc>(
             // 4. If parent is not null, then
             if let Some(parent) = parent {
                 // a. Return ? parent.[[HasProperty]](P).
-                parent
-                    .unbind()
-                    .internal_has_property(agent, property_key.unbind(), gc)
+                parent.internal_has_property(agent, property_key, gc)
             } else {
                 // 5. Return false.
                 Ok(false)
@@ -795,10 +787,10 @@ pub(crate) fn ordinary_try_get<'gc>(
     cache: Option<PropertyLookupCache>,
     gc: NoGcScope<'gc, '_>,
 ) -> TryResult<'gc, TryGetResult<'gc>> {
-    let object = object.bind(gc);
-    let backing_object = backing_object.bind(gc);
-    let property_key = property_key.bind(gc);
-    let receiver = receiver.bind(gc);
+    crate::engine::bind!(let object = object, gc);
+    crate::engine::bind!(let backing_object = backing_object, gc);
+    crate::engine::bind!(let property_key = property_key, gc);
+    crate::engine::bind!(let receiver = receiver, gc);
 
     if let Some(cache) = cache {
         // A cache-based lookup on an ordinary object can fully rely on the
@@ -882,63 +874,44 @@ pub(crate) fn ordinary_get<'gc>(
     property_key: PropertyKey,
     receiver: Value,
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, Value<'gc>> {
-    let object = object.bind(gc.nogc());
-    let property_key = property_key.bind(gc.nogc());
+) -> JsResult<'static, Value<'static>> {
+    crate::engine::bind!(let object = object, gc);
+    crate::engine::bind!(let property_key = property_key, gc);
     // Note: We scope here because it's likely we've already tried.
     let scoped_object = object.scope(agent, gc.nogc());
     let scoped_property_key = property_key.scope(agent, gc.nogc());
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
-    let Some(descriptor) = object
-        .unbind()
-        .internal_get_own_property(agent, property_key.unbind(), gc.reborrow())
-        .unbind()?
-        .bind(gc.nogc())
+    let Some(descriptor) = object.internal_get_own_property(agent, property_key, gc.reborrow())?
     else {
         // 2. If desc is undefined, then
 
         // a. Let parent be ? O.[[GetPrototypeOf]]().
-        let object = scoped_object.get(agent).bind(gc.nogc());
+        crate::engine::bind!(let object = scoped_object.get(agent).local(), gc);
         let (parent, property_key, receiver) =
             if let TryResult::Continue(parent) = object.try_get_prototype_of(agent, gc.nogc()) {
                 let Some(parent) = parent else {
                     return Ok(Value::Undefined);
                 };
-                (
-                    parent,
-                    scoped_property_key.get(agent).bind(gc.nogc()),
-                    receiver,
-                )
+                (parent, scoped_property_key.get(agent).local(), receiver)
             } else {
                 // Note: We should root property_key and receiver here.
                 let receiver = receiver.scope(agent, gc.nogc());
-                let Some(parent) = object
-                    .unbind()
-                    .internal_get_prototype_of(agent, gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc())
-                else {
+                let Some(parent) = object.internal_get_prototype_of(agent, gc.reborrow())? else {
                     return Ok(Value::Undefined);
                 };
-                let parent = parent.unbind().bind(gc.nogc());
-                let receiver = receiver.get(agent);
-                (
-                    parent,
-                    scoped_property_key.get(agent).bind(gc.nogc()),
-                    receiver,
-                )
+                let parent = parent;
+                let receiver = receiver.get(agent).local();
+                (parent, scoped_property_key.get(agent).local(), receiver)
             };
 
         // c. Return ? parent.[[Get]](P, Receiver).
-        return parent
-            .unbind()
-            .internal_get(agent, property_key.unbind(), receiver, gc);
+        return parent.internal_get(agent, property_key, receiver, gc);
     };
 
     // 3. If IsDataDescriptor(desc) is true, return desc.[[Value]].
     if let Some(value) = descriptor.value {
         debug_assert!(descriptor.is_data_descriptor());
-        return Ok(value.unbind());
+        return Ok(value);
     }
 
     // 4. Assert: IsAccessorDescriptor(desc) is true.
@@ -951,7 +924,7 @@ pub(crate) fn ordinary_get<'gc>(
     };
 
     // 7. Return ? Call(getter, Receiver).
-    call_function(agent, getter.unbind(), receiver.unbind(), None, gc)
+    call_function(agent, getter, receiver, None, gc)
 }
 
 /// ### [10.1.9.1 OrdinarySet ( O, P, V, Receiver )](https://tc39.es/ecma262/#sec-ordinaryset)
@@ -987,17 +960,14 @@ pub(crate) fn ordinary_set<'a>(
     property_key: PropertyKey,
     value: Value,
     receiver: Value,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, bool> {
-    let property_key = property_key.bind(gc.nogc());
+    mut gc: GcScope,
+) -> JsResult<'static, bool> {
+    crate::engine::bind!(let property_key = property_key, gc);
     // Note: We scope here because it's likely we've already tried.
     let scoped_property_key = property_key.scope(agent, gc.nogc());
 
     // 1. Let ownDesc be ? O.[[GetOwnProperty]](P).
-    let own_descriptor = object
-        .internal_get_own_property(agent, property_key.unbind(), gc.reborrow())
-        .unbind()?
-        .bind(gc.nogc());
+    let own_descriptor = object.internal_get_own_property(agent, property_key, gc.reborrow())?;
 
     // 2. Return ? OrdinarySetWithOwnDescriptor(O, P, V, Receiver, ownDesc).
     ordinary_set_with_own_descriptor(
@@ -1006,7 +976,7 @@ pub(crate) fn ordinary_set<'a>(
         scoped_property_key,
         value,
         receiver,
-        own_descriptor.unbind(),
+        own_descriptor,
         gc,
     )
 }
@@ -1106,7 +1076,7 @@ fn ordinary_try_set_with_own_descriptor<'gc, 'o>(
 
             // iii. Let valueDesc be the PropertyDescriptor { [[Value]]: V }.
             let value_descriptor = PropertyDescriptor {
-                value: Some(value.unbind()),
+                value: Some(value),
                 ..Default::default()
             };
 
@@ -1134,7 +1104,7 @@ fn ordinary_try_set_with_own_descriptor<'gc, 'o>(
     debug_assert!(own_descriptor.is_accessor_descriptor());
 
     // 4. Let setter be ownDesc.[[Set]].
-    let setter = own_descriptor.set.unwrap().bind(gc);
+    crate::engine::bind!(let setter = own_descriptor.set.unwrap(), gc);
     // 5. If setter is undefined, return false.
     let Some(setter) = setter else {
         return SetResult::Accessor.into();
@@ -1158,13 +1128,13 @@ fn ordinary_set_with_own_descriptor<'a>(
     value: Value,
     receiver: Value,
     own_descriptor: Option<PropertyDescriptor>,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, bool> {
-    let mut value = value.bind(gc.nogc());
-    let receiver = receiver.bind(gc.nogc());
-    let property_key = scoped_property_key.get(agent).bind(gc.nogc());
+    mut gc: GcScope,
+) -> JsResult<'static, bool> {
+    crate::engine::bind!(let mut value = value, gc);
+    crate::engine::bind!(let receiver = receiver, gc);
+    crate::engine::bind!(let property_key = scoped_property_key.get(agent).local(), gc);
     let own_descriptor = if let Some(own_descriptor) = own_descriptor {
-        own_descriptor.bind(gc.nogc())
+        own_descriptor
     } else {
         // 1. If ownDesc is undefined, then
         // a. Let parent be ? O.[[GetPrototypeOf]]().
@@ -1175,13 +1145,7 @@ fn ordinary_set_with_own_descriptor<'a>(
         if let Some(parent) = parent {
             // i. Return ? parent.[[Set]](P, V, Receiver).
             // Note: Prototype might be a Proxy or contain a setter.
-            return parent.unbind().internal_set(
-                agent,
-                property_key.unbind(),
-                value.unbind(),
-                receiver.unbind(),
-                gc,
-            );
+            return parent.internal_set(agent, property_key, value, receiver, gc);
         }
         // c. Else,
         else {
@@ -1210,7 +1174,7 @@ fn ordinary_set_with_own_descriptor<'a>(
             return Ok(false);
         };
 
-        let property_key = scoped_property_key.get(agent).bind(gc.nogc());
+        crate::engine::bind!(let property_key = scoped_property_key.get(agent).local(), gc);
         // c. Let existingDescriptor be ? Receiver.[[GetOwnProperty]](P).
         let existing_descriptor = if let TryResult::Continue(desc) =
             receiver.try_get_own_property(agent, property_key, None, gc.nogc())
@@ -1219,15 +1183,15 @@ fn ordinary_set_with_own_descriptor<'a>(
         } else {
             let scoped_receiver = receiver.scope(agent, gc.nogc());
             let scoped_value = value.scope(agent, gc.nogc());
-            let desc = receiver
-                .unbind()
-                .internal_get_own_property(agent, scoped_property_key.get(agent), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let desc = receiver.internal_get_own_property(
+                agent,
+                scoped_property_key.get(agent).local(),
+                gc.reborrow(),
+            )?;
             // SAFETY: Neither are shared.
             unsafe {
-                value = scoped_value.take(agent).bind(gc.nogc());
-                receiver = scoped_receiver.take(agent).bind(gc.nogc());
+                value = scoped_value.take(agent).local();
+                receiver = scoped_receiver.take(agent).local();
             }
             desc
         };
@@ -1251,10 +1215,10 @@ fn ordinary_set_with_own_descriptor<'a>(
             };
 
             // iv. Return ? Receiver.[[DefineOwnProperty]](P, valueDesc).
-            return receiver.unbind().internal_define_own_property(
+            return receiver.internal_define_own_property(
                 agent,
-                scoped_property_key.get(agent).unbind(),
-                value_descriptor.unbind(),
+                scoped_property_key.get(agent).local(),
+                value_descriptor,
                 gc,
             );
         }
@@ -1269,9 +1233,9 @@ fn ordinary_set_with_own_descriptor<'a>(
             // ii. Return ? CreateDataProperty(Receiver, P, V).
             return create_data_property(
                 agent,
-                receiver.unbind(),
-                scoped_property_key.get(agent),
-                value.unbind(),
+                receiver,
+                scoped_property_key.get(agent).local(),
+                value,
                 gc,
             );
         }
@@ -1289,9 +1253,9 @@ fn ordinary_set_with_own_descriptor<'a>(
     // 6. Perform ? Call(setter, Receiver, « V »).
     call_function(
         agent,
-        setter.unbind(),
-        receiver.unbind(),
-        Some(ArgumentsList::from_mut_slice(&mut [value.unbind()])),
+        setter,
+        receiver,
+        Some(ArgumentsList::from_mut_slice(&mut [value])),
         gc,
     )?;
 
@@ -1308,11 +1272,11 @@ pub(crate) fn ordinary_set_at_offset<'a>(
     offset: PropertyOffset,
     gc: NoGcScope<'a, '_>,
 ) -> TryResult<'a, SetResult<'a>> {
-    let o = o.bind(gc);
-    let bo = bo.bind(gc);
-    let p = props.p.bind(gc);
-    let v = props.value.bind(gc);
-    let receiver = props.receiver.bind(gc);
+    crate::engine::bind!(let o = o, gc);
+    crate::engine::bind!(let bo = bo, gc);
+    crate::engine::bind!(let p = props.p, gc);
+    crate::engine::bind!(let v = props.value, gc);
+    crate::engine::bind!(let receiver = props.receiver, gc);
 
     let ov: Value = o.into();
     let is_receiver = ov == receiver;
@@ -1376,7 +1340,7 @@ pub(crate) fn ordinary_set_at_offset<'a>(
             // ## 2.d.
             // iii. Let valueDesc be the PropertyDescriptor { [[Value]]: V }.
             // iv. Return ? Receiver.[[DefineOwnProperty]](P, valueDesc).
-            *slot = v.unbind();
+            *slot = v;
             SetResult::Done.into()
         } else {
             // b. If Receiver is not an Object, return false.
@@ -1424,7 +1388,7 @@ fn handle_super_set_inner<'gc>(
 
         // iii. Let valueDesc be the PropertyDescriptor { [[Value]]: V }.
         let value_desc = PropertyDescriptor {
-            value: Some(v.unbind()),
+            value: Some(v),
             ..Default::default()
         };
 
@@ -1508,14 +1472,14 @@ pub(crate) fn ordinary_own_property_keys<'a>(
                     // Integer property key! This requires sorting
                     integer_keys.push(key_value as u32);
                 } else {
-                    keys_vec.push(key.bind(gc));
+                    keys_vec.push(key);
                 }
             }
-            PropertyKey::Symbol(symbol) => symbol_keys.push(symbol.bind(gc)),
+            PropertyKey::Symbol(symbol) => symbol_keys.push(symbol),
             // Note: PrivateName keys are always invisible.
             PropertyKey::PrivateName(_) => {}
             // a. Append P to keys.
-            _ => keys_vec.push(key.bind(gc)),
+            _ => keys_vec.push(key),
         }
     }
 
@@ -1542,9 +1506,7 @@ pub(crate) fn ordinary_object_create_null<'a>(
     agent: &mut Agent,
     gc: NoGcScope<'a, '_>,
 ) -> OrdinaryObject<'a> {
-    OrdinaryObject::create_object(agent, None, &[])
-        .expect("Should perform GC here")
-        .bind(gc)
+    OrdinaryObject::create_object(agent, None, &[]).expect("Should perform GC here")
 }
 
 /// ### [10.1.12 OrdinaryObjectCreate ( proto \[ , additionalInternalSlotsList \] )](https://tc39.es/ecma262/#sec-ordinaryobjectcreate)
@@ -1766,8 +1728,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
         ProtoIntrinsics::WeakRef => agent.heap.create(WeakRefHeapData::default()).into(),
         #[cfg(feature = "weak-refs")]
         ProtoIntrinsics::WeakSet => agent.heap.create(WeakSetHeapData::default()).into(),
-    }
-    .bind(gc);
+    };
 
     ordinary_object_populate_with_intrinsics(agent, object, prototype)
 }
@@ -1792,23 +1753,18 @@ pub(crate) fn ordinary_create_from_constructor<'a>(
     agent: &mut Agent,
     constructor: Function,
     intrinsic_default_proto: ProtoIntrinsics,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, Object<'a>> {
-    let constructor = constructor.bind(gc.nogc());
+    mut gc: GcScope,
+) -> JsResult<'static, Object<'static>> {
+    crate::engine::bind!(let constructor = constructor, gc);
     // 1. Assert: intrinsicDefaultProto is this specification's name of an
     // intrinsic object. The corresponding object must be an intrinsic that is
     // intended to be used as the [[Prototype]] value of an object.
 
     // 2. Let proto be ? GetPrototypeFromConstructor(constructor, intrinsicDefaultProto).
-    let proto = get_prototype_from_constructor(
-        agent,
-        constructor.unbind(),
-        intrinsic_default_proto,
-        gc.reborrow(),
-    )
-    .unbind()?;
+    let proto =
+        get_prototype_from_constructor(agent, constructor, intrinsic_default_proto, gc.reborrow())?;
     let gc = gc.into_nogc();
-    let proto = proto.bind(gc.into_nogc());
+    crate::engine::bind!(let proto = proto, gc);
     // 3. If internalSlotsList is present, let slotsList be internalSlotsList.
     // 4. Else, let slotsList be a new empty List.
     // 5. Return OrdinaryObjectCreate(proto, slotsList).
@@ -1845,8 +1801,8 @@ pub(crate) fn ordinary_populate_from_constructor<'gc>(
     intrinsic_default_proto: ProtoIntrinsics,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Object<'gc>> {
-    let mut object = object.bind(gc.nogc());
-    let constructor = constructor.bind(gc.nogc());
+    crate::engine::bind!(let mut object = object, gc);
+    crate::engine::bind!(let constructor = constructor, gc);
 
     // 1. Assert: intrinsicDefaultProto is this specification's name of an
     // intrinsic object. The corresponding object must be an intrinsic that is
@@ -1858,31 +1814,26 @@ pub(crate) fn ordinary_populate_from_constructor<'gc>(
         constructor,
         intrinsic_default_proto,
         gc.nogc(),
-    ))
-    .unbind()?
-    .bind(gc.nogc())
-    {
+    ))? {
         proto
     } else {
         // Couldn't get proto without calling into JS. This is a very rare case.
         let scoped_object = object.scope(agent, gc.nogc());
         let proto = get_prototype_from_constructor(
             agent,
-            constructor.unbind(),
+            constructor,
             intrinsic_default_proto,
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         // SAFETY: not shared.
-        object = unsafe { scoped_object.take(agent) }.bind(gc.nogc());
+        object = unsafe { scoped_object.take(agent).local() };
         proto
     };
-    let object = object.unbind();
-    let proto = proto.unbind();
+    let object = object;
+    let proto = proto;
     let gc = gc.into_nogc();
-    let object = object.bind(gc);
-    let proto = proto.bind(gc);
+    crate::engine::bind!(let object = object, gc);
+    crate::engine::bind!(let proto = proto, gc);
     // 3. If internalSlotsList is present, let slotsList be internalSlotsList.
     // 4. Else, let slotsList be a new empty List.
     // 5. Return OrdinaryObjectCreate(proto, slotsList).
@@ -1909,9 +1860,9 @@ pub(crate) fn get_prototype_from_constructor<'a>(
     agent: &mut Agent,
     constructor: Function,
     intrinsic_default_proto: ProtoIntrinsics,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, Option<Object<'a>>> {
-    let mut constructor = constructor.bind(gc.nogc());
+    mut gc: GcScope,
+) -> JsResult<'static, Option<Object<'static>>> {
+    crate::engine::bind!(let mut constructor = constructor, gc);
     let mut function_realm = try_get_function_realm(agent, constructor, gc.nogc());
     // NOTE: %Constructor%.prototype is an immutable property; we can thus
     // check if we %Constructor% is the ProtoIntrinsic we expect and if it is,
@@ -1944,25 +1895,23 @@ pub(crate) fn get_prototype_from_constructor<'a>(
         ControlFlow::Continue(TryGetResult::Unset) => Value::Undefined,
         ControlFlow::Continue(TryGetResult::Value(v)) => v,
         ControlFlow::Break(TryError::Err(e)) => {
-            return Err(e.unbind().bind(gc.into_nogc()));
+            return Err(e);
         }
         _ => {
             let scoped_realm = function_realm.map(|r| r.scope(agent, gc.nogc()));
             let scoped_constructor = constructor.scope(agent, gc.nogc());
             let proto = handle_try_get_result(
                 agent,
-                constructor.unbind(),
+                constructor,
                 BUILTIN_STRING_MEMORY.prototype.to_property_key(),
-                proto.unbind(),
+                proto,
                 gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc());
+            )?;
             let gc = gc.nogc();
             // SAFETY: not shared.
-            constructor = unsafe { scoped_constructor.take(agent) }.bind(gc);
+            constructor = unsafe { scoped_constructor.take(agent).local() };
             // SAFETY: not shared.
-            function_realm = scoped_realm.map(|r| unsafe { r.take(agent) }.bind(gc));
+            function_realm = scoped_realm.map(|r| unsafe { r.take(agent).local() });
             proto
         }
     };
@@ -1975,8 +1924,8 @@ pub(crate) fn get_prototype_from_constructor<'a>(
             // We only need to call the get_function_realm function if it would
             // throw an error.
             if function_realm.is_none() {
-                let err = get_function_realm(agent, constructor.unbind(), gc.nogc()).unwrap_err();
-                return Err(err.unbind());
+                let err = get_function_realm(agent, constructor, gc.nogc()).unwrap_err();
+                return Err(err);
             }
             Ok(None)
         }
@@ -1994,7 +1943,7 @@ pub(crate) fn get_prototype_from_constructor<'a>(
                     return Ok(None);
                 }
             }
-            Ok(Some(proto.unbind().bind(gc.into_nogc())))
+            Ok(Some(proto))
         }
     }
 }
@@ -2130,7 +2079,7 @@ pub(crate) fn try_get_prototype_from_constructor<'a>(
             // We only need to call the get_function_realm function if it would
             // throw an error.
             if function_realm.is_none() {
-                let err = get_function_realm(agent, constructor.unbind(), gc).unwrap_err();
+                let err = get_function_realm(agent, constructor, gc).unwrap_err();
                 return err.into();
             }
             TryResult::Continue(None)

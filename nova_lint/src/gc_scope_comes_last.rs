@@ -17,12 +17,12 @@ dylint_linting::declare_late_lint! {
     /// for example the following code:
     ///
     /// ```rust
-    /// let data = data.bind(gc.nogc());
-    /// call(agent, gc.reborrow(), data.unbind());
+    /// crate::engine::bind!(let data = data, gc);
+    /// call(agent, gc.reborrow(), data);
     /// ```
     ///
     /// This wouldn't work because `gc.reborrow()` invalidates `data` immediately,
-    /// meaning that when `data.unbind()` is being called the `data` is already
+    /// meaning that when `data` is being called the `data` is already
     /// invalidated and illegal to use, leading to a borrow checker error.
     ///
     /// ### Example

@@ -321,7 +321,7 @@ this is not a trivial piece of work. Right now a function in the engine might
 look like this:
 
 ```rs
-fn call<'gc>(agent: &mut Agent, obj: Value, mut gc: GcScope<'gc, '_>) -> JsResult<'gc, Value<'gc>> {
+fn call<'gc>(agent: &mut Agent, obj: Value, mut gc: GcScope<'gc, '_>) -> JsResult<'static, Value<'static>> {
     if !obj.is_object() {
         return Err(agent.throw_error(agent, "Not object", gc));
     }
@@ -411,11 +411,11 @@ But what about when we call some mutable function and need to keep a reference
 to a stack value past that call? This is how that would look:
 
 ```rs
-fn call<'gc>(agent: &mut Agent, value: Value, mut gc: GcScope<'gc, '_>) -> JsResult<'gc, Value<'gc>> {
+fn call<'gc>(agent: &mut Agent, value: Value, mut gc: GcScope<'gc, '_>) -> JsResult<'static, Value<'static>> {
     let value = unsafe { value.bind(agent) };
     let kept_value: Global<Value> = value.make_global(value);
     other_call(agent, gc.reborrow(), value.into_register())?;
-    let value = kept_value.take(agent);
+    let value = kept_value.take(agent).local();
     // ...
 }
 ```

@@ -46,12 +46,12 @@ impl AsyncGeneratorPrototype {
     fn next<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let value = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let value = arguments.get(0), gc);
         // 1. Let generator be the this value.
-        let generator = this_value.bind(gc.nogc());
+        crate::engine::bind!(let generator = this_value, gc);
         // 2. Let promiseCapability be ! NewPromiseCapability(%Promise%).
         let promise_capability = PromiseCapability::new(agent, gc.nogc());
         let promise = promise_capability.promise().scope(agent, gc.nogc());
@@ -62,25 +62,26 @@ impl AsyncGeneratorPrototype {
             match if_abrupt_reject_promise(agent, result, promise_capability.clone(), gc.nogc()) {
                 Ok(g) => g,
                 Err(p) => {
-                    return Ok(p.unbind().into());
+                    return Ok(p.into());
                 }
             };
         // 5. Let state be generator.[[AsyncGeneratorState]].
-        let state = generator.get(agent).async_generator_state.as_ref().unwrap();
+        let state = generator
+            .get(agent)
+            .local()
+            .async_generator_state
+            .as_ref()
+            .unwrap();
         // 6. If state is completed, then
         if state.is_completed() {
             // a. Let iteratorResult be CreateIteratorResultObject(undefined, true).
             let iterator_result =
-                create_iter_result_object(agent, Value::Undefined, true, gc.nogc())
-                    .unbind()?
-                    .bind(gc.nogc());
+                create_iter_result_object(agent, Value::Undefined, true, gc.nogc())?;
             // b. Perform ! Call(promiseCapability.[[Resolve]], undefined, « iteratorResult »).
-            promise_capability
-                .unbind()
-                .resolve(agent, iterator_result.unbind().into(), gc);
+            promise_capability.resolve(agent, iterator_result.into(), gc);
             // c. Return promiseCapability.[[Promise]].
             // SAFETY: Promise has not been shared.
-            return Ok(unsafe { promise.take(agent).into() });
+            return Ok(unsafe { promise.take(agent).local().into() });
         }
         let state_is_suspended = state.is_suspended();
         let state_is_executing_or_draining = state.is_active();
@@ -91,29 +92,29 @@ impl AsyncGeneratorPrototype {
         // 9. If state is either suspended-start or suspended-yield, then
         if state_is_suspended {
             // a. Perform AsyncGeneratorResume(generator, completion).
-            async_generator_resume(agent, generator.unbind(), completion.unbind(), gc);
+            async_generator_resume(agent, generator, completion, gc);
         } else {
             // 10. Else,
             // a. Assert: state is either executing or draining-queue.
             assert!(state_is_executing_or_draining);
         }
         // 11. Return promiseCapability.[[Promise]].
-        Ok(unsafe { promise.take(agent).into() })
+        Ok(unsafe { promise.take(agent).local().into() })
     }
 
     /// ### [27.6.1.3 %AsyncGeneratorPrototype%.return ( value )](https://tc39.es/ecma262/#sec-asyncgenerator-prototype-return)
     fn r#return<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let value = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let value = arguments.get(0), gc);
         // 1. Let generator be the this value.
-        let generator = this_value.bind(gc.nogc());
+        crate::engine::bind!(let generator = this_value, gc);
         // 2. Let promiseCapability be ! NewPromiseCapability(%Promise%).
         let promise_capability = PromiseCapability::new(agent, gc.nogc());
-        let promise = promise_capability.promise().bind(gc.nogc());
+        crate::engine::bind!(let promise = promise_capability.promise(), gc);
         // 3. Let result be Completion(AsyncGeneratorValidate(generator, empty)).
         let result = async_generator_validate(agent, generator, (), gc.nogc());
         // 4. IfAbruptRejectPromise(result, promiseCapability).
@@ -121,7 +122,7 @@ impl AsyncGeneratorPrototype {
             match if_abrupt_reject_promise(agent, result, promise_capability.clone(), gc.nogc()) {
                 Ok(g) => g,
                 Err(p) => {
-                    return Ok(p.unbind().into());
+                    return Ok(p.into());
                 }
             };
         // 5. Let completion be ReturnCompletion(value).
@@ -138,25 +139,20 @@ impl AsyncGeneratorPrototype {
             let generator = generator.scope(agent, gc.nogc());
             async_generator_await_return(agent, generator, gc.reborrow());
             // 11. Return promiseCapability.[[Promise]].
-            Ok(promise.get(agent).into())
+            Ok(promise.get(agent).local().into())
         } else if generator.is_suspended_yield(agent) {
             // 9. Else if state is suspended-yield, then
             let promise = promise.scope(agent, gc.nogc());
             // a. Perform AsyncGeneratorResume(generator, completion).
-            async_generator_resume(
-                agent,
-                generator.unbind(),
-                completion.unbind(),
-                gc.reborrow(),
-            );
+            async_generator_resume(agent, generator, completion, gc.reborrow());
             // 11. Return promiseCapability.[[Promise]].
-            Ok(promise.get(agent).into())
+            Ok(promise.get(agent).local().into())
         } else {
             // 10. Else,
             // a. Assert: state is either executing or draining-queue.
             assert!(generator.is_active(agent));
             // 11. Return promiseCapability.[[Promise]].
-            Ok(promise.unbind().into())
+            Ok(promise.into())
         }
     }
 
@@ -164,16 +160,16 @@ impl AsyncGeneratorPrototype {
     fn throw<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let result: Promise = (|| {
-            let exception = arguments.get(0).bind(gc.nogc());
+            crate::engine::bind!(let exception = arguments.get(0), gc);
             // 1. Let generator be the this value.
-            let generator = this_value.bind(gc.nogc());
+            crate::engine::bind!(let generator = this_value, gc);
             // 2. Let promiseCapability be ! NewPromiseCapability(%Promise%).
             let promise_capability = PromiseCapability::new(agent, gc.nogc());
-            let mut promise = promise_capability.promise().bind(gc.nogc());
+            crate::engine::bind!(let mut promise = promise_capability.promise(), gc);
             // 3. Let result be Completion(AsyncGeneratorValidate(generator, empty)).
             let result = async_generator_validate(agent, generator, (), gc.nogc());
             // 4. IfAbruptRejectPromise(result, promiseCapability).
@@ -192,31 +188,25 @@ impl AsyncGeneratorPrototype {
                 // a. Perform ! Call(promiseCapability.[[Reject]], undefined, « exception »).
                 promise_capability.reject(agent, exception, gc.nogc());
                 // b. Return promiseCapability.[[Promise]].
-                return promise.unbind();
+                return promise;
             }
             // 8. Let completion be ThrowCompletion(exception).
-            let completion = AsyncGeneratorRequestCompletion::Err(JsError::new(exception.unbind()))
-                .bind(gc.nogc());
+            let completion = AsyncGeneratorRequestCompletion::Err(JsError::new(exception));
             // 9. Perform AsyncGeneratorEnqueue(generator, completion, promiseCapability).
             async_generator_enqueue(agent, generator, completion, promise_capability);
             // 10. If state is suspended-yield, then
             if generator.is_suspended_yield(agent) {
                 // a. Perform AsyncGeneratorResume(generator, completion).
                 let scoped_promise = promise.scope(agent, gc.nogc());
-                async_generator_resume(
-                    agent,
-                    generator.unbind(),
-                    completion.unbind(),
-                    gc.reborrow(),
-                );
-                promise = scoped_promise.get(agent).bind(gc.nogc());
+                async_generator_resume(agent, generator, completion, gc.reborrow());
+                promise = scoped_promise.get(agent).local();
             } else {
                 // 11. Else,
                 // a. Assert: state is either executing or draining-queue.
                 assert!(generator.is_executing(agent) || generator.is_draining_queue(agent));
             }
             // 12. Return promiseCapability.[[Promise]].
-            promise.unbind()
+            promise
         })();
         Ok(result.into())
     }

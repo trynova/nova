@@ -576,7 +576,7 @@ impl<'a> InternalMethods<'a> for AnyTypedArray<'a> {
         property_key: PropertyKey,
         receiver: Value,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         any_typed_array_delegate!(self, internal_get, agent, property_key, receiver, gc)
     }
 
@@ -744,7 +744,7 @@ impl<'a> TypedArrayAbstractOperations<'a> for AnyTypedArray<'a> {
         this_arg: Value,
         len: usize,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         any_typed_array_delegate!(self, filter, agent, callback, this_arg, len, gc)
     }
 
@@ -821,7 +821,7 @@ impl<'a> TypedArrayAbstractOperations<'a> for AnyTypedArray<'a> {
         this_arg: Value,
         len: usize,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         any_typed_array_delegate!(self, map, agent, callback, this_arg, len, gc)
     }
 

@@ -166,7 +166,7 @@ impl PrivateEnvironmentRecord {
     /// it.
     fn add_private_name(&mut self, description: String) -> (PrivateName, bool) {
         let current_number_of_names = self.names.len();
-        match self.names.entry(description.unbind()) {
+        match self.names.entry(description) {
             Entry::Occupied(occupied_entry) => {
                 // Occupied means we're adding a Get or Set to the other.
                 (*occupied_entry.get(), false)
@@ -206,7 +206,7 @@ pub(crate) fn new_private_environment<'gc>(
     agent.heap.alloc_counter += core::mem::size_of::<Option<PrivateEnvironmentRecord>>();
     let record = PrivateEnvironmentRecord {
         // [[OuterPrivateEnvironment]]: outerPrivEnv,
-        outer_private_environment: outer_private_environment.unbind(),
+        outer_private_environment: outer_private_environment,
         // [[Names]]: names
         names: AHashMap::with_capacity(private_names_count),
         private_fields: vec![],
@@ -236,7 +236,7 @@ pub(crate) fn resolve_private_identifier(
     // 2. For each Private Name pn of names, do
     // a. If pn.[[Description]] is identifier, then
     // i. Return pn.
-    if let Some(pn) = names.get(&identifier.unbind()) {
+    if let Some(pn) = names.get(&identifier) {
         return *pn;
     }
     // 3. Let outerPrivateEnv be privateEnv.[[OuterPrivateEnvironment]].
@@ -306,7 +306,7 @@ impl<'e> PrivateEnvironment<'e> {
         // just need to find it to get its name.
         for (description, private_name) in data.names.iter() {
             if name == *private_name {
-                return Some(description.bind(gc));
+                return Some(description);
             }
         }
         unreachable!()
@@ -355,7 +355,7 @@ impl<'e> PrivateEnvironment<'e> {
                     method: f,
                 },
             };
-            record.private_fields.push(private_field.unbind());
+            record.private_fields.push(private_field);
             record.instance_private_field_count -= 1;
             record.instance_private_method_count += 1;
         } else {
@@ -367,7 +367,7 @@ impl<'e> PrivateEnvironment<'e> {
             match (*existing_field, closure) {
                 (PrivateField::Getter { key, get }, PrivateMethod::Setter(set))
                 | (PrivateField::Setter { key, set }, PrivateMethod::Getter(get)) => {
-                    *existing_field = PrivateField::Accessor { key, get, set }.unbind();
+                    *existing_field = PrivateField::Accessor { key, get, set };
                 }
                 _ => unreachable!(),
             }

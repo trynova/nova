@@ -47,14 +47,14 @@ impl<'a> InternalSlots<'a> for WeakMap<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index.unbind()
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
             self.get_mut(agent)
                 .object_index
-                .replace(backing_object.unbind())
+                .replace(backing_object)
                 .is_none()
         );
     }
@@ -64,7 +64,7 @@ impl<'a> InternalMethods<'a> for WeakMap<'a> {}
 
 impl<'a> CreateHeapData<WeakMapRecord<'a>, WeakMap<'a>> for Heap {
     fn create(&mut self, data: WeakMapRecord<'a>) -> WeakMap<'a> {
-        self.weak_maps.push(data.unbind());
+        self.weak_maps.push(data);
         self.alloc_counter += core::mem::size_of::<WeakMapRecord<'static>>();
         WeakMap(BaseIndex::last(&self.weak_maps))
     }

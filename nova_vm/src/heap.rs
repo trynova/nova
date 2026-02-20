@@ -392,7 +392,7 @@ impl Heap {
     }
 
     pub(crate) fn add_realm<'a>(&mut self, realm: RealmRecord, _: NoGcScope<'a, '_>) -> Realm<'a> {
-        self.realms.push(realm.unbind());
+        self.realms.push(realm);
         self.alloc_counter += core::mem::size_of::<RealmRecord<'static>>();
         Realm::last(&self.realms)
     }
@@ -402,7 +402,7 @@ impl Heap {
         script: ScriptRecord,
         _: NoGcScope<'a, '_>,
     ) -> Script<'a> {
-        self.scripts.push(script.unbind());
+        self.scripts.push(script);
         self.alloc_counter += core::mem::size_of::<ScriptRecord<'static>>();
         Script::last(&self.scripts)
     }

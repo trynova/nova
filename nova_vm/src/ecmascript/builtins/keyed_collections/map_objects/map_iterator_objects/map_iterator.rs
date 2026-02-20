@@ -24,7 +24,7 @@ impl MapIterator<'_> {
     pub(crate) fn from_map(agent: &mut Agent, map: Map, kind: CollectionIteratorKind) -> Self {
         agent.heap.create(MapIteratorHeapData {
             object_index: None,
-            map: Some(map.unbind()),
+            map: Some(map),
             next_index: 0,
             kind,
         })
@@ -36,14 +36,14 @@ impl<'a> InternalSlots<'a> for MapIterator<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index.unbind()
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
             self.get_mut(agent)
                 .object_index
-                .replace(backing_object.unbind())
+                .replace(backing_object)
                 .is_none()
         );
     }
@@ -53,7 +53,7 @@ impl<'a> InternalMethods<'a> for MapIterator<'a> {}
 
 impl<'a> CreateHeapData<MapIteratorHeapData<'a>, MapIterator<'a>> for Heap {
     fn create(&mut self, data: MapIteratorHeapData<'a>) -> MapIterator<'a> {
-        self.map_iterators.push(data.unbind());
+        self.map_iterators.push(data);
         self.alloc_counter += core::mem::size_of::<MapIteratorHeapData<'static>>();
         MapIterator(BaseIndex::last(&self.map_iterators))
     }

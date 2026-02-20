@@ -85,9 +85,9 @@ impl ArrayBufferPrototype {
     fn get_byte_length<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
@@ -108,9 +108,9 @@ impl ArrayBufferPrototype {
     fn get_detached<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
@@ -126,9 +126,9 @@ impl ArrayBufferPrototype {
     fn get_max_byte_length<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
@@ -149,9 +149,9 @@ impl ArrayBufferPrototype {
     fn get_resizable<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.´
@@ -164,16 +164,14 @@ impl ArrayBufferPrototype {
     fn resize<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let new_length = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let new_length = arguments.get(0), gc);
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferMaxByteLength]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.´
-        let mut o = require_internal_slot_array_buffer(agent, this_value, gc.nogc())
-            .unbind()?
-            .bind(gc.nogc());
+        let mut o = require_internal_slot_array_buffer(agent, this_value, gc.nogc())?;
         if !o.is_resizable(agent) {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -182,18 +180,15 @@ impl ArrayBufferPrototype {
             ));
         }
         // 4. Let newByteLength be ? ToIndex(newLength).
-        let new_byte_length = if let Some(res) =
-            try_result_into_js(try_to_index(agent, new_length, gc.nogc())).unbind()?
-        {
-            res as usize
-        } else {
-            let scoped_o = o.scope(agent, gc.nogc());
-            let res = to_index(agent, new_length.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
-            o = scoped_o.get(agent).bind(gc.nogc());
-            res as usize
-        };
+        let new_byte_length =
+            if let Some(res) = try_result_into_js(try_to_index(agent, new_length, gc.nogc()))? {
+                res as usize
+            } else {
+                let scoped_o = o.scope(agent, gc.nogc());
+                let res = to_index(agent, new_length, gc.reborrow())?;
+                o = scoped_o.get(agent).local();
+                res as usize
+            };
         // 5. If IsDetachedBuffer(O) is true, throw a TypeError exception.
         if is_detached_buffer(agent, o) {
             return Err(agent.throw_exception_with_static_message(
@@ -233,17 +228,15 @@ impl ArrayBufferPrototype {
     fn slice<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let start = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let start = arguments.get(0), gc);
         let end = arguments.get(1).scope(agent, gc.nogc());
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
-        let o = require_internal_slot_array_buffer(agent, this_value, gc.nogc())
-            .unbind()?
-            .bind(gc.nogc());
+        let o = require_internal_slot_array_buffer(agent, this_value, gc.nogc())?;
         // 4. If IsDetachedBuffer(O) is true, throw a TypeError exception.
         if is_detached_buffer(agent, o) {
             return Err(agent.throw_exception_with_static_message(
@@ -257,8 +250,7 @@ impl ArrayBufferPrototype {
 
         let scoped_o = o.scope(agent, gc.nogc());
         // 6. Let relativeStart be ? ToIntegerOrInfinity(start).
-        let relative_start =
-            to_integer_or_infinity(agent, start.unbind(), gc.reborrow()).unbind()?;
+        let relative_start = to_integer_or_infinity(agent, start, gc.reborrow())?;
         // 7. If relativeStart = -∞, let first be 0.
         let first = if relative_start.is_neg_infinity() {
             0
@@ -271,13 +263,12 @@ impl ArrayBufferPrototype {
         };
 
         // 10. If end is undefined, let relativeEnd be len;
-        let end = end.get(agent).bind(gc.nogc());
+        crate::engine::bind!(let end = end.get(agent).local(), gc);
         let final_end = if end.is_undefined() {
             len
         } else {
             // else let relativeEnd be ? ToIntegerOrInfinity(end).
-            let relative_end =
-                to_integer_or_infinity(agent, end.unbind(), gc.reborrow()).unbind()?;
+            let relative_end = to_integer_or_infinity(agent, end, gc.reborrow())?;
             // 11. If relativeEnd = -∞, let final be 0.
             if relative_end.is_neg_infinity() {
                 0
@@ -295,25 +286,22 @@ impl ArrayBufferPrototype {
         // 15. Let ctor be ? SpeciesConstructor(O, %ArrayBuffer%).
         let ctor = species_constructor(
             agent,
-            scoped_o.get(agent).into(),
+            scoped_o.get(agent).local().into(),
             ProtoIntrinsics::ArrayBuffer,
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         // 16. Let new be ? Construct(ctor, « 𝔽(newLen) »).
         let new = construct(
             agent,
-            ctor.unbind(),
+            ctor,
             Some(ArgumentsList::from_mut_slice(&mut [(new_len as i64)
                 .try_into()
                 .unwrap()])),
             None,
             gc.reborrow(),
-        )
-        .unbind()?;
+        )?;
         let gc = gc.into_nogc();
-        let new = new.bind(gc);
+        crate::engine::bind!(let new = new, gc);
         // 17. Perform ? RequireInternalSlot(new, [[ArrayBufferData]]).
         let new = require_internal_slot_array_buffer(agent, new.into(), gc)?;
         // 18. If IsSharedArrayBuffer(new) is true, throw a TypeError exception.
@@ -326,7 +314,7 @@ impl ArrayBufferPrototype {
             ));
         }
         // 20. If SameValue(new, O) is true, throw a TypeError exception.
-        let o = scoped_o.get(agent).bind(gc);
+        crate::engine::bind!(let o = scoped_o.get(agent).local(), gc);
         if new == o {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -370,9 +358,9 @@ impl ArrayBufferPrototype {
     fn transfer<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Let O be the this value.
         // 2. Return ? ArrayBufferCopyAndDetach(O, newLength, preserve-resizability).
         Err(agent.todo("ArrayBuffer.prototype.transfer", gc.into_nogc()))
@@ -382,9 +370,9 @@ impl ArrayBufferPrototype {
     fn transfer_to_fixed_length<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Let O be the this value.
         // 2. Return ? ArrayBufferCopyAndDetach(O, newLength, fixed-length).
         Err(agent.todo(
@@ -451,7 +439,7 @@ pub(crate) fn require_internal_slot_array_buffer<'a>(
     match o {
         // 1. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 2. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
-        Value::ArrayBuffer(array_buffer) => Ok(array_buffer.unbind()),
+        Value::ArrayBuffer(array_buffer) => Ok(array_buffer),
         _ => Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Expected this to be ArrayBuffer",

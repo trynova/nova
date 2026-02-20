@@ -37,12 +37,12 @@ impl WeakSetPrototype {
     pub(crate) fn add<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let this_value = this_value.bind(gc);
-        let value = arguments.get(0).bind(gc);
+        crate::engine::bind!(let this_value = this_value, gc);
+        crate::engine::bind!(let value = arguments.get(0), gc);
 
         // 1. Let S be the this value.
         let s = this_value;
@@ -50,7 +50,7 @@ impl WeakSetPrototype {
         let s = require_internal_slot_weak_set(agent, s, gc)?;
         // 3. If CanBeHeldWeakly(value) is false, throw a TypeError exception.
         let Some(value) = can_be_held_weakly(agent, value) else {
-            return Err(throw_not_weak_key_error(agent, value.unbind(), gc));
+            return Err(throw_not_weak_key_error(agent, value, gc));
         };
         // 4. For each element e of S.[[WeakSetData]], do
         // a. If e is not empty and SameValue(e, value) is true, then
@@ -58,7 +58,7 @@ impl WeakSetPrototype {
         // 5. Append value to S.[[WeakSetData]].
         // 6. Return S.
         s.get_mut(agent).add(value);
-        Ok(s.unbind().into())
+        Ok(s.into())
     }
 
     /// ### [24.4.3.3 WeakSet.prototype.delete ( value )](https://tc39.es/ecma262/#sec-weakset.prototype.delete)
@@ -70,12 +70,12 @@ impl WeakSetPrototype {
     fn delete<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let this_value = this_value.bind(gc);
-        let value = arguments.get(0).bind(gc);
+        crate::engine::bind!(let this_value = this_value, gc);
+        crate::engine::bind!(let value = arguments.get(0), gc);
 
         // 1. Let S be the this value.
         let s = this_value;
@@ -99,12 +99,12 @@ impl WeakSetPrototype {
     fn has<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let this_value = this_value.bind(gc);
-        let value = arguments.get(0).bind(gc);
+        crate::engine::bind!(let this_value = this_value, gc);
+        crate::engine::bind!(let value = arguments.get(0), gc);
 
         // 1. Let S be the this value.
         let s = this_value;
@@ -117,7 +117,7 @@ impl WeakSetPrototype {
         // 4. For each element e of S.[[WeakSetData]], do
         // a. If e is not empty and SameValue(e, value) is true, return true.
         // 5. Return false.
-        let result = s.get(agent).has(value);
+        let result = s.get(agent).local().has(value);
         Ok(result.into())
     }
 
@@ -154,7 +154,7 @@ fn require_internal_slot_weak_set<'a>(
 ) -> JsResult<'a, WeakSet<'a>> {
     match o {
         // 1. Perform ? RequireInternalSlot(O, [[WeakSetData]]).
-        Value::WeakSet(array_buffer) => Ok(array_buffer.unbind().bind(gc)),
+        Value::WeakSet(array_buffer) => Ok(array_buffer),
         _ => Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Expected this to be WeakSet",

@@ -61,11 +61,11 @@ impl<'f> BoundFunction<'f> {
 pub(crate) fn bound_function_create<'a>(
     agent: &mut Agent,
     target_function: Function,
-    bound_this: Value,
+    bound_this: Value<'static>,
     bound_args: &[Value],
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> JsResult<'a, BoundFunction<'a>> {
-    let mut target_function = target_function.bind(gc.nogc());
+    crate::engine::bind!(let mut target_function = target_function, gc);
     // 1. Let proto be ? targetFunction.[[GetPrototypeOf]]().
     let proto = if let TryResult::Continue(proto) =
         target_function.try_get_prototype_of(agent, gc.nogc())
@@ -73,12 +73,8 @@ pub(crate) fn bound_function_create<'a>(
         proto
     } else {
         let scoped_target_function = target_function.scope(agent, gc.nogc());
-        let proto = target_function
-            .unbind()
-            .internal_get_prototype_of(agent, gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
-        target_function = scoped_target_function.get(agent).bind(gc.nogc());
+        let proto = target_function.internal_get_prototype_of(agent, gc.reborrow())?;
+        target_function = scoped_target_function.get(agent).local();
         proto
     };
     // 2. Let internalSlotsList be the list-concatenation of « [[Prototype]],
@@ -107,8 +103,8 @@ pub(crate) fn bound_function_create<'a>(
     let data = BoundFunctionHeapData {
         object_index: None,
         length: 0,
-        bound_target_function: target_function.unbind(),
-        bound_this: bound_this.unbind(),
+        bound_target_function: target_function,
+        bound_this: bound_this,
         bound_arguments: elements,
         name: None,
     };
@@ -135,7 +131,7 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
 
     #[inline(always)]
     fn get_function_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index.unbind()
+        self.get(agent).object_index
     }
 
     fn set_function_backing_object(
@@ -146,7 +142,7 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
         assert!(
             self.get_mut(agent)
                 .object_index
-                .replace(backing_object.unbind())
+                .replace(backing_object)
                 .is_none()
         );
     }
@@ -161,13 +157,13 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
     fn function_call<'gc>(
         self,
         agent: &mut Agent,
-        _: Value,
-        arguments_list: ArgumentsList,
+        _: Value<'static>,
+        arguments_list: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        agent.check_call_depth(gc.nogc()).unbind()?;
-        let f = self.bind(gc.nogc());
-        let arguments_list = arguments_list.bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        agent.check_call_depth(gc.nogc())?;
+        crate::engine::bind!(let f = self, gc);
+        crate::engine::bind!(let arguments_list = arguments_list, gc);
         // 1. Let target be F.[[BoundTargetFunction]].
         let target = f.bound_target_function(agent);
         // 2. Let boundThis be F.[[BoundThis]].
@@ -178,13 +174,7 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
         if bound_args.is_empty() {
             // Optimisation: If only `this` is bound, then we can pass the
             // arguments list without changes to the bound function.
-            call_function(
-                agent,
-                target.unbind(),
-                bound_this.unbind(),
-                Some(arguments_list.unbind()),
-                gc,
-            )
+            call_function(agent, target, bound_this, Some(arguments_list), gc)
         } else {
             // Note: We cannot optimise against an empty arguments list, as we
             // must create a Vec from the bound_args ElementsVector in any case
@@ -196,14 +186,15 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
                 Vec::with_capacity(bound_args.len() as usize + arguments_list.len());
             bound_args
                 .get(agent)
+                .local()
                 .iter()
-                .for_each(|item| args.push(item.unwrap().unbind()));
-            args.extend_from_slice(&arguments_list.unbind());
+                .for_each(|item| args.push(item.unwrap()));
+            args.extend_from_slice(&arguments_list);
             // 5. Return ? Call(target, boundThis, args).
             call_function(
                 agent,
-                target.unbind(),
-                bound_this.unbind(),
+                target,
+                bound_this,
                 Some(ArgumentsList::from_mut_slice(&mut args)),
                 gc,
             )
@@ -219,15 +210,15 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
     fn function_construct<'gc>(
         self,
         agent: &mut Agent,
-        arguments_list: ArgumentsList,
+        arguments_list: ArgumentsList<'_, 'static>,
         new_target: Function,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Object<'gc>> {
-        agent.check_call_depth(gc.nogc()).unbind()?;
-        let arguments_list = arguments_list.bind(gc.nogc());
-        let new_target = new_target.bind(gc.nogc());
+        agent.check_call_depth(gc.nogc())?;
+        crate::engine::bind!(let arguments_list = arguments_list, gc);
+        crate::engine::bind!(let new_target = new_target, gc);
         // 1. Let target be F.[[BoundTargetFunction]].
-        let target = self.bound_target_function(agent).bind(gc.nogc());
+        crate::engine::bind!(let target = self.bound_target_function(agent), gc);
         // 2. Assert: IsConstructor(target) is true.
         assert!(is_constructor(agent, target).is_some());
         // 3. Let boundArgs be F.[[BoundArguments]].
@@ -243,15 +234,16 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
         let mut args = Vec::with_capacity(bound_args.len() as usize + arguments_list.len());
         bound_args
             .get(agent)
+            .local()
             .iter()
-            .for_each(|item| args.push(item.unwrap().unbind()));
-        args.extend_from_slice(&arguments_list.unbind());
+            .for_each(|item| args.push(item.unwrap()));
+        args.extend_from_slice(&arguments_list);
         // 6. Return ? Construct(target, args, newTarget).
         construct(
             agent,
-            target.unbind(),
+            target,
             Some(ArgumentsList::from_mut_slice(&mut args)),
-            Some(new_target.unbind()),
+            Some(new_target),
             gc,
         )
     }
@@ -259,7 +251,7 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
 
 impl<'a> CreateHeapData<BoundFunctionHeapData<'a>, BoundFunction<'a>> for Heap {
     fn create(&mut self, data: BoundFunctionHeapData<'a>) -> BoundFunction<'a> {
-        self.bound_functions.push(data.unbind());
+        self.bound_functions.push(data);
         self.alloc_counter += core::mem::size_of::<BoundFunctionHeapData<'static>>();
         BoundFunction(BaseIndex::last(&self.bound_functions))
     }

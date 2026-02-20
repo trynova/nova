@@ -26,7 +26,7 @@ arena_vec_access!(WeakRef, 'a, WeakRefHeapData, weak_refs);
 
 impl<'a> WeakRef<'a> {
     pub(crate) fn set_target(self, agent: &mut Agent, target: WeakKey) {
-        self.get_mut(agent).weak_ref_target = Some(target.unbind());
+        self.get_mut(agent).weak_ref_target = Some(target);
         // Note: WeakRefTarget is set only from the constructor, and it also
         // adds the WeakRef into the [[KeptAlive]] list; hence we set the
         // boolean here.
@@ -48,14 +48,14 @@ impl<'a> InternalSlots<'a> for WeakRef<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index.unbind()
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
             self.get_mut(agent)
                 .object_index
-                .replace(backing_object.unbind())
+                .replace(backing_object)
                 .is_none()
         );
     }
@@ -65,7 +65,7 @@ impl<'a> InternalMethods<'a> for WeakRef<'a> {}
 
 impl<'a> CreateHeapData<WeakRefHeapData<'a>, WeakRef<'a>> for Heap {
     fn create(&mut self, data: WeakRefHeapData<'a>) -> WeakRef<'a> {
-        self.weak_refs.push(data.unbind());
+        self.weak_refs.push(data);
         self.alloc_counter += core::mem::size_of::<WeakRefHeapData<'static>>();
         WeakRef(BaseIndex::last(&self.weak_refs))
     }

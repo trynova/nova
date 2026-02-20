@@ -364,9 +364,9 @@ impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName,
             (
                 PropertyKey::from(BUILTIN_STRING_MEMORY.name),
                 Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableData),
-                Some(self.name.0.unbind().into()),
+                Some(self.name.0.into()),
             ),
-            (key.unbind(), None, Some(value.unbind())),
+            (key, None, Some(value)),
         ];
         BuiltinFunctionBuilder {
             agent: self.agent,
@@ -409,7 +409,7 @@ impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName,
             (
                 PropertyKey::from(BUILTIN_STRING_MEMORY.name),
                 Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableData),
-                Some(self.name.0.unbind().into()),
+                Some(self.name.0.into()),
             ),
             property,
         ];
@@ -434,7 +434,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
         key: PropertyKey<'static>,
         value: Value<'static>,
     ) -> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorProperties> {
-        self.properties.0.push((key, None, Some(value.unbind())));
+        self.properties.0.push((key, None, Some(value)));
         BuiltinFunctionBuilder {
             agent: self.agent,
             this: self.this,

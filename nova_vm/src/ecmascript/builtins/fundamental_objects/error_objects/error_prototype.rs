@@ -27,10 +27,10 @@ impl ErrorPrototype {
     fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let this_value = this_value.bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let this_value = this_value, gc);
         // 1. Let O be the this value.
         // 2. If O is not an Object, throw a TypeError exception.
         let Ok(o) = Object::try_from(this_value) else {
@@ -44,47 +44,35 @@ impl ErrorPrototype {
         // 3. Let name be ? Get(O, "name").
         let name = get(
             agent,
-            o.unbind(),
+            o,
             PropertyKey::from(BUILTIN_STRING_MEMORY.name),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         // 4. If name is undefined, set name to "Error"; otherwise set name to ? ToString(name).
         let name = if name.is_undefined() {
             None
         } else {
-            Some(
-                to_string(agent, name.unbind(), gc.reborrow())
-                    .unbind()?
-                    .scope(agent, gc.nogc()),
-            )
+            Some(to_string(agent, name, gc.reborrow())?.scope(agent, gc.nogc()))
         };
         // 5. Let msg be ? Get(O, "message").
         let msg = get(
             agent,
-            scoped_o.get(agent),
+            scoped_o.get(agent).local(),
             BUILTIN_STRING_MEMORY.message.into(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         // 6. If msg is undefined, set msg to the empty String; otherwise set msg to ? ToString(msg).
         let msg = if msg.is_undefined() {
             String::EMPTY_STRING
         } else {
-            to_string(agent, msg.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc())
+            to_string(agent, msg, gc.reborrow())?
         };
         // No more GC can be triggered.
-        let msg = msg.unbind();
+        let msg = msg;
         let gc = gc.into_nogc();
-        let msg = msg.bind(gc);
+        crate::engine::bind!(let msg = msg, gc);
         // 4. If name is undefined, set name to "Error"
-        let name = name
-            .map_or(BUILTIN_STRING_MEMORY.Error, |name| name.get(agent))
-            .bind(gc);
+        let name = name.map_or(BUILTIN_STRING_MEMORY.Error, |name| name.get(agent).local());
         if name.is_empty_string() {
             // 7. If name is the empty String, return msg.
             Ok(msg.into())

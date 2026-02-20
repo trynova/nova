@@ -64,7 +64,7 @@ where
         self,
         agent: &mut Agent,
         this_value: Value,
-        arguments_list: ArgumentsList,
+        arguments_list: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>>;
 
@@ -72,7 +72,7 @@ where
     fn function_construct<'gc>(
         self,
         agent: &mut Agent,
-        arguments_list: ArgumentsList,
+        arguments_list: ArgumentsList<'_, 'static>,
         new_target: Function,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Object<'gc>> {
@@ -115,8 +115,8 @@ impl<'a, T: 'a + FunctionInternalProperties<'a>> InternalSlots<'a> for T {
         let backing_object =
             OrdinaryObject::create_object(agent, Some(prototype), &[length_entry, name_entry])
                 .expect("Should perform GC here");
-        self.set_backing_object(agent, backing_object.unbind());
-        backing_object.unbind()
+        self.set_backing_object(agent, backing_object);
+        backing_object
     }
 
     fn internal_prototype(self, agent: &Agent) -> Option<Object<'static>> {
@@ -136,7 +136,7 @@ impl<'a, T: 'a + FunctionInternalProperties<'a>> InternalMethods<'a> for T {
             let o: Object = self.into();
             TryResult::Continue(ordinary_get_own_property(
                 agent,
-                o.bind(gc),
+                o,
                 backing_object,
                 property_key,
                 cache,
@@ -152,7 +152,7 @@ impl<'a, T: 'a + FunctionInternalProperties<'a>> InternalMethods<'a> for T {
             }))
         } else if property_key == BUILTIN_STRING_MEMORY.name.into() {
             TryResult::Continue(Some(PropertyDescriptor {
-                value: Some(self.get_name(agent).bind(gc).into()),
+                value: Some(self.get_name(agent).into()),
                 writable: Some(false),
                 enumerable: Some(false),
                 configurable: Some(true),
@@ -204,7 +204,7 @@ impl<'a, T: 'a + FunctionInternalProperties<'a>> InternalMethods<'a> for T {
                 1
             };
             let o: Object = self.into();
-            TryHasResult::Custom(index, o.bind(gc)).into()
+            TryHasResult::Custom(index, o).into()
         } else {
             ordinary_try_has_property(agent, self.into(), backing_object, property_key, cache, gc)
         }
@@ -216,15 +216,9 @@ impl<'a, T: 'a + FunctionInternalProperties<'a>> InternalMethods<'a> for T {
         property_key: PropertyKey,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
-        let property_key = property_key.bind(gc.nogc());
+        crate::engine::bind!(let property_key = property_key, gc);
         if let Some(backing_object) = self.get_backing_object(agent) {
-            ordinary_has_property(
-                agent,
-                self.into(),
-                backing_object,
-                property_key.unbind(),
-                gc,
-            )
+            ordinary_has_property(agent, self.into(), backing_object, property_key, gc)
         } else if property_key == BUILTIN_STRING_MEMORY.length.into()
             || property_key == BUILTIN_STRING_MEMORY.name.into()
         {
@@ -232,9 +226,7 @@ impl<'a, T: 'a + FunctionInternalProperties<'a>> InternalMethods<'a> for T {
         } else {
             let parent = unwrap_try(self.try_get_prototype_of(agent, gc.nogc()));
             if let Some(parent) = parent {
-                parent
-                    .unbind()
-                    .internal_has_property(agent, property_key.unbind(), gc)
+                parent.internal_has_property(agent, property_key, gc)
             } else {
                 Ok(false)
             }
@@ -254,7 +246,7 @@ impl<'a, T: 'a + FunctionInternalProperties<'a>> InternalMethods<'a> for T {
         if backing_object.is_none() && property_key == BUILTIN_STRING_MEMORY.length.into() {
             TryGetResult::Value(self.get_length(agent).into()).into()
         } else if backing_object.is_none() && property_key == BUILTIN_STRING_MEMORY.name.into() {
-            TryGetResult::Value(self.get_name(agent).bind(gc).into()).into()
+            TryGetResult::Value(self.get_name(agent).into()).into()
         } else {
             ordinary_try_get(
                 agent,
@@ -274,21 +266,19 @@ impl<'a, T: 'a + FunctionInternalProperties<'a>> InternalMethods<'a> for T {
         property_key: PropertyKey,
         receiver: Value,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let property_key = property_key.bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let property_key = property_key, gc);
         if let Some(backing_object) = self.get_backing_object(agent) {
-            backing_object.internal_get(agent, property_key.unbind(), receiver, gc)
+            backing_object.internal_get(agent, property_key, receiver, gc)
         } else if property_key == BUILTIN_STRING_MEMORY.length.into() {
             Ok(self.get_length(agent).into())
         } else if property_key == BUILTIN_STRING_MEMORY.name.into() {
-            Ok((*self.get_name(agent)).bind(gc.into_nogc()).into())
+            Ok((*self.get_name(agent)).into())
         } else {
             // Note: Getting a function's prototype never calls JavaScript.
             let parent = unwrap_try(self.try_get_prototype_of(agent, gc.nogc()));
             if let Some(parent) = parent {
-                parent
-                    .unbind()
-                    .internal_get(agent, property_key.unbind(), receiver, gc)
+                parent.internal_get(agent, property_key, receiver, gc)
             } else {
                 Ok(Value::Undefined)
             }
@@ -324,30 +314,16 @@ impl<'a, T: 'a + FunctionInternalProperties<'a>> InternalMethods<'a> for T {
         receiver: Value,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
-        let property_key = property_key.bind(gc.nogc());
+        crate::engine::bind!(let property_key = property_key, gc);
         if self.get_backing_object(agent).is_some() {
-            ordinary_set(
-                agent,
-                self.into(),
-                property_key.unbind(),
-                value,
-                receiver,
-                gc,
-            )
+            ordinary_set(agent, self.into(), property_key, value, receiver, gc)
         } else if property_key == BUILTIN_STRING_MEMORY.length.into()
             || property_key == BUILTIN_STRING_MEMORY.name.into()
         {
             // length and name are not writable
             Ok(false)
         } else {
-            ordinary_set(
-                agent,
-                self.into(),
-                property_key.unbind(),
-                value,
-                receiver,
-                gc,
-            )
+            ordinary_set(agent, self.into(), property_key, value, receiver, gc)
         }
     }
 
@@ -401,16 +377,16 @@ impl<'a, T: 'a + FunctionInternalProperties<'a>> InternalMethods<'a> for T {
         self,
         agent: &mut Agent,
         this_value: Value,
-        arguments_list: ArgumentsList,
+        arguments_list: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         self.function_call(agent, this_value, arguments_list, gc)
     }
 
     fn internal_construct<'gc>(
         self,
         agent: &mut Agent,
-        arguments_list: ArgumentsList,
+        arguments_list: ArgumentsList<'_, 'static>,
         new_target: Function,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Object<'gc>> {

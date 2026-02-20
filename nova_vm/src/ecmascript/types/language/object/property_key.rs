@@ -89,8 +89,8 @@ impl<'a> PropertyKey<'a> {
                 String::from_string(agent, small_integer.into_i64().to_string(), gc).into()
             }
             PropertyKey::SmallString(small_string) => Primitive::SmallString(small_string),
-            PropertyKey::String(heap_string) => Primitive::String(heap_string.unbind()),
-            PropertyKey::Symbol(symbol) => Primitive::Symbol(symbol.unbind()),
+            PropertyKey::String(heap_string) => Primitive::String(heap_string),
+            PropertyKey::Symbol(symbol) => Primitive::Symbol(symbol),
             PropertyKey::PrivateName(_) => unreachable!(),
         }
     }
@@ -180,7 +180,7 @@ impl<'a> PropertyKey<'a> {
                 s1.as_wtf8() == s2.as_wtf8()
             }
             (PropertyKey::String(s), PropertyKey::Integer(n)) => {
-                let s = s.unbind().get(agent).as_wtf8();
+                let s = s.get(agent).local().as_wtf8();
 
                 Self::is_str_eq_num(s, n.into_i64())
             }
@@ -230,7 +230,7 @@ impl<'a> PropertyKey<'a> {
             }
             PropertyKey::String(s) => {
                 // Skip discriminant hashing in strings
-                s.get(agent).data.hash(&mut hasher);
+                s.get(agent).local().data.hash(&mut hasher);
             }
             PropertyKey::SmallString(s) => {
                 s.as_wtf8().hash(&mut hasher);
@@ -414,8 +414,8 @@ impl Rootable for PropertyKey<'_> {
         match value {
             PropertyKey::Integer(small_integer) => Ok(Self::RootRepr::Integer(small_integer)),
             PropertyKey::SmallString(small_string) => Ok(Self::RootRepr::SmallString(small_string)),
-            PropertyKey::String(heap_string) => Err(HeapRootData::String(heap_string.unbind())),
-            PropertyKey::Symbol(symbol) => Err(HeapRootData::Symbol(symbol.unbind())),
+            PropertyKey::String(heap_string) => Err(HeapRootData::String(heap_string)),
+            PropertyKey::Symbol(symbol) => Err(HeapRootData::Symbol(symbol)),
             PropertyKey::PrivateName(p) => Ok(Self::RootRepr::PrivateName(p)),
         }
     }

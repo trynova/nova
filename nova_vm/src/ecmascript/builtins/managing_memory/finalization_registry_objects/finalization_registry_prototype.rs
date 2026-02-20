@@ -39,15 +39,15 @@ impl FinalizationRegistryPrototype {
     fn register<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let target = arguments.get(0).bind(gc);
-        let held_value = arguments.get(1).bind(gc);
-        let unregister_token = arguments.get(2).bind(gc);
+        crate::engine::bind!(let target = arguments.get(0), gc);
+        crate::engine::bind!(let held_value = arguments.get(1), gc);
+        crate::engine::bind!(let unregister_token = arguments.get(2), gc);
         // 1. Let finalizationRegistry be the this value.
-        let finalization_registry = this_value.bind(gc);
+        crate::engine::bind!(let finalization_registry = this_value, gc);
         // 2. Perform ? RequireInternalSlot(finalizationRegistry, [[Cells]]).
         let finalization_registry =
             require_internal_slot_finalization_registry(agent, finalization_registry, gc)?;
@@ -97,13 +97,13 @@ impl FinalizationRegistryPrototype {
     fn unregister<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let unregister_token = arguments.get(0).bind(gc);
+        crate::engine::bind!(let unregister_token = arguments.get(0), gc);
         // 1. Let finalizationRegistry be the this value.
-        let finalization_registry = this_value.bind(gc);
+        crate::engine::bind!(let finalization_registry = this_value, gc);
         // 2. Perform ? RequireInternalSlot(finalizationRegistry, [[Cells]]).
         let finalization_registry =
             require_internal_slot_finalization_registry(agent, finalization_registry, gc)?;

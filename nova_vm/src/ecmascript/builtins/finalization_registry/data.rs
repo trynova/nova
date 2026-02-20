@@ -32,10 +32,10 @@ impl Cells<'_> {
         unregister_token: Option<WeakKey>,
     ) {
         self.cells_weak_ref_target_to_held_value
-            .insert(weak_ref_target.unbind(), held_value.unbind());
+            .insert(weak_ref_target, held_value);
         if let Some(unregister_token) = unregister_token {
             self.cells_unregister_token_to_weak_ref_target
-                .insert(unregister_token.unbind(), weak_ref_target.unbind());
+                .insert(unregister_token, weak_ref_target);
         }
     }
 
@@ -48,7 +48,7 @@ impl Cells<'_> {
         //    then
         if let Some(weak_ref_target) = self
             .cells_unregister_token_to_weak_ref_target
-            .remove(&unregister_token.unbind())
+            .remove(&unregister_token)
         {
             // i. Remove cell from finalizationRegistry.[[Cells]].
             self.cells_weak_ref_target_to_held_value
@@ -103,8 +103,8 @@ impl<'fr> CleanupRecord<'fr> {
     pub(super) unsafe fn initialise(&mut self, realm: Realm, cleanup_callback: Function) {
         debug_assert_eq!(self.realm, Realm::_DEF);
         debug_assert_eq!(self.callback, Function::BuiltinPromiseCollectorFunction);
-        self.realm = realm.unbind();
-        self.callback = cleanup_callback.unbind();
+        self.realm = realm;
+        self.callback = cleanup_callback;
     }
 
     pub(super) fn get_cleanup_queue(&mut self) -> (Function<'fr>, Vec<Value<'fr>>) {

@@ -49,8 +49,8 @@ impl AsyncFromSyncIteratorPrototype {
         value: Option<Value>,
         mut gc: GcScope<'gc, '_>,
     ) -> Promise<'gc> {
-        let value = value.bind(gc.nogc());
-        let sync_iterator_record = sync_iterator_record.bind(gc.nogc());
+        crate::engine::bind!(let value = value, gc);
+        crate::engine::bind!(let sync_iterator_record = sync_iterator_record, gc);
         let iterator = sync_iterator_record.iterator.scope(agent, gc.nogc());
         let next_method = sync_iterator_record.next_method.scope(agent, gc.nogc());
         // 1. Let O be the this value.
@@ -61,18 +61,11 @@ impl AsyncFromSyncIteratorPrototype {
         // a. Let result be Completion(IteratorNext(syncIteratorRecord, value)).
         // 6. Else,
         // a. Let result be Completion(IteratorNext(syncIteratorRecord)).
-        let result = iterator_next(
-            agent,
-            sync_iterator_record.unbind(),
-            value.unbind(),
-            gc.reborrow(),
-        )
-        .unbind()
-        .bind(gc.nogc());
+        let result = iterator_next(agent, sync_iterator_record, value, gc.reborrow())?;
         // SAFETY: neither is shared.
         let sync_iterator = unsafe {
-            let _ = next_method.take(agent);
-            iterator.take(agent).bind(gc.nogc())
+            let _ = next_method.take(agent).local();
+            iterator.take(agent).local()
         };
         match result {
             Ok(result) => {
@@ -80,16 +73,16 @@ impl AsyncFromSyncIteratorPrototype {
                 let promise_capability = PromiseCapability::new(agent, gc.nogc());
                 async_from_sync_iterator_continuation(
                     agent,
-                    result.unbind(),
-                    promise_capability.unbind(),
-                    sync_iterator.unbind(),
+                    result,
+                    promise_capability,
+                    sync_iterator,
                     true,
                     gc,
                 )
             }
             Err(err) => {
                 // 7. IfAbruptRejectPromise(result, promiseCapability).
-                Promise::new_rejected(agent, err.value().unbind(), gc.into_nogc())
+                Promise::new_rejected(agent, err.value(), gc.into_nogc())
             }
         }
     }
@@ -101,8 +94,8 @@ impl AsyncFromSyncIteratorPrototype {
         value: Option<Value>,
         mut gc: GcScope<'gc, '_>,
     ) -> Promise<'gc> {
-        let value = value.bind(gc.nogc());
-        let sync_iterator = sync_iterator.bind(gc.nogc());
+        crate::engine::bind!(let value = value, gc);
+        crate::engine::bind!(let sync_iterator = sync_iterator, gc);
         let scoped_sync_iterator = sync_iterator.scope(agent, gc.nogc());
 
         // 1. Let O be the this value.
@@ -117,18 +110,16 @@ impl AsyncFromSyncIteratorPrototype {
         // 6. Let return be Completion(GetMethod(syncIterator, "return")).
         let r#return = get_object_method(
             agent,
-            sync_iterator.unbind(),
+            sync_iterator,
             BUILTIN_STRING_MEMORY.r#return.to_property_key(),
             gc.reborrow(),
-        )
-        .unbind()
-        .bind(gc.nogc());
+        )?;
 
-        let value = value.map(|v| v.get(agent).bind(gc.nogc()));
+        crate::engine::bind!(let value = value.map(|v| v.get(agent).local()), gc);
 
         // 7. IfAbruptRejectPromise(return, promiseCapability).
         let promise_capability = PromiseCapability {
-            promise: scoped_promise.get(agent).bind(gc.nogc()),
+            promise: scoped_promise.get(agent).local(),
             must_be_unresolved: true,
         };
         let r#return = if_abrupt_reject_promise_m!(agent, r#return, promise_capability, gc);
@@ -146,27 +137,25 @@ impl AsyncFromSyncIteratorPrototype {
             unwrap_try(promise_capability.try_resolve(agent, iterator_result.into(), gc.nogc()));
             // c. Return promiseCapability.[[Promise]].
             // SAFETY: scoped_promise is not shared.
-            return unsafe { scoped_promise.take(agent) };
+            return unsafe { scoped_promise.take(agent).local() };
         };
         // 9. If value is present, then
         // a. Let result be Completion(Call(return, syncIterator, « value »)).
         // 10. Else,
         // a. Let result be Completion(Call(return, syncIterator)).
         let result = {
-            let mut value = value.unbind();
+            let mut value = value;
             call_function(
                 agent,
-                r#return.unbind(),
-                scoped_sync_iterator.get(agent).into(),
+                r#return,
+                scoped_sync_iterator.get(agent).local().into(),
                 value.as_mut().map(ArgumentsList::from_mut_value),
                 gc.reborrow(),
-            )
-            .unbind()
-            .bind(gc.nogc())
+            )?
         };
         // 11. IfAbruptRejectPromise(result, promiseCapability).
         let promise_capability = PromiseCapability {
-            promise: scoped_promise.get(agent).bind(gc.nogc()),
+            promise: scoped_promise.get(agent).local(),
             must_be_unresolved: true,
         };
         let result = if_abrupt_reject_promise_m!(agent, result, promise_capability, gc);
@@ -181,7 +170,7 @@ impl AsyncFromSyncIteratorPrototype {
             );
             let promise_capability = PromiseCapability {
                 // SAFETY: scoped_promise is not shared.
-                promise: unsafe { scoped_promise.take(agent).bind(gc) },
+                promise: unsafe { scoped_promise.take(agent).local() },
                 must_be_unresolved: true,
             };
             promise_capability.reject(agent, error, gc);
@@ -191,14 +180,14 @@ impl AsyncFromSyncIteratorPrototype {
         // 13. Return AsyncFromSyncIteratorContinuation(result, promiseCapability, syncIteratorRecord, false).
         async_from_sync_iterator_continuation(
             agent,
-            result.unbind(),
+            result,
             PromiseCapability {
                 // SAFETY: scoped_promise is not shared.
-                promise: unsafe { scoped_promise.take(agent) },
+                promise: unsafe { scoped_promise.take(agent).local() },
                 must_be_unresolved: true,
             },
             // SAFETY: scoped_sync_iterator is not shared.
-            unsafe { scoped_sync_iterator.take(agent) },
+            unsafe { scoped_sync_iterator.take(agent).local() },
             false,
             gc,
         )
@@ -215,12 +204,12 @@ impl AsyncFromSyncIteratorPrototype {
         value: Value,
         mut gc: GcScope<'gc, '_>,
     ) -> Promise<'gc> {
-        let value = value.bind(gc.nogc());
+        crate::engine::bind!(let value = value, gc);
         // 1. Let O be the this value.
         // 2. Assert: O is an Object that has a [[SyncIteratorRecord]] internal slot.
         // 4. Let syncIteratorRecord be O.[[SyncIteratorRecord]].
         // 5. Let syncIterator be syncIteratorRecord.[[Iterator]].
-        let sync_iterator = sync_iterator.bind(gc.nogc());
+        crate::engine::bind!(let sync_iterator = sync_iterator, gc);
         let scoped_sync_iterator = sync_iterator.scope(agent, gc.nogc());
         // 3. Let promiseCapability be ! NewPromiseCapability(%Promise%).
         let scoped_promise = PromiseCapability::new(agent, gc.nogc())
@@ -230,40 +219,32 @@ impl AsyncFromSyncIteratorPrototype {
         // 6. Let throw be Completion(GetMethod(syncIterator, "throw")).
         let throw = get_object_method(
             agent,
-            sync_iterator.unbind(),
+            sync_iterator,
             BUILTIN_STRING_MEMORY.throw.to_property_key(),
             gc.reborrow(),
-        )
-        .unbind()
-        .bind(gc.nogc());
+        )?;
         // 7. IfAbruptRejectPromise(throw, promiseCapability).
         let promise_capability = PromiseCapability {
-            promise: scoped_promise.get(agent).bind(gc.nogc()),
+            promise: scoped_promise.get(agent).local(),
             must_be_unresolved: true,
         };
         let throw = if_abrupt_reject_promise_m!(agent, throw, promise_capability, gc);
         // SAFETY: value is not shared.
-        let value = unsafe { value.take(agent) }.bind(gc.nogc());
+        crate::engine::bind!(let value = unsafe { value.take(agent).local() }, gc);
         // 8. If throw is undefined, then
         let Some(throw) = throw else {
             // SAFETY: scoped_sync_iterator is not shared.
-            let sync_iterator = unsafe { scoped_sync_iterator.take(agent) }.bind(gc.nogc());
+            crate::engine::bind!(let sync_iterator = unsafe { scoped_sync_iterator.take(agent).local() }, gc);
             // a. NOTE: If syncIterator does not have a throw method, close it
             //    to give it a chance to clean up before we reject the
             //    capability.
             // b. Let closeCompletion be NormalCompletion(empty).
             // c. Let result be Completion(IteratorClose(syncIteratorRecord, closeCompletion)).
-            let result = iterator_close_with_value(
-                agent,
-                sync_iterator.unbind(),
-                Value::Undefined,
-                gc.reborrow(),
-            )
-            .unbind()
-            .bind(gc.nogc());
+            let result =
+                iterator_close_with_value(agent, sync_iterator, Value::Undefined, gc.reborrow())?;
             // d. IfAbruptRejectPromise(result, promiseCapability).
             let promise_capability = PromiseCapability {
-                promise: scoped_promise.get(agent).bind(gc.nogc()),
+                promise: scoped_promise.get(agent).local(),
                 must_be_unresolved: true,
             };
             if_abrupt_reject_promise_m!(agent, result, promise_capability, gc);
@@ -282,7 +263,7 @@ impl AsyncFromSyncIteratorPrototype {
                 gc,
             );
             let promise_capability = PromiseCapability {
-                promise: scoped_promise.get(agent).bind(gc),
+                promise: scoped_promise.get(agent).local(),
                 must_be_unresolved: true,
             };
             promise_capability.reject(agent, error, gc);
@@ -296,17 +277,15 @@ impl AsyncFromSyncIteratorPrototype {
         // a. Let result be Completion(Call(throw, syncIterator)).
         let result = call_function(
             agent,
-            throw.unbind(),
-            scoped_sync_iterator.get(agent).into(),
-            Some(ArgumentsList::from_mut_value(&mut value.unbind())),
+            throw,
+            scoped_sync_iterator.get(agent).local().into(),
+            Some(ArgumentsList::from_mut_value(&mut value)),
             gc.reborrow(),
-        )
-        .unbind()
-        .bind(gc.nogc());
+        )?;
 
         // 11. IfAbruptRejectPromise(result, promiseCapability).
         let promise_capability = PromiseCapability {
-            promise: scoped_promise.get(agent).bind(gc.nogc()),
+            promise: scoped_promise.get(agent).local(),
             must_be_unresolved: true,
         };
         let result = if_abrupt_reject_promise_m!(agent, result, promise_capability, gc);
@@ -321,7 +300,7 @@ impl AsyncFromSyncIteratorPrototype {
             );
             let promise_capability = PromiseCapability {
                 // SAFETY: scoped_promise is not shared.
-                promise: unsafe { scoped_promise.take(agent).bind(gc) },
+                promise: unsafe { scoped_promise.take(agent).local() },
                 must_be_unresolved: true,
             };
             promise_capability.reject(agent, error, gc);
@@ -332,14 +311,14 @@ impl AsyncFromSyncIteratorPrototype {
         // 13. Return AsyncFromSyncIteratorContinuation(result, promiseCapability, syncIteratorRecord, true).
         async_from_sync_iterator_continuation(
             agent,
-            result.unbind(),
+            result,
             PromiseCapability {
                 // SAFETY: scoped_promise is not shared.
-                promise: unsafe { scoped_promise.take(agent) },
+                promise: unsafe { scoped_promise.take(agent).local() },
                 must_be_unresolved: true,
             },
             // SAFETY: scoped_sync_iterator is not shared.
-            unsafe { scoped_sync_iterator.take(agent) },
+            unsafe { scoped_sync_iterator.take(agent).local() },
             true,
             gc,
         )
@@ -358,10 +337,10 @@ pub(crate) fn async_from_sync_iterator_continuation<'a>(
     promise_capability: PromiseCapability,
     sync_iterator: Object,
     close_on_rejection: bool,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> Promise<'a> {
-    let result = result.bind(gc.nogc());
-    let promise_capability = promise_capability.bind(gc.nogc());
+    crate::engine::bind!(let result = result, gc);
+    crate::engine::bind!(let promise_capability = promise_capability, gc);
 
     let scoped_promise = promise_capability.promise.scope(agent, gc.nogc());
     let sync_iterator = sync_iterator.scope(agent, gc.nogc());
@@ -371,31 +350,25 @@ pub(crate) fn async_from_sync_iterator_continuation<'a>(
     //    %Promise%, the calls to promiseCapability.[[Reject]] entailed by the
     //    use IfAbruptRejectPromise below are guaranteed not to throw.
     // 2. Let done be Completion(IteratorComplete(result)).
-    let done = iterator_complete(agent, result.unbind(), gc.reborrow())
-        .unbind()
-        .bind(gc.nogc());
+    let done = iterator_complete(agent, result, gc.reborrow())?;
     // 3. IfAbruptRejectPromise(done, promiseCapability).
     let promise_capability = PromiseCapability {
-        promise: scoped_promise.get(agent).bind(gc.nogc()),
+        promise: scoped_promise.get(agent).local(),
         must_be_unresolved,
     };
     let done = if_abrupt_reject_promise_m!(agent, done, promise_capability, gc);
     // 4. Let value be Completion(IteratorValue(result)).
     // SAFETY: scoped_result is not shared.
-    let result = unsafe { scoped_result.take(agent) }.bind(gc.nogc());
-    let value = iterator_value(agent, result.unbind(), gc.reborrow())
-        .unbind()
-        .bind(gc.nogc());
+    crate::engine::bind!(let result = unsafe { scoped_result.take(agent).local() }, gc);
+    let value = iterator_value(agent, result, gc.reborrow())?;
     // 5. IfAbruptRejectPromise(value, promiseCapability).
     let promise_capability = PromiseCapability {
-        promise: scoped_promise.get(agent).bind(gc.nogc()),
+        promise: scoped_promise.get(agent).local(),
         must_be_unresolved,
     };
     let value = if_abrupt_reject_promise_m!(agent, value, promise_capability, gc);
     // 6. Let valueWrapper be Completion(PromiseResolve(%Promise%, value)).
-    let value_wrapper = Promise::resolve(agent, value.unbind(), gc.reborrow())
-        .unbind()
-        .bind(gc.nogc());
+    let value_wrapper = Promise::resolve(agent, value, gc.reborrow())?;
     // 7. If valueWrapper is an abrupt completion, done is false, and closeOnRejection is true, then
     //         a. Set valueWrapper to Completion(IteratorClose(syncIteratorRecord, valueWrapper)).
     // 8. IfAbruptRejectPromise(valueWrapper, promiseCapability).
@@ -418,13 +391,13 @@ pub(crate) fn async_from_sync_iterator_continuation<'a>(
         //         i. Return ? IteratorClose(syncIteratorRecord, ThrowCompletion(error)).
         // b. Let onRejected be CreateBuiltinFunction(closeIterator, 1, "", « »).
         // c. NOTE: onRejected is used to close the Iterator when the "value" property of an IteratorResult object it yields is a rejected promise.
-        PromiseReactionHandler::AsyncFromSyncIteratorClose(
-            unsafe { sync_iterator.take(agent) }.bind(gc.nogc()),
-        )
+        PromiseReactionHandler::AsyncFromSyncIteratorClose(unsafe {
+            sync_iterator.take(agent).local()
+        })
     };
     // 14. Perform PerformPromiseThen(valueWrapper, onFulfilled, onRejected, promiseCapability).
     let promise_capability = PromiseCapability {
-        promise: scoped_promise.get(agent).bind(gc.nogc()),
+        promise: scoped_promise.get(agent).local(),
         must_be_unresolved,
     };
     inner_promise_then(
@@ -436,5 +409,5 @@ pub(crate) fn async_from_sync_iterator_continuation<'a>(
         gc.nogc(),
     );
     // 15. Return promiseCapability.[[Promise]].
-    unsafe { scoped_promise.take(agent) }.bind(gc.into_nogc())
+    unsafe { scoped_promise.take(agent).local() }
 }

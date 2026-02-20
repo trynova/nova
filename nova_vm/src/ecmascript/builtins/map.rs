@@ -52,7 +52,7 @@ impl<'gc> Map<'gc> {
     pub(crate) fn get_entries(
         self,
         agent: &Agent,
-    ) -> (&[Option<Value<'gc>>], &[Option<Value<'gc>>]) {
+    ) -> (&[Option<Value<'static>>], &[Option<Value<'static>>]) {
         let data = self.get(agent);
         (data.keys, data.values)
     }
@@ -103,14 +103,14 @@ impl<'a> InternalSlots<'a> for Map<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index.unbind()
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
             self.get_mut(agent)
                 .object_index
-                .replace(backing_object.unbind())
+                .replace(backing_object)
                 .is_none()
         );
     }
@@ -137,9 +137,7 @@ impl HeapSweepWeakReference for Map<'static> {
 impl<'a> CreateHeapData<MapHeapData<'a>, Map<'a>> for Heap {
     fn create(&mut self, data: MapHeapData<'a>) -> Map<'a> {
         let i = self.maps.len();
-        self.maps
-            .push(data.unbind())
-            .expect("Failed to allocate Map");
+        self.maps.push(data).expect("Failed to allocate Map");
         self.alloc_counter += core::mem::size_of::<MapHeapData<'static>>();
         Map(BaseIndex::from_index_u32(i))
     }

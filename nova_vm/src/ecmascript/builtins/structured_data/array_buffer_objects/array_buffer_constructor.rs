@@ -52,13 +52,13 @@ impl ArrayBufferConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let nogc = gc.nogc();
-        let arguments = arguments.bind(nogc);
-        let new_target = new_target.bind(nogc);
+        crate::engine::bind!(let arguments = arguments, gc);
+        crate::engine::bind!(let new_target = new_target, gc);
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
@@ -67,17 +67,17 @@ impl ArrayBufferConstructor {
                 gc.into_nogc(),
             ));
         };
-        let new_target = new_target.bind(nogc);
-        let length = arguments.get(0).bind(nogc);
+        crate::engine::bind!(let new_target = new_target, gc);
+        let length = arguments.get(0);
         let options = if arguments.len() > 1 {
-            Some(arguments.get(1).bind(nogc))
+            Some(arguments.get(1))
         } else {
             None
         };
         let (byte_length, new_target, requested_max_byte_length) =
             if let (Value::Integer(integer), true) = (length, options.is_none()) {
                 (
-                    validate_index(agent, integer.into_i64(), nogc).unbind()?,
+                    validate_index(agent, integer.into_i64(), nogc)?,
                     new_target,
                     None,
                 )
@@ -85,28 +85,27 @@ impl ArrayBufferConstructor {
                 let options = options.map(|o| o.scope(agent, nogc));
                 let new_target = new_target.scope(agent, nogc);
                 // 2. Let byteLength be ? ToIndex(length).
-                let byte_length = to_index(agent, length.unbind(), gc.reborrow()).unbind()? as u64;
+                let byte_length = to_index(agent, length, gc.reborrow())? as u64;
                 // 3. Let requestedMaxByteLength be ? GetArrayBufferMaxByteLengthOption(options).
                 let requested_max_byte_length = if let Some(options) = options {
                     get_array_buffer_max_byte_length_option(
                         agent,
-                        options.get(agent),
+                        options.get(agent).local(),
                         gc.reborrow(),
-                    )
-                    .unbind()?
+                    )?
                 } else {
                     None
                 };
                 (
                     byte_length,
-                    new_target.get(agent).bind(gc.nogc()),
+                    new_target.get(agent).local(),
                     requested_max_byte_length,
                 )
             };
         // 4. Return ? AllocateArrayBuffer(NewTarget, byteLength, requestedMaxByteLength).
         allocate_array_buffer(
             agent,
-            Function::try_from(new_target).unwrap().unbind(),
+            Function::try_from(new_target).unwrap(),
             byte_length,
             requested_max_byte_length,
             gc,
@@ -118,10 +117,10 @@ impl ArrayBufferConstructor {
     fn is_view<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let arg = arguments.get(0).bind(gc.into_nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let arg = arguments.get(0), gc);
         // 1. If arg is not an Object, return false.
         // 2. If arg has a [[ViewedArrayBuffer]] internal slot, return true.
         // 3. Return false.
@@ -157,12 +156,12 @@ impl ArrayBufferConstructor {
     fn get_species<'gc>(
         _agent: &mut Agent,
         this_value: Value,
-        _arguments: ArgumentsList,
+        _arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Return the this value.
         // The value of the "name" property of this function is "get [Symbol.species]".
-        Ok(this_value.bind(gc.into_nogc()))
+        Ok(this_value)
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {

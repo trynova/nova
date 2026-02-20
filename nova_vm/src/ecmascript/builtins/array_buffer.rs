@@ -48,8 +48,7 @@ impl<'ab> ArrayBuffer<'ab> {
         let block = data_block;
         Ok(agent
             .heap
-            .create(ArrayBufferHeapData::new_fixed_length(block))
-            .bind(gc))
+            .create(ArrayBufferHeapData::new_fixed_length(block)))
     }
 
     #[inline]
@@ -81,12 +80,9 @@ impl<'ab> ArrayBuffer<'ab> {
     pub fn set_detach_key(self, agent: &mut Agent, key: Option<DetachKey>) {
         if let Some(key) = key {
             agent.heap.alloc_counter += core::mem::size_of::<(ArrayBuffer, DetachKey)>();
-            agent
-                .heap
-                .array_buffer_detach_keys
-                .insert(self.unbind(), key);
+            agent.heap.array_buffer_detach_keys.insert(self, key);
         } else {
-            agent.heap.array_buffer_detach_keys.remove(&self.unbind());
+            agent.heap.array_buffer_detach_keys.remove(&self);
         }
     }
 
@@ -221,14 +217,14 @@ impl<'a> InternalSlots<'a> for ArrayBuffer<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index.unbind()
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
             self.get_mut(agent)
                 .object_index
-                .replace(backing_object.unbind())
+                .replace(backing_object)
                 .is_none()
         );
     }
@@ -254,7 +250,7 @@ impl HeapSweepWeakReference for ArrayBuffer<'static> {
 
 impl<'a> CreateHeapData<ArrayBufferHeapData<'a>, ArrayBuffer<'a>> for Heap {
     fn create(&mut self, data: ArrayBufferHeapData<'a>) -> ArrayBuffer<'a> {
-        self.array_buffers.push(data.unbind());
+        self.array_buffers.push(data);
         self.alloc_counter += core::mem::size_of::<ArrayBufferHeapData<'static>>();
         ArrayBuffer(BaseIndex::last(&self.array_buffers))
     }
@@ -344,9 +340,9 @@ impl<'a> From<AnyArrayBuffer<'a>> for HeapRootData {
     #[inline(always)]
     fn from(value: AnyArrayBuffer<'a>) -> Self {
         match value {
-            AnyArrayBuffer::ArrayBuffer(dv) => Self::ArrayBuffer(dv.unbind()),
+            AnyArrayBuffer::ArrayBuffer(dv) => Self::ArrayBuffer(dv),
             #[cfg(feature = "shared-array-buffer")]
-            AnyArrayBuffer::SharedArrayBuffer(sdv) => Self::SharedArrayBuffer(sdv.unbind()),
+            AnyArrayBuffer::SharedArrayBuffer(sdv) => Self::SharedArrayBuffer(sdv),
         }
     }
 }

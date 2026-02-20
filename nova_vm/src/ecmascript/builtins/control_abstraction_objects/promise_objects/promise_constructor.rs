@@ -107,11 +107,11 @@ impl PromiseConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        args: ArgumentsList,
+        args: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let executor = args.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let executor = args.get(0), gc);
 
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
@@ -121,7 +121,7 @@ impl PromiseConstructor {
                 gc.into_nogc(),
             ));
         };
-        let new_target = new_target.unbind().bind(gc.nogc());
+        let new_target = new_target;
 
         if new_target != agent.current_realm_record().intrinsics().promise().into() {
             return Err(throw_promise_subclassing_not_supported(
@@ -139,7 +139,7 @@ impl PromiseConstructor {
                 gc.into_nogc(),
             ));
         };
-        let executor = executor.unbind().scope(agent, gc.nogc());
+        let executor = executor.scope(agent, gc.nogc());
 
         // 3. Let promise be ? OrdinaryCreateFromConstructor(NewTarget, "%Promise.prototype%", « [[PromiseState]], [[PromiseResult]], [[PromiseFulfillReactions]], [[PromiseRejectReactions]], [[PromiseIsHandled]] »).
         // 4. Set promise.[[PromiseState]] to pending.
@@ -148,15 +148,14 @@ impl PromiseConstructor {
         // 7. Set promise.[[PromiseIsHandled]] to false.
         let Object::Promise(promise) = ordinary_create_from_constructor(
             agent,
-            Function::try_from(new_target.unbind()).unwrap(),
+            Function::try_from(new_target).unwrap(),
             ProtoIntrinsics::Promise,
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc()) else {
+        )?
+        else {
             unreachable!()
         };
-        let promise = promise.unbind().bind(gc.nogc());
+        let promise = promise;
         let scoped_promise = promise.scope(agent, gc.nogc());
 
         // 8. Let resolvingFunctions be CreateResolvingFunctions(promise).
@@ -176,22 +175,22 @@ impl PromiseConstructor {
         // 10. If completion is an abrupt completion, then
         if let Err(err) = call_function(
             agent,
-            executor.get(agent),
+            executor.get(agent).local(),
             Value::Undefined,
             Some(ArgumentsList::from_mut_slice(&mut [
-                resolve_function.unbind().into(),
-                reject_function.unbind().into(),
+                resolve_function.into(),
+                reject_function.into(),
             ])),
             gc.reborrow(),
         ) {
             // a. Perform ? Call(resolvingFunctions.[[Reject]], undefined, « completion.[[Value]] »).
             let promise_capability =
-                PromiseCapability::from_promise(scoped_promise.get(agent), true);
-            promise_capability.reject(agent, err.value().unbind(), gc.nogc());
+                PromiseCapability::from_promise(scoped_promise.get(agent).local(), true);
+            promise_capability.reject(agent, err.value(), gc.nogc());
         }
 
         // 11. Return promise.
-        Ok(scoped_promise.get(agent).into())
+        Ok(scoped_promise.get(agent).local().into())
     }
 
     /// ### [27.2.4.1 Promise.all ( iterable )](https://tc39.es/ecma262/#sec-promise.all)
@@ -202,20 +201,13 @@ impl PromiseConstructor {
     fn all<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let this_value = this_value.bind(gc.nogc());
-        let arguments = arguments.bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let this_value = this_value, gc);
+        crate::engine::bind!(let arguments = arguments, gc);
 
-        let setup_result = promise_group_setup(
-            agent,
-            this_value.unbind(),
-            arguments.unbind(),
-            gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        let setup_result = promise_group_setup(agent, this_value, arguments, gc.reborrow())?;
 
         let PromiseGroupSetup {
             iterator_record,
@@ -225,7 +217,7 @@ impl PromiseConstructor {
         } = match setup_result {
             PromiseGroupSetupResult::Success(res) => res,
             PromiseGroupSetupResult::AbruptReject(promise) => {
-                return Ok(promise.unbind().into());
+                return Ok(promise.into());
             }
         };
 
@@ -237,29 +229,25 @@ impl PromiseConstructor {
         let result = perform_promise_group(
             agent,
             iterator.clone(),
-            iterator_record.next_method.unbind(),
-            constructor.unbind(),
-            promise_capability.unbind(),
-            promise_resolve.unbind(),
+            iterator_record.next_method,
+            constructor,
+            promise_capability,
+            promise_resolve,
             &mut iterator_done,
             PromiseGroupType::All,
             gc.reborrow(),
-        )
-        .unbind()
-        .bind(gc.nogc());
+        )?;
 
         let result_value = handle_promise_group_result(
             agent,
-            result.unbind(),
+            result,
             iterator_done,
-            iterator.get(agent),
-            promise.get(agent),
+            iterator.get(agent).local(),
+            promise.get(agent).local(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
 
-        Ok(result_value.unbind())
+        Ok(result_value)
     }
 
     /// ### [27.2.4.2 Promise.allSettled ( iterable )](https://tc39.es/ecma262/#sec-promise.allsettled)
@@ -270,20 +258,13 @@ impl PromiseConstructor {
     fn all_settled<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let this_value = this_value.bind(gc.nogc());
-        let arguments = arguments.bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let this_value = this_value, gc);
+        crate::engine::bind!(let arguments = arguments, gc);
 
-        let setup_result = promise_group_setup(
-            agent,
-            this_value.unbind(),
-            arguments.unbind(),
-            gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        let setup_result = promise_group_setup(agent, this_value, arguments, gc.reborrow())?;
 
         let PromiseGroupSetup {
             iterator_record,
@@ -293,7 +274,7 @@ impl PromiseConstructor {
         } = match setup_result {
             PromiseGroupSetupResult::Success(res) => res,
             PromiseGroupSetupResult::AbruptReject(promise) => {
-                return Ok(promise.unbind().into());
+                return Ok(promise.into());
             }
         };
 
@@ -305,29 +286,25 @@ impl PromiseConstructor {
         let result = perform_promise_group(
             agent,
             iterator.clone(),
-            iterator_record.next_method.unbind(),
-            constructor.unbind(),
-            promise_capability.unbind(),
-            promise_resolve.unbind(),
+            iterator_record.next_method,
+            constructor,
+            promise_capability,
+            promise_resolve,
             &mut iterator_done,
             PromiseGroupType::AllSettled,
             gc.reborrow(),
-        )
-        .unbind()
-        .bind(gc.nogc());
+        )?;
 
         let result_value = handle_promise_group_result(
             agent,
-            result.unbind(),
+            result,
             iterator_done,
-            iterator.get(agent),
-            promise.get(agent),
+            iterator.get(agent).local(),
+            promise.get(agent).local(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
 
-        Ok(result_value.unbind())
+        Ok(result_value)
     }
 
     /// ### [27.2.4.3 Promise.any ( iterable )](https://tc39.es/ecma262/#sec-promise.any)
@@ -338,20 +315,13 @@ impl PromiseConstructor {
     fn any<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let this_value = this_value.bind(gc.nogc());
-        let arguments = arguments.bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let this_value = this_value, gc);
+        crate::engine::bind!(let arguments = arguments, gc);
 
-        let setup_result = promise_group_setup(
-            agent,
-            this_value.unbind(),
-            arguments.unbind(),
-            gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        let setup_result = promise_group_setup(agent, this_value, arguments, gc.reborrow())?;
 
         let PromiseGroupSetup {
             iterator_record,
@@ -361,7 +331,7 @@ impl PromiseConstructor {
         } = match setup_result {
             PromiseGroupSetupResult::Success(res) => res,
             PromiseGroupSetupResult::AbruptReject(promise) => {
-                return Ok(promise.unbind().into());
+                return Ok(promise.into());
             }
         };
 
@@ -373,29 +343,25 @@ impl PromiseConstructor {
         let result = perform_promise_group(
             agent,
             iterator.clone(),
-            iterator_record.next_method.unbind(),
-            constructor.unbind(),
-            promise_capability.unbind(),
-            promise_resolve.unbind(),
+            iterator_record.next_method,
+            constructor,
+            promise_capability,
+            promise_resolve,
             &mut iterator_done,
             PromiseGroupType::Any,
             gc.reborrow(),
-        )
-        .unbind()
-        .bind(gc.nogc());
+        )?;
 
         let result_value = handle_promise_group_result(
             agent,
-            result.unbind(),
+            result,
             iterator_done,
-            iterator.get(agent),
-            promise.get(agent),
+            iterator.get(agent).local(),
+            promise.get(agent).local(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
 
-        Ok(result_value.unbind())
+        Ok(result_value)
     }
 
     /// ### [27.2.4.5 Promise.race ( iterable )](https://tc39.es/ecma262/#sec-promise.race)
@@ -411,20 +377,13 @@ impl PromiseConstructor {
     fn race<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let this_value = this_value.bind(gc.nogc());
-        let arguments = arguments.bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let this_value = this_value, gc);
+        crate::engine::bind!(let arguments = arguments, gc);
 
-        let setup_result = promise_group_setup(
-            agent,
-            this_value.unbind(),
-            arguments.unbind(),
-            gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        let setup_result = promise_group_setup(agent, this_value, arguments, gc.reborrow())?;
 
         let PromiseGroupSetup {
             iterator_record,
@@ -434,7 +393,7 @@ impl PromiseConstructor {
         } = match setup_result {
             PromiseGroupSetupResult::Success(res) => res,
             PromiseGroupSetupResult::AbruptReject(promise) => {
-                return Ok(promise.unbind().into());
+                return Ok(promise.into());
             }
         };
 
@@ -446,28 +405,24 @@ impl PromiseConstructor {
         let result = perform_promise_race(
             agent,
             iterator.clone(),
-            iterator_record.next_method.unbind(),
-            constructor.unbind(),
-            promise_capability.unbind(),
-            promise_resolve.unbind(),
+            iterator_record.next_method,
+            constructor,
+            promise_capability,
+            promise_resolve,
             &mut iterator_done,
             gc.reborrow(),
-        )
-        .unbind()
-        .bind(gc.nogc());
+        )?;
 
         let result_value = handle_promise_group_result(
             agent,
-            result.unbind(),
+            result,
             iterator_done,
-            iterator.get(agent),
-            promise.get(agent),
+            iterator.get(agent).local(),
+            promise.get(agent).local(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
 
-        Ok(result_value.unbind())
+        Ok(result_value)
     }
 
     /// ### [27.2.4.6 Promise.reject ( r )](https://tc39.es/ecma262/#sec-promise.reject)
@@ -478,11 +433,11 @@ impl PromiseConstructor {
     fn reject<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let r = arguments.get(0).bind(gc);
+        crate::engine::bind!(let r = arguments.get(0), gc);
         if this_value != agent.current_realm_record().intrinsics().promise().into() {
             return Err(throw_promise_subclassing_not_supported(agent, gc));
         }
@@ -504,9 +459,9 @@ impl PromiseConstructor {
     fn resolve<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         if this_value != agent.current_realm_record().intrinsics().promise().into() {
             return Err(throw_promise_subclassing_not_supported(
                 agent,
@@ -526,11 +481,11 @@ impl PromiseConstructor {
     fn r#try<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let callback_fn = arguments.get(0).bind(gc.nogc());
-        let args = arguments.slice_from(1).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let callback_fn = arguments.get(0), gc);
+        crate::engine::bind!(let args = arguments.slice_from(1), gc);
         // 1. Let C be the this value.
         // 2. If C is not an Object, throw a TypeError exception.
         if is_constructor(agent, this_value).is_none() {
@@ -551,9 +506,9 @@ impl PromiseConstructor {
         // 4. Let status be Completion(Call(callbackfn, undefined, args)).
         let status = call(
             agent,
-            callback_fn.unbind(),
+            callback_fn,
             Value::Undefined,
-            Some(args.unbind()),
+            Some(args),
             gc.reborrow(),
         );
         let promise = match status {
@@ -572,20 +527,20 @@ impl PromiseConstructor {
             // 6. Else,
             Ok(result) => {
                 // a. Perform ? Call(promiseCapability.[[Resolve]], undefined, « status.[[Value]] »).
-                Promise::resolve(agent, result.unbind(), gc)
+                Promise::resolve(agent, result, gc)
             }
         };
         // 7. Return promiseCapability.[[Promise]].
-        Ok(promise.unbind().into())
+        Ok(promise.into())
     }
 
     /// ### [27.2.4.9 Promise.withResolvers ( )](https://tc39.es/ecma262/#sec-promise.withResolvers)
     fn with_resolvers<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _arguments: ArgumentsList,
+        _arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
         // Step 2 will throw if `this_value` is not a constructor.
         if is_constructor(agent, this_value).is_none() {
@@ -651,10 +606,10 @@ impl PromiseConstructor {
     fn get_species<'gc>(
         _: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         _: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        Ok(this_value.unbind())
+    ) -> JsResult<'static, Value<'static>> {
+        Ok(this_value)
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -686,17 +641,15 @@ fn get_promise_resolve<'gc>(
     promise_constructor: Function,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Function<'gc>> {
-    let promise_constructor = promise_constructor.bind(gc.nogc());
+    crate::engine::bind!(let promise_constructor = promise_constructor, gc);
 
     // 1. Let promiseResolve be ? Get(promiseConstructor, "resolve").
     let promise_resolve = get(
         agent,
-        promise_constructor.unbind(),
+        promise_constructor,
         BUILTIN_STRING_MEMORY.resolve.into(),
         gc.reborrow(),
-    )
-    .unbind()?
-    .bind(gc.nogc());
+    )?;
 
     // 2. If IsCallable(promiseResolve) is false, throw a TypeError exception.
     let Some(promise_resolve) = is_callable(promise_resolve, gc.nogc()) else {
@@ -708,17 +661,17 @@ fn get_promise_resolve<'gc>(
     };
 
     // 3. Return promiseResolve.
-    Ok(promise_resolve.unbind())
+    Ok(promise_resolve)
 }
 
 fn promise_group_setup<'gc>(
     agent: &mut Agent,
     this_value: Value,
-    arguments: ArgumentsList,
+    arguments: ArgumentsList<'_, 'static>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, PromiseGroupSetupResult<'gc>> {
-    let this_value = this_value.bind(gc.nogc());
-    let arguments = arguments.bind(gc.nogc());
+    crate::engine::bind!(let this_value = this_value, gc);
+    crate::engine::bind!(let arguments = arguments, gc);
     let iterable = arguments.get(0).scope(agent, gc.nogc());
 
     // 1. Let C be the this value.
@@ -742,46 +695,43 @@ fn promise_group_setup<'gc>(
     let promise = promise_capability.promise().scope(agent, gc.nogc());
 
     // 3. Let promiseResolve be Completion(GetPromiseResolve(C)).
-    let promise_resolve = get_promise_resolve(agent, constructor.get(agent), gc.reborrow())
-        .unbind()
-        .bind(gc.nogc());
+    let promise_resolve =
+        get_promise_resolve(agent, constructor.get(agent).local(), gc.reborrow())?;
 
     // 4. IfAbruptRejectPromise(promiseResolve, promiseCapability).
     let promise_capability = PromiseCapability {
-        promise: promise.get(agent).bind(gc.nogc()),
+        promise: promise.get(agent).local(),
         must_be_unresolved: true,
     };
 
-    let promise_resolve = match promise_resolve.unbind().bind(gc.nogc()) {
+    let promise_resolve = match promise_resolve {
         Err(err) => {
-            promise_capability.reject(agent, err.value().unbind(), gc.nogc());
-            let promise = promise_capability.promise.unbind().bind(gc.into_nogc());
+            promise_capability.reject(agent, err.value(), gc.nogc());
+            crate::engine::bind!(let promise = promise_capability.promise, gc);
             return Ok(PromiseGroupSetupResult::AbruptReject(promise));
         }
-        Ok(value) => value.unbind().bind(gc.nogc()),
+        Ok(value) => value,
     };
     let promise_resolve = promise_resolve.scope(agent, gc.nogc());
 
     // 5. Let iteratorRecord be Completion(GetIterator(iterable, sync)).
-    let iterator_record = get_iterator(agent, iterable.get(agent), false, gc.reborrow())
-        .unbind()
-        .bind(gc.nogc());
+    let iterator_record = get_iterator(agent, iterable.get(agent).local(), false, gc.reborrow())?;
 
     // 6. IfAbruptRejectPromise(iteratorRecord, promiseCapability).
     let promise_capability = PromiseCapability {
-        promise: promise.get(agent).bind(gc.nogc()),
+        promise: promise.get(agent).local(),
         must_be_unresolved: true,
     };
 
-    let iterator_record = match iterator_record.unbind().bind(gc.nogc()) {
+    let iterator_record = match iterator_record {
         Err(err) => {
-            promise_capability.reject(agent, err.value().unbind(), gc.nogc());
-            let promise = promise_capability.promise.unbind().bind(gc.into_nogc());
+            promise_capability.reject(agent, err.value(), gc.nogc());
+            crate::engine::bind!(let promise = promise_capability.promise, gc);
             return Ok(PromiseGroupSetupResult::AbruptReject(promise));
         }
-        Ok(value) => value.unbind().bind(gc.nogc()),
+        Ok(value) => value,
     };
-    let iterator_record = iterator_record.bind(gc.nogc());
+    crate::engine::bind!(let iterator_record = iterator_record, gc);
 
     let Some(iterator_record) = iterator_record.into_iterator_record() else {
         return Err(agent.throw_exception_with_static_message(
@@ -792,10 +742,10 @@ fn promise_group_setup<'gc>(
     };
 
     Ok(PromiseGroupSetupResult::Success(PromiseGroupSetup {
-        iterator_record: iterator_record.unbind(),
-        constructor: constructor.get(agent),
-        promise_capability: promise_capability.unbind(),
-        promise_resolve: promise_resolve.get(agent),
+        iterator_record: iterator_record,
+        constructor: constructor.get(agent).local(),
+        promise_capability: promise_capability,
+        promise_resolve: promise_resolve.get(agent).local(),
     }))
 }
 
@@ -806,40 +756,33 @@ fn handle_promise_group_result<'gc>(
     iterator: Object,
     promise: Promise<'gc>,
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, Value<'gc>> {
-    let result = result.bind(gc.nogc());
-    let iterator = iterator.bind(gc.nogc());
-    let promise = promise.bind(gc.nogc()).scope(agent, gc.nogc());
+) -> JsResult<'static, Value<'static>> {
+    crate::engine::bind!(let result = result, gc);
+    crate::engine::bind!(let iterator = iterator, gc);
+    crate::engine::bind!(let promise = promise, gc);
 
     // 8. If result is an abrupt completion, then
     let result = match result {
         Err(mut result) => {
             // a. If iteratorRecord.[[Done]] is false, set result to Completion(IteratorClose(iteratorRecord, result)).
             if !iterator_done {
-                result = iterator_close_with_error(
-                    agent,
-                    iterator.unbind(),
-                    result.unbind(),
-                    gc.reborrow(),
-                )
-                .unbind()
-                .bind(gc.nogc());
+                result = iterator_close_with_error(agent, iterator, result, gc.reborrow())?;
             }
 
             // b. IfAbruptRejectPromise(result, promiseCapability).
             let promise_capability = PromiseCapability {
-                promise: promise.get(agent),
+                promise: promise.get(agent).local(),
                 must_be_unresolved: true,
             };
             // a. Perform ? Call(capability.[[Reject]], undefined, « value.[[Value]] »).
-            promise_capability.reject(agent, result.value().unbind(), gc.nogc());
+            promise_capability.reject(agent, result.value(), gc.nogc());
             // b. Return capability.[[Promise]].
             promise_capability.promise()
         }
         Ok(result) => result,
     };
     // 9. Return ! result.
-    Ok(result.unbind().into())
+    Ok(result.into())
 }
 
 /// ### [27.2.4.1.2 PerformPromiseAll ( iteratorRecord, constructor, resultCapability, promiseResolve )](https://tc39.es/ecma262/#sec-performpromiseall)
@@ -857,25 +800,23 @@ fn perform_promise_group<'gc>(
     promise_group_type: PromiseGroupType,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Promise<'gc>> {
-    let result_capability = result_capability.bind(gc.nogc());
+    crate::engine::bind!(let result_capability = result_capability, gc);
     let constructor = constructor.scope(agent, gc.nogc());
     let promise_resolve = promise_resolve.scope(agent, gc.nogc());
 
     let next_method = next_method.scope(agent, gc.nogc());
 
     // 1. Let values be a new empty List.
-    let capacity = match iterator.get(agent) {
+    let capacity = match iterator.get(agent).local() {
         Object::Array(array) => array.len(agent),
         #[cfg(feature = "set")]
         Object::Map(map) => map.len(agent),
         #[cfg(feature = "set")]
-        Object::Set(set) => set.get(agent).set_data.borrow().len() as u32,
+        Object::Set(set) => set.get(agent).local().set_data.borrow().len() as u32,
         _ => 0,
     };
 
-    let result_array = array_create(agent, 0, capacity as usize, None, gc.nogc())
-        .unbind()?
-        .bind(gc.nogc());
+    let result_array = array_create(agent, 0, capacity as usize, None, gc.nogc())?;
     let result_array = result_array.scope(agent, gc.nogc());
 
     // 2. Let remainingElementsCount be the Record { [[Value]]: 1 }.
@@ -885,8 +826,8 @@ fn perform_promise_group<'gc>(
         .create(PromiseGroupRecord {
             promise_group_type,
             remaining_elements_count: 1,
-            result_array: result_array.get(agent),
-            promise: promise.get(agent),
+            result_array: result_array.get(agent).local(),
+            promise: promise.get(agent).local(),
         })
         .scope(agent, gc.nogc());
 
@@ -896,20 +837,17 @@ fn perform_promise_group<'gc>(
     // 4. Repeat,
     loop {
         let iterator_record = IteratorRecord {
-            iterator: iterator.get(agent),
-            next_method: next_method.get(agent),
-        }
-        .bind(gc.nogc());
+            iterator: iterator.get(agent).local(),
+            next_method: next_method.get(agent).local(),
+        };
 
         // a. Let next be ? IteratorStepValue(iteratorRecord).
-        let next = iterator_step_value(agent, iterator_record.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let next = iterator_step_value(agent, iterator_record, gc.reborrow())?;
 
         // b. If next is done, then
         let Some(next) = next else {
             *iterator_done = true;
-            let promise_group = promise_group_reference.get(agent).bind(gc.nogc());
+            crate::engine::bind!(let promise_group = promise_group_reference.get(agent).local(), gc);
             let data = promise_group.get_mut(agent);
 
             // i. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] - 1.
@@ -918,25 +856,21 @@ fn perform_promise_group<'gc>(
             // ii. If remainingElementsCount.[[Value]] = 0, then
             if data.remaining_elements_count == 0 {
                 // 1. Let valuesArray be CreateArrayFromList(values).
-                let values_array = result_array.get(agent).bind(gc.nogc());
+                crate::engine::bind!(let values_array = result_array.get(agent).local(), gc);
                 // 2. Perform ? Call(resultCapability.[[Resolve]], undefined, « valuesArray »).
                 let result_capability = PromiseCapability {
-                    promise: promise.get(agent).bind(gc.nogc()),
+                    promise: promise.get(agent).local(),
                     must_be_unresolved: true,
                 };
-                result_capability.unbind().resolve(
-                    agent,
-                    values_array.unbind().into(),
-                    gc.reborrow(),
-                );
+                result_capability.resolve(agent, values_array.into(), gc.reborrow());
             }
 
             // iii. Return resultCapability.[[Promise]].
-            return Ok(promise.get(agent));
+            return Ok(promise.get(agent).local());
         };
 
         // c. Append undefined to values.
-        let temp_array = result_array.get(agent).bind(gc.nogc());
+        crate::engine::bind!(let temp_array = result_array.get(agent).local(), gc);
         if let Err(err) = temp_array.reserve(agent, 1) {
             return Err(agent.throw_allocation_exception(err, gc.into_nogc()));
         }
@@ -946,13 +880,11 @@ fn perform_promise_group<'gc>(
         // d. Let nextPromise be ? Call(promiseResolve, constructor, « next »).
         let call_result = call_function(
             agent,
-            promise_resolve.get(agent),
-            constructor.get(agent).into(),
-            Some(ArgumentsList::from_mut_value(&mut next.unbind())),
+            promise_resolve.get(agent).local(),
+            constructor.get(agent).local().into(),
+            Some(ArgumentsList::from_mut_value(&mut next)),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
 
         // Note: as we don't yet support Promise subclassing, if we see a
         // non-Promise return we wrap it inside a resolved Promise to get
@@ -968,7 +900,7 @@ fn perform_promise_group<'gc>(
         // h. Set onFulfilled.[[AlreadyCalled]] to false.
         // i. Set onFulfilled.[[Index]] to index.
         // j. Set onFulfilled.[[Values]] to values.
-        let promise_group = promise_group_reference.get(agent).bind(gc.nogc());
+        crate::engine::bind!(let promise_group = promise_group_reference.get(agent).local(), gc);
         promise_group.get_mut(agent).remaining_elements_count += 1;
         let reaction = PromiseReactionHandler::PromiseGroup {
             index,
@@ -979,14 +911,7 @@ fn perform_promise_group<'gc>(
         // l. Set onFulfilled.[[RemainingElements]] to remainingElementsCount.
         // m. Set remainingElementsCount.[[Value]] to remainingElementsCount.[[Value]] + 1.
         // n. Perform ? Invoke(nextPromise, "then", « onFulfilled, resultCapability.[[Reject]] »).
-        inner_promise_then(
-            agent,
-            next_promise.unbind(),
-            reaction.unbind(),
-            reaction.unbind(),
-            None,
-            gc.nogc(),
-        );
+        inner_promise_then(agent, next_promise, reaction, reaction, None, gc.nogc());
 
         // o. Set index to index + 1.
         index += 1;
@@ -1005,7 +930,7 @@ fn perform_promise_race<'gc>(
     iterator_done: &mut bool,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Promise<'gc>> {
-    let result_capability = result_capability.bind(gc.nogc());
+    crate::engine::bind!(let result_capability = result_capability, gc);
     let constructor = constructor.scope(agent, gc.nogc());
     let promise_resolve = promise_resolve.scope(agent, gc.nogc());
     let next_method = next_method.scope(agent, gc.nogc());
@@ -1013,29 +938,24 @@ fn perform_promise_race<'gc>(
 
     loop {
         let iterator_record = IteratorRecord {
-            iterator: iterator.get(agent),
-            next_method: next_method.get(agent),
-        }
-        .bind(gc.nogc());
+            iterator: iterator.get(agent).local(),
+            next_method: next_method.get(agent).local(),
+        };
 
-        let next = iterator_step_value(agent, iterator_record.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let next = iterator_step_value(agent, iterator_record, gc.reborrow())?;
 
         let Some(next) = next else {
             *iterator_done = true;
-            return Ok(promise.get(agent));
+            return Ok(promise.get(agent).local());
         };
 
         let call_result = call_function(
             agent,
-            promise_resolve.get(agent),
-            constructor.get(agent).into(),
-            Some(ArgumentsList::from_mut_value(&mut next.unbind())),
+            promise_resolve.get(agent).local(),
+            constructor.get(agent).local().into(),
+            Some(ArgumentsList::from_mut_value(&mut next)),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
 
         let next_promise = match call_result {
             Value::Promise(next_promise) => next_promise,
@@ -1043,13 +963,13 @@ fn perform_promise_race<'gc>(
         };
 
         let promise_capability = PromiseCapability {
-            promise: promise.get(agent).bind(gc.nogc()),
+            promise: promise.get(agent).local(),
             must_be_unresolved: true,
         };
 
         inner_promise_then(
             agent,
-            next_promise.unbind(),
+            next_promise,
             PromiseReactionHandler::Empty,
             PromiseReactionHandler::Empty,
             Some(promise_capability),

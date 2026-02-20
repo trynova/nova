@@ -34,10 +34,7 @@ impl<'sab> SharedArrayBuffer<'sab> {
     ) -> JsResult<'gc, SharedArrayBuffer<'gc>> {
         // SAFETY: No maxByteLength.
         let block = unsafe { create_shared_byte_data_block(agent, byte_length as u64, None, gc) }?;
-        Ok(agent
-            .heap
-            .create(SharedArrayBufferRecord::new(block, gc))
-            .bind(gc))
+        Ok(agent.heap.create(SharedArrayBufferRecord::new(block, gc)))
     }
 
     pub(crate) fn as_slice(self, agent: &Agent) -> RacySlice<'_, u8> {
@@ -71,7 +68,7 @@ impl<'sab> SharedArrayBuffer<'sab> {
 
     /// Get the SharedDataBlock of a SharedArrayBuffer for sharing.
     pub fn get_data_block(self, agent: &Agent) -> &SharedDataBlock {
-        &self.unbind().get(agent).data_block
+        &self.get(agent).data_block
     }
 
     /// Create a new SharedArrayBuffer from a SharedDataBlock.
@@ -80,13 +77,10 @@ impl<'sab> SharedArrayBuffer<'sab> {
         data_block: SharedDataBlock,
         gc: NoGcScope<'sab, '_>,
     ) -> Self {
-        agent
-            .heap
-            .create(SharedArrayBufferRecord {
-                backing_object: None,
-                data_block,
-            })
-            .bind(gc)
+        agent.heap.create(SharedArrayBufferRecord {
+            backing_object: None,
+            data_block,
+        })
     }
 
     fn get(self, agent: &Agent) -> &SharedArrayBufferRecord<'sab> {
@@ -156,14 +150,14 @@ impl<'a> InternalSlots<'a> for SharedArrayBuffer<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).backing_object.unbind()
+        self.get(agent).backing_object
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
             self.get_mut(agent)
                 .backing_object
-                .replace(backing_object.unbind())
+                .replace(backing_object)
                 .is_none()
         );
     }
@@ -192,7 +186,7 @@ impl HeapSweepWeakReference for SharedArrayBuffer<'static> {
 
 impl<'a> CreateHeapData<SharedArrayBufferRecord<'a>, SharedArrayBuffer<'a>> for Heap {
     fn create(&mut self, data: SharedArrayBufferRecord<'a>) -> SharedArrayBuffer<'a> {
-        self.shared_array_buffers.push(data.unbind());
+        self.shared_array_buffers.push(data);
         self.alloc_counter += core::mem::size_of::<SharedArrayBufferRecord<'static>>();
         SharedArrayBuffer(BaseIndex::last(&self.shared_array_buffers))
     }

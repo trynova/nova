@@ -37,11 +37,11 @@ impl RegExpStringIteratorPrototype {
     fn next<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Let O be the this value.
-        let o = this_value.bind(gc.nogc());
+        crate::engine::bind!(let o = this_value, gc);
         // 2. If O is not an Object, throw a TypeError exception.
         let Ok(o) = Object::try_from(o) else {
             return Err(agent.throw_exception_with_static_message(
@@ -76,13 +76,11 @@ impl RegExpStringIteratorPrototype {
         let full_unicode = o.unicode(agent);
         let scoped_o = o.scope(agent, gc.nogc());
         // 9. Let match be ? RegExpExec(R, S).
-        let r#match = reg_exp_exec(agent, r.unbind(), s.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let r#match = reg_exp_exec(agent, r, s, gc.reborrow())?;
         // 10. If match is null, then
         let Some(mut r#match) = r#match else {
             // a. Set O.[[Done]] to true.
-            scoped_o.get(agent).set_done(agent);
+            scoped_o.get(agent).local().set_done(agent);
             // b. Return CreateIteratorResultObject(undefined, true).
             return create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
                 .map(|o| o.into());
@@ -90,15 +88,10 @@ impl RegExpStringIteratorPrototype {
         // 11. If global is false, then
         if !global {
             // a. Set O.[[Done]] to true.
-            scoped_o.get(agent).set_done(agent);
+            scoped_o.get(agent).local().set_done(agent);
             // b. Return CreateIteratorResultObject(match, false).
-            return create_iter_result_object(
-                agent,
-                r#match.unbind().into(),
-                false,
-                gc.into_nogc(),
-            )
-            .map(|o| o.into());
+            return create_iter_result_object(agent, r#match.into(), false, gc.into_nogc())
+                .map(|o| o.into());
         }
         // 12. Let matchStr be ? ToString(? Get(match, "0")).
         let match_str = if let Some(s) = try_result_into_js(try_get_result_into_value(try_get(
@@ -107,22 +100,16 @@ impl RegExpStringIteratorPrototype {
             0.into(),
             None,
             gc.nogc(),
-        )))
-        .unbind()?
-        .bind(gc.nogc())
+        )))?
         .and_then(|s| try_result_into_option_js(try_to_string(agent, s, gc.nogc())))
         {
-            s.unbind()?.bind(gc.nogc())
+            s?
         } else {
             let scoped_match = r#match.scope(agent, gc.nogc());
-            let s = get(agent, r#match.unbind(), 0.into(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
-            let s = to_string(agent, s.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let s = get(agent, r#match, 0.into(), gc.reborrow())?;
+            let s = to_string(agent, s, gc.reborrow())?;
             // SAFETY: not shared.
-            r#match = unsafe { scoped_match.take(agent) }.bind(gc.nogc());
+            r#match = unsafe { scoped_match.take(agent).local() };
             s
         };
         // 13. If matchStr is the empty String, then
@@ -131,38 +118,32 @@ impl RegExpStringIteratorPrototype {
             // a. Let thisIndex be ℝ(? ToLength(? Get(R, "lastIndex"))).
             let this_index = get(
                 agent,
-                scoped_o.get(agent).iterating_regexp(agent),
+                scoped_o.get(agent).local().iterating_regexp(agent),
                 BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
                 gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc());
-            let this_index = to_length(agent, this_index.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            )?;
+            let this_index = to_length(agent, this_index, gc.reborrow())?;
             let this_index = usize::try_from(this_index).expect("Length value not valid usize");
             // b. Let nextIndex be AdvanceStringIndex(S, thisIndex, fullUnicode).
             let next_index = advance_string_index(
                 agent,
-                scoped_o.get(agent).iterated_string(agent),
+                scoped_o.get(agent).local().iterated_string(agent),
                 this_index,
                 full_unicode,
             );
             // c. Perform ? Set(R, "lastIndex", 𝔽(nextIndex), true).
             set(
                 agent,
-                scoped_o.get(agent).iterating_regexp(agent),
+                scoped_o.get(agent).local().iterating_regexp(agent),
                 BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
                 Number::try_from(next_index).unwrap().into(),
                 true,
                 gc.reborrow(),
-            )
-            .unbind()?;
-            r#match = unsafe { scoped_match.take(agent) }.bind(gc.nogc());
+            )?;
+            r#match = unsafe { scoped_match.take(agent).local() };
         }
         // 14. Return CreateIteratorResultObject(match, false).
-        create_iter_result_object(agent, r#match.unbind().into(), false, gc.into_nogc())
-            .map(|o| o.into())
+        create_iter_result_object(agent, r#match.into(), false, gc.into_nogc()).map(|o| o.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {

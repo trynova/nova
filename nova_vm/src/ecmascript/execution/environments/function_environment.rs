@@ -107,7 +107,7 @@ pub(crate) fn new_function_environment<'a>(
     new_target: Option<Object>,
     gc: NoGcScope<'a, '_>,
 ) -> FunctionEnvironment<'a> {
-    let ecmascript_function_object = &f.get(agent).ecmascript_function;
+    let ecmascript_function_object = &f.get(agent).local().ecmascript_function;
     let this_mode = ecmascript_function_object.this_mode;
     // 1. Let env be a new Function Environment Record containing no bindings.
     let dcl_env = DeclarativeEnvironmentRecord::new(Some(ecmascript_function_object.environment));
@@ -116,7 +116,7 @@ pub(crate) fn new_function_environment<'a>(
         .environments
         .push_declarative_environment(dcl_env, gc);
     // 2. Set env.[[FunctionObject]] to F.
-    let function_object = f.unbind().into();
+    let function_object = f.into();
     // 3. If F.[[ThisMode]] is LEXICAL, set env.[[ThisBindingStatus]] to LEXICAL.
     let this_binding_status = if this_mode == ThisMode::Lexical {
         ThisBindingStatus::Lexical
@@ -132,10 +132,10 @@ pub(crate) fn new_function_environment<'a>(
         this_binding_status,
 
         // 5. Set env.[[NewTarget]] to newTarget.
-        new_target: new_target.unbind(),
+        new_target: new_target,
 
         // 6. Set env.[[OuterEnv]] to F.[[Environment]].
-        declarative_environment: declarative_environment.unbind(),
+        declarative_environment: declarative_environment,
     };
     // 7. Return env.
     agent.heap.alloc_counter += core::mem::size_of::<Option<FunctionEnvironmentRecord>>()
@@ -164,9 +164,9 @@ pub(crate) fn new_class_static_element_environment<'a>(
         .push_declarative_environment(dcl_env, gc);
 
     let env = FunctionEnvironmentRecord {
-        this_value: Some(class_constructor.unbind().into()),
+        this_value: Some(class_constructor.into()),
 
-        function_object: class_constructor.unbind(),
+        function_object: class_constructor,
 
         this_binding_status: ThisBindingStatus::Initialized,
 
@@ -174,7 +174,7 @@ pub(crate) fn new_class_static_element_environment<'a>(
         new_target: None,
 
         // 6. Set env.[[OuterEnv]] to F.[[Environment]].
-        declarative_environment: declarative_environment.unbind(),
+        declarative_environment: declarative_environment,
     };
     // 7. Return env.
     agent.heap.alloc_counter += core::mem::size_of::<Option<FunctionEnvironmentRecord>>()
@@ -197,11 +197,11 @@ pub(crate) fn new_class_field_initializer_environment<'a>(
         + core::mem::size_of::<Option<DeclarativeEnvironmentRecord>>();
     agent.heap.environments.push_function_environment(
         FunctionEnvironmentRecord {
-            this_value: Some(class_instance.unbind().into()),
+            this_value: Some(class_instance.into()),
             this_binding_status: ThisBindingStatus::Initialized,
-            function_object: class_constructor.unbind(),
+            function_object: class_constructor,
             new_target: None,
-            declarative_environment: declarative_environment.unbind(),
+            declarative_environment: declarative_environment,
         },
         gc,
     )
@@ -232,7 +232,7 @@ impl<'e> FunctionEnvironment<'e> {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'a, '_>,
-    ) -> JsResult<'a, Value<'a>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Assert: envRec.[[ThisBindingStatus]] is not lexical.
         // 2. If envRec.[[ThisBindingStatus]] is uninitialized, throw a ReferenceError exception.
         // 3. Return envRec.[[ThisValue]].
@@ -337,7 +337,7 @@ impl<'e> FunctionEnvironment<'e> {
         // 4. Else if the binding for N in envRec is a mutable binding, then
         if binding.mutable {
             // a. Change its bound value to V.
-            binding.value = Some(value.unbind());
+            binding.value = Some(value);
         }
         // 5. Else,
         else {
@@ -389,7 +389,7 @@ impl<'e> FunctionEnvironment<'e> {
         agent: &mut Agent,
         value: Value,
         gc: NoGcScope<'a, '_>,
-    ) -> JsResult<'a, Value<'a>> {
+    ) -> JsResult<'static, Value<'static>> {
         let env_rec = self.get_mut(agent);
         // 1. Assert: envRec.[[ThisBindingStatus]] is not LEXICAL.
         debug_assert!(env_rec.this_binding_status != ThisBindingStatus::Lexical);
@@ -405,13 +405,13 @@ impl<'e> FunctionEnvironment<'e> {
         }
 
         // 3. Set envRec.[[ThisValue]] to V.
-        env_rec.this_value = Some(value.unbind());
+        env_rec.this_value = Some(value);
 
         // 4. Set envRec.[[ThisBindingStatus]] to INITIALIZED.
         env_rec.this_binding_status = ThisBindingStatus::Initialized;
 
         // 5. Return V.
-        Ok(value.bind(gc))
+        Ok(value)
     }
 
     /// ### [9.1.1.3.2 HasThisBinding ( )](https://tc39.es/ecma262/#sec-function-environment-records-hasthisbinding)
@@ -439,9 +439,12 @@ impl<'e> FunctionEnvironment<'e> {
         // 2. If envRec.[[FunctionObject]].[[HomeObject]] is undefined, return
         //    false; otherwise, return true.
         match env_rec.function_object {
-            Function::ECMAScriptFunction(func) => {
-                func.get(agent).ecmascript_function.home_object.is_some()
-            }
+            Function::ECMAScriptFunction(func) => func
+                .get(agent)
+                .local()
+                .ecmascript_function
+                .home_object
+                .is_some(),
             _ => false,
         }
     }
@@ -456,7 +459,9 @@ impl<'e> FunctionEnvironment<'e> {
 
         // 1. Let home be envRec.[[FunctionObject]].[[HomeObject]].
         let home = match env_rec.function_object {
-            Function::ECMAScriptFunction(func) => func.get(agent).ecmascript_function.home_object,
+            Function::ECMAScriptFunction(func) => {
+                func.get(agent).local().ecmascript_function.home_object
+            }
             _ => None,
         };
         // 2. If home is undefined, return undefined.

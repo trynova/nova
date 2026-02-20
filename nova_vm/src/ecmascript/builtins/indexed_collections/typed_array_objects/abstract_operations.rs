@@ -576,13 +576,11 @@ pub(crate) fn allocate_typed_array<'a, T: Viewable>(
     agent: &mut Agent,
     new_target: Function,
     length: Option<usize>,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> JsResult<'a, GenericTypedArray<'a, T>> {
-    let new_target = new_target.bind(gc.nogc());
+    crate::engine::bind!(let new_target = new_target, gc);
     // 1. Let proto be ? GetPrototypeFromConstructor(newTarget, defaultProto).
-    let proto = get_prototype_from_constructor(agent, new_target.unbind(), T::PROTO, gc.reborrow())
-        .unbind()?
-        .bind(gc.nogc());
+    let proto = get_prototype_from_constructor(agent, new_target, T::PROTO, gc.reborrow())?;
 
     // 2. Let obj be TypedArrayCreate(proto).
     let obj = typed_array_create::<T>(agent, proto);
@@ -600,11 +598,11 @@ pub(crate) fn allocate_typed_array<'a, T: Viewable>(
     if let Some(length) = length {
         // 8. Else,
         // a. Perform ? AllocateTypedArrayBuffer(obj, length).
-        allocate_typed_array_buffer::<T>(agent, obj, length, gc.nogc()).unbind()?;
+        allocate_typed_array_buffer::<T>(agent, obj, length, gc.nogc())?;
     }
 
     // 9. Return obj.
-    Ok(obj.unbind().bind(gc.into_nogc()))
+    Ok(obj)
 }
 
 /// ### [23.2.5.1.3 InitializeTypedArrayFromArrayBuffer ( O, buffer, byteOffset, length )](https://tc39.es/ecma262/#sec-initializetypedarrayfromarraybuffer)
@@ -622,32 +620,29 @@ pub(crate) fn initialize_typed_array_from_array_buffer<'gc, T: Viewable>(
     length: Option<Value>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, AnyTypedArray<'gc>> {
-    let mut o_proto = o_proto.bind(gc.nogc());
-    let mut buffer = buffer.bind(gc.nogc());
-    let byte_offset = byte_offset.bind(gc.nogc());
-    let mut length = length.bind(gc.nogc());
+    crate::engine::bind!(let mut o_proto = o_proto, gc);
+    crate::engine::bind!(let mut buffer = buffer, gc);
+    crate::engine::bind!(let byte_offset = byte_offset, gc);
+    crate::engine::bind!(let mut length = length, gc);
 
     // 1. Let elementSize be TypedArrayElementSize(O).
     let element_size = size_of::<T>();
 
     // 2. Let offset be ? ToIndex(byteOffset).
     let offset = if let Some(byte_offset) = byte_offset {
-        if let Some(offset) = try_result_into_js(try_to_index(agent, byte_offset, gc.nogc()))
-            .unbind()?
-            .bind(gc.nogc())
-        {
+        if let Some(offset) = try_result_into_js(try_to_index(agent, byte_offset, gc.nogc()))? {
             offset
         } else {
             let nogc = gc.nogc();
             let o = o_proto.map(|p| p.scope(agent, nogc));
             let b = buffer.scope(agent, nogc);
             let l = length.map(|l| l.scope(agent, nogc));
-            let offset = to_index(agent, byte_offset.unbind(), gc.reborrow()).unbind()? as u64;
+            let offset = to_index(agent, byte_offset, gc.reborrow())? as u64;
             unsafe {
                 let nogc = gc.nogc();
-                length = l.map(|l| l.take(agent)).bind(nogc);
-                buffer = b.take(agent).bind(nogc);
-                o_proto = o.map(|p| p.take(agent)).bind(nogc);
+                length = l.map(|l| l.take(agent).local());
+                buffer = b.take(agent).local();
+                o_proto = o.map(|p| p.take(agent).local());
             }
             offset
         }
@@ -672,20 +667,17 @@ pub(crate) fn initialize_typed_array_from_array_buffer<'gc, T: Viewable>(
     let new_length = if let Some(length) = length {
         // SAFETY: caller should have already mapped undefined to None.
         unsafe { assert_unchecked(!length.is_undefined()) };
-        if let Some(length) = try_result_into_js(try_to_index(agent, length, gc.nogc()))
-            .unbind()?
-            .bind(gc.nogc())
-        {
+        if let Some(length) = try_result_into_js(try_to_index(agent, length, gc.nogc()))? {
             Some(length)
         } else {
             let nogc = gc.nogc();
             let o = o_proto.map(|p| p.scope(agent, nogc));
             let b = buffer.scope(agent, nogc);
-            let offset = to_index(agent, length.unbind(), gc.reborrow()).unbind()? as u64;
+            let offset = to_index(agent, length, gc.reborrow())? as u64;
             unsafe {
                 let nogc = gc.nogc();
-                buffer = b.take(agent).bind(nogc);
-                o_proto = o.map(|p| p.take(agent).bind(nogc));
+                buffer = b.take(agent).local();
+                o_proto = o.map(|p| p.take(agent).local());
             }
             Some(offset)
         }
@@ -693,11 +685,11 @@ pub(crate) fn initialize_typed_array_from_array_buffer<'gc, T: Viewable>(
         None
     };
 
-    let o_proto = o_proto.unbind();
-    let buffer = buffer.unbind();
+    let o_proto = o_proto;
+    let buffer = buffer;
     let gc = gc.into_nogc();
-    let o_proto = o_proto.bind(gc);
-    let buffer = buffer.bind(gc);
+    crate::engine::bind!(let o_proto = o_proto, gc);
+    crate::engine::bind!(let buffer = buffer, gc);
 
     // 6. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
     if buffer.is_detached(agent) {
@@ -827,12 +819,12 @@ pub(crate) fn initialize_typed_array_from_list<'a, T: Viewable>(
     agent: &mut Agent,
     scoped_o: Scoped<GenericTypedArray<T>>,
     values: ScopedCollection<Vec<Value>>,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> JsResult<'a, ()> {
-    let mut o = scoped_o.get(agent).bind(gc.nogc());
+    crate::engine::bind!(let mut o = scoped_o.get(agent).local(), gc);
     // 1. Let len be the number of elements in values.
     // 2. Perform ? AllocateTypedArrayBuffer(O, len).
-    allocate_typed_array_buffer::<T>(agent, o, values.len(agent), gc.nogc()).unbind()?;
+    allocate_typed_array_buffer::<T>(agent, o, values.len(agent), gc.nogc())?;
 
     // 3. Let k be 0.
     // 4. Repeat, while k < len,
@@ -844,16 +836,8 @@ pub(crate) fn initialize_typed_array_from_list<'a, T: Viewable>(
         let pk = PropertyKey::from(SmallInteger::try_from(k as i64).unwrap());
         let k_value = k_value.get(gc.nogc());
         // d. Perform ? Set(O, Pk, kValue, true).
-        set(
-            agent,
-            o.unbind().into(),
-            pk,
-            k_value.unbind(),
-            true,
-            gc.reborrow(),
-        )
-        .unbind()?;
-        o = scoped_o.get(agent).bind(gc.nogc());
+        set(agent, o.into(), pk, k_value, true, gc.reborrow())?;
+        o = scoped_o.get(agent).local();
     }
 
     // 5. Assert: values is now an empty List.
@@ -871,14 +855,14 @@ pub(crate) fn initialize_typed_array_from_array_like<'a, T: Viewable>(
     agent: &mut Agent,
     o: GenericTypedArray<T>,
     array_like: Object,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> JsResult<'a, ()> {
     let o = o.scope(agent, gc.nogc());
     // 1. Let len be ? LengthOfArrayLike(arrayLike).
-    let len = length_of_array_like(agent, array_like, gc.reborrow()).unbind()? as usize;
+    let len = length_of_array_like(agent, array_like, gc.reborrow())? as usize;
 
     // 2. Perform ? AllocateTypedArrayBuffer(O, len).
-    allocate_typed_array_buffer::<T>(agent, o.get(agent), len, gc.nogc()).unbind()?;
+    allocate_typed_array_buffer::<T>(agent, o.get(agent).local(), len, gc.nogc())?;
 
     // 3. Let k be 0.
     let mut k = 0;
@@ -887,19 +871,16 @@ pub(crate) fn initialize_typed_array_from_array_like<'a, T: Viewable>(
         // a. Let Pk be ! ToString(𝔽(k)).
         let pk = PropertyKey::from(SmallInteger::try_from(k as i64).unwrap());
         // b. Let kValue be ? Get(arrayLike, Pk).
-        let k_value = get(agent, array_like, pk, gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let k_value = get(agent, array_like, pk, gc.reborrow())?;
         // c. Perform ? Set(O, Pk, kValue, true).
         set(
             agent,
-            o.get(agent).into(),
+            o.get(agent).local().into(),
             pk,
-            k_value.unbind(),
+            k_value,
             true,
             gc.reborrow(),
-        )
-        .unbind()?;
+        )?;
         // d. Set k to k + 1.
         k += 1;
     }
@@ -991,23 +972,21 @@ pub(crate) fn typed_array_create_from_constructor_with_length<'a>(
     agent: &mut Agent,
     constructor: Function,
     length: i64,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> JsResult<'a, AnyTypedArray<'a>> {
-    let constructor = constructor.bind(gc.nogc());
+    crate::engine::bind!(let constructor = constructor, gc);
     let arg0 = Number::from_i64(agent, length, gc.nogc());
     // 1. Let newTypedArray be ? Construct(constructor, argumentList).
     let new_typed_array = construct(
         agent,
-        constructor.unbind(),
-        Some(ArgumentsList::from_mut_value(&mut arg0.unbind().into())),
+        constructor,
+        Some(ArgumentsList::from_mut_value(&mut arg0.into())),
         None,
         gc.reborrow(),
-    )
-    .unbind()?
-    .bind(gc.nogc());
+    )?;
     typed_array_create_from_constructor_internal(
         agent,
-        new_typed_array.unbind(),
+        new_typed_array,
         Some(length),
         gc.into_nogc(),
     )
@@ -1024,46 +1003,35 @@ pub(crate) fn typed_array_create_from_constructor_with_buffer<'a>(
     buffer: AnyArrayBuffer,
     byte_offset: usize,
     length: Option<usize>,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> JsResult<'a, AnyTypedArray<'a>> {
-    let constructor = constructor.bind(gc.nogc());
-    let buffer = buffer.bind(gc.nogc());
+    crate::engine::bind!(let constructor = constructor, gc);
+    crate::engine::bind!(let buffer = buffer, gc);
     // 1. Let newTypedArray be ? Construct(constructor, argumentList).
     let new_typed_array = {
         let args: &mut [Value] = if let Some(length) = length {
             &mut [
-                buffer.unbind().into(),
-                Number::from_usize(agent, byte_offset, gc.nogc())
-                    .unbind()
-                    .into(),
-                Number::from_usize(agent, length, gc.nogc()).unbind().into(),
+                buffer.into(),
+                Number::from_usize(agent, byte_offset, gc.nogc()).into(),
+                Number::from_usize(agent, length, gc.nogc()).into(),
             ]
         } else {
             &mut [
-                buffer.unbind().into(),
-                Number::from_usize(agent, byte_offset, gc.nogc())
-                    .unbind()
-                    .into(),
+                buffer.into(),
+                Number::from_usize(agent, byte_offset, gc.nogc()).into(),
             ]
         };
 
         construct(
             agent,
-            constructor.unbind(),
+            constructor,
             Some(ArgumentsList::from_mut_slice(args)),
             None,
             gc.reborrow(),
         )
-    }
-    .unbind()?
-    .bind(gc.nogc());
+    }?;
     let length = length.map(|l| i64::try_from(l).unwrap());
-    typed_array_create_from_constructor_internal(
-        agent,
-        new_typed_array.unbind(),
-        length,
-        gc.into_nogc(),
-    )
+    typed_array_create_from_constructor_internal(agent, new_typed_array, length, gc.into_nogc())
 }
 
 pub(crate) fn typed_array_create_from_data_block<'a>(
@@ -1118,29 +1086,17 @@ pub(crate) fn typed_array_species_create_with_length<'gc>(
     length: usize,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, AnyTypedArray<'gc>> {
-    let exemplar = exemplar.bind(gc.nogc());
+    crate::engine::bind!(let exemplar = exemplar, gc);
     // 1. Let defaultConstructor be the intrinsic object associated with the constructor name exemplar.[[TypedArrayName]] in Table 73.
     let default_constructor = exemplar.intrinsic_default_constructor();
     let is_bigint = exemplar.is_bigint();
     // 2. Let constructor be ? SpeciesConstructor(exemplar, defaultConstructor).
-    let constructor = species_constructor(
-        agent,
-        exemplar.unbind().into(),
-        default_constructor,
-        gc.reborrow(),
-    )
-    .unbind()?
-    .bind(gc.nogc());
+    let constructor =
+        species_constructor(agent, exemplar.into(), default_constructor, gc.reborrow())?;
     let length = i64::try_from(length).unwrap();
     // 3. Let result be ? TypedArrayCreateFromConstructor(constructor, argumentList).
-    let result = typed_array_create_from_constructor_with_length(
-        agent,
-        constructor.unbind(),
-        length,
-        gc.reborrow(),
-    )
-    .unbind()?
-    .bind(gc.nogc());
+    let result =
+        typed_array_create_from_constructor_with_length(agent, constructor, length, gc.reborrow())?;
     // 4. Assert: result has [[TypedArrayName]] and [[ContentType]] internal slots.
     // 5. If result.[[ContentType]] is not exemplar.[[ContentType]], throw a TypeError exception.
     if is_bigint != result.is_bigint() {
@@ -1151,7 +1107,7 @@ pub(crate) fn typed_array_species_create_with_length<'gc>(
         ));
     }
     // 6. Return result.
-    Ok(result.unbind())
+    Ok(result)
 }
 
 /// ### [23.2.4.1 TypedArraySpeciesCreate ( exemplar, argumentList )](https://tc39.es/ecma262/#typedarray-species-create)
@@ -1161,34 +1117,26 @@ pub(crate) fn typed_array_species_create_with_buffer<'a>(
     buffer: AnyArrayBuffer,
     byte_offset: usize,
     length: Option<usize>,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> JsResult<'a, AnyTypedArray<'a>> {
-    let exemplar = exemplar.bind(gc.nogc());
+    crate::engine::bind!(let exemplar = exemplar, gc);
     let buffer = buffer.scope(agent, gc.nogc());
     // 1. Let defaultConstructor be the intrinsic object associated with the constructor name exemplar.[[TypedArrayName]] in Table 73.
     let default_constructor = exemplar.intrinsic_default_constructor();
     let is_bigint = exemplar.is_bigint();
     // 2. Let constructor be ? SpeciesConstructor(exemplar, defaultConstructor).
-    let constructor = species_constructor(
-        agent,
-        exemplar.unbind().into(),
-        default_constructor,
-        gc.reborrow(),
-    )
-    .unbind()?
-    .bind(gc.nogc());
+    let constructor =
+        species_constructor(agent, exemplar.into(), default_constructor, gc.reborrow())?;
     // 3. Let result be ? TypedArrayCreateFromConstructor(constructor, argumentList).
     let result = typed_array_create_from_constructor_with_buffer(
         agent,
-        constructor.unbind(),
+        constructor,
         // SAFETY: not shared.
-        unsafe { buffer.take(agent) },
+        unsafe { buffer.take(agent).local() },
         byte_offset,
         length,
         gc.reborrow(),
-    )
-    .unbind()?
-    .bind(gc.nogc());
+    )?;
     // 4. Assert: result has [[TypedArrayName]] and [[ContentType]] internal slots.
     // 5. If result.[[ContentType]] is not exemplar.[[ContentType]], throw a TypeError exception.
     if is_bigint != result.is_bigint() {
@@ -1199,5 +1147,5 @@ pub(crate) fn typed_array_species_create_with_buffer<'a>(
         ));
     }
     // 6. Return result.
-    Ok(result.unbind())
+    Ok(result)
 }

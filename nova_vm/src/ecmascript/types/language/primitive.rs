@@ -208,13 +208,13 @@ impl Rootable for Primitive<'_> {
             Self::Undefined => Ok(Self::RootRepr::Undefined),
             Self::Null => Ok(Self::RootRepr::Null),
             Self::Boolean(p) => Ok(Self::RootRepr::Boolean(p)),
-            Self::String(p) => Err(HeapRootData::String(p.unbind())),
+            Self::String(p) => Err(HeapRootData::String(p)),
             Self::SmallString(p) => Ok(Self::RootRepr::SmallString(p)),
-            Self::Symbol(p) => Err(HeapRootData::Symbol(p.unbind())),
-            Self::Number(p) => Err(HeapRootData::Number(p.unbind())),
+            Self::Symbol(p) => Err(HeapRootData::Symbol(p)),
+            Self::Number(p) => Err(HeapRootData::Number(p)),
             Self::Integer(p) => Ok(Self::RootRepr::Integer(p)),
             Self::SmallF64(p) => Ok(Self::RootRepr::SmallF64(p)),
-            Self::BigInt(p) => Err(HeapRootData::BigInt(p.unbind())),
+            Self::BigInt(p) => Err(HeapRootData::BigInt(p)),
             Self::SmallBigInt(p) => Ok(Self::RootRepr::SmallBigInt(p)),
         }
     }

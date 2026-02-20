@@ -176,26 +176,21 @@ impl RegExpPrototype {
     fn exec<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let string = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let string = arguments.get(0), gc);
         // 1. Let R be the this value.
-        let r = this_value.bind(gc.nogc());
+        crate::engine::bind!(let r = this_value, gc);
         // 2. Perform ? RequireInternalSlot(R, [[RegExpMatcher]]).
-        let r = require_internal_slot_reg_exp(agent, r, gc.nogc())
-            .unbind()?
-            .bind(gc.nogc());
+        let r = require_internal_slot_reg_exp(agent, r, gc.nogc())?;
         let r = r.scope(agent, gc.nogc());
         // 3. Let S be ? ToString(string).
-        let s = to_string(agent, string.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let s = to_string(agent, string, gc.reborrow())?;
         // SAFETY: not shared.
-        let r = unsafe { r.take(agent) }.bind(gc.nogc());
+        crate::engine::bind!(let r = unsafe { r.take(agent).local() }, gc);
         // 4. Return ? RegExpBuiltinExec(R, S).
-        reg_exp_builtin_exec(agent, r.unbind(), s.unbind(), gc)
-            .map(|r| r.map_or(Value::Null, |a| a.into()))
+        reg_exp_builtin_exec(agent, r, s, gc).map(|r| r.map_or(Value::Null, |a| a.into()))
     }
 
     /// ### [22.2.6.3 get RegExp.prototype.dotAll](https://tc39.es/ecma262/#sec-get-regexp.prototype.dotAll)
@@ -205,14 +200,14 @@ impl RegExpPrototype {
     fn get_dot_all<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Let R be the this value.
-        let r = this_value.bind(gc.nogc());
+        crate::engine::bind!(let r = this_value, gc);
         // 2. Let cu be the code unit 0x0073 (LATIN SMALL LETTER S).
         // 3. Return ? RegExpHasFlag(R, cu).
-        reg_exp_has_flag(agent, r.unbind(), RegExpFlags::S, gc.into_nogc())
+        reg_exp_has_flag(agent, r, RegExpFlags::S, gc.into_nogc())
             .map(|v| v.map_or(Value::Undefined, |v| v.into()))
     }
 
@@ -220,12 +215,12 @@ impl RegExpPrototype {
     fn get_flags<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let nogc = gc.nogc();
         // 1. Let R be the this value.
-        let r = this_value.bind(nogc);
+        crate::engine::bind!(let r = this_value, gc);
 
         // 2. If R is not an Object, throw a TypeError exception.
         let Ok(r) = Object::try_from(r) else {
@@ -244,12 +239,10 @@ impl RegExpPrototype {
         let scoped_r = r.scope(agent, nogc);
         let has_indices_args = get(
             agent,
-            r.unbind(),
+            r,
             BUILTIN_STRING_MEMORY.hasIndices.into(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         let has_indices = to_boolean(agent, has_indices_args);
 
         // 5. If hasIndices is true, append the code unit 0x0064 (LATIN SMALL LETTER D) to codeUnits.
@@ -261,12 +254,10 @@ impl RegExpPrototype {
         // 6. Let global be ToBoolean(? Get(R, "global")).
         let global_args = get(
             agent,
-            scoped_r.get(agent),
+            scoped_r.get(agent).local(),
             BUILTIN_STRING_MEMORY.global.into(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         let global = to_boolean(agent, global_args);
 
         // 7. If global is true, append the code unit 0x0067 (LATIN SMALL LETTER G) to codeUnits.
@@ -278,12 +269,10 @@ impl RegExpPrototype {
         // 8. Let ignoreCase be ToBoolean(? Get(R, "ignoreCase")).
         let ignore_case_args = get(
             agent,
-            scoped_r.get(agent),
+            scoped_r.get(agent).local(),
             BUILTIN_STRING_MEMORY.ignoreCase.into(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         let ignore_case = to_boolean(agent, ignore_case_args);
 
         // 9. If ignoreCase is true, append the code unit 0x0069 (LATIN SMALL LETTER I) to codeUnits.
@@ -295,12 +284,10 @@ impl RegExpPrototype {
         // 10. Let multiline be ToBoolean(? Get(R, "multiline")).
         let mutliline_args = get(
             agent,
-            scoped_r.get(agent),
+            scoped_r.get(agent).local(),
             BUILTIN_STRING_MEMORY.multiline.into(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         let multiline = to_boolean(agent, mutliline_args);
 
         // 11. If multiline is true, append the code unit 0x006D (LATIN SMALL LETTER M) to codeUnits.
@@ -311,12 +298,10 @@ impl RegExpPrototype {
         // 12. Let dotAll be ToBoolean(? Get(R, "dotAll")).
         let dot_all_args = get(
             agent,
-            scoped_r.get(agent),
+            scoped_r.get(agent).local(),
             BUILTIN_STRING_MEMORY.dotAll.into(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         let dot_all = to_boolean(agent, dot_all_args);
 
         // 13. If dotAll is true, append the code unit 0x0073 (LATIN SMALL LETTER S) to codeUnits.
@@ -328,12 +313,10 @@ impl RegExpPrototype {
         // 14. Let unicode be ToBoolean(? Get(R, "unicode")).
         let unicode_args = get(
             agent,
-            scoped_r.get(agent),
+            scoped_r.get(agent).local(),
             BUILTIN_STRING_MEMORY.unicode.into(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         let unicode = to_boolean(agent, unicode_args);
 
         // 15. If unicode is true, append the code unit 0x0075 (LATIN SMALL LETTER U) to codeUnits.
@@ -345,12 +328,10 @@ impl RegExpPrototype {
         // 16. Let unicodeSets be ToBoolean(? Get(R, "unicodeSets")).
         let unicode_sets_args = get(
             agent,
-            scoped_r.get(agent),
+            scoped_r.get(agent).local(),
             BUILTIN_STRING_MEMORY.unicodeSets.into(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         let unicode_sets = to_boolean(agent, unicode_sets_args);
 
         // 17. If unicodeSets is true, append the code unit 0x0076 (LATIN SMALL LETTER V) to codeUnits.
@@ -362,12 +343,10 @@ impl RegExpPrototype {
         // 18. Let sticky be ToBoolean(? Get(R, "sticky")).
         let sticky_args = get(
             agent,
-            scoped_r.get(agent),
+            scoped_r.get(agent).local(),
             BUILTIN_STRING_MEMORY.sticky.into(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         let sticky = to_boolean(agent, sticky_args);
 
         // 19. If sticky is true, append the code unit 0x0079 (LATIN SMALL LETTER Y) to codeUnits.
@@ -378,7 +357,7 @@ impl RegExpPrototype {
 
         // 20. Return the String value whose code units are the elements of the List codeUnits. If codeUnits has no elements, the empty String is returned.
         let res = unsafe { core::str::from_utf8_unchecked(&code_units[0..i]) };
-        Ok(Value::from_string(agent, res.to_string(), gc.nogc()).unbind())
+        Ok(Value::from_string(agent, res.to_string(), gc.nogc()))
     }
 
     /// ### [22.2.6.5 get RegExp.prototype.global](https://tc39.es/ecma262/#sec-get-regexp.prototype.global)
@@ -388,14 +367,14 @@ impl RegExpPrototype {
     fn get_global<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Let R be the this value.
-        let r = this_value.bind(gc.nogc());
+        crate::engine::bind!(let r = this_value, gc);
         // 2. Let cu be the code unit 0x0067 (LATIN SMALL LETTER G).
         // 3. Return ? RegExpHasFlag(R, cu).
-        reg_exp_has_flag(agent, r.unbind(), RegExpFlags::G, gc.into_nogc())
+        reg_exp_has_flag(agent, r, RegExpFlags::G, gc.into_nogc())
             .map(|v| v.map_or(Value::Undefined, |v| v.into()))
     }
 
@@ -406,14 +385,14 @@ impl RegExpPrototype {
     fn get_has_indices<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Let R be the this value.
-        let r = this_value.bind(gc.nogc());
+        crate::engine::bind!(let r = this_value, gc);
         // 2. Let cu be the code unit 0x0064 (LATIN SMALL LETTER D).
         // 3. Return ? RegExpHasFlag(R, cu).
-        reg_exp_has_flag(agent, r.unbind(), RegExpFlags::D, gc.into_nogc())
+        reg_exp_has_flag(agent, r, RegExpFlags::D, gc.into_nogc())
             .map(|v| v.map_or(Value::Undefined, |v| v.into()))
     }
 
@@ -424,14 +403,14 @@ impl RegExpPrototype {
     fn get_ignore_case<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Let R be the this value.
-        let r = this_value.bind(gc.nogc());
+        crate::engine::bind!(let r = this_value, gc);
         // 2. Let cu be the code unit 0x0069 (LATIN SMALL LETTER I).
         // 3. Return ? RegExpHasFlag(R, cu).
-        reg_exp_has_flag(agent, r.unbind(), RegExpFlags::I, gc.into_nogc())
+        reg_exp_has_flag(agent, r, RegExpFlags::I, gc.into_nogc())
             .map(|v| v.map_or(Value::Undefined, |v| v.into()))
     }
 
@@ -439,42 +418,36 @@ impl RegExpPrototype {
     fn r#match<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let string = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let string = arguments.get(0), gc);
         // 1. Let rx be the this value.
-        let rx = this_value.bind(gc.nogc());
+        crate::engine::bind!(let rx = this_value, gc);
         // 2. If rx is not an Object, throw a TypeError exception.
         let Ok(rx) = Object::try_from(rx) else {
             return Err(throw_not_an_object(agent, gc.into_nogc()));
         };
         let rx = rx.scope(agent, gc.nogc());
         // 3. Let S be ? ToString(string).
-        let s = to_string(agent, string.unbind(), gc.reborrow())
-            .unbind()?
-            .scope(agent, gc.nogc());
+        let s = to_string(agent, string, gc.reborrow())?.scope(agent, gc.nogc());
         // 4. Let flags be ? ToString(? Get(rx, "flags")).
         let flags = get(
             agent,
-            rx.get(agent),
+            rx.get(agent).local(),
             BUILTIN_STRING_MEMORY.flags.to_property_key(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
-        let flags = to_string(agent, flags.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        )?;
+        let flags = to_string(agent, flags, gc.reborrow())?;
         // 5. If flags does not contain "g", then
         if !flags.to_string_lossy_(agent).contains("g") {
             // a. Return ? RegExpExec(rx, S).
             reg_exp_exec(
                 agent,
                 // SAFETY: not shared.
-                unsafe { rx.take(agent) },
+                unsafe { rx.take(agent).local() },
                 // SAFETY: not shared.
-                unsafe { s.take(agent) },
+                unsafe { s.take(agent).local() },
                 gc,
             )
             .map(|o| o.map_or(Value::Null, |o| o.into()))
@@ -487,13 +460,12 @@ impl RegExpPrototype {
             // b. Perform ? Set(rx, "lastIndex", +0𝔽, true).
             set(
                 agent,
-                rx.get(agent),
+                rx.get(agent).local(),
                 BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
                 0.into(),
                 true,
                 gc.reborrow(),
-            )
-            .unbind()?;
+            )?;
             // c. Let A be ! ArrayCreate(0).
             let a = array_create(agent, 0, 0, None, gc.nogc())
                 .unwrap()
@@ -503,9 +475,12 @@ impl RegExpPrototype {
             // e. Repeat,
             loop {
                 // i. Let result be ? RegExpExec(rx, S).
-                let result = reg_exp_exec(agent, rx.get(agent), s.get(agent), gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc());
+                let result = reg_exp_exec(
+                    agent,
+                    rx.get(agent).local(),
+                    s.get(agent).local(),
+                    gc.reborrow(),
+                )?;
                 // ii. If result is null, then
                 let Some(result) = result else {
                     // 1. If n = 0, return null.
@@ -514,21 +489,17 @@ impl RegExpPrototype {
                     } else {
                         // 2. Return A.
                         // SAFETY: not shared.
-                        return Ok(unsafe { a.take(agent) }.into());
+                        return Ok(unsafe { a.take(agent).local() }.into());
                     }
                 };
                 // iii. Else,
                 // 1. Let matchStr be ? ToString(? Get(result, "0")).
-                let match_str = get(agent, result.unbind(), 0.into(), gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc());
-                let match_str = to_string(agent, match_str.unbind(), gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc());
+                let match_str = get(agent, result, 0.into(), gc.reborrow())?;
+                let match_str = to_string(agent, match_str, gc.reborrow())?;
                 // 2. Perform ! CreateDataPropertyOrThrow(A, ! ToString(𝔽(n)), matchStr).
                 unwrap_try(try_create_data_property_or_throw(
                     agent,
-                    a.get(agent),
+                    a.get(agent).local(),
                     n.into(),
                     match_str.into(),
                     None,
@@ -539,32 +510,27 @@ impl RegExpPrototype {
                     // a. Let thisIndex be ℝ(? ToLength(? Get(rx, "lastIndex"))).
                     let this_index = get(
                         agent,
-                        rx.get(agent),
+                        rx.get(agent).local(),
                         BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
                         gc.reborrow(),
-                    )
-                    .unbind()?
-                    .bind(gc.nogc());
-                    let this_index = to_length(agent, this_index.unbind(), gc.reborrow())
-                        .unbind()?
-                        .bind(gc.nogc());
+                    )?;
+                    let this_index = to_length(agent, this_index, gc.reborrow())?;
                     // b. Let nextIndex be AdvanceStringIndex(S, thisIndex, fullUnicode).
                     let next_index = advance_string_index(
                         agent,
-                        s.get(agent),
+                        s.get(agent).local(),
                         this_index as usize,
                         full_unicode,
                     );
                     // c. Perform ? Set(rx, "lastIndex", 𝔽(nextIndex), true).
                     set(
                         agent,
-                        rx.get(agent),
+                        rx.get(agent).local(),
                         BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
                         Number::try_from(next_index).unwrap().into(),
                         true,
                         gc.reborrow(),
-                    )
-                    .unbind()?
+                    )?
                 }
                 // 4. Set n to n + 1.
                 n += 1;
@@ -578,12 +544,12 @@ impl RegExpPrototype {
     fn match_all<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        args: ArgumentsList,
+        args: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let string = args.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let string = args.get(0), gc);
         // 1. Let R be the this value.
-        let r = this_value.bind(gc.nogc());
+        crate::engine::bind!(let r = this_value, gc);
         // 2. If R is not an Object, throw a TypeError exception.
         let Ok(r) = Object::try_from(r) else {
             return Err(agent.throw_exception_with_static_message(
@@ -594,19 +560,15 @@ impl RegExpPrototype {
         };
         let scoped_r = r.scope(agent, gc.nogc());
         // 3. Let S be ? ToString(string).
-        let s = to_string(agent, string.unbind(), gc.reborrow())
-            .unbind()?
-            .scope(agent, gc.nogc());
+        let s = to_string(agent, string, gc.reborrow())?.scope(agent, gc.nogc());
         // 4. Let C be ? SpeciesConstructor(R, %RegExp%).
 
         let c = species_constructor(
             agent,
-            scoped_r.get(agent),
+            scoped_r.get(agent).local(),
             ProtoIntrinsics::RegExp,
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         let c = if c == agent.current_realm_record().intrinsics().reg_exp().into() {
             None
         } else {
@@ -615,63 +577,47 @@ impl RegExpPrototype {
         // 5. Let flags be ? ToString(? Get(R, "flags")).
         let flags = get(
             agent,
-            scoped_r.get(agent),
+            scoped_r.get(agent).local(),
             BUILTIN_STRING_MEMORY.flags.to_property_key(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
-        let flags = to_string(agent, flags.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        )?;
+        let flags = to_string(agent, flags, gc.reborrow())?;
         let scoped_flags = flags.scope(agent, gc.nogc());
         let c = if let Some(c) = c {
-            unsafe { c.take(agent) }.bind(gc.nogc())
+            unsafe { c.take(agent).local() }
         } else {
-            agent
-                .current_realm_record()
-                .intrinsics()
-                .reg_exp()
-                .bind(gc.nogc())
-                .into()
+            agent.current_realm_record().intrinsics().reg_exp().into()
         };
         // 6. Let matcher be ? Construct(C, « R, flags »).
         let matcher = construct(
             agent,
-            c.unbind(),
+            c,
             Some(ArgumentsList::from_mut_slice(&mut [
-                scoped_r.get(agent).into(),
-                flags.unbind().into(),
+                scoped_r.get(agent).local().into(),
+                flags.into(),
             ])),
             None,
             gc.reborrow(),
-        )
-        .unbind()?
+        )?
         .scope(agent, gc.nogc());
         // 7. Let lastIndex be ? ToLength(? Get(R, "lastIndex")).
         let last_index = get(
             agent,
-            scoped_r.get(agent),
+            scoped_r.get(agent).local(),
             BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
-        let last_index = to_length(agent, last_index.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        )?;
+        let last_index = to_length(agent, last_index, gc.reborrow())?;
         // 8. Perform ? Set(matcher, "lastIndex", lastIndex, true).
         set(
             agent,
-            matcher.get(agent),
+            matcher.get(agent).local(),
             BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
             last_index.try_into().unwrap(),
             true,
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
-        let flags = scoped_flags.get(agent).bind(gc.nogc());
+        )?;
+        crate::engine::bind!(let flags = scoped_flags.get(agent).local(), gc);
         let flags = flags.as_bytes_(agent);
         // 9. If flags contains "g", let global be true.
         // 10. Else, let global be false.
@@ -682,8 +628,8 @@ impl RegExpPrototype {
         // 13. Return CreateRegExpStringIterator(matcher, S, global, fullUnicode).
         Ok(create_reg_exp_string_iterator(
             agent,
-            matcher.get(agent),
-            s.get(agent),
+            matcher.get(agent).local(),
+            s.get(agent).local(),
             global,
             full_unicode,
             gc.into_nogc(),
@@ -698,14 +644,14 @@ impl RegExpPrototype {
     fn get_multiline<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Let R be the this value.
-        let r = this_value.bind(gc.nogc());
+        crate::engine::bind!(let r = this_value, gc);
         // 2. Let cu be the code unit 0x006D (LATIN SMALL LETTER M).
         // 3. Return ? RegExpHasFlag(R, cu).
-        reg_exp_has_flag(agent, r.unbind(), RegExpFlags::M, gc.into_nogc())
+        reg_exp_has_flag(agent, r, RegExpFlags::M, gc.into_nogc())
             .map(|v| v.map_or(Value::Undefined, |v| v.into()))
     }
 
@@ -715,13 +661,13 @@ impl RegExpPrototype {
     fn replace<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        args: ArgumentsList,
+        args: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let string = args.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let string = args.get(0), gc);
         let replace_value = args.get(1).scope(agent, gc.nogc());
         // 1. Let rx be the this value.
-        let rx = this_value.bind(gc.nogc());
+        crate::engine::bind!(let rx = this_value, gc);
         // 2. If rx is not an Object, throw a TypeError exception.
         let Ok(rx) = Object::try_from(rx) else {
             return Err(agent.throw_exception_with_static_message(
@@ -732,11 +678,9 @@ impl RegExpPrototype {
         };
         let rx = rx.scope(agent, gc.nogc());
         // 3. Let S be ? ToString(string).
-        let s = to_string(agent, string.unbind(), gc.reborrow())
-            .unbind()?
-            .scope(agent, gc.nogc());
+        let s = to_string(agent, string, gc.reborrow())?.scope(agent, gc.nogc());
         // 4. Let lengthS be the length of S.
-        let length_s = s.get(agent).utf16_len_(agent);
+        let length_s = s.get(agent).local().utf16_len_(agent);
         #[derive(Clone)]
         enum ReplaceValue<'a> {
             Functional(Scoped<'a, Function<'static>>),
@@ -744,39 +688,33 @@ impl RegExpPrototype {
         }
         // 5. Let functionalReplace be IsCallable(replaceValue).
         let (replace_value, functional_replace) = if let Some(functional_replace) =
-            is_callable(replace_value.get(agent), gc.nogc())
+            is_callable(replace_value.get(agent).local(), gc.nogc())
         {
             // SAFETY: replace_value is not shared.
             (
                 ReplaceValue::Functional(unsafe {
-                    replace_value.replace_self(agent, functional_replace.unbind())
+                    replace_value.replace_self(agent, functional_replace)
                 }),
                 true,
             )
         } else {
             // 6. If functionalReplace is false, then
             // a. Set replaceValue to ? ToString(replaceValue).
-            let string = to_string(agent, replace_value.get(agent), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let string = to_string(agent, replace_value.get(agent).local(), gc.reborrow())?;
             // SAFETY: replace_value is not shared.
             (
-                ReplaceValue::String(unsafe { replace_value.replace_self(agent, string.unbind()) }),
+                ReplaceValue::String(unsafe { replace_value.replace_self(agent, string) }),
                 false,
             )
         };
         // 7. Let flags be ? ToString(? Get(rx, "flags")).
         let flags = get(
             agent,
-            rx.get(agent),
+            rx.get(agent).local(),
             BUILTIN_STRING_MEMORY.flags.to_property_key(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
-        let flags = to_string(agent, flags.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        )?;
+        let flags = to_string(agent, flags, gc.reborrow())?;
         // 8. If flags contains "g", let global be true; otherwise let global be false.
         let flags = flags.as_bytes_(agent);
         let global = flags.contains(&b'g');
@@ -788,14 +726,12 @@ impl RegExpPrototype {
             // a. Perform ? Set(rx, "lastIndex", +0𝔽, true).
             set(
                 agent,
-                rx.get(agent),
+                rx.get(agent).local(),
                 BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
                 0.into(),
                 true,
                 gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc());
+            )?;
         }
         // 10. Let results be a new empty List.
         let mut results = vec![];
@@ -803,9 +739,12 @@ impl RegExpPrototype {
         // 12. Repeat, while done is false,
         loop {
             // a. Let result be ? RegExpExec(rx, S).
-            let result = reg_exp_exec(agent, rx.get(agent), s.get(agent), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let result = reg_exp_exec(
+                agent,
+                rx.get(agent).local(),
+                s.get(agent).local(),
+                gc.reborrow(),
+            )?;
             // b. If result is null, then
             let Some(result) = result else {
                 // i. Set done to true.
@@ -821,43 +760,33 @@ impl RegExpPrototype {
             }
             // iii. Else,
             // 1. Let matchStr be ? ToString(? Get(result, "0")).
-            let match_str = get(agent, result.unbind(), 0.into(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
-            let match_str = to_string(agent, match_str.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let match_str = get(agent, result, 0.into(), gc.reborrow())?;
+            let match_str = to_string(agent, match_str, gc.reborrow())?;
             // 2. If matchStr is the empty String, then
             if match_str.is_empty_string() {
                 // a. Let thisIndex be ℝ(? ToLength(? Get(rx, "lastIndex"))).
                 let this_index = get(
                     agent,
-                    rx.get(agent),
+                    rx.get(agent).local(),
                     BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
                     gc.reborrow(),
-                )
-                .unbind()?
-                .bind(gc.nogc());
-                let this_index = to_length(agent, this_index.unbind(), gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc());
+                )?;
+                let this_index = to_length(agent, this_index, gc.reborrow())?;
                 let this_index = usize::try_from(this_index).expect("thisIndex not valid usize");
                 // b. If flags contains "u" or flags contains "v", let
                 //    fullUnicode be true; otherwise let fullUnicode be false.
                 // c. Let nextIndex be AdvanceStringIndex(S, thisIndex, fullUnicode).
                 let next_index =
-                    advance_string_index(agent, s.get(agent), this_index, full_unicode);
+                    advance_string_index(agent, s.get(agent).local(), this_index, full_unicode);
                 // d. Perform ? Set(rx, "lastIndex", 𝔽(nextIndex), true).
                 set(
                     agent,
-                    rx.get(agent),
+                    rx.get(agent).local(),
                     BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
                     Number::try_from(next_index).unwrap().into(),
                     true,
                     gc.reborrow(),
-                )
-                .unbind()?
-                .bind(gc.nogc());
+                )?;
             }
         }
         // 13. Let accumulatedResult be the empty String.
@@ -867,33 +796,24 @@ impl RegExpPrototype {
         // 15. For each element result of results, do
         for result in results {
             // a. Let resultLength be ? LengthOfArrayLike(result).
-            let result_length = length_of_array_like(agent, result.get(agent), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc()) as u64;
+            let result_length =
+                length_of_array_like(agent, result.get(agent).local(), gc.reborrow())? as u64;
             // b. Let nCaptures be max(resultLength - 1, 0).
             let n_captures = result_length.saturating_sub(1);
             // c. Let matched be ? ToString(? Get(result, "0")).
-            let matched = get(agent, result.get(agent), 0.into(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
-            let matched = to_string(agent, matched.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let matched = get(agent, result.get(agent).local(), 0.into(), gc.reborrow())?;
+            let matched = to_string(agent, matched, gc.reborrow())?;
             // d. Let matchLength be the length of matched.
             let match_length = matched.utf16_len_(agent);
             let matched = matched.scope(agent, gc.nogc());
             // e. Let position be ? ToIntegerOrInfinity(? Get(result, "index")).
             let position = get(
                 agent,
-                result.get(agent),
+                result.get(agent).local(),
                 BUILTIN_STRING_MEMORY.index.into(),
                 gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc());
-            let position = to_integer_or_infinity(agent, position.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            )?;
+            let position = to_integer_or_infinity(agent, position, gc.reborrow())?;
             // f. Set position to the result of clamping position between 0 and lengthS.
             let position = position.into_i64().clamp(0, length_s as i64) as usize;
             // g. Let captures be a new empty List.
@@ -905,22 +825,16 @@ impl RegExpPrototype {
                 // i. Let capN be ? Get(result, ! ToString(𝔽(n))).
                 let cap_n = get(
                     agent,
-                    result.get(agent),
+                    result.get(agent).local(),
                     n.try_into().unwrap(),
                     gc.reborrow(),
-                )
-                .unbind()?
-                .bind(gc.nogc());
+                )?;
                 // ii. If capN is not undefined, then
                 let cap_n = if cap_n.is_undefined() {
                     None
                 } else {
                     // 1. Set capN to ? ToString(capN).
-                    Some(
-                        to_string(agent, cap_n.unbind(), gc.reborrow())
-                            .unbind()?
-                            .scope(agent, gc.nogc()),
-                    )
+                    Some(to_string(agent, cap_n, gc.reborrow())?.scope(agent, gc.nogc()))
                 };
                 // iii. Append capN to captures.
                 captures.push(cap_n);
@@ -933,12 +847,10 @@ impl RegExpPrototype {
             // j. Let namedCaptures be ? Get(result, "groups").
             let named_captures = get(
                 agent,
-                result.get(agent),
+                result.get(agent).local(),
                 BUILTIN_STRING_MEMORY.groups.to_property_key(),
                 gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc());
+            )?;
             // k. If functionalReplace is true, then
             let replacement_string = match replace_value.clone() {
                 ReplaceValue::Functional(replace_value) => {
@@ -946,11 +858,9 @@ impl RegExpPrototype {
                     //    « matched », captures, and « 𝔽(position), S ».
                     let mut replacer_args = captures
                         .into_iter()
-                        .map(|s| {
-                            s.map_or(Value::Undefined, |s| s.get(agent).bind(gc.nogc()).into())
-                        })
+                        .map(|s| s.map_or(Value::Undefined, |s| s.get(agent).local().into()))
                         .collect::<Vec<_>>();
-                    replacer_args.insert(0, matched.get(agent).into());
+                    replacer_args.insert(0, matched.get(agent).local().into());
                     replacer_args.push(Number::try_from(position).unwrap().into());
                     // ii. If namedCaptures is not undefined, then
                     if !named_captures.is_undefined() {
@@ -960,17 +870,13 @@ impl RegExpPrototype {
                     // iii. Let replacementValue be ? Call(replaceValue, undefined, replacerArgs).
                     let replacement_value = call_function(
                         agent,
-                        replace_value.get(agent),
+                        replace_value.get(agent).local(),
                         Value::Undefined,
-                        Some(ArgumentsList::from_mut_slice(&mut replacer_args.unbind())),
+                        Some(ArgumentsList::from_mut_slice(&mut replacer_args)),
                         gc.reborrow(),
-                    )
-                    .unbind()?
-                    .bind(gc.nogc());
+                    )?;
                     // iv. Let replacementString be ? ToString(replacementValue).
-                    to_string(agent, replacement_value.unbind(), gc.reborrow())
-                        .unbind()?
-                        .bind(gc.nogc())
+                    to_string(agent, replacement_value, gc.reborrow())?
                 }
                 ReplaceValue::String(replace_value) => {
                     // l. Else,
@@ -979,11 +885,7 @@ impl RegExpPrototype {
                         None
                     } else {
                         // 1. Set namedCaptures to ? ToObject(namedCaptures).
-                        Some(
-                            to_object(agent, named_captures, gc.nogc())
-                                .unbind()?
-                                .bind(gc.nogc()),
-                        )
+                        Some(to_object(agent, named_captures, gc.nogc())?)
                     };
                     // ii. Let replacementString be
                     //     ? GetSubstitution(
@@ -998,13 +900,11 @@ impl RegExpPrototype {
                         // captures,
                         captures,
                         // namedCaptures,
-                        named_captures.unbind(),
+                        named_captures,
                         // replaceValue
                         replace_value,
                         gc.reborrow(),
-                    )
-                    .unbind()?
-                    .bind(gc.nogc())
+                    )?
                     // ).
                 }
             };
@@ -1018,7 +918,7 @@ impl RegExpPrototype {
                 // ii. Set accumulatedResult to the string-concatenation of
                 //     accumulatedResult, the substring of S from
                 //     nextSourcePosition to position, and replacementString.
-                let s = s.get(agent).bind(gc.nogc());
+                crate::engine::bind!(let s = s.get(agent).local(), gc);
                 let next_source_position_utf8 = s.utf8_index_(agent, next_source_position).unwrap();
                 let position_utf8 = s.utf8_index_(agent, position).unwrap();
                 accumulated_result.push_wtf8(
@@ -1034,7 +934,7 @@ impl RegExpPrototype {
         if next_source_position < length_s {
             // 17. Return the string-concatenation of accumulatedResult and the
             // substring of S from nextSourcePosition.
-            let s = s.get(agent).bind(gc.nogc());
+            crate::engine::bind!(let s = s.get(agent).local(), gc);
             let next_source_position_utf8 = s.utf8_index_(agent, next_source_position).unwrap();
             accumulated_result.push_wtf8(s.as_wtf8_(agent).slice_from(next_source_position_utf8));
         }
@@ -1051,76 +951,72 @@ impl RegExpPrototype {
     fn search<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        args: ArgumentsList,
+        args: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let string = args.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let string = args.get(0), gc);
         // 1. Let rx be the this value.
-        let rx = this_value.bind(gc.nogc());
+        crate::engine::bind!(let rx = this_value, gc);
         // 2. If rx is not an Object, throw a TypeError exception.
         let Ok(rx) = Object::try_from(rx) else {
             return Err(throw_not_an_object(agent, gc.into_nogc()));
         };
         let rx = rx.scope(agent, gc.nogc());
         // 3. Let S be ? ToString(string).
-        let s = to_string(agent, string.unbind(), gc.reborrow())
-            .unbind()?
-            .scope(agent, gc.nogc());
+        let s = to_string(agent, string, gc.reborrow())?.scope(agent, gc.nogc());
         // 4. Let previousLastIndex be ? Get(rx, "lastIndex").
         let previous_last_index = get(
             agent,
-            rx.get(agent),
+            rx.get(agent).local(),
             BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         let scoped_previous_last_index = previous_last_index.scope(agent, gc.nogc());
         // 5. If previousLastIndex is not +0𝔽, then
         if previous_last_index != Number::pos_zero().into() {
             // a. Perform ? Set(rx, "lastIndex", +0𝔽, true).
             set(
                 agent,
-                rx.get(agent),
+                rx.get(agent).local(),
                 BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
                 Number::pos_zero().into(),
                 true,
                 gc.reborrow(),
-            )
-            .unbind()?;
+            )?;
         }
         // 6. Let result be ? RegExpExec(rx, S).
-        let result = reg_exp_exec(agent, rx.get(agent), s.get(agent), gc.reborrow())
-            .unbind()?
-            .map(|r| r.scope(agent, gc.nogc()));
+        let result = reg_exp_exec(
+            agent,
+            rx.get(agent).local(),
+            s.get(agent).local(),
+            gc.reborrow(),
+        )?
+        .map(|r| r.scope(agent, gc.nogc()));
         // 7. Let currentLastIndex be ? Get(rx, "lastIndex").
         let current_last_index = get(
             agent,
-            rx.get(agent),
+            rx.get(agent).local(),
             BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
-        let previous_last_index = unsafe { scoped_previous_last_index.take(agent) }.bind(gc.nogc());
+        )?;
+        crate::engine::bind!(let previous_last_index = unsafe { scoped_previous_last_index.take(agent).local() }, gc);
         // 8. If SameValue(currentLastIndex, previousLastIndex) is false, then
         if !same_value(agent, current_last_index, previous_last_index) {
             // a. Perform ? Set(rx, "lastIndex", previousLastIndex, true).
             set(
                 agent,
-                rx.get(agent),
+                rx.get(agent).local(),
                 BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
-                previous_last_index.unbind(),
+                previous_last_index,
                 true,
                 gc.reborrow(),
-            )
-            .unbind()?;
+            )?;
         }
-        if let Some(result) = result.map(|r| unsafe { r.take(agent) }.bind(gc.nogc())) {
+        if let Some(result) = result.map(|r| unsafe { r.take(agent).local() }) {
             // 10. Return ? Get(result, "index").
             get(
                 agent,
-                result.unbind(),
+                result,
                 BUILTIN_STRING_MEMORY.index.to_property_key(),
                 gc,
             )
@@ -1137,11 +1033,11 @@ impl RegExpPrototype {
     fn get_source<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Let R be the this value.
-        let r = this_value.bind(gc.nogc());
+        crate::engine::bind!(let r = this_value, gc);
         // 2. If R is not an Object, throw a TypeError exception.
         let Ok(r) = Object::try_from(r) else {
             return Err(throw_not_an_object(agent, gc.into_nogc()));
@@ -1173,7 +1069,7 @@ impl RegExpPrototype {
             Ok(String::from_small_string("(?:)").into())
         } else {
             // 7. Return EscapeRegExpPattern(src, flags).
-            Ok(escape_reg_exp_pattern(agent, src.unbind(), flags, gc.into_nogc()).into())
+            Ok(escape_reg_exp_pattern(agent, src, flags, gc.into_nogc()).into())
         }
     }
 
@@ -1230,39 +1126,37 @@ impl RegExpPrototype {
     fn split<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        args: ArgumentsList,
+        args: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let string = args.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let string = args.get(0), gc);
         let limit = args.get(1).scope(agent, gc.nogc());
         // 1. Let rx be the this value.
-        let rx = this_value.bind(gc.nogc());
+        crate::engine::bind!(let rx = this_value, gc);
         // 2. If rx is not an Object, throw a TypeError exception.
         let Ok(rx) = Object::try_from(rx) else {
             return Err(throw_not_an_object(agent, gc.into_nogc()));
         };
         let rx = rx.scope(agent, gc.nogc());
         // 3. Let S be ? ToString(string).
-        let s = to_string(agent, string.unbind(), gc.reborrow())
-            .unbind()?
-            .scope(agent, gc.nogc());
+        let s = to_string(agent, string, gc.reborrow())?.scope(agent, gc.nogc());
         // 4. Let C be ? SpeciesConstructor(rx, %RegExp%).
 
-        let c = species_constructor(agent, rx.get(agent), ProtoIntrinsics::RegExp, gc.reborrow())
-            .unbind()?
-            .scope(agent, gc.nogc());
+        let c = species_constructor(
+            agent,
+            rx.get(agent).local(),
+            ProtoIntrinsics::RegExp,
+            gc.reborrow(),
+        )?
+        .scope(agent, gc.nogc());
         // 5. Let flags be ? ToString(? Get(rx, "flags")).
         let flags = get(
             agent,
-            rx.get(agent),
+            rx.get(agent).local(),
             BUILTIN_STRING_MEMORY.flags.to_property_key(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
-        let flags = to_string(agent, flags.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        )?;
+        let flags = to_string(agent, flags, gc.reborrow())?;
         let flag_bytes = flags.as_bytes_(agent);
         // 6. If flags contains "u" or flags contains "v", let unicodeMatching be true.
         // 7. Else, let unicodeMatching be false.
@@ -1278,55 +1172,55 @@ impl RegExpPrototype {
             String::from_wtf8_buf(agent, buf, gc.nogc())
         };
         // SAFETY: not shared.
-        let c = unsafe { c.take(agent) }.bind(gc.nogc());
+        crate::engine::bind!(let c = unsafe { c.take(agent).local() }, gc);
         // 10. Let splitter be ? Construct(C, « rx, newFlags »).
         let splitter = construct(
             agent,
-            c.unbind(),
+            c,
             Some(ArgumentsList::from_mut_slice(&mut [
-                rx.get(agent).into(),
-                new_flags.unbind().into(),
+                rx.get(agent).local().into(),
+                new_flags.into(),
             ])),
             None,
             gc.reborrow(),
-        )
-        .unbind()?
+        )?
         .scope(agent, gc.nogc());
         // 11. Let A be ! ArrayCreate(0).
         let a = Array::new(agent, gc.nogc()).scope(agent, gc.nogc());
         // 12. Let lengthA be 0.
         let mut length_a: u32 = 0;
         // SAFETY: not shared.
-        let limit = unsafe { limit.take(agent) }.bind(gc.nogc());
+        crate::engine::bind!(let limit = unsafe { limit.take(agent).local() }, gc);
         // 13. If limit is undefined,
         let lim = if limit.is_undefined() {
             // let lim be 2**32 - 1;
             u32::MAX
         } else {
             // else let lim be ℝ(? ToUint32(limit)).
-            to_uint32(agent, limit.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc())
+            to_uint32(agent, limit, gc.reborrow())?
         };
         // 14. If lim = 0, return A.
         if lim == 0 {
             // SAFETY: not shared.
-            return Ok(unsafe { a.take(agent) }.into());
+            return Ok(unsafe { a.take(agent).local() }.into());
         }
         // 15. If S is the empty String, then
         if s.is_empty_string() {
             // a. Let z be ? RegExpExec(splitter, S).
-            let z = reg_exp_exec(agent, splitter.get(agent), s.get(agent), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let z = reg_exp_exec(
+                agent,
+                splitter.get(agent).local(),
+                s.get(agent).local(),
+                gc.reborrow(),
+            )?;
             // b. If z is not null, return A.
             if z.is_some() {
                 // SAFETY: not shared.
-                return Ok(unsafe { a.take(agent) }.into());
+                return Ok(unsafe { a.take(agent).local() }.into());
             }
             let gc = gc.into_nogc();
-            let a = unsafe { a.take(agent) }.bind(gc);
-            let s = unsafe { s.take(agent) }.bind(gc);
+            crate::engine::bind!(let a = unsafe { a.take(agent).local() }, gc);
+            crate::engine::bind!(let s = unsafe { s.take(agent).local() }, gc);
             // c. Perform ! CreateDataPropertyOrThrow(A, "0", S).
             if let Err(err) = a.push(agent, s.into()) {
                 return Err(agent.throw_allocation_exception(err, gc));
@@ -1335,7 +1229,7 @@ impl RegExpPrototype {
             return Ok(a.into());
         }
         // 16. Let size be the length of S.
-        let size = s.get(agent).utf16_len_(agent);
+        let size = s.get(agent).local().utf16_len_(agent);
         // 17. Let p be 0.
         let mut p = 0;
         // 18. Let q be p.
@@ -1346,18 +1240,19 @@ impl RegExpPrototype {
             let f_q = Number::try_from(q).unwrap();
             set(
                 agent,
-                splitter.get(agent),
+                splitter.get(agent).local(),
                 BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
                 f_q.into(),
                 true,
                 gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc());
+            )?;
             // b. Let z be ? RegExpExec(splitter, S).
-            let z = reg_exp_exec(agent, splitter.get(agent), s.get(agent), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let z = reg_exp_exec(
+                agent,
+                splitter.get(agent).local(),
+                s.get(agent).local(),
+                gc.reborrow(),
+            )?;
             // c. If z is null, then
             if let Some(z) = z {
                 let z = z.scope(agent, gc.nogc());
@@ -1365,26 +1260,22 @@ impl RegExpPrototype {
                 // i. Let e be ℝ(? ToLength(? Get(splitter, "lastIndex"))).
                 let e = get(
                     agent,
-                    splitter.get(agent),
+                    splitter.get(agent).local(),
                     BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
                     gc.reborrow(),
-                )
-                .unbind()?
-                .bind(gc.nogc());
-                let e = to_length(agent, e.unbind(), gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc()) as u64;
+                )?;
+                let e = to_length(agent, e, gc.reborrow())? as u64;
                 let e = usize::try_from(e).unwrap();
                 // ii. Set e to min(e, size).
                 let e = e.min(size);
                 // iii. If e = p, then
                 if e == p {
                     // 1. Set q to AdvanceStringIndex(S, q, unicodeMatching).
-                    q = advance_string_index(agent, s.get(agent), q, unicode_matching);
+                    q = advance_string_index(agent, s.get(agent).local(), q, unicode_matching);
                 } else {
                     // iv. Else,
-                    let s_local = s.get(agent).bind(gc.nogc());
-                    let a_local = a.get(agent).bind(gc.nogc());
+                    crate::engine::bind!(let s_local = s.get(agent).local(), gc);
+                    crate::engine::bind!(let a_local = a.get(agent).local(), gc);
                     let p_utf8 = s_local
                         .utf8_index_(agent, p)
                         .expect("p splits two surrogates into unmatched pairs");
@@ -1405,15 +1296,13 @@ impl RegExpPrototype {
                     // 4. If lengthA = lim,
                     if length_a == lim {
                         // return A.
-                        return Ok(a_local.unbind().into());
+                        return Ok(a_local.into());
                     }
                     // 5. Set p to e.
                     p = e;
                     // 6. Let numberOfCaptures be ? LengthOfArrayLike(z).
                     let number_of_captures =
-                        length_of_array_like(agent, z.get(agent), gc.reborrow())
-                            .unbind()?
-                            .bind(gc.nogc()) as u64;
+                        length_of_array_like(agent, z.get(agent).local(), gc.reborrow())? as u64;
                     // 7. Set numberOfCaptures to max(numberOfCaptures - 1, 0).
                     let number_of_captures = number_of_captures.saturating_sub(1);
                     // 8. Let i be 1.
@@ -1423,14 +1312,12 @@ impl RegExpPrototype {
                         // a. Let nextCapture be ? Get(z, ! ToString(𝔽(i))).
                         let next_capture = get(
                             agent,
-                            z.get(agent),
+                            z.get(agent).local(),
                             PropertyKey::try_from(i).unwrap(),
                             gc.reborrow(),
-                        )
-                        .unbind()?
-                        .bind(gc.nogc());
+                        )?;
                         // b. Perform ! CreateDataPropertyOrThrow(A, ! ToString(𝔽(lengthA)), nextCapture).
-                        if let Err(err) = a.get(agent).push(agent, next_capture) {
+                        if let Err(err) = a.get(agent).local().push(agent, next_capture) {
                             return Err(agent.throw_allocation_exception(err, gc.into_nogc()));
                         };
                         // c. Set i to i + 1.
@@ -1440,7 +1327,7 @@ impl RegExpPrototype {
                         // e. If lengthA = lim, return A.
                         if length_a == lim {
                             // SAFETY: not shared.
-                            return Ok(unsafe { a.take(agent) }.into());
+                            return Ok(unsafe { a.take(agent).local() }.into());
                         }
                     }
                     // 10. Set q to p.
@@ -1448,15 +1335,15 @@ impl RegExpPrototype {
                 }
             } else {
                 // i. Set q to AdvanceStringIndex(S, q, unicodeMatching).
-                q = advance_string_index(agent, s.get(agent), q, unicode_matching);
+                q = advance_string_index(agent, s.get(agent).local(), q, unicode_matching);
             }
         }
         let gc = gc.into_nogc();
-        let a = unsafe { a.take(agent) }.bind(gc);
+        crate::engine::bind!(let a = unsafe { a.take(agent).local() }, gc);
         let result = if p == size {
             a.push(agent, String::EMPTY_STRING.into())
         } else {
-            let s = unsafe { s.take(agent) }.bind(gc);
+            crate::engine::bind!(let s = unsafe { s.take(agent).local() }, gc);
             let p_utf8 = s
                 .utf8_index_(agent, p)
                 .expect("p splits two surrogates into unmatched pairs");
@@ -1483,14 +1370,14 @@ impl RegExpPrototype {
     fn get_sticky<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Let R be the this value.
-        let r = this_value.bind(gc.nogc());
+        crate::engine::bind!(let r = this_value, gc);
         // 2. Let cu be the code unit 0x0079 (LATIN SMALL LETTER Y).
         // 3. Return ? RegExpHasFlag(R, cu).
-        reg_exp_has_flag(agent, r.unbind(), RegExpFlags::Y, gc.into_nogc())
+        reg_exp_has_flag(agent, r, RegExpFlags::Y, gc.into_nogc())
             .map(|v| v.map_or(Value::Undefined, |v| v.into()))
     }
 
@@ -1498,12 +1385,12 @@ impl RegExpPrototype {
     fn test<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let s = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let s = arguments.get(0), gc);
         // 1. Let R be the this value.
-        let r = this_value.bind(gc.nogc());
+        crate::engine::bind!(let r = this_value, gc);
         if let (Ok(s), Value::RegExp(r)) = (String::try_from(s), r) {
             let key = BUILTIN_STRING_MEMORY.exec.to_property_key();
             let exec = try_get(
@@ -1523,7 +1410,7 @@ impl RegExpPrototype {
                 )
                 .into()
             {
-                return Ok(reg_exp_builtin_test(agent, r.unbind(), s.unbind(), gc)?.into());
+                return Ok(reg_exp_builtin_test(agent, r, s, gc)?.into());
             }
         }
         // 2. If R is not an Object, throw a TypeError exception.
@@ -1532,14 +1419,10 @@ impl RegExpPrototype {
         };
         let r = r.scope(agent, gc.nogc());
         // 3. Let string be ? ToString(S).
-        let string = to_string(agent, s.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
-        let r = unsafe { r.take(agent) }.bind(gc.nogc());
+        let string = to_string(agent, s, gc.reborrow())?;
+        crate::engine::bind!(let r = unsafe { r.take(agent).local() }, gc);
         // 4. Let match be ? RegExpExec(R, string).
-        let r#match = reg_exp_test(agent, r.unbind(), string.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let r#match = reg_exp_test(agent, r, string, gc.reborrow())?;
         // 5. If match is not null, return true; else return false.
         Ok(r#match.into())
     }
@@ -1554,18 +1437,17 @@ impl RegExpPrototype {
     fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let nogc = gc.nogc();
-        let this_value = this_value.bind(nogc);
+        crate::engine::bind!(let this_value = this_value, gc);
         // 1. Let R be the this value.
         // 2. If R is not an Object, throw a TypeError exception.
         let Ok(r) = Object::try_from(this_value) else {
             let error_message = format!(
                 "{} is not an object",
                 this_value
-                    .unbind()
                     .string_repr(agent, gc.reborrow())
                     .to_string_lossy_(agent)
             );
@@ -1579,39 +1461,24 @@ impl RegExpPrototype {
             // Fast path for RegExp objects: This is not actually proper as it
             // does not take into account prototype mutations.
             let regexp_string = r.create_regexp_string(agent);
-            return Ok(String::from_wtf8_buf(agent, regexp_string, nogc)
-                .unbind()
-                .into());
+            return Ok(String::from_wtf8_buf(agent, regexp_string, nogc).into());
         }
         let scoped_r = r.scope(agent, nogc);
         // 3. Let pattern be ? ToString(? Get(R, "source")).
-        let pattern = get(
-            agent,
-            r.unbind(),
-            BUILTIN_STRING_MEMORY.source.into(),
-            gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
-        let pattern = to_string(agent, pattern.unbind(), gc.reborrow())
-            .unbind()?
-            .scope(agent, gc.nogc());
+        let pattern = get(agent, r, BUILTIN_STRING_MEMORY.source.into(), gc.reborrow())?;
+        let pattern = to_string(agent, pattern, gc.reborrow())?.scope(agent, gc.nogc());
         // 4. Let flags be ? ToString(? Get(R, "flags")).
         let flags = get(
             agent,
-            scoped_r.get(agent),
+            scoped_r.get(agent).local(),
             BUILTIN_STRING_MEMORY.flags.into(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
-        let flags = to_string(agent, flags.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        )?;
+        let flags = to_string(agent, flags, gc.reborrow())?;
         // 5. Let result be the string-concatenation of "/", pattern, "/", and flags.
         let result = format!(
             "/{}/{}",
-            pattern.get(agent).bind(gc.nogc()).to_string_lossy_(agent),
+            pattern.get(agent).local().to_string_lossy_(agent),
             flags.to_string_lossy_(agent)
         );
         let result = String::from_string(agent, result, gc.into_nogc());
@@ -1626,14 +1493,14 @@ impl RegExpPrototype {
     fn get_unicode<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Let R be the this value.
-        let r = this_value.bind(gc.nogc());
+        crate::engine::bind!(let r = this_value, gc);
         // 2. Let cu be the code unit 0x0075 (LATIN SMALL LETTER U).
         // 3. Return ? RegExpHasFlag(R, cu).
-        reg_exp_has_flag(agent, r.unbind(), RegExpFlags::U, gc.into_nogc())
+        reg_exp_has_flag(agent, r, RegExpFlags::U, gc.into_nogc())
             .map(|v| v.map_or(Value::Undefined, |v| v.into()))
     }
 
@@ -1644,14 +1511,14 @@ impl RegExpPrototype {
     fn get_unicode_sets<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Let R be the this value.
-        let r = this_value.bind(gc.nogc());
+        crate::engine::bind!(let r = this_value, gc);
         // 2. Let cu be the code unit 0x0076 (LATIN SMALL LETTER V).
         // 3. Return ? RegExpHasFlag(R, cu).
-        reg_exp_has_flag(agent, r.unbind(), RegExpFlags::V, gc.into_nogc())
+        reg_exp_has_flag(agent, r, RegExpFlags::V, gc.into_nogc())
             .map(|v| v.map_or(Value::Undefined, |v| v.into()))
     }
 

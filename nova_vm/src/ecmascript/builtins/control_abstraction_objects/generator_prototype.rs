@@ -46,9 +46,9 @@ impl GeneratorPrototype {
     fn next<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // GeneratorResume: 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         let Value::Generator(generator) = this_value else {
             return Err(agent.throw_exception_with_static_message(
@@ -66,11 +66,11 @@ impl GeneratorPrototype {
     fn r#return<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let this_value = this_value.bind(gc.nogc());
-        let value = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let this_value = this_value, gc);
+        crate::engine::bind!(let value = arguments.get(0), gc);
         // 1. Let g be the this value.
         let g = this_value;
         // 2. Let C be Completion Record { [[Type]]: return, [[Value]]: value, [[Target]]: empty }.
@@ -87,15 +87,15 @@ impl GeneratorPrototype {
             ));
         };
 
-        g.unbind().resume_return(agent, c.unbind(), gc)
+        g.resume_return(agent, c, gc)
     }
 
     fn throw<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // GeneratorResumeAbrupt: 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         let Value::Generator(generator) = this_value else {
             return Err(agent.throw_exception_with_static_message(

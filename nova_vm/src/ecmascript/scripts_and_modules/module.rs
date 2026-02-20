@@ -33,8 +33,8 @@ pub(crate) fn evaluate_import_call<'gc>(
     options: Option<Value>,
     mut gc: GcScope<'gc, '_>,
 ) -> Promise<'gc> {
-    let specifier = specifier.bind(gc.nogc());
-    let mut options = options.bind(gc.nogc());
+    crate::engine::bind!(let specifier = specifier, gc);
+    crate::engine::bind!(let mut options = options, gc);
     if options.is_some_and(|opt| opt.is_undefined()) {
         options.take();
     }
@@ -46,14 +46,12 @@ pub(crate) fn evaluate_import_call<'gc>(
         specifier
     } else {
         let scoped_options = options.map(|o| o.scope(agent, gc.nogc()));
-        let specifier = to_string(agent, specifier.unbind(), gc.reborrow())
-            .unbind()
-            .bind(gc.nogc());
+        let specifier = to_string(agent, specifier,gc.reborrow())?;
         // SAFETY: not shared.
-        options = scoped_options.map(|o| unsafe { o.take(agent) }.bind(gc.nogc()));
+        options = scoped_options.map(|o| unsafe { o.take(agent).local() });
         // 9. IfAbruptRejectPromise(specifierString, promiseCapability).
         let promise_capability = PromiseCapability {
-            promise: scoped_promise.get(agent).bind(gc.nogc()),
+            promise: scoped_promise.get(agent).local(),
             must_be_unresolved: true,
         };
         if_abrupt_reject_promise_m!(agent, specifier, promise_capability, gc)
@@ -68,7 +66,7 @@ pub(crate) fn evaluate_import_call<'gc>(
             return reject_import_not_object_or_undefined(
                 agent,
                 scoped_promise,
-                options.unbind(),
+                options,
                 gc.into_nogc(),
             );
         };
@@ -76,15 +74,13 @@ pub(crate) fn evaluate_import_call<'gc>(
         // b. Let attributesObj be Completion(Get(options, "with")).
         let attributes_obj = get(
             agent,
-            options.unbind(),
+            options,
             BUILTIN_STRING_MEMORY.with.to_property_key(),
             gc.reborrow(),
-        )
-        .unbind()
-        .bind(gc.nogc());
+        )?;
 
         let promise_capability = PromiseCapability {
-            promise: scoped_promise.get(agent).bind(gc.nogc()),
+            promise: scoped_promise.get(agent).local(),
             must_be_unresolved: true,
         };
         // c. IfAbruptRejectPromise(attributesObj, promiseCapability).
@@ -99,21 +95,21 @@ pub(crate) fn evaluate_import_call<'gc>(
                 return reject_import_not_object_or_undefined(
                     agent,
                     scoped_promise,
-                    attributes_obj.unbind(),
+                    attributes_obj,
                     gc.into_nogc(),
                 );
             };
             // ii. Let entries be Completion(EnumerableOwnProperties(attributesObj, key+value)).
             let entries = enumerable_own_properties::<EnumerateKeysAndValues>(
                 agent,
-                attributes_obj.unbind(),
+                attributes_obj,
                 gc.reborrow(),
             )
-            .unbind();
+            ;
             let gc = gc.into_nogc();
-            let entries = entries.bind(gc);
+            crate::engine::bind!(let entries = entries, gc);
 
-            let promise = unsafe { scoped_promise.take(agent) }.bind(gc);
+            crate::engine::bind!(let promise = unsafe { scoped_promise.take(agent).local() }, gc);
             let promise_capability = PromiseCapability {
                 promise,
                 must_be_unresolved: true,
@@ -124,7 +120,7 @@ pub(crate) fn evaluate_import_call<'gc>(
                 // 2. If value is an abrupt completion, then
                 Err(err) => {
                     // a. Perform ? Call(capability.[[Reject]], undefined, « value.[[Value]] »).
-                    promise_capability.reject(agent, err.value().unbind(), gc);
+                    promise_capability.reject(agent, err.value(), gc);
                     // b. Return capability.[[Promise]].
                     return promise_capability.promise;
                 }
@@ -152,7 +148,7 @@ pub(crate) fn evaluate_import_call<'gc>(
                         return reject_unsupported_import_attribute(
                             agent,
                             promise_capability,
-                            key.unbind(),
+                            key,
                             gc.into_nogc(),
                         );
                     };
@@ -172,19 +168,19 @@ pub(crate) fn evaluate_import_call<'gc>(
             //    in that hosts are prohibited from changing behaviour based on the
             //    order in which attributes are enumerated.
             attributes.sort_by(|a, b| a.key.as_wtf8_(agent).cmp(b.key.as_wtf8_(agent)));
-            let specifier = unsafe { specifier.take(agent) }.bind(gc);
+            crate::engine::bind!(let specifier = unsafe { specifier.take(agent).local() }, gc);
             (promise, specifier, attributes.into_boxed_slice(), gc)
         } else {
             let gc = gc.into_nogc();
-            let specifier = unsafe { specifier.take(agent) }.bind(gc);
-            let promise = unsafe { scoped_promise.take(agent) }.bind(gc);
+            crate::engine::bind!(let specifier = unsafe { specifier.take(agent).local() }, gc);
+            crate::engine::bind!(let promise = unsafe { scoped_promise.take(agent).local() }, gc);
             (promise, specifier, Default::default(), gc)
         }
     } else {
-        let specifier = specifier.unbind();
+        let specifier = specifier;
         let gc = gc.into_nogc();
-        let specifier = specifier.bind(gc);
-        let promise = unsafe { scoped_promise.take(agent) }.bind(gc);
+        crate::engine::bind!(let specifier = specifier, gc);
+        crate::engine::bind!(let promise = unsafe { scoped_promise.take(agent).local() }, gc);
         (promise, specifier, Default::default(), gc)
     };
     // 12. Let moduleRequest be a new ModuleRequest Record {
@@ -217,10 +213,10 @@ fn reject_import_not_object_or_undefined<'gc>(
     value: Value,
     gc: NoGcScope<'gc, '_>,
 ) -> Promise<'gc> {
-    let value = value.bind(gc);
+    crate::engine::bind!(let value = value, gc);
     let promise_capability = PromiseCapability {
         // SAFETY: not shared.
-        promise: unsafe { scoped_promise.take(agent) }.bind(gc),
+        promise: unsafe { scoped_promise.take(agent).local() },
         must_be_unresolved: true,
     };
     // i. Perform ! Call(promiseCapability.[[Reject]], undefined, « a newly created TypeError object »).
@@ -329,8 +325,8 @@ pub(crate) fn link_and_evaluate(
     module: AbstractModule,
     mut gc: GcScope,
 ) {
-    let promise = promise.bind(gc.nogc());
-    let module = module.bind(gc.nogc());
+    crate::engine::bind!(let promise = promise, gc);
+    crate::engine::bind!(let module = module, gc);
     // a. Let link be Completion(module.Link()).
     let link = module.link(agent, gc.nogc());
     // b. If link is an abrupt completion, then
@@ -344,14 +340,12 @@ pub(crate) fn link_and_evaluate(
     let promise = promise.scope(agent, gc.nogc());
     // c. Let evaluatePromise be module.Evaluate().
     let evaluate_promise = module
-        .unbind()
-        .evaluate(agent, gc.reborrow())
-        .unbind()
-        .bind(gc.nogc());
+
+        .evaluate(agent, gc.reborrow())?;
     // SAFETY: not shared.
-    let promise = unsafe { promise.take(agent) }.bind(gc.nogc());
+    crate::engine::bind!(let promise = unsafe { promise.take(agent).local() }, gc);
     // SAFETY: not shared.
-    let module = unsafe { scoped_module.take(agent) }.bind(gc.nogc());
+    crate::engine::bind!(let module = unsafe { scoped_module.take(agent).local() }, gc);
     if let Some(result) = evaluate_promise.try_get_result(agent, gc.nogc()) {
         // Synchronous evaluation finish.
         match result {
@@ -403,8 +397,8 @@ pub(crate) fn import_get_module_namespace(
     module: AbstractModule,
     gc: NoGcScope,
 ) {
-    let promise = promise.bind(gc);
-    let module = module.bind(gc);
+    crate::engine::bind!(let promise = promise, gc);
+    crate::engine::bind!(let module = module, gc);
     // i. Let namespace be GetModuleNamespace(module).
     let namespace = get_module_namespace(agent, module, gc);
     // ii. Perform ! Call(promiseCapability.[[Resolve]], undefined, « namespace »).

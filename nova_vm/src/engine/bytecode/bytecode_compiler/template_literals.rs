@@ -111,7 +111,7 @@ pub(super) fn get_template_object<'a>(
         // c. Perform ! DefinePropertyOrThrow(template, prop,
         //    PropertyDescriptor {
         //        [[Value]]: cookedValue,
-        template_values[prop] = Some(cooked_value.unbind());
+        template_values[prop] = Some(cooked_value);
         //        [[Writable]]: false,
         //        [[Enumerable]]: true,
         //        [[Configurable]]: false
@@ -123,7 +123,7 @@ pub(super) fn get_template_object<'a>(
         // e. Perform ! DefinePropertyOrThrow(rawObj, prop,
         //    PropertyDescriptor {
         //        [[Value]]: rawValue,
-        raw_obj_values[prop] = Some(raw_value.unbind().into());
+        raw_obj_values[prop] = Some(raw_value.into());
         //        [[Writable]]: false,
         //        [[Enumerable]]: true,
         //        [[Configurable]]: false
@@ -159,7 +159,7 @@ pub(super) fn get_template_object<'a>(
         }],
     )
     .expect("Should perform GC here");
-    template.set_backing_object(agent, template_backing_object.unbind());
+    template.set_backing_object(agent, template_backing_object);
     // 15. Perform ! SetIntegrityLevel(template, frozen).
     unwrap_try(template.try_prevent_extensions(agent, gc));
     // 16. Append the Record { [[Site]]: templateLiteral, [[Array]]: template }

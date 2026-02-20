@@ -15,7 +15,7 @@ impl ScopableCollection for Vec<Value<'_>> {
         agent: &Agent,
         gc: NoGcScope<'_, 'scope>,
     ) -> ScopedCollection<'scope, Self::Of<'static>> {
-        ScopedCollection::new(agent, self.unbind(), gc)
+        ScopedCollection::new(agent, self, gc)
     }
 }
 
@@ -48,23 +48,21 @@ impl ScopedCollection<'_, Vec<Value<'static>>> {
 
     /// Push a Value into the scoped vec.
     pub fn push(&mut self, agent: &Agent, value: Value) {
-        self.with_cb_mut(agent, |value_vec| value_vec.push(value.unbind()));
+        self.with_cb_mut(agent, |value_vec| value_vec.push(value));
     }
 
     /// Pop a Value from the scoped vec.
     pub fn pop<'a>(&mut self, agent: &Agent, gc: NoGcScope<'a, '_>) -> Option<Value<'a>> {
-        self.with_cb_mut(agent, |value_vec| value_vec.pop().bind(gc))
+        self.with_cb_mut(agent, |value_vec| value_vec.pop())
     }
 
     pub fn last<'a>(&self, agent: &Agent, gc: NoGcScope<'a, '_>) -> Option<Value<'a>> {
-        self.with_cb(agent, |value_vec| {
-            value_vec.last().map(|value| value.bind(gc))
-        })
+        self.with_cb(agent, |value_vec| value_vec.last().map(|value| value))
     }
 
     /// Returns `true` if the scoped vec contains a Value.
     pub fn contains(&self, agent: &Agent, value: Value) -> bool {
-        self.with_cb(agent, |value_vec| value_vec.contains(&value.unbind()))
+        self.with_cb(agent, |value_vec| value_vec.contains(&value))
     }
 
     pub(crate) fn iter(&self, agent: &mut Agent) -> ScopedValuesIterator<'_> {
@@ -84,16 +82,11 @@ impl ScopedCollection<'_, Vec<Value<'static>>> {
 }
 
 // SAFETY: Trivially safe.
-unsafe impl<'scope> Bindable for ScopedCollection<'scope, Vec<Value<'static>>> {
-    type Of<'a> = ScopedCollection<'scope, Vec<Value<'static>>>;
+unsafe impl<'a, 'scope> Bindable<'a> for ScopedCollection<'scope, Vec<Value<'static>>> {
+    type Of<'l> = ScopedCollection<'scope, Vec<Value<'static>>>;
 
     #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        self
-    }
-
-    #[inline(always)]
-    fn bind<'a>(self, _: NoGcScope<'a, '_>) -> Self::Of<'a> {
+    fn local<'l>(self) -> Self::Of<'l> {
         self
     }
 }
@@ -128,7 +121,7 @@ impl ScopedValue<'_> {
         // the data in the vector, but will not reallocate it. Hence, the
         // pointer is still valid to read from and the Value in the
         // vector has been sweeped by the garbage collector if it did trigger.
-        unsafe { self.key.as_ref().bind(gc) }
+        unsafe { self.key.as_ref() }
     }
 }
 

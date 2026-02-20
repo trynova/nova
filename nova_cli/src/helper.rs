@@ -117,24 +117,23 @@ impl HostHooks for CliChildHooks {
 }
 
 /// Initialize the global object with the built-in functions.
-pub fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope) {
+pub fn initialize_global_object<'gc>(agent: &mut Agent, global: Object<'gc>, gc: GcScope<'gc, '_>) {
     let gc = gc.into_nogc();
     let global = global.scope(agent, gc);
     // `print` function
     fn print<'gc>(
         agent: &mut Agent,
-        _this: Value,
-        args: ArgumentsList,
+        _this: Value<'static>,
+        args: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let args = args.bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let args = args, gc);
         if args.is_empty() {
             println!();
         } else {
             println!(
                 "{}",
                 args[0]
-                    .unbind()
                     .to_string(agent, gc)?
                     .as_wtf8(agent)
                     .to_string_lossy()
@@ -146,12 +145,12 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope) 
     // 'readTextFile' function
     fn read_text_file<'gc>(
         agent: &mut Agent,
-        _: Value,
-        args: ArgumentsList,
+        _: Value<'static>,
+        args: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let args = args.bind(gc);
+        crate::engine::bind!(let args = args, gc);
         if args.len() != 1 {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::Error,
@@ -179,10 +178,10 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope) 
     // 'now' function
     fn now<'gc>(
         agent: &mut Agent,
-        _this: Value,
-        _args: ArgumentsList,
+        _this: Value<'static>,
+        _args: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let nanos = START_TIME.elapsed().as_nanos();
         let bigint = BigInt::from_u128(agent, nanos, gc.into_nogc());
         Ok(bigint.into())
@@ -195,7 +194,7 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope) 
         gc,
     );
     let property_key = PropertyKey::from_static_str(agent, "print", gc);
-    unwrap_try(global.get(agent).try_define_own_property(
+    unwrap_try(global.get(agent).local().try_define_own_property(
         agent,
         property_key,
         PropertyDescriptor::new_prototype_method_descriptor(function),
@@ -210,7 +209,7 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope) 
         gc,
     );
     let property_key = PropertyKey::from_static_str(agent, "readTextFile", gc);
-    unwrap_try(global.get(agent).try_define_own_property(
+    unwrap_try(global.get(agent).local().try_define_own_property(
         agent,
         property_key,
         PropertyDescriptor::new_prototype_method_descriptor(function),
@@ -225,7 +224,7 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope) 
         gc,
     );
     let property_key = PropertyKey::from_static_str(agent, "now", gc);
-    unwrap_try(global.get(agent).try_define_own_property(
+    unwrap_try(global.get(agent).local().try_define_own_property(
         agent,
         property_key,
         PropertyDescriptor::new_prototype_method_descriptor(function),
@@ -240,12 +239,12 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope) 
 /// for approximately that duration.
 fn sleep<'gc>(
     agent: &mut Agent,
-    _: Value,
-    args: ArgumentsList,
+    _: Value<'static>,
+    args: ArgumentsList<'_, 'static>,
     gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, Value<'gc>> {
+) -> JsResult<'static, Value<'static>> {
     let gc = gc.into_nogc();
-    let Value::Integer(duration) = args.get(0).bind(gc) else {
+    let Value::Integer(duration) = args.get(0) else {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "expected first argument to be an integer",
@@ -267,10 +266,10 @@ fn sleep<'gc>(
 /// [Monotonic Clock]:  https://www.w3.org/TR/hr-time-2/#sec-monotonic-clock  "**Monotonic Clock**"
 fn monotonic_now<'gc>(
     agent: &mut Agent,
-    _this: Value,
-    _args: ArgumentsList,
+    _this: Value<'static>,
+    _args: ArgumentsList<'_, 'static>,
     gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, Value<'gc>> {
+) -> JsResult<'static, Value<'static>> {
     let gc = gc.into_nogc();
     let elapsed = START_TIME.elapsed();
     // milliseconds
@@ -310,10 +309,10 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
     /// `createRealm` function
     fn create_realm<'gc>(
         agent: &mut Agent,
-        _this: Value,
-        _args: ArgumentsList,
+        _this: Value<'static>,
+        _args: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let create_global_object: Option<for<'a> fn(&mut Agent, GcScope<'a, '_>) -> Object<'a>> =
             None;
         let create_global_this_value: Option<
@@ -325,17 +324,17 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
             Some(initialize_global_object_with_internals),
             gc,
         );
-        Ok(realm.global_object(agent).unbind().into())
+        Ok(realm.global_object(agent).into())
     }
 
     /// `detachArrayBuffer` function
     fn detach_array_buffer<'gc>(
         agent: &mut Agent,
-        _this: Value,
-        args: ArgumentsList,
+        _this: Value<'static>,
+        args: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let args = args.bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let args = args, gc);
         let Value::ArrayBuffer(array_buffer) = args.get(0) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::Error,
@@ -343,17 +342,17 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
                 gc.into_nogc(),
             ));
         };
-        array_buffer.detach(agent, None, gc.nogc()).unbind()?;
+        array_buffer.detach(agent, None, gc.nogc())?;
         Ok(Value::Undefined)
     }
 
     /// `gc` function
     fn run_gc<'gc>(
         agent: &mut Agent,
-        _this: Value,
-        _args: ArgumentsList,
+        _this: Value<'static>,
+        _args: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         agent.gc(gc);
         Ok(Value::Undefined)
     }
@@ -362,7 +361,7 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
 
     let gc = gc.into_nogc();
 
-    let nova_obj = OrdinaryObject::create_empty_object(agent, gc).bind(gc);
+    crate::engine::bind!(let nova_obj = OrdinaryObject::create_empty_object(agent, gc), gc);
     let property_key = PropertyKey::from_static_str(agent, "__nova__", gc);
     unwrap_try(global.try_define_own_property(
         agent,
@@ -386,11 +385,11 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
     /// `start` function
     fn start<'gc>(
         agent: &mut Agent,
-        _this: Value,
-        args: ArgumentsList,
+        _this: Value<'static>,
+        args: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let script_src = args.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let script_src = args.get(0), gc);
 
         let Ok(script_src) = String::try_from(script_src) else {
             return Err(agent.throw_exception_with_static_message(
@@ -456,16 +455,13 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
                     .send(ChildToHostMessage::Joined)
                     .unwrap();
 
-                let result = script_evaluation(child_agent, script.unbind(), gc.reborrow())
-                    .unbind()
-                    .bind(gc.nogc());
+                let result = script_evaluation(child_agent, script, gc.reborrow())?;
 
                 if let Err(error) = result {
                     eprintln!(
                         "Uncaught exception: {}",
                         error
                             .value()
-                            .unbind()
                             .string_repr(child_agent, gc)
                             .to_string_lossy(child_agent)
                     );
@@ -521,12 +517,12 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
     /// all agents that were started are still running.
     fn broadcast<'gc>(
         agent: &mut Agent,
-        _this: Value,
-        args: ArgumentsList,
+        _this: Value<'static>,
+        args: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let sab = args.get(0).bind(gc);
+        crate::engine::bind!(let sab = args.get(0), gc);
 
         let Ok(sab) = SharedArrayBuffer::try_from(sab) else {
             return Err(agent.throw_exception_with_static_message(
@@ -557,10 +553,10 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
     /// if it exists, or returns `null` otherwise.
     fn get_report<'gc>(
         agent: &mut Agent,
-        _: Value,
-        _: ArgumentsList,
+        _: Value<'static>,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let hooks = agent
             .get_host_data()
             .downcast_ref::<CliHostHooks>()
@@ -612,11 +608,11 @@ fn initialize_child_global_object(agent: &mut Agent, global: Object, mut gc: GcS
     /// function.
     fn receive_broadcast<'gc>(
         agent: &mut Agent,
-        _: Value,
-        args: ArgumentsList,
+        _: Value<'static>,
+        args: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let cb = args.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let cb = args.get(0), gc);
 
         let Ok(cb) = Function::try_from(cb) else {
             return Err(agent.throw_exception_with_static_message(
@@ -646,9 +642,7 @@ fn initialize_child_global_object(agent: &mut Agent, global: Object, mut gc: GcS
 
         let sab = SharedArrayBuffer::new_from_data_block(agent, shared_block, gc.nogc());
 
-        let _ = cb
-            .unbind()
-            .call(agent, Value::Null, &mut [sab.unbind().into()], gc);
+        let _ = cb.call(agent, Value::Null, &mut [sab.into()], gc);
 
         Ok(Value::Undefined)
     }
@@ -662,17 +656,13 @@ fn initialize_child_global_object(agent: &mut Agent, global: Object, mut gc: GcS
     /// explicit.)
     fn report<'gc>(
         agent: &mut Agent,
-        _: Value,
-        args: ArgumentsList,
+        _: Value<'static>,
+        args: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let report = args.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let report = args.get(0), gc);
 
-        let report = report
-            .unbind()
-            .string_repr(agent, gc.reborrow())
-            .unbind()
-            .bind(gc.nogc());
+        let report = report.string_repr(agent, gc.reborrow())?;
 
         let hooks = agent
             .get_host_data()
@@ -694,10 +684,10 @@ fn initialize_child_global_object(agent: &mut Agent, global: Object, mut gc: GcS
     /// (if possible).
     fn leaving<'gc>(
         agent: &mut Agent,
-        _: Value,
-        _: ArgumentsList,
+        _: Value<'static>,
+        _: ArgumentsList<'_, 'static>,
         _: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let hooks = agent
             .get_host_data()
             .downcast_ref::<CliChildHooks>()

@@ -173,7 +173,7 @@ impl<'a> PropertyStorage<'a> {
             .iter_mut()
             .zip(private_fields)
         {
-            *value_slot = private_element.get_value().unbind();
+            *value_slot = private_element.get_value();
             if private_element.is_method() {
                 methods_count += 1;
             }
@@ -187,13 +187,13 @@ impl<'a> PropertyStorage<'a> {
             for (i, private_field) in private_fields.iter().enumerate() {
                 if private_field.is_method() {
                     let k = (insertion_index + i) as u32;
-                    descriptors.insert(k, private_field.into_element_descriptor().unbind());
+                    descriptors.insert(k, private_field.into_element_descriptor());
                 }
             }
         }
         let data = object.get_mut(agent);
         data.set_shape(new_shape);
-        data.set_values(elements_vector.elements_index.unbind());
+        data.set_values(elements_vector.elements_index);
         Ok(())
     }
 
@@ -233,7 +233,7 @@ impl<'a> PropertyStorage<'a> {
         if !writable {
             return false;
         }
-        values[offset] = Some(value.unbind());
+        values[offset] = Some(value);
         true
     }
 
@@ -289,7 +289,7 @@ impl<'a> PropertyStorage<'a> {
             keys,
             values,
             descriptors,
-        } = object.unbind().get_property_storage_mut(agent)?;
+        } = object.get_property_storage_mut(agent)?;
         let key = private_name.into();
         let index = keys
             .iter()
@@ -355,7 +355,7 @@ impl<'a> PropertyStorage<'a> {
             keys,
             values,
             descriptors,
-        }) = object.unbind().get_property_storage_mut(agent)
+        }) = object.get_property_storage_mut(agent)
         {
             let result = keys
                 .iter()
@@ -365,11 +365,11 @@ impl<'a> PropertyStorage<'a> {
             if let Some(index) = result {
                 // Mutating existing property.
                 let value_entry = values.get_mut(index as usize).unwrap();
-                *value_entry = value.unbind();
+                *value_entry = value;
                 match (descriptors, element_descriptor) {
                     (e, Some(element_descriptor)) => {
                         let e = e.or_insert_with(|| AHashMap::with_capacity(1));
-                        e.insert(index, element_descriptor.unbind());
+                        e.insert(index, element_descriptor);
                     }
                     (Entry::Occupied(mut e), None) => {
                         let descs = e.get_mut();
@@ -423,10 +423,10 @@ impl<'a> PropertyStorage<'a> {
                     Entry::Vacant(_) => true,
                 }
         );
-        values[old_len as usize] = value.unbind();
+        values[old_len as usize] = value;
         if let Some(desc) = desc {
             let descriptors = descriptors.or_insert_with(|| AHashMap::with_capacity(1));
-            descriptors.insert(old_len, desc.unbind());
+            descriptors.insert(old_len, desc);
         }
         if old_shape == new_shape {
             // Intrinsic shape! Adding a new property to an intrinsic needs to
@@ -437,7 +437,7 @@ impl<'a> PropertyStorage<'a> {
         }
         let data = object.get_mut(agent);
         data.set_shape(new_shape);
-        data.set_values(elements_vector.elements_index.unbind());
+        data.set_values(elements_vector.elements_index);
         if cfg!(debug_assertions) {
             assert_eq!(object.len(agent), new_len);
             assert_eq!(object.len(agent), elements_vector.len());
@@ -448,7 +448,7 @@ impl<'a> PropertyStorage<'a> {
                 key.as_display(agent)
             );
             assert_eq!(
-                object.get(agent).get_values(),
+                object.get(agent).local().get_values(),
                 elements_vector.elements_index
             );
             let property_storage = object.get_property_storage(agent);
@@ -499,7 +499,7 @@ impl<'a> PropertyStorage<'a> {
             // bunch. That's intentional (at least for now).
             let new_values = agent.heap.elements.realloc_values_with_removal(
                 old_cap,
-                object.get(agent).get_values(),
+                object.get(agent).local().get_values(),
                 new_cap,
                 old_len,
                 index,
@@ -511,7 +511,7 @@ impl<'a> PropertyStorage<'a> {
             let ElementStorageUninit {
                 values,
                 descriptors,
-            } = object.unbind().get_elements_storage_uninit(agent);
+            } = object.get_elements_storage_uninit(agent);
 
             if index == new_len {
                 // Removing last property.

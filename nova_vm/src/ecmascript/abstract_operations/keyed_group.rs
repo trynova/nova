@@ -70,12 +70,12 @@ impl<'a> KeyedGroup<'a> {
         match entry {
             Entry::Occupied(occupied) => {
                 let idx = *occupied.get() as usize;
-                self.values[idx].push(value.unbind());
+                self.values[idx].push(value);
             }
             Entry::Vacant(vacant) => {
                 let idx = u32::try_from(self.keys.len()).expect("Keyed group overflowed");
-                self.keys.push(key.unbind());
-                self.values.push(vec![value.unbind()]);
+                self.keys.push(key);
+                self.values.push(vec![value]);
                 vacant.insert(idx);
             }
         }
@@ -109,12 +109,12 @@ impl<'a> KeyedGroup<'a> {
         match entry {
             Entry::Occupied(occupied) => {
                 let idx = *occupied.get() as usize;
-                self.values[idx].push(value.unbind());
+                self.values[idx].push(value);
             }
             Entry::Vacant(vacant) => {
                 let idx = u32::try_from(self.keys.len()).expect("Keyed group overflowed");
-                self.keys.push(key.unbind());
-                self.values.push(vec![value.unbind()]);
+                self.keys.push(key);
+                self.values.push(vec![value]);
                 vacant.insert(idx);
             }
         }
@@ -182,7 +182,7 @@ impl ScopableCollection for Box<KeyedGroup<'_>> {
         agent: &Agent,
         gc: NoGcScope<'_, 'scope>,
     ) -> ScopedCollection<'scope, Self::Of<'static>> {
-        ScopedCollection::new(agent, self.unbind(), gc)
+        ScopedCollection::new(agent, self,gc)
     }
 }
 

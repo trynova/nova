@@ -55,27 +55,23 @@ impl NumberConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let nogc = gc.nogc();
-        let mut new_target = new_target.bind(nogc);
+        let mut new_target = new_target;
 
         // 1. If value is present, then
         let n = if !arguments.is_empty() {
-            let value = arguments.get(0).bind(nogc);
+            let value = arguments.get(0);
             // a. Let prim be ? ToNumeric(value).
             let prim = if let Ok(prim) = Primitive::try_from(value) {
-                to_numeric_primitive(agent, prim, nogc).unbind()?.bind(nogc)
+                to_numeric_primitive(agent, prim, nogc)?
             } else {
                 let scoped_new_target = new_target.map(|n| n.scope(agent, nogc));
-                let prim = value
-                    .unbind()
-                    .to_numeric(agent, gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc());
-                new_target = scoped_new_target.map(|n| n.get(agent));
+                let prim = value.to_numeric(agent, gc.reborrow())?;
+                new_target = scoped_new_target.map(|n| n.get(agent).local());
                 prim
             };
 
@@ -105,7 +101,7 @@ impl NumberConstructor {
 
         // 3. If NewTarget is undefined, return n.
         let Some(new_target) = new_target else {
-            return Ok(n.unbind().into());
+            return Ok(n.into());
         };
 
         let n = n.scope(agent, gc.nogc());
@@ -113,18 +109,14 @@ impl NumberConstructor {
         let new_target = Function::try_from(new_target).unwrap();
 
         // 4. Let O be ? OrdinaryCreateFromConstructor(NewTarget, "%Number.prototype%", « [[NumberData]] »).
-        let o = PrimitiveObject::try_from(
-            ordinary_create_from_constructor(
-                agent,
-                new_target.unbind(),
-                ProtoIntrinsics::Number,
-                gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc()),
-        )
+        let o = PrimitiveObject::try_from(ordinary_create_from_constructor(
+            agent,
+            new_target,
+            ProtoIntrinsics::Number,
+            gc.reborrow(),
+        )?)
         .unwrap();
-        let n = n.get(agent).unbind();
+        let n = n.get(agent).local();
         // 5. Set O.[[NumberData]] to n.
         o.get_mut(agent).data = match n {
             Number::Number(d) => PrimitiveObjectData::Number(d),
@@ -132,18 +124,18 @@ impl NumberConstructor {
             Number::SmallF64(d) => PrimitiveObjectData::SmallF64(d),
         };
         // 6. Return O.
-        Ok(o.unbind().into())
+        Ok(o.into())
     }
 
     /// ### [21.1.2.2 Number.isFinite ( number )](https://tc39.es/ecma262/#sec-number.isfinite)
     fn is_finite<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let maybe_number = arguments.get(0).bind(gc);
+        crate::engine::bind!(let maybe_number = arguments.get(0), gc);
 
         // 1. If number is not a Number, return false.
         let Ok(number) = Number::try_from(maybe_number) else {
@@ -159,11 +151,11 @@ impl NumberConstructor {
     fn is_integer<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let maybe_number = arguments.get(0).bind(gc);
+        crate::engine::bind!(let maybe_number = arguments.get(0), gc);
 
         // 1. Return IsIntegralNumber(number).
         Ok(is_integral_number(agent, maybe_number).into())
@@ -173,11 +165,11 @@ impl NumberConstructor {
     fn is_nan<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let maybe_number = arguments.get(0).bind(gc);
+        crate::engine::bind!(let maybe_number = arguments.get(0), gc);
 
         // 1. If number is not a Number, return false.
         let Ok(number) = Number::try_from(maybe_number) else {
@@ -193,11 +185,11 @@ impl NumberConstructor {
     fn is_safe_integer<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let maybe_number = arguments.get(0).bind(gc);
+        crate::engine::bind!(let maybe_number = arguments.get(0), gc);
 
         // 1. If IsIntegralNumber(number) is true, then
         //    a. If abs(ℝ(number)) ≤ 2**53 - 1, return true.
@@ -221,7 +213,7 @@ impl NumberConstructor {
                 let value = Value::from_f64(builder.agent, f64::EPSILON, gc);
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.EPSILON.into())
-                    .with_value_readonly(value.unbind())
+                    .with_value_readonly(value)
                     .with_enumerable(false)
                     .with_configurable(false)
                     .build()
@@ -250,7 +242,7 @@ impl NumberConstructor {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.MAX_VALUE.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, f64::MAX, gc).unbind().into()
+                        Number::from_f64(agent, f64::MAX, gc).into()
                     })
                     .with_configurable(false)
                     .with_enumerable(false)

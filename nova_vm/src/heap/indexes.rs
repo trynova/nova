@@ -21,7 +21,11 @@ use std::any::type_name;
 /// This index implies a tracing reference count from this
 /// struct to T at the given index.
 #[repr(transparent)]
-pub(crate) struct BaseIndex<'a, T: ?Sized>(NonZeroU32, PhantomData<T>, PhantomData<&'a GcToken>);
+pub(crate) struct BaseIndex<'a, T: ?Sized>(
+    NonZeroU32,
+    PhantomData<T>,
+    PhantomData<fn(&'a GcToken)>,
+);
 
 impl<T: ?Sized> BaseIndex<'_, T> {
     pub(crate) const fn from_index_const(index: usize) -> Self {
@@ -53,14 +57,10 @@ impl<T: ?Sized> BaseIndex<'_, T> {
 }
 
 // SAFETY: Marker lifetime transmute.
-unsafe impl<T: ?Sized> Bindable for BaseIndex<'_, T> {
+unsafe impl<T: ?Sized> Bindable<'a> for BaseIndex<'_, T> {
     type Of<'a> = BaseIndex<'a, T>;
 
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    fn bind<'a>(self, _: NoGcScope<'a, '_>) -> Self::Of<'a> {
+    fn local<'a>(self) -> Self::Of<'a> {
         unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
@@ -259,7 +259,7 @@ macro_rules! index_handle {
         impl<'a> From<$name<'a>> for crate::engine::HeapRootData {
             #[inline(always)]
             fn from(value: $name<'a>) -> Self {
-                Self::$variant(crate::engine::Bindable::unbind(value))
+                Self::$variant(value)
             }
         }
 

@@ -170,14 +170,7 @@ where
         TryResult::Continue(match self.get_backing_object(agent) {
             Some(backing_object) => {
                 let o: Object = self.into();
-                ordinary_get_own_property(
-                    agent,
-                    o.bind(gc),
-                    backing_object,
-                    property_key,
-                    cache,
-                    gc,
-                )
+                ordinary_get_own_property(agent, o, backing_object, property_key, cache, gc)
             }
             None => None,
         })
@@ -278,30 +271,21 @@ where
         property_key: PropertyKey,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
-        let property_key = property_key.bind(gc.nogc());
+        crate::engine::bind!(let property_key = property_key, gc);
         // 1. Return ? OrdinaryHasProperty(O, P).
         match self.get_backing_object(agent) {
-            Some(backing_object) => ordinary_has_property(
-                agent,
-                self.into(),
-                backing_object,
-                property_key.unbind(),
-                gc,
-            ),
+            Some(backing_object) => {
+                ordinary_has_property(agent, self.into(), backing_object, property_key, gc)
+            }
             None => {
                 let property_key = property_key.scope(agent, gc.nogc());
                 // 3. Let parent be ? O.[[GetPrototypeOf]]().
-                let parent = self
-                    .internal_get_prototype_of(agent, gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc());
+                let parent = self.internal_get_prototype_of(agent, gc.reborrow())?;
 
                 // 4. If parent is not null, then
                 if let Some(parent) = parent {
                     // a. Return ? parent.[[HasProperty]](P).
-                    parent
-                        .unbind()
-                        .internal_has_property(agent, property_key.get(agent), gc)
+                    parent.internal_has_property(agent, property_key.get(agent).local(), gc)
                 } else {
                     // 5. Return false.
                     Ok(false)
@@ -343,29 +327,21 @@ where
         property_key: PropertyKey,
         receiver: Value,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let property_key = property_key.bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let property_key = property_key, gc);
         // 1. Return ? OrdinaryGet(O, P, Receiver).
         match self.get_backing_object(agent) {
-            Some(backing_object) => {
-                ordinary_get(agent, backing_object, property_key.unbind(), receiver, gc)
-            }
+            Some(backing_object) => ordinary_get(agent, backing_object, property_key, receiver, gc),
             None => {
                 let property_key = property_key.scope(agent, gc.nogc());
                 // a. Let parent be ? O.[[GetPrototypeOf]]().
-                let Some(parent) = self
-                    .internal_get_prototype_of(agent, gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc())
-                else {
+                let Some(parent) = self.internal_get_prototype_of(agent, gc.reborrow())? else {
                     // b. If parent is null, return undefined.
                     return Ok(Value::Undefined);
                 };
 
                 // c. Return ? parent.[[Get]](P, Receiver).
-                parent
-                    .unbind()
-                    .internal_get(agent, property_key.get(agent), receiver, gc)
+                parent.internal_get(agent, property_key.get(agent).local(), receiver, gc)
             }
         }
     }
@@ -536,9 +512,9 @@ where
         self,
         agent: &mut Agent,
         this_value: Value,
-        arguments_list: ArgumentsList,
+        arguments_list: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         unreachable!()
     }
 
@@ -547,7 +523,7 @@ where
     fn internal_construct<'gc>(
         self,
         agent: &mut Agent,
-        arguments_list: ArgumentsList,
+        arguments_list: ArgumentsList<'_, 'static>,
         new_target: Function,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Object<'gc>> {
@@ -606,29 +582,27 @@ pub fn handle_try_get_result<'gc>(
     p: PropertyKey,
     result: TryResult<TryGetResult>,
     gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, Value<'gc>> {
-    let p = p.bind(gc.nogc());
-    let result = result.bind(gc.nogc());
+) -> JsResult<'static, Value<'static>> {
+    crate::engine::bind!(let p = p, gc);
+    crate::engine::bind!(let result = result, gc);
     match result {
         ControlFlow::Continue(c) => match c {
             TryGetResult::Unset => Ok(Value::Undefined),
-            TryGetResult::Value(value) => Ok(value.unbind().bind(gc.into_nogc())),
+            TryGetResult::Value(value) => Ok(value),
             TryGetResult::Get(getter) => {
                 let o: Value = o.into();
-                call_function(agent, getter.unbind(), o.unbind(), None, gc)
+                call_function(agent, getter, o, None, gc)
             }
             TryGetResult::Proxy(proxy) => {
                 let o: Value = o.into();
-                proxy
-                    .unbind()
-                    .internal_get(agent, p.unbind(), o.unbind(), gc)
+                proxy.internal_get(agent, p, o, gc)
             }
         },
         ControlFlow::Break(b) => match b {
-            TryError::Err(err) => Err(err.unbind().bind(gc.into_nogc())),
+            TryError::Err(err) => Err(err),
             TryError::GcError => {
                 let receiver: Value = o.into();
-                o.internal_get(agent, p.unbind(), receiver.unbind(), gc)
+                o.internal_get(agent, p, receiver, gc)
             }
         },
     }
@@ -735,28 +709,28 @@ pub fn call_proxy_set<'a>(
     value: Value,
     receiver: Value,
     strict: bool,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> JsResult<'a, ()> {
-    let proxy = proxy.unbind();
-    let receiver = receiver.unbind();
-    let p = p.unbind();
-    let value = value.unbind();
+    let proxy = proxy;
+    let receiver = receiver;
+    let p = p;
+    let value = value;
     if strict {
         let scoped_p = p.scope(agent, gc.nogc());
         let scoped_o = receiver.scope(agent, gc.nogc());
         let succeeded = proxy.internal_set(agent, p, value, receiver, gc.reborrow());
         // SAFETY: not shared.
-        let o = unsafe { scoped_o.take(agent) };
-        let succeeded = succeeded.unbind()?;
+        let o = unsafe { scoped_o.take(agent).local() };
+        let succeeded = succeeded?;
         if !succeeded {
             // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
-            let o = o.string_repr(agent, gc.reborrow()).unbind().bind(gc.nogc());
+            let o = o.string_repr(agent, gc.reborrow());
             // SAFETY: not shared.
-            let p = unsafe { scoped_p.take(agent) }.bind(gc.nogc());
+            crate::engine::bind!(let p = unsafe { scoped_p.take(agent).local() }, gc);
             return Err(throw_cannot_set_property(
                 agent,
-                o.unbind().into(),
-                p.unbind(),
+                o.into(),
+                p,
                 gc.into_nogc(),
             ));
         }

@@ -64,13 +64,13 @@ pub(crate) fn to_primitive<'a, 'gc>(
     preferred_type: Option<PreferredType>,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Primitive<'gc>> {
-    let input = input.into().bind(gc.nogc());
+    crate::engine::bind!(let input = input.into(), gc);
     // 1. If input is an Object, then
     if let Ok(input) = Object::try_from(input) {
-        to_primitive_object(agent, input.unbind(), preferred_type, gc)
+        to_primitive_object(agent, input, preferred_type, gc)
     } else {
         // 2. Return input.
-        Ok(Primitive::try_from(input.unbind().bind(gc.into_nogc())).unwrap())
+        Ok(Primitive::try_from(input).unwrap())
     }
 }
 
@@ -80,17 +80,15 @@ pub(crate) fn to_primitive_object<'a, 'gc>(
     preferred_type: Option<PreferredType>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Primitive<'gc>> {
-    let input = input.into().bind(gc.nogc());
+    crate::engine::bind!(let input = input.into(), gc);
     // a. Let exoticToPrim be ? GetMethod(input, @@toPrimitive).
     let scoped_input = input.scope(agent, gc.nogc());
     let exotic_to_prim = get_method(
         agent,
-        input.unbind().into(),
+        input.into(),
         PropertyKey::Symbol(WellKnownSymbolIndexes::ToPrimitive.into()),
         gc.reborrow(),
-    )
-    .unbind()?
-    .bind(gc.nogc());
+    )?;
     // b. If exoticToPrim is not undefined, then
     if let Some(exotic_to_prim) = exotic_to_prim {
         let hint = match preferred_type {
@@ -108,14 +106,13 @@ pub(crate) fn to_primitive_object<'a, 'gc>(
         // iv. Let result be ? Call(exoticToPrim, input, « hint »).
         let result = call_function(
             agent,
-            exotic_to_prim.unbind(),
-            scoped_input.get(agent).unbind().into(),
+            exotic_to_prim,
+            scoped_input.get(agent).local().into(),
             Some(ArgumentsList::from_mut_slice(&mut [hint.into()])),
             gc.reborrow(),
-        )
-        .unbind()?;
+        )?;
         let gc = gc.into_nogc();
-        let result = result.bind(gc);
+        crate::engine::bind!(let result = result, gc);
         // v. If result is not an Object, return result.
         Primitive::try_from(result).map_err(|_| {
             // vi. Throw a TypeError exception.
@@ -130,7 +127,7 @@ pub(crate) fn to_primitive_object<'a, 'gc>(
         // d. Return ? OrdinaryToPrimitive(input, preferredType).
         ordinary_to_primitive(
             agent,
-            scoped_input.get(agent),
+            scoped_input.get(agent).local(),
             preferred_type.unwrap_or(PreferredType::Number),
             gc,
         )
@@ -148,7 +145,7 @@ pub(crate) fn ordinary_to_primitive<'gc>(
     hint: PreferredType,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Primitive<'gc>> {
-    let mut o = o.bind(gc.nogc());
+    crate::engine::bind!(let mut o = o, gc);
     let to_string_key = PropertyKey::from(BUILTIN_STRING_MEMORY.toString);
     let value_of_key = PropertyKey::from(BUILTIN_STRING_MEMORY.valueOf);
     let method_names = match hint {
@@ -167,27 +164,23 @@ pub(crate) fn ordinary_to_primitive<'gc>(
     let scoped_o = o.scope(agent, gc.nogc());
     for name in method_names {
         // a. Let method be ? Get(O, name).
-        let method = get(agent, o.unbind(), name, gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let method = get(agent, o, name, gc.reborrow())?;
         // b. If IsCallable(method) is true, then
         if let Some(method) = is_callable(method, gc.nogc()) {
             // i. Let result be ? Call(method, O).
             let result: Value = call_function(
                 agent,
-                method.unbind(),
-                scoped_o.get(agent).into(),
+                method,
+                scoped_o.get(agent).local().into(),
                 None,
                 gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc());
+            )?;
             // ii. If result is not an Object, return result.
             if let Ok(result) = Primitive::try_from(result) {
-                return Ok(result.unbind().bind(gc.into_nogc()));
+                return Ok(result);
             }
         }
-        o = scoped_o.get(agent).bind(gc.nogc());
+        o = scoped_o.get(agent).local();
     }
     // 4. Throw a TypeError exception.
     Err(agent.throw_exception_with_static_message(
@@ -229,10 +222,9 @@ pub(crate) fn to_numeric<'a, 'gc>(
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Numeric<'gc>> {
     // 1. Let primValue be ? ToPrimitive(value, number).
-    let prim_value =
-        to_primitive(agent, value, Some(PreferredType::Number), gc.reborrow()).unbind()?;
+    let prim_value = to_primitive(agent, value, Some(PreferredType::Number), gc.reborrow())?;
     let gc = gc.into_nogc();
-    let prim_value = prim_value.bind(gc);
+    crate::engine::bind!(let prim_value = prim_value, gc);
 
     to_numeric_primitive(agent, prim_value, gc)
 }
@@ -258,22 +250,17 @@ pub(crate) fn to_number<'a, 'gc>(
     argument: impl Into<Value<'a>>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Number<'gc>> {
-    let argument = argument.into().bind(gc.nogc());
+    crate::engine::bind!(let argument = argument.into(), gc);
     if let Ok(argument) = Primitive::try_from(argument) {
-        to_number_primitive(agent, argument.unbind(), gc.into_nogc())
+        to_number_primitive(agent, argument, gc.into_nogc())
     } else {
         // 7. Assert: argument is an Object.
         let argument = Object::try_from(argument).unwrap();
         // 8. Let primValue be ? ToPrimitive(argument, number).
-        let prim_value = to_primitive_object(
-            agent,
-            argument.unbind(),
-            Some(PreferredType::Number),
-            gc.reborrow(),
-        )
-        .unbind()?;
+        let prim_value =
+            to_primitive_object(agent, argument, Some(PreferredType::Number), gc.reborrow())?;
         let gc = gc.into_nogc();
-        let prim_value = prim_value.bind(gc);
+        crate::engine::bind!(let prim_value = prim_value, gc);
         // 9. Assert: primValue is not an Object.
         // 10. Return ? ToNumber(primValue).
         to_number_primitive(agent, prim_value, gc)
@@ -303,7 +290,7 @@ pub(crate) fn to_number_primitive<'gc>(
             gc,
         )),
         // 1. If argument is a Number, return argument.
-        Primitive::Number(idx) => Ok(idx.unbind().bind(gc).into()),
+        Primitive::Number(idx) => Ok(idx.into()),
         Primitive::Integer(idx) => Ok(idx.into()),
         Primitive::SmallF64(idx) => Ok(idx.into()),
         Primitive::BigInt(_) | Primitive::SmallBigInt(_) => Err(agent
@@ -507,7 +494,7 @@ pub(crate) fn to_integer_or_infinity_f64(number: f64) -> f64 {
 pub(crate) fn to_integer_or_infinity<'a>(
     agent: &mut Agent,
     argument: Value,
-    gc: GcScope<'a, '_>,
+    gc: GcScope,
 ) -> JsResult<'a, IntegerOrInfinity> {
     // Fast path: A safe integer is already an integer.
     if let Value::Integer(int) = argument {
@@ -590,16 +577,16 @@ pub(crate) fn try_to_integer_or_infinity<'a>(
 pub(crate) fn to_integer_number_or_infinity<'a>(
     agent: &mut Agent,
     argument: Value,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> JsResult<'a, Number<'a>> {
     // Fast path: A safe integer is already an integer.
     if let Value::Integer(int) = argument {
         return Ok(Number::Integer(int));
     }
     // 1. Let number be ? ToNumber(argument).
-    let number = to_number(agent, argument, gc.reborrow()).unbind()?;
+    let number = to_number(agent, argument, gc.reborrow())?;
     let gc = gc.into_nogc();
-    let number = number.bind(gc);
+    crate::engine::bind!(let number = number, gc);
 
     // Fast path: The value might've been eg. parsed into an integer.
     if let Number::Integer(int) = number {
@@ -622,7 +609,7 @@ pub(crate) fn to_integer_number_or_infinity<'a>(
     }
 
     // 5. Return truncate(ℝ(number)).
-    Ok(number.unbind().truncate(agent, gc))
+    Ok(number.truncate(agent, gc))
 }
 
 /// ### [7.1.5 ToIntegerOrInfinity ( argument )](https://tc39.es/ecma262/#sec-tointegerorinfinity)
@@ -653,15 +640,11 @@ pub(crate) fn number_convert_to_integer_or_infinity<'a>(
     }
 
     // 5. Return truncate(ℝ(number)).
-    number.unbind().truncate(agent, gc)
+    number.truncate(agent, gc)
 }
 
 /// ### [7.1.6 ToInt32 ( argument )](https://tc39.es/ecma262/#sec-toint32)
-pub(crate) fn to_int32<'a>(
-    agent: &mut Agent,
-    argument: Value,
-    gc: GcScope<'a, '_>,
-) -> JsResult<'a, i32> {
+pub(crate) fn to_int32<'a>(agent: &mut Agent, argument: Value, gc: GcScope) -> JsResult<'a, i32> {
     if let Value::Integer(int) = argument {
         // Fast path: Integer value is very nearly int32 already.
         let int = int.into_i64();
@@ -698,7 +681,7 @@ pub(crate) fn to_int32_number(agent: &Agent, number: Number) -> i32 {
 pub(crate) fn to_uint32<'a>(
     agent: &mut Agent,
     argument: Value,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> JsResult<'a, u32> {
     if let Value::Integer(int) = argument {
         // Fast path: Integer value is very nearly uint32 already.
@@ -706,9 +689,9 @@ pub(crate) fn to_uint32<'a>(
         return Ok(int as u32);
     }
     // 1. Let number be ? ToNumber(argument).
-    let number = to_number(agent, argument, gc.reborrow()).unbind()?;
+    let number = to_number(agent, argument, gc.reborrow())?;
     let gc = gc.into_nogc();
-    let number = number.bind(gc);
+    crate::engine::bind!(let number = number, gc);
 
     Ok(to_uint32_number(agent, number))
 }
@@ -734,11 +717,7 @@ pub(crate) fn to_uint32_number(agent: &Agent, number: Number) -> u32 {
 }
 
 /// ### [7.1.8 ToInt16 ( argument )](https://tc39.es/ecma262/#sec-toint16)
-pub(crate) fn to_int16<'a>(
-    agent: &mut Agent,
-    argument: Value,
-    gc: GcScope<'a, '_>,
-) -> JsResult<'a, i16> {
+pub(crate) fn to_int16<'a>(agent: &mut Agent, argument: Value, gc: GcScope) -> JsResult<'a, i16> {
     if let Value::Integer(int) = argument {
         // Fast path: Integer value is very nearly int16 already.
         let int = int.into_i64();
@@ -770,11 +749,7 @@ pub(crate) fn to_int16_number(agent: &Agent, number: Number) -> i16 {
 }
 
 /// ### [7.1.9 ToUint16 ( argument )](https://tc39.es/ecma262/#sec-touint16)
-pub(crate) fn to_uint16<'a>(
-    agent: &mut Agent,
-    argument: Value,
-    gc: GcScope<'a, '_>,
-) -> JsResult<'a, u16> {
+pub(crate) fn to_uint16<'a>(agent: &mut Agent, argument: Value, gc: GcScope) -> JsResult<'a, u16> {
     if let Value::Integer(int) = argument {
         // Fast path: Integer value is very nearly uint16 already.
         let int = int.into_i64();
@@ -806,11 +781,7 @@ pub(crate) fn to_uint16_number(agent: &Agent, number: Number) -> u16 {
 }
 
 /// ### [7.1.10 ToInt8 ( argument )](https://tc39.es/ecma262/#sec-toint8)
-pub(crate) fn to_int8<'a>(
-    agent: &mut Agent,
-    argument: Value,
-    gc: GcScope<'a, '_>,
-) -> JsResult<'a, i8> {
+pub(crate) fn to_int8<'a>(agent: &mut Agent, argument: Value, gc: GcScope) -> JsResult<'a, i8> {
     if let Value::Integer(int) = argument {
         // Fast path: Integer value is very nearly int8 already.
         let int = int.into_i64();
@@ -842,11 +813,7 @@ pub(crate) fn to_int8_number(agent: &Agent, number: Number) -> i8 {
 }
 
 /// ### [7.1.11 ToUint8 ( argument )](https://tc39.es/ecma262/#sec-touint8)
-pub(crate) fn to_uint8<'a>(
-    agent: &mut Agent,
-    argument: Value,
-    gc: GcScope<'a, '_>,
-) -> JsResult<'a, u8> {
+pub(crate) fn to_uint8<'a>(agent: &mut Agent, argument: Value, gc: GcScope) -> JsResult<'a, u8> {
     if let Value::Integer(int) = argument {
         // Fast path: Integer value is very nearly uint32 already.
         let int = int.into_i64();
@@ -881,7 +848,7 @@ pub(crate) fn to_uint8_number(agent: &Agent, number: Number) -> u8 {
 pub(crate) fn to_uint8_clamp<'a>(
     agent: &mut Agent,
     argument: Value,
-    gc: GcScope<'a, '_>,
+    gc: GcScope,
 ) -> JsResult<'a, u8> {
     if let Value::Integer(int) = argument {
         // Fast path: Integer value is very nearly uint8 already.
@@ -922,13 +889,12 @@ pub(crate) fn to_uint8_clamp_number(agent: &Agent, number: Number) -> u8 {
 pub(crate) fn to_big_int<'a>(
     agent: &mut Agent,
     argument: Value,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> JsResult<'a, BigInt<'a>> {
     // 1. Let prim be ? ToPrimitive(argument, number).
-    let prim =
-        to_primitive(agent, argument, Some(PreferredType::Number), gc.reborrow()).unbind()?;
+    let prim = to_primitive(agent, argument, Some(PreferredType::Number), gc.reborrow())?;
     let gc = gc.into_nogc();
-    let prim = prim.bind(gc);
+    crate::engine::bind!(let prim = prim, gc);
     to_big_int_primitive(agent, prim, gc)
 }
 
@@ -971,7 +937,7 @@ pub(crate) fn to_big_int_primitive<'a>(
                 "Cannot convert Number to BigInt",
                 gc,
             )),
-        Primitive::BigInt(idx) => Ok(BigInt::BigInt(idx).bind(gc)),
+        Primitive::BigInt(idx) => Ok(BigInt::BigInt(idx)),
         Primitive::SmallBigInt(data) => Ok(data.into()),
     }
 }
@@ -1042,7 +1008,7 @@ pub(crate) fn string_to_big_int<'a>(
 pub(crate) fn to_big_int64<'a>(
     agent: &mut Agent,
     argument: Value,
-    gc: GcScope<'a, '_>,
+    gc: GcScope,
 ) -> JsResult<'a, i64> {
     // 1. Let n be ? ToBigInt(argument).
     let n = to_big_int(agent, argument, gc)?;
@@ -1055,7 +1021,7 @@ pub(crate) fn to_big_int64_big_int(agent: &Agent, n: BigInt) -> i64 {
     match n {
         BigInt::BigInt(heap_big_int) => {
             // 3. If int64bit ≥ 2**63, return ℤ(int64bit - 2**64); otherwise return ℤ(int64bit).
-            let big_int = heap_big_int.get(agent);
+            let big_int = heap_big_int.get(agent).local();
             let int64bit = big_int.iter_u64_digits().next().unwrap_or(0);
             let int64bit = if big_int.sign() == Sign::Minus {
                 u64::MAX - int64bit + 1
@@ -1077,7 +1043,7 @@ pub(crate) fn to_big_int64_big_int(agent: &Agent, n: BigInt) -> i64 {
 pub(crate) fn to_big_uint64<'a>(
     agent: &mut Agent,
     argument: Value,
-    gc: GcScope<'a, '_>,
+    gc: GcScope,
 ) -> JsResult<'a, u64> {
     // 1. Let n be ? ToBigInt(argument).
     let n = to_big_int(agent, argument, gc)?;
@@ -1089,7 +1055,7 @@ pub(crate) fn to_big_uint64_big_int(agent: &Agent, n: BigInt) -> u64 {
     match n {
         BigInt::BigInt(heap_big_int) => {
             // https://play.rust-lang.org/?version=stable&mode=debug&edition=2021&gist=7d82adfe85f7d0ed44ab37a7b2cdf092
-            let big_int = &heap_big_int.get(agent).data;
+            let big_int = &heap_big_int.get(agent).local().data;
             let int64bit = big_int.iter_u64_digits().next().unwrap_or(0);
             if big_int.sign() == Sign::Minus {
                 u64::MAX - int64bit + 1
@@ -1109,7 +1075,7 @@ pub(crate) fn try_to_string<'a, 'gc>(
     argument: impl Into<Value<'a>>,
     gc: NoGcScope<'gc, '_>,
 ) -> TryResult<'gc, String<'gc>> {
-    let argument = argument.into().bind(gc);
+    crate::engine::bind!(let argument = argument.into(), gc);
     if let Ok(argument) = Primitive::try_from(argument) {
         js_result_into_try(to_string_primitive(agent, argument, gc))
     } else {
@@ -1123,23 +1089,17 @@ pub(crate) fn to_string<'a, 'gc>(
     argument: impl Into<Value<'a>>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, String<'gc>> {
-    let argument = argument.into().bind(gc.nogc());
+    crate::engine::bind!(let argument = argument.into(), gc);
     // 1. If argument is a String, return argument.
     if let Ok(argument) = Primitive::try_from(argument) {
-        to_string_primitive(agent, argument.unbind(), gc.into_nogc())
+        to_string_primitive(agent, argument, gc.into_nogc())
     } else {
         // 9. Assert: argument is an Object.
         assert!(Object::try_from(argument).is_ok());
         // 10. Let primValue be ? ToPrimitive(argument, string).
-        let prim_value = to_primitive(
-            agent,
-            argument.unbind(),
-            Some(PreferredType::String),
-            gc.reborrow(),
-        )
-        .unbind()?;
+        let prim_value = to_primitive(agent, argument, Some(PreferredType::String), gc.reborrow())?;
         let gc = gc.into_nogc();
-        let prim_value = prim_value.bind(gc);
+        crate::engine::bind!(let prim_value = prim_value, gc);
         // 11. Assert: primValue is not an Object.
         // 12. Return ? ToString(primValue).
         to_string_primitive(agent, prim_value, gc)
@@ -1176,13 +1136,15 @@ pub(crate) fn to_string_primitive<'gc>(
             gc,
         )),
         // 7. If argument is a Number, return Number::toString(argument, 10).
-        Primitive::Number(_) | Primitive::Integer(_) | Primitive::SmallF64(_) => {
-            Ok(Number::to_string_radix_10(agent, Number::try_from(argument).unwrap(), gc).unbind())
-        }
+        Primitive::Number(_) | Primitive::Integer(_) | Primitive::SmallF64(_) => Ok(
+            Number::to_string_radix_10(agent, Number::try_from(argument).unwrap(), gc),
+        ),
         // 8. If argument is a BigInt, return BigInt::toString(argument, 10).
-        Primitive::BigInt(_) | Primitive::SmallBigInt(_) => {
-            Ok(BigInt::to_string_radix_10(agent, BigInt::try_from(argument).unwrap(), gc).unbind())
-        }
+        Primitive::BigInt(_) | Primitive::SmallBigInt(_) => Ok(BigInt::to_string_radix_10(
+            agent,
+            BigInt::try_from(argument).unwrap(),
+            gc,
+        )),
     }
 }
 
@@ -1196,8 +1158,8 @@ pub(crate) fn to_object<'a>(
     agent: &mut Agent,
     argument: Value,
     gc: NoGcScope<'a, '_>,
-) -> JsResult<'a, Object<'a>> {
-    let argument = argument.bind(gc);
+) -> JsResult<'static, Object<'static>> {
+    crate::engine::bind!(let argument = argument, gc);
     require_object_coercible(agent, argument, gc)?;
     match argument {
         Value::Undefined | Value::Null => unreachable!(),
@@ -1214,7 +1176,7 @@ pub(crate) fn to_object<'a>(
             .heap
             .create(PrimitiveObjectRecord {
                 object_index: None,
-                data: PrimitiveObjectData::String(str.unbind()),
+                data: PrimitiveObjectData::String(str),
             })
             .into()),
         Value::SmallString(str) => Ok(agent
@@ -1229,7 +1191,7 @@ pub(crate) fn to_object<'a>(
             .heap
             .create(PrimitiveObjectRecord {
                 object_index: None,
-                data: PrimitiveObjectData::Symbol(symbol.unbind()),
+                data: PrimitiveObjectData::Symbol(symbol),
             })
             .into()),
         // Return a new Number object whose [[NumberData]] internal slot is set to argument.
@@ -1237,7 +1199,7 @@ pub(crate) fn to_object<'a>(
             .heap
             .create(PrimitiveObjectRecord {
                 object_index: None,
-                data: PrimitiveObjectData::Number(number.unbind()),
+                data: PrimitiveObjectData::Number(number),
             })
             .into()),
         Value::Integer(integer) => Ok(agent
@@ -1259,7 +1221,7 @@ pub(crate) fn to_object<'a>(
             .heap
             .create(PrimitiveObjectRecord {
                 object_index: None,
-                data: PrimitiveObjectData::BigInt(bigint.unbind()),
+                data: PrimitiveObjectData::BigInt(bigint),
             })
             .into()),
         Value::SmallBigInt(bigint) => Ok(agent
@@ -1283,7 +1245,7 @@ pub(crate) fn to_property_key<'a, 'gc>(
     // argument is already a valid property key. We also need to parse integer
     // strings back into integer property keys.
     if let Some(simple_result) = to_property_key_simple(agent, argument, gc.nogc()) {
-        return Ok(simple_result.unbind().bind(gc.into_nogc()));
+        return Ok(simple_result);
     }
 
     // If the argument is not a simple property key, it means that we may need
@@ -1317,11 +1279,11 @@ pub(crate) fn to_property_key_simple<'a, 'gc>(
     argument: impl Into<Value<'a>>,
     gc: NoGcScope<'gc, '_>,
 ) -> Option<PropertyKey<'gc>> {
-    let argument = argument.into().bind(gc);
+    crate::engine::bind!(let argument = argument.into(), gc);
     match argument {
         Value::String(_) | Value::SmallString(_) => {
             let (str, string_key) = match &argument {
-                Value::String(x) => (x.get(agent).as_wtf8(), PropertyKey::String(*x)),
+                Value::String(x) => (x.get(agent).local().as_wtf8(), PropertyKey::String(*x)),
                 Value::SmallString(x) => (x.as_wtf8(), PropertyKey::SmallString(*x)),
                 _ => unreachable!(),
             };
@@ -1361,9 +1323,9 @@ pub(crate) fn to_property_key_complex<'a, 'gc>(
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, PropertyKey<'gc>> {
     // 1. Let key be ? ToPrimitive(argument, hint String).
-    let key = to_primitive(agent, argument, Some(PreferredType::String), gc.reborrow()).unbind()?;
+    let key = to_primitive(agent, argument, Some(PreferredType::String), gc.reborrow())?;
     let gc = gc.into_nogc();
-    let key = key.bind(gc);
+    crate::engine::bind!(let key = key, gc);
 
     Ok(to_property_key_primitive(agent, key, gc))
 }
@@ -1420,11 +1382,7 @@ pub(crate) fn parse_string_to_integer_property_key(str: &str) -> Option<Property
 }
 
 /// ### [7.1.20 ToLength ( argument )](https://tc39.es/ecma262/#sec-tolength)
-pub(crate) fn to_length<'a>(
-    agent: &mut Agent,
-    argument: Value,
-    gc: GcScope<'a, '_>,
-) -> JsResult<'a, i64> {
+pub(crate) fn to_length<'a>(agent: &mut Agent, argument: Value, gc: GcScope) -> JsResult<'a, i64> {
     // TODO: This can be heavily optimized by inlining `to_integer_or_infinity`.
 
     // 1. Let len be ? ToIntegerOrInfinity(argument).
@@ -1514,7 +1472,7 @@ fn throw_index_out_of_range<'gc>(
 pub(crate) fn to_index<'a>(
     agent: &mut Agent,
     argument: Value,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> JsResult<'a, u64> {
     // Fast path: A safe integer is already an integer.
     if let Value::Integer(integer) = argument {
@@ -1523,9 +1481,7 @@ pub(crate) fn to_index<'a>(
     // TODO: This can be heavily optimized by inlining `to_integer_or_infinity`.
 
     // 1. Let integer be ? ToIntegerOrInfinity(value).
-    let integer = to_integer_or_infinity(agent, argument, gc.reborrow())
-        .unbind()?
-        .into_i64();
+    let integer = to_integer_or_infinity(agent, argument, gc.reborrow())?.into_i64();
 
     // 2. If integer is not in the inclusive interval from 0 to 2**53 - 1, throw a RangeError exception.
     // 3. Return integer.

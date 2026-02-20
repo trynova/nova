@@ -51,13 +51,13 @@ impl StringConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let nogc = gc.nogc();
-        let value = arguments.get(0).bind(nogc);
-        let new_target = new_target.bind(nogc);
+        let value = arguments.get(0);
+        crate::engine::bind!(let new_target = new_target, gc);
 
         // 1. If value is not present, then
         let (s, new_target) = if arguments.is_empty() {
@@ -70,36 +70,29 @@ impl StringConstructor {
             && let Value::Symbol(value) = value
         {
             // return SymbolDescriptiveString(value).
-            return Ok(value
-                .unbind()
-                .descriptive_string(agent, gc.into_nogc())
-                .into());
+            return Ok(value.descriptive_string(agent, gc.into_nogc()).into());
         } else {
             // b. Let s be ? ToString(value).
             if let Ok(s) = String::try_from(value) {
                 (s, new_target)
             } else {
                 let new_target = new_target.map(|n| n.scope(agent, gc.nogc()));
-                let s = to_string(agent, value.unbind(), gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc());
-                (s, new_target.map(|n| n.get(agent).bind(gc.nogc())))
+                let s = to_string(agent, value, gc.reborrow())?;
+                (s, new_target.map(|n| n.get(agent).local()))
             }
         };
         // 3. If NewTarget is undefined, return s.
         let Some(new_target) = new_target else {
-            return Ok(s.unbind().into());
+            return Ok(s.into());
         };
         // 4. Return StringCreate(s, ? GetPrototypeFromConstructor(NewTarget, "%String.prototype%")).
         let value = s.scope(agent, gc.nogc());
         let prototype = get_prototype_from_constructor(
             agent,
-            Function::try_from(new_target.unbind()).unwrap(),
+            Function::try_from(new_target).unwrap(),
             ProtoIntrinsics::String,
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         // StringCreate: Returns a String exotic object.
         // 1. Let S be MakeBasicObject(« [[Prototype]], [[Extensible]], [[StringData]] »).
         let s = PrimitiveObject::try_from(ordinary_object_create_with_intrinsics(
@@ -112,9 +105,9 @@ impl StringConstructor {
 
         // 2. Set S.[[Prototype]] to prototype.
         // 3. Set S.[[StringData]] to value.
-        let value = value.get(agent).bind(gc.nogc());
+        crate::engine::bind!(let value = value.get(agent).local(), gc);
         s.get_mut(agent).data = match value {
-            String::String(data) => PrimitiveObjectData::String(data.unbind()),
+            String::String(data) => PrimitiveObjectData::String(data),
             String::SmallString(data) => PrimitiveObjectData::SmallString(data),
         };
         // 4. Set S.[[GetOwnProperty]] as specified in 10.4.3.1.
@@ -123,7 +116,7 @@ impl StringConstructor {
         // 7. Let length be the length of value.
         // 8. Perform ! DefinePropertyOrThrow(S, "length", PropertyDescriptor { [[Value]]: 𝔽(length), [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: false }).
         // 9. Return S.
-        Ok(s.unbind().into())
+        Ok(s.into())
     }
 
     /// ### [22.1.2.1 String.fromCharCode ( ...`codeUnits` )](https://262.ecma-international.org/15.0/index.html#sec-string.fromcharcode)
@@ -133,9 +126,9 @@ impl StringConstructor {
     fn from_char_code<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        code_units: ArgumentsList,
+        code_units: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Let result be the empty String.
         // 2. For each element next of codeUnits, do
         //   a. Let nextCU be the code unit whose numeric value is ℝ(? ToUint16(next)).
@@ -148,7 +141,7 @@ impl StringConstructor {
 
         // fast path: only a single valid code unit
         if code_units.len() == 1 {
-            let cu = code_units.get(0).to_uint16(agent, gc.reborrow()).unbind()?;
+            let cu = code_units.get(0).to_uint16(agent, gc.reborrow())?;
             // SAFETY: number within 0..0xFFFF.
             let cu = unsafe { CodePoint::from_u32_unchecked(cu as u32) };
             return Ok(SmallString::from_code_point(cu).into());
@@ -167,11 +160,10 @@ impl StringConstructor {
             scoped_code_units
                 .iter()
                 .map(|cu| {
-                    let next = cu.get(agent);
-                    next.to_uint16(agent, gc.reborrow()).unbind()
+                    let next = cu.get(agent).local();
+                    next.to_uint16(agent, gc.reborrow())
                 })
                 .collect::<JsResult<Vec<_>>>()?
-                .bind(gc.nogc())
         };
 
         let result = Wtf8Buf::from_ill_formed_utf16(&buf);
@@ -186,9 +178,9 @@ impl StringConstructor {
     fn from_code_point<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        code_points: ArgumentsList,
+        code_points: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 3. Assert: If codePoints is empty, then result is the empty String.
         if code_points.is_empty() {
             return Ok(String::EMPTY_STRING.into());
@@ -252,7 +244,7 @@ impl StringConstructor {
                     ));
                 };
                 let next_cp = next.into_i64();
-                result.push(handle_code_point(agent, next_cp, gc.nogc()).unbind()?);
+                result.push(handle_code_point(agent, next_cp, gc.nogc())?);
             }
         } else {
             let code_points = code_points
@@ -262,9 +254,7 @@ impl StringConstructor {
             // 2. For each element next of codePoints, do
             for next in code_points.into_iter() {
                 // a. Let nextCP be ? ToNumber(next).
-                let next_cp = to_number(agent, next.get(agent), gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc());
+                let next_cp = to_number(agent, next.get(agent).local(), gc.reborrow())?;
                 // b. If IsIntegralNumber(nextCP) is false, throw a RangeError exception.
                 let Number::Integer(next_cp) = next_cp else {
                     if next_cp == Number::neg_zero() {
@@ -279,7 +269,7 @@ impl StringConstructor {
                     ));
                 };
                 let next_cp = next_cp.into_i64();
-                result.push(handle_code_point(agent, next_cp, gc.nogc()).unbind()?);
+                result.push(handle_code_point(agent, next_cp, gc.nogc())?);
             }
         }
         // 4. Return result.
@@ -299,10 +289,10 @@ impl StringConstructor {
     fn raw<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        mut arguments: ArgumentsList,
+        mut arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let template = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let template = arguments.get(0), gc);
         let mut substitutions = if !arguments.is_empty() {
             ArgumentsList::from_mut_slice(&mut arguments.as_mut_slice()[1..])
         } else {
@@ -313,9 +303,7 @@ impl StringConstructor {
         let substitution_count = substitutions.len() as i64;
 
         // 2. Let cooked be ? ToObject(template).
-        let cooked = to_object(agent, template, gc.nogc())
-            .unbind()?
-            .scope(agent, gc.nogc());
+        let cooked = to_object(agent, template, gc.nogc())?.scope(agent, gc.nogc());
 
         substitutions.with_scoped(
             agent,
@@ -323,18 +311,15 @@ impl StringConstructor {
                 // 3. Let literals be ? ToObject(? Get(cooked, "raw")).
                 let literals = get(
                     agent,
-                    cooked.get(agent),
+                    cooked.get(agent).local(),
                     BUILTIN_STRING_MEMORY.raw.to_property_key(),
                     gc.reborrow(),
-                )
-                .unbind()?;
-                let literals = to_object(agent, literals, gc.nogc())
-                    .unbind()?
-                    .scope(agent, gc.nogc());
+                )?;
+                let literals = to_object(agent, literals, gc.nogc())?.scope(agent, gc.nogc());
 
                 // 4. Let literalCount be ? LengthOfArrayLike(literals).
                 let literal_count =
-                    length_of_array_like(agent, literals.get(agent), gc.reborrow()).unbind()?;
+                    length_of_array_like(agent, literals.get(agent).local(), gc.reborrow())?;
 
                 // 5. If literalCount ≤ 0, return the empty String.
                 if literal_count <= 0 {
@@ -350,17 +335,15 @@ impl StringConstructor {
                     // a. Let nextLiteralVal be ? Get(literals, ! ToString(𝔽(nextIndex))).
                     let next_literal_val = get(
                         agent,
-                        literals.get(agent),
+                        literals.get(agent).local(),
                         PropertyKey::try_from(next_index).unwrap(),
                         gc.reborrow(),
-                    )
-                    .unbind()?
+                    )?
                     .scope(agent, gc.nogc());
 
                     // b. Let nextLiteral be ? ToString(nextLiteralVal).
-                    let next_literal = to_string(agent, next_literal_val.get(agent), gc.reborrow())
-                        .unbind()?
-                        .bind(gc.nogc());
+                    let next_literal =
+                        to_string(agent, next_literal_val.get(agent).local(), gc.reborrow())?;
 
                     // c. Set R to the string-concatenation of R and nextLiteral.
                     r.push_wtf8(next_literal.as_wtf8_(agent));
@@ -374,9 +357,7 @@ impl StringConstructor {
                         let next_sub_val = substitutions.get(agent, next_index as u32, gc.nogc());
 
                         // ii. Let nextSub be ? ToString(nextSubVal).
-                        let next_sub = to_string(agent, next_sub_val.unbind(), gc.reborrow())
-                            .unbind()?
-                            .bind(gc.nogc());
+                        let next_sub = to_string(agent, next_sub_val, gc.reborrow())?;
 
                         // iii. Set R to the string-concatenation of R and nextSub.
                         r.push_wtf8(next_sub.as_wtf8_(agent));

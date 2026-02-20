@@ -54,7 +54,7 @@ where
         agent: &mut Agent,
         gc: NoGcScope<'_, 'scope>,
     ) -> Scoped<'scope, Self::Of<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
+        Scoped::new(agent, self.local(), gc)
     }
 }
 
@@ -205,7 +205,7 @@ impl<'scope, T: Rootable> Scoped<'scope, T> {
                 // Let's take the previous value from the heap if it existed.
                 // SAFETY: The caller guarantees that the scoped value has not
                 // been shared.
-                let _ = unsafe { previous.take(agent) };
+                let _ = unsafe { previous.take(agent).local() };
                 return;
             }
             Err(heap_data) => heap_data,
@@ -254,7 +254,7 @@ impl<'scope, T: Rootable> Scoped<'scope, T> {
                 // Let's take the previous value from the heap if it existed.
                 // SAFETY: The caller guarantees that the scoped value has not
                 // been shared.
-                let _ = unsafe { self.take(agent) };
+                let _ = unsafe { self.take(agent).local() };
                 // The value doesn't need rooting.
                 return Scoped {
                     inner: stack_repr,

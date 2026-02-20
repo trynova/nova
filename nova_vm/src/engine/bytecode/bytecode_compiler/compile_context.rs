@@ -85,7 +85,7 @@ pub(crate) struct CompileContext<'agent, 'script, 'gc, 'scope> {
     pub(super) lexical_binding_state: bool,
     /// `?.` chain jumps that were present in a chain expression.
     pub(super) optional_chains: Option<Vec<JumpIndex>>,
-    /// In a `(a?.b).unbind()?.bind(gc.nogc()).()` chain the evaluation of `(a?.b)` must be considered a
+    /// In a `(a?.b)?.()` chain the evaluation of `(a?.b)` must be considered a
     /// reference.
     pub(super) is_call_optional_chain_this: bool,
     /// Stores data needed to generate control flow graph transition points.

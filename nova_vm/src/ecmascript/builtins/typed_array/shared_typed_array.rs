@@ -75,7 +75,10 @@ impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
 
     /// \[\[ViewedArrayBuffer]]
     pub fn get_viewed_array_buffer(self, agent: &Agent) -> SharedArrayBuffer<'ta> {
-        self.into_void_array().get(agent).viewed_array_buffer
+        self.into_void_array()
+            .get(agent)
+            .local()
+            .viewed_array_buffer
     }
 
     /// ### [10.4.5.18 TypedArraySetElement ( O, index, value )](https://tc39.es/ecma262/#sec-typedarraysetelement)
@@ -99,19 +102,17 @@ impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
     ) -> JsResult<'gc, ()> {
         Self::check_not_void_array();
 
-        let mut o = self.bind(gc.nogc());
-        let value = value.bind(gc.nogc());
+        crate::engine::bind!(let mut o = self, gc);
+        crate::engine::bind!(let value = value, gc);
         let num_value = if T::IS_BIGINT {
             // 1. If O.[[ContentType]] is bigint, let numValue be ? ToBigInt(value).
             if let Ok(bigint) = BigInt::try_from(value) {
                 bigint.into()
             } else {
                 let scoped_o = o.scope(agent, gc.nogc());
-                let bigint = to_big_int(agent, value.unbind(), gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc());
+                let bigint = to_big_int(agent, value, gc.reborrow())?;
                 // SAFETY: not shared.
-                o = unsafe { scoped_o.take(agent) }.bind(gc.nogc());
+                o = unsafe { scoped_o.take(agent).local() };
                 bigint.into()
             }
         } else {
@@ -120,11 +121,9 @@ impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
                 number.into()
             } else {
                 let scoped_o = o.scope(agent, gc.nogc());
-                let number = to_number(agent, value.unbind(), gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc());
+                let number = to_number(agent, value, gc.reborrow())?;
                 // SAFETY: not shared.
-                o = unsafe { scoped_o.take(agent) }.bind(gc.nogc());
+                o = unsafe { scoped_o.take(agent).local() };
                 number.into()
             }
         };
@@ -153,8 +152,8 @@ impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
     ) -> TryResult<'gc, ()> {
         Self::check_not_void_array();
 
-        let o = self.bind(gc);
-        let value = value.bind(gc);
+        crate::engine::bind!(let o = self, gc);
+        crate::engine::bind!(let value = value, gc);
         let Ok(value) = Primitive::try_from(value) else {
             return TryError::GcError.into();
         };
@@ -174,7 +173,7 @@ impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
         Self::check_not_void_array();
 
         let key = self.into_void_array();
-        let data = self.into_void_array().get(agent);
+        let data = self.into_void_array().get(agent).local();
         let buffer = data.viewed_array_buffer;
         let byte_offset = data.get_byte_offset(key, &agent.heap.shared_typed_array_byte_offsets);
         let byte_length = data.get_byte_length(key, &agent.heap.shared_typed_array_byte_offsets);
@@ -235,7 +234,7 @@ impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
         agent
             .heap
             .shared_typed_array_byte_offsets
-            .insert(self.into_void_array().unbind(), byte_offset);
+            .insert(self.into_void_array(), byte_offset);
     }
 
     pub(crate) fn set_overflowing_byte_length(self, agent: &mut Agent, byte_length: usize) {
@@ -243,7 +242,7 @@ impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
         agent
             .heap
             .shared_typed_array_byte_lengths
-            .insert(self.into_void_array().unbind(), byte_length);
+            .insert(self.into_void_array(), byte_length);
     }
 
     pub(crate) fn set_overflowing_array_length(self, agent: &mut Agent, array_length: usize) {
@@ -251,7 +250,7 @@ impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
         agent
             .heap
             .shared_typed_array_array_lengths
-            .insert(self.into_void_array().unbind(), array_length);
+            .insert(self.into_void_array(), array_length);
     }
 }
 
@@ -491,7 +490,7 @@ impl<'a> InternalMethods<'a> for SharedTypedArray<'a> {
         property_key: PropertyKey,
         receiver: Value,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         shared_typed_array_delegate!(self, internal_get, agent, property_key, receiver, gc)
     }
 
@@ -634,7 +633,10 @@ impl<'a> SharedTypedArray<'a> {
 
     /// \[\[ViewedArrayBuffer]]
     pub fn viewed_array_buffer(self, agent: &Agent) -> SharedArrayBuffer<'a> {
-        self.into_void_array().get(agent).viewed_array_buffer
+        self.into_void_array()
+            .get(agent)
+            .local()
+            .viewed_array_buffer
     }
 }
 
@@ -703,16 +705,15 @@ pub(crate) use for_shared_typed_array;
 impl<'a, T: Viewable> InternalSlots<'a> for GenericSharedTypedArray<'a, T> {
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.into_void_array().unbind().get(agent).object_index
+        self.into_void_array().get(agent).local().object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
             self.into_void_array()
-                .unbind()
                 .get_mut(agent)
                 .object_index
-                .replace(backing_object.unbind())
+                .replace(backing_object)
                 .is_none()
         );
     }
@@ -727,7 +728,7 @@ impl<'a, T: Viewable> InternalSlots<'a> for GenericSharedTypedArray<'a, T> {
     }
 
     fn internal_prototype(self, agent: &Agent) -> Option<Object<'static>> {
-        if let Some(object_index) = self.into_void_array().get(agent).object_index {
+        if let Some(object_index) = self.into_void_array().get(agent).local().object_index {
             object_index.internal_prototype(agent)
         } else {
             let intrinsics = agent.current_realm_record().intrinsics();
@@ -784,7 +785,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericSharedTypedArray<'a, T> {
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
-        let o = self.bind(gc);
+        crate::engine::bind!(let o = self, gc);
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         canonicalize_numeric_index_string(agent, &mut property_key, gc);
@@ -800,7 +801,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericSharedTypedArray<'a, T> {
                 //          [[Configurable]]: true
                 //      }.
                 TryResult::Continue(Some(PropertyDescriptor {
-                    value: Some(value.unbind().into()),
+                    value: Some(value.into()),
                     writable: Some(true),
                     enumerable: Some(true),
                     configurable: Some(true),
@@ -834,8 +835,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericSharedTypedArray<'a, T> {
             let numeric_index = numeric_index.into_i64();
             let result = self.is_valid_integer_index(agent, numeric_index);
             if let Some(result) = result {
-                TryHasResult::Custom(result.min(u32::MAX as usize) as u32, self.bind(gc).into())
-                    .into()
+                TryHasResult::Custom(result.min(u32::MAX as usize) as u32, self.into()).into()
             } else {
                 TryHasResult::Unset.into()
             }
@@ -942,8 +942,8 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericSharedTypedArray<'a, T> {
         property_descriptor: PropertyDescriptor,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
-        let o = self.bind(gc.nogc());
-        let property_descriptor = property_descriptor.bind(gc.nogc());
+        crate::engine::bind!(let o = self, gc);
+        crate::engine::bind!(let property_descriptor = property_descriptor, gc);
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         canonicalize_numeric_index_string(agent, &mut property_key, gc.nogc());
@@ -978,8 +978,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericSharedTypedArray<'a, T> {
             //     TypedArraySetElement(O, numericIndex, Desc.[[Value]]).
             if let Some(value) = property_descriptor.value {
                 let numeric_index = numeric_index as i64;
-                o.unbind()
-                    .set_element(agent, numeric_index, value.unbind(), gc)?;
+                o.set_element(agent, numeric_index, value, gc)?;
             }
             // vii. Return true.
             Ok(true)
@@ -993,7 +992,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericSharedTypedArray<'a, T> {
                 self.into(),
                 backing_object,
                 property_key,
-                property_descriptor.unbind(),
+                property_descriptor,
                 None,
                 gc.into_nogc(),
             )
@@ -1009,7 +1008,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericSharedTypedArray<'a, T> {
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, TryGetResult<'gc>> {
-        let o = self.bind(gc);
+        crate::engine::bind!(let o = self, gc);
         // 1. 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         canonicalize_numeric_index_string(agent, &mut property_key, gc);
@@ -1042,29 +1041,26 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericSharedTypedArray<'a, T> {
         property_key: PropertyKey,
         receiver: Value,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let o = self.bind(gc.nogc());
-        let mut property_key = property_key.bind(gc.nogc());
-        let receiver = receiver.bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let o = self, gc);
+        crate::engine::bind!(let mut property_key = property_key, gc);
+        crate::engine::bind!(let receiver = receiver, gc);
 
         // 1. 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         canonicalize_numeric_index_string(agent, &mut property_key, gc.nogc());
         // b. If numericIndex is not undefined, then
         if let PropertyKey::Integer(numeric_index) = property_key {
-            Ok(o.unbind()
-                .typed_array_get_element(agent, numeric_index.into_i64(), gc.into_nogc())
-                .map_or(Value::Undefined, Into::into))
+            Ok(
+                o.typed_array_get_element(agent, numeric_index.into_i64(), gc.into_nogc())
+                    .map_or(Value::Undefined, Into::into),
+            )
         } else {
             // 2. Return ? OrdinaryGet(O, P, Receiver).
             match self.get_backing_object(agent) {
-                Some(backing_object) => ordinary_get(
-                    agent,
-                    backing_object,
-                    property_key.unbind(),
-                    receiver.unbind(),
-                    gc,
-                ),
+                Some(backing_object) => {
+                    ordinary_get(agent, backing_object, property_key, receiver, gc)
+                }
                 None => {
                     // a. Let parent be ? O.[[GetPrototypeOf]]().
                     // Note: [[GetPrototypeOf]] of TypedArray cannot call into
@@ -1075,12 +1071,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericSharedTypedArray<'a, T> {
                     };
 
                     // c. Return ? parent.[[Get]](P, Receiver).
-                    parent.unbind().internal_get(
-                        agent,
-                        property_key.unbind(),
-                        receiver.unbind(),
-                        gc,
-                    )
+                    parent.internal_get(agent, property_key, receiver, gc)
                 }
             }
         }
@@ -1096,7 +1087,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericSharedTypedArray<'a, T> {
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, SetResult<'gc>> {
-        let o = self.bind(gc);
+        crate::engine::bind!(let o = self, gc);
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         canonicalize_numeric_index_string(agent, &mut property_key, gc);
@@ -1130,7 +1121,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericSharedTypedArray<'a, T> {
         receiver: Value,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
-        let o = self.bind(gc.nogc());
+        crate::engine::bind!(let o = self, gc);
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         canonicalize_numeric_index_string(agent, &mut property_key, gc.nogc());
@@ -1140,7 +1131,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericSharedTypedArray<'a, T> {
             // i. If SameValue(O, Receiver) is true, then
             if receiver == o.into() {
                 // 1. Perform ? TypedArraySetElement(O, numericIndex, V).
-                o.unbind().set_element(agent, numeric_index, value, gc)?;
+                o.set_element(agent, numeric_index, value, gc)?;
                 // 2. Return true.
                 return Ok(true);
             } else {
@@ -1152,7 +1143,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericSharedTypedArray<'a, T> {
             }
         }
         // 2. Return ? OrdinarySet(O, P, V, Receiver).
-        ordinary_set(agent, o.unbind().into(), property_key, value, receiver, gc)
+        ordinary_set(agent, o.into(), property_key, value, receiver, gc)
     }
 
     /// ### [10.4.5.7 Infallible \[\[Delete\]\] ( P )](https://tc39.es/ecma262/#sec-typedarray-delete)
@@ -1162,7 +1153,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericSharedTypedArray<'a, T> {
         mut property_key: PropertyKey,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, bool> {
-        let o = self.bind(gc);
+        crate::engine::bind!(let o = self, gc);
         // 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         canonicalize_numeric_index_string(agent, &mut property_key, gc);
@@ -1188,7 +1179,7 @@ impl<'a, T: Viewable> InternalMethods<'a> for GenericSharedTypedArray<'a, T> {
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, Vec<PropertyKey<'gc>>> {
-        let o = self.bind(gc);
+        crate::engine::bind!(let o = self, gc);
         // 1. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, seq-cst).
         let cached_byte_length = o.get_cached_buffer_byte_length(agent, Ordering::SeqCst);
         // 3. If IsTypedArrayOutOfBounds(taRecord) is false, then
@@ -1273,6 +1264,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
     fn is_detached(self, agent: &Agent) -> bool {
         self.into_void_array()
             .get(agent)
+            .local()
             .viewed_array_buffer
             .is_detached(agent)
     }
@@ -1282,6 +1274,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         !self
             .into_void_array()
             .get(agent)
+            .local()
             .viewed_array_buffer
             .is_growable(agent)
     }
@@ -1294,12 +1287,12 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
     /// \[\[ByteOffset]]
     #[inline(always)]
     fn byte_offset(self, agent: &Agent) -> usize {
-        let byte_offset = self.into_void_array().get(agent).byte_offset;
+        let byte_offset = self.into_void_array().get(agent).local().byte_offset;
         if byte_offset == ViewedArrayBufferByteOffset::heap() {
             *agent
                 .heap
                 .shared_typed_array_byte_offsets
-                .get(&self.into_void_array().unbind())
+                .get(&self.into_void_array())
                 .unwrap()
         } else {
             byte_offset.0 as usize
@@ -1307,13 +1300,13 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
     }
 
     fn byte_length(self, agent: &Agent) -> Option<usize> {
-        let byte_length = self.into_void_array().get(agent).byte_length;
+        let byte_length = self.into_void_array().get(agent).local().byte_length;
         if byte_length == ViewedArrayBufferByteLength::heap() {
             Some(
                 *agent
                     .heap
                     .shared_typed_array_byte_lengths
-                    .get(&self.into_void_array().unbind())
+                    .get(&self.into_void_array())
                     .unwrap(),
             )
         } else if byte_length == ViewedArrayBufferByteLength::auto() {
@@ -1324,13 +1317,13 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
     }
 
     fn array_length(self, agent: &Agent) -> Option<usize> {
-        let array_length = self.into_void_array().get(agent).array_length;
+        let array_length = self.into_void_array().get(agent).local().array_length;
         if array_length == TypedArrayArrayLength::heap() {
             Some(
                 *agent
                     .heap
                     .shared_typed_array_array_lengths
-                    .get(&self.into_void_array().unbind())
+                    .get(&self.into_void_array())
                     .unwrap(),
             )
         } else if array_length == TypedArrayArrayLength::auto() {
@@ -1346,7 +1339,11 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
 
     /// \[\[ViewedArrayBuffer]]
     fn viewed_array_buffer(self, agent: &Agent) -> AnyArrayBuffer<'a> {
-        self.into_void_array().get(agent).viewed_array_buffer.into()
+        self.into_void_array()
+            .get(agent)
+            .local()
+            .viewed_array_buffer
+            .into()
     }
 
     fn get_cached_buffer_byte_length(
@@ -1355,7 +1352,11 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         order: Ordering,
     ) -> CachedBufferByteLength {
         // 1. Let buffer be obj.[[ViewedArrayBuffer]].
-        let buffer = self.into_void_array().get(agent).viewed_array_buffer;
+        let buffer = self
+            .into_void_array()
+            .get(agent)
+            .local()
+            .viewed_array_buffer;
 
         // 2. If IsDetachedBuffer(buffer) is true, then
         if buffer.is_detached(agent) {
@@ -1410,8 +1411,8 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         this_arg: Value,
         len: usize,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let o = self.bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let o = self, gc);
         let callback = callback.scope(agent, gc.nogc());
         let this_arg = this_arg.scope(agent, gc.nogc());
         let scoped_o = o.scope(agent, gc.nogc());
@@ -1420,9 +1421,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         let byte_length = o.byte_length(agent);
 
         // 5. Let kept be a new empty List.
-        let mut kept = create_byte_data_block(agent, len as u64, gc.nogc())
-            .unbind()?
-            .bind(gc.nogc());
+        let mut kept = create_byte_data_block(agent, len as u64, gc.nogc())?;
         // SAFETY: All viewable types are trivially transmutable.
         let (head, kept_slice, _) = unsafe { kept.align_to_mut::<T>() };
         // Should be properly aligned for all T.
@@ -1431,6 +1430,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         let sdb = o
             .into_void_array()
             .get(agent)
+            .local()
             .viewed_array_buffer
             .get_data_block(agent)
             .clone();
@@ -1448,17 +1448,15 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
             let k_value = value.into_le_value(agent, gc.nogc());
             let result = call_function(
                 agent,
-                callback.get(agent),
-                this_arg.get(agent),
+                callback.get(agent).local(),
+                this_arg.get(agent).local(),
                 Some(ArgumentsList::from_mut_slice(&mut [
-                    k_value.unbind().into(),
+                    k_value.into(),
                     Number::try_from(k).unwrap().into(),
-                    scoped_o.get(agent).into(),
+                    scoped_o.get(agent).local().into(),
                 ])),
                 gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc());
+            )?;
             let selected = to_boolean(agent, result);
             if selected {
                 kept_slice[captured] = value;
@@ -1468,13 +1466,12 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         // 9. Let A be ? TypedArraySpeciesCreate(O, « 𝔽(captured) »).
         let a = typed_array_species_create_with_length(
             agent,
-            unsafe { scoped_o.take(agent) }.unbind().into(),
+            unsafe { scoped_o.take(agent).local() }.into(),
             captured,
             gc.reborrow(),
-        )
-        .unbind()?;
+        )?;
         let gc = gc.into_nogc();
-        let a = a.bind(gc);
+        crate::engine::bind!(let a = a, gc);
 
         let expected_byte_length = captured * size_of::<T>();
         if captured != len {
@@ -1548,9 +1545,9 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         this_arg: Value,
         len: usize,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let nogc = gc.nogc();
-        let o = self.bind(nogc);
+        crate::engine::bind!(let o = self, gc);
         let scoped_o = self.scope(agent, nogc);
         let callback_fn = callback_fn.scope(agent, nogc);
         let this_arg = this_arg.scope(agent, nogc);
@@ -1561,6 +1558,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         let sdb = o
             .into_void_array()
             .get(agent)
+            .local()
             .viewed_array_buffer
             .get_data_block(agent)
             .clone();
@@ -1569,10 +1567,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         let slice = slice.slice_to(len);
 
         // 5. Let A be ? TypedArraySpeciesCreate(O, « 𝔽(len) »).
-        let a =
-            typed_array_species_create_with_length(agent, o.unbind().into(), len, gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+        let a = typed_array_species_create_with_length(agent, o.into(), len, gc.reborrow())?;
 
         // 6. Let k be 0.
         // 7. Repeat, while k < len,
@@ -1587,32 +1582,29 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
             // c. Let mappedValue be ? Call(callback, thisArg, « kValue, 𝔽(k), O »).
             let mapped_value = call_function(
                 agent,
-                callback_fn.get(agent),
-                this_arg.get(agent),
+                callback_fn.get(agent).local(),
+                this_arg.get(agent).local(),
                 Some(ArgumentsList::from_mut_slice(&mut [
-                    k_value.unbind().into(),
+                    k_value.into(),
                     // SAFETY: we want the numeric value, not string.
                     unsafe { pk.into_value_unchecked() },
-                    scoped_o.get(agent).into(),
+                    scoped_o.get(agent).local().into(),
                 ])),
                 gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc());
+            )?;
             // d. Perform ? Set(A, Pk, mappedValue, true).
             set(
                 agent,
-                a.get(agent).into(),
+                a.get(agent).local().into(),
                 pk,
-                mapped_value.unbind(),
+                mapped_value,
                 true,
                 gc.reborrow(),
-            )
-            .unbind()?
+            )?
             // e. Set k to k + 1.
         }
         // 8. Return A.
-        Ok(a.get(agent).unbind().into())
+        Ok(a.get(agent).local().into())
     }
 
     fn reverse(self, agent: &mut Agent, len: usize) {
@@ -1676,7 +1668,11 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
     ) -> JsResult<'gc, ()> {
         let target = self;
         // 1. Let targetBuffer be target.[[ViewedArrayBuffer]].
-        let target_buffer = target.into_void_array().get(agent).viewed_array_buffer;
+        let target_buffer = target
+            .into_void_array()
+            .get(agent)
+            .local()
+            .viewed_array_buffer;
         // 5. Let srcBuffer be source.[[ViewedArrayBuffer]].
         let src_buffer = source.viewed_array_buffer(agent);
         // 9. Let targetType be TypedArrayElementType(target).
@@ -1796,7 +1792,11 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
     ) {
         let target = self;
         // 1. Let targetBuffer be target.[[ViewedArrayBuffer]].
-        let target_buffer = target.into_void_array().get(agent).viewed_array_buffer;
+        let target_buffer = target
+            .into_void_array()
+            .get(agent)
+            .local()
+            .viewed_array_buffer;
         // 5. Let srcBuffer be source.[[ViewedArrayBuffer]].
         let src_buffer = source.viewed_array_buffer(agent);
         // 9. Let targetType be TypedArrayElementType(target).
@@ -1882,7 +1882,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         comparator: Scoped<Function>,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, ()> {
-        let ta = self.bind(gc.nogc());
+        crate::engine::bind!(let ta = self, gc);
         let slice = ta.as_slice(agent).slice_to(len);
         let mut items: Vec<T> = Vec::with_capacity(slice.len());
         for item in slice.iter() {
@@ -1898,20 +1898,19 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
             let b_val = b.into_ne_value(agent, gc.nogc());
             let result = call_function(
                 agent,
-                comparator.get(agent),
+                comparator.get(agent).local(),
                 Value::Undefined,
                 Some(ArgumentsList::from_mut_slice(&mut [
-                    a_val.unbind().into(),
-                    b_val.unbind().into(),
+                    a_val.into(),
+                    b_val.into(),
                 ])),
                 gc.reborrow(),
             )
-            .unbind()
             .and_then(|v| v.to_number(agent, gc.reborrow()));
             let num = match result {
                 Ok(n) => n,
                 Err(e) => {
-                    error = Some(e.unbind());
+                    error = Some(e);
                     return std::cmp::Ordering::Equal;
                 }
             };
@@ -1929,7 +1928,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
             return Err(error);
         }
         // SAFETY: not shared.
-        let ta = unsafe { ta.take(agent) }.bind(gc.into_nogc());
+        crate::engine::bind!(let ta = unsafe { ta.take(agent).local() }, gc);
         let slice = ta.as_slice(agent);
         let len = len.min(slice.len());
         let items = &items[..len];
@@ -1969,7 +1968,7 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericSharedTypedArr
         // aligned.
         unsafe { assert_unchecked(head.is_empty() && tail.is_empty() && target.len() == len) };
         source.copy_into_slice(target);
-        let result = typed_array_create_from_data_block(agent, self, data_block).bind(gc);
+        crate::engine::bind!(let result = typed_array_create_from_data_block(agent, self, data_block), gc);
         // SAFETY: we know the type matches.
         Ok(unsafe { result.cast::<T>().into() })
     }
@@ -2085,7 +2084,7 @@ impl<'a, T: Viewable> CreateHeapData<SharedTypedArrayRecord<'a>, GenericSharedTy
     for Heap
 {
     fn create(&mut self, data: SharedTypedArrayRecord<'a>) -> GenericSharedTypedArray<'a, T> {
-        self.shared_typed_arrays.push(data.unbind());
+        self.shared_typed_arrays.push(data);
         self.alloc_counter += core::mem::size_of::<SharedTypedArrayRecord<'static>>();
         // TODO: The type should be checked based on data or something equally stupid
         GenericSharedTypedArray(BaseIndex::last(&self.shared_typed_arrays), PhantomData)
@@ -2152,15 +2151,11 @@ impl HeapMarkAndSweep for SharedTypedArray<'static> {
 // === OUTPUT FROM object_handle! ADAPTED TO GenericSharedTypedArray ===
 
 // SAFETY: GC lifetime.
-unsafe impl<T: Viewable> Bindable for GenericSharedTypedArray<'_, T> {
-    type Of<'a> = GenericSharedTypedArray<'a, T>;
+unsafe impl<'a, T: Viewable> Bindable<'a> for GenericSharedTypedArray<'a, T> {
+    type Of<'l> = GenericSharedTypedArray<'l, T>;
 
-    fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
-    }
-
-    fn bind<'a>(self, _: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    fn local<'l>(self) -> Self::Of<'l> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'l>>(self) }
     }
 }
 impl<T: Viewable> Clone for GenericSharedTypedArray<'_, T> {
@@ -2818,21 +2813,19 @@ impl<'a> From<SharedTypedArray<'a>> for HeapRootData {
     #[inline(always)]
     fn from(value: SharedTypedArray<'a>) -> Self {
         match value {
-            SharedTypedArray::SharedInt8Array(ta) => Self::SharedInt8Array(ta.unbind()),
-            SharedTypedArray::SharedUint8Array(ta) => Self::SharedUint8Array(ta.unbind()),
-            SharedTypedArray::SharedUint8ClampedArray(ta) => {
-                Self::SharedUint8ClampedArray(ta.unbind())
-            }
-            SharedTypedArray::SharedInt16Array(ta) => Self::SharedInt16Array(ta.unbind()),
-            SharedTypedArray::SharedUint16Array(ta) => Self::SharedUint16Array(ta.unbind()),
-            SharedTypedArray::SharedInt32Array(ta) => Self::SharedInt32Array(ta.unbind()),
-            SharedTypedArray::SharedUint32Array(ta) => Self::SharedUint32Array(ta.unbind()),
-            SharedTypedArray::SharedBigInt64Array(ta) => Self::SharedBigInt64Array(ta.unbind()),
-            SharedTypedArray::SharedBigUint64Array(ta) => Self::SharedBigUint64Array(ta.unbind()),
+            SharedTypedArray::SharedInt8Array(ta) => Self::SharedInt8Array(ta),
+            SharedTypedArray::SharedUint8Array(ta) => Self::SharedUint8Array(ta),
+            SharedTypedArray::SharedUint8ClampedArray(ta) => Self::SharedUint8ClampedArray(ta),
+            SharedTypedArray::SharedInt16Array(ta) => Self::SharedInt16Array(ta),
+            SharedTypedArray::SharedUint16Array(ta) => Self::SharedUint16Array(ta),
+            SharedTypedArray::SharedInt32Array(ta) => Self::SharedInt32Array(ta),
+            SharedTypedArray::SharedUint32Array(ta) => Self::SharedUint32Array(ta),
+            SharedTypedArray::SharedBigInt64Array(ta) => Self::SharedBigInt64Array(ta),
+            SharedTypedArray::SharedBigUint64Array(ta) => Self::SharedBigUint64Array(ta),
             #[cfg(feature = "proposal-float16array")]
-            SharedTypedArray::SharedFloat16Array(ta) => Self::SharedFloat16Array(ta.unbind()),
-            SharedTypedArray::SharedFloat32Array(ta) => Self::SharedFloat32Array(ta.unbind()),
-            SharedTypedArray::SharedFloat64Array(ta) => Self::SharedFloat64Array(ta.unbind()),
+            SharedTypedArray::SharedFloat16Array(ta) => Self::SharedFloat16Array(ta),
+            SharedTypedArray::SharedFloat32Array(ta) => Self::SharedFloat32Array(ta),
+            SharedTypedArray::SharedFloat64Array(ta) => Self::SharedFloat64Array(ta),
         }
     }
 }

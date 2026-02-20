@@ -84,7 +84,7 @@ impl<'gc> DataView<'gc> {
         // 2. Assert: There are sufficient bytes in arrayBuffer starting at byteIndex to represent a value of type.
         // 4. Let elementSize be the Element Size value specified in Table 71 for Element Type type.
         // 3. Let block be arrayBuffer.[[ArrayBufferData]].
-        let block = array_buffer.get(agent).get_data_block();
+        let block = array_buffer.get(agent).local().get_data_block();
         // 5. If IsSharedArrayBuffer(arrayBuffer) is true, then
         // a. Assert: block is a Shared Data Block.
         // b. Let rawValue be GetRawBytesFromSharedBlock(block, byteIndex, type,
@@ -121,14 +121,11 @@ impl<'gc> DataView<'gc> {
             agent
                 .heap
                 .data_view_byte_lengths
-                .insert(self.unbind(), byte_length.unwrap());
+                .insert(self, byte_length.unwrap());
         }
 
         if heap_byte_offset == ViewedArrayBufferByteOffset::heap() {
-            agent
-                .heap
-                .data_view_byte_offsets
-                .insert(self.unbind(), byte_offset);
+            agent.heap.data_view_byte_offsets.insert(self, byte_offset);
         }
     }
 }
@@ -235,14 +232,14 @@ impl<'gc> SharedDataView<'gc> {
             agent
                 .heap
                 .shared_data_view_byte_lengths
-                .insert(self.unbind(), byte_length.unwrap());
+                .insert(self, byte_length.unwrap());
         }
 
         if heap_byte_offset == ViewedArrayBufferByteOffset::heap() {
             agent
                 .heap
                 .shared_data_view_byte_offsets
-                .insert(self.unbind(), byte_offset);
+                .insert(self, byte_offset);
         }
     }
 }
@@ -252,13 +249,12 @@ impl<'a> InternalSlots<'a> for DataView<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index.unbind()
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
-            self.unbind()
-                .get_mut(agent)
+            self.get_mut(agent)
                 .object_index
                 .replace(backing_object)
                 .is_none()
@@ -274,13 +270,12 @@ impl<'a> InternalSlots<'a> for SharedDataView<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index.unbind()
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
-            self.unbind()
-                .get_mut(agent)
+            self.get_mut(agent)
                 .object_index
                 .replace(backing_object)
                 .is_none()
@@ -293,7 +288,7 @@ impl<'a> InternalMethods<'a> for SharedDataView<'a> {}
 
 impl<'a> CreateHeapData<DataViewRecord<'a>, DataView<'a>> for Heap {
     fn create(&mut self, data: DataViewRecord<'a>) -> DataView<'a> {
-        self.data_views.push(data.unbind());
+        self.data_views.push(data);
         self.alloc_counter += core::mem::size_of::<DataViewRecord<'static>>();
         DataView(BaseIndex::last(&self.data_views))
     }
@@ -318,7 +313,7 @@ impl HeapSweepWeakReference for DataView<'static> {
 #[cfg(feature = "shared-array-buffer")]
 impl<'a> CreateHeapData<SharedDataViewRecord<'a>, SharedDataView<'a>> for Heap {
     fn create(&mut self, data: SharedDataViewRecord<'a>) -> SharedDataView<'a> {
-        self.shared_data_views.push(data.unbind());
+        self.shared_data_views.push(data);
         self.alloc_counter += core::mem::size_of::<SharedDataViewRecord<'static>>();
         SharedDataView(BaseIndex::last(&self.shared_data_views))
     }
@@ -478,9 +473,9 @@ impl<'a> TryFrom<Object<'a>> for AnyDataView<'a> {
 impl From<AnyDataView<'_>> for HeapRootData {
     fn from(value: AnyDataView<'_>) -> Self {
         match value {
-            AnyDataView::DataView(dv) => Self::DataView(dv.unbind()),
+            AnyDataView::DataView(dv) => Self::DataView(dv),
             #[cfg(feature = "shared-array-buffer")]
-            AnyDataView::SharedDataView(sdv) => Self::SharedDataView(sdv.unbind()),
+            AnyDataView::SharedDataView(sdv) => Self::SharedDataView(sdv),
         }
     }
 }

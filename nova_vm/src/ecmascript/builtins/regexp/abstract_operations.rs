@@ -31,15 +31,15 @@ pub(crate) fn reg_exp_create<'a>(
     agent: &mut Agent,
     p: Scoped<Value>,
     f: Option<String>,
-    gc: GcScope<'a, '_>,
+    gc: GcScope,
 ) -> JsResult<'a, RegExp<'a>> {
     let f = f.map_or(Ok(RegExpFlags::empty()), |f| {
         Err(Value::from(f).scope(agent, gc.nogc()))
     });
     // 1. Let obj be ! RegExpAlloc(%RegExp%).
-    let obj = agent.heap.create(RegExpHeapData::default()).bind(gc.nogc());
+    crate::engine::bind!(let obj = agent.heap.create(RegExpHeapData::default()), gc);
     // 2. Return ? RegExpInitialize(obj, P, F).
-    reg_exp_initialize(agent, obj.unbind(), p, f, gc)
+    reg_exp_initialize(agent, obj, p, f, gc)
 }
 
 /// ### [22.2.3.1 RegExpCreate ( P, F )](https://tc39.es/ecma262/#sec-regexpcreate)
@@ -59,7 +59,7 @@ pub(crate) fn reg_exp_create_literal<'a>(
     // 1. Let obj be ! RegExpAlloc(%RegExp%).
     // 2. Return ? RegExpInitialize(obj, P, F).
     let f = f.unwrap_or(RegExpFlags::empty());
-    agent.heap.create(RegExpHeapData::new(agent, p, f)).bind(gc)
+    agent.heap.create(RegExpHeapData::new(agent, p, f))
 }
 
 /// ### [22.2.3.2 RegExpAlloc ( newTarget )](https://tc39.es/ecma262/#sec-regexpalloc)
@@ -70,7 +70,7 @@ pub(crate) fn reg_exp_create_literal<'a>(
 pub(crate) fn reg_exp_alloc<'a>(
     agent: &mut Agent,
     new_target: Function,
-    gc: GcScope<'a, '_>,
+    gc: GcScope,
 ) -> JsResult<'a, RegExp<'a>> {
     // 1. Let obj be ? OrdinaryCreateFromConstructor(newTarget, "%RegExp.prototype%", « [[OriginalSource]], [[OriginalFlags]], [[RegExpRecord]], [[RegExpMatcher]] »).
     let obj = RegExp::try_from(ordinary_create_from_constructor(
@@ -96,15 +96,15 @@ pub(crate) fn reg_exp_initialize<'a>(
     obj: RegExp,
     scoped_pattern: Scoped<Value>,
     scoped_flags: Result<RegExpFlags, Scoped<Value>>,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> JsResult<'a, RegExp<'a>> {
-    let obj = obj.bind(gc.nogc());
+    crate::engine::bind!(let obj = obj, gc);
     // SAFETY: not shared.
-    let pattern = unsafe { scoped_pattern.take(agent).bind(gc.nogc()) };
+    let pattern = unsafe { scoped_pattern.take(agent).local() };
     let flags = scoped_flags
         .as_ref()
         .map(|f| *f)
-        .map_err(|v| v.get(agent).bind(gc.nogc()));
+        .map_err(|v| v.get(agent).local());
     let quick_pattern = if pattern.is_undefined() {
         Some(None)
     } else if let Ok(pattern) = String::try_from(pattern) {
@@ -135,14 +135,12 @@ pub(crate) fn reg_exp_initialize<'a>(
             String::EMPTY_STRING
         } else {
             // 2. Else, let P be ? ToString(pattern).
-            to_string(agent, pattern.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc())
+            to_string(agent, pattern, gc.reborrow())?
         };
         let f = match flags {
             Ok(f) => Ok(f),
             Err(flags) => {
-                let flags = unsafe { flags.take(agent) }.bind(gc.nogc());
+                crate::engine::bind!(let flags = unsafe { flags.take(agent).local() }, gc);
                 // 3. If flags is undefined,
                 if flags.is_undefined() {
                     // let F be the empty String.
@@ -150,15 +148,13 @@ pub(crate) fn reg_exp_initialize<'a>(
                 } else {
                     // 4. Else, let F be ? ToString(flags).
                     let scoped_p = p.scope(agent, gc.nogc());
-                    let f = to_string(agent, flags.unbind(), gc.reborrow())
-                        .unbind()?
-                        .bind(gc.nogc());
-                    p = unsafe { scoped_p.take(agent) }.bind(gc.nogc());
+                    let f = to_string(agent, flags, gc.reborrow())?;
+                    p = unsafe { scoped_p.take(agent).local() };
                     Err(f)
                 }
             }
         };
-        let obj = unsafe { obj.take(agent) }.bind(gc.nogc());
+        crate::engine::bind!(let obj = unsafe { obj.take(agent).local() }, gc);
         (obj, p, f)
     };
     // 5. If F contains any code unit other than "d", "g", "i", "m", "s", "u",
@@ -217,7 +213,7 @@ pub(crate) fn reg_exp_initialize<'a>(
     {
         let data = obj.get_mut(agent);
         // 16. Set obj.[[OriginalSource]] to P.
-        data.original_source = p.unbind();
+        data.original_source = p;
         // 17. Set obj.[[OriginalFlags]] to F.
         data.original_flags = f;
         // 20. Set obj.[[RegExpRecord]] to rer.
@@ -235,7 +231,7 @@ pub(crate) fn reg_exp_initialize<'a>(
         .into();
     }
     // 23. Return obj.
-    Ok(obj.unbind())
+    Ok(obj)
 }
 
 fn parse_flags(f: &str) -> Option<RegExpFlags> {
@@ -274,9 +270,7 @@ pub(crate) fn require_internal_slot_reg_exp<'a>(
     let Ok(o) = Object::try_from(o) else {
         let error_message = format!(
             "{} is not an object",
-            o.unbind()
-                .try_string_repr(agent, gc)
-                .to_string_lossy_(agent)
+            o.try_string_repr(agent, gc).to_string_lossy_(agent)
         );
         return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc));
     };
@@ -291,7 +285,7 @@ pub(crate) fn require_internal_slot_reg_exp_object<'a>(
 ) -> JsResult<'a, RegExp<'a>> {
     match o {
         // 1. Perform ? RequireInternalSlot(O, [[RegExpMatcher]]).
-        Object::RegExp(reg_exp) => Ok(reg_exp.unbind().bind(gc)),
+        Object::RegExp(reg_exp) => Ok(reg_exp),
         _ => Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Expected this to be RegExp",
@@ -315,15 +309,15 @@ pub(crate) fn reg_exp_exec<'a>(
     agent: &mut Agent,
     r: Object,
     s: String,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, Option<Object<'a>>> {
+    mut gc: GcScope,
+) -> JsResult<'static, Option<Object<'static>>> {
     let (r, s) = match reg_exp_exec_prepare(agent, r, s, gc.reborrow()) {
         ControlFlow::Continue(r) => r,
-        ControlFlow::Break(result) => return result.unbind().bind(gc.into_nogc()),
+        ControlFlow::Break(result) => return result,
     };
 
     // 4. Return ? RegExpBuiltinExec(R, S).
-    reg_exp_builtin_exec(agent, r.unbind(), s.unbind(), gc).map(|o| o.map(|o| o.into()))
+    reg_exp_builtin_exec(agent, r, s, gc).map(|o| o.map(|o| o.into()))
 }
 
 /// Performs steps 1-3 of RegExpExec
@@ -331,10 +325,10 @@ fn reg_exp_exec_prepare<'a>(
     agent: &mut Agent,
     r: Object,
     s: String,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> ControlFlow<JsResult<'a, Option<Object<'a>>>, (RegExp<'a>, String<'a>)> {
-    let mut s = s.bind(gc.nogc());
-    let mut r = r.bind(gc.nogc());
+    crate::engine::bind!(let mut s = s, gc);
+    crate::engine::bind!(let mut r = r, gc);
     // 1. Let exec be ? Get(R, "exec").
     let key = BUILTIN_STRING_MEMORY.exec.to_property_key();
     let exec = try_get(
@@ -348,29 +342,27 @@ fn reg_exp_exec_prepare<'a>(
         ControlFlow::Continue(TryGetResult::Unset) => Value::Undefined,
         ControlFlow::Continue(TryGetResult::Value(v)) => v,
         ControlFlow::Break(TryError::Err(e)) => {
-            return ControlFlow::Break(Err(e.unbind().bind(gc.into_nogc())));
+            return ControlFlow::Break(Err(e));
         }
         _ => {
             let scoped_r = r.scope(agent, gc.nogc());
             let scoped_s = s.scope(agent, gc.nogc());
             let exec = handle_try_get_result(
                 agent,
-                r.unbind(),
+                r,
                 BUILTIN_STRING_MEMORY.exec.to_property_key(),
-                exec.unbind(),
+                exec,
                 gc.reborrow(),
-            )
-            .unbind()
-            .bind(gc.nogc());
+            )?;
             let exec = match exec {
                 Ok(e) => e,
-                Err(err) => return ControlFlow::Break(Err(err.unbind())),
+                Err(err) => return ControlFlow::Break(Err(err)),
             };
             let gc = gc.nogc();
             // SAFETY: Not shared.
             unsafe {
-                s = scoped_s.take(agent).bind(gc);
-                r = scoped_r.take(agent).bind(gc);
+                s = scoped_s.take(agent).local();
+                r = scoped_r.take(agent).local();
             }
             exec
         }
@@ -385,7 +377,7 @@ fn reg_exp_exec_prepare<'a>(
                 .reg_exp_prototype_exec()
                 .into()
     {
-        return ControlFlow::Continue((r.unbind(), s.unbind()));
+        return ControlFlow::Continue((r, s));
     }
 
     // 2. If IsCallable(exec) is true, then
@@ -393,14 +385,13 @@ fn reg_exp_exec_prepare<'a>(
         // a. Let result be ? Call(exec, R, « S »).
         let result = call_function(
             agent,
-            exec.unbind(),
-            r.unbind().into(),
-            Some(ArgumentsList::from_mut_value(&mut s.unbind().into())),
+            exec,
+            r.into(),
+            Some(ArgumentsList::from_mut_value(&mut s.into())),
             gc.reborrow(),
-        )
-        .unbind();
+        );
         let gc = gc.into_nogc();
-        let result = result.bind(gc);
+        crate::engine::bind!(let result = result, gc);
         let result = match result {
             Ok(r) => r,
             Err(err) => return ControlFlow::Break(Err(err)),
@@ -422,11 +413,11 @@ fn reg_exp_exec_prepare<'a>(
         return ControlFlow::Break(Ok(result));
     }
     // 3. Perform ? RequireInternalSlot(R, [[RegExpMatcher]]).
-    let r = require_internal_slot_reg_exp_object(agent, r, gc.nogc()).unbind();
-    let s = s.unbind();
+    let r = require_internal_slot_reg_exp_object(agent, r, gc.nogc());
+    let s = s;
     let gc = gc.into_nogc();
-    let r = r.bind(gc);
-    let s = s.bind(gc);
+    crate::engine::bind!(let r = r, gc);
+    crate::engine::bind!(let s = s, gc);
     let r = match r {
         Ok(r) => r,
         Err(err) => return ControlFlow::Break(Err(err)),
@@ -438,16 +429,16 @@ pub(crate) fn reg_exp_test<'a>(
     agent: &mut Agent,
     r: Object,
     s: String,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, bool> {
+    mut gc: GcScope,
+) -> JsResult<'static, bool> {
     let (r, s) = match reg_exp_exec_prepare(agent, r, s, gc.reborrow()) {
         ControlFlow::Continue(r) => r,
         ControlFlow::Break(result) => {
-            return result.unbind().bind(gc.into_nogc()).map(|r| r.is_some());
+            return result.map(|r| r.is_some());
         }
     };
     // 4. Return ? RegExpBuiltinExec(R, S).
-    reg_exp_builtin_test(agent, r.unbind(), s.unbind(), gc)
+    reg_exp_builtin_test(agent, r, s, gc)
 }
 
 pub(crate) struct RegExpExecBase<'gc> {
@@ -467,10 +458,10 @@ pub(crate) fn reg_exp_builtin_exec_prepare<'a>(
     agent: &mut Agent,
     r: RegExp,
     s: String,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> JsResult<'a, RegExpExecBase<'a>> {
-    let mut r = r.bind(gc.nogc());
-    let mut s = s.bind(gc.nogc());
+    crate::engine::bind!(let mut r = r, gc);
+    crate::engine::bind!(let mut s = s, gc);
 
     // 1. Let length be the length of S.
     // 2. Let lastIndex be ℝ(? ToLength(? Get(R, "lastIndex"))).
@@ -487,28 +478,25 @@ pub(crate) fn reg_exp_builtin_exec_prepare<'a>(
             None,
             gc.nogc(),
         ));
-        if let Some(last_index) =
-            try_result_into_js(try_to_length(agent, last_index, gc.nogc())).unbind()?
-        {
+        if let Some(last_index) = try_result_into_js(try_to_length(agent, last_index, gc.nogc()))? {
             last_index as usize
         } else {
             let scoped_r = r.scope(agent, gc.nogc());
             let scoped_s = s.scope(agent, gc.nogc());
-            let last_index =
-                to_length(agent, last_index.unbind(), gc.reborrow()).unbind()? as usize;
+            let last_index = to_length(agent, last_index, gc.reborrow())? as usize;
             // SAFETY: Not shared.
             unsafe {
-                s = scoped_s.take(agent).bind(gc.nogc());
-                r = scoped_r.take(agent).bind(gc.nogc());
+                s = scoped_s.take(agent).local();
+                r = scoped_r.take(agent).local();
             }
             last_index
         }
     };
-    let r = r.unbind();
-    let s = s.unbind();
+    let r = r;
+    let s = s;
     let gc = gc.into_nogc();
-    let r = r.bind(gc);
-    let s = s.bind(gc);
+    crate::engine::bind!(let r = r, gc);
+    crate::engine::bind!(let s = s, gc);
 
     // 3. Let flags be R.[[OriginalFlags]].
     let flags = r.original_flags(agent);
@@ -528,7 +516,7 @@ pub(crate) fn reg_exp_builtin_exec_prepare<'a>(
         s.utf8_index_(agent, last_index).unwrap_or(last_index)
     };
     // 8. Let matcher be R.[[RegExpMatcher]].
-    if let Err(err) = &r.get(agent).reg_exp_matcher {
+    if let Err(err) = &r.get(agent).local().reg_exp_matcher {
         return Err(agent.throw_exception(ExceptionType::SyntaxError, err.to_string(), gc));
     };
     // 9. If flags contains "u" or flags contains "v", let fullUnicode be true;
@@ -554,12 +542,11 @@ pub(crate) fn reg_exp_builtin_exec<'a>(
     agent: &mut Agent,
     r: RegExp,
     s: String,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> JsResult<'a, Option<Array<'a>>> {
-    let r = r.bind(gc.nogc());
-    let s = s.bind(gc.nogc());
-    let result =
-        reg_exp_builtin_exec_prepare(agent, r.unbind(), s.unbind(), gc.reborrow()).unbind()?;
+    crate::engine::bind!(let r = r, gc);
+    crate::engine::bind!(let s = s, gc);
+    let result = reg_exp_builtin_exec_prepare(agent, r, s, gc.reborrow())?;
     let gc = gc.into_nogc();
     let RegExpExecBase {
         r,
@@ -569,7 +556,7 @@ pub(crate) fn reg_exp_builtin_exec<'a>(
         sticky,
         has_indices,
         full_unicode: _,
-    } = result.bind(gc);
+    } = gc.join(&result);
     // 1. Let length be the length of S.
     let length = s.len_(agent);
     let r_data = r.get_direct_mut(&mut agent.heap.regexps);
@@ -751,17 +738,16 @@ pub(crate) fn reg_exp_builtin_test<'a>(
     agent: &mut Agent,
     r: RegExp,
     s: String,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, bool> {
-    let r = r.bind(gc.nogc());
-    let s = s.bind(gc.nogc());
-    // if (r.get(agent).original_flags & (RegExpFlags::G | RegExpFlags::S)).bits() > 0 {
+    mut gc: GcScope,
+) -> JsResult<'static, bool> {
+    crate::engine::bind!(let r = r, gc);
+    crate::engine::bind!(let s = s, gc);
+    // if (r.get(agent).local().original_flags & (RegExpFlags::G | RegExpFlags::S)).bits() > 0 {
     //     // We have to perform the actual matching because global and sticky
     //     // RegExp's can observe its match results from lastIndex.
-    //     return reg_exp_builtin_exec(agent, r.unbind(), s.unbind(), gc).map(|a| a.is_some());
+    //     return reg_exp_builtin_exec(agent, r,s, gc).map(|a| a.is_some());
     // }
-    let result =
-        reg_exp_builtin_exec_prepare(agent, r.unbind(), s.unbind(), gc.reborrow()).unbind()?;
+    let result = reg_exp_builtin_exec_prepare(agent, r, s, gc.reborrow())?;
     let gc = gc.into_nogc();
     let RegExpExecBase {
         r,
@@ -770,7 +756,7 @@ pub(crate) fn reg_exp_builtin_test<'a>(
         sticky,
         global,
         ..
-    } = result.bind(gc);
+    } = gc.join(&result);
 
     // 1. Let length be the length of S.
     let length = s.len_(agent);

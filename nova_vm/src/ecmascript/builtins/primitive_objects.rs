@@ -77,14 +77,14 @@ impl PrimitiveObject<'_> {
 impl<'a> InternalSlots<'a> for PrimitiveObject<'a> {
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index.unbind()
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
             self.get_mut(agent)
                 .object_index
-                .replace(backing_object.unbind())
+                .replace(backing_object)
                 .is_none()
         );
     }
@@ -136,7 +136,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
-        let o = self.bind(gc);
+        crate::engine::bind!(let o = self, gc);
         // For non-string primitive objects:
         // 1. Return OrdinaryGetOwnProperty(O, P).
         // For string exotic objects:
@@ -210,7 +210,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         if let Ok(string) = String::try_from(self.get(agent).data)
             && string.get_property_value(agent, property_key).is_some()
         {
-            return TryHasResult::Custom(0, self.bind(gc).into()).into();
+            return TryHasResult::Custom(0, self.into()).into();
         }
 
         // 1. Return ? OrdinaryHasProperty(O, P).
@@ -230,7 +230,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         property_key: PropertyKey,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
-        let property_key = property_key.bind(gc.nogc());
+        crate::engine::bind!(let property_key = property_key, gc);
         if let Ok(string) = String::try_from(self.get(agent).data)
             && string.get_property_value(agent, property_key).is_some()
         {
@@ -239,13 +239,9 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
 
         // 1. Return ? OrdinaryHasProperty(O, P).
         match self.get_backing_object(agent) {
-            Some(backing_object) => ordinary_has_property(
-                agent,
-                self.into(),
-                backing_object,
-                property_key.unbind(),
-                gc,
-            ),
+            Some(backing_object) => {
+                ordinary_has_property(agent, self.into(), backing_object, property_key, gc)
+            }
             None => {
                 // 3. Let parent be ? O.[[GetPrototypeOf]]().
                 // Note: Primitive objects never call into JS from GetPrototypeOf.
@@ -254,9 +250,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
                 // 4. If parent is not null, then
                 if let Some(parent) = parent {
                     // a. Return ? parent.[[HasProperty]](P).
-                    parent
-                        .unbind()
-                        .internal_has_property(agent, property_key.unbind(), gc)
+                    parent.internal_has_property(agent, property_key, gc)
                 } else {
                     // 5. Return false.
                     Ok(false)
@@ -276,7 +270,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         if let Ok(string) = String::try_from(self.get(agent).data)
             && let Some(value) = string.get_property_value(agent, property_key)
         {
-            return TryGetResult::Value(value.bind(gc)).into();
+            return TryGetResult::Value(value).into();
         }
         // 1. Return ? OrdinaryGet(O, P, Receiver).
         ordinary_try_get(
@@ -296,19 +290,17 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         property_key: PropertyKey,
         receiver: Value,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let property_key = property_key.bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let property_key = property_key, gc);
         if let Ok(string) = String::try_from(self.get(agent).data)
             && let Some(value) = string.get_property_value(agent, property_key)
         {
-            return Ok(value.bind(gc.into_nogc()));
+            return Ok(value);
         }
 
         // 1. Return ? OrdinaryGet(O, P, Receiver).
         match self.get_backing_object(agent) {
-            Some(backing_object) => {
-                ordinary_get(agent, backing_object, property_key.unbind(), receiver, gc)
-            }
+            Some(backing_object) => ordinary_get(agent, backing_object, property_key, receiver, gc),
             None => {
                 // a. Let parent be ? O.[[GetPrototypeOf]]().
                 let Some(parent) = unwrap_try(self.try_get_prototype_of(agent, gc.nogc())) else {
@@ -317,9 +309,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
                 };
 
                 // c. Return ? parent.[[Get]](P, Receiver).
-                parent
-                    .unbind()
-                    .internal_get(agent, property_key.unbind(), receiver, gc)
+                parent.internal_get(agent, property_key, receiver, gc)
             }
         }
     }
@@ -351,7 +341,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         receiver: Value,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
-        let property_key = property_key.bind(gc.nogc());
+        crate::engine::bind!(let property_key = property_key, gc);
         if let Ok(string) = String::try_from(self.get(agent).data)
             && string.get_property_value(agent, property_key).is_some()
         {
@@ -359,14 +349,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         }
 
         // 1. Return ? OrdinarySet(O, P, V, Receiver).
-        ordinary_set(
-            agent,
-            self.into(),
-            property_key.unbind(),
-            value,
-            receiver,
-            gc,
-        )
+        ordinary_set(agent, self.into(), property_key, value, receiver, gc)
     }
 
     fn try_delete<'gc>(
@@ -547,7 +530,7 @@ impl<'a> PrimitiveObjectRecord<'a> {
 
     pub(crate) fn new_big_int_object(big_int: BigInt<'a>) -> Self {
         let data = match big_int {
-            BigInt::BigInt(data) => PrimitiveObjectData::BigInt(data.unbind()),
+            BigInt::BigInt(data) => PrimitiveObjectData::BigInt(data),
             BigInt::SmallBigInt(data) => PrimitiveObjectData::SmallBigInt(data),
         };
         Self {
@@ -565,7 +548,7 @@ impl<'a> PrimitiveObjectRecord<'a> {
 
     pub(crate) fn new_number_object(number: Number<'a>) -> Self {
         let data = match number {
-            Number::Number(data) => PrimitiveObjectData::Number(data.unbind()),
+            Number::Number(data) => PrimitiveObjectData::Number(data),
             Number::Integer(data) => PrimitiveObjectData::Integer(data),
             Number::SmallF64(data) => PrimitiveObjectData::SmallF64(data),
         };
@@ -589,7 +572,7 @@ impl<'a> PrimitiveObjectRecord<'a> {
     pub(crate) fn new_symbol_object(symbol: Symbol<'a>) -> Self {
         Self {
             object_index: None,
-            data: PrimitiveObjectData::Symbol(symbol.unbind()),
+            data: PrimitiveObjectData::Symbol(symbol),
         }
     }
 }
@@ -641,7 +624,7 @@ impl HeapSweepWeakReference for PrimitiveObject<'static> {
 
 impl<'a> CreateHeapData<PrimitiveObjectRecord<'a>, PrimitiveObject<'a>> for Heap {
     fn create(&mut self, data: PrimitiveObjectRecord<'a>) -> PrimitiveObject<'a> {
-        self.primitive_objects.push(data.unbind());
+        self.primitive_objects.push(data);
         self.alloc_counter += core::mem::size_of::<PrimitiveObjectRecord<'static>>();
         PrimitiveObject(BaseIndex::last(&self.primitive_objects))
     }

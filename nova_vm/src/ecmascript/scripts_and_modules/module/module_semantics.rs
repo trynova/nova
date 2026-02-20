@@ -95,7 +95,7 @@ impl<'r> ModuleRequest<'r> {
     ) -> Self {
         let mut state = AHasher::default();
         specifier.hash(&mut state);
-        let specifier = String::from_str(agent, specifier, gc).unbind();
+        let specifier = String::from_str(agent, specifier, gc);
         let attributes = with_clause.map(|with_clause| {
             // Note: we first have to collect the key-value pairs into a
             // separate boxed slice to be able to sort them by key. Only then
@@ -118,8 +118,8 @@ impl<'r> ModuleRequest<'r> {
                     key.hash(&mut state);
                     value.hash(&mut state);
                     ImportAttributeRecord {
-                        key: String::from_str(agent, key, gc).unbind(),
-                        value: String::from_str(agent, value, gc).unbind(),
+                        key: String::from_str(agent, key, gc),
+                        value: String::from_str(agent, value, gc),
                     }
                 })
                 .collect()
@@ -150,15 +150,12 @@ impl<'r> ModuleRequest<'r> {
         }
         let hash = state.finish();
         let index = agent.heap.module_request_records.len() as u32;
-        agent.heap.module_request_records.push(
-            ModuleRequestRecord {
-                specifier,
-                attributes: Some(attributes),
-                hash,
-            }
-            .unbind(),
-        );
-        Self::from_index_u32(index).bind(gc)
+        agent.heap.module_request_records.push(ModuleRequestRecord {
+            specifier,
+            attributes: Some(attributes),
+            hash,
+        });
+        Self::from_index_u32(index)
     }
 
     /// Get the ModuleRequest's \[\[Specifier]] string.
@@ -278,9 +275,9 @@ impl<'a> LoadedModules<'a> {
                 e.insert(LoadedModuleRequestRecord {
                     // [[Specifier]]: moduleRequest.[[Specifier]],
                     // [[Attributes]]: moduleRequest.[[Attributes]],
-                    module_request: module_request.unbind(),
+                    module_request: module_request,
                     // [[Module]]: result.[[Value]]
-                    module: module.unbind(),
+                    module: module,
                 });
                 // } to referrer.[[LoadedModules]].
             }
@@ -348,7 +345,6 @@ pub(crate) fn get_imported_module<'a>(
     referrer
         .get_loaded_module(agent, request)
         .expect("Could not find loaded module for request")
-        .bind(gc)
 }
 
 /// Module loading referrer.
@@ -362,7 +358,7 @@ impl Referrer<'_> {
         match self.0 {
             InnerReferrer::Script(s) => s.realm(agent, gc),
             InnerReferrer::SourceTextModule(m) => m.realm(agent, gc),
-            InnerReferrer::Realm(r) => r.bind(gc),
+            InnerReferrer::Realm(r) => r,
         }
     }
 
@@ -439,9 +435,9 @@ impl Rootable for InnerReferrer<'_> {
 
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match value {
-            Self::Script(s) => Err(HeapRootData::Script(s.unbind())),
-            Self::SourceTextModule(m) => Err(HeapRootData::SourceTextModule(m.unbind())),
-            Self::Realm(r) => Err(HeapRootData::Realm(r.unbind())),
+            Self::Script(s) => Err(HeapRootData::Script(s)),
+            Self::SourceTextModule(m) => Err(HeapRootData::SourceTextModule(m)),
+            Self::Realm(r) => Err(HeapRootData::Realm(r)),
         }
     }
 
@@ -561,7 +557,7 @@ pub(crate) fn get_module_namespace<'a>(
     module: AbstractModule,
     gc: NoGcScope<'a, '_>,
 ) -> Module<'a> {
-    let module = module.bind(gc);
+    crate::engine::bind!(let module = module, gc);
     if let Some(module) = module.as_source_text_module() {
         // 1. Assert: If module is a Cyclic Module Record, then module.[[Status]]
         //    is not new or unlinked.

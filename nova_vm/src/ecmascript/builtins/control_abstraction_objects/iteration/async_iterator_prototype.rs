@@ -26,10 +26,10 @@ impl AsyncIteratorPrototype {
     fn iterator<'gc>(
         _agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        Ok(this_value.unbind())
+    ) -> JsResult<'static, Value<'static>> {
+        Ok(this_value)
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {

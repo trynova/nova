@@ -362,7 +362,7 @@ pub(super) fn create_intrinsic_backing_object(
     let cap = cap.make_intrinsic();
     let keys_memory = agent.heap.elements.get_keys_uninit_raw(cap, index);
     for (slot, key) in keys_memory.iter_mut().zip(properties.iter().map(|e| e.0)) {
-        *slot = Some(key.unbind());
+        *slot = Some(key);
     }
     let mut shape = agent.heap.create(ObjectShapeRecord::create(
         prototype,

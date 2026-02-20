@@ -156,13 +156,13 @@ impl HeapMarkAndSweep for ExecutionContext {
 pub(crate) fn resolve_this_binding<'a>(
     agent: &mut Agent,
     gc: NoGcScope<'a, '_>,
-) -> JsResult<'a, Value<'a>> {
+) -> JsResult<'static, Value<'static>> {
     // 1. Let envRec be GetThisEnvironment().
     let env_rec = get_this_environment(agent, gc);
     // 2. Return ? envRec.GetThisBinding().
     match env_rec {
-        Environment::Function(e) => e.unbind().get_this_binding(agent, gc),
-        Environment::Global(e) => Ok(e.unbind().get_this_binding(agent).into()),
+        Environment::Function(e) => e.get_this_binding(agent, gc),
+        Environment::Global(e) => Ok(e.get_this_binding(agent).into()),
         Environment::Module(_) => Ok(Value::Undefined),
         Environment::Declarative(_) | Environment::Object(_) => unreachable!(),
     }
@@ -177,5 +177,5 @@ pub(crate) fn get_global_object<'a>(agent: &Agent, gc: NoGcScope<'a, '_>) -> Obj
     // 1. Let currentRealm be the current Realm Record.
     let current_realm = agent.current_realm_record();
     // 2. Return currentRealm.[[GlobalObject]].
-    current_realm.global_object.bind(gc)
+    current_realm.global_object
 }

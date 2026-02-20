@@ -173,7 +173,7 @@ impl<'m> CyclicModuleRecord<'m> {
 
     /// Set \[\[CycleRoot]]
     pub(super) fn set_cycle_root(&mut self, module: SourceTextModule) {
-        assert!(self.cycle_root.replace(module.unbind()).is_none())
+        assert!(self.cycle_root.replace(module).is_none())
     }
 
     /// Get a loaded module by module request reference.
@@ -205,7 +205,7 @@ impl<'m> CyclicModuleRecord<'m> {
     /// ### \[\[EvaluationError]]
     pub(super) fn evaluation_error<'gc>(&self, gc: NoGcScope<'gc, '_>) -> JsResult<'gc, ()> {
         if let Some(error) = self.evaluation_error {
-            Err(error.bind(gc))
+            Err(error)
         } else {
             Ok(())
         }
@@ -221,7 +221,7 @@ impl<'m> CyclicModuleRecord<'m> {
             self.status,
             CyclicModuleRecordStatus::Evaluating | CyclicModuleRecordStatus::EvaluatingAsync
         ));
-        self.evaluation_error = Some(error.unbind());
+        self.evaluation_error = Some(error);
         self.status = CyclicModuleRecordStatus::Evaluated;
     }
 
@@ -276,7 +276,7 @@ impl<'m> CyclicModuleRecord<'m> {
 
     /// Append a CyclicModule to \[\[AsyncParentModules]].
     pub(super) fn append_async_parent_module(&mut self, module: SourceTextModule) {
-        self.async_parent_modules.push(module.unbind());
+        self.async_parent_modules.push(module);
     }
 
     /// ### \[\[TopLevelCapability]]
@@ -286,11 +286,7 @@ impl<'m> CyclicModuleRecord<'m> {
 
     /// Set \[\[TopLevelCapability]].
     pub(super) fn set_top_level_capability(&mut self, capability: PromiseCapability) {
-        assert!(
-            self.top_level_capability
-                .replace(capability.unbind())
-                .is_none()
-        );
+        assert!(self.top_level_capability.replace(capability).is_none());
     }
 
     /// ### \[\[DFSAncestorIndex]]
@@ -466,7 +462,7 @@ pub(crate) trait CyclicModuleMethods: CyclicModuleSlots {
         self,
         agent: &mut Agent,
         promise_capability: Option<PromiseCapability>,
-        gc: GcScope<'a, '_>,
+        gc: GcScope,
     ) -> JsResult<'a, ()>;
 }
 
@@ -613,7 +609,7 @@ pub(crate) fn inner_module_linking<'a>(
     index: u32,
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, u32> {
-    let module = module.bind(gc);
+    crate::engine::bind!(let module = module, gc);
     // 1. If module is not a Cyclic Module Record, then
     let Some(module) = module.as_source_text_module() else {
         // a. Perform ? module.Link().
@@ -734,18 +730,18 @@ pub(crate) fn inner_module_evaluation<'a, 'b>(
     mut index: u32,
     mut gc: GcScope<'a, 'b>,
 ) -> JsResult<'a, u32> {
-    let module = scoped_module.get(agent).bind(gc.nogc());
+    crate::engine::bind!(let module = scoped_module.get(agent).local(), gc);
     // 1. If module is not a Cyclic Module Record, then
     let Some(mut module) = module.as_source_text_module() else {
         // a. Perform ? EvaluateModuleSync(module).
         // evaluate_module_sync(agent, module, gc)?;
-        module.unbind().evaluate(agent, gc.reborrow());
+        module.evaluate(agent, gc.reborrow());
         // b. Return index.
         return Ok(index);
     };
     // SAFETY: We're not actually replacing anything but just
     // reinterpreting the Scoped inner type.
-    let scoped_module = unsafe { scoped_module.replace_self(agent, module.unbind()) };
+    let scoped_module = unsafe { scoped_module.replace_self(agent, module) };
     // 2. If module.[[Status]] is either evaluating-async or evaluated, then
     if matches!(
         module.status(agent),
@@ -753,7 +749,7 @@ pub(crate) fn inner_module_evaluation<'a, 'b>(
     ) {
         // a. If module.[[EvaluationError]] is empty, return index.
         // b. Otherwise, return ? module.[[EvaluationError]].
-        module.unbind().evaluation_error(agent, gc.into_nogc())?;
+        module.evaluation_error(agent, gc.into_nogc())?;
         return Ok(index);
     }
     // 3. If module.[[Status]] is evaluating,
@@ -791,10 +787,9 @@ pub(crate) fn inner_module_evaluation<'a, 'b>(
             stack,
             index,
             gc.reborrow(),
-        )
-        .unbind()?;
-        module = scoped_module.get(agent).bind(gc.nogc());
-        let required_module = scoped_required_module.get(agent).bind(gc.nogc());
+        )?;
+        module = scoped_module.get(agent).local();
+        crate::engine::bind!(let required_module = scoped_required_module.get(agent).local(), gc);
         // c. If requiredModule is a Cyclic Module Record, then
         if let Some(mut required_module) = required_module.as_source_text_module() {
             // i. Assert: requiredModule.[[Status]] is one of evaluating,
@@ -811,7 +806,11 @@ pub(crate) fn inner_module_evaluation<'a, 'b>(
                 required_module.status(agent),
                 CyclicModuleRecordStatus::Evaluating
             ) {
-                debug_assert!(stack.iter().any(|m| m.get(agent) == required_module));
+                debug_assert!(
+                    stack
+                        .iter()
+                        .any(|m| m.get(agent).local() == required_module)
+                );
                 // 1. Set module.[[DFSAncestorIndex]] to min(module.[[DFSAncestorIndex]], requiredModule.[[DFSAncestorIndex]]).
                 module.set_dfs_ancestor_index(agent, required_module.dfs_ancestor_index(agent));
             } else {
@@ -824,9 +823,7 @@ pub(crate) fn inner_module_evaluation<'a, 'b>(
                     CyclicModuleRecordStatus::EvaluatingAsync | CyclicModuleRecordStatus::Evaluated
                 ));
                 // 3. If requiredModule.[[EvaluationError]] is not empty, return ? requiredModule.[[EvaluationError]].
-                required_module
-                    .evaluation_error(agent, gc.nogc())
-                    .unbind()?;
+                required_module.evaluation_error(agent, gc.nogc())?;
             }
             // v. If requiredModule.[[AsyncEvaluationOrder]] is an integer, then
             if required_module
@@ -853,19 +850,22 @@ pub(crate) fn inner_module_evaluation<'a, 'b>(
         module.set_async_evaluation_order(agent, order);
         // c. If module.[[PendingAsyncDependencies]] = 0, perform ExecuteAsyncModule(module).
         if module.pending_async_dependencies(agent) == Some(0) {
-            execute_async_module(agent, module.unbind(), gc.reborrow());
+            execute_async_module(agent, module, gc.reborrow());
         }
     } else {
         // 13. Else,
         // a. Perform ? module.ExecuteModule().
-        module
-            .unbind()
-            .execute_module(agent, None, gc.reborrow())
-            .unbind()?;
+        module.execute_module(agent, None, gc.reborrow())?;
     }
-    module = scoped_module.get(agent).bind(gc.nogc());
+    module = scoped_module.get(agent).local();
     // 14. Assert: module occurs exactly once in stack.
-    debug_assert_eq!(stack.iter().filter(|m| m.get(agent) == module).count(), 1);
+    debug_assert_eq!(
+        stack
+            .iter()
+            .filter(|m| m.get(agent).local() == module)
+            .count(),
+        1
+    );
     // 15. Assert: module.[[DFSAncestorIndex]] ≤ module.[[DFSIndex]].
     debug_assert!(module.dfs_ancestor_index(agent) <= module.dfs_index(agent));
     // 16. If module.[[DFSAncestorIndex]] = module.[[DFSIndex]], then
@@ -873,7 +873,7 @@ pub(crate) fn inner_module_evaluation<'a, 'b>(
         // a. Let done be false.
         // b. Repeat, while done is false,
         while let Some(required_module) = stack.pop() {
-            let required_module = required_module.get(agent).bind(gc.nogc());
+            crate::engine::bind!(let required_module = required_module.get(agent).local(), gc);
             // i. Let requiredModule be the last element of stack.
             // ii. Remove the last element of stack.
             // iii. Assert: requiredModule is a Cyclic Module Record.
@@ -911,7 +911,7 @@ pub(crate) fn inner_module_evaluation<'a, 'b>(
 /// The abstract operation ExecuteAsyncModule takes argument module (a Cyclic
 /// Module Record) and returns unused.
 fn execute_async_module(agent: &mut Agent, module: SourceTextModule, gc: GcScope) {
-    let module = module.bind(gc.nogc());
+    crate::engine::bind!(let module = module, gc);
     // 1. Assert: module.[[Status]] is either evaluating or evaluating-async.
     assert!(matches!(
         module.status(agent),
@@ -930,15 +930,12 @@ fn execute_async_module(agent: &mut Agent, module: SourceTextModule, gc: GcScope
     //    that captures module and performs the following steps when called:
     //         a. Perform AsyncModuleExecutionRejected(module, error).
     //         b. Return undefined.
-    let handler = PromiseReactionHandler::AsyncModule(module.unbind());
+    let handler = PromiseReactionHandler::AsyncModule(module);
     // 7. Let onRejected be CreateBuiltinFunction(rejectedClosure, 0, "", « »).
     // 8. Perform PerformPromiseThen(capability.[[Promise]], onFulfilled, onRejected).
     inner_promise_then(agent, capability.promise, handler, handler, None, gc.nogc());
     // 9. Perform ! module.ExecuteModule(capability).
-    module
-        .unbind()
-        .execute_module(agent, Some(capability.unbind()), gc)
-        .unwrap();
+    module.execute_module(agent, Some(capability), gc).unwrap();
     // 10. Return unused.
 }
 
@@ -951,7 +948,7 @@ pub(crate) fn async_module_execution_fulfilled(
     module: SourceTextModule,
     mut gc: GcScope,
 ) {
-    let module = module.bind(gc.nogc());
+    crate::engine::bind!(let module = module, gc);
     // 1. If module.[[Status]] is evaluated, then
     if matches!(module.status(agent), CyclicModuleRecordStatus::Evaluated) {
         // a. Assert: module.[[EvaluationError]] is not empty.
@@ -977,7 +974,7 @@ pub(crate) fn async_module_execution_fulfilled(
     module.set_async_evaluation_done(agent);
     // 7. If module.[[TopLevelCapability]] is not empty, then
     if let Some(top_level_capability) = module.top_level_capability(agent) {
-        let top_level_capability = top_level_capability.bind(gc.nogc());
+        crate::engine::bind!(let top_level_capability = top_level_capability, gc);
         // a. Assert: module.[[CycleRoot]] and module are the same Module Record.
         assert_eq!(module.get_cycle_root(agent), Some(module));
         // b. Perform ! Call(module.[[TopLevelCapability]].[[Resolve]], undefined, « undefined »).
@@ -1017,34 +1014,30 @@ pub(crate) fn async_module_execution_fulfilled(
         .map(|m| m.scope(agent, gc.nogc()))
         .collect::<Box<[_]>>()
     {
-        let m = scoped_m.get(agent).bind(gc.nogc());
+        crate::engine::bind!(let m = scoped_m.get(agent).local(), gc);
         // a. If m.[[Status]] is evaluated, then
         if matches!(m.status(agent), CyclicModuleRecordStatus::Evaluated) {
             // SAFETY: scoped_m is not shared.
-            let _ = unsafe { scoped_m.take(agent).bind(gc.nogc()) };
+            let _ = unsafe { scoped_m.take(agent).local() };
             // i. Assert: m.[[EvaluationError]] is not empty.
             assert!(m.evaluation_error(agent, gc.nogc()).is_ok());
         } else if m.has_tla(agent) {
             // SAFETY: scoped_m is not shared.
-            let _ = unsafe { scoped_m.take(agent).bind(gc.nogc()) };
+            let _ = unsafe { scoped_m.take(agent).local() };
             // b. Else if m.[[HasTLA]] is true, then
             // i. Perform ExecuteAsyncModule(m).
-            execute_async_module(agent, m.unbind(), gc.reborrow());
+            execute_async_module(agent, m, gc.reborrow());
         } else {
             // c. Else,
             // i. Let result be m.ExecuteModule().
-            let result = m
-                .unbind()
-                .execute_module(agent, None, gc.reborrow())
-                .unbind()
-                .bind(gc.nogc());
+            let result = m.execute_module(agent, None, gc.reborrow())?;
             // SAFETY: scoped_m is not shared.
-            let m = unsafe { scoped_m.take(agent).bind(gc.nogc()) };
+            let m = unsafe { scoped_m.take(agent).local() };
 
             // ii. If result is an abrupt completion, then
             if let Err(value) = result {
                 // 1. Perform AsyncModuleExecutionRejected(m, result.[[Value]]).
-                async_module_execution_rejected(agent, m.unbind(), value.unbind(), gc.nogc());
+                async_module_execution_rejected(agent, m, value, gc.nogc());
             } else {
                 // iii. Else,
                 // 1. Set m.[[AsyncEvaluationOrder]] to done.
@@ -1052,7 +1045,7 @@ pub(crate) fn async_module_execution_fulfilled(
                 m.set_async_evaluation_done(agent);
                 // 3. If m.[[TopLevelCapability]] is not empty, then
                 if let Some(top_level_capability) = m.top_level_capability(agent) {
-                    let top_level_capability = top_level_capability.bind(gc.nogc());
+                    crate::engine::bind!(let top_level_capability = top_level_capability, gc);
                     // a. Assert: m.[[CycleRoot]] and m are the same Module Record.
                     assert_eq!(m.get_cycle_root(agent), Some(m));
                     // b. Perform ! Call(m.[[TopLevelCapability]].[[Resolve]], undefined, « undefined »).
@@ -1079,8 +1072,8 @@ pub(crate) fn async_module_execution_rejected(
     error: JsError,
     gc: NoGcScope,
 ) {
-    let module = module.bind(gc);
-    let error = error.bind(gc);
+    crate::engine::bind!(let module = module, gc);
+    crate::engine::bind!(let error = error, gc);
     // 1. If module.[[Status]] is evaluated, then
     if matches!(module.status(agent), CyclicModuleRecordStatus::Evaluated) {
         // a. Assert: module.[[EvaluationError]] is not empty.
@@ -1125,7 +1118,7 @@ pub(crate) fn async_module_execution_rejected(
     }
     // 10. If module.[[TopLevelCapability]] is not empty, then
     if let Some(top_level_capability) = module.top_level_capability(agent) {
-        let top_level_capability = top_level_capability.bind(gc);
+        crate::engine::bind!(let top_level_capability = top_level_capability, gc);
         // a. Assert: module.[[CycleRoot]] and module are the same Module Record.
         assert_eq!(module.get_cycle_root(agent), Some(module));
         // b. Perform ! Call(module.[[TopLevelCapability]].[[Reject]], undefined, « error »).

@@ -37,16 +37,13 @@ impl<'a> Promise<'a> {
 
     /// Create a new rejected, unhandled Promise.
     pub(crate) fn new_rejected(agent: &mut Agent, error: Value, gc: NoGcScope<'a, '_>) -> Self {
-        agent
-            .heap
-            .create(PromiseHeapData {
-                object_index: None,
-                promise_state: PromiseState::Rejected {
-                    promise_result: error.unbind(),
-                    is_handled: false,
-                },
-            })
-            .bind(gc)
+        agent.heap.create(PromiseHeapData {
+            object_index: None,
+            promise_state: PromiseState::Rejected {
+                promise_result: error,
+                is_handled: false,
+            },
+        })
     }
 
     /// Get the result of a resolved Promise, or None if the Promise is not
@@ -58,9 +55,9 @@ impl<'a> Promise<'a> {
     ) -> Option<JsResult<'gc, Value<'gc>>> {
         match &self.get(agent).promise_state {
             PromiseState::Pending { .. } => None,
-            PromiseState::Fulfilled { promise_result } => Some(Ok(promise_result.bind(gc))),
+            PromiseState::Fulfilled { promise_result } => Some(Ok(promise_result)),
             PromiseState::Rejected { promise_result, .. } => {
-                Some(Err(JsError::new(promise_result.bind(gc))))
+                Some(Err(JsError::new(promise_result)))
             }
         }
     }
@@ -79,16 +76,16 @@ impl<'a> Promise<'a> {
             // a. Let xConstructor be ? Get(x, "constructor").
             // b. If SameValue(xConstructor, C) is true, return x.
             // NOTE: Ignoring subclasses.
-            promise.unbind()
+            promise
         } else {
             // 2. Let promiseCapability be ? NewPromiseCapability(C).
             let promise_capability = PromiseCapability::new(agent, gc.nogc());
             let promise = promise_capability.promise().scope(agent, gc.nogc());
             // 3. Perform ? Call(promiseCapability.[[Resolve]], undefined, « x »).
-            promise_capability.unbind().resolve(agent, x, gc.reborrow());
+            promise_capability.resolve(agent, x, gc.reborrow());
             // 4. Return promiseCapability.[[Promise]].
             // SAFETY: Not shared.
-            unsafe { promise.take(agent) }
+            unsafe { promise.take(agent).local() }
         }
     }
 }
@@ -98,14 +95,14 @@ impl<'a> InternalSlots<'a> for Promise<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index.unbind()
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
             self.get_mut(agent)
                 .object_index
-                .replace(backing_object.unbind())
+                .replace(backing_object)
                 .is_none()
         );
     }
@@ -115,7 +112,7 @@ impl<'a> InternalMethods<'a> for Promise<'a> {}
 
 impl<'a> CreateHeapData<PromiseHeapData<'a>, Promise<'a>> for Heap {
     fn create(&mut self, data: PromiseHeapData<'a>) -> Promise<'a> {
-        self.promises.push(data.unbind());
+        self.promises.push(data);
         self.alloc_counter += core::mem::size_of::<PromiseHeapData<'static>>();
         Promise(BaseIndex::last(&self.promises))
     }

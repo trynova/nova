@@ -154,9 +154,9 @@ impl AtomicsObject {
     fn add<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         atomic_read_modify_write::<0>(
             agent,
             arguments.get(0),
@@ -170,9 +170,9 @@ impl AtomicsObject {
     fn and<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         atomic_read_modify_write::<1>(
             agent,
             arguments.get(0),
@@ -187,19 +187,21 @@ impl AtomicsObject {
     fn compare_exchange<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let typed_array = arguments.get(0).bind(gc.nogc());
-        let index = arguments.get(1).bind(gc.nogc());
-        let expected_value = arguments.get(2).bind(gc.nogc());
-        let replacement_value = arguments.get(3).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let typed_array = arguments.get(0), gc);
+        crate::engine::bind!(let index = arguments.get(1), gc);
+        crate::engine::bind!(let expected_value = arguments.get(2), gc);
+        crate::engine::bind!(let replacement_value = arguments.get(3), gc);
 
         // 1. Let byteIndexInBuffer be ? ValidateAtomicAccessOnIntegerTypedArray(typedArray, index).
-        let (ta_record, byte_index_in_buffer) =
-            try_validate_atomic_access_on_integer_typed_array(agent, typed_array, index, gc.nogc())
-                .unbind()?
-                .bind(gc.nogc());
+        let (ta_record, byte_index_in_buffer) = try_validate_atomic_access_on_integer_typed_array(
+            agent,
+            typed_array,
+            index,
+            gc.nogc(),
+        )?;
         let typed_array = ta_record.object;
         let (byte_index_in_buffer, typed_array, expected, replacement) =
             if let (Some(byte_index_in_buffer), (Ok(expected), Ok(replacement))) = (
@@ -229,22 +231,20 @@ impl AtomicsObject {
             } else {
                 handle_typed_array_index_two_values_slow(
                     agent,
-                    ta_record.unbind(),
-                    index.unbind(),
-                    expected_value.unbind(),
-                    replacement_value.unbind(),
+                    ta_record,
+                    index,
+                    expected_value,
+                    replacement_value,
                     gc.reborrow(),
-                )
-                .unbind()?
-                .bind(gc.nogc())
+                )?
             };
-        let typed_array = typed_array.unbind();
-        let expected = expected.unbind();
-        let replacement = replacement.unbind();
+        let typed_array = typed_array;
+        let expected = expected;
+        let replacement = replacement;
         let gc = gc.into_nogc();
-        let typed_array = typed_array.bind(gc);
-        let expected = expected.bind(gc);
-        let replacement = replacement.bind(gc);
+        crate::engine::bind!(let typed_array = typed_array, gc);
+        crate::engine::bind!(let expected = expected, gc);
+        crate::engine::bind!(let replacement = replacement, gc);
 
         // 2. Let buffer be typedArray.[[ViewedArrayBuffer]].
         let buffer = typed_array.viewed_array_buffer(agent);
@@ -283,9 +283,9 @@ impl AtomicsObject {
     fn exchange<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         atomic_read_modify_write::<2>(
             agent,
             arguments.get(0),
@@ -320,12 +320,12 @@ impl AtomicsObject {
     fn is_lock_free<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let size = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let size = arguments.get(0), gc);
         // 1. Let n be ? ToIntegerOrInfinity(size).
-        let n = to_integer_or_infinity(agent, size.unbind(), gc)?.into_i64();
+        let n = to_integer_or_infinity(agent, size, gc)?.into_i64();
         // 2. Let AR be the Agent Record of the surrounding agent.
         // 3. If n = 1, return AR.[[IsLockFree1]].
         #[cfg(target_has_atomic = "8")]
@@ -359,10 +359,10 @@ impl AtomicsObject {
     fn load<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let arguments = arguments.bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let arguments = arguments, gc);
         let typed_array = arguments.get(0);
         let index = arguments.get(1);
         // 1. Let byteIndexInBuffer be ? ValidateAtomicAccessOnIntegerTypedArray(typedArray, index).
@@ -371,9 +371,7 @@ impl AtomicsObject {
             typed_array,
             ecmascript_atomics::Ordering::Unordered,
             gc.nogc(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         // a. Let type be TypedArrayElementType(typedArray).
         // b. If IsUnclampedIntegerElementType(type) is false and
         //    IsBigIntElementType(type) is false, throw a TypeError exception.
@@ -388,9 +386,9 @@ impl AtomicsObject {
         let length = ta_record.typed_array_length(agent);
         let (byte_index_in_buffer, typed_array) = if let Value::Integer(index) = index {
             // 7. Let offset be typedArray.[[ByteOffset]].
-            let typed_array = ta_record.object.bind(gc.nogc());
+            crate::engine::bind!(let typed_array = ta_record.object, gc);
             // 2. Let accessIndex be ? ToIndex(requestIndex).
-            let access_index = validate_index(agent, index.into_i64(), gc.nogc()).unbind()?;
+            let access_index = validate_index(agent, index.into_i64(), gc.nogc())?;
             // 3. If accessIndex ≥ length, throw a RangeError exception.
             if access_index >= length as u64 {
                 return Err(agent.throw_exception_with_static_message(
@@ -407,19 +405,11 @@ impl AtomicsObject {
             (byte_index_in_buffer, typed_array)
         } else {
             // 2. Perform ? RevalidateAtomicAccess(typedArray, byteIndexInBuffer).
-            atomic_load_slow(
-                agent,
-                ta_record.unbind(),
-                index.unbind(),
-                length,
-                gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc())
+            atomic_load_slow(agent, ta_record, index, length, gc.reborrow())?
         };
-        let typed_array = typed_array.unbind();
+        let typed_array = typed_array;
         let gc = gc.into_nogc();
-        let typed_array = typed_array.bind(gc);
+        crate::engine::bind!(let typed_array = typed_array, gc);
         // 3. Let buffer be typedArray.[[ViewedArrayBuffer]].
         let buffer = typed_array.viewed_array_buffer(agent);
         // 4. Let elementType be TypedArrayElementType(typedArray).
@@ -446,9 +436,9 @@ impl AtomicsObject {
     fn or<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         atomic_read_modify_write::<3>(
             agent,
             arguments.get(0),
@@ -463,20 +453,15 @@ impl AtomicsObject {
     fn store<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let typed_array = arguments.get(0).bind(gc.nogc());
-        let index = arguments.get(1).bind(gc.nogc());
-        let value = arguments.get(2).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let typed_array = arguments.get(0), gc);
+        crate::engine::bind!(let index = arguments.get(1), gc);
+        crate::engine::bind!(let value = arguments.get(2), gc);
 
-        let (typed_array, byte_index_in_buffer, v) = handle_typed_array_index_value(
-            agent,
-            typed_array.unbind(),
-            index.unbind(),
-            value.unbind(),
-            gc,
-        )?;
+        let (typed_array, byte_index_in_buffer, v) =
+            handle_typed_array_index_value(agent, typed_array, index, value, gc)?;
 
         // 5. Let buffer be typedArray.[[ViewedArrayBuffer]].
         // 6. Let elementType be TypedArrayElementType(typedArray).
@@ -506,9 +491,9 @@ impl AtomicsObject {
     fn sub<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         atomic_read_modify_write::<4>(
             agent,
             arguments.get(0),
@@ -527,9 +512,9 @@ impl AtomicsObject {
     fn wait<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Return ? DoWait(sync, typedArray, index, value, timeout).
         let (buffer, byte_index_in_buffer, value, is_i64, t) = do_wait_preparation(
             agent,
@@ -538,8 +523,7 @@ impl AtomicsObject {
             arguments.get(2),
             arguments.get(3),
             gc.reborrow(),
-        )
-        .unbind()?;
+        )?;
         // 10. If mode is sync and AgentCanSuspend() is false,
         if !agent.can_suspend() {
             // throw a TypeError exception.
@@ -577,9 +561,9 @@ impl AtomicsObject {
     fn wait_async<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Return ? DoWait(async, typedArray, index, value, timeout).
         let (buffer, byte_index_in_buffer, value, is_i64, t) = do_wait_preparation(
             agent,
@@ -588,13 +572,11 @@ impl AtomicsObject {
             arguments.get(2),
             arguments.get(3),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         if is_i64 {
             Ok(do_wait_critical::<true, true>(
                 agent,
-                buffer.unbind(),
+                buffer,
                 byte_index_in_buffer,
                 value,
                 t,
@@ -603,7 +585,7 @@ impl AtomicsObject {
         } else {
             Ok(do_wait_critical::<true, false>(
                 agent,
-                buffer.unbind(),
+                buffer,
                 byte_index_in_buffer,
                 value,
                 t,
@@ -618,25 +600,20 @@ impl AtomicsObject {
     fn notify<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let nogc = gc.nogc();
-        let typed_array = arguments.get(0).bind(nogc);
-        let index = arguments.get(1).bind(nogc);
+        let typed_array = arguments.get(0);
+        let index = arguments.get(1);
         let count = arguments.get(2).scope(agent, nogc);
         // 1. Let taRecord be ? ValidateIntegerTypedArray(typedArray, true).
-        let ta_record = validate_integer_typed_array::<true>(agent, typed_array, nogc)
-            .unbind()?
-            .bind(nogc);
+        let ta_record = validate_integer_typed_array::<true>(agent, typed_array, nogc)?;
         let typed_array = ta_record.object.scope(agent, nogc);
         // 2. Let byteIndexInBuffer be ? ValidateAtomicAccess(taRecord, index).
-        let byte_index_in_buffer =
-            validate_atomic_access(agent, ta_record.unbind(), index.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+        let byte_index_in_buffer = validate_atomic_access(agent, ta_record, index, gc.reborrow())?;
         // SAFETY: not shared.
-        let count = unsafe { count.take(agent) }.bind(gc.nogc());
+        crate::engine::bind!(let count = unsafe { count.take(agent).local() }, gc);
         // 3. If count is undefined, then
         let c = if count.is_undefined() {
             // a. Let c be +∞.
@@ -644,15 +621,13 @@ impl AtomicsObject {
         } else {
             // 4. Else,
             // a. Let intCount be ? ToIntegerOrInfinity(count).
-            let int_count = to_integer_or_infinity(agent, count.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let int_count = to_integer_or_infinity(agent, count, gc.reborrow())?;
             // b. Let c be max(intCount, 0).
             usize::try_from(int_count.into_i64().max(0).cast_unsigned()).unwrap_or(usize::MAX)
         };
         let gc = gc.into_nogc();
         // SAFETY: not shared.
-        let typed_array = unsafe { typed_array.take(agent) }.bind(gc);
+        crate::engine::bind!(let typed_array = unsafe { typed_array.take(agent).local() }, gc);
 
         if c == 0 {
             return Ok(0.into());
@@ -704,9 +679,9 @@ impl AtomicsObject {
     fn xor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         atomic_read_modify_write::<5>(
             agent,
             arguments.get(0),
@@ -741,9 +716,9 @@ impl AtomicsObject {
     fn pause<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let nogc = gc.into_nogc();
         let n = arguments.get(0);
 
@@ -886,7 +861,7 @@ fn validate_atomic_access<'gc>(
     // 1. Let length be TypedArrayLength(taRecord).
     let length = ta_record.typed_array_length(agent);
     // 2. Let accessIndex be ? ToIndex(requestIndex).
-    let access_index = to_index(agent, request_index, gc.reborrow()).unbind()?;
+    let access_index = to_index(agent, request_index, gc.reborrow())?;
     // 3. Assert: accessIndex ≥ 0.
     // 4. If accessIndex ≥ length, throw a RangeError exception.
     if usize::try_from(access_index)
@@ -1048,21 +1023,15 @@ fn atomic_read_modify_write<'gc, const OP: u8>(
     value: Value,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Numeric<'gc>> {
-    let typed_array = typed_array.bind(gc.nogc());
-    let index = index.bind(gc.nogc());
-    let value = value.bind(gc.nogc());
+    crate::engine::bind!(let typed_array = typed_array, gc);
+    crate::engine::bind!(let index = index, gc);
+    crate::engine::bind!(let value = value, gc);
 
-    let (typed_array, byte_index_in_buffer, v) = handle_typed_array_index_value(
-        agent,
-        typed_array.unbind(),
-        index.unbind(),
-        value.unbind(),
-        gc.reborrow(),
-    )
-    .unbind()?;
+    let (typed_array, byte_index_in_buffer, v) =
+        handle_typed_array_index_value(agent, typed_array, index, value, gc.reborrow())?;
     let gc = gc.into_nogc();
-    let typed_array = typed_array.bind(gc);
-    let v = v.bind(gc);
+    crate::engine::bind!(let typed_array = typed_array, gc);
+    crate::engine::bind!(let v = v, gc);
 
     // 5. Let buffer be typedArray.[[ViewedArrayBuffer]].
     let buffer = typed_array.viewed_array_buffer(agent);
@@ -1091,14 +1060,12 @@ fn handle_typed_array_index_value<'gc>(
     value: Value,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, (AnyTypedArray<'gc>, usize, Numeric<'gc>)> {
-    let typed_array = typed_array.bind(gc.nogc());
-    let index = index.bind(gc.nogc());
-    let value = value.bind(gc.nogc());
+    crate::engine::bind!(let typed_array = typed_array, gc);
+    crate::engine::bind!(let index = index, gc);
+    crate::engine::bind!(let value = value, gc);
     // 1. Let byteIndexInBuffer be ? ValidateAtomicAccessOnIntegerTypedArray(typedArray, index).
     let (ta_record, byte_index_in_buffer) =
-        try_validate_atomic_access_on_integer_typed_array(agent, typed_array, index, gc.nogc())
-            .unbind()?
-            .bind(gc.nogc());
+        try_validate_atomic_access_on_integer_typed_array(agent, typed_array, index, gc.nogc())?;
     let (byte_index_in_buffer, typed_array, value) =
         if let (Some(byte_index_in_buffer), Ok(value)) = (
             byte_index_in_buffer,
@@ -1113,21 +1080,13 @@ fn handle_typed_array_index_value<'gc>(
             let typed_array = ta_record.object;
             (byte_index_in_buffer, typed_array, value)
         } else {
-            handle_typed_array_index_value_slow(
-                agent,
-                ta_record.unbind(),
-                index.unbind(),
-                value.unbind(),
-                gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc())
+            handle_typed_array_index_value_slow(agent, ta_record, index, value, gc.reborrow())?
         };
-    let typed_array = typed_array.unbind();
-    let value = value.unbind();
+    let typed_array = typed_array;
+    let value = value;
     let gc = gc.into_nogc();
-    let typed_array = typed_array.bind(gc);
-    let value = value.bind(gc);
+    crate::engine::bind!(let typed_array = typed_array, gc);
+    crate::engine::bind!(let value = value, gc);
     Ok((typed_array, byte_index_in_buffer, value))
 }
 
@@ -1140,37 +1099,28 @@ fn handle_typed_array_index_value_slow<'gc>(
     value: Value,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, (usize, AnyTypedArray<'gc>, Numeric<'gc>)> {
-    let ta_record = ta_record.bind(gc.nogc());
+    crate::engine::bind!(let ta_record = ta_record, gc);
     let is_bigint = ta_record.object.is_bigint();
     let typed_array = ta_record.object.scope(agent, gc.nogc());
-    let index = index.bind(gc.nogc());
+    crate::engine::bind!(let index = index, gc);
     let value = value.scope(agent, gc.nogc());
 
-    let byte_index_in_buffer =
-        validate_atomic_access(agent, ta_record.unbind(), index.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+    let byte_index_in_buffer = validate_atomic_access(agent, ta_record, index, gc.reborrow())?;
 
-    let value = unsafe { value.take(agent) }.bind(gc.nogc());
+    crate::engine::bind!(let value = unsafe { value.take(agent).local() }, gc);
 
     // 2. If typedArray.[[ContentType]] is bigint,
     let v: Numeric = if is_bigint {
         // let v be ? ToBigInt(value).
-        to_big_int(agent, value.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc())
-            .into()
+        to_big_int(agent, value, gc.reborrow())?.into()
     } else {
         // 3. Otherwise, let v be 𝔽(? ToIntegerOrInfinity(value)).
-        to_integer_number_or_infinity(agent, value.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc())
-            .into()
+        to_integer_number_or_infinity(agent, value, gc.reborrow())?.into()
     };
-    let v = v.unbind();
+    let v = v;
     let gc = gc.into_nogc();
-    let v = v.bind(gc);
-    let typed_array = unsafe { typed_array.take(agent) }.bind(gc);
+    crate::engine::bind!(let v = v, gc);
+    crate::engine::bind!(let typed_array = unsafe { typed_array.take(agent).local() }, gc);
     revalidate_atomic_access(agent, typed_array, byte_index_in_buffer, gc)?;
     Ok((byte_index_in_buffer, typed_array, v))
 }
@@ -1185,68 +1135,57 @@ fn handle_typed_array_index_two_values_slow<'gc>(
     replacement_value: Value,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, (usize, AnyTypedArray<'gc>, Numeric<'gc>, Numeric<'gc>)> {
-    let ta_record = ta_record.bind(gc.nogc());
+    crate::engine::bind!(let ta_record = ta_record, gc);
     let is_bigint = ta_record.object.is_bigint();
     let typed_array = ta_record.object.scope(agent, gc.nogc());
-    let index = index.bind(gc.nogc());
+    crate::engine::bind!(let index = index, gc);
     let expected_value = expected_value.scope(agent, gc.nogc());
     let replacement_value = replacement_value.scope(agent, gc.nogc());
 
-    let byte_index_in_buffer =
-        validate_atomic_access(agent, ta_record.unbind(), index.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+    let byte_index_in_buffer = validate_atomic_access(agent, ta_record, index, gc.reborrow())?;
 
     // 4. If typedArray.[[ContentType]] is bigint, then
     let (expected, replacement): (Numeric, Numeric) = if is_bigint {
         // a. Let expected be ? ToBigInt(expectedValue).
-        let expected = to_big_int(agent, expected_value.get(agent), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let expected = to_big_int(agent, expected_value.get(agent).local(), gc.reborrow())?;
         // SAFETY: not shared.
-        let expected = unsafe { expected_value.replace_self(agent, expected.unbind()) };
+        let expected = unsafe { expected_value.replace_self(agent, expected) };
         // b. Let replacement be ? ToBigInt(replacementValue).
         // SAFETY: not shared.
         let replacement = to_big_int(
             agent,
-            unsafe { replacement_value.take(agent) },
+            unsafe { replacement_value.take(agent).local() },
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         (
-            unsafe { expected.take(agent) }.bind(gc.nogc()).into(),
+            unsafe { expected.take(agent).local() }.into(),
             replacement.into(),
         )
     } else {
         // 5. Else,
         // a. Let expected be 𝔽(? ToIntegerOrInfinity(expectedValue)).
         let expected =
-            to_integer_number_or_infinity(agent, expected_value.get(agent), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            to_integer_number_or_infinity(agent, expected_value.get(agent).local(), gc.reborrow())?;
         // SAFETY: not shared.
-        let expected = unsafe { expected_value.replace_self(agent, expected.unbind()) };
+        let expected = unsafe { expected_value.replace_self(agent, expected) };
         // b. Let replacement be 𝔽(? ToIntegerOrInfinity(replacementValue)).
         // SAFETY: not shared.
         let replacement = to_integer_number_or_infinity(
             agent,
-            unsafe { replacement_value.take(agent) },
+            unsafe { replacement_value.take(agent).local() },
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         (
-            unsafe { expected.take(agent) }.bind(gc.nogc()).into(),
+            unsafe { expected.take(agent).local() }.into(),
             replacement.into(),
         )
     };
-    let expected = expected.unbind();
-    let replacement = replacement.unbind();
+    let expected = expected;
+    let replacement = replacement;
     let gc = gc.into_nogc();
-    let expected = expected.bind(gc);
-    let replacement = replacement.bind(gc);
-    let typed_array = unsafe { typed_array.take(agent) }.bind(gc);
+    crate::engine::bind!(let expected = expected, gc);
+    crate::engine::bind!(let replacement = replacement, gc);
+    crate::engine::bind!(let typed_array = unsafe { typed_array.take(agent).local() }, gc);
     // 6. Perform ? RevalidateAtomicAccess(typedArray, byteIndexInBuffer).
     revalidate_atomic_access(agent, typed_array, byte_index_in_buffer, gc)?;
     Ok((byte_index_in_buffer, typed_array, expected, replacement))
@@ -1261,23 +1200,23 @@ fn atomic_load_slow<'gc>(
     length: usize,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, (usize, AnyTypedArray<'gc>)> {
-    let mut ta_record = ta_record.bind(gc.nogc());
-    let index = index.bind(gc.nogc());
+    crate::engine::bind!(let mut ta_record = ta_record, gc);
+    crate::engine::bind!(let index = index, gc);
     let mut revalidate = false;
 
     // 2. Let accessIndex be ? ToIndex(requestIndex).
     let access_index =
-        if let Some(index) = try_result_into_js(try_to_index(agent, index, gc.nogc())).unbind()? {
+        if let Some(index) = try_result_into_js(try_to_index(agent, index, gc.nogc()))? {
             index
         } else {
             let ta = ta_record.object.scope(agent, gc.nogc());
             let cached_buffer_byte_length = ta_record.cached_buffer_byte_length;
-            let access_index = to_index(agent, index.unbind(), gc.reborrow()).unbind()?;
+            let access_index = to_index(agent, index, gc.reborrow())?;
             revalidate = true;
             // SAFETY: not shared.
             ta_record = unsafe {
                 TypedArrayWithBufferWitnessRecords {
-                    object: ta.take(agent),
+                    object: ta.take(agent).local(),
                     cached_buffer_byte_length,
                 }
             };
@@ -1299,9 +1238,9 @@ fn atomic_load_slow<'gc>(
     let offset = ta_record.object.byte_offset(agent);
     // 8. Return (accessIndex × elementSize) + offset.
     let byte_index_in_buffer = offset + access_index * ta_record.object.typed_array_element_size();
-    let typed_array = ta_record.object.unbind();
+    let typed_array = ta_record.object;
     let gc = gc.into_nogc();
-    let typed_array = typed_array.bind(gc);
+    crate::engine::bind!(let typed_array = typed_array, gc);
     if revalidate {
         // 2. Perform ? RevalidateAtomicAccess(typedArray, byteIndexInBuffer).
         revalidate_atomic_access(agent, typed_array, byte_index_in_buffer, gc)?;
@@ -1331,15 +1270,13 @@ fn do_wait_preparation<'gc>(
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, (SharedArrayBuffer<'gc>, usize, i64, bool, u64)> {
     let nogc = gc.nogc();
-    let typed_array = typed_array.bind(nogc);
-    let index = index.bind(nogc);
-    let value = value.bind(nogc);
-    let timeout = timeout.bind(nogc);
+    crate::engine::bind!(let typed_array = typed_array, gc);
+    crate::engine::bind!(let index = index, gc);
+    crate::engine::bind!(let value = value, gc);
+    crate::engine::bind!(let timeout = timeout, gc);
 
     // 1. Let taRecord be ? ValidateIntegerTypedArray(typedArray, true).
-    let ta_record = validate_integer_typed_array::<true>(agent, typed_array, nogc)
-        .unbind()?
-        .bind(nogc);
+    let ta_record = validate_integer_typed_array::<true>(agent, typed_array, nogc)?;
     // 2. Let buffer be taRecord.[[Object]].[[ViewedArrayBuffer]].
     // 3. If IsSharedArrayBuffer(buffer) is false, throw a TypeError exception.
     let Ok(typed_array) = SharedTypedArray::try_from(ta_record.object) else {
@@ -1361,7 +1298,7 @@ fn do_wait_preparation<'gc>(
         match try_validate_atomic_access(agent, &ta_record, index, nogc) {
             ControlFlow::Continue(byte_index_in_buffer) => (ta_record, Some(byte_index_in_buffer)),
             ControlFlow::Break(b) => match b {
-                TryError::Err(err) => return Err(err.unbind()),
+                TryError::Err(err) => return Err(err),
                 // If atomic access couldn't be validated it means that the
                 // requestIndex value couldn't be converted into an index.
                 TryError::GcError => (ta_record, None),
@@ -1396,18 +1333,16 @@ fn do_wait_preparation<'gc>(
         } else {
             do_wait_slow(
                 agent,
-                ta_record.unbind(),
+                ta_record,
                 is_big_int_64_array,
-                index.unbind(),
-                value.unbind(),
-                timeout.unbind(),
+                index,
+                value,
+                timeout,
                 gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc())
+            )?
         };
     // 11. Let block be buffer.[[ArrayBufferData]].
-    let typed_array = typed_array.unbind().bind(gc.into_nogc());
+    crate::engine::bind!(let typed_array = typed_array, gc);
     let buffer = typed_array.viewed_array_buffer(agent);
     Ok((buffer, byte_index_in_buffer, v, is_big_int_64_array, t))
 }
@@ -1519,7 +1454,7 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
         }
     } else {
         let promise_capability = PromiseCapability::new(agent, gc);
-        let promise = Global::new(agent, promise_capability.promise.unbind());
+        let promise = Global::new(agent, promise_capability.promise);
         // 30. Else if timeoutTime is finite, then
         // a. Perform EnqueueAtomicsWaitAsyncTimeoutJob(WL, waiterRecord).
         let buffer = buffer.get_data_block(agent).clone();
@@ -1554,34 +1489,32 @@ fn do_wait_slow<'gc>(
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, (SharedTypedArray<'gc>, usize, i64, u64)> {
     let nogc = gc.nogc();
-    let ta_record = ta_record.bind(nogc);
+    crate::engine::bind!(let ta_record = ta_record, gc);
     // SAFETY: TypedArray is guaranteed to be a shared TypedArray at this point.
     let typed_array = unsafe { SharedTypedArray::try_from(ta_record.object).unwrap_unchecked() };
     let scoped_typed_array = typed_array.scope(agent, nogc);
-    let index = index.bind(nogc);
+    crate::engine::bind!(let index = index, gc);
     let scoped_timeout = timeout.scope(agent, nogc);
     let scoped_value = value.scope(agent, nogc);
-    let i = validate_atomic_access(agent, ta_record.unbind(), index.unbind(), gc.reborrow())
-        .unbind()?
-        .bind(gc.nogc());
+    let i = validate_atomic_access(agent, ta_record, index, gc.reborrow())?;
     // SAFETY: not shared.
-    let value = unsafe { scoped_value.take(agent) }.bind(gc.nogc());
+    crate::engine::bind!(let value = unsafe { scoped_value.take(agent).local() }, gc);
     let v = if is_big_int_64_array {
         // 6. If arrayTypeName is "BigInt64Array", let v be ? ToBigInt64(value).
-        to_big_int64(agent, value.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc())
+        to_big_int64(agent, value, gc.reborrow())?
     } else {
         // 7. Else, let v be ? ToInt32(value).
-        to_int32(agent, value.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc()) as i64
+        to_int32(agent, value, gc.reborrow())? as i64
     };
     // 8. Let q be ? ToNumber(timeout).
     // SAFETY: not shared.
-    let q = to_number(agent, unsafe { scoped_timeout.take(agent) }, gc.reborrow()).unbind()?;
+    let q = to_number(
+        agent,
+        unsafe { scoped_timeout.take(agent).local() },
+        gc.reborrow(),
+    )?;
     let gc = gc.into_nogc();
-    let q = q.bind(gc);
+    crate::engine::bind!(let q = q, gc);
     // 9. If q is either NaN or +∞𝔽,
     let t = if q.is_nan_(agent) || q.is_pos_infinity_(agent) {
         // let t be +∞;
@@ -1593,7 +1526,7 @@ fn do_wait_slow<'gc>(
         // else let t be max(ℝ(q), 0).
         q.into_i64_(agent).max(0) as u64
     };
-    Ok((unsafe { scoped_typed_array.take(agent) }.bind(gc), i, v, t))
+    Ok((unsafe { scoped_typed_array.take(agent).local() }, i, v, t))
 }
 
 fn create_wait_result_object<'gc>(
@@ -1647,7 +1580,7 @@ impl WaitAsyncJob {
     #[allow(unknown_lints, can_use_no_gc_scope)]
     pub(crate) fn run<'gc>(self, agent: &mut Agent, gc: GcScope) -> JsResult<'gc, ()> {
         let gc = gc.into_nogc();
-        let promise = self.0.promise_to_resolve.take(agent).bind(gc);
+        crate::engine::bind!(let promise = self.0.promise_to_resolve.take(agent).local(), gc);
         let Ok(result) = self.0.join_handle.join() else {
             // Foreign thread died; we can never resolve.
             return Ok(());
@@ -1725,7 +1658,7 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
         }
     });
     let wait_async_job = Job {
-        realm: Some(agent.current_realm(gc).unbind()),
+        realm: Some(agent.current_realm(gc)),
         inner: InnerJob::WaitAsync(WaitAsyncJob(Box::new(WaitAsyncJobInner {
             promise_to_resolve: promise,
             join_handle: handle,

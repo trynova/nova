@@ -62,11 +62,11 @@ impl ArrayConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        mut arguments: ArgumentsList,
+        mut arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let new_target = new_target.bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let new_target = new_target, gc);
         // 1. If NewTarget is undefined, let newTarget be the active function
         //    object; else let newTarget be NewTarget.
         let new_target = new_target.map_or_else(
@@ -76,24 +76,17 @@ impl ArrayConstructor {
 
         // 2. Let proto be ? GetPrototypeFromConstructor(newTarget, "%Array.prototype%").
         let proto = {
-            let new_target = new_target.unbind();
-            arguments
-                .with_scoped(
-                    agent,
-                    |agent, _, gc| {
-                        get_prototype_from_constructor(
-                            agent,
-                            new_target,
-                            ProtoIntrinsics::Array,
-                            gc,
-                        )
-                    },
-                    gc.reborrow(),
-                )
-                .unbind()?
+            let new_target = new_target;
+            arguments.with_scoped(
+                agent,
+                |agent, _, gc| {
+                    get_prototype_from_constructor(agent, new_target, ProtoIntrinsics::Array, gc)
+                },
+                gc.reborrow(),
+            )?
         };
         let gc = gc.into_nogc();
-        let proto = proto.bind(gc);
+        crate::engine::bind!(let proto = proto, gc);
 
         // 3. Let numberOfArgs be the number of elements in values.
         // 4. If numberOfArgs = 0, then
@@ -123,7 +116,7 @@ impl ArrayConstructor {
                     agent,
                     int_len as usize,
                     int_len as usize,
-                    proto.map(|p| p.get(agent)),
+                    proto.map(|p| p.get(agent).local()),
                     gc,
                 )?;
                 // e. Perform ! Set(array, "length", intLen, true).
@@ -194,13 +187,13 @@ impl ArrayConstructor {
     fn from<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let this_value = this_value.bind(gc.nogc());
-        let items = arguments.get(0).bind(gc.nogc());
-        let mapfn = arguments.get(1).bind(gc.nogc());
-        let this_arg = arguments.get(2).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let this_value = this_value, gc);
+        crate::engine::bind!(let items = arguments.get(0), gc);
+        crate::engine::bind!(let mapfn = arguments.get(1), gc);
+        crate::engine::bind!(let this_arg = arguments.get(2), gc);
 
         // 1. Let C be the this value.
         // 2. If mapfn is undefined, then
@@ -228,24 +221,20 @@ impl ArrayConstructor {
         // 4. Let usingIterator be ? GetMethod(items, @@iterator).
         let using_iterator = get_method(
             agent,
-            items.unbind(),
+            items,
             WellKnownSymbolIndexes::Iterator.into(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
 
         // 5. If usingIterator is not undefined, then
         if let Some(using_iterator) = using_iterator {
-            let mut using_iterator = using_iterator.unbind().bind(gc.nogc());
+            let mut using_iterator = using_iterator;
             // a. If IsConstructor(C) is true, then
-            let a = if let Some(c) = is_constructor(agent, scoped_this_value.get(agent)) {
+            let a = if let Some(c) = is_constructor(agent, scoped_this_value.get(agent).local()) {
                 let scoped_using_iterator = using_iterator.scope(agent, gc.nogc());
                 // i. Let A be ? Construct(C).
-                let a = construct(agent, c.unbind(), None, None, gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc());
-                using_iterator = scoped_using_iterator.get(agent).bind(gc.nogc());
+                let a = construct(agent, c, None, None, gc.reborrow())?;
+                using_iterator = scoped_using_iterator.get(agent).local();
                 a
             } else {
                 // b. Else,
@@ -262,12 +251,10 @@ impl ArrayConstructor {
                 ..
             }) = get_iterator_from_method(
                 agent,
-                scoped_items.get(agent),
-                using_iterator.unbind(),
+                scoped_items.get(agent).local(),
+                using_iterator,
                 gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc())
+            )?
             .into_iterator_record()
             else {
                 return Err(throw_not_callable(agent, gc.into_nogc()));
@@ -293,8 +280,8 @@ impl ArrayConstructor {
                     // 2. Return ? IteratorClose(iteratorRecord, error).
                     return Err(iterator_close_with_error(
                         agent,
-                        iterator.get(agent),
-                        error.unbind(),
+                        iterator.get(agent).local(),
+                        error,
                         gc,
                     ));
                 }
@@ -310,27 +297,25 @@ impl ArrayConstructor {
                 let Some(next) = iterator_step_value(
                     agent,
                     IteratorRecord {
-                        iterator: iterator.get(agent),
-                        next_method: next_method.get(agent),
+                        iterator: iterator.get(agent).local(),
+                        next_method: next_method.get(agent).local(),
                     },
                     gc.reborrow(),
-                )
-                .unbind()?
-                .bind(gc.nogc()) else {
+                )?
+                else {
                     // iv. If next is done, then
                     // 1. Perform ? Set(A, "length", 𝔽(k), true).
                     set(
                         agent,
-                        a.get(agent),
+                        a.get(agent).local(),
                         PropertyKey::from(BUILTIN_STRING_MEMORY.length),
                         fk,
                         true,
                         gc.reborrow(),
-                    )
-                    .unbind()?;
+                    )?;
 
                     // 2. Return A.
-                    return Ok(a.get(agent).into());
+                    return Ok(a.get(agent).local().into());
                 };
 
                 // v. If mapping is true, then
@@ -338,18 +323,16 @@ impl ArrayConstructor {
                     // 1. Let mappedValue be Completion(Call(mapfn, thisArg, « next, 𝔽(k) »)).
                     let mapped_value = call_function(
                         agent,
-                        mapping.get(agent),
-                        scoped_this_arg.get(agent),
-                        Some(ArgumentsList::from_mut_slice(&mut [next.unbind(), fk])),
+                        mapping.get(agent).local(),
+                        scoped_this_arg.get(agent).local(),
+                        Some(ArgumentsList::from_mut_slice(&mut [next, fk])),
                         gc.reborrow(),
-                    )
-                    .unbind()
-                    .bind(gc.nogc());
+                    )?;
 
                     // 2. IfAbruptCloseIterator(mappedValue, iteratorRecord).
                     let iterator_record = IteratorRecord {
-                        iterator: iterator.get(agent).bind(gc.nogc()),
-                        next_method: next_method.get(agent).bind(gc.nogc()),
+                        iterator: iterator.get(agent).local(),
+                        next_method: next_method.get(agent).local(),
                     };
                     if_abrupt_close_iterator!(agent, mapped_value, iterator_record, gc)
                 } else {
@@ -361,16 +344,15 @@ impl ArrayConstructor {
                 // vii. Let defineStatus be Completion(CreateDataPropertyOrThrow(A, Pk, mappedValue)).
                 let define_status = create_data_property_or_throw(
                     agent,
-                    a.get(agent),
+                    a.get(agent).local(),
                     pk,
-                    mapped_value.unbind(),
+                    mapped_value,
                     gc.reborrow(),
-                )
-                .unbind();
+                );
 
                 let iterator_record = IteratorRecord {
-                    iterator: iterator.get(agent).bind(gc.nogc()),
-                    next_method: next_method.get(agent).bind(gc.nogc()),
+                    iterator: iterator.get(agent).local(),
+                    next_method: next_method.get(agent).local(),
                 };
                 // viii. IfAbruptCloseIterator(defineStatus, iteratorRecord).
                 if_abrupt_close_iterator!(agent, define_status, iterator_record, gc);
@@ -382,16 +364,16 @@ impl ArrayConstructor {
 
         // 6. NOTE: items is not an Iterable so assume it is an array-like object.
         // 7. Let arrayLike be ! ToObject(items).
-        let array_like = to_object(agent, scoped_items.get(agent), gc.nogc())
+        let array_like = to_object(agent, scoped_items.get(agent).local(), gc.nogc())
             .unwrap()
             .scope(agent, gc.nogc());
 
         // 8. Let len be ? LengthOfArrayLike(arrayLike).
-        let len = length_of_array_like(agent, array_like.get(agent), gc.reborrow()).unbind()?;
+        let len = length_of_array_like(agent, array_like.get(agent).local(), gc.reborrow())?;
         let len_value = Value::try_from(len).unwrap();
 
         // 9. If IsConstructor(C) is true, then
-        let a = if let Some(c) = is_constructor(agent, scoped_this_value.get(agent)) {
+        let a = if let Some(c) = is_constructor(agent, scoped_this_value.get(agent).local()) {
             // a. Let A be ? Construct(C, « 𝔽(len) »).
             construct(
                 agent,
@@ -399,16 +381,11 @@ impl ArrayConstructor {
                 Some(ArgumentsList::from_mut_slice(&mut [len_value])),
                 None,
                 gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc())
+            )?
         } else {
             // 10. Else,
             // a. Let A be ? ArrayCreate(len).
-            array_create(agent, len as usize, len as usize, None, gc.nogc())
-                .unbind()?
-                .bind(gc.nogc())
-                .into()
+            array_create(agent, len as usize, len as usize, None, gc.nogc())?.into()
         };
 
         let a = a.scope(agent, gc.nogc());
@@ -426,22 +403,18 @@ impl ArrayConstructor {
             let pk = PropertyKey::from(sk);
 
             // b. Let kValue be ? Get(arrayLike, Pk).
-            let k_value = get(agent, array_like.get(agent), pk, gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let k_value = get(agent, array_like.get(agent).local(), pk, gc.reborrow())?;
 
             // c. If mapping is true, then
             let mapped_value = if let Some(mapping) = &mapping {
                 // i. Let mappedValue be ? Call(mapfn, thisArg, « kValue, 𝔽(k) »).
                 call_function(
                     agent,
-                    mapping.get(agent),
-                    scoped_this_arg.get(agent),
-                    Some(ArgumentsList::from_mut_slice(&mut [k_value.unbind(), fk])),
+                    mapping.get(agent).local(),
+                    scoped_this_arg.get(agent).local(),
+                    Some(ArgumentsList::from_mut_slice(&mut [k_value, fk])),
                     gc.reborrow(),
-                )
-                .unbind()?
-                .bind(gc.nogc())
+                )?
             } else {
                 // d. Else,
                 // i. Let mappedValue be kValue.
@@ -451,12 +424,11 @@ impl ArrayConstructor {
             // e. Perform ? CreateDataPropertyOrThrow(A, Pk, mappedValue).
             create_data_property_or_throw(
                 agent,
-                a.get(agent),
+                a.get(agent).local(),
                 pk,
-                mapped_value.unbind(),
+                mapped_value,
                 gc.reborrow(),
-            )
-            .unbind()?;
+            )?;
 
             // f. Set k to k + 1.
             k += 1;
@@ -465,25 +437,24 @@ impl ArrayConstructor {
         // 13. Perform ? Set(A, "length", 𝔽(len), true).
         set(
             agent,
-            a.get(agent),
+            a.get(agent).local(),
             PropertyKey::from(BUILTIN_STRING_MEMORY.length),
             Value::try_from(len).unwrap(),
             true,
             gc.reborrow(),
-        )
-        .unbind()?;
+        )?;
 
         // 14. Return A.
-        Ok(a.get(agent).into())
+        Ok(a.get(agent).local().into())
     }
 
     /// ### [23.1.2.2 Array.isArray ( arg )](https://tc39.es/ecma262/#sec-array.isarray)
     fn is_array<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         is_array(agent, arguments.get(0), gc.into_nogc()).map(Value::Boolean)
     }
 
@@ -491,18 +462,18 @@ impl ArrayConstructor {
     fn of<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let this_value = this_value.bind(gc.nogc());
-        let arguments = arguments.bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let this_value = this_value, gc);
+        crate::engine::bind!(let arguments = arguments, gc);
 
         // 3. Let C be the this value.
         // 4. If IsConstructor(C) is true, then
         if let Some(c) = is_constructor(agent, this_value) {
             // a. Let A be ? Construct(C, « lenNumber »).
             if c != agent.current_realm_record().intrinsics().array().into() {
-                return array_of_generic(agent, c.unbind(), arguments.unbind(), gc);
+                return array_of_generic(agent, c, arguments, gc);
             }
             // We're constructring an array with the default constructor.
         }
@@ -513,7 +484,7 @@ impl ArrayConstructor {
 
         // 5. Else,
         // a. Let A be ? ArrayCreate(len).
-        let arguments = arguments.unbind();
+        let arguments = arguments;
         let gc = gc.into_nogc();
         let a = array_create(agent, len, len, None, gc)?;
 
@@ -548,10 +519,10 @@ impl ArrayConstructor {
     fn get_species<'gc>(
         _: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        Ok(this_value.bind(gc.into_nogc()))
+    ) -> JsResult<'static, Value<'static>> {
+        Ok(this_value)
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -574,68 +545,62 @@ impl ArrayConstructor {
 fn array_of_generic<'gc>(
     agent: &mut Agent,
     c: Function,
-    args: ArgumentsList,
+    args: ArgumentsList<'_, 'static>,
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, Value<'gc>> {
-    let c = c.bind(gc.nogc());
-    let args = args.bind(gc.nogc());
+) -> JsResult<'static, Value<'static>> {
+    crate::engine::bind!(let c = c, gc);
+    crate::engine::bind!(let args = args, gc);
     let len_number = args.len();
     let a = {
-        let c = c.unbind();
-        args.unbind()
-            .with_scoped(
-                agent,
-                |agent, args, mut gc| {
-                    // a. Let A be ? Construct(C, « lenNumber »).
-                    let mut len_number = Number::try_from(len_number).unwrap().into();
-                    let a = construct(
+        let c = c;
+        args.with_scoped(
+            agent,
+            |agent, args, mut gc| {
+                // a. Let A be ? Construct(C, « lenNumber »).
+                let mut len_number = Number::try_from(len_number).unwrap().into();
+                let a = construct(
+                    agent,
+                    c,
+                    Some(ArgumentsList::from_mut_value(&mut len_number)),
+                    None,
+                    gc.reborrow(),
+                )?
+                .scope(agent, gc.nogc());
+
+                // 6. Let k be 0.
+                // 7. Repeat, while k < len,
+                for (k, k_value) in args.iter(agent).enumerate() {
+                    // a. Let kValue be items[k].
+
+                    let pk = PropertyKey::try_from(k).unwrap();
+
+                    // c. Perform ? CreateDataPropertyOrThrow(A, Pk, kValue).
+                    create_data_property_or_throw(
                         agent,
-                        c.unbind(),
-                        Some(ArgumentsList::from_mut_value(&mut len_number)),
-                        None,
+                        a.get(agent).local(),
+                        pk,
+                        k_value.get(gc.nogc()),
                         gc.reborrow(),
-                    )
-                    .unbind()?
-                    .scope(agent, gc.nogc());
+                    )?;
 
-                    // 6. Let k be 0.
-                    // 7. Repeat, while k < len,
-                    for (k, k_value) in args.iter(agent).enumerate() {
-                        // a. Let kValue be items[k].
-
-                        let pk = PropertyKey::try_from(k).unwrap();
-
-                        // c. Perform ? CreateDataPropertyOrThrow(A, Pk, kValue).
-                        create_data_property_or_throw(
-                            agent,
-                            a.get(agent),
-                            pk,
-                            k_value.get(gc.nogc()).unbind(),
-                            gc.reborrow(),
-                        )
-                        .unbind()?;
-
-                        // d. Set k to k + 1.
-                    }
-                    JsResult::Ok(a.get(agent))
-                },
-                gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc())
+                    // d. Set k to k + 1.
+                }
+                JsResult::Ok(a.get(agent).local())
+            },
+            gc.reborrow(),
+        )?
     };
 
     let scoped_a = a.scope(agent, gc.nogc());
     // 8. Perform ? Set(A, "length", lenNumber, true).
     set(
         agent,
-        a.unbind(),
+        a,
         PropertyKey::from(BUILTIN_STRING_MEMORY.length),
         Number::try_from(len_number).unwrap().into(),
         true,
         gc.reborrow(),
-    )
-    .unbind()?;
+    )?;
 
-    Ok(scoped_a.get(agent).unbind().into())
+    Ok(scoped_a.get(agent).local().into())
 }

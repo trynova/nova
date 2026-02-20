@@ -67,16 +67,15 @@ impl SymbolPrototype {
     fn get_description<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Let s be the this value.
         // 2. Let sym be ? ThisSymbolValue(s).
-        let sym = this_symbol_value(agent, this_value, gc.nogc())
-            .unbind()?
-            .bind(gc.into_nogc());
+        let sym = this_symbol_value(agent, this_value, gc.nogc())?;
         // 3. Return sym.[[Description]].
         sym.get(agent)
+            .local()
             .descriptor
             .map_or_else(|| Ok(Value::Undefined), |desc| Ok(desc.into()))
     }
@@ -85,11 +84,11 @@ impl SymbolPrototype {
     fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let this_value = this_value.bind(gc);
+        crate::engine::bind!(let this_value = this_value, gc);
         // 1. Let sym be ? ThisSymbolValue(this value).
         let symb = this_symbol_value(agent, this_value, gc)?;
         // 2. Return SymbolDescriptiveString(sym).
@@ -100,11 +99,11 @@ impl SymbolPrototype {
     fn value_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let this_value = this_value.bind(gc);
+        crate::engine::bind!(let this_value = this_value, gc);
         // 1. Return ? ThisSymbolValue(this value).
         this_symbol_value(agent, this_value, gc).map(|res| res.into())
     }
@@ -141,9 +140,9 @@ fn this_symbol_value<'a>(
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, Symbol<'a>> {
     match value {
-        Value::Symbol(symbol) => Ok(symbol.unbind()),
+        Value::Symbol(symbol) => Ok(symbol),
         Value::PrimitiveObject(object) if object.is_symbol_object(agent) => {
-            let s: Symbol = object.get(agent).data.try_into().unwrap();
+            let s: Symbol = object.get(agent).local().data.try_into().unwrap();
             Ok(s)
         }
         _ => Err(agent.throw_exception_with_static_message(
@@ -164,7 +163,7 @@ fn symbol_descriptive_string<'gc>(
     gc: NoGcScope<'gc, '_>,
 ) -> String<'gc> {
     // 1. Let desc be sym's [[Description]] value.
-    let desc = sym.get(agent).descriptor;
+    let desc = sym.get(agent).local().descriptor;
     // 2. If desc is undefined, set desc to the empty String.
     if let Some(desc) = desc {
         // 3. Assert: desc is a String.

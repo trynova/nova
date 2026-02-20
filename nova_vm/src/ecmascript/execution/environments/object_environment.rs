@@ -68,11 +68,11 @@ impl ObjectEnvironmentRecord {
         // 1. Let env be a new Object Environment Record.
         ObjectEnvironmentRecord {
             // 2. Set env.[[BindingObject]] to O.
-            binding_object: binding_object.unbind(),
+            binding_object: binding_object,
             // 3. Set env.[[IsWithEnvironment]] to W.
             is_with_environment,
             // 4. Set env.[[OuterEnv]] to E.
-            outer_env: outer_env.unbind(),
+            outer_env: outer_env,
         }
         // 5. Return env.
     }
@@ -124,9 +124,9 @@ impl<'e> ObjectEnvironment<'e> {
     ) -> ControlFlow<TryError<'gc>, TryHasBindingContinue<'gc>> {
         let env_rec = &self.get(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
-        let binding_object = env_rec.binding_object.bind(gc);
+        crate::engine::bind!(let binding_object = env_rec.binding_object, gc);
         let is_with_environment = env_rec.is_with_environment;
-        let name = PropertyKey::from(n).bind(gc);
+        crate::engine::bind!(let name = PropertyKey::from(n), gc);
 
         // 2. Let foundBinding be ? HasProperty(bindingObject, N).
         let found_binding = try_has_property(agent, binding_object, name, cache, gc)?;
@@ -185,13 +185,13 @@ impl<'e> ObjectEnvironment<'e> {
         self,
         agent: &mut Agent,
         n: String,
-        mut gc: GcScope<'a, '_>,
-    ) -> JsResult<'a, bool> {
+        mut gc: GcScope,
+    ) -> JsResult<'static, bool> {
         let env_rec = &self.get(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
-        let binding_object = env_rec.binding_object.bind(gc.nogc());
+        crate::engine::bind!(let binding_object = env_rec.binding_object, gc);
         let is_with_environment = env_rec.is_with_environment;
-        let name = PropertyKey::from(n).bind(gc.nogc());
+        crate::engine::bind!(let name = PropertyKey::from(n), gc);
 
         if !is_with_environment
             && let Object::Object(binding_object) = binding_object
@@ -205,8 +205,7 @@ impl<'e> ObjectEnvironment<'e> {
         let scoped_binding_object = binding_object.scope(agent, gc.nogc());
         let scoped_name = name.scope(agent, gc.nogc());
         // 2. Let foundBinding be ? HasProperty(bindingObject, N).
-        let found_binding =
-            has_property(agent, binding_object.unbind(), name.unbind(), gc.reborrow()).unbind()?;
+        let found_binding = has_property(agent, binding_object, name, gc.reborrow())?;
         // 3. If foundBinding is false, return false.
         if !found_binding {
             return Ok(false);
@@ -218,23 +217,19 @@ impl<'e> ObjectEnvironment<'e> {
         // 5. Let unscopables be ? Get(bindingObject, @@unscopables).
         let unscopables = get(
             agent,
-            scoped_binding_object.get(agent),
+            scoped_binding_object.get(agent).local(),
             PropertyKey::Symbol(WellKnownSymbolIndexes::Unscopables.into()),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         // 6. If unscopables is an Object, then
         if let Ok(unscopables) = Object::try_from(unscopables) {
             // a. Let blocked be ToBoolean(? Get(unscopables, N)).
             let blocked = get(
                 agent,
-                unscopables.unbind(),
-                scoped_name.get(agent),
+                unscopables,
+                scoped_name.get(agent).local(),
                 gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc());
+            )?;
             let blocked = to_boolean(agent, blocked);
             // b. If blocked is true, return false.
             Ok(!blocked)
@@ -263,14 +258,14 @@ impl<'e> ObjectEnvironment<'e> {
     ) -> TryResult<'a, ()> {
         let env_rec = &self.get(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
-        let binding_object = env_rec.binding_object.bind(gc);
+        crate::engine::bind!(let binding_object = env_rec.binding_object, gc);
         // 2. Perform ? DefinePropertyOrThrow(bindingObject, N, PropertyDescriptor { [[Value]]: undefined, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: D }).
         // 3. Return UNUSED.
-        let n = PropertyKey::from(n).bind(gc);
+        crate::engine::bind!(let n = PropertyKey::from(n), gc);
         try_define_property_or_throw(
             agent,
-            binding_object.unbind(),
-            n.unbind(),
+            binding_object,
+            n,
             PropertyDescriptor {
                 value: Some(Value::Undefined),
                 writable: Some(true),
@@ -303,18 +298,18 @@ impl<'e> ObjectEnvironment<'e> {
         agent: &mut Agent,
         n: String,
         d: bool,
-        gc: GcScope<'a, '_>,
+        gc: GcScope,
     ) -> JsResult<'a, ()> {
         let env_rec = &self.get(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
-        let binding_object = env_rec.binding_object.bind(gc.nogc());
-        let n = PropertyKey::from(n).bind(gc.nogc());
+        crate::engine::bind!(let binding_object = env_rec.binding_object, gc);
+        crate::engine::bind!(let n = PropertyKey::from(n), gc);
 
         // 2. Perform ? DefinePropertyOrThrow(bindingObject, N, PropertyDescriptor { [[Value]]: undefined, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: D }).
         define_property_or_throw(
             agent,
-            binding_object.unbind(),
-            n.unbind(),
+            binding_object,
+            n,
             PropertyDescriptor {
                 value: Some(Value::Undefined),
                 writable: Some(true),
@@ -380,7 +375,7 @@ impl<'e> ObjectEnvironment<'e> {
         n: String,
         cache: Option<PropertyLookupCache>,
         v: Value,
-        gc: GcScope<'a, '_>,
+        gc: GcScope,
     ) -> JsResult<'a, ()> {
         // 1. Perform ? envRec.SetMutableBinding(N, V, false).
         self.set_mutable_binding(agent, n, cache, v, false, gc)?;
@@ -415,8 +410,8 @@ impl<'e> ObjectEnvironment<'e> {
     ) -> TryResult<'gc, SetResult<'gc>> {
         let env_rec = &self.get(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
-        let binding_object = env_rec.binding_object.bind(gc);
-        let n = PropertyKey::from(n).bind(gc);
+        crate::engine::bind!(let binding_object = env_rec.binding_object, gc);
+        crate::engine::bind!(let n = PropertyKey::from(n), gc);
 
         // 2. Let stillExists be ? HasProperty(bindingObject, N).
         let still_exists = match try_has_property(agent, binding_object, n, cache, gc) {
@@ -449,10 +444,10 @@ impl<'e> ObjectEnvironment<'e> {
             let result = object.set_at_offset(
                 agent,
                 &SetAtOffsetProps {
-                    p: n.bind(gc),
-                    receiver: binding_object.bind(gc).into(),
-                    cache: cache.bind(gc),
-                    value: v.bind(gc),
+                    p: n,
+                    receiver: binding_object.into(),
+                    cache: cache,
+                    value: v,
                 },
                 offset,
                 gc,
@@ -486,15 +481,15 @@ impl<'e> ObjectEnvironment<'e> {
         cache: Option<PropertyLookupCache>,
         v: Value,
         s: bool,
-        gc: GcScope<'a, '_>,
+        gc: GcScope,
     ) -> JsResult<'a, ()> {
-        let env = self.bind(gc.nogc());
-        let env_rec = &env.get(agent);
+        crate::engine::bind!(let env = self, gc);
+        let env_rec = &env.get(agent).local();
         // 1. Let bindingObject be envRec.[[BindingObject]].
-        let binding_object = env_rec.binding_object.bind(gc.nogc());
-        let n = PropertyKey::from(n).bind(gc.nogc());
-        let cache = cache.bind(gc.nogc());
-        let v = v.bind(gc.nogc());
+        crate::engine::bind!(let binding_object = env_rec.binding_object, gc);
+        crate::engine::bind!(let n = PropertyKey::from(n), gc);
+        crate::engine::bind!(let cache = cache, gc);
+        crate::engine::bind!(let v = v, gc);
 
         if let Some(cache) = cache
             && let Some(result) = try_result_into_js(Self::set_mutable_binding_cached_inner(
@@ -505,45 +500,27 @@ impl<'e> ObjectEnvironment<'e> {
                 v,
                 s,
                 gc.nogc(),
-            ))
-            .unbind()?
-            .bind(gc.nogc())
+            ))?
         {
             match result {
                 SetResult::Done | SetResult::Unwritable | SetResult::Accessor => {}
                 SetResult::Set(setter) => {
                     call_function(
                         agent,
-                        setter.unbind(),
-                        binding_object.unbind().into(),
-                        Some(ArgumentsList::from_mut_value(&mut v.unbind())),
+                        setter,
+                        binding_object.into(),
+                        Some(ArgumentsList::from_mut_value(&mut v)),
                         gc,
                     )?;
                 }
                 SetResult::Proxy(proxy) => {
-                    call_proxy_set(
-                        agent,
-                        proxy.unbind(),
-                        n.unbind(),
-                        v.unbind(),
-                        binding_object.unbind().into(),
-                        s,
-                        gc,
-                    )?;
+                    call_proxy_set(agent, proxy, n, v, binding_object.into(), s, gc)?;
                 }
             }
             return Ok(());
         }
 
-        Self::set_mutable_binding_inner(
-            agent,
-            binding_object.unbind(),
-            n.unbind(),
-            cache.unbind(),
-            v.unbind(),
-            s,
-            gc,
-        )
+        Self::set_mutable_binding_inner(agent, binding_object, n, cache, v, s, gc)
     }
 
     /// Inner method for setting a mutable binding with a property lookup
@@ -597,38 +574,38 @@ impl<'e> ObjectEnvironment<'e> {
         _cache: Option<PropertyLookupCache>,
         v: Value,
         s: bool,
-        mut gc: GcScope<'a, '_>,
+        mut gc: GcScope,
     ) -> JsResult<'a, ()> {
-        let binding_object = binding_object.bind(gc.nogc());
-        let n = n.bind(gc.nogc());
-        let v = v.bind(gc.nogc());
+        crate::engine::bind!(let binding_object = binding_object, gc);
+        crate::engine::bind!(let n = n, gc);
+        crate::engine::bind!(let v = v, gc);
 
         let scoped_binding_object = binding_object.scope(agent, gc.nogc());
         let scoped_n = n.scope(agent, gc.nogc());
         let scoped_v = v.scope(agent, gc.nogc());
 
         // 2. Let stillExists be ? HasProperty(bindingObject, N).
-        let still_exists = has_property(agent, binding_object.unbind(), n.unbind(), gc.reborrow());
+        let still_exists = has_property(agent, binding_object, n, gc.reborrow());
 
-        let still_exists = still_exists.unbind()?;
+        let still_exists = still_exists?;
 
         // 3. If stillExists is false and S is true, throw a ReferenceError exception.
         if !still_exists && s {
-            let binding_object_repr =
-                Value::from(scoped_binding_object.get(agent)).string_repr(agent, gc.reborrow());
+            let binding_object_repr = Value::from(scoped_binding_object.get(agent).local())
+                .string_repr(agent, gc.reborrow());
             Err(Self::throw_property_doesnt_exist_error(
                 agent,
-                binding_object_repr.unbind(),
-                scoped_n.get(agent),
+                binding_object_repr,
+                scoped_n.get(agent).local(),
                 gc.into_nogc(),
             ))
         } else {
             // 4. Perform ? Set(bindingObject, N, V, S).
             set(
                 agent,
-                scoped_binding_object.get(agent),
-                scoped_n.get(agent),
-                scoped_v.get(agent),
+                scoped_binding_object.get(agent).local(),
+                scoped_n.get(agent).local(),
+                scoped_v.get(agent).local(),
                 s,
                 gc,
             )?;
@@ -669,8 +646,8 @@ impl<'e> ObjectEnvironment<'e> {
     ) -> TryResult<'e, Value<'e>> {
         let env_rec = &self.get(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
-        let binding_object = env_rec.binding_object.bind(gc);
-        let name = PropertyKey::from(n).bind(gc);
+        crate::engine::bind!(let binding_object = env_rec.binding_object, gc);
+        crate::engine::bind!(let name = PropertyKey::from(n), gc);
 
         // 2. Let value be ? HasProperty(bindingObject, N).
         let value = match try_has_property(agent, binding_object, name, cache, gc) {
@@ -720,22 +697,22 @@ impl<'e> ObjectEnvironment<'e> {
         agent: &mut Agent,
         name: String,
         s: bool,
-        mut gc: GcScope<'a, '_>,
-    ) -> JsResult<'a, Value<'a>> {
+        mut gc: GcScope,
+    ) -> JsResult<'static, Value<'static>> {
         let env_rec = &self.get(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
-        let binding_object = env_rec.binding_object.bind(gc.nogc());
-        let name = PropertyKey::from(name).bind(gc.nogc());
+        crate::engine::bind!(let binding_object = env_rec.binding_object, gc);
+        crate::engine::bind!(let name = PropertyKey::from(name), gc);
 
         if let Object::Object(binding_object) = binding_object
             && let Ok(value) = try_get_ordinary_object_value(agent, binding_object, name)
         {
             return if let Some(value) = value {
                 // Found the property value.
-                Ok(value.unbind())
+                Ok(value)
             } else {
                 // Property did not exist.
-                Self::handle_property_not_found(agent, name.unbind(), s, gc.into_nogc())
+                Self::handle_property_not_found(agent, name, s, gc.into_nogc())
             };
         }
 
@@ -743,17 +720,21 @@ impl<'e> ObjectEnvironment<'e> {
         let scoped_name = name.scope(agent, gc.nogc());
 
         // 2. Let value be ? HasProperty(bindingObject, N).
-        let value =
-            has_property(agent, binding_object.unbind(), name.unbind(), gc.reborrow()).unbind()?;
+        let value = has_property(agent, binding_object, name, gc.reborrow())?;
         // 3. If value is false, then
         if !value {
-            Self::handle_property_not_found(agent, scoped_name.get(agent), s, gc.into_nogc())
+            Self::handle_property_not_found(
+                agent,
+                scoped_name.get(agent).local(),
+                s,
+                gc.into_nogc(),
+            )
         } else {
             // 4. Return ? Get(bindingObject, N).
             get(
                 agent,
-                scoped_binding_object.get(agent),
-                scoped_name.get(agent),
+                scoped_binding_object.get(agent).local(),
+                scoped_name.get(agent).local(),
                 gc,
             )
         }
@@ -764,7 +745,7 @@ impl<'e> ObjectEnvironment<'e> {
         name: PropertyKey,
         s: bool,
         gc: NoGcScope<'a, '_>,
-    ) -> JsResult<'a, Value<'a>> {
+    ) -> JsResult<'static, Value<'static>> {
         // a. If S is false, return undefined; otherwise throw a ReferenceError exception.
         if !s {
             Ok(Value::Undefined)
@@ -809,8 +790,8 @@ impl<'e> ObjectEnvironment<'e> {
         self,
         agent: &mut Agent,
         name: String,
-        gc: GcScope<'a, '_>,
-    ) -> JsResult<'a, bool> {
+        gc: GcScope,
+    ) -> JsResult<'static, bool> {
         let env_rec = &self.get(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_boject = env_rec.binding_object;

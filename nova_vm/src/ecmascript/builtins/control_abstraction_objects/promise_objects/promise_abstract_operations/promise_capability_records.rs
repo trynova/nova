@@ -45,7 +45,7 @@ impl<'a> PromiseCapability<'a> {
     /// NOTE: Our implementation doesn't take C as a parameter, since we don't
     /// yet support promise subclassing.
     pub fn new(agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Self {
-        Self::from_promise(agent.heap.create(PromiseHeapData::default()), true).bind(gc)
+        Self::from_promise(agent.heap.create(PromiseHeapData::default()), true)
     }
 
     pub fn from_promise(promise: Promise<'a>, must_be_unresolved: bool) -> Self {
@@ -63,7 +63,7 @@ impl<'a> PromiseCapability<'a> {
         // If `self.must_be_unresolved` is true, then `alreadyResolved`
         // corresponds with the `is_resolved` flag in PromiseState::Pending.
         // Otherwise, it corresponds to `promise_state` not being Pending.
-        match self.promise.get(agent).promise_state {
+        match self.promise.get(agent).local().promise_state {
             PromiseState::Pending { is_resolved, .. } => {
                 if self.must_be_unresolved {
                     is_resolved
@@ -91,7 +91,7 @@ impl<'a> PromiseCapability<'a> {
         // 5. Set promise.[[PromiseRejectReactions]] to undefined.
         // 6. Set promise.[[PromiseState]] to FULFILLED.
         *promise_state = PromiseState::Fulfilled {
-            promise_result: value.unbind(),
+            promise_result: value,
         };
         // 7. Perform TriggerPromiseReactions(reactions, value)
         if let Some(reactions) = reactions {
@@ -117,7 +117,7 @@ impl<'a> PromiseCapability<'a> {
         // NOTE: [[PromiseIsHandled]] for pending promises corresponds to
         // whether [[PromiseRejectReactions]] is not empty.
         *promise_state = PromiseState::Rejected {
-            promise_result: reason.unbind(),
+            promise_result: reason,
             is_handled: reactions.is_some(),
         };
 
@@ -134,8 +134,8 @@ impl<'a> PromiseCapability<'a> {
 
     ///### [27.2.1.3.2 Promise Resolve Functions](https://tc39.es/ecma262/#sec-promise-resolve-functions)
     pub fn resolve(self, agent: &mut Agent, resolution: Value, mut gc: GcScope) {
-        let promise_capability = self.bind(gc.nogc());
-        let resolution = resolution.bind(gc.nogc());
+        crate::engine::bind!(let promise_capability = self, gc);
+        crate::engine::bind!(let resolution = resolution, gc);
         // 1. Let F be the active function object.
         // 2. Assert: F has a [[Promise]] internal slot whose value is an Object.
         // 3. Let promise be F.[[Promise]].
@@ -148,7 +148,7 @@ impl<'a> PromiseCapability<'a> {
             promise,
             must_be_unresolved,
         } = promise_capability;
-        let promise = promise.bind(gc.nogc());
+        crate::engine::bind!(let promise = promise, gc);
         // 6. Set alreadyResolved.[[Value]] to true.
         promise.set_already_resolved(agent);
 
@@ -162,7 +162,7 @@ impl<'a> PromiseCapability<'a> {
                     "Tried to resolve a promise with itself.",
                     gc.nogc(),
                 )
-                .unbind();
+                ;
             promise_capability.internal_reject(agent, exception, gc.nogc());
             // c. Return undefined.
             return;
@@ -181,40 +181,40 @@ impl<'a> PromiseCapability<'a> {
         // 9. Let then be Completion(Get(resolution, "then")).
         let then_action = match get(
             agent,
-            resolution.unbind(),
+            resolution,
             BUILTIN_STRING_MEMORY.then.into(),
             gc.reborrow(),
         ) {
             // 11. Let thenAction be then.[[Value]].
-            Ok(then_action) => then_action.unbind().bind(gc.nogc()),
+            Ok(then_action) => then_action,
             // 10. If then is an abrupt completion, then
             Err(err) => {
                 // a. Perform RejectPromise(promise, then.[[Value]]).
                 PromiseCapability {
-                    promise: promise.get(agent),
+                    promise: promise.get(agent).local(),
                     must_be_unresolved,
                 }
-                .internal_reject(agent, err.value().unbind(), gc.nogc());
+                .internal_reject(agent, err.value(), gc.nogc());
                 // b. Return undefined.
                 return;
             }
         };
 
-        let resolution = scoped_resolution.get(agent).bind(gc.nogc());
+        crate::engine::bind!(let resolution = scoped_resolution.get(agent).local(), gc);
         // 12. If IsCallable(thenAction) is false, then
         // TODO: Callable proxies
         let Ok(then_action) = Function::try_from(then_action) else {
             // a. Perform FulfillPromise(promise, resolution).
             PromiseCapability {
-                promise: promise.get(agent),
+                promise: promise.get(agent).local(),
                 must_be_unresolved,
             }
-            .internal_fulfill(agent, resolution.unbind().into(), gc.nogc());
+            .internal_fulfill(agent, resolution.into(), gc.nogc());
             // b. Return undefined.
             return;
         };
         // SAFETY: Promise is not shared.
-        let promise = unsafe { promise.take(agent) }.bind(gc.nogc());
+        crate::engine::bind!(let promise = unsafe { promise.take(agent).local() }, gc);
 
         // 13. Let thenJobCallback be HostMakeJobCallback(thenAction).
         // TODO: Add the HostMakeJobCallback host hook. Leaving it for later, since in
@@ -222,9 +222,9 @@ impl<'a> PromiseCapability<'a> {
         // 14. Let job be NewPromiseResolveThenableJob(promise, resolution, thenJobCallback).
         let job = new_promise_resolve_thenable_job(
             agent,
-            promise.unbind(),
-            resolution.unbind(),
-            then_action.unbind(),
+            promise,
+            resolution,
+            then_action,
             gc.into_nogc(),
         );
         // 15. Perform HostEnqueuePromiseJob(job.[[Job]], job.[[Realm]]).
@@ -263,7 +263,7 @@ impl<'a> PromiseCapability<'a> {
                     "Tried to resolve a promise with itself.",
                     gc,
                 )
-                .unbind();
+                ;
             self.internal_reject(agent, exception, gc);
             // c. Return undefined.
             return TryResult::Continue(());
@@ -333,7 +333,7 @@ impl<'a> PromiseCapability<'a> {
 
         // 6. Set alreadyResolved.[[Value]] to true.
         debug_assert!(matches!(
-            promise.get(agent).promise_state,
+            promise.get(agent).local().promise_state,
             PromiseState::Rejected { .. }
         ));
     }
@@ -385,7 +385,7 @@ pub(crate) fn if_abrupt_reject_promise<'gc, T: 'gc>(
     gc: NoGcScope<'gc, '_>,
 ) -> Result<T, Promise<'gc>> {
     value.map_err(|err| {
-        let promise = capability.promise().bind(gc);
+        crate::engine::bind!(let promise = capability.promise(), gc);
         capability.reject(agent, err.value(), gc);
 
         // Note: We return an error here so that caller gets to call this
@@ -397,18 +397,18 @@ pub(crate) fn if_abrupt_reject_promise<'gc, T: 'gc>(
 macro_rules! if_abrupt_reject_promise_m {
     ($agent:ident, $value:ident, $capability:ident, $gc:ident) => {
         // 1. Assert: value is a Completion Record.
-        match $value.unbind().bind($gc.nogc()) {
+        match $value {
             // 2. If value is an abrupt completion, then
             Err(err) => {
                 // a. Perform ? Call(capability.[[Reject]], undefined, « value.[[Value]] »).
-                $capability.reject($agent, err.value().unbind(), $gc.nogc());
+                $capability.reject($agent, err.value(), $gc.nogc());
                 // b. Return capability.[[Promise]].
-                return $capability.promise.unbind().bind($gc.into_nogc()).into();
+                return $capability.promise.into();
             }
             // 3. Else,
             Ok(value) => {
                 // a. Set value to ! value.
-                value.unbind().bind($gc.nogc())
+                value
             }
         }
     };

@@ -55,15 +55,15 @@ impl BuiltinGetter for MapGetSpecies {}
 impl MapConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
-        _: Value,
-        arguments: ArgumentsList,
+        _: Value<'static>,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let nogc = gc.nogc();
-        let iterable = arguments.get(0).bind(nogc);
+        let iterable = arguments.get(0);
         let no_iterable = iterable.is_undefined() || iterable.is_null();
-        let new_target = new_target.bind(nogc);
+        crate::engine::bind!(let new_target = new_target, gc);
 
         // If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
@@ -79,23 +79,19 @@ impl MapConstructor {
         if no_iterable {
             return Ok(ordinary_create_from_constructor(
                 agent,
-                new_target.unbind(),
+                new_target,
                 ProtoIntrinsics::Map,
                 gc,
             )?
             .into());
         }
         let iterable = iterable.scope(agent, nogc);
-        let mut map = Map::try_from(
-            ordinary_create_from_constructor(
-                agent,
-                new_target.unbind(),
-                ProtoIntrinsics::Map,
-                gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc()),
-        )
+        let mut map = Map::try_from(ordinary_create_from_constructor(
+            agent,
+            new_target,
+            ProtoIntrinsics::Map,
+            gc.reborrow(),
+        )?)
         .unwrap();
         // 3. Set map.[[MapData]] to a new empty List.
         // Note
@@ -118,22 +114,20 @@ impl MapConstructor {
             ControlFlow::Continue(TryGetResult::Unset) => Value::Undefined,
             ControlFlow::Continue(TryGetResult::Value(v)) => v,
             ControlFlow::Break(TryError::Err(e)) => {
-                return Err(e.unbind().bind(gc.into_nogc()));
+                return Err(e);
             }
             _ => {
                 let scoped_map = map.scope(agent, gc.nogc());
                 let adder = handle_try_get_result(
                     agent,
-                    map.unbind(),
+                    map,
                     BUILTIN_STRING_MEMORY.set.to_property_key(),
-                    adder.unbind(),
+                    adder,
                     gc.reborrow(),
-                )
-                .unbind()?
-                .bind(gc.nogc());
+                )?;
                 let gc = gc.nogc();
                 // SAFETY: not shared.
-                map = unsafe { scoped_map.take(agent).bind(gc) };
+                map = unsafe { scoped_map.take(agent).local() };
                 adder
             }
         };
@@ -148,9 +142,9 @@ impl MapConstructor {
         // 7. Return ? AddEntriesFromIterable(map, iterable, adder).
         add_entries_from_iterable_map_constructor(
             agent,
-            map.unbind(),
-            iterable.get(agent),
-            adder.unbind(),
+            map,
+            iterable.get(agent).local(),
+            adder,
             gc,
         )
         .map(|result| result.into())
@@ -160,20 +154,18 @@ impl MapConstructor {
     fn group_by<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let items = arguments.get(0).bind(gc.nogc());
-        let callback_fn = arguments.get(1).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let items = arguments.get(0), gc);
+        crate::engine::bind!(let callback_fn = arguments.get(1), gc);
         // 1. Let groups be ? GroupBy(items, callback, collection).
-        let groups =
-            group_by_collection(agent, items.unbind(), callback_fn.unbind(), gc.reborrow())
-                .unbind()?;
+        let groups = group_by_collection(agent, items, callback_fn, gc.reborrow())?;
         // 2. Let map be ! Construct(%Map%).
         let gc = gc.into_nogc();
-        let groups = groups.bind(gc);
+        crate::engine::bind!(let groups = groups, gc);
         let map_data = MapHeapData::with_capacity(groups.len());
-        let map = agent.heap.create(map_data).bind(gc);
+        crate::engine::bind!(let map = agent.heap.create(map_data), gc);
 
         // 3. For each Record { [[Key]], [[Elements]] } g of groups, do
         let keys_and_elements = groups
@@ -214,15 +206,15 @@ impl MapConstructor {
             match entry {
                 hashbrown::hash_table::Entry::Occupied(occupied) => {
                     let index = *occupied.get();
-                    values[index as usize] = Some(elements.unbind().into());
+                    values[index as usize] = Some(elements.into());
                 }
                 hashbrown::hash_table::Entry::Vacant(vacant) => {
                     // b. Let entry be the Record { [[Key]]: g.[[Key]], [[Value]]: elements }.
                     // c. Append entry to map.[[MapData]].
                     let index = u32::try_from(values.len()).unwrap();
                     vacant.insert(index);
-                    keys.push(Some(key.unbind()));
-                    values.push(Some(elements.unbind().into()));
+                    keys.push(Some(key));
+                    values.push(Some(elements.into()));
                 }
             }
         }
@@ -233,10 +225,10 @@ impl MapConstructor {
     fn get_species<'gc>(
         _: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        Ok(this_value.unbind())
+    ) -> JsResult<'static, Value<'static>> {
+        Ok(this_value)
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -262,14 +254,14 @@ pub(crate) fn add_entries_from_iterable_map_constructor<'a>(
     target: Map,
     iterable: Value,
     adder: Function,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> JsResult<'a, Map<'a>> {
     let nogc = gc.nogc();
-    let mut target = target.bind(nogc);
-    let mut iterable = iterable.bind(nogc);
-    let mut adder = adder.bind(nogc);
+    let mut target = target;
+    let mut iterable = iterable;
+    let mut adder = adder;
     if let Function::BuiltinFunction(bf) = adder
-        && bf.get(agent).behaviour == MapPrototypeSet::BEHAVIOUR
+        && bf.get(agent).local().behaviour == MapPrototypeSet::BEHAVIOUR
     {
         // Normal Map.prototype.set
         if let Value::Array(arr_iterable) = iterable {
@@ -278,13 +270,11 @@ pub(crate) fn add_entries_from_iterable_map_constructor<'a>(
             let scoped_adder = bf.scope(agent, nogc);
             let using_iterator = get_method(
                 agent,
-                arr_iterable.unbind().into(),
+                arr_iterable.into(),
                 WellKnownSymbolIndexes::Iterator.into(),
                 gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc());
-            target = scoped_target.get(agent).bind(gc.nogc());
+            )?;
+            target = scoped_target.get(agent).local();
             if using_iterator
                 == Some(
                     agent
@@ -294,7 +284,7 @@ pub(crate) fn add_entries_from_iterable_map_constructor<'a>(
                         .into(),
                 )
             {
-                let arr_iterable = scoped_iterable.get(agent).bind(gc.nogc());
+                crate::engine::bind!(let arr_iterable = scoped_iterable.get(agent).local(), gc);
                 let Heap {
                     elements,
                     arrays,
@@ -310,7 +300,7 @@ pub(crate) fn add_entries_from_iterable_map_constructor<'a>(
                 // Iterable uses the normal Array iterator of this realm.
                 if arr_elements.is_empty() {
                     // Array iterator does not iterate empty arrays.
-                    return Ok(scoped_target.get(agent).bind(gc.into_nogc()));
+                    return Ok(scoped_target.get(agent).local());
                 }
                 if arr_elements.is_trivial(&array_heap)
                     && arr_elements
@@ -349,10 +339,9 @@ pub(crate) fn add_entries_from_iterable_map_constructor<'a>(
                             unreachable!()
                         };
                         let slice = entry.as_slice(&array_heap);
-                        let key =
-                            canonicalize_keyed_collection_key(numbers, slice[0].unwrap().bind(gc));
+                        let key = canonicalize_keyed_collection_key(numbers, slice[0].unwrap());
                         let key_hash = hasher(key);
-                        let value = slice[1].unwrap().bind(gc);
+                        crate::engine::bind!(let value = slice[1].unwrap(), gc);
                         let next_index = keys.len() as u32;
                         let entry = map_data.entry(
                             key_hash,
@@ -364,31 +353,25 @@ pub(crate) fn add_entries_from_iterable_map_constructor<'a>(
                                 // We have duplicates in the array. Latter
                                 // ones overwrite earlier ones.
                                 let index = *occupied.get();
-                                values[index as usize] = Some(value.unbind());
+                                values[index as usize] = Some(value);
                             }
                             hashbrown::hash_table::Entry::Vacant(vacant) => {
                                 vacant.insert(next_index);
-                                keys.push(Some(key.unbind()));
-                                values.push(Some(value.unbind()));
+                                keys.push(Some(key));
+                                values.push(Some(value));
                             }
                         }
                     }
-                    return Ok(scoped_target.get(agent));
+                    return Ok(scoped_target.get(agent).local());
                 }
             }
             let gc = gc.nogc();
-            iterable = scoped_iterable.get(agent).bind(gc).into();
-            adder = scoped_adder.get(agent).bind(gc).into();
+            iterable = scoped_iterable.get(agent).local();
+            adder = scoped_adder.get(agent).local();
         }
     }
 
-    add_entries_from_iterable(
-        agent,
-        target.unbind(),
-        iterable.unbind(),
-        adder.unbind(),
-        gc,
-    )
+    add_entries_from_iterable(agent, target, iterable, adder, gc)
 }
 
 /// ### [24.1.1.2 AddEntriesFromIterable ( target, iterable, adder )](https://tc39.es/ecma262/#sec-add-entries-from-iterable)
@@ -409,22 +392,19 @@ pub(crate) fn add_entries_from_iterable<'a, T: Into<Object<'a>> + TryFrom<Object
     target: T,
     iterable: Value,
     adder: Function,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> JsResult<'a, T> {
     let nogc = gc.nogc();
     let target: Object = target.into();
     let target = target.scope(agent, nogc);
-    let iterable = iterable.bind(nogc);
+    crate::engine::bind!(let iterable = iterable, gc);
     let adder = adder.scope(agent, nogc);
     // 1. Let iteratorRecord be ? GetIterator(iterable, SYNC).
     let Some(IteratorRecord {
         iterator,
         next_method,
         ..
-    }) = get_iterator(agent, iterable.unbind(), false, gc.reborrow())
-        .unbind()?
-        .bind(gc.nogc())
-        .into_iterator_record()
+    }) = get_iterator(agent, iterable, false, gc.reborrow())?.into_iterator_record()
     else {
         return Err(throw_not_callable(agent, gc.into_nogc()));
     };
@@ -438,17 +418,15 @@ pub(crate) fn add_entries_from_iterable<'a, T: Into<Object<'a>> + TryFrom<Object
         let next = iterator_step_value(
             agent,
             IteratorRecord {
-                iterator: iterator.get(agent),
-                next_method: next_method.get(agent),
+                iterator: iterator.get(agent).local(),
+                next_method: next_method.get(agent).local(),
             },
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         // b. If next is DONE, return target.
         let Some(next) = next else {
             // SAFETY: not shared.
-            let target = unsafe { target.take(agent).bind(gc.into_nogc()) };
+            let target = unsafe { target.take(agent).local() };
             // SAFETY: passed in type is still the same type.
             let target = unsafe { T::try_from(target).unwrap_unchecked() };
             return Ok(target);
@@ -464,43 +442,48 @@ pub(crate) fn add_entries_from_iterable<'a, T: Into<Object<'a>> + TryFrom<Object
             // ii. Return ? IteratorClose(iteratorRecord, error).
             return Err(iterator_close_with_error(
                 agent,
-                iterator.get(agent),
-                error.unbind(),
+                iterator.get(agent).local(),
+                error,
                 gc,
             ));
         };
-        let next = next.unbind().bind(gc.nogc());
+        let next = next;
         let scoped_next = next.scope(agent, gc.nogc());
         // d. Let k be Completion(Get(next, "0")).
-        let k = get(agent, next.unbind(), 0.into(), gc.reborrow());
+        let k = get(agent, next, 0.into(), gc.reborrow());
         // e. IfAbruptCloseIterator(k, iteratorRecord).
         let iterator_record = IteratorRecord {
-            iterator: iterator.get(agent),
-            next_method: next_method.get(agent),
+            iterator: iterator.get(agent).local(),
+            next_method: next_method.get(agent).local(),
         };
         let k = if_abrupt_close_iterator!(agent, k, iterator_record, gc).scope(agent, gc.nogc());
         // f. Let v be Completion(Get(next, "1")).
-        let v = get(agent, scoped_next.get(agent), 1.into(), gc.reborrow());
+        let v = get(
+            agent,
+            scoped_next.get(agent).local(),
+            1.into(),
+            gc.reborrow(),
+        );
         // g. IfAbruptCloseIterator(v, iteratorRecord).
         let iterator_record = IteratorRecord {
-            iterator: iterator.get(agent),
-            next_method: next_method.get(agent),
+            iterator: iterator.get(agent).local(),
+            next_method: next_method.get(agent).local(),
         };
         let v = if_abrupt_close_iterator!(agent, v, iterator_record, gc);
         // h. Let status be Completion(Call(adder, target, « k, v »)).
         let status = call_function(
             agent,
-            adder.get(agent),
-            target.get(agent).into(),
+            adder.get(agent).local(),
+            target.get(agent).local().into(),
             Some(ArgumentsList::from_mut_slice(&mut [
-                k.get(agent),
-                v.unbind(),
+                k.get(agent).local(),
+                v,
             ])),
             gc.reborrow(),
         );
         let iterator_record = IteratorRecord {
-            iterator: iterator.get(agent),
-            next_method: next_method.get(agent),
+            iterator: iterator.get(agent).local(),
+            next_method: next_method.get(agent).local(),
         };
         // i. IfAbruptCloseIterator(status, iteratorRecord).
         let _ = if_abrupt_close_iterator!(agent, status, iterator_record, gc);

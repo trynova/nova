@@ -41,14 +41,14 @@ impl PromisePrototype {
     fn catch<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        args: ArgumentsList,
+        args: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Let promise be the this value.
         // 2. Return ? Invoke(promise, "then", « undefined, onRejected »).
         // TODO: Add a fast path that calls `perform_promise_then` if we know
         // `this.then` is this realm's creation-time `Promise.prototype.then`.
-        let on_rejected = args.get(0).unbind();
+        let on_rejected = args.get(0);
         invoke(
             agent,
             this_value,
@@ -65,12 +65,12 @@ impl PromisePrototype {
     fn finally<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        args: ArgumentsList,
+        args: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let on_finally = args.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let on_finally = args.get(0), gc);
         // 1. Let promise be the this value.
-        let promise = this_value.bind(gc.nogc());
+        crate::engine::bind!(let promise = this_value, gc);
         // 2. If promise is not an Object, throw a TypeError exception.
         let Ok(promise) = Object::try_from(promise) else {
             return Err(agent.throw_exception_with_static_message(
@@ -83,21 +83,14 @@ impl PromisePrototype {
         let scoped_on_finally = on_finally.scope(agent, gc.nogc());
 
         // 3. Let C be ? SpeciesConstructor(promise, %Promise%).
-        let c = species_constructor(
-            agent,
-            promise.unbind(),
-            ProtoIntrinsics::Promise,
-            gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        let c = species_constructor(agent, promise, ProtoIntrinsics::Promise, gc.reborrow())?;
         // 4. Assert: IsConstructor(C) is true.
         debug_assert!(is_constructor(agent, c).is_some());
 
         // SAFETY: not shared.
-        let on_finally = unsafe { scoped_on_finally.take(agent).bind(gc.nogc()) };
+        let on_finally = unsafe { scoped_on_finally.take(agent).local() };
         // SAFETY: not shared.
-        let promise = unsafe { scoped_promise.take(agent).bind(gc.nogc()) };
+        let promise = unsafe { scoped_promise.take(agent).local() };
 
         // 5. If IsCallable(onFinally) is false, then
         let (then_finally, catch_finally) =
@@ -118,11 +111,11 @@ impl PromisePrototype {
         // 7. Return ? Invoke(promise, "then", « thenFinally, catchFinally »).
         invoke(
             agent,
-            promise.unbind().into(),
+            promise.into(),
             BUILTIN_STRING_MEMORY.then.to_property_key(),
             Some(ArgumentsList::from_mut_slice(&mut [
-                then_finally.unbind(),
-                catch_finally.unbind(),
+                then_finally,
+                catch_finally,
             ])),
             gc,
         )
@@ -132,12 +125,12 @@ impl PromisePrototype {
     fn then<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        args: ArgumentsList,
+        args: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let on_fulfilled = args.get(0).bind(gc);
-        let on_rejected = args.get(1).bind(gc);
+        crate::engine::bind!(let on_fulfilled = args.get(0), gc);
+        crate::engine::bind!(let on_rejected = args.get(1), gc);
         // 1. Let promise be the this value.
         // 2. If IsPromise(promise) is false, throw a TypeError exception.
         let Value::Promise(promise) = this_value else {
@@ -207,7 +200,7 @@ pub(crate) fn perform_promise_then(
     // TODO: Add the HostMakeJobCallback host hook. Leaving it for later, since in implementations
     // other than browsers, [[HostDefined]] must be EMPTY.
     let on_fulfilled_job_callback = match Function::try_from(on_fulfilled) {
-        Ok(callback) => PromiseReactionHandler::JobCallback(callback.unbind()),
+        Ok(callback) => PromiseReactionHandler::JobCallback(callback),
         Err(_) => PromiseReactionHandler::Empty,
     };
     // 5. If IsCallable(onRejected) is false, then
@@ -215,7 +208,7 @@ pub(crate) fn perform_promise_then(
     // 6. Else,
     //     a. Let onRejectedJobCallback be HostMakeJobCallback(onRejected).
     let on_rejected_job_callback = match Function::try_from(on_rejected) {
-        Ok(callback) => PromiseReactionHandler::JobCallback(callback.unbind()),
+        Ok(callback) => PromiseReactionHandler::JobCallback(callback),
         Err(_) => PromiseReactionHandler::Empty,
     };
 
@@ -261,29 +254,21 @@ pub(crate) fn inner_promise_then(
         } => {
             // a. Append fulfillReaction to promise.[[PromiseFulfillReactions]].
             match fulfill_reactions {
-                Some(PromiseReactions::Many(reaction_vec)) => {
-                    reaction_vec.push(fulfill_reaction.unbind())
-                }
+                Some(PromiseReactions::Many(reaction_vec)) => reaction_vec.push(fulfill_reaction),
                 Some(PromiseReactions::One(reaction)) => {
-                    *fulfill_reactions = Some(PromiseReactions::Many(vec![
-                        *reaction,
-                        fulfill_reaction.unbind(),
-                    ]))
+                    *fulfill_reactions =
+                        Some(PromiseReactions::Many(vec![*reaction, fulfill_reaction]))
                 }
-                None => *fulfill_reactions = Some(PromiseReactions::One(fulfill_reaction.unbind())),
+                None => *fulfill_reactions = Some(PromiseReactions::One(fulfill_reaction)),
             };
             // b. Append rejectReaction to promise.[[PromiseRejectReactions]].
             match reject_reactions {
-                Some(PromiseReactions::Many(reaction_vec)) => {
-                    reaction_vec.push(reject_reaction.unbind())
-                }
+                Some(PromiseReactions::Many(reaction_vec)) => reaction_vec.push(reject_reaction),
                 Some(PromiseReactions::One(reaction)) => {
-                    *reject_reactions = Some(PromiseReactions::Many(vec![
-                        *reaction,
-                        reject_reaction.unbind(),
-                    ]))
+                    *reject_reactions =
+                        Some(PromiseReactions::Many(vec![*reaction, reject_reaction]))
                 }
-                None => *reject_reactions = Some(PromiseReactions::One(reject_reaction.unbind())),
+                None => *reject_reactions = Some(PromiseReactions::One(reject_reaction)),
             };
         }
         // 10. Else if promise.[[PromiseState]] is fulfilled, then

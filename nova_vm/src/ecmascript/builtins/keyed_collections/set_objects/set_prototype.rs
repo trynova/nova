@@ -81,12 +81,12 @@ impl SetPrototype {
     fn add<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let this_value = this_value.bind(gc);
-        let value = arguments.get(0).bind(gc);
+        crate::engine::bind!(let this_value = this_value, gc);
+        crate::engine::bind!(let value = arguments.get(0), gc);
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value, gc)?;
@@ -128,7 +128,7 @@ impl SetPrototype {
             // 5. Append value to S.[[SetData]].
             let index = u32::try_from(values.len()).unwrap();
             entry.insert(index);
-            values.push(Some(value.unbind()));
+            values.push(Some(value));
         }
         // i. Return S.
         // 6. Return S.
@@ -143,11 +143,11 @@ impl SetPrototype {
     fn clear<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let this_value = this_value.bind(gc);
+        crate::engine::bind!(let this_value = this_value, gc);
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value, gc)?;
@@ -170,12 +170,12 @@ impl SetPrototype {
     fn delete<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let this_value = this_value.bind(gc);
-        let value = arguments.get(0).bind(gc);
+        crate::engine::bind!(let this_value = this_value, gc);
+        crate::engine::bind!(let value = arguments.get(0), gc);
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value, gc)?;
@@ -226,11 +226,11 @@ impl SetPrototype {
     fn entries<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let this_value = this_value.bind(gc);
+        crate::engine::bind!(let this_value = this_value, gc);
         // 1. Let S be the this value.
         // 2. Return ? CreateSetIterator(S, KEY+VALUE).
 
@@ -275,18 +275,16 @@ impl SetPrototype {
     fn for_each<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let nogc = gc.nogc();
-        let this_value = this_value.bind(nogc);
-        let callback_fn = arguments.get(0).bind(nogc);
-        let this_arg = arguments.get(1).bind(nogc);
+        crate::engine::bind!(let this_value = this_value, gc);
+        let callback_fn = arguments.get(0);
+        let this_arg = arguments.get(1);
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
-        let mut s = require_set_data_internal_slot(agent, this_value, nogc)
-            .unbind()?
-            .bind(nogc);
+        let mut s = require_set_data_internal_slot(agent, this_value, nogc)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn, nogc) else {
             return Err(agent.throw_exception_with_static_message(
@@ -299,7 +297,7 @@ impl SetPrototype {
         // 5. Let numEntries be the number of elements in entries.
         // Note: We must use the values vector length, not the size. The size
         // does not contain empty slots.
-        let mut num_entries = s.get(agent).values.len() as u32;
+        let mut num_entries = s.get(agent).local().values.len() as u32;
 
         let callback_fn = callback_fn.scope(agent, nogc);
         let scoped_s = s.scope(agent, nogc);
@@ -310,7 +308,7 @@ impl SetPrototype {
         // 7. Repeat, while index < numEntries,
         while index < num_entries {
             // a. Let e be entries[index].
-            let e = s.get(agent).values[index as usize];
+            let e = s.get(agent).local().values[index as usize];
             // b. Set index to index + 1.
             index += 1;
             // c. If e is not EMPTY, then
@@ -318,20 +316,15 @@ impl SetPrototype {
                 // i. Perform ? Call(callbackfn, thisArg, « e, e, S »).
                 call_function(
                     agent,
-                    callback_fn.get(agent),
-                    scoped_this_arg.get(agent),
-                    Some(ArgumentsList::from_mut_slice(&mut [
-                        e.unbind(),
-                        e.unbind(),
-                        s.unbind().into(),
-                    ])),
+                    callback_fn.get(agent).local(),
+                    scoped_this_arg.get(agent).local(),
+                    Some(ArgumentsList::from_mut_slice(&mut [e, e, s.into()])),
                     gc.reborrow(),
-                )
-                .unbind()?;
+                )?;
                 // ii. NOTE: The number of elements in entries may have increased during execution of callbackfn.
                 // iii. Set numEntries to the number of elements in entries.
-                s = scoped_s.get(agent).bind(gc.nogc());
-                num_entries = s.get(agent).values.len() as u32;
+                s = scoped_s.get(agent).local();
+                num_entries = s.get(agent).local().values.len() as u32;
             }
         }
         // 8. Return undefined.
@@ -342,12 +335,12 @@ impl SetPrototype {
     fn has<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let this_value = this_value.bind(gc);
-        let value = arguments.get(0).bind(gc);
+        crate::engine::bind!(let this_value = this_value, gc);
+        crate::engine::bind!(let value = arguments.get(0), gc);
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value, gc)?;
@@ -391,16 +384,16 @@ impl SetPrototype {
     fn get_size<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let this_value = this_value.bind(gc);
+        crate::engine::bind!(let this_value = this_value, gc);
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value, gc)?;
         // 3. Let size be SetDataSize(S.[[SetData]]).
-        let size = s.get(agent).set_data.borrow().len() as u32;
+        let size = s.get(agent).local().set_data.borrow().len() as u32;
         // 4. Return 𝔽(size).
         Ok(Number::from(size).into())
     }
@@ -409,11 +402,11 @@ impl SetPrototype {
     fn values<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let this_value = this_value.bind(gc);
+        crate::engine::bind!(let this_value = this_value, gc);
         // 1. Let S be the this value.
         // 2. Return ? CreateSetIterator(S, VALUE).
 
@@ -477,7 +470,7 @@ fn require_set_data_internal_slot<'a>(
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, Set<'a>> {
     match value {
-        Value::Set(map) => Ok(map.bind(gc)),
+        Value::Set(map) => Ok(map),
         _ => Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Object is not a Set",

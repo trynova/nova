@@ -103,7 +103,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseFinallyFunction<'a> {
 
     #[inline(always)]
     fn get_function_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.unbind().get(agent).backing_object
+        self.get(agent).backing_object
     }
 
     fn set_function_backing_object(
@@ -123,33 +123,24 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseFinallyFunction<'a> {
         self,
         agent: &mut Agent,
         _this_value: Value,
-        arguments_list: ArgumentsList,
+        arguments_list: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        agent.check_call_depth(gc.nogc()).unbind()?;
-        let f = self.bind(gc.nogc());
-        match f.get(agent).resolve_type {
+    ) -> JsResult<'static, Value<'static>> {
+        agent.check_call_depth(gc.nogc())?;
+        crate::engine::bind!(let f = self, gc);
+        match f.get(agent).local().resolve_type {
             PromiseFinallyFunctionType::ResolveFinally { on_finally, c } => {
                 let value = arguments_list.get(0).scope(agent, gc.nogc());
                 let c = c.scope(agent, gc.nogc());
                 // i. Let result be ? Call(onFinally, undefined).
-                let result = call_function(
-                    agent,
-                    on_finally.unbind(),
-                    Value::Undefined,
-                    None,
-                    gc.reborrow(),
-                )
-                .unbind()?
-                .bind(gc.nogc());
+                let result =
+                    call_function(agent, on_finally, Value::Undefined, None, gc.reborrow())?;
                 // SAFETY: not shared.
-                let _c = unsafe { c.take(agent) }.bind(gc.nogc());
+                crate::engine::bind!(let _c = unsafe { c.take(agent).local() }, gc);
                 // ii. Let p be ? PromiseResolve(C, result).
-                let p = Promise::resolve(agent, result.unbind(), gc.reborrow())
-                    .unbind()
-                    .bind(gc.nogc());
+                let p = Promise::resolve(agent, result, gc.reborrow())?;
                 // SAFETY: not shared.
-                let value = unsafe { value.take(agent) }.bind(gc.nogc());
+                crate::engine::bind!(let value = unsafe { value.take(agent).local() }, gc);
                 // iii. Let returnValue be a new Abstract Closure with no
                 //      parameters that captures value and performs the
                 //      following steps when called:
@@ -163,11 +154,9 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseFinallyFunction<'a> {
                 // v. Return ? Invoke(p, "then", « valueThunk »).
                 invoke(
                     agent,
-                    p.unbind().into(),
+                    p.into(),
                     BUILTIN_STRING_MEMORY.then.to_property_key(),
-                    Some(ArgumentsList::from_mut_value(
-                        &mut value_thunk.unbind().into(),
-                    )),
+                    Some(ArgumentsList::from_mut_value(&mut value_thunk.into())),
                     gc,
                 )
             }
@@ -175,22 +164,13 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseFinallyFunction<'a> {
                 let reason = arguments_list.get(0).scope(agent, gc.nogc());
                 let c = c.scope(agent, gc.nogc());
                 // i. Let result be ? Call(onFinally, undefined).
-                let result = call_function(
-                    agent,
-                    on_finally.unbind(),
-                    Value::Undefined,
-                    None,
-                    gc.reborrow(),
-                )
-                .unbind()?
-                .bind(gc.nogc());
+                let result =
+                    call_function(agent, on_finally, Value::Undefined, None, gc.reborrow())?;
                 // SAFETY: not shared.
-                let _c = unsafe { c.take(agent) }.bind(gc.nogc());
+                crate::engine::bind!(let _c = unsafe { c.take(agent).local() }, gc);
                 // ii. Let p be ? PromiseResolve(C, result).
-                let p = Promise::resolve(agent, result.unbind(), gc.reborrow())
-                    .unbind()
-                    .bind(gc.nogc());
-                let reason = unsafe { reason.take(agent) }.bind(gc.nogc());
+                let p = Promise::resolve(agent, result, gc.reborrow())?;
+                crate::engine::bind!(let reason = unsafe { reason.take(agent).local() }, gc);
                 // iii. Let throwReason be a new Abstract Closure with no parameters that captures reason and performs the following steps when called:
                 // iv. Let thrower be CreateBuiltinFunction(throwReason, 0, "", « »).
                 let thrower = agent.heap.create(PromiseFinallyFunctionHeapData {
@@ -203,19 +183,19 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseFinallyFunction<'a> {
                 // v. Return ? Invoke(p, "then", « thrower »).
                 invoke(
                     agent,
-                    p.unbind().into(),
+                    p.into(),
                     BUILTIN_STRING_MEMORY.then.to_property_key(),
-                    Some(ArgumentsList::from_mut_value(&mut thrower.unbind().into())),
+                    Some(ArgumentsList::from_mut_value(&mut thrower.into())),
                     gc,
                 )
             }
             PromiseFinallyFunctionType::ReturnValue { value } => {
                 // 1. Return NormalCompletion(value).
-                Ok(value.unbind().bind(gc.into_nogc()))
+                Ok(value)
             }
             PromiseFinallyFunctionType::ThrowReason { reason } => {
                 // 1. Return ThrowCompletion(reason).
-                Err(reason.unbind().bind(gc.into_nogc()))
+                Err(reason)
             }
         }
     }
@@ -228,7 +208,7 @@ impl<'a> CreateHeapData<PromiseFinallyFunctionHeapData<'a>, BuiltinPromiseFinall
         &mut self,
         data: PromiseFinallyFunctionHeapData<'a>,
     ) -> BuiltinPromiseFinallyFunction<'a> {
-        self.promise_finally_functions.push(data.unbind());
+        self.promise_finally_functions.push(data);
         self.alloc_counter += core::mem::size_of::<PromiseFinallyFunctionHeapData<'static>>();
 
         BuiltinPromiseFinallyFunction(BaseIndex::last(&self.promise_finally_functions))

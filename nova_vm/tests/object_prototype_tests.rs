@@ -27,11 +27,11 @@ fn object_prototype_tests() {
         let realm = agent.current_realm(gc.nogc());
         let source_text = String::from_string(agent, contents, gc.nogc());
         let script = parse_script(agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        if let Err(err) = script_evaluation(agent, script.unbind(), gc.reborrow()) {
+        if let Err(err) = script_evaluation(agent, script,gc.reborrow()) {
             panic!(
                 "Test '{}' failed: {:?}",
                 d.display(),
-                err.unbind().to_string(agent, gc).to_string_lossy(agent)
+                err.to_string(agent, gc).to_string_lossy(agent)
             )
         }
     });

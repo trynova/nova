@@ -95,22 +95,22 @@ impl IteratorPrototype {
     fn iterator<'gc>(
         _agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
+        _: ArgumentsList<'_, 'static>,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        Ok(this_value.unbind())
+    ) -> JsResult<'static, Value<'static>> {
+        Ok(this_value)
     }
 
     /// ### [27.1.4.3 Iterator.prototype.every ( predicate )](https://tc39.es/ecma262/#sec-iterator.prototype.every)
     fn every<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let nogc = gc.nogc();
-        let this_value = this_value.bind(nogc);
-        let predicate = arguments.get(0).bind(nogc);
+        crate::engine::bind!(let this_value = this_value, gc);
+        let predicate = arguments.get(0);
 
         // 1. Let O be the this value.
         // 2. If O is not an Object, throw a TypeError exception.
@@ -124,7 +124,7 @@ impl IteratorPrototype {
 
         // 3. Let iterated be the Iterator Record { [[Iterator]]: O, [[NextMethod]]: undefined, [[Done]]: false }.
         // 4. If IsCallable(predicate) is false, then
-        let Some(predicate) = is_callable(predicate, nogc).unbind().bind(nogc) else {
+        let Some(predicate) = is_callable(predicate, nogc) else {
             // a. Let error be ThrowCompletion(a newly created TypeError object).
             let error = agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -132,19 +132,12 @@ impl IteratorPrototype {
                 nogc,
             );
             // b. Return ? IteratorClose(iterated, error).
-            return Err(iterator_close_with_error(
-                agent,
-                o.unbind(),
-                error.unbind(),
-                gc,
-            ));
+            return Err(iterator_close_with_error(agent, o, error, gc));
         };
         let scoped_predicate = Value::from(predicate).scope(agent, nogc);
 
         // 5. Set iterated to ? GetIteratorDirect(O).
-        let iterated = get_iterator_direct(agent, o.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let iterated = get_iterator_direct(agent, o, gc.reborrow())?;
         let Some(IteratorRecord {
             iterator,
             next_method,
@@ -163,12 +156,10 @@ impl IteratorPrototype {
         loop {
             // a. Let value be ? IteratorStepValue(iterated).
             let iterated = IteratorRecord {
-                iterator: iterator.get(agent),
-                next_method: next_method.get(agent),
+                iterator: iterator.get(agent).local(),
+                next_method: next_method.get(agent).local(),
             };
-            let value = iterator_step_value(agent, iterated, gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let value = iterator_step_value(agent, iterated, gc.reborrow())?;
 
             // b. If value is done, return true.
             let Some(value) = value else {
@@ -178,27 +169,27 @@ impl IteratorPrototype {
             // c. Let result be Completion(Call(predicate, undefined, « value, 𝔽(counter) »)).
             let result = call(
                 agent,
-                scoped_predicate.get(agent),
+                scoped_predicate.get(agent).local(),
                 Value::Undefined,
-                Some(ArgumentsList::from_mut_slice(&mut [
-                    value.unbind(),
-                    counter.into(),
-                ])),
+                Some(ArgumentsList::from_mut_slice(&mut [value, counter.into()])),
                 gc.reborrow(),
-            )
-            .unbind()
-            .bind(gc.nogc());
+            )?;
 
             // d. IfAbruptCloseIterator(result, iterated).
             let iterated = IteratorRecord {
-                iterator: iterator.get(agent),
-                next_method: next_method.get(agent),
+                iterator: iterator.get(agent).local(),
+                next_method: next_method.get(agent).local(),
             };
             let result = if_abrupt_close_iterator!(agent, result, iterated, gc);
 
             // e. If ToBoolean(result) is false, return ? IteratorClose(iterated, NormalCompletion(false)).
             if !to_boolean(agent, result) {
-                return iterator_close_with_value(agent, iterator.get(agent), false.into(), gc);
+                return iterator_close_with_value(
+                    agent,
+                    iterator.get(agent).local(),
+                    false.into(),
+                    gc,
+                );
             }
 
             // f. Set counter to counter + 1.
@@ -210,12 +201,12 @@ impl IteratorPrototype {
     fn find<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let nogc = gc.nogc();
-        let this_value = this_value.bind(nogc);
-        let predicate = arguments.get(0).bind(nogc);
+        crate::engine::bind!(let this_value = this_value, gc);
+        let predicate = arguments.get(0);
 
         // 1. Let O be the this value.
         // 2. If O is not an Object, throw a TypeError exception.
@@ -229,7 +220,7 @@ impl IteratorPrototype {
 
         // 3. Let iterated be the Iterator Record { [[Iterator]]: O, [[NextMethod]]: undefined, [[Done]]: false }.
         // 4. If IsCallable(predicate) is false, then
-        let Some(predicate) = is_callable(predicate, nogc).unbind().bind(nogc) else {
+        let Some(predicate) = is_callable(predicate, nogc) else {
             // a. Let error be ThrowCompletion(a newly created TypeError object).
             let error = agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -237,19 +228,12 @@ impl IteratorPrototype {
                 nogc,
             );
             // b. Return ? IteratorClose(iterated, error).
-            return Err(iterator_close_with_error(
-                agent,
-                o.unbind(),
-                error.unbind(),
-                gc,
-            ));
+            return Err(iterator_close_with_error(agent, o, error, gc));
         };
         let scoped_predicate = Value::from(predicate).scope(agent, nogc);
 
         // 5. Set iterated to ? GetIteratorDirect(O).
-        let iterated = get_iterator_direct(agent, o.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let iterated = get_iterator_direct(agent, o, gc.reborrow())?;
         let Some(IteratorRecord {
             iterator,
             next_method,
@@ -270,38 +254,31 @@ impl IteratorPrototype {
         loop {
             // a. Let value be ? IteratorStepValue(iterated).
             let iterated = IteratorRecord {
-                iterator: iterator.get(agent),
-                next_method: next_method.get(agent),
+                iterator: iterator.get(agent).local(),
+                next_method: next_method.get(agent).local(),
             };
-            let value = iterator_step_value(agent, iterated, gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let value = iterator_step_value(agent, iterated, gc.reborrow())?;
 
             // b. If value is done, return undefined.
             let Some(value) = value else {
                 return Ok(Value::Undefined);
             };
             // SAFETY: scoped_value is never shared.
-            unsafe { scoped_value.replace(agent, value.unbind()) };
+            unsafe { scoped_value.replace(agent, value) };
 
             // c. Let result be Completion(Call(predicate, undefined, « value, 𝔽(counter) »)).
             let result = call(
                 agent,
-                scoped_predicate.get(agent),
+                scoped_predicate.get(agent).local(),
                 Value::Undefined,
-                Some(ArgumentsList::from_mut_slice(&mut [
-                    value.unbind(),
-                    counter.into(),
-                ])),
+                Some(ArgumentsList::from_mut_slice(&mut [value, counter.into()])),
                 gc.reborrow(),
-            )
-            .unbind()
-            .bind(gc.nogc());
+            )?;
 
             // d. IfAbruptCloseIterator(result, iterated).
             let iterated = IteratorRecord {
-                iterator: iterator.get(agent),
-                next_method: next_method.get(agent),
+                iterator: iterator.get(agent).local(),
+                next_method: next_method.get(agent).local(),
             };
             let result = if_abrupt_close_iterator!(agent, result, iterated, gc);
 
@@ -309,8 +286,8 @@ impl IteratorPrototype {
             if to_boolean(agent, result) {
                 return iterator_close_with_value(
                     agent,
-                    iterator.get(agent),
-                    scoped_value.get(agent),
+                    iterator.get(agent).local(),
+                    scoped_value.get(agent).local(),
                     gc,
                 );
             }
@@ -324,12 +301,12 @@ impl IteratorPrototype {
     fn for_each<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let nogc = gc.nogc();
-        let this_value = this_value.bind(nogc);
-        let procedure = arguments.get(0).bind(nogc);
+        crate::engine::bind!(let this_value = this_value, gc);
+        let procedure = arguments.get(0);
 
         // 1. Let O be the this value.
         // 2. If O is not an Object, throw a TypeError exception.
@@ -343,7 +320,7 @@ impl IteratorPrototype {
 
         // 3. Let iterated be the Iterator Record { [[Iterator]]: O, [[NextMethod]]: undefined, [[Done]]: false }.
         // 4. If IsCallable(procedure) is false, then
-        let Some(procedure) = is_callable(procedure, nogc).unbind().bind(nogc) else {
+        let Some(procedure) = is_callable(procedure, nogc) else {
             // a. Let error be ThrowCompletion(a newly created TypeError object).
             let error = agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -351,19 +328,12 @@ impl IteratorPrototype {
                 gc.nogc(),
             );
             // b. Return ? IteratorClose(iterated, error).
-            return Err(iterator_close_with_error(
-                agent,
-                o.unbind(),
-                error.unbind(),
-                gc,
-            ));
+            return Err(iterator_close_with_error(agent, o, error, gc));
         };
         let scoped_procedure = Value::from(procedure).scope(agent, nogc);
 
         // 5. Set iterated to ? GetIteratorDirect(O).
-        let iterated = get_iterator_direct(agent, o.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let iterated = get_iterator_direct(agent, o, gc.reborrow())?;
         let Some(IteratorRecord {
             iterator,
             next_method,
@@ -382,12 +352,10 @@ impl IteratorPrototype {
         loop {
             // a. Let value be ? IteratorStepValue(iterated).
             let iterated = IteratorRecord {
-                iterator: iterator.get(agent),
-                next_method: next_method.get(agent),
+                iterator: iterator.get(agent).local(),
+                next_method: next_method.get(agent).local(),
             };
-            let value = iterator_step_value(agent, iterated, gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let value = iterator_step_value(agent, iterated, gc.reborrow())?;
             // b. If value is done, return undefined.
             let Some(value) = value else {
                 return Ok(Value::Undefined);
@@ -396,21 +364,16 @@ impl IteratorPrototype {
             // c. Let result be Completion(Call(procedure, undefined, « value, 𝔽(counter) »)).
             let result = call(
                 agent,
-                scoped_procedure.get(agent),
+                scoped_procedure.get(agent).local(),
                 Value::Undefined,
-                Some(ArgumentsList::from_mut_slice(&mut [
-                    value.unbind(),
-                    counter.into(),
-                ])),
+                Some(ArgumentsList::from_mut_slice(&mut [value, counter.into()])),
                 gc.reborrow(),
-            )
-            .unbind()
-            .bind(gc.nogc());
+            )?;
 
             // d. IfAbruptCloseIterator(result, iterated).
             let iterated = IteratorRecord {
-                iterator: iterator.get(agent),
-                next_method: next_method.get(agent),
+                iterator: iterator.get(agent).local(),
+                next_method: next_method.get(agent).local(),
             };
             if_abrupt_close_iterator!(agent, result, iterated, gc);
 
@@ -423,14 +386,14 @@ impl IteratorPrototype {
     fn reduce<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let nogc = gc.nogc();
-        let this_value = this_value.bind(nogc);
-        let reducer = arguments.get(0).bind(nogc);
+        crate::engine::bind!(let this_value = this_value, gc);
+        let reducer = arguments.get(0);
         let has_initial_value = arguments.len() > 1;
-        let initial_value = arguments.get(1).bind(nogc);
+        let initial_value = arguments.get(1);
         let scoped_initial_value = initial_value.scope(agent, nogc);
 
         // 1. Let O be the this value.
@@ -445,7 +408,7 @@ impl IteratorPrototype {
 
         // 3. Let iterated be the Iterator Record { [[Iterator]]: O, [[NextMethod]]: undefined, [[Done]]: false }.
         // 4. If IsCallable(reducer) is false, then
-        let Some(reducer) = is_callable(reducer, nogc).unbind().bind(nogc) else {
+        let Some(reducer) = is_callable(reducer, nogc) else {
             // a. Let error be ThrowCompletion(a newly created TypeError object).
             let error = agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -453,19 +416,12 @@ impl IteratorPrototype {
                 nogc,
             );
             // b. Return ? IteratorClose(iterated, error).
-            return Err(iterator_close_with_error(
-                agent,
-                o.unbind(),
-                error.unbind(),
-                gc,
-            ));
+            return Err(iterator_close_with_error(agent, o, error, gc));
         };
         let scoped_reducer = Value::from(reducer).scope(agent, nogc);
 
         // 5. Set iterated to ? GetIteratorDirect(O).
-        let iterated = get_iterator_direct(agent, o.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let iterated = get_iterator_direct(agent, o, gc.reborrow())?;
         let Some(IteratorRecord {
             iterator,
             next_method,
@@ -481,12 +437,10 @@ impl IteratorPrototype {
             // 6. If initialValue is not present, then
             // a. Let accumulator be ? IteratorStepValue(iterated).
             let iterated = IteratorRecord {
-                iterator: iterator.get(agent),
-                next_method: next_method.get(agent),
+                iterator: iterator.get(agent).local(),
+                next_method: next_method.get(agent).local(),
             };
-            let accumulator = iterator_step_value(agent, iterated, gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let accumulator = iterator_step_value(agent, iterated, gc.reborrow())?;
 
             // b. If accumulator is done, throw a TypeError exception.
             let Some(accumulator) = accumulator else {
@@ -510,43 +464,39 @@ impl IteratorPrototype {
         loop {
             // a. Let value be ? IteratorStepValue(iterated).
             let iterated = IteratorRecord {
-                iterator: iterator.get(agent),
-                next_method: next_method.get(agent),
+                iterator: iterator.get(agent).local(),
+                next_method: next_method.get(agent).local(),
             };
-            let value = iterator_step_value(agent, iterated, gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let value = iterator_step_value(agent, iterated, gc.reborrow())?;
 
             // b. If value is done, return accumulator.
             let Some(value) = value else {
-                return Ok(accumulator.get(agent));
+                return Ok(accumulator.get(agent).local());
             };
 
             // c. Let result be Completion(Call(reducer, undefined, « accumulator, value, 𝔽(counter) »)).
             let result = call(
                 agent,
-                scoped_reducer.get(agent),
+                scoped_reducer.get(agent).local(),
                 Value::Undefined,
                 Some(ArgumentsList::from_mut_slice(&mut [
-                    accumulator.get(agent),
-                    value.unbind(),
+                    accumulator.get(agent).local(),
+                    value,
                     counter.into(),
                 ])),
                 gc.reborrow(),
-            )
-            .unbind()
-            .bind(gc.nogc());
+            )?;
 
             // d. IfAbruptCloseIterator(result, iterated).
             let iterated = IteratorRecord {
-                iterator: iterator.get(agent),
-                next_method: next_method.get(agent),
+                iterator: iterator.get(agent).local(),
+                next_method: next_method.get(agent).local(),
             };
             let result = if_abrupt_close_iterator!(agent, result, iterated, gc);
 
             // e. Set accumulator to result.
             // SAFETY: accumulator is never shared.
-            unsafe { accumulator.replace(agent, result.unbind()) };
+            unsafe { accumulator.replace(agent, result) };
 
             // f. Set counter to counter + 1.
             counter += 1;
@@ -557,12 +507,12 @@ impl IteratorPrototype {
     fn some<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let nogc = gc.nogc();
-        let this_value = this_value.bind(nogc);
-        let predicate = arguments.get(0).bind(nogc);
+        crate::engine::bind!(let this_value = this_value, gc);
+        let predicate = arguments.get(0);
 
         // 1. Let O be the this value.
         // 2. If O is not an Object, throw a TypeError exception.
@@ -576,7 +526,7 @@ impl IteratorPrototype {
 
         // 3. Let iterated be the Iterator Record { [[Iterator]]: O, [[NextMethod]]: undefined, [[Done]]: false }.
         // 4. If IsCallable(predicate) is false, then
-        let Some(predicate) = is_callable(predicate, nogc).unbind().bind(nogc) else {
+        let Some(predicate) = is_callable(predicate, nogc) else {
             // a. Let error be ThrowCompletion(a newly created TypeError object).
             let error = agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -584,19 +534,12 @@ impl IteratorPrototype {
                 nogc,
             );
             // b. Return ? IteratorClose(iterated, error).
-            return Err(iterator_close_with_error(
-                agent,
-                o.unbind(),
-                error.unbind(),
-                gc,
-            ));
+            return Err(iterator_close_with_error(agent, o, error, gc));
         };
         let scoped_predicate = Value::from(predicate).scope(agent, nogc);
 
         // 5. Set iterated to ? GetIteratorDirect(O).
-        let iterated = get_iterator_direct(agent, o.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let iterated = get_iterator_direct(agent, o, gc.reborrow())?;
         let Some(IteratorRecord {
             iterator,
             next_method,
@@ -615,12 +558,10 @@ impl IteratorPrototype {
         loop {
             // a. Let value be ? IteratorStepValue(iterated).
             let iterated = IteratorRecord {
-                iterator: iterator.get(agent),
-                next_method: next_method.get(agent),
+                iterator: iterator.get(agent).local(),
+                next_method: next_method.get(agent).local(),
             };
-            let value = iterator_step_value(agent, iterated, gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let value = iterator_step_value(agent, iterated, gc.reborrow())?;
 
             // b. If value is done, return false.
             let Some(value) = value else {
@@ -630,27 +571,27 @@ impl IteratorPrototype {
             // c. Let result be Completion(Call(predicate, undefined, « value, 𝔽(counter) »)).
             let result = call(
                 agent,
-                scoped_predicate.get(agent),
+                scoped_predicate.get(agent).local(),
                 Value::Undefined,
-                Some(ArgumentsList::from_mut_slice(&mut [
-                    value.unbind(),
-                    counter.into(),
-                ])),
+                Some(ArgumentsList::from_mut_slice(&mut [value, counter.into()])),
                 gc.reborrow(),
-            )
-            .unbind()
-            .bind(gc.nogc());
+            )?;
 
             // d. IfAbruptCloseIterator(result, iterated).
             let iterated = IteratorRecord {
-                iterator: iterator.get(agent),
-                next_method: next_method.get(agent),
+                iterator: iterator.get(agent).local(),
+                next_method: next_method.get(agent).local(),
             };
             let result = if_abrupt_close_iterator!(agent, result, iterated, gc);
 
             // e. If ToBoolean(result) is true, return ? IteratorClose(iterated, NormalCompletion(true)).
             if to_boolean(agent, result) {
-                return iterator_close_with_value(agent, iterator.get(agent), true.into(), gc);
+                return iterator_close_with_value(
+                    agent,
+                    iterator.get(agent).local(),
+                    true.into(),
+                    gc,
+                );
             }
 
             // f. Set counter to counter + 1.
@@ -662,11 +603,11 @@ impl IteratorPrototype {
     fn to_array<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _arguments: ArgumentsList,
+        _arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let nogc = gc.nogc();
-        let this_value = this_value.bind(nogc);
+        crate::engine::bind!(let this_value = this_value, gc);
 
         // 1. Let O be the this value.
         // 2. If O is not an Object, throw a TypeError exception.
@@ -679,9 +620,7 @@ impl IteratorPrototype {
         };
 
         // 3. Let iterated be ? GetIteratorDirect(O).
-        let iterated = get_iterator_direct(agent, o.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let iterated = get_iterator_direct(agent, o, gc.reborrow())?;
         let Some(IteratorRecord {
             iterator,
             next_method,
@@ -700,17 +639,15 @@ impl IteratorPrototype {
         loop {
             // a. Let value be ? IteratorStepValue(iterated).
             let iterated = IteratorRecord {
-                iterator: iterator.get(agent),
-                next_method: next_method.get(agent),
+                iterator: iterator.get(agent).local(),
+                next_method: next_method.get(agent).local(),
             };
-            let value = iterator_step_value(agent, iterated, gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let value = iterator_step_value(agent, iterated, gc.reborrow())?;
 
             // b. If value is done, return CreateArrayFromList(items).
             let Some(value) = value else {
                 let gc = gc.into_nogc();
-                let items = items.take(agent).bind(gc);
+                crate::engine::bind!(let items = items.take(agent).local(), gc);
                 return Ok(Array::from_slice(agent, &items, gc).into());
             };
 
@@ -722,9 +659,9 @@ impl IteratorPrototype {
     fn get_to_string_tag<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
+        _arguments: ArgumentsList<'_, 'static>,
         _gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Return "Iterator".
         Ok(BUILTIN_STRING_MEMORY.Iterator.into())
     }
@@ -732,9 +669,9 @@ impl IteratorPrototype {
     fn set_to_string_tag<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let v = arguments.get(0);
         // 1. Perform ? SetterThatIgnoresPrototypeProperties(
         setter_that_ignores_prototype_properties(

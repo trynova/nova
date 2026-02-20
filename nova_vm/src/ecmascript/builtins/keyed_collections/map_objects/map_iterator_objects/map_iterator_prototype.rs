@@ -27,11 +27,11 @@ impl MapIteratorPrototype {
     fn next<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _arguments: ArgumentsList,
+        _arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let this_value = this_value.bind(gc);
+        crate::engine::bind!(let this_value = this_value, gc);
         // 27.5.3.2 GeneratorValidate ( generator, generatorBrand )
         // 3. If generator.[[GeneratorBrand]] is not generatorBrand, throw a TypeError exception.
         let Value::MapIterator(iterator) = this_value else {
@@ -44,7 +44,7 @@ impl MapIteratorPrototype {
 
         // 24.1.5.1 CreateMapIterator ( map, kind ), step 2
         // NOTE: We set `map` to None when the generator in the spec text has returned.
-        let Some(map) = iterator.get(agent).map else {
+        let Some(map) = iterator.get(agent).local().map else {
             return create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
                 .map(|o| o.into());
         };
@@ -52,14 +52,14 @@ impl MapIteratorPrototype {
         // a. Let entries be map.[[MapData]].
         // c. Let numEntries be the number of elements in entries.
         // d. Repeat, while index < numEntries,
-        while iterator.get(agent).next_index < map.entries_len(agent) as usize {
+        while iterator.get(agent).local().next_index < map.entries_len(agent) as usize {
             // i. Let e be entries[index].
             // ii. Set index to index + 1.
-            let index = iterator.get(agent).next_index;
+            let index = iterator.get(agent).local().next_index;
             iterator.get_mut(agent).next_index += 1;
 
             let (keys, values) = map.get_entries(agent);
-            let result = match iterator.get(agent).kind {
+            let result = match iterator.get(agent).local().kind {
                 CollectionIteratorKind::Key => {
                     // iii. If e.[[Key]] is not EMPTY, then
                     //   1. If kind is KEY, then
@@ -97,7 +97,7 @@ impl MapIteratorPrototype {
         }
 
         debug_assert_eq!(
-            iterator.get(agent).next_index,
+            iterator.get(agent).local().next_index,
             map.entries_len(agent) as usize
         );
 

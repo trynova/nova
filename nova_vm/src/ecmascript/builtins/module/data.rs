@@ -19,7 +19,7 @@ pub(crate) struct ModuleHeapData<'a> {
 impl<'a> CreateHeapData<ModuleHeapData<'a>, Module<'a>> for Heap {
     fn create(&mut self, data: ModuleHeapData<'a>) -> Module<'a> {
         let index = self.modules.len();
-        self.modules.push(data.unbind());
+        self.modules.push(data);
         self.alloc_counter += core::mem::size_of::<ModuleHeapData<'static>>();
         Module::from_index(index)
     }

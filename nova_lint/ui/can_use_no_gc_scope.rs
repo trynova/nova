@@ -43,20 +43,20 @@ impl BuiltinObject {
 
     fn test_skips_builtin_method<'gc>(
         _: &mut Agent,
-        _: Value,
-        _: ArgumentsList,
+        _: Value<'static>,
+        _: ArgumentsList<'_, 'static>,
         _: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         unimplemented!()
     }
 
     fn test_skips_builtin_constructor<'gc>(
         _: &mut Agent,
-        _: Value,
-        _: ArgumentsList,
+        _: Value<'static>,
+        _: ArgumentsList<'_, 'static>,
         _: Option<Object>,
         _: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         unimplemented!()
     }
 }

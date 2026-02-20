@@ -64,7 +64,7 @@ impl<'a> ObjectRecord<'a> {
     }
 
     pub(super) fn set_shape(&mut self, shape: ObjectShape) {
-        self.shape = shape.unbind();
+        self.shape = shape;
     }
 
     pub(super) fn get_values(&self) -> ElementIndex<'a> {

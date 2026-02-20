@@ -23,10 +23,7 @@ arena_vec_access!(StringIterator, 'a, StringIteratorHeapData, string_iterators);
 
 impl<'a> StringIterator<'a> {
     pub fn create(agent: &mut Agent, string: String, gc: NoGcScope<'a, '_>) -> StringIterator<'a> {
-        agent
-            .heap
-            .create(StringIteratorHeapData::new(string))
-            .bind(gc)
+        agent.heap.create(StringIteratorHeapData::new(string))
     }
 
     pub fn is_completed(self, agent: &Agent) -> bool {
@@ -61,7 +58,7 @@ impl<'a> InternalSlots<'a> for StringIterator<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get_data(agent).backing_object.unbind()
+        self.get_data(agent).backing_object
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
@@ -111,11 +108,11 @@ impl StringIteratorPrototype {
     fn next<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _arguments: ArgumentsList,
+        _arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let gc = gc.into_nogc();
-        let this_value = this_value.bind(gc);
+        crate::engine::bind!(let this_value = this_value, gc);
         // 1. Return ? GeneratorResume(this value, empty, "%StringIteratorPrototype%").
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         let Value::StringIterator(generator) = this_value else {
@@ -195,7 +192,7 @@ bindable_handle!(StringIteratorHeapData);
 
 impl<'a> CreateHeapData<StringIteratorHeapData<'a>, StringIterator<'a>> for Heap {
     fn create(&mut self, data: StringIteratorHeapData<'a>) -> StringIterator<'a> {
-        self.string_iterators.push(data.unbind());
+        self.string_iterators.push(data);
         self.alloc_counter += core::mem::size_of::<StringIteratorHeapData<'static>>();
         StringIterator(BaseIndex::last(&self.string_iterators))
     }

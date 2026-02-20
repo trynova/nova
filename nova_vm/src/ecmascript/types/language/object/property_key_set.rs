@@ -44,7 +44,7 @@ impl<'a> PropertyKeySet<'a> {
         match entry {
             hashbrown::hash_table::Entry::Occupied(_) => false,
             hashbrown::hash_table::Entry::Vacant(vacant_entry) => {
-                vacant_entry.insert(value.unbind());
+                vacant_entry.insert(value);
                 true
             }
         }
@@ -63,7 +63,7 @@ impl ScopableCollection for PropertyKeySet<'_> {
         agent: &Agent,
         gc: NoGcScope<'_, 'scope>,
     ) -> ScopedCollection<'scope, Self::Of<'static>> {
-        ScopedCollection::new(agent, self.unbind(), gc)
+        ScopedCollection::new(agent, self,gc)
     }
 }
 

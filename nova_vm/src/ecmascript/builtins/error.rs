@@ -41,14 +41,14 @@ impl<'a> InternalSlots<'a> for Error<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        self.get(agent).object_index.unbind()
+        self.get(agent).object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
         assert!(
             self.get_mut(agent)
                 .object_index
-                .replace(backing_object.unbind())
+                .replace(backing_object)
                 .is_none()
         );
     }
@@ -83,8 +83,7 @@ impl<'a> InternalSlots<'a> for Error<'a> {
             } else {
                 OrdinaryObject::create_object(agent, Some(prototype), &[])
             }
-            .expect("Should perform GC here")
-            .unbind();
+            .expect("Should perform GC here");
         self.set_backing_object(agent, backing_object);
         backing_object
     }
@@ -122,17 +121,14 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         match self.get_backing_object(agent) {
-            Some(backing_object) => TryResult::Continue(
-                ordinary_get_own_property(
-                    agent,
-                    self.into(),
-                    backing_object,
-                    property_key,
-                    cache,
-                    gc,
-                )
-                .bind(gc),
-            ),
+            Some(backing_object) => TryResult::Continue(ordinary_get_own_property(
+                agent,
+                self.into(),
+                backing_object,
+                property_key,
+                cache,
+                gc,
+            )),
             None => {
                 let property_value =
                     if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
@@ -150,7 +146,6 @@ impl<'a> InternalMethods<'a> for Error<'a> {
                     enumerable: Some(false),
                     configurable: Some(true),
                 }))
-                .unbind()
             }
         }
     }
@@ -162,16 +157,16 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, TryHasResult<'gc>> {
-        let error = self.bind(gc);
+        crate::engine::bind!(let error = self, gc);
         let backing_object = error.get_backing_object(agent);
         if backing_object.is_none()
             && property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
-            && error.get(agent).message.is_some()
+            && error.get(agent).local().message.is_some()
         {
             TryHasResult::Custom(0, error.into()).into()
         } else if backing_object.is_none()
             && property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause)
-            && error.get(agent).cause.is_some()
+            && error.get(agent).local().cause.is_some()
         {
             TryHasResult::Custom(1, error.into()).into()
         } else {
@@ -185,15 +180,11 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         property_key: PropertyKey,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
-        let property_key = property_key.bind(gc.nogc());
+        crate::engine::bind!(let property_key = property_key, gc);
         match self.get_backing_object(agent) {
-            Some(backing_object) => ordinary_has_property(
-                agent,
-                self.into(),
-                backing_object,
-                property_key.unbind(),
-                gc,
-            ),
+            Some(backing_object) => {
+                ordinary_has_property(agent, self.into(), backing_object, property_key, gc)
+            }
             None => {
                 let found_direct =
                     if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
@@ -208,7 +199,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
                 } else {
                     self.internal_prototype(agent)
                         .unwrap()
-                        .internal_has_property(agent, property_key.unbind(), gc)
+                        .internal_has_property(agent, property_key, gc)
                 }
             }
         }
@@ -235,7 +226,7 @@ impl<'a> InternalMethods<'a> for Error<'a> {
             None
         };
         if let Some(property_value) = property_value {
-            return TryGetResult::Value(property_value.unbind()).into();
+            return TryGetResult::Value(property_value).into();
         }
         ordinary_try_get(
             agent,
@@ -254,12 +245,10 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         property_key: PropertyKey,
         receiver: Value,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let property_key = property_key.bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let property_key = property_key, gc);
         match self.get_backing_object(agent) {
-            Some(backing_object) => {
-                backing_object.internal_get(agent, property_key.unbind(), receiver, gc)
-            }
+            Some(backing_object) => backing_object.internal_get(agent, property_key, receiver, gc),
             None => {
                 let property_value =
                     if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
@@ -270,11 +259,11 @@ impl<'a> InternalMethods<'a> for Error<'a> {
                         None
                     };
                 if let Some(property_value) = property_value {
-                    Ok(property_value.unbind())
+                    Ok(property_value)
                 } else {
                     self.internal_prototype(agent).unwrap().internal_get(
                         agent,
-                        property_key.unbind(),
+                        property_key,
                         receiver,
                         gc,
                     )
@@ -297,10 +286,10 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
             && value.is_string()
         {
-            self.get_mut(agent).message = Some(String::try_from(value.unbind()).unwrap());
+            self.get_mut(agent).message = Some(String::try_from(value).unwrap());
             SetResult::Done.into()
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-            self.get_mut(agent).cause = Some(value.unbind());
+            self.get_mut(agent).cause = Some(value);
             SetResult::Done.into()
         } else {
             self.create_backing_object(agent);
@@ -316,34 +305,20 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         receiver: Value,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
-        let property_key = property_key.bind(gc.nogc());
+        crate::engine::bind!(let property_key = property_key, gc);
         if self.get_backing_object(agent).is_some() {
-            ordinary_set(
-                agent,
-                self.into(),
-                property_key.unbind(),
-                value,
-                receiver,
-                gc,
-            )
+            ordinary_set(agent, self.into(), property_key, value, receiver, gc)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
             && value.is_string()
         {
-            self.get_mut(agent).message = Some(String::try_from(value.unbind()).unwrap());
+            self.get_mut(agent).message = Some(String::try_from(value).unwrap());
             Ok(true)
         } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-            self.get_mut(agent).cause = Some(value.unbind());
+            self.get_mut(agent).cause = Some(value);
             Ok(true)
         } else {
             self.create_backing_object(agent);
-            ordinary_set(
-                agent,
-                self.into(),
-                property_key.unbind(),
-                value,
-                receiver,
-                gc,
-            )
+            ordinary_set(agent, self.into(), property_key, value, receiver, gc)
         }
     }
 
@@ -413,7 +388,7 @@ impl HeapSweepWeakReference for Error<'static> {
 
 impl<'a> CreateHeapData<ErrorHeapData<'a>, Error<'a>> for Heap {
     fn create(&mut self, data: ErrorHeapData<'a>) -> Error<'a> {
-        self.errors.push(data.unbind());
+        self.errors.push(data);
         self.alloc_counter += core::mem::size_of::<ErrorHeapData<'static>>();
         Error(BaseIndex::last(&self.errors))
     }

@@ -77,16 +77,14 @@ impl JSONObject {
     fn parse<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let text = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let text = arguments.get(0), gc);
         let reviver = arguments.get(1).scope(agent, gc.nogc());
 
         // 1. Let jsonString be ? ToString(text).
-        let json_string = to_string(agent, text.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let json_string = to_string(agent, text, gc.reborrow())?;
 
         // 2. Parse StringToCodePoints(jsonString) as a JSON text as specified in ECMA-404. Throw a SyntaxError exception if it is not a valid JSON text as defined in that specification.
         let json_value =
@@ -122,9 +120,9 @@ impl JSONObject {
         );
 
         // 11. If IsCallable(reviver) is true, then
-        let reviver = reviver.get(agent).bind(gc.nogc());
+        crate::engine::bind!(let reviver = reviver.get(agent).local(), gc);
         if let Some(reviver) = is_callable(reviver, gc.nogc()) {
-            let reviver = reviver.bind(gc.nogc());
+            crate::engine::bind!(let reviver = reviver, gc);
             // a. Let root be OrdinaryObjectCreate(%Object.prototype%).
             let Object::Object(root) = ordinary_object_create_with_intrinsics(
                 agent,
@@ -136,10 +134,7 @@ impl JSONObject {
             };
 
             // b. Let rootName be the empty String.
-            let root_name = String::EMPTY_STRING
-                .to_property_key()
-                .unbind()
-                .scope_static();
+            let root_name = String::EMPTY_STRING.to_property_key().scope_static();
 
             // c. Perform ! CreateDataPropertyOrThrow(root, rootName, unfiltered).
             unwrap_try(try_create_data_property_or_throw(
@@ -152,14 +147,14 @@ impl JSONObject {
             ));
 
             // d. Return ? InternalizeJSONProperty(root, rootName, reviver).
-            let root = Object::from(root).unbind().scope(agent, gc.nogc());
-            let reviver = reviver.unbind().scope(agent, gc.nogc());
+            let root = Object::from(root).scope(agent, gc.nogc());
+            let reviver = reviver.scope(agent, gc.nogc());
             return internalize_json_property(agent, root, root_name, reviver, gc);
         }
 
         // 12. Else,
         // a. Return unfiltered.
-        Ok(unfiltered.unbind())
+        Ok(unfiltered)
     }
 
     /// ### [25.5.1 JSON.stringify ( value \[ , replacer \[ , space \] ] )](https://tc39.es/ecma262/#sec-json.stringify)
@@ -228,11 +223,11 @@ impl JSONObject {
     pub(crate) fn stringify<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         let value = arguments.get(0).scope(agent, gc.nogc());
-        let replacer = arguments.get(1).bind(gc.nogc());
+        crate::engine::bind!(let replacer = arguments.get(1), gc);
         let space = arguments.get(2).scope(agent, gc.nogc());
 
         // 1. Let stack be a new empty List.
@@ -249,11 +244,11 @@ impl JSONObject {
             // 5. If replacer is an Object, then
             // b. Else,
             // i. Let isArray be ? IsArray(replacer).
-            if is_array(agent, replacer, gc.nogc()).unbind()? {
+            if is_array(agent, replacer, gc.nogc())? {
                 let scoped_replacer = replacer.scope(agent, gc.nogc());
                 // ii. If isArray is true, then
                 // 2. Let len be ? LengthOfArrayLike(replacer).
-                let len = length_of_array_like(agent, replacer.unbind(), gc.reborrow()).unbind()?;
+                let len = length_of_array_like(agent, replacer, gc.reborrow())?;
                 // 1. Set PropertyList to a new empty List.
                 property_list =
                     Some(Vec::<PropertyKey>::with_capacity(len as usize).scope(agent, gc.nogc()));
@@ -264,9 +259,12 @@ impl JSONObject {
                     // a. Let prop be ! ToString(𝔽(k)).
                     let prop = PropertyKey::from(SmallInteger::try_from(k).unwrap());
                     // b. Let v be ? Get(replacer, prop).
-                    let v = get(agent, scoped_replacer.get(agent), prop, gc.reborrow())
-                        .unbind()?
-                        .bind(gc.nogc());
+                    let v = get(
+                        agent,
+                        scoped_replacer.get(agent).local(),
+                        prop,
+                        gc.reborrow(),
+                    )?;
                     // c. Let item be undefined.
                     let item = if let Ok(v) = String::try_from(v) {
                         // d. If v is a String, then
@@ -275,22 +273,12 @@ impl JSONObject {
                     } else if let Ok(v) = Number::try_from(v) {
                         // e. Else if v is a Number, then
                         // i. Set item to ! ToString(v).
-                        Some(
-                            to_property_key(agent, v.unbind(), gc.reborrow())
-                                .unwrap()
-                                .unbind()
-                                .bind(gc.nogc()),
-                        )
+                        Some(to_property_key(agent, v, gc.reborrow()).unwrap()?)
                     } else if let Ok(v) = PrimitiveObject::try_from(v) {
                         // f. Else if v is an Object, then
                         // i. If v has a [[StringData]] or [[NumberData]] internal slot, set item to ? ToString(v).
                         if v.is_string_object(agent) || v.is_number_object(agent) {
-                            Some(
-                                to_property_key(agent, v.unbind(), gc.reborrow())
-                                    .unwrap()
-                                    .unbind()
-                                    .bind(gc.nogc()),
-                            )
+                            Some(to_property_key(agent, v, gc.reborrow()).unwrap()?)
                         } else {
                             None
                         }
@@ -307,7 +295,7 @@ impl JSONObject {
                     }
                 }
                 // SAFETY: scoped_replacer is not shared.
-                let _ = unsafe { scoped_replacer.take(agent) };
+                let _ = unsafe { scoped_replacer.take(agent).local() };
             }
             None
         } else {
@@ -315,27 +303,17 @@ impl JSONObject {
         };
 
         // SAFETY: space is not shared.
-        let space = unsafe { space.take(agent) }.bind(gc.nogc());
+        crate::engine::bind!(let space = unsafe { space.take(agent).local() }, gc);
         // 6. If space is an Object, then
         let space: Option<Primitive> = if let Ok(space) = PrimitiveObject::try_from(space) {
             if space.is_number_object(agent) {
                 // a. If space has a [[NumberData]] internal slot, then
                 // i. Set space to ? ToNumber(space).
-                Some(
-                    to_number(agent, space.unbind(), gc.reborrow())
-                        .unbind()?
-                        .bind(gc.nogc())
-                        .into(),
-                )
+                Some(to_number(agent, space, gc.reborrow())?.into())
             } else if space.is_string_object(agent) {
                 // b. Else if space has a [[StringData]] internal slot, then
                 // i. Set space to ? ToString(space).
-                Some(
-                    to_string(agent, space.unbind(), gc.reborrow())
-                        .unbind()?
-                        .bind(gc.nogc())
-                        .into(),
-                )
+                Some(to_string(agent, space, gc.reborrow())?.into())
             } else {
                 None
             }
@@ -379,7 +357,7 @@ impl JSONObject {
             unreachable!()
         };
         // SAFETY: value is not shared.
-        let mut value = unsafe { value.take(agent) }.bind(gc.nogc());
+        crate::engine::bind!(let mut value = unsafe { value.take(agent).local() }, gc);
         // 11. Perform ! CreateDataPropertyOrThrow(wrapper, the empty String, value).
         if wrapper
             .property_storage()
@@ -397,8 +375,8 @@ impl JSONObject {
             agent.gc(gc.reborrow());
             // SAFETY: Not shared.
             unsafe {
-                wrapper = scoped_wrapper.take(agent).bind(gc.nogc());
-                value = scoped_value.take(agent).bind(gc.nogc());
+                wrapper = scoped_wrapper.take(agent).local();
+                value = scoped_value.take(agent).local();
             }
             if let Err(err) = wrapper.property_storage().set(
                 agent,
@@ -428,15 +406,11 @@ impl JSONObject {
             agent,
             state.replacer_function.clone(),
             key,
-            wrapper.unbind().into(),
+            wrapper.into(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         if let Some(value_p) = value_p {
-            serialize_json_property_value(agent, &mut state, value_p.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            serialize_json_property_value(agent, &mut state, value_p, gc.reborrow())?;
             Ok(String::from_wtf8_buf(agent, state.result, gc.into_nogc()).into())
         } else {
             Ok(Value::Undefined)
@@ -484,25 +458,23 @@ fn internalize_json_property<'a>(
     holder: Scoped<Object>,
     name: impl IndirectPropertyKey,
     reviver: Scoped<Function>,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<'a, Value<'a>> {
+    mut gc: GcScope,
+) -> JsResult<'static, Value<'static>> {
     // 1. Let val be ? Get(holder, name).
     let val = get(
         agent,
-        holder.get(agent),
-        name.get_key(agent, gc.nogc()).unbind(),
+        holder.get(agent).local(),
+        name.get_key(agent, gc.nogc()),
         gc.reborrow(),
-    )
-    .unbind()?
-    .bind(gc.nogc());
+    )?;
     // 2. If val is an Object, then
     let val = if let Ok(val) = Object::try_from(val) {
         // a. Let isArray be ? IsArray(val).
         // b. If isArray is true, then
         let scoped_val = val.scope(agent, gc.nogc());
-        if is_array(agent, val, gc.nogc()).unbind()? {
+        if is_array(agent, val, gc.nogc())? {
             // i. Let len be ? LengthOfArrayLike(val).
-            let len = length_of_array_like(agent, val.unbind(), gc.reborrow()).unbind()?;
+            let len = length_of_array_like(agent, val, gc.reborrow())?;
             // let val = val.scope(agent, gc.nogc());
             // ii. Let I be 0.
             let mut i = 0;
@@ -518,18 +490,17 @@ fn internalize_json_property<'a>(
                     prop.clone(),
                     reviver.clone(),
                     gc.reborrow(),
-                )
-                .unbind()?
-                .bind(gc.nogc());
+                )?;
 
                 // 3. If newElement is undefined, then
                 if new_element.is_undefined() {
                     // a. Perform ? val.[[Delete]](prop).
                     // Note: Deleting from an Array never calls into JavaScript.
-                    scoped_val
-                        .get(agent)
-                        .internal_delete(agent, prop.unwrap(), gc.reborrow())
-                        .unbind()?;
+                    scoped_val.get(agent).local().internal_delete(
+                        agent,
+                        prop.unwrap(),
+                        gc.reborrow(),
+                    )?;
                 } else {
                     // 4. Else,
                     // a. Perform ? CreateDataProperty(val, prop, newElement).
@@ -537,12 +508,11 @@ fn internalize_json_property<'a>(
                     // JavaScript.
                     create_data_property(
                         agent,
-                        scoped_val.get(agent),
+                        scoped_val.get(agent).local(),
                         prop.unwrap(),
-                        new_element.unbind(),
+                        new_element,
                         gc.reborrow(),
-                    )
-                    .unbind()?;
+                    )?;
                 }
 
                 // 5. Set I to I + 1.
@@ -551,9 +521,7 @@ fn internalize_json_property<'a>(
         } else {
             // c. Else,
             // i. Let keys be ? EnumerableOwnProperties(val, KEY).
-            let keys = scoped_enumerable_own_keys(agent, scoped_val.clone(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let keys = scoped_enumerable_own_keys(agent, scoped_val.clone(), gc.reborrow())?;
 
             // ii. For each String P of keys, do
             for p in keys.iter(agent) {
@@ -564,35 +532,33 @@ fn internalize_json_property<'a>(
                     p,
                     reviver.clone(),
                     gc.reborrow(),
-                )
-                .unbind()?
-                .bind(gc.nogc());
+                )?;
 
                 // 2. If newElement is undefined, then
                 if new_element.is_undefined() {
                     // a. Perform ? val.[[Delete]](P).
-                    scoped_val
-                        .get(agent)
-                        .internal_delete(agent, p.get_key(agent, gc.nogc()).unbind(), gc.reborrow())
-                        .unbind()?;
+                    scoped_val.get(agent).local().internal_delete(
+                        agent,
+                        p.get_key(agent, gc.nogc()),
+                        gc.reborrow(),
+                    )?;
                 } else {
                     // 3. Else,
                     // a. Perform ? CreateDataProperty(val, P, newElement).
                     create_data_property(
                         agent,
-                        scoped_val.get(agent),
-                        p.get_key(agent, gc.nogc()).unbind(),
-                        new_element.unbind(),
+                        scoped_val.get(agent).local(),
+                        p.get_key(agent, gc.nogc()),
+                        new_element,
                         gc.reborrow(),
-                    )
-                    .unbind()?;
+                    )?;
                 }
             }
         }
         // SAFETY: scoped_val was shared to other internalise calls as the
         // holder object but those calls have finished and do not store
         // scoped_val anywhere.
-        unsafe { scoped_val.take(agent) }.bind(gc.nogc()).into()
+        unsafe { scoped_val.take(agent).local() }.into()
     } else {
         val
     };
@@ -605,12 +571,9 @@ fn internalize_json_property<'a>(
         .convert_to_value(agent, gc.nogc());
     call_function(
         agent,
-        reviver.get(agent),
-        holder.get(agent).into(),
-        Some(ArgumentsList::from_mut_slice(&mut [
-            name.unbind().into(),
-            val.unbind(),
-        ])),
+        reviver.get(agent).local(),
+        holder.get(agent).local().into(),
+        Some(ArgumentsList::from_mut_slice(&mut [name.into(), val])),
         gc,
     )
 }
@@ -636,7 +599,7 @@ impl IndirectPropertyKey for ScopedPropertyKey<'_> {
 
 impl IndirectPropertyKey for Scoped<'_, PropertyKey<'static>> {
     fn get_key<'a>(&self, agent: &Agent, gc: NoGcScope<'a, '_>) -> PropertyKey<'a> {
-        self.get(agent).bind(gc)
+        self.get(agent)
     }
 }
 
@@ -654,33 +617,24 @@ fn get_serializable_json_property_value<'a>(
     replacer_function: Option<Scoped<Function>>,
     key: impl IndirectPropertyKey,
     holder: Object,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> JsResult<'a, Option<Value<'a>>> {
-    let holder = holder.bind(gc.nogc());
+    crate::engine::bind!(let holder = holder, gc);
     let scoped_holder = replacer_function
         .as_ref()
         .map(|_| holder.scope(agent, gc.nogc()));
     // 1. Let value be ? Get(holder, key).
-    let mut value = get(
-        agent,
-        holder.unbind(),
-        key.get_key(agent, gc.nogc()).unbind(),
-        gc.reborrow(),
-    )
-    .unbind()?
-    .bind(gc.nogc());
+    let mut value = get(agent, holder, key.get_key(agent, gc.nogc()), gc.reborrow())?;
     // 2. If value is an Object or value is a BigInt, then
     if value.is_object() || value.is_bigint() {
         let scoped_value = value.scope(agent, gc.nogc());
         // a. Let toJSON be ? GetV(value, "toJSON").
         let to_json = get_v(
             agent,
-            value.unbind(),
+            value,
             BUILTIN_STRING_MEMORY.toJSON.to_property_key(),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         // b. If IsCallable(toJSON) is true, then
         if let Some(to_json) = is_callable(to_json, gc.nogc()) {
             // i. Set value to ? Call(toJSON, value, « key »).
@@ -689,19 +643,17 @@ fn get_serializable_json_property_value<'a>(
                 .convert_to_value(agent, gc.nogc());
             value = call_function(
                 agent,
-                to_json.unbind(),
-                scoped_value.get(agent),
-                Some(ArgumentsList::from_mut_value(&mut key.unbind().into())),
+                to_json,
+                scoped_value.get(agent).local(),
+                Some(ArgumentsList::from_mut_value(&mut key.into())),
                 gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc());
+            )?;
             // SAFETY: scoped_value is not shared.
-            let _ = unsafe { scoped_value.take(agent) };
+            let _ = unsafe { scoped_value.take(agent).local() };
         } else {
             // Return the value back from scoping.
             // SAFETY: scoped_value is not shared.
-            value = unsafe { scoped_value.take(agent) };
+            value = unsafe { scoped_value.take(agent).local() };
         }
     }
     // 3. If state.[[ReplacerFunction]] is not undefined, then
@@ -712,39 +664,28 @@ fn get_serializable_json_property_value<'a>(
             .convert_to_value(agent, gc.nogc());
         value = call_function(
             agent,
-            replacer_function.get(agent),
+            replacer_function.get(agent).local(),
             // SAFETY: scoped_holder is not shared.
-            unsafe { scoped_holder.unwrap().take(agent).unbind().into() },
-            Some(ArgumentsList::from_mut_slice(&mut [
-                key.unbind().into(),
-                value.unbind(),
-            ])),
+            unsafe { scoped_holder.unwrap().take(agent).local().into() },
+            Some(ArgumentsList::from_mut_slice(&mut [key.into(), value])),
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
     }
 
     // 4. If value is an Object, then
     if let Ok(obj) = PrimitiveObject::try_from(value) {
-        match obj.get(agent).data {
+        match obj.get(agent).local().data {
             // a. If value has a [[NumberData]] internal slot, then
             // i. Set value to ? ToNumber(value).
             PrimitiveObjectData::Number(_)
             | PrimitiveObjectData::Integer(_)
             | PrimitiveObjectData::SmallF64(_) => {
-                value = to_number(agent, obj.unbind(), gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc())
-                    .into()
+                value = to_number(agent, obj, gc.reborrow())?.into()
             }
             // b. Else if value has a [[StringData]] internal slot, then
             // i. Set value to ? ToString(value).
             PrimitiveObjectData::String(_) | PrimitiveObjectData::SmallString(_) => {
-                value = to_string(agent, obj.unbind(), gc.reborrow())
-                    .unbind()?
-                    .bind(gc.nogc())
-                    .into()
+                value = to_string(agent, obj, gc.reborrow())?.into()
             }
             // c. Else if value has a [[BooleanData]] internal slot, then
             // i. Set value to value.[[BooleanData]].
@@ -770,7 +711,7 @@ fn get_serializable_json_property_value<'a>(
         // 11. If value is an Object and IsCallable(value) is false, then
         Ok(None)
     } else {
-        Ok(Some(value.unbind().bind(gc.into_nogc())))
+        Ok(Some(value))
     }
 }
 
@@ -784,7 +725,7 @@ fn serialize_json_property_value<'a, 'b>(
     value: Value,
     gc: GcScope<'a, 'b>,
 ) -> JsResult<'a, ()> {
-    let value = value.bind(gc.nogc());
+    crate::engine::bind!(let value = value, gc);
     match value {
         // 5. If value is null, return "null".
         Value::Null => {
@@ -824,11 +765,11 @@ fn serialize_json_property_value<'a, 'b>(
             debug_assert!(is_callable(value, gc.nogc()).is_none());
             // a. Let isArray be ? IsArray(value).
             // b. If isArray is true, return ? SerializeJSONArray(state, value).
-            if is_array(agent, value, gc.nogc()).unbind()? {
-                serialize_json_array(agent, state, value.unbind(), gc)?;
+            if is_array(agent, value, gc.nogc())? {
+                serialize_json_array(agent, state, value, gc)?;
             } else {
                 // c. Return ? SerializeJSONObject(state, value).
-                serialize_json_object(agent, state, value.unbind(), gc)?;
+                serialize_json_object(agent, state, value, gc)?;
             }
         }
     }
@@ -940,7 +881,7 @@ fn serialize_json_object<'a, 'b>(
     value: Object<'static>,
     mut gc: GcScope<'a, 'b>,
 ) -> JsResult<'a, ()> {
-    let value = value.bind(gc.nogc());
+    crate::engine::bind!(let value = value, gc);
     // 1. If state.[[Stack]] contains value, throw a TypeError exception
     //    because the structure is cyclical.
     if state
@@ -966,9 +907,7 @@ fn serialize_json_object<'a, 'b>(
     let k = if let Some(property_list) = &state.property_list {
         property_list.clone()
     } else {
-        enumerable_own_keys(agent, value.unbind(), gc.reborrow())
-            .unbind()?
-            .scope(agent, gc.nogc())
+        enumerable_own_keys(agent, value, gc.reborrow())?.scope(agent, gc.nogc())
     };
 
     if k.is_empty(agent) {
@@ -1045,14 +984,10 @@ fn serialize_json_object<'a, 'b>(
             p,
             // SAFETY: We only push the objects onto the stack.
             unsafe {
-                Object::try_from(state.stack.last(agent, gc.nogc()).unwrap())
-                    .unwrap_unchecked()
-                    .unbind()
+                Object::try_from(state.stack.last(agent, gc.nogc()).unwrap()).unwrap_unchecked()
             },
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         // b. If strP is not undefined, then
         let Some(value_p) = value_p else {
             continue;
@@ -1072,10 +1007,8 @@ fn serialize_json_object<'a, 'b>(
         // 1. Set member to the string-concatenation of member and the code unit 0x0020 (SPACE).
         state.result.push_str(key_value_separator);
         // iv. Set member to the string-concatenation of member and strP.
-        serialize_json_property_value(agent, state, value_p.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
-        // let member = String::concat(agent, member, gc.nogc()).unbind();
+        serialize_json_property_value(agent, state, value_p, gc.reborrow())?;
+        // let member = String::concat(agent, member, gc.nogc());
         // v. Append member to partial.
     }
 
@@ -1110,7 +1043,7 @@ fn serialize_json_array<'a, 'b>(
     value: Object<'static>,
     mut gc: GcScope<'a, 'b>,
 ) -> JsResult<'a, ()> {
-    let value = value.bind(gc.nogc());
+    crate::engine::bind!(let value = value, gc);
     // 1. If state.[[Stack]] contains value, throw a TypeError exception because the structure is cyclical.
     if state
         .stack
@@ -1127,7 +1060,7 @@ fn serialize_json_array<'a, 'b>(
     // 2. Append value to state.[[Stack]].
     state.stack.push(agent, value.into());
     // 6. Let len be ? LengthOfArrayLike(value).
-    let len = length_of_array_like(agent, value.unbind(), gc.reborrow()).unbind()? as u64;
+    let len = length_of_array_like(agent, value, gc.reborrow())? as u64;
 
     // 9. If partial is empty, then
     // Note: We skip all the bookkeeping work when dealing with empty arrays.
@@ -1206,20 +1139,13 @@ fn serialize_json_array<'a, 'b>(
             state.replacer_function.clone(),
             key,
             unsafe {
-                Object::try_from(state.stack.last(agent, gc.nogc()).unwrap())
-                    .unwrap_unchecked()
-                    .unbind()
+                Object::try_from(state.stack.last(agent, gc.nogc()).unwrap()).unwrap_unchecked()
             },
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc())
-        {
+        )? {
             // c. Else,
             // i. Append strP to partial.
-            serialize_json_property_value(agent, state, value_p.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            serialize_json_property_value(agent, state, value_p, gc.reborrow())?;
         } else {
             // b. If strP is undefined, then
             // i. Append "null" to partial.

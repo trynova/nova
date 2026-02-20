@@ -55,64 +55,62 @@ impl<'a> PromiseGroup<'a> {
         reaction_type: PromiseReactionType,
         index: u32,
         value: Value<'a>,
-        mut gc: GcScope<'a, '_>,
+        mut gc: GcScope,
     ) {
-        let value = value.bind(gc.nogc());
+        crate::engine::bind!(let value = value, gc);
         let record = self.get(agent);
 
         match record.promise_group_type {
             PromiseGroupType::All => match reaction_type {
                 PromiseReactionType::Fulfill => {
-                    self.fulfill(agent, index, value.unbind(), gc.reborrow());
+                    self.fulfill(agent, index, value, gc.reborrow());
                 }
                 PromiseReactionType::Reject => {
-                    self.immediately_reject(agent, value.unbind(), gc.nogc());
+                    self.immediately_reject(agent, value, gc.nogc());
                 }
             },
             PromiseGroupType::AllSettled => {
-                let obj = self
-                    .to_all_settled_obj(agent, reaction_type, value.unbind(), gc.nogc())
-                    .bind(gc.nogc());
-                self.fulfill(agent, index, obj.unbind(), gc.reborrow());
+                let obj = self.to_all_settled_obj(agent, reaction_type, value, gc.nogc());
+                self.fulfill(agent, index, obj, gc.reborrow());
             }
             PromiseGroupType::Any => match reaction_type {
                 PromiseReactionType::Fulfill => {
-                    self.immediately_resolve(agent, value.unbind(), gc.reborrow());
+                    self.immediately_resolve(agent, value, gc.reborrow());
                 }
                 PromiseReactionType::Reject => {
-                    self.reject(agent, index, value.unbind(), gc.reborrow());
+                    self.reject(agent, index, value, gc.reborrow());
                 }
             },
         }
     }
 
     fn fulfill(self, agent: &mut Agent, index: u32, value: Value<'a>, mut gc: GcScope<'a, '_>) {
-        let promise_group = self.bind(gc.nogc());
-        let value = value.bind(gc.nogc());
+        crate::engine::bind!(let promise_group = self, gc);
+        crate::engine::bind!(let value = value, gc);
 
         let promise_group_record = promise_group.get_mut(agent);
         let (result_array, promise_to_resolve) = promise_group_record.take_result_and_promise();
 
         let elements = result_array.as_mut_slice(agent);
-        elements[index as usize] = Some(value.unbind());
+        elements[index as usize] = Some(value);
 
         if let Some(promise_to_resolve) = promise_to_resolve {
             promise_group.pop_empty_records(agent);
 
             let capability = PromiseCapability::from_promise(promise_to_resolve, true);
-            capability.resolve(agent, result_array.unbind().into(), gc.reborrow());
+            capability.resolve(agent, result_array.into(), gc.reborrow());
         }
     }
 
     fn reject(self, agent: &mut Agent, index: u32, error: Value<'a>, mut gc: GcScope<'a, '_>) {
-        let promise_group = self.bind(gc.nogc());
-        let error = error.bind(gc.nogc());
+        crate::engine::bind!(let promise_group = self, gc);
+        crate::engine::bind!(let error = error, gc);
 
         let promise_group_record = promise_group.get_mut(agent);
         let (result_array, promise_to_resolve) = promise_group_record.take_result_and_promise();
 
         let elements = result_array.as_mut_slice(agent);
-        elements[index as usize] = Some(error.unbind());
+        elements[index as usize] = Some(error);
 
         if let Some(promise_to_resolve) = promise_to_resolve {
             promise_group.pop_empty_records(agent);
@@ -129,7 +127,7 @@ impl<'a> PromiseGroup<'a> {
                 aggregate_error,
                 BUILTIN_STRING_MEMORY.errors.into(),
                 PropertyDescriptor {
-                    value: Some(result_array.unbind().into()),
+                    value: Some(result_array.into()),
                     writable: Some(true),
                     get: None,
                     set: None,
@@ -145,25 +143,25 @@ impl<'a> PromiseGroup<'a> {
     }
 
     fn immediately_resolve(self, agent: &mut Agent, value: Value<'a>, gc: GcScope<'a, '_>) {
-        let value = value.bind(gc.nogc());
-        let promise_group = self.bind(gc.nogc());
+        crate::engine::bind!(let value = value, gc);
+        crate::engine::bind!(let promise_group = self, gc);
         let data = promise_group.get_mut(agent);
 
         let capability = PromiseCapability::from_promise(data.promise, true);
 
         promise_group.pop_empty_records(agent);
-        capability.resolve(agent, value.unbind(), gc);
+        capability.resolve(agent, value, gc);
     }
 
     fn immediately_reject(self, agent: &mut Agent, value: Value<'a>, gc: NoGcScope<'a, '_>) {
-        let value = value.bind(gc);
-        let promise_group = self.bind(gc);
+        crate::engine::bind!(let value = value, gc);
+        crate::engine::bind!(let promise_group = self, gc);
         let data = promise_group.get_mut(agent);
 
         let capability = PromiseCapability::from_promise(data.promise, true);
 
         promise_group.pop_empty_records(agent);
-        capability.reject(agent, value.unbind(), gc);
+        capability.reject(agent, value, gc);
     }
 
     fn to_all_settled_obj(
@@ -173,7 +171,7 @@ impl<'a> PromiseGroup<'a> {
         value: Value<'a>,
         gc: NoGcScope<'a, '_>,
     ) -> Value<'a> {
-        let value = value.bind(gc);
+        crate::engine::bind!(let value = value, gc);
 
         let entries = vec![
             ObjectEntry::new_data_entry(
@@ -188,7 +186,7 @@ impl<'a> PromiseGroup<'a> {
                     PromiseReactionType::Fulfill => BUILTIN_STRING_MEMORY.value.into(),
                     PromiseReactionType::Reject => BUILTIN_STRING_MEMORY.reason.into(),
                 },
-                value.unbind(),
+                value,
             ),
         ];
 
@@ -203,10 +201,9 @@ impl<'a> PromiseGroup<'a> {
             ),
             &entries,
         )
-        .expect("Should perform GC here")
-        .bind(gc);
+        .expect("Should perform GC here");
 
-        obj.unbind().into()
+        obj.into()
     }
 
     pub(crate) fn get(self, agent: &Agent) -> &PromiseGroupRecord<'a> {
@@ -286,7 +283,7 @@ bindable_handle!(PromiseGroupRecord);
 
 impl<'a> CreateHeapData<PromiseGroupRecord<'a>, PromiseGroup<'a>> for Heap {
     fn create(&mut self, data: PromiseGroupRecord<'a>) -> PromiseGroup<'a> {
-        self.promise_group_records.push(data.unbind());
+        self.promise_group_records.push(data);
         self.alloc_counter += core::mem::size_of::<PromiseGroupRecord<'static>>();
         PromiseGroup(BaseIndex::last(&self.promise_group_records))
     }

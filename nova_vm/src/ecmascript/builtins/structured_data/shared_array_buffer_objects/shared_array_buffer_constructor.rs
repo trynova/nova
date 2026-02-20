@@ -44,12 +44,12 @@ impl SharedArrayBufferConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let arguments = arguments.bind(gc.nogc());
-        let new_target = new_target.bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let arguments = arguments, gc);
+        crate::engine::bind!(let new_target = new_target, gc);
         let length = arguments.get(0);
         let options = arguments.get(1).scope(agent, gc.nogc());
         // 1. If NewTarget is undefined,
@@ -63,22 +63,18 @@ impl SharedArrayBufferConstructor {
         };
         let new_target = new_target.scope(agent, gc.nogc());
         // 2. Let byteLength be ? ToIndex(length).
-        let byte_length = to_index(agent, length.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc()) as u64;
+        let byte_length = to_index(agent, length, gc.reborrow())? as u64;
         // 3. Let requestedMaxByteLength be ? GetArrayBufferMaxByteLengthOption(options).
         let requested_max_byte_length = get_array_buffer_max_byte_length_option(
             agent,
-            unsafe { options.take(agent) },
+            unsafe { options.take(agent).local() },
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        )?;
         // 4. Return ? AllocateSharedArrayBuffer(NewTarget, byteLength, requestedMaxByteLength).
         allocate_shared_array_buffer(
             agent,
             // SAFETY: not shared.
-            unsafe { new_target.take(agent) },
+            unsafe { new_target.take(agent).local() },
             byte_length,
             requested_max_byte_length,
             gc,
@@ -96,11 +92,11 @@ impl SharedArrayBufferConstructor {
     fn get_species<'gc>(
         _agent: &mut Agent,
         this_value: Value,
-        _arguments: ArgumentsList,
+        _arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         // 1. Return the this value.
-        Ok(this_value.bind(gc.into_nogc()))
+        Ok(this_value)
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {

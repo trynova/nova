@@ -43,13 +43,13 @@ impl ErrorConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let message = arguments.get(0).bind(gc.nogc());
-        let mut options = arguments.get(1).bind(gc.nogc());
-        let mut new_target = new_target.bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let message = arguments.get(0), gc);
+        crate::engine::bind!(let mut options = arguments.get(1), gc);
+        crate::engine::bind!(let mut new_target = new_target, gc);
 
         // 3. If message is not undefined, then
         let message = if let Ok(message) = String::try_from(message) {
@@ -58,13 +58,11 @@ impl ErrorConstructor {
             // a. Let msg be ? ToString(message).
             let scoped_options = options.scope(agent, gc.nogc());
             let scoped_new_target = new_target.map(|n| n.scope(agent, gc.nogc()));
-            let message = to_string(agent, message.unbind(), gc.reborrow())
-                .unbind()?
-                .scope(agent, gc.nogc());
+            let message = to_string(agent, message, gc.reborrow())?.scope(agent, gc.nogc());
             // SAFETY: Never shared.
             unsafe {
-                new_target = scoped_new_target.map(|n| n.take(agent)).bind(gc.nogc());
-                options = scoped_options.take(agent).bind(gc.nogc());
+                new_target = scoped_new_target.map(|n| n.take(agent).local());
+                options = scoped_options.take(agent).local();
             }
             Some(message)
         } else {
@@ -75,11 +73,9 @@ impl ErrorConstructor {
             None
         } else {
             let scoped_new_target = new_target.map(|n| n.scope(agent, gc.nogc()));
-            let cause = get_error_cause(agent, options.unbind(), gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let cause = get_error_cause(agent, options, gc.reborrow())?;
             // SAFETY: Never shared.
-            new_target = unsafe { scoped_new_target.map(|n| n.take(agent)).bind(gc.nogc()) };
+            new_target = unsafe { scoped_new_target.map(|n| n.take(agent).local()) };
             cause.map(|c| c.scope(agent, gc.nogc()))
         };
 
@@ -91,16 +87,14 @@ impl ErrorConstructor {
         // 2. Let O be ? OrdinaryCreateFromConstructor(newTarget, "%Error.prototype%", « [[ErrorData]] »).
         let o = ordinary_create_from_constructor(
             agent,
-            new_target.unbind(),
+            new_target,
             ProtoIntrinsics::Error,
             gc.reborrow(),
-        )
-        .unbind()?
-        .bind(gc.into_nogc());
+        )?;
         let o = Error::try_from(o).unwrap();
         // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
-        let message = message.map(|message| message.get(agent));
-        let cause = cause.map(|c| c.get(agent));
+        let message = message.map(|message| message.get(agent).local());
+        let cause = cause.map(|c| c.get(agent).local());
         let heap_data = o.get_mut(agent);
         heap_data.kind = ExceptionType::Error;
         heap_data.message = message;
@@ -114,9 +108,9 @@ impl ErrorConstructor {
     fn is_error<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         is_error(_agent, arguments.get(0), gc.into_nogc()).map(Value::Boolean)
     }
 
@@ -150,7 +144,7 @@ pub(super) fn get_error_cause<'gc>(
         return Ok(None);
     };
     let key = PropertyKey::from(BUILTIN_STRING_MEMORY.cause);
-    if has_property(agent, options, key, gc.reborrow()).unbind()? {
+    if has_property(agent, options, key, gc.reborrow())? {
         Ok(Some(get(agent, options, key, gc)?))
     } else {
         Ok(None)
@@ -167,7 +161,7 @@ pub(super) fn is_error<'a, 'gc>(
     argument: impl Into<Value<'a>>,
     gc: NoGcScope<'gc, '_>,
 ) -> JsResult<'gc, bool> {
-    let argument = argument.into().bind(gc);
+    crate::engine::bind!(let argument = argument.into(), gc);
     match argument {
         // 1. If argument is not an Object, return false.
         // 2. If argument has an [[ErrorData]] internal slot, return true.

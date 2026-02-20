@@ -175,7 +175,7 @@ impl HeapMarkAndSweep for PromiseReactionRecord<'static> {
 
 impl<'a> CreateHeapData<PromiseReactionRecord<'a>, PromiseReaction<'a>> for Heap {
     fn create(&mut self, data: PromiseReactionRecord<'a>) -> PromiseReaction<'a> {
-        self.promise_reaction_records.push(data.unbind());
+        self.promise_reaction_records.push(data);
         self.alloc_counter += core::mem::size_of::<PromiseReactionRecord<'static>>();
         PromiseReaction(BaseIndex::last(&self.promise_reaction_records))
     }

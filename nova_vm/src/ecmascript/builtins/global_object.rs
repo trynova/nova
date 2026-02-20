@@ -147,13 +147,13 @@ pub(crate) fn perform_eval<'gc>(
     direct: bool,
     strict_caller: bool,
     mut gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, Value<'gc>> {
+) -> JsResult<'static, Value<'static>> {
     // 1. Assert: If direct is false, then strictCaller is also false.
     assert!(direct || !strict_caller);
 
     // 2. If x is not a String, return x.
     let Ok(x) = String::try_from(x) else {
-        return Ok(x.unbind());
+        return Ok(x);
     };
 
     // 3. Let evalRealm be the current Realm Record.
@@ -163,8 +163,7 @@ pub(crate) fn perform_eval<'gc>(
     // 5. Perform ? HostEnsureCanCompileStrings(evalRealm, « », x, direct).
     agent
         .host_hooks
-        .ensure_can_compile_strings(eval_realm, gc.nogc())
-        .unbind()?;
+        .ensure_can_compile_strings(eval_realm, gc.nogc())?;
 
     let mut id = 0;
     ndt::eval_evaluation_start!(|| {
@@ -197,10 +196,11 @@ pub(crate) fn perform_eval<'gc>(
             _in_derived_constructor = match f {
                 Function::ECMAScriptFunction(f) => f
                     .get(agent)
+                    .local()
                     .ecmascript_function
                     .constructor_status
                     .is_derived_class(),
-                Function::BuiltinConstructorFunction(f) => f.get(agent).is_derived,
+                Function::BuiltinConstructorFunction(f) => f.get(agent).local().is_derived,
                 _ => false,
             };
 
@@ -266,7 +266,7 @@ pub(crate) fn perform_eval<'gc>(
         // been executed, it would do nothing.
         unsafe { source_code.manually_drop(agent) };
         ndt::eval_evaluation_done!(|| id);
-        return Ok(empty_result.unbind());
+        return Ok(empty_result);
     }
 
     // TODO:
@@ -299,41 +299,43 @@ pub(crate) fn perform_eval<'gc>(
             .as_ref()
             .unwrap();
 
-        let running_context_lex_env = running_context_lex_env.bind(gc.nogc());
-        let running_context_var_env = running_context_var_env.bind(gc.nogc());
-        let running_context_private_env = running_context_private_env.bind(gc.nogc());
+        crate::engine::bind!(let running_context_lex_env = running_context_lex_env, gc);
+        crate::engine::bind!(let running_context_var_env = running_context_var_env, gc);
+        crate::engine::bind!(let running_context_private_env = running_context_private_env, gc);
 
         ECMAScriptCodeEvaluationState {
             // a. Let lexEnv be NewDeclarativeEnvironment(runningContext's LexicalEnvironment).
-            lexical_environment: Environment::Declarative(
-                new_declarative_environment(agent, Some(running_context_lex_env), gc.nogc())
-                    .unbind(),
-            ),
+            lexical_environment: Environment::Declarative(new_declarative_environment(
+                agent,
+                Some(running_context_lex_env),
+                gc.nogc(),
+            )),
             // b. Let varEnv be runningContext's VariableEnvironment.
-            variable_environment: running_context_var_env.unbind(),
+            variable_environment: running_context_var_env,
             // c. Let privateEnv be runningContext's PrivateEnvironment.
-            private_environment: running_context_private_env.unbind(),
+            private_environment: running_context_private_env,
             is_strict_mode: strict_eval,
             // The code running inside eval is defined inside the eval source.
-            source_code: source_code.unbind(),
+            source_code: source_code,
         }
     } else {
         // 17. Else,
-        let global_env =
-            Environment::Global(eval_realm.get(agent).global_env.unwrap()).bind(gc.nogc());
+        let global_env = Environment::Global(eval_realm.get(agent).local().global_env.unwrap());
 
         ECMAScriptCodeEvaluationState {
             // a. Let lexEnv be NewDeclarativeEnvironment(evalRealm.[[GlobalEnv]]).
-            lexical_environment: Environment::Declarative(
-                new_declarative_environment(agent, Some(global_env), gc.nogc()).unbind(),
-            ),
+            lexical_environment: Environment::Declarative(new_declarative_environment(
+                agent,
+                Some(global_env),
+                gc.nogc(),
+            )),
             // b. Let varEnv be evalRealm.[[GlobalEnv]].
-            variable_environment: global_env.unbind(),
+            variable_environment: global_env,
             // c. Let privateEnv be null.
             private_environment: None,
             is_strict_mode: strict_eval,
             // The code running inside eval is defined inside the eval source.
-            source_code: source_code.unbind(),
+            source_code: source_code,
         }
     };
 
@@ -350,7 +352,7 @@ pub(crate) fn perform_eval<'gc>(
         // 21. Set evalContext's Function to null.
         function: None,
         // 22. Set evalContext's Realm to evalRealm.
-        realm: eval_realm.unbind(),
+        realm: eval_realm,
         // 23. Set evalContext's ScriptOrModule to runningContext's ScriptOrModule.
         script_or_module: agent.running_execution_context().script_or_module,
         // 24. Set evalContext's VariableEnvironment to varEnv.
@@ -378,9 +380,7 @@ pub(crate) fn perform_eval<'gc>(
             ecmascript_code.private_environment,
             strict_eval,
             gc.reborrow(),
-        )
-        .unbind()
-        .bind(gc.nogc());
+        )?;
 
         // 29. If result is a normal completion, then
         match result {
@@ -393,10 +393,10 @@ pub(crate) fn perform_eval<'gc>(
                 // a. Set result to NormalCompletion(undefined).
                 let result = Vm::execute(agent, exe.clone(), None, gc).into_js_result();
                 // SAFETY: No one can access the bytecode anymore.
-                unsafe { exe.take(agent).try_drop(agent) };
+                unsafe { exe.take(agent).local().try_drop(agent) };
                 result
             }
-            Err(err) => Err(err.unbind().bind(gc.into_nogc())),
+            Err(err) => Err(err),
         }
     };
     // 31. Suspend evalContext and remove it from the execution context stack.
@@ -438,10 +438,10 @@ fn eval_declaration_instantiation<'a>(
     lex_env: Environment,
     private_env: Option<PrivateEnvironment>,
     strict_eval: bool,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope,
 ) -> JsResult<'a, ()> {
-    let mut var_env = var_env.bind(gc.nogc());
-    let lex_env = lex_env.bind(gc.nogc());
+    crate::engine::bind!(let mut var_env = var_env, gc);
+    crate::engine::bind!(let lex_env = lex_env, gc);
     let scoped_lex_env = lex_env.scope(agent, gc.nogc());
     let scoped_var_env = var_env.scope(agent, gc.nogc());
     let private_env = private_env.map(|v| v.scope(agent, gc.nogc()));
@@ -494,11 +494,7 @@ fn eval_declaration_instantiation<'a>(
                     // a. If ! thisEnv.HasBinding(name) is true, then
                     // b. NOTE: A direct eval will not hoist var declaration
                     //    over a like-named lexical declaration.
-                    if this_env
-                        .unbind()
-                        .has_binding(agent, n.unbind(), gc.reborrow())
-                        .unwrap()
-                    {
+                    if this_env.has_binding(agent, n, gc.reborrow()).unwrap() {
                         // i. Throw a SyntaxError exception.
                         // ii. NOTE: Annex B.3.4 defines alternate semantics
                         //     for the above step.
@@ -508,14 +504,14 @@ fn eval_declaration_instantiation<'a>(
                             gc.into_nogc(),
                         ));
                     }
-                    this_env = scoped_this_env.get(agent).bind(gc.nogc());
+                    this_env = scoped_this_env.get(agent).local();
                 }
             }
             // ii. Set thisEnv to thisEnv.[[OuterEnv]].
             this_env = this_env.get_outer_env(agent).unwrap();
             // SAFETY: scoped_this_env is not shared.
-            unsafe { scoped_this_env.replace(agent, this_env.unbind()) };
-            var_env = scoped_var_env.get(agent).bind(gc.nogc());
+            unsafe { scoped_this_env.replace(agent, this_env) };
+            var_env = scoped_var_env.get(agent).local();
         }
     }
 
@@ -523,7 +519,7 @@ fn eval_declaration_instantiation<'a>(
     let _private_identifiers = ();
 
     // 5. Let pointer be privateEnv.
-    let mut pointer = private_env.as_ref().map(|v| v.get(agent).bind(gc.nogc()));
+    crate::engine::bind!(let mut pointer = private_env.as_ref().map(|v| v.get(agent).local()), gc);
 
     // 6. Repeat, while pointer is not null,
     while let Some(p) = pointer {
@@ -560,15 +556,15 @@ fn eval_declaration_instantiation<'a>(
             // iv. If declaredFunctionNames does not contain fn, then
             if declared_function_names.insert(function_name) {
                 // 1. If varEnv is a Global Environment Record, then
-                if let Environment::Global(var_env) = scoped_var_env.get(agent).bind(gc.nogc()) {
+                if let Environment::Global(var_env) = scoped_var_env.get(agent).local() {
                     // a. Let fnDefinable be ? varEnv.CanDeclareGlobalFunction(fn).
                     let function_name = String::from_str(agent, function_name.as_str(), gc.nogc())
                         .scope(agent, gc.nogc());
-                    let fn_definable = var_env
-                        .unbind()
-                        .can_declare_global_function(agent, function_name.get(agent), gc.reborrow())
-                        .unbind()?
-                        .bind(gc.nogc());
+                    let fn_definable = var_env.can_declare_global_function(
+                        agent,
+                        function_name.get(agent).local(),
+                        gc.reborrow(),
+                    )?;
 
                     // b. If fnDefinable is false, throw a TypeError exception.
                     if !fn_definable {
@@ -609,14 +605,13 @@ fn eval_declaration_instantiation<'a>(
                     let vn = String::from_str(agent, vn_string.as_str(), gc.nogc())
                         .scope(agent, gc.nogc());
                     // a. If varEnv is a Global Environment Record, then
-                    if let Environment::Global(var_env) = scoped_var_env.get(agent).bind(gc.nogc())
-                    {
+                    if let Environment::Global(var_env) = scoped_var_env.get(agent).local() {
                         // i. Let vnDefinable be ? varEnv.CanDeclareGlobalVar(vn).
-                        let vn_definable = var_env
-                            .unbind()
-                            .can_declare_global_var(agent, vn.get(agent), gc.reborrow())
-                            .unbind()?
-                            .bind(gc.nogc());
+                        let vn_definable = var_env.can_declare_global_var(
+                            agent,
+                            vn.get(agent).local(),
+                            gc.reborrow(),
+                        )?;
                         // ii. If vnDefinable is false, throw a TypeError exception.
                         if !vn_definable {
                             return Err(agent.throw_exception(
@@ -686,20 +681,22 @@ fn eval_declaration_instantiation<'a>(
         for dn in const_bound_names {
             // i. If IsConstantDeclaration of d is true, then
             // 1. Perform ? lexEnv.CreateImmutableBinding(dn, true).
-            scoped_lex_env
-                .get(agent)
-                .create_immutable_binding(agent, dn, true, gc.nogc())
-                .unbind()?
-                .bind(gc.nogc());
+            scoped_lex_env.get(agent).local().create_immutable_binding(
+                agent,
+                dn,
+                true,
+                gc.nogc(),
+            )?;
         }
         for dn in bound_names {
             // ii. Else,
             // 1. Perform ? lexEnv.CreateMutableBinding(dn, false).
-            scoped_lex_env
-                .get(agent)
-                .create_mutable_binding(agent, dn.get(agent), false, gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            scoped_lex_env.get(agent).local().create_mutable_binding(
+                agent,
+                dn.get(agent).local(),
+                false,
+                gc.reborrow(),
+            )?;
         }
     }
 
@@ -716,27 +713,22 @@ fn eval_declaration_instantiation<'a>(
         let fo = instantiate_function_object(
             agent,
             f,
-            scoped_lex_env.get(agent).bind(gc.nogc()),
-            private_env.as_ref().map(|v| v.get(agent).bind(gc.nogc())),
+            scoped_lex_env.get(agent).local(),
+            private_env.as_ref().map(|v| v.get(agent).local()),
             gc.nogc(),
         );
 
         // c. If varEnv is a Global Environment Record, then
-        if let Environment::Global(var_env) = scoped_var_env.get(agent).bind(gc.nogc()) {
-            let function_name =
-                String::from_str(agent, function_name.unwrap().as_str(), gc.nogc()).unbind();
+        if let Environment::Global(var_env) = scoped_var_env.get(agent).local() {
+            let function_name = String::from_str(agent, function_name.unwrap().as_str(), gc.nogc());
             // i. Perform ? varEnv.CreateGlobalFunctionBinding(fn, fo, true).
-            var_env
-                .unbind()
-                .create_global_function_binding(
-                    agent,
-                    function_name.unbind(),
-                    fo.unbind().into(),
-                    true,
-                    gc.reborrow(),
-                )
-                .unbind()?
-                .bind(gc.nogc());
+            var_env.create_global_function_binding(
+                agent,
+                function_name,
+                fo.into(),
+                true,
+                gc.reborrow(),
+            )?;
         } else {
             let fo = fo.scope(agent, gc.nogc());
             // d. Else,
@@ -745,7 +737,8 @@ fn eval_declaration_instantiation<'a>(
                 .scope(agent, gc.nogc());
             let binding_exists = scoped_var_env
                 .get(agent)
-                .has_binding(agent, function_name.get(agent).unbind(), gc.reborrow())
+                .local()
+                .has_binding(agent, function_name.get(agent).local(), gc.reborrow())
                 .unwrap();
 
             // ii. If bindingExists is false, then
@@ -754,9 +747,10 @@ fn eval_declaration_instantiation<'a>(
                 // 2. Perform ! varEnv.CreateMutableBinding(fn, true).
                 scoped_var_env
                     .get(agent)
+                    .local()
                     .create_mutable_binding(
                         agent,
-                        function_name.get(agent).unbind(),
+                        function_name.get(agent).local(),
                         true,
                         gc.reborrow(),
                     )
@@ -764,28 +758,30 @@ fn eval_declaration_instantiation<'a>(
                 // 3. Perform ! varEnv.InitializeBinding(fn, fo).
                 scoped_var_env
                     .get(agent)
+                    .local()
                     .initialize_binding(
                         agent,
-                        function_name.get(agent).unbind(),
+                        function_name.get(agent).local(),
                         None,
                         // SAFETY: not shared.
-                        unsafe { fo.take(agent) }.into(),
+                        unsafe { fo.take(agent).local() }.into(),
                         gc.reborrow(),
                     )
                     .unwrap();
             } else {
                 // iii. Else,
                 // 1. Perform ! varEnv.SetMutableBinding(fn, fo, false).
-                let function_name = function_name.get(agent).bind(gc.nogc());
+                crate::engine::bind!(let function_name = function_name.get(agent).local(), gc);
                 let cache = PropertyLookupCache::new(agent, function_name.to_property_key());
                 scoped_var_env
                     .get(agent)
+                    .local()
                     .set_mutable_binding(
                         agent,
-                        function_name.unbind(),
-                        Some(cache.unbind()),
+                        function_name,
+                        Some(cache),
                         // SAFETY: not shared.
-                        unsafe { fo.take(agent) }.into(),
+                        unsafe { fo.take(agent).local() }.into(),
                         false,
                         gc.reborrow(),
                     )
@@ -796,20 +792,23 @@ fn eval_declaration_instantiation<'a>(
     // 18. For each String vn of declaredVarNames, do
     for vn in declared_var_names {
         // a. If varEnv is a Global Environment Record, then
-        if let Environment::Global(var_env) = scoped_var_env.get(agent).bind(gc.nogc()) {
+        if let Environment::Global(var_env) = scoped_var_env.get(agent).local() {
             // i. Perform ? varEnv.CreateGlobalVarBinding(vn, true).
-            let cache = PropertyLookupCache::new(agent, vn.get(agent).to_property_key());
-            var_env
-                .unbind()
-                .create_global_var_binding(agent, vn.get(agent), cache, true, gc.reborrow())
-                .unbind()?
-                .bind(gc.nogc());
+            let cache = PropertyLookupCache::new(agent, vn.get(agent).local().to_property_key());
+            var_env.create_global_var_binding(
+                agent,
+                vn.get(agent).local(),
+                cache,
+                true,
+                gc.reborrow(),
+            )?;
         } else {
             // b. Else,
             // i. Let bindingExists be ! varEnv.HasBinding(vn).
             let binding_exists = scoped_var_env
                 .get(agent)
-                .has_binding(agent, vn.get(agent), gc.reborrow())
+                .local()
+                .has_binding(agent, vn.get(agent).local(), gc.reborrow())
                 .unwrap();
 
             // ii. If bindingExists is false, then
@@ -818,12 +817,20 @@ fn eval_declaration_instantiation<'a>(
                 // 2. Perform ! varEnv.CreateMutableBinding(vn, true).
                 scoped_var_env
                     .get(agent)
-                    .create_mutable_binding(agent, vn.get(agent), true, gc.reborrow())
+                    .local()
+                    .create_mutable_binding(agent, vn.get(agent).local(), true, gc.reborrow())
                     .unwrap();
                 // 3. Perform ! varEnv.InitializeBinding(vn, undefined).
                 scoped_var_env
                     .get(agent)
-                    .initialize_binding(agent, vn.get(agent), None, Value::Undefined, gc.reborrow())
+                    .local()
+                    .initialize_binding(
+                        agent,
+                        vn.get(agent).local(),
+                        None,
+                        Value::Undefined,
+                        gc.reborrow(),
+                    )
                     .unwrap();
             }
         }
@@ -840,13 +847,13 @@ impl GlobalObject {
     fn eval<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let x = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let x = arguments.get(0), gc);
 
         // 1. Return ? PerformEval(x, false, false).
-        perform_eval(agent, x.unbind(), false, false, gc)
+        perform_eval(agent, x, false, false, gc)
     }
 
     /// ### [19.2.2 isFinite ( number )](https://tc39.es/ecma262/#sec-isfinite-number)
@@ -854,15 +861,13 @@ impl GlobalObject {
     /// This function is the %isFinite% intrinsic object.
     fn is_finite<'gc>(
         agent: &mut Agent,
-        _: Value,
-        arguments: ArgumentsList,
+        _: Value<'static>,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let number = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let number = arguments.get(0), gc);
         // 1. Let num be ? ToNumber(number).
-        let num = to_number(agent, number.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let num = to_number(agent, number, gc.reborrow())?;
         // 2. If num is not finite, return false.
         // 3. Otherwise, return true.
         Ok(num.is_finite_(agent).into())
@@ -877,15 +882,13 @@ impl GlobalObject {
     /// > only if X is NaN.
     fn is_nan<'gc>(
         agent: &mut Agent,
-        _: Value,
-        arguments: ArgumentsList,
+        _: Value<'static>,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let number = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let number = arguments.get(0), gc);
         // 1. Let num be ? ToNumber(number).
-        let num = to_number(agent, number.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let num = to_number(agent, number, gc.reborrow())?;
         // 2. If num is NaN, return true.
         // 3. Otherwise, return false.
         Ok(num.is_nan_(agent).into())
@@ -898,19 +901,17 @@ impl GlobalObject {
     fn parse_float<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         if arguments.is_empty() {
             return Ok(Value::nan());
         }
 
-        let string = arguments.get(0).bind(gc.nogc());
+        crate::engine::bind!(let string = arguments.get(0), gc);
 
         // 1. Let inputString be ? ToString(string).
-        let input_string = to_string(agent, string.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let input_string = to_string(agent, string, gc.reborrow())?;
 
         // 2. Let trimmedString be ! TrimString(inputString, start).
         let trimmed_string = input_string.to_string_lossy_(agent);
@@ -950,7 +951,7 @@ impl GlobalObject {
                 }
             }
 
-            Ok(Value::from_f64(agent, f, gc.nogc()).unbind())
+            Ok(Value::from_f64(agent, f, gc.nogc()))
         } else {
             Ok(Value::nan())
         }
@@ -968,11 +969,11 @@ impl GlobalObject {
     fn parse_int<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let string = arguments.get(0).bind(gc.nogc());
-        let radix = arguments.get(1).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let string = arguments.get(0), gc);
+        crate::engine::bind!(let radix = arguments.get(1), gc);
 
         // OPTIMIZATION: If the string is empty, undefined, null or a boolean, return NaN.
         if string.is_undefined()
@@ -987,32 +988,28 @@ impl GlobalObject {
         if let Value::Integer(radix) = radix {
             let radix = radix.into_i64();
             if radix == 10 && matches!(string, Value::Integer(_)) {
-                return Ok(string.unbind());
+                return Ok(string);
             }
         }
 
         let radix = radix.scope(agent, gc.nogc());
 
         // 1. Let inputString be ? ToString(string).
-        let mut s = to_string(agent, string.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let mut s = to_string(agent, string, gc.reborrow())?;
 
         // 6. Let R be ℝ(? ToInt32(radix)).
-        let radix = radix.get(agent).bind(gc.nogc());
+        crate::engine::bind!(let radix = radix.get(agent).local(), gc);
         let r = if let Value::Integer(radix) = radix {
             radix.into_i64() as i32
         } else if radix.is_undefined() {
             0
         } else if let Ok(radix) = Primitive::try_from(radix) {
-            let radix = to_number_primitive(agent, radix, gc.nogc())
-                .unbind()?
-                .bind(gc.nogc());
+            let radix = to_number_primitive(agent, radix, gc.nogc())?;
             to_int32_number(agent, radix)
         } else {
             let s_root = s.scope(agent, gc.nogc());
-            let radix = to_int32(agent, radix.unbind(), gc.reborrow()).unbind()?;
-            s = s_root.get(agent).bind(gc.nogc());
+            let radix = to_int32(agent, radix, gc.reborrow())?;
+            s = s_root.get(agent).local();
             radix
         };
 
@@ -1141,7 +1138,7 @@ impl GlobalObject {
                         // a. If sign = -1, return -0𝔽.
                         // b. Return +0𝔽.
                         // 16. Return 𝔽(sign × mathInt).
-                        Ok(Value::from_f64(agent, sign as f64 * math_int, gc.nogc()).unbind())
+                        Ok(Value::from_f64(agent, sign as f64 * math_int, gc.nogc()))
                     }
                 }
             }
@@ -1160,15 +1157,13 @@ impl GlobalObject {
     fn decode_uri<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let encoded_uri = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let encoded_uri = arguments.get(0), gc);
 
         // 1. Let uriString be ? ToString(encodedURI).
-        let uri_string = to_string(agent, encoded_uri.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let uri_string = to_string(agent, encoded_uri, gc.reborrow())?;
 
         // 2. Let preserveEscapeSet be ";/?:@&=+$,#".
         let preserve_escape_set = |c: u8| {
@@ -1186,13 +1181,7 @@ impl GlobalObject {
         };
 
         // 3. Return ? Decode(uriString, preserveEscapeSet).
-        decode(
-            agent,
-            uri_string.unbind(),
-            preserve_escape_set,
-            gc.into_nogc(),
-        )
-        .map(Into::into)
+        decode(agent, uri_string, preserve_escape_set, gc.into_nogc()).map(Into::into)
     }
 
     /// ### [19.2.6.2 decodeURIComponent ( encodedURIComponent )](https://tc39.es/ecma262/#sec-decodeuricomponent-encodeduricomponent)
@@ -1206,27 +1195,19 @@ impl GlobalObject {
     fn decode_uri_component<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let encoded_uri_component = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let encoded_uri_component = arguments.get(0), gc);
 
         // 1. Let componentString be ? ToString(encodedURIComponent).
-        let uri_string = to_string(agent, encoded_uri_component.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let uri_string = to_string(agent, encoded_uri_component, gc.reborrow())?;
 
         // 2. Let preserveEscapeSet be the empty String.
         let preserve_escape_set = |_: u8| false;
 
         // 3. Return ? Decode(componentString, preserveEscapeSet).
-        decode(
-            agent,
-            uri_string.unbind(),
-            preserve_escape_set,
-            gc.into_nogc(),
-        )
-        .map(Into::into)
+        decode(agent, uri_string, preserve_escape_set, gc.into_nogc()).map(Into::into)
     }
 
     /// ### [19.2.6.3 encodeURI ( uri )](https://tc39.es/ecma262/#sec-encodeuri-uri)
@@ -1240,15 +1221,15 @@ impl GlobalObject {
     fn encode_uri<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let uri = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let uri = arguments.get(0), gc);
 
         // 1. Let uriString be ? ToString(uri).
-        let uri_string = to_string(agent, uri.unbind(), gc.reborrow()).unbind()?;
+        let uri_string = to_string(agent, uri, gc.reborrow())?;
         let gc = gc.into_nogc();
-        let uri_string = uri_string.bind(gc);
+        crate::engine::bind!(let uri_string = uri_string, gc);
 
         // 2. Let extraUnescaped be ";/?:@&=+$,#".
         // 3. Return ? Encode(uriString, extraUnescaped).
@@ -1266,15 +1247,15 @@ impl GlobalObject {
     fn encode_uri_component<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let uri_component = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let uri_component = arguments.get(0), gc);
 
         // 1. Let componentString be ? ToString(uriComponent).
-        let component_string = to_string(agent, uri_component.unbind(), gc.reborrow()).unbind()?;
+        let component_string = to_string(agent, uri_component, gc.reborrow())?;
         let gc = gc.into_nogc();
-        let component_string = component_string.bind(gc);
+        crate::engine::bind!(let component_string = component_string, gc);
 
         // 2. Let extraUnescaped be the empty String.
         // 3. Return ? Encode(componentString, extraUnescaped).
@@ -1302,14 +1283,14 @@ impl GlobalObject {
     fn escape<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        args: ArgumentsList,
+        args: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let string = args.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let string = args.get(0), gc);
         // 1. Set string to ? ToString(string).
-        let string = to_string(agent, string.unbind(), gc.reborrow()).unbind()?;
+        let string = to_string(agent, string, gc.reborrow())?;
         let gc = gc.into_nogc();
-        let string = string.bind(gc);
+        crate::engine::bind!(let string = string, gc);
         // 2. Let len be the length of string.
         let string_wtf8 = string.as_wtf8_(agent);
         let bytes = string.as_bytes_(agent);
@@ -1385,14 +1366,14 @@ impl GlobalObject {
     fn unescape<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        args: ArgumentsList,
+        args: ArgumentsList<'_, 'static>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let string = args.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let string = args.get(0), gc);
         // 1. Set string to ? ToString(string).
-        let string = to_string(agent, string.unbind(), gc.reborrow()).unbind()?;
+        let string = to_string(agent, string, gc.reborrow())?;
         let gc = gc.into_nogc();
-        let string = string.bind(gc);
+        crate::engine::bind!(let string = string, gc);
         let string_wtf8 = string.as_wtf8_(agent);
         let bytes = string.as_bytes_(agent);
         // 2. Let len be the length of string.

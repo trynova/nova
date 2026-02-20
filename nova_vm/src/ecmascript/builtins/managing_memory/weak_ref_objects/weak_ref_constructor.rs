@@ -30,12 +30,12 @@ impl WeakRefConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let target = arguments.get(0).bind(gc.nogc());
-        let new_target = new_target.bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let target = arguments.get(0), gc);
+        crate::engine::bind!(let new_target = new_target, gc);
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
@@ -47,28 +47,23 @@ impl WeakRefConstructor {
         let new_target = Function::try_from(new_target).unwrap();
         // 2. If CanBeHeldWeakly(target) is false, throw a TypeError exception.
         let Some(target) = can_be_held_weakly(agent, target) else {
-            return Err(throw_not_weak_key_error(
-                agent,
-                target.unbind(),
-                gc.into_nogc(),
-            ));
+            return Err(throw_not_weak_key_error(agent, target, gc.into_nogc()));
         };
         let target = target.scope(agent, gc.nogc());
         // 3. Let weakRef be ? OrdinaryCreateFromConstructor(NewTarget, "%WeakRef.prototype%", « [[WeakRefTarget]] »).
         let Object::WeakRef(weak_ref) = ordinary_create_from_constructor(
             agent,
-            new_target.unbind(),
+            new_target,
             ProtoIntrinsics::WeakRef,
             gc.reborrow(),
-        )
-        .unbind()?
+        )?
         else {
             unreachable!()
         };
         let gc = gc.into_nogc();
-        let weak_ref = weak_ref.bind(gc);
+        crate::engine::bind!(let weak_ref = weak_ref, gc);
         // SAFETY: target not shared.
-        let target = unsafe { target.take(agent) }.bind(gc);
+        crate::engine::bind!(let target = unsafe { target.take(agent).local() }, gc);
         // 4. Perform AddToKeptObjects(target).
         add_to_kept_objects(agent, target);
         // 5. Set weakRef.[[WeakRefTarget]] to target.

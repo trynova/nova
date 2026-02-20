@@ -17,10 +17,10 @@ fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope) {
     // `print` function
     fn print<'gc>(
         agent: &mut Agent,
-        _this: Value,
-        args: ArgumentsList,
+        _this: Value<'static>,
+        args: ArgumentsList<'_, 'static>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
+    ) -> JsResult<'static, Value<'static>> {
         if args.is_empty() {
             println!();
         } else {
@@ -38,9 +38,9 @@ fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope) {
     global
         .internal_define_own_property(
             agent,
-            property_key.unbind(),
+            property_key,
             PropertyDescriptor {
-                value: Some(function.unbind().into()),
+                value: Some(function.into()),
                 ..Default::default()
             },
             gc,
@@ -84,14 +84,11 @@ fn garbage_collection_tests() {
         let realm = agent.current_realm(gc.nogc());
         let source_text = String::from_string(agent, header_contents, gc.nogc());
         let script = parse_script(agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        if let Err(err) = script_evaluation(agent, script.unbind(), gc.reborrow()) {
+        if let Err(err) = script_evaluation(agent, script, gc.reborrow()) {
             panic!(
                 "Header evaluation failed: '{}' failed: {:?}",
                 d.display(),
-                err.value()
-                    .unbind()
-                    .string_repr(agent, gc)
-                    .to_string_lossy(agent)
+                err.value().string_repr(agent, gc).to_string_lossy(agent)
             )
         }
     });
@@ -102,16 +99,13 @@ fn garbage_collection_tests() {
             let realm = agent.current_realm(gc.nogc());
             let source_text = String::from_string(agent, call_contents.clone(), gc.nogc());
             let script = parse_script(agent, source_text, realm, false, None, gc.nogc()).unwrap();
-            if let Err(err) = script_evaluation(agent, script.unbind(), gc.reborrow()) {
+            if let Err(err) = script_evaluation(agent, script, gc.reborrow()) {
                 println!("Error kind: {:?}", err.value());
                 panic!(
                     "Loop index run {} '{}' failed: {:?}",
                     i,
                     d.display(),
-                    err.value()
-                        .unbind()
-                        .string_repr(agent, gc)
-                        .to_string_lossy(agent)
+                    err.value().string_repr(agent, gc).to_string_lossy(agent)
                 )
             }
         });

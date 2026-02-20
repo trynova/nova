@@ -30,11 +30,11 @@ impl BooleanConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
-        arguments: ArgumentsList,
+        arguments: ArgumentsList<'_, 'static>,
         new_target: Option<Object>,
         gc: GcScope<'gc, '_>,
-    ) -> JsResult<'gc, Value<'gc>> {
-        let value = arguments.get(0).bind(gc.nogc());
+    ) -> JsResult<'static, Value<'static>> {
+        crate::engine::bind!(let value = arguments.get(0), gc);
         let b = to_boolean(agent, value);
         let Some(new_target) = new_target else {
             return Ok(b.into());
@@ -57,7 +57,7 @@ impl BooleanConstructor {
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<BooleanConstructor>(agent, realm)
             .with_property_capacity(1)
-            .with_prototype_property(boolean_prototype.unbind().into())
+            .with_prototype_property(boolean_prototype.into())
             .build();
     }
 }
