@@ -10,6 +10,8 @@ pub(crate) use data::*;
 pub(crate) use plain_time_constructor::*;
 pub(crate) use plain_time_prototype::*;
 
+use temporal_rs::options::{Unit, UnitGroup};
+
 use crate::{
     ecmascript::{
         Agent, InternalMethods, InternalSlots, OrdinaryObject, ProtoIntrinsics, object_handle,
@@ -29,12 +31,12 @@ arena_vec_access!(
     TemporalPlainTime,
     'a,
     PlainTimeRecord,
-    plain_times
+    plain_time
 );
 
 impl TemporalPlainTime<'_> {
-    pub(crate) fn _inner_plain_time(self, agent: &Agent) -> &temporal_rs::PlainTime {
-        &self.unbind().get(agent)._plain_time
+    pub(crate) fn inner_plain_time(self, agent: &Agent) -> &temporal_rs::PlainTime {
+        &self.unbind().get(agent).plain_time
     }
 }
 

@@ -1714,6 +1714,7 @@ pub(crate) struct CompactionLists {
     pub(crate) weak_refs: CompactionList,
     #[cfg(feature = "weak-refs")]
     pub(crate) weak_sets: CompactionList,
+    pub(crate) plain_times: (),
 }
 
 impl CompactionLists {
