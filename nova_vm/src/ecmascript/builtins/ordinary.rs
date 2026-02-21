@@ -19,7 +19,7 @@ use crate::ecmascript::SharedDataViewRecord;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::try_get_result_into_value;
 #[cfg(feature = "temporal")]
-use crate::ecmascript::{DurationRecord, InstantRecord};
+use crate::ecmascript::{DurationRecord, InstantRecord, PlainTimeRecord};
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, ExceptionType, Function, InternalMethods,
@@ -1657,6 +1657,8 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
         ProtoIntrinsics::TemporalInstant => agent.heap.create(InstantRecord::default()).into(),
         #[cfg(feature = "temporal")]
         ProtoIntrinsics::TemporalDuration => agent.heap.create(DurationRecord::default()).into(),
+        #[cfg(feature = "temporal")]
+        ProtoIntrinsics::TemporalPlainTime => agent.heap.create(PlainTimeRecord::default()).into(),
         ProtoIntrinsics::TypeError => agent
             .heap
             .create(ErrorHeapData::new(ExceptionType::TypeError, None, None))
@@ -2094,6 +2096,8 @@ fn get_intrinsic_constructor<'a>(
         ProtoIntrinsics::TemporalInstant => Some(intrinsics.temporal_instant().into()),
         #[cfg(feature = "temporal")]
         ProtoIntrinsics::TemporalDuration => Some(intrinsics.temporal_duration().into()),
+        #[cfg(feature = "temporal")]
+        ProtoIntrinsics::TemporalPlainTime => Some(intrinsics.temporal_plain_time().into()),
     }
 }
 
