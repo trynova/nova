@@ -44,7 +44,8 @@ use crate::ecmascript::{
 use crate::ecmascript::{DATE_DISCRIMINANT, Date};
 #[cfg(feature = "temporal")]
 use crate::ecmascript::{
-    DURATION_DISCRIMINANT, INSTANT_DISCRIMINANT, TemporalDuration, TemporalInstant,
+    DURATION_DISCRIMINANT, INSTANT_DISCRIMINANT, PLAIN_TIME_DISCRIMINANT, TemporalDuration,
+    TemporalInstant, TemporalPlainTime,
 };
 #[cfg(feature = "proposal-float16array")]
 use crate::ecmascript::{FLOAT_16_ARRAY_DISCRIMINANT, Float16Array};
@@ -127,6 +128,8 @@ pub enum Object<'a> {
     Instant(TemporalInstant<'a>) = INSTANT_DISCRIMINANT,
     #[cfg(feature = "temporal")]
     Duration(TemporalDuration<'a>) = DURATION_DISCRIMINANT,
+    #[cfg(feature = "temporal")]
+    PlainTime(TemporalPlainTime<'a>) = PLAIN_TIME_DISCRIMINANT,
     Error(Error<'a>) = ERROR_DISCRIMINANT,
     FinalizationRegistry(FinalizationRegistry<'a>) = FINALIZATION_REGISTRY_DISCRIMINANT,
     Map(Map<'a>) = MAP_DISCRIMINANT,
@@ -658,6 +661,8 @@ impl<'a> From<Object<'a>> for Value<'a> {
             Object::Instant(data) => Value::Instant(data),
             #[cfg(feature = "temporal")]
             Object::Duration(data) => Value::Duration(data),
+            #[cfg(feature = "temporal")]
+            Object::PlainTime(data) => Value::PlainTime(data),
             Object::Error(data) => Self::Error(data),
             Object::FinalizationRegistry(data) => Self::FinalizationRegistry(data),
             Object::Map(data) => Self::Map(data),
@@ -786,6 +791,8 @@ macro_rules! object_delegate {
             Object::Instant(data) => data.$method($($arg),+),
             #[cfg(feature = "temporal")]
             Object::Duration(data) => data.$method($($arg),+),
+            #[cfg(feature = "temporal")]
+            Object::PlainTime(data) => data.$method($($arg),+),
             Self::Error(data) => data.$method($($arg),+),
             Self::BoundFunction(data) => data.$method($($arg),+),
             Self::BuiltinFunction(data) => data.$method($($arg),+),
@@ -1220,6 +1227,8 @@ impl HeapSweepWeakReference for Object<'static> {
             Self::Instant(data) => data.sweep_weak_reference(compactions).map(Self::Instant),
             #[cfg(feature = "temporal")]
             Self::Duration(data) => data.sweep_weak_reference(compactions).map(Self::Duration),
+            #[cfg(feature = "temporal")]
+            Self::PlainTime(data) => data.sweep_weak_reference(compactions).map(Self::PlainTime),
             Self::Error(data) => data.sweep_weak_reference(compactions).map(Self::Error),
             Self::BoundFunction(data) => data
                 .sweep_weak_reference(compactions)
@@ -1426,6 +1435,8 @@ impl From<Object<'_>> for HeapRootData {
             Object::Duration(d) => Self::from(d),
             #[cfg(feature = "temporal")]
             Object::Instant(d) => Self::from(d),
+            #[cfg(feature = "temporal")]
+            Object::PlainTime(d) => Self::from(d),
             Object::Error(d) => Self::from(d),
             Object::FinalizationRegistry(d) => Self::from(d),
             Object::Map(d) => Self::from(d),
@@ -1545,6 +1556,8 @@ impl TryFrom<HeapRootData> for Object<'_> {
             HeapRootData::Instant(o) => Ok(Self::from(o)),
             #[cfg(feature = "temporal")]
             HeapRootData::Duration(o) => Ok(Self::from(o)),
+            #[cfg(feature = "temporal")]
+            HeapRootData::PlainTime(o) => Ok(Self::from(o)),
             HeapRootData::Error(o) => Ok(Self::from(o)),
             HeapRootData::FinalizationRegistry(o) => Ok(Self::from(o)),
             HeapRootData::Map(o) => Ok(Self::from(o)),

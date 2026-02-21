@@ -14,6 +14,10 @@ pub(crate) use private::{HeapRootCollection, Rootable, RootableCollection};
 use crate::ecmascript::DATE_DISCRIMINANT;
 #[cfg(feature = "date")]
 use crate::ecmascript::Date;
+#[cfg(feature = "temporal")]
+use crate::ecmascript::PLAIN_TIME_DISCRIMINANT;
+#[cfg(feature = "temporal")]
+use crate::ecmascript::TemporalPlainTime;
 use crate::ecmascript::UnmappedArguments;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::{
@@ -322,6 +326,7 @@ pub(crate) enum HeapRootData {
     #[cfg(feature = "temporal")]
     Duration(TemporalDuration<'static>) = DURATION_DISCRIMINANT,
     #[cfg(feature = "temporal")]
+    PlainTime(TemporalPlainTime<'static>) = PLAIN_TIME_DISCRIMINANT,
     Error(Error<'static>) = ERROR_DISCRIMINANT,
     FinalizationRegistry(FinalizationRegistry<'static>) = FINALIZATION_REGISTRY_DISCRIMINANT,
     Map(Map<'static>) = MAP_DISCRIMINANT,
@@ -501,6 +506,8 @@ impl HeapMarkAndSweep for HeapRootData {
             Self::Instant(instant) => instant.mark_values(queues),
             #[cfg(feature = "temporal")]
             Self::Duration(duration) => duration.mark_values(queues),
+            #[cfg(feature = "temporal")]
+            Self::PlainTime(plaintime) => plaintime.mark_values(queues),
             Self::Error(error) => error.mark_values(queues),
             Self::FinalizationRegistry(finalization_registry) => {
                 finalization_registry.mark_values(queues)
@@ -654,6 +661,8 @@ impl HeapMarkAndSweep for HeapRootData {
             Self::Instant(instant) => instant.sweep_values(compactions),
             #[cfg(feature = "temporal")]
             Self::Duration(duration) => duration.sweep_values(compactions),
+            #[cfg(feature = "temporal")]
+            Self::PlainTime(o) => o.sweep_values(compactions),
             Self::Error(error) => error.sweep_values(compactions),
             Self::FinalizationRegistry(finalization_registry) => {
                 finalization_registry.sweep_values(compactions)
