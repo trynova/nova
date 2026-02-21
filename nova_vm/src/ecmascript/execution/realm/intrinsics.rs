@@ -27,7 +27,8 @@ use crate::ecmascript::{SharedArrayBufferConstructor, SharedArrayBufferPrototype
 #[cfg(feature = "temporal")]
 use crate::ecmascript::{
     TemporalDurationConstructor, TemporalDurationPrototype, TemporalInstantConstructor,
-    TemporalInstantPrototype, TemporalObject,
+    TemporalInstantPrototype, TemporalObject, TemporalPlainTimeConstructor,
+    TemporalPlainTimePrototype,
 };
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::{
@@ -140,6 +141,8 @@ pub enum ProtoIntrinsics {
     TemporalInstant,
     #[cfg(feature = "temporal")]
     TemporalDuration,
+    #[cfg(feature = "temporal")]
+    TemporalPlainTime,
     TypeError,
     #[cfg(feature = "array-buffer")]
     Uint16Array,
@@ -220,17 +223,16 @@ impl Intrinsics {
         BigIntConstructor::create_intrinsic(agent, realm);
         #[cfg(feature = "math")]
         MathObject::create_intrinsic(agent, realm, gc);
-
         #[cfg(feature = "temporal")]
-        TemporalObject::create_intrinsic(agent, realm, gc);
-        #[cfg(feature = "temporal")]
-        TemporalInstantPrototype::create_intrinsic(agent, realm, gc);
-        #[cfg(feature = "temporal")]
-        TemporalInstantConstructor::create_intrinsic(agent, realm, gc);
-        #[cfg(feature = "temporal")]
-        TemporalDurationPrototype::create_intrinsic(agent, realm, gc);
-        #[cfg(feature = "temporal")]
-        TemporalDurationConstructor::create_intrinsic(agent, realm, gc);
+        {
+            TemporalObject::create_intrinsic(agent, realm, gc);
+            TemporalInstantPrototype::create_intrinsic(agent, realm, gc);
+            TemporalInstantConstructor::create_intrinsic(agent, realm, gc);
+            TemporalDurationPrototype::create_intrinsic(agent, realm, gc);
+            TemporalDurationConstructor::create_intrinsic(agent, realm, gc);
+            TemporalPlainTimePrototype::create_intrinsic(agent, realm, gc);
+            TemporalPlainTimeConstructor::create_intrinsic(agent, realm, gc);
+        }
         #[cfg(feature = "date")]
         DatePrototype::create_intrinsic(agent, realm);
         #[cfg(feature = "date")]
@@ -344,6 +346,8 @@ impl Intrinsics {
             ProtoIntrinsics::TemporalInstant => self.temporal_instant().into(),
             #[cfg(feature = "temporal")]
             ProtoIntrinsics::TemporalDuration => self.temporal_duration().into(),
+            #[cfg(feature = "temporal")]
+            ProtoIntrinsics::TemporalPlainTime => self.temporal_plain_time().into(),
             ProtoIntrinsics::TypeError => self.type_error().into(),
             ProtoIntrinsics::URIError => self.uri_error().into(),
             ProtoIntrinsics::AggregateError => self.aggregate_error().into(),
@@ -437,6 +441,8 @@ impl Intrinsics {
             ProtoIntrinsics::TemporalInstant => self.temporal_instant_prototype().into(),
             #[cfg(feature = "temporal")]
             ProtoIntrinsics::TemporalDuration => self.temporal_duration_prototype().into(),
+            #[cfg(feature = "temporal")]
+            ProtoIntrinsics::TemporalPlainTime => self.temporal_plain_time_prototype().into(),
             ProtoIntrinsics::TypeError => self.type_error_prototype().into(),
             ProtoIntrinsics::URIError => self.uri_error_prototype().into(),
             ProtoIntrinsics::AggregateError => self.aggregate_error_prototype().into(),
@@ -971,13 +977,15 @@ impl Intrinsics {
     }
 
     /// %Temporal.PlainTime%
-    pub(crate) const fn temporal_plain_time(&self) -> BuiltinFunction<'static>  {
-        IntrinsicConstructorIndexes::TemporalPlainTime.get_builtin_function(self.builtin_function_index_base)
+    pub(crate) const fn temporal_plain_time(&self) -> BuiltinFunction<'static> {
+        IntrinsicConstructorIndexes::TemporalPlainTime
+            .get_builtin_function(self.builtin_function_index_base)
     }
 
     /// %Temporal.PlainTime.Prototype%
     pub(crate) const fn temporal_plain_time_prototype(&self) -> OrdinaryObject<'static> {
-        IntrinsicObjectIndexes::TemporalPlainTimePrototype.get_backing_object(self.object_index_base)
+        IntrinsicObjectIndexes::TemporalPlainTimePrototype
+            .get_backing_object(self.object_index_base)
     }
     /// %Number.prototype%
     pub(crate) fn number_prototype(&self) -> PrimitiveObject<'static> {

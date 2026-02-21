@@ -287,7 +287,8 @@ pub(crate) const INSTANT_DISCRIMINANT: u8 =
 pub(crate) const DURATION_DISCRIMINANT: u8 =
     value_discriminant(Value::Duration(TemporalDuration::_DEF));
 #[cfg(feature = "temporal")]
-pub(crate) const PLAIN_TIME_DISCRIMINANT: u8 = value_discriminant(Value::TemporalDuration::_DEF);
+pub(crate) const PLAIN_TIME_DISCRIMINANT: u8 =
+    value_discriminant(Value::PlainTime(TemporalPlainTime::_DEF));
 pub(crate) const ERROR_DISCRIMINANT: u8 = value_discriminant(Value::Error(Error::_DEF));
 pub(crate) const BUILTIN_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::BuiltinFunction(BuiltinFunction::_DEF));
