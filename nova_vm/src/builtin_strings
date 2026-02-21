@@ -329,6 +329,7 @@ parseFloat
 parseInt
 #[cfg(feature = "proposal-atomics-microwait")]pause
 #[cfg(feature = "math")]PI
+#[cfg(feature = "temporal")]PlainTime
 pop
 POSITIVE_INFINITY
 #[cfg(feature = "math")]pow
@@ -454,6 +455,7 @@ SyntaxError
 #[cfg(feature = "temporal")]Temporal
 #[cfg(feature = "temporal")]Temporal.Duration
 #[cfg(feature = "temporal")]Temporal.Instant
+#[cfg(feature = "temporal")]Temporal.PlainTime
 #[cfg(feature = "math")]tan
 #[cfg(feature = "math")]tanh
 #[cfg(feature = "regexp")]test
