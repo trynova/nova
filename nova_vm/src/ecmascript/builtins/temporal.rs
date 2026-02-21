@@ -5,14 +5,12 @@
 mod duration;
 mod error;
 mod instant;
-mod plain_time;
 mod options;
 mod plain_time;
 
 pub use duration::*;
 pub(crate) use error::*;
 pub use instant::*;
-pub use plain_time::*;
 pub(crate) use options::*;
 pub use plain_time::*;
 

@@ -3,7 +3,12 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    ecmascript::{BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinIntrinsicConstructor, String},
+    ecmascript::{
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        BuiltinIntrinsicConstructor, JsResult, Object, Realm, String, Value,
+        builders::BuiltinFunctionBuilder,
+    },
+    engine::{GcScope, NoGcScope},
     heap::IntrinsicConstructorIndexes,
 };
 
@@ -12,7 +17,7 @@ pub(crate) struct TemporalPlainTimeConstructor;
 
 impl Builtin for TemporalPlainTimeConstructor {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.PlainTime;
-    const LENGTH: u8 = 1;
+    const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(TemporalPlainTimeConstructor::constructor);
 }
 impl BuiltinIntrinsicConstructor for TemporalPlainTimeConstructor {
