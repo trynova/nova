@@ -23,7 +23,6 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-
 pub struct TemporalPlainTime<'a>(BaseIndex<'a, PlainTimeRecord<'static>>);
 object_handle!(TemporalPlainTime, PlainTime);
 arena_vec_access!(
