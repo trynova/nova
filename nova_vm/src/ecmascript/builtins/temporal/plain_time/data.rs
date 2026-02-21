@@ -11,14 +11,14 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 pub struct PlainTimeRecord<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
-    pub(crate) _plain_time: temporal_rs::PlainTime,
+    pub(crate) plain_time: temporal_rs::PlainTime,
 }
 
 impl PlainTimeRecord<'_> {
     pub fn default() -> Self {
         Self {
             object_index: None,
-            _plain_time: temporal_rs::PlainTime::try_new(0, 0, 0, 0, 0, 0).unwrap(),
+            plain_time: temporal_rs::PlainTime::try_new(0, 0, 0, 0, 0, 0).unwrap(),
         }
     }
 }
@@ -30,7 +30,7 @@ impl HeapMarkAndSweep for PlainTimeRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_index,
-            _plain_time: _,
+            plain_time: _,
         } = self;
 
         object_index.mark_values(queues);
@@ -38,7 +38,7 @@ impl HeapMarkAndSweep for PlainTimeRecord<'static> {
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let Self {
             object_index,
-            _plain_time: _,
+            plain_time: _,
         } = self;
 
         object_index.sweep_values(compactions);

@@ -181,6 +181,7 @@ get description
 #[cfg(feature = "regexp")]get ignoreCase
 #[cfg(feature = "array-buffer")]get length
 #[cfg(feature = "array-buffer")]get maxByteLength
+#[cfg(feature = "temporal")]get minute
 #[cfg(feature = "regexp")]get multiline
 #[cfg(feature = "array-buffer")]get resizable
 get size
@@ -297,6 +298,7 @@ MAX_VALUE
 message
 #[cfg(feature = "temporal")]microseconds
 #[cfg(feature = "temporal")]milliseconds
+#[cfg(feature = "temporal")]minute
 #[cfg(feature = "temporal")]minutes
 #[cfg(feature = "temporal")]months
 #[cfg(feature = "math")]min
