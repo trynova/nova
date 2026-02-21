@@ -8,6 +8,8 @@
 use core::sync::atomic::{AtomicUsize, Ordering};
 #[cfg(feature = "shared-array-buffer")]
 use std::hint::assert_unchecked;
+#[cfg(feature = "shared-array-buffer")]
+use std::sync::{Arc, Condvar, Mutex};
 
 use core::{
     f32, f64,
@@ -419,6 +421,26 @@ impl SharedDataBlockMaxByteLength {
     }
 }
 
+#[cfg(feature = "shared-array-buffer")]
+pub(crate) struct WaiterRecord {
+    pub condvar: Arc<Condvar>,
+    pub result: WaitResult,
+}
+
+#[cfg(feature = "shared-array-buffer")]
+pub(crate) enum WaitResult {
+    Ok,
+    TimedOut,
+}
+
+#[cfg(feature = "shared-array-buffer")]
+pub(crate) struct WaiterList {
+    pub waiters: std::collections::VecDeque<WaiterRecord>,
+}
+
+#[cfg(feature = "shared-array-buffer")]
+pub(crate) type SharedWaiterMap = Arc<Mutex<std::collections::HashMap<usize, WaiterList>>>;
+
 /// # [Shared Data Block](https://tc39.es/ecma262/#sec-data-blocks)
 ///
 /// The Shared Data Block specification type is used to describe a distinct and
@@ -460,12 +482,22 @@ impl SharedDataBlockMaxByteLength {
 /// buffer when the SharedDataBlock is growable.
 #[must_use]
 #[repr(C)]
-#[derive(PartialEq, Eq)]
 #[cfg(feature = "shared-array-buffer")]
 pub struct SharedDataBlock {
     ptr: RacyPtr<u8>,
     max_byte_length: SharedDataBlockMaxByteLength,
+    waiters: Option<SharedWaiterMap>,
 }
+
+#[cfg(feature = "shared-array-buffer")]
+impl PartialEq for SharedDataBlock {
+    fn eq(&self, other: &Self) -> bool {
+        self.ptr == other.ptr && self.max_byte_length == other.max_byte_length
+    }
+}
+
+#[cfg(feature = "shared-array-buffer")]
+impl Eq for SharedDataBlock {}
 
 // SAFETY: Atomic RC.
 #[cfg(feature = "shared-array-buffer")]
@@ -493,6 +525,7 @@ impl Clone for SharedDataBlock {
         Self {
             ptr: self.ptr,
             max_byte_length: self.max_byte_length,
+            waiters: self.waiters.clone(),
         }
     }
 }
@@ -573,11 +606,13 @@ impl SharedDataBlock {
     const DANGLING_STATIC_SHARED_DATA_BLOCK: Self = Self {
         ptr: RacyPtr::dangling(),
         max_byte_length: SharedDataBlockMaxByteLength(0),
+        waiters: None,
     };
 
     const DANGLING_GROWABLE_SHARED_DATA_BLOCK: Self = Self {
         ptr: RacyPtr::dangling(),
         max_byte_length: SharedDataBlockMaxByteLength(1usize.rotate_right(1)),
+        waiters: None,
     };
 
     /// Allocate a new SharedDataBlock.
@@ -643,6 +678,7 @@ impl SharedDataBlock {
             Some(Self {
                 ptr: ptr.as_slice().into_raw_parts().0,
                 max_byte_length: SharedDataBlockMaxByteLength::new(size, growable),
+                waiters: Some(Arc::new(Mutex::new(std::collections::HashMap::new()))),
             })
         }
     }
@@ -718,6 +754,14 @@ impl SharedDataBlock {
     #[inline(always)]
     pub(crate) fn is_growable(&self) -> bool {
         self.max_byte_length.is_growable()
+    }
+
+    /// Get the shared waiter map for this data block.
+    ///
+    /// Returns `None` for dangling (zero-sized) blocks.
+    #[inline(always)]
+    pub(crate) fn get_waiter_map(&self) -> Option<&SharedWaiterMap> {
+        self.waiters.as_ref()
     }
 
     /// Read a value at the given aligned offset and with the given ordering.
