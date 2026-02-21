@@ -2,14 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{
-    cell::RefCell,
-    collections::VecDeque,
-    ops::Deref,
-    sync::{LazyLock, atomic::AtomicBool, mpsc},
-    thread,
-    time::Duration,
-};
+//! Initializing the global object with builtin functions.
+
+#![allow(unknown_lints, can_use_no_gc_scope)]
+
+use std::{ops::Deref, sync::LazyLock, thread, time::Duration};
 
 // Record the start time of the program.
 // To be used for the `now` function for time measurement.
@@ -18,103 +15,14 @@ static START_TIME: LazyLock<std::time::Instant> = LazyLock::new(std::time::Insta
 use nova_vm::{
     ecmascript::{
         Agent, AgentOptions, ArgumentsList, Behaviour, BigInt, BuiltinFunctionArgs, ExceptionType,
-        Function, GcAgent, HostHooks, InternalMethods, Job, JsResult, Number, Object,
-        OrdinaryObject, PropertyDescriptor, PropertyKey, RegularFn, SharedArrayBuffer, String,
-        Value, create_builtin_function, parse_script, script_evaluation, unwrap_try,
+        Function, GcAgent, InternalMethods, JsResult, Number, Object, OrdinaryObject,
+        PropertyDescriptor, PropertyKey, RegularFn, SharedArrayBuffer, String, Value,
+        create_builtin_function, parse_script, script_evaluation, unwrap_try,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable},
 };
-use oxc_diagnostics::OxcDiagnostic;
 
-use crate::{ChildToHostMessage, CliHostHooks, HostToChildMessage};
-
-struct CliChildHooks {
-    promise_job_queue: RefCell<VecDeque<Job>>,
-    macrotask_queue: RefCell<Vec<Job>>,
-    receiver: mpsc::Receiver<HostToChildMessage>,
-    host_sender: mpsc::SyncSender<ChildToHostMessage>,
-    ready_to_leave: AtomicBool,
-}
-
-// RefCell doesn't implement Debug
-impl std::fmt::Debug for CliChildHooks {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CliHostHooks")
-            //.field("promise_job_queue", &*self.promise_job_queue.borrow())
-            .finish()
-    }
-}
-
-impl CliChildHooks {
-    fn new(
-        host_sender: mpsc::SyncSender<ChildToHostMessage>,
-    ) -> (Self, mpsc::SyncSender<HostToChildMessage>) {
-        let (sender, receiver) = mpsc::sync_channel(1);
-        (
-            Self {
-                promise_job_queue: Default::default(),
-                macrotask_queue: Default::default(),
-                receiver,
-                host_sender,
-                ready_to_leave: Default::default(),
-            },
-            sender,
-        )
-    }
-
-    fn is_ready_to_leave(&self) -> bool {
-        self.ready_to_leave
-            .load(std::sync::atomic::Ordering::Relaxed)
-    }
-
-    fn has_promise_jobs(&self) -> bool {
-        !self.promise_job_queue.borrow().is_empty()
-    }
-
-    fn pop_promise_job(&self) -> Option<Job> {
-        self.promise_job_queue.borrow_mut().pop_front()
-    }
-
-    fn has_macrotasks(&self) -> bool {
-        !self.macrotask_queue.borrow().is_empty()
-    }
-
-    fn pop_macrotask(&self) -> Option<Job> {
-        let mut off_thread_job_queue = self.macrotask_queue.borrow_mut();
-        let mut counter = 0u8;
-        while !off_thread_job_queue.is_empty() {
-            counter = counter.wrapping_add(1);
-            for (i, job) in off_thread_job_queue.iter().enumerate() {
-                if job.is_finished() {
-                    let job = off_thread_job_queue.swap_remove(i);
-                    return Some(job);
-                }
-            }
-            if counter == 0 {
-                thread::sleep(Duration::from_millis(5));
-            } else {
-                core::hint::spin_loop();
-            }
-        }
-        None
-    }
-}
-
-impl HostHooks for CliChildHooks {
-    fn enqueue_generic_job(&self, job: Job) {
-        self.macrotask_queue.borrow_mut().push(job);
-    }
-
-    fn enqueue_promise_job(&self, job: Job) {
-        self.promise_job_queue.borrow_mut().push_back(job);
-    }
-
-    fn enqueue_timeout_job(&self, _timeout_job: Job, _milliseconds: u64) {}
-
-    fn get_host_data(&self) -> &dyn std::any::Any {
-        self
-    }
-}
+use crate::{ChildToHostMessage, CliChildHooks, CliHostHooks, HostToChildMessage};
 
 /// Initialize the global object with the built-in functions.
 pub fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope) {
@@ -702,9 +610,7 @@ fn initialize_child_global_object(agent: &mut Agent, global: Object, mut gc: GcS
             .get_host_data()
             .downcast_ref::<CliChildHooks>()
             .unwrap();
-        hooks
-            .ready_to_leave
-            .store(true, std::sync::atomic::Ordering::Relaxed);
+        hooks.mark_ready_to_leave();
         Ok(Value::Undefined)
     }
 
@@ -752,29 +658,4 @@ fn initialize_child_global_object(agent: &mut Agent, global: Object, mut gc: GcS
     create_obj_func(agent, agent_obj, "leaving", leaving, 0, gc);
     create_obj_func(agent, agent_obj, "sleep", sleep, 1, gc);
     create_obj_func(agent, agent_obj, "monotonicNow", monotonic_now, 0, gc);
-}
-
-/// Exit the program with parse errors.
-pub fn exit_with_parse_errors(errors: Vec<OxcDiagnostic>, source_path: &str, source: &str) -> ! {
-    assert!(!errors.is_empty());
-
-    // This seems to be needed for color and Unicode output.
-    miette::set_hook(Box::new(|_| {
-        Box::new(oxc_diagnostics::GraphicalReportHandler::new())
-    }))
-    .unwrap();
-
-    // SAFETY: This function never returns, so `source`'s lifetime must last for
-    // the duration of the program.
-    let source: &'static str = unsafe { std::mem::transmute(source) };
-    let named_source = miette::NamedSource::new(source_path, source);
-
-    eprintln!("SyntaxError:");
-
-    for error in errors {
-        let report = error.with_source_code(named_source.clone());
-        eprintln!("{report:?}");
-    }
-
-    std::process::exit(1);
 }
