@@ -18,7 +18,7 @@ authors = ["The Nova Team"]
 ahash = "0.8.12"
 clap = { version = "4.5.48", features = ["derive"] }
 cliclack = "0.3.7"
-console = "0.16.2"
+console = "0.15.11"
 ctrlc = "3.5.0"
 ecmascript_atomics = { version = "0.2.3" }
 ecmascript_futex = { version = "0.1.0" }
