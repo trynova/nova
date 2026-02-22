@@ -36,6 +36,7 @@ impl<'a> Promise<'a> {
     ) -> JsResult<'a, Self> {
         // 1. If IsPromise(x) is true, then
         if let Value::Promise(promise) = x {
+            let scoped_promise = promise.scope(agent, gc.nogc());
             // a. Let xConstructor be ? Get(x, "constructor").
             let x_constructor = match get(
                 agent,
@@ -49,7 +50,7 @@ impl<'a> Promise<'a> {
             // b. If SameValue(xConstructor, C) is true, return x.
             // NOTE: Ignoring subclasses.
             if x_constructor == agent.current_realm_record().intrinsics().promise().into() {
-                return Ok(promise.bind(gc.into_nogc()));
+                return Ok(scoped_promise.get(agent).bind(gc.into_nogc()));
             }
         }
         // 2. Let promiseCapability be ? NewPromiseCapability(C).
