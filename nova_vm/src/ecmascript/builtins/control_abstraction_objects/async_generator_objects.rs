@@ -45,6 +45,27 @@ impl AsyncGenerator<'_> {
             .is_draining_queue()
     }
 
+    /// Returns true if the state of the AsyncGenerator is DRAINING-QUEUE or
+    /// EXECUTING.
+    ///
+    /// NOTE: In our implementation, EXECUTING is split into an extra
+    /// EXECUTING-AWAIT state. This also checks for that.
+    pub(crate) fn is_active(self, agent: &Agent) -> bool {
+        self.get(agent)
+            .async_generator_state
+            .as_ref()
+            .unwrap()
+            .is_active()
+    }
+
+    pub(crate) fn is_executing(self, agent: &Agent) -> bool {
+        self.get(agent)
+            .async_generator_state
+            .as_ref()
+            .unwrap()
+            .is_executing()
+    }
+
     pub(crate) fn is_suspended_start(self, agent: &Agent) -> bool {
         self.get(agent)
             .async_generator_state
@@ -163,13 +184,8 @@ impl AsyncGenerator<'_> {
         execution_context: ExecutionContext,
     ) {
         let async_generator_state = &mut self.get_mut(agent).async_generator_state;
-        let state = async_generator_state.take().unwrap();
-        let queue = match state {
-            AsyncGeneratorState::Executing(queue) => queue,
-            state => {
-                async_generator_state.replace(state);
-                return;
-            }
+        let AsyncGeneratorState::Executing(queue) = async_generator_state.take().unwrap() else {
+            unreachable!()
         };
         async_generator_state.replace(AsyncGeneratorState::ExecutingAwait {
             queue,
@@ -183,9 +199,9 @@ impl AsyncGenerator<'_> {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
-    ) -> Option<(SuspendedVm, ExecutionContext, Executable<'gc>)> {
+    ) -> (SuspendedVm, ExecutionContext, Executable<'gc>) {
         let async_generator_state = &mut self.get_mut(agent).async_generator_state;
-        let state = async_generator_state.take()?;
+        let state = async_generator_state.take().unwrap();
         let (vm, execution_context, queue) = match state {
             AsyncGeneratorState::SuspendedStart {
                 vm,
@@ -197,13 +213,10 @@ impl AsyncGenerator<'_> {
                 execution_context,
                 queue,
             } => (vm, execution_context, queue),
-            state => {
-                async_generator_state.replace(state);
-                return None;
-            }
+            _ => unreachable!(),
         };
         async_generator_state.replace(AsyncGeneratorState::Executing(queue));
-        Some((vm, execution_context, self.get_executable(agent, gc)))
+        (vm, execution_context, self.get_executable(agent, gc))
     }
 
     pub(crate) fn transition_to_suspended(
@@ -211,22 +224,16 @@ impl AsyncGenerator<'_> {
         agent: &mut Agent,
         vm: SuspendedVm,
         execution_context: ExecutionContext,
-    ) -> bool {
+    ) {
         let async_generator_state = &mut self.get_mut(agent).async_generator_state;
-        let state = async_generator_state.take().unwrap();
-        let queue = match state {
-            AsyncGeneratorState::Executing(queue) => queue,
-            state => {
-                async_generator_state.replace(state);
-                return false;
-            }
+        let AsyncGeneratorState::Executing(queue) = async_generator_state.take().unwrap() else {
+            unreachable!()
         };
         async_generator_state.replace(AsyncGeneratorState::SuspendedYield {
             queue,
             vm,
             execution_context,
         });
-        true
     }
 
     pub(crate) fn resume_await(
@@ -269,10 +276,7 @@ impl AsyncGenerator<'_> {
                 queue,
                 kind,
             } => (vm, execution_context, queue, kind),
-            state => {
-                self.get_mut(agent).async_generator_state.replace(state);
-                return;
-            }
+            _ => unreachable!(),
         };
         agent.push_execution_context(execution_context);
         self.get_mut(agent).async_generator_state = Some(AsyncGeneratorState::Executing(queue));
@@ -384,12 +388,25 @@ pub(crate) enum AsyncGeneratorState<'a> {
 }
 
 impl AsyncGeneratorState<'_> {
+    pub(crate) fn is_active(&self) -> bool {
+        matches!(
+            self,
+            AsyncGeneratorState::DrainingQueue(_)
+                | AsyncGeneratorState::Executing(_)
+                | AsyncGeneratorState::ExecutingAwait { .. }
+        )
+    }
+
     pub(crate) fn is_completed(&self) -> bool {
         matches!(self, Self::Completed(_))
     }
 
     pub(crate) fn is_draining_queue(&self) -> bool {
         matches!(self, AsyncGeneratorState::DrainingQueue(_))
+    }
+
+    pub(crate) fn is_executing(&self) -> bool {
+        matches!(self, AsyncGeneratorState::Executing(_))
     }
 
     pub(crate) fn is_suspended(&self) -> bool {

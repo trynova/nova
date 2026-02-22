@@ -83,6 +83,7 @@ impl AsyncGeneratorPrototype {
             return Ok(unsafe { promise.take(agent).into() });
         }
         let state_is_suspended = state.is_suspended();
+        let state_is_executing_or_draining = state.is_active();
         // 7. Let completion be NormalCompletion(value).
         let completion = AsyncGeneratorRequestCompletion::Ok(value);
         // 8. Perform AsyncGeneratorEnqueue(generator, completion, promiseCapability).
@@ -91,6 +92,10 @@ impl AsyncGeneratorPrototype {
         if state_is_suspended {
             // a. Perform AsyncGeneratorResume(generator, completion).
             async_generator_resume(agent, generator.unbind(), completion.unbind(), gc);
+        } else {
+            // 10. Else,
+            // a. Assert: state is either executing or draining-queue.
+            assert!(state_is_executing_or_draining);
         }
         // 11. Return promiseCapability.[[Promise]].
         Ok(unsafe { promise.take(agent).into() })
@@ -147,6 +152,9 @@ impl AsyncGeneratorPrototype {
             // 11. Return promiseCapability.[[Promise]].
             Ok(promise.get(agent).into())
         } else {
+            // 10. Else,
+            // a. Assert: state is either executing or draining-queue.
+            assert!(generator.is_active(agent));
             // 11. Return promiseCapability.[[Promise]].
             Ok(promise.unbind().into())
         }
@@ -202,6 +210,10 @@ impl AsyncGeneratorPrototype {
                     gc.reborrow(),
                 );
                 promise = scoped_promise.get(agent).bind(gc.nogc());
+            } else {
+                // 11. Else,
+                // a. Assert: state is either executing or draining-queue.
+                assert!(generator.is_executing(agent) || generator.is_draining_queue(agent));
             }
             // 12. Return promiseCapability.[[Promise]].
             promise.unbind()
