@@ -5,8 +5,8 @@
 use crate::{
     ecmascript::{
         Agent, ECMAScriptFunction, ExceptionType, JsError, JsResult, Promise, PromiseCapability,
-        PromiseReactionHandler, Realm, Value, create_iter_result_object, inner_promise_then,
-        unwrap_try,
+        PromiseReactionHandler, PromiseReactionType, Realm, Value, create_iter_result_object,
+        inner_promise_then, unwrap_try,
     },
     engine::{Bindable, ExecutionResult, GcScope, NoGcScope, Scopable, Scoped, SuspendedVm},
     heap::ArenaAccessMut,
@@ -257,14 +257,19 @@ fn async_generator_perform_await(
     let execution_context = agent.pop_execution_context().unwrap();
     let generator = scoped_generator.get(agent).bind(gc.nogc());
     generator.transition_to_awaiting(agent, vm, kind, execution_context);
+    let generator = generator.unbind();
     // 8. Remove asyncContext from the execution context stack and
     //    restore the execution context that is at the top of the
     //    execution context stack as the running execution context.
-    let handler = PromiseReactionHandler::AsyncGenerator(generator.unbind());
+    let handler = PromiseReactionHandler::AsyncGenerator(generator);
     // 2. Let promise be ? PromiseResolve(%Promise%, value).
-    let promise = Promise::resolve(agent, awaited_value, gc.reborrow())
-        .unbind()
-        .bind(gc.nogc());
+    let promise = match Promise::try_resolve(agent, awaited_value, gc.reborrow()) {
+        Ok(promise) => promise.unbind().bind(gc.nogc()),
+        Err(err) => {
+            generator.resume_await(agent, PromiseReactionType::Reject, err.value().unbind(), gc);
+            return;
+        }
+    };
 
     // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
     inner_promise_then(agent, promise, handler, handler, None, gc.nogc());
@@ -404,16 +409,34 @@ pub(crate) fn async_generator_await_return(
     let AsyncGeneratorRequestCompletion::Return(value) = completion else {
         unreachable!()
     };
+    let return_value = value.unbind().bind(gc.nogc());
     // 7. Let promiseCompletion be Completion(PromiseResolve(%Promise%, completion.[[Value]])).
-    // 8. If promiseCompletion is an abrupt completion, then
-    //         a. Perform AsyncGeneratorCompleteStep(generator, promiseCompletion, true).
-    //         b. Perform AsyncGeneratorDrainQueue(generator).
-    //         c. Return unused.
+    let promise_completion = Promise::try_resolve(agent, return_value.unbind(), gc.reborrow())
+        .map(|promise| promise.unbind())
+        .map_err(|err| err.unbind());
+    let promise = match promise_completion {
+        // 8. If promiseCompletion is an abrupt completion, then
+        //         a. Perform AsyncGeneratorCompleteStep(generator, promiseCompletion, true).
+        //         b. Perform AsyncGeneratorDrainQueue(generator).
+        //         c. Return unused.
+        Err(err) => {
+            let generator = scoped_generator.get(agent).bind(gc.nogc());
+            async_generator_complete_step(
+                agent,
+                generator.unbind(),
+                AsyncGeneratorRequestCompletion::Err(err.unbind()),
+                true,
+                None,
+                gc.nogc(),
+            );
+            async_generator_drain_queue(agent, scoped_generator, gc);
+            return;
+        }
+        Ok(promise) => promise.unbind().bind(gc.nogc()),
+    };
+
     // 9. Assert: promiseCompletion is a normal completion.
     // 10. Let promise be promiseCompletion.[[Value]].
-    let promise = Promise::resolve(agent, value.unbind(), gc.reborrow())
-        .unbind()
-        .bind(gc.nogc());
     // 11. ... onFulfilled ...
     // 12. Let onFulfilled be CreateBuiltinFunction(fulfilledClosure, 1, "", « »).
     // 13. ... onRejected ...
@@ -498,7 +521,9 @@ fn async_generator_drain_queue(
     let data = generator.get_mut(agent);
     // Assert: generator.[[AsyncGeneratorState]] is draining-queue.
     // 2. Let queue be generator.[[AsyncGeneratorQueue]].
-    let Some(AsyncGeneratorState::DrainingQueue(queue)) = &mut data.async_generator_state else {
+    let AsyncGeneratorState::DrainingQueue(queue) =
+        &mut data.async_generator_state.as_mut().unwrap()
+    else {
         unreachable!()
     };
     // 3. If queue is empty, then
@@ -536,7 +561,8 @@ fn async_generator_drain_queue(
             async_generator_complete_step(agent, generator, completion, true, None, gc.nogc());
             let data = generator.get_mut(agent);
             // iii. If queue is empty, then
-            let Some(AsyncGeneratorState::DrainingQueue(queue)) = &mut data.async_generator_state
+            let AsyncGeneratorState::DrainingQueue(queue) =
+                &mut data.async_generator_state.as_mut().unwrap()
             else {
                 unreachable!()
             };

@@ -37,25 +37,25 @@ impl AsyncGenerator<'_> {
         self.get(agent).executable.unwrap().bind(gc)
     }
 
-    /// Returns true if the state of the AsyncGenerator is DRAINING-QUEUE or
-    /// EXECUTING.
-    ///
-    /// > NOTE: In our implementation, EXECUTING is split into an extra
-    /// > EXECUTING-AWAIT state. This also checks for that.
-    pub(crate) fn is_active(self, agent: &Agent) -> bool {
-        self.get(agent)
-            .async_generator_state
-            .as_ref()
-            .unwrap()
-            .is_active()
-    }
-
     pub(crate) fn is_draining_queue(self, agent: &Agent) -> bool {
         self.get(agent)
             .async_generator_state
             .as_ref()
             .unwrap()
             .is_draining_queue()
+    }
+
+    /// Returns true if the state of the AsyncGenerator is DRAINING-QUEUE or
+    /// EXECUTING.
+    ///
+    /// NOTE: In our implementation, EXECUTING is split into an extra
+    /// EXECUTING-AWAIT state. This also checks for that.
+    pub(crate) fn is_active(self, agent: &Agent) -> bool {
+        self.get(agent)
+            .async_generator_state
+            .as_ref()
+            .unwrap()
+            .is_active()
     }
 
     pub(crate) fn is_executing(self, agent: &Agent) -> bool {
@@ -200,17 +200,18 @@ impl AsyncGenerator<'_> {
         gc: NoGcScope<'gc, '_>,
     ) -> (SuspendedVm, ExecutionContext, Executable<'gc>) {
         let async_generator_state = &mut self.get_mut(agent).async_generator_state;
-        let (vm, execution_context, queue) = match async_generator_state.take() {
-            Some(AsyncGeneratorState::SuspendedStart {
+        let state = async_generator_state.take().unwrap();
+        let (vm, execution_context, queue) = match state {
+            AsyncGeneratorState::SuspendedStart {
                 vm,
                 execution_context,
                 queue,
-            }) => (vm, execution_context, queue),
-            Some(AsyncGeneratorState::SuspendedYield {
+            } => (vm, execution_context, queue),
+            AsyncGeneratorState::SuspendedYield {
                 vm,
                 execution_context,
                 queue,
-            }) => (vm, execution_context, queue),
+            } => (vm, execution_context, queue),
             _ => unreachable!(),
         };
         async_generator_state.replace(AsyncGeneratorState::Executing(queue));
@@ -258,6 +259,11 @@ impl AsyncGenerator<'_> {
         // 1. Assert: generator.[[AsyncGeneratorState]] is either suspended-start or suspended-yield.
         let state = self.get_mut(agent).async_generator_state.take().unwrap();
         let (vm, execution_context, queue, kind) = match state {
+            AsyncGeneratorState::SuspendedStart {
+                vm,
+                execution_context,
+                queue,
+            } => (vm, execution_context, queue, AsyncGeneratorAwaitKind::Await),
             AsyncGeneratorState::SuspendedYield {
                 vm,
                 execution_context,
