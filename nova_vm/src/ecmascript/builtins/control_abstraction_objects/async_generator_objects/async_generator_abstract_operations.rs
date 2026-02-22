@@ -409,11 +409,28 @@ pub(crate) fn async_generator_await_return(
     //         a. Perform AsyncGeneratorCompleteStep(generator, promiseCompletion, true).
     //         b. Perform AsyncGeneratorDrainQueue(generator).
     //         c. Return unused.
+    let return_value = value.unbind().bind(gc.nogc());
+    let promise_completion = Promise::resolve_maybe_abrupt(agent, return_value.unbind(), gc.reborrow())
+        .map(|promise| promise.unbind())
+        .map_err(|err| err.unbind());
+    let promise = match promise_completion {
+        Err(err) => {
+            let generator = scoped_generator.get(agent).bind(gc.nogc());
+            async_generator_complete_step(
+                agent,
+                generator.unbind(),
+                AsyncGeneratorRequestCompletion::Err(err.unbind()),
+                true,
+                None,
+                gc.nogc(),
+            );
+            async_generator_drain_queue(agent, scoped_generator, gc);
+            return;
+        }
+        Ok(promise) => promise.unbind().bind(gc.nogc()),
+    };
     // 9. Assert: promiseCompletion is a normal completion.
     // 10. Let promise be promiseCompletion.[[Value]].
-    let promise = Promise::resolve(agent, value.unbind(), gc.reborrow())
-        .unbind()
-        .bind(gc.nogc());
     // 11. ... onFulfilled ...
     // 12. Let onFulfilled be CreateBuiltinFunction(fulfilledClosure, 1, "", « »).
     // 13. ... onRejected ...
