@@ -155,9 +155,8 @@ impl AsyncGenerator<'_> {
             AsyncGeneratorState::SuspendedStart { queue, .. }
             | AsyncGeneratorState::SuspendedYield { queue, .. }
             | AsyncGeneratorState::Executing(queue)
-            | AsyncGeneratorState::ExecutingAwait { queue, .. }
-            | AsyncGeneratorState::DrainingQueue(queue)
             | AsyncGeneratorState::Completed(queue) => queue,
+            _ => unreachable!(),
         };
         async_generator_state.replace(AsyncGeneratorState::DrainingQueue(queue));
     }
