@@ -263,9 +263,13 @@ fn async_generator_perform_await(
     //    execution context stack as the running execution context.
     let handler = PromiseReactionHandler::AsyncGenerator(generator);
     // 2. Let promise be ? PromiseResolve(%Promise%, value).
-    let promise = Promise::resolve(agent, awaited_value, gc.reborrow())
-        .unbind()
-        .bind(gc.nogc());
+    let promise = match Promise::try_resolve(agent, awaited_value, gc.reborrow()) {
+        Ok(promise) => promise.unbind().bind(gc.nogc()),
+        Err(err) => {
+            generator.resume_await(agent, PromiseReactionType::Reject, err.value().unbind(), gc);
+            return;
+        }
+    };
 
     // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
     inner_promise_then(agent, promise, handler, handler, None, gc.nogc());
@@ -407,15 +411,32 @@ pub(crate) fn async_generator_await_return(
     };
     let return_value = value.unbind().bind(gc.nogc());
     // 7. Let promiseCompletion be Completion(PromiseResolve(%Promise%, completion.[[Value]])).
-    // 8. If promiseCompletion is an abrupt completion, then
-    //         a. Perform AsyncGeneratorCompleteStep(generator, promiseCompletion, true).
-    //         b. Perform AsyncGeneratorDrainQueue(generator).
-    //         c. Return unused.
+    let promise_completion = Promise::try_resolve(agent, return_value.unbind(), gc.reborrow())
+        .map(|promise| promise.unbind())
+        .map_err(|err| err.unbind());
+    let promise = match promise_completion {
+        // 8. If promiseCompletion is an abrupt completion, then
+        //         a. Perform AsyncGeneratorCompleteStep(generator, promiseCompletion, true).
+        //         b. Perform AsyncGeneratorDrainQueue(generator).
+        //         c. Return unused.
+        Err(err) => {
+            let generator = scoped_generator.get(agent).bind(gc.nogc());
+            async_generator_complete_step(
+                agent,
+                generator.unbind(),
+                AsyncGeneratorRequestCompletion::Err(err.unbind()),
+                true,
+                None,
+                gc.nogc(),
+            );
+            async_generator_drain_queue(agent, scoped_generator, gc);
+            return;
+        }
+        Ok(promise) => promise.unbind().bind(gc.nogc()),
+    };
+
     // 9. Assert: promiseCompletion is a normal completion.
     // 10. Let promise be promiseCompletion.[[Value]].
-    let promise = Promise::resolve(agent, return_value.unbind(), gc.reborrow())
-        .unbind()
-        .bind(gc.nogc());
     // 11. ... onFulfilled ...
     // 12. Let onFulfilled be CreateBuiltinFunction(fulfilledClosure, 1, "", « »).
     // 13. ... onRejected ...
