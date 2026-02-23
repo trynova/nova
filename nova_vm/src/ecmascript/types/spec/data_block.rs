@@ -5,9 +5,7 @@
 //! ### [6.2.9 Data Blocks](https://tc39.es/ecma262/#sec-data-blocks)
 
 #[cfg(feature = "shared-array-buffer")]
-use core::sync::atomic::AtomicPtr;
-#[cfg(feature = "shared-array-buffer")]
-use core::sync::atomic::{AtomicUsize, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicPtr, AtomicUsize, Ordering};
 #[cfg(feature = "shared-array-buffer")]
 use std::hint::assert_unchecked;
 #[cfg(feature = "shared-array-buffer")]
@@ -424,24 +422,27 @@ impl SharedDataBlockMaxByteLength {
 }
 
 #[cfg(feature = "shared-array-buffer")]
-pub(crate) struct WaiterRecord {
+pub struct WaiterRecord {
     pub condvar: Arc<Condvar>,
-    pub result: WaitResult,
+    pub notified: Arc<AtomicBool>,
 }
 
+/// Result of an `Atomics.wait` or `Atomics.waitAsync` operation.
+#[derive(Debug)]
 #[cfg(feature = "shared-array-buffer")]
-pub(crate) enum WaitResult {
+pub enum WaitResult {
     Ok,
     TimedOut,
+    NotEqual,
 }
 
 #[cfg(feature = "shared-array-buffer")]
-pub(crate) struct WaiterList {
+pub struct WaiterList {
     pub waiters: std::collections::VecDeque<WaiterRecord>,
 }
 
 #[cfg(feature = "shared-array-buffer")]
-pub(crate) type SharedWaiterMap = Mutex<std::collections::HashMap<usize, WaiterList>>;
+pub type SharedWaiterMap = Mutex<std::collections::HashMap<usize, WaiterList>>;
 
 /// # [Shared Data Block](https://tc39.es/ecma262/#sec-data-blocks)
 ///
@@ -822,6 +823,27 @@ impl SharedDataBlock {
                 // winning thread; the buffer RC keeps it alive.
                 unsafe { &*winner }
             }
+        }
+    }
+
+    /// Get the shared waiter map if it has been initialized.
+    ///
+    /// Returns `None` if no thread has ever called `get_or_init_waiters` on
+    /// this block (i.e. no `Atomics.wait` / `Atomics.waitAsync` has occurred).
+    ///
+    /// ## Safety
+    ///
+    /// Must not be a dangling SharedDataBlock.
+    pub(crate) unsafe fn get_waiters(&self) -> Option<&SharedWaiterMap> {
+        // SAFETY: caller guarantees non-dangling.
+        let waiters_atomic = unsafe { self.get_waiters_ptr() };
+        let current = waiters_atomic.load(Ordering::Acquire);
+        if current.is_null() {
+            None
+        } else {
+            // SAFETY: non-null means it was previously initialized; the
+            // buffer RC keeps the allocation alive.
+            Some(unsafe { &*current })
         }
     }
 
