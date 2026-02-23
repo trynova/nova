@@ -41,38 +41,45 @@ pub(crate) enum NumericRootRepr {
 }
 
 impl Numeric<'_> {
+    /// Returns `true` if this numeric value is a BigInt.
     pub fn is_bigint(self) -> bool {
         matches!(self, Self::BigInt(_) | Self::SmallBigInt(_))
     }
 
+    /// Returns `true` if this numeric value is a Number.
     pub fn is_number(self) -> bool {
         matches!(self, Self::Number(_) | Self::SmallF64(_) | Self::Integer(_))
     }
 
+    /// Returns `true` if this numeric value is +0 (not -0).
     pub fn is_pos_zero(self, agent: &mut Agent) -> bool {
         Number::try_from(self)
             .map(|n| n.is_pos_zero_(agent))
             .unwrap_or(false)
     }
 
+    /// Returns `true` if this numeric value is -0 (not +0).
     pub fn is_neg_zero(self, agent: &mut Agent) -> bool {
         Number::try_from(self)
             .map(|n| n.is_neg_zero_(agent))
             .unwrap_or(false)
     }
 
+    /// Returns `true` if this numeric value is Infinity.
     pub fn is_pos_infinity(self, agent: &mut Agent) -> bool {
         Number::try_from(self)
             .map(|n| n.is_pos_infinity_(agent))
             .unwrap_or(false)
     }
 
+    /// Returns `true` if this numeric value is -Infinity.
     pub fn is_neg_infinity(self, agent: &mut Agent) -> bool {
         Number::try_from(self)
             .map(|n| n.is_neg_infinity_(agent))
             .unwrap_or(false)
     }
 
+    /// Returns `true` if this numeric value is NaN.
     pub fn is_nan(self, agent: &mut Agent) -> bool {
         Number::try_from(self)
             .map(|n| n.is_nan_(agent))

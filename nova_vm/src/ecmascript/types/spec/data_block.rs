@@ -419,17 +419,17 @@ impl SharedDataBlockMaxByteLength {
     }
 }
 
-/// # [Shared Data Block](https://tc39.es/ecma262/#sec-data-blocks)
+/// # [6.2.9 Data Blocks](https://tc39.es/ecma262/#sec-data-blocks)
 ///
 /// The Shared Data Block specification type is used to describe a distinct and
-/// mutable sequence of byte-sized (8 bit) atomic numeric values. A byte value
-/// is an integer in the inclusive interval from 0 to 255. A Shared Data Block
-/// value is created with a fixed number of bytes that each have the initial
-/// value 0.
+/// mutable sequence of byte-sized (8 bit) racy atomic memory values. A byte
+/// value is an integer in the inclusive interval from 0 to 255. A Shared Data
+/// Block value is created with a fixed number of bytes that each have the
+/// initial value 0.
 ///
 /// The `ptr` points to a continuous buffer of bytes, the length of which is
-/// determined by the capacity. Before the buffer of bytes, a usize is
-/// allocated that is used for reference counting.
+/// determined by the capacity. Before the buffer of bytes, a usize is allocated
+/// that is used for reference counting.
 ///
 /// ## Buffer memory layout
 ///
@@ -440,7 +440,7 @@ impl SharedDataBlockMaxByteLength {
 /// #[repr(C)]
 /// struct StaticSharedDataBuffer<const N: usize> {
 ///   rc: AtomicUsize,
-///   bytes: [AtomicU8; N],
+///   bytes: [RacyU8; N],
 /// }
 /// ```
 ///
@@ -450,7 +450,7 @@ impl SharedDataBlockMaxByteLength {
 /// struct GrowableSharedDataBuffer<const N: usize> {
 ///   byte_length: AtomicUsize,
 ///   rc: AtomicUsize,
-///   bytes: [AtomicU8; N],
+///   bytes: [RacyU8; N],
 /// }
 /// ```
 ///
@@ -458,6 +458,17 @@ impl SharedDataBlockMaxByteLength {
 ///
 /// Note that the "viewed" byte length of the buffer is defined inside the
 /// buffer when the SharedDataBlock is growable.
+///
+/// ## Memory model
+///
+/// The [ECMAScript memory model](https://tc39.es/ecma262/#sec-memory-model) is
+/// sequentially consistent when the program as no data races, but data races
+/// are allowed by the model. This makes the model strictly weaker than the Rust
+/// memory model, which decrees all data races to be undefined behaviour. Thus,
+/// it is not possible to access the backing bytes of a [`SharedDataBlock`]
+/// from Rust under any circumstances.
+///
+/// [`SharedDataBlock`]: SharedDataBlock
 #[must_use]
 #[repr(C)]
 #[derive(PartialEq, Eq)]

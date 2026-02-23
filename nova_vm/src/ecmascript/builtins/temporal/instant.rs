@@ -27,6 +27,10 @@ use crate::{
     },
 };
 
+/// # [8 Temporal.Instant Objects](https://tc39.es/proposal-temporal/#sec-temporal-instant-objects)
+///
+/// A Temporal.Instant object is an Object referencing a fixed point in time
+/// with nanoseconds precision.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct TemporalInstant<'a>(BaseIndex<'a, InstantRecord<'static>>);

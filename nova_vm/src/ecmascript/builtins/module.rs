@@ -27,6 +27,26 @@ use super::ordinary::{
     ObjectShape, {PropertyLookupCache, PropertyOffset},
 };
 
+/// ### [10.4.6 Module Namespace Exotic Objects](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects)
+///
+/// A module namespace exotic object is an exotic object that exposes the
+/// bindings exported from an ECMAScript _Module_ (See 16.2.3). There is a
+/// one-to-one correspondence between the String-keyed own properties of a
+/// module namespace exotic object and the binding names exported by the Module.
+/// The exported bindings include any bindings that are indirectly exported
+/// using **`export *`** export items. Each String-valued own property key is
+/// the StringValue of the corresponding exported binding name. These are the
+/// only String-keyed properties of a module namespace exotic object. Each such
+/// property has the attributes `{ [[Writable]]: true, [[Enumerable]]: true,
+/// [[Configurable]]: false }`. Module namespace exotic objects are not
+/// extensible.
+///
+/// #### Example
+///
+/// ```javascript
+/// import * as m1 from "";
+/// const m2 = await import("");
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Module<'a>(BaseIndex<'a, ModuleHeapData<'static>>);

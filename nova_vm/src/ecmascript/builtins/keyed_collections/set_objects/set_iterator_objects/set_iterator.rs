@@ -14,6 +14,19 @@ use crate::{
     },
 };
 
+/// ### [24.2.6 Set Iterator Objects](https://tc39.es/ecma262/#sec-set-iterator-objects)
+///
+/// A _Set Iterator_ is an ordinary object, with the structure defined below,
+/// that represents a specific iteration over some specific Set instance object.
+/// There is not a named constructor for Set Iterator objects. Instead, Set
+/// Iterator objects are created by calling certain methods of Set instance
+/// objects.
+///
+/// ```javascript
+/// new Set().entries();
+/// new Set().keys();
+/// new Set().values();
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct SetIterator<'a>(BaseIndex<'a, SetIteratorHeapData<'static>>);

@@ -22,6 +22,22 @@ use crate::{
     },
 };
 
+/// ## [24.1 Map Objects](https://tc39.es/ecma262/#sec-map-objects)
+///
+/// Maps are collections of key/value pairs where both the keys and values may
+/// be arbitrary ECMAScript language values. A distinct key value may only occur
+/// in one key/value pair within the Map's collection. Distinct key values are
+/// discriminated using the semantics of the SameValueZero comparison algorithm.
+///
+/// Maps must be implemented using either hash tables or other mechanisms that,
+/// on average, provide access times that are sublinear on the number of
+/// elements in the collection.
+///
+/// ### Example
+///
+/// ```javascript
+/// new Map()
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Map<'a>(BaseIndex<'a, MapHeapData<'static>>);

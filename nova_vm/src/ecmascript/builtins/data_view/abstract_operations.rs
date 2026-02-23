@@ -23,7 +23,8 @@ impl ByteLength {
         Self(usize::MAX)
     }
 
-    pub fn is_detached(&self) -> bool {
+    /// Returns `true` if the byte length is the detached sentinel.
+    pub(crate) fn is_detached(&self) -> bool {
         *self == Self::detached()
     }
 }

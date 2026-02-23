@@ -6,40 +6,42 @@ use crate::{
     ecmascript::{
         Agent, BUILTIN_STRING_MEMORY, Object, ObjectRecord, OrdinaryObject, PropertyKey, Realm,
         Value,
+        builders::{NoDefinition, NoKey},
         builtins::{
             Builtin, BuiltinFunction, BuiltinGetter, BuiltinIntrinsic, BuiltinSetter,
             ObjectShapeRecord,
         },
     },
     engine::Bindable,
-    heap::{
-        ArenaAccessMut, CreateHeapData, {ElementDescriptor, ElementsVector},
-    },
+    heap::{ArenaAccessMut, CreateHeapData, ElementDescriptor, ElementsVector},
 };
 
-use super::{
-    builtin_function_builder::BuiltinFunctionBuilder,
-    property_builder::{self, PropertyBuilder},
-};
+use super::{builtin_function_builder::BuiltinFunctionBuilder, property_builder::PropertyBuilder};
 
+#[doc(hidden)]
 #[derive(Default, Clone, Copy)]
 pub struct NoPrototype;
 
+#[doc(hidden)]
 #[derive(Clone, Copy)]
 pub struct CreatorPrototype<T: Into<Object<'static>>>(pub(crate) T);
 
+#[doc(hidden)]
 #[derive(Default, Clone, Copy)]
 pub struct NoProperties;
 
+#[doc(hidden)]
 pub type PropertyDefinition = (
     PropertyKey<'static>,
     Option<ElementDescriptor<'static>>,
     Option<Value<'static>>,
 );
 
+#[doc(hidden)]
 #[derive(Clone)]
 pub struct CreatorProperties(pub(crate) Vec<PropertyDefinition>);
 
+/// Builder struct for creating ordinary objects in embedders.
 pub struct OrdinaryObjectBuilder<'agent, P, Pr> {
     pub(crate) agent: &'agent mut Agent,
     this: OrdinaryObject<'static>,
@@ -50,6 +52,7 @@ pub struct OrdinaryObjectBuilder<'agent, P, Pr> {
 }
 
 impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, NoProperties> {
+    /// Create a new ordinary object builder.
     #[must_use]
     pub fn new(agent: &'agent mut Agent, realm: Realm<'static>) -> Self {
         let this = OrdinaryObject::new_uninitialised(agent);
@@ -63,6 +66,7 @@ impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, NoProperties> {
         }
     }
 
+    /// Create a new intrinsic object builder.
     #[must_use]
     pub(crate) fn new_intrinsic_object(
         agent: &'agent mut Agent,
@@ -81,6 +85,7 @@ impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, NoProperties> {
 }
 
 impl<P, Pr> OrdinaryObjectBuilder<'_, P, Pr> {
+    /// Set the object's extensible property.
     #[must_use]
     pub fn with_extensible(self, extensible: bool) -> Self {
         Self {
@@ -95,6 +100,7 @@ impl<P, Pr> OrdinaryObjectBuilder<'_, P, Pr> {
 }
 
 impl<'agent, Pr> OrdinaryObjectBuilder<'agent, NoPrototype, Pr> {
+    /// Set the object's prototype.
     #[must_use]
     pub fn with_prototype<T: Into<Object<'static>>>(
         self,
@@ -112,6 +118,12 @@ impl<'agent, Pr> OrdinaryObjectBuilder<'agent, NoPrototype, Pr> {
 }
 
 impl<'agent, P> OrdinaryObjectBuilder<'agent, P, NoProperties> {
+    /// Set the object's property capacity.
+    ///
+    /// # Panics
+    ///
+    /// The builder panics if the number of properties set is less or more than
+    /// the set capacity.
     #[must_use]
     pub fn with_property_capacity(
         self,
@@ -129,6 +141,13 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, NoProperties> {
 }
 
 impl<P> OrdinaryObjectBuilder<'_, P, CreatorProperties> {
+    /// Adds a [data property] to the object.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of properties set is more than the set capacity.
+    ///
+    /// [data property]: https://tc39.es/ecma262/#sec-object-type
     #[must_use]
     pub fn with_data_property(mut self, key: PropertyKey<'static>, value: Value<'static>) -> Self {
         self.properties.0.push((key, None, Some(value)));
@@ -142,11 +161,16 @@ impl<P> OrdinaryObjectBuilder<'_, P, CreatorProperties> {
         }
     }
 
+    /// Builds a property to the object.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of properties set is more than the set capacity.
     #[must_use]
     pub fn with_property(
         mut self,
         creator: impl FnOnce(
-            PropertyBuilder<'_, property_builder::NoKey, property_builder::NoDefinition>,
+            PropertyBuilder<'_, NoKey, NoDefinition>,
         ) -> (
             PropertyKey<'static>,
             Option<ElementDescriptor<'static>>,
@@ -166,6 +190,12 @@ impl<P> OrdinaryObjectBuilder<'_, P, CreatorProperties> {
         }
     }
 
+    /// Adds a configurable, unenumerable, writable `constructor` property on
+    /// the object.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of properties set is more than the set capacity.
     #[must_use]
     pub fn with_constructor_property(mut self, constructor: BuiltinFunction<'static>) -> Self {
         let property = PropertyBuilder::new(self.agent)
@@ -184,6 +214,11 @@ impl<P> OrdinaryObjectBuilder<'_, P, CreatorProperties> {
         }
     }
 
+    /// Adds a builtin function property on the object.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of properties set is more than the set capacity.
     #[must_use]
     pub fn with_builtin_function_property<T: Builtin>(mut self) -> Self {
         let (value, key) = {
@@ -289,6 +324,7 @@ impl<P> OrdinaryObjectBuilder<'_, P, CreatorProperties> {
 }
 
 impl OrdinaryObjectBuilder<'_, NoPrototype, NoProperties> {
+    /// Builds the object.
     pub fn build(self) -> OrdinaryObject<'static> {
         create_intrinsic_backing_object(self.agent, self.this, None, vec![], self.extensible);
         self.this
@@ -296,6 +332,7 @@ impl OrdinaryObjectBuilder<'_, NoPrototype, NoProperties> {
 }
 
 impl<T: Into<Object<'static>>> OrdinaryObjectBuilder<'_, CreatorPrototype<T>, NoProperties> {
+    /// Builds the object.
     pub fn build(self) -> OrdinaryObject<'static> {
         create_intrinsic_backing_object(
             self.agent,
@@ -309,6 +346,7 @@ impl<T: Into<Object<'static>>> OrdinaryObjectBuilder<'_, CreatorPrototype<T>, No
 }
 
 impl OrdinaryObjectBuilder<'_, NoPrototype, CreatorProperties> {
+    /// Builds the object.
     pub fn build(self) -> OrdinaryObject<'static> {
         create_intrinsic_backing_object(
             self.agent,
@@ -322,6 +360,7 @@ impl OrdinaryObjectBuilder<'_, NoPrototype, CreatorProperties> {
 }
 
 impl<T: Into<Object<'static>>> OrdinaryObjectBuilder<'_, CreatorPrototype<T>, CreatorProperties> {
+    /// Builds the object.
     pub fn build(self) -> OrdinaryObject<'static> {
         create_intrinsic_backing_object(
             self.agent,

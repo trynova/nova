@@ -25,6 +25,15 @@ use super::ordinary::{
     ordinary_set, ordinary_try_get, ordinary_try_has_property, ordinary_try_set,
 };
 
+/// ## [20.5 Error Objects](https://tc39.es/ecma262/#sec-error-objects)
+///
+/// Instances of Error objects are thrown as exceptions when runtime errors
+/// occur. The Error objects may also serve as base objects for user-defined
+/// exception classes.
+///
+/// When an ECMAScript implementation detects a runtime error, it throws a new
+/// instance of one of the _NativeError_ objects defined in 20.5.5 or a new
+/// instance of the AggregateError object defined in 20.5.7.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Error<'a>(BaseIndex<'a, ErrorHeapData<'static>>);

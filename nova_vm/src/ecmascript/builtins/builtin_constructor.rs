@@ -22,6 +22,18 @@ use crate::{
 
 use super::ArgumentsList;
 
+/// ### [4.4.36 built-in constructor](https://tc39.es/ecma262/#sec-built-in-constructor)
+///
+/// A class built-in default constructor created in step 14 of [ClassDefinitionEvaluation].
+///
+/// #### Examples
+///
+/// ```javascript
+/// class Foo {}.constructor;
+/// class Bar extends Foo {}.constructor;
+/// ```
+///
+/// [ClassDefinitionEvaluation]: https://tc39.es/ecma262/#sec-runtime-semantics-classdefinitionevaluation
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct BuiltinConstructorFunction<'a>(BaseIndex<'a, BuiltinConstructorRecord<'static>>);

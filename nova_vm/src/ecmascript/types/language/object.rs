@@ -242,6 +242,22 @@ impl Object<'_> {
     }
 }
 
+/// ### [6.1.7 The Object Type](https://tc39.es/ecma262/#sec-object-type)
+///
+/// Each instance of the _Object type_, also referred to simply as “an Object”,
+/// represents a collection of properties. [`OrdinaryObject`]s specifically are
+/// the only type in the Nova JavaScript engine that are truly Objects in the
+/// strictest sense. They are ["ordinary objects"] in the specification's sense,
+/// but they are not the only "ordinary objects" in the engine. They are,
+/// however, the only ones that actually own a collection of properties.
+///
+/// All other objects in the Nova JavaScript engine merely optionally refer to
+/// an [`OrdinaryObject`], called then the "backing object", and delegate to the
+/// backing object all things related to ordinary object features such as
+/// prototype changes and property assignments.
+///
+/// [`OrdinaryObject`]: OrdinaryObject
+/// ["ordinary objects"]: https://tc39.es/ecma262/#sec-ordinary-object
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct OrdinaryObject<'a>(BaseIndex<'a, ObjectRecord<'static>>);
@@ -273,6 +289,7 @@ impl<'a> OrdinaryObject<'a> {
         self.get(agent).len(agent)
     }
 
+    /// Create an empty object with the default prototype.
     pub fn create_empty_object(agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Self {
         let Object::Object(ordinary) =
             ordinary_object_create_with_intrinsics(agent, ProtoIntrinsics::Object, None, gc)
@@ -429,6 +446,7 @@ impl<'a> OrdinaryObject<'a> {
         agent.heap.create(ObjectRecord::new(shape, values))
     }
 
+    /// Create an object with the given prototype and properies.
     pub fn create_object(
         agent: &mut Agent,
         prototype: Option<Object<'a>>,

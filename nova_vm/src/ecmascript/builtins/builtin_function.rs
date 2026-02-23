@@ -264,6 +264,12 @@ impl<'scope> ScopedArgumentsList<'scope> {
         }
     }
 
+    /// Get a Value by index from an ArgumentsList.
+    ///
+    /// If a Value with that index isn't present, `undefined` is returned.
+    ///
+    /// If the list itself has not been [bound](Bindable) then the returned
+    /// Value should immediately be bound.
     pub fn get<'gc>(&self, agent: &Agent, index: u32, gc: NoGcScope<'gc, '_>) -> Value<'gc> {
         if let HeapRootCollection::ArgumentsList(args) = agent
             .stack_ref_collections
@@ -288,6 +294,7 @@ impl<'scope> ScopedArgumentsList<'scope> {
         }
     }
 
+    /// Get the number of provided arguments.
     pub fn len(&self, agent: &Agent) -> usize {
         if let HeapRootCollection::ArgumentsList(args) = agent
             .stack_ref_collections
@@ -390,12 +397,33 @@ impl Behaviour {
     }
 }
 
+/// Helper trait for defining builtin functions using the
+/// [`BuiltinFunctionBuilder`].
+///
+/// [`BuiltinFunctionBuilder`]: crate::ecmascript::builders::BuiltinFunctionBuilder
 pub trait Builtin {
+    /// Name of the function
+    ///
+    /// This currently has to be a statically knowable name, which makes this
+    /// trait mostly useless for embedders. This name also controls the property
+    /// key that this function is assigned to if used to create a property.
     const NAME: String<'static>;
+    /// Length of the function
+    ///
+    /// This is reported into JavaScript when the function object's `length`
+    /// property is read.
     const LENGTH: u8;
+    /// Behaviour of the function
+    ///
+    /// A builtin function can either be a normal function (not callable using
+    /// `new ff`) or a constructor function (callable using `new f`). The enum
+    /// choice here dictates which one it is, and the function pointer dictates
+    /// the Rust code to run when JavaScript calls the function.
     const BEHAVIOUR: Behaviour;
 
-    /// Set to Some if this builtin's property key is different from `NAME`.
+    /// If the builtin function is created as a property then setting this to
+    /// Some can be used to override the property key is this is assigned to. By
+    /// default the `NAME` value is used.
     const KEY: Option<PropertyKey<'static>> = None;
 
     /// If the builtin function is created as a property then this controls the
@@ -416,15 +444,18 @@ pub(crate) trait BuiltinIntrinsicConstructor: Builtin {
 pub(crate) trait BuiltinIntrinsic: Builtin {
     const INDEX: IntrinsicFunctionIndexes;
 }
+/// Helper trait for defining builtin getter function properties.
 pub trait BuiltinGetter: Builtin {
     const GETTER_NAME: String<'static> = Self::NAME;
     const GETTER_BEHAVIOUR: Behaviour = Self::BEHAVIOUR;
 }
+/// Helper trait for defining builtin setter function properties.
 pub trait BuiltinSetter: Builtin {
     const SETTER_NAME: String<'static> = Self::NAME;
     const SETTER_BEHAVIOUR: Behaviour = Self::BEHAVIOUR;
 }
 
+/// Builtin function creation arguments.
 #[derive(Debug, Default)]
 pub struct BuiltinFunctionArgs<'a> {
     pub length: u32,
@@ -435,6 +466,7 @@ pub struct BuiltinFunctionArgs<'a> {
 }
 
 impl<'a> BuiltinFunctionArgs<'a> {
+    // Create new builtin function creation arguments with length and name.
     pub fn new(length: u32, name: &'static str) -> Self {
         Self {
             length,
@@ -443,6 +475,7 @@ impl<'a> BuiltinFunctionArgs<'a> {
         }
     }
 
+    // Create new builtin function creation arguments with length, name, and a realm.
     pub fn new_with_realm(length: u32, name: &'static str, realm: Realm<'a>) -> Self {
         Self {
             length,
@@ -453,6 +486,24 @@ impl<'a> BuiltinFunctionArgs<'a> {
     }
 }
 
+/// ## [10.3 Built-in Function Objects](https://tc39.es/ecma262/#sec-built-in-function-objects)
+///
+/// A built-in function object is an ordinary object; it must satisfy the
+/// requirements for ordinary objects set out in [10.1].
+///
+/// In addition to the internal slots required of every ordinary object (see
+/// [10.1]), a built-in function object must also have the following internal
+/// slots:
+///
+/// * \[\[Realm]], a Realm Record that represents the realm in which the
+///   function was created.
+/// * \[\[InitialName]], a String that is the initial name of the function. It
+///   is used by [20.2.3.5].
+/// * \[\[Async]], a Boolean that indicates whether the function has async
+///   function call and construct behaviour in BuiltinCallOrConstruct.
+///
+/// [10.1]: https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots
+/// [20.2.3.5]: https://tc39.es/ecma262/#sec-function.prototype.tostring
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct BuiltinFunction<'a>(BaseIndex<'a, BuiltinFunctionHeapData<'static>>);
@@ -473,6 +524,8 @@ impl<'f> BuiltinFunction<'f> {
         BuiltinFunction(BaseIndex::last(&agent.heap.builtin_functions))
     }
 
+    /// Returns `true` if the builtin function is also callable as a constructor
+    /// function.
     pub fn is_constructor(self, agent: &Agent) -> bool {
         // A builtin function has the [[Construct]] method if its behaviour is
         // a constructor behaviour.

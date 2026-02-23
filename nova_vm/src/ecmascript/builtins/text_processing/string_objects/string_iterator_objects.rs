@@ -15,6 +15,18 @@ use crate::{
     },
 };
 
+/// ### [22.1.5 String Iterator Objects](https://tc39.es/ecma262/#sec-string-iterator-objects)
+///
+/// A _String Iterator_ is an object that represents a specific iteration over
+/// some specific String instance object. There is not a named constructor for
+/// String Iterator objects. Instead, String Iterator objects are created by
+/// calling certain methods of String instance objects.
+///
+/// #### Example
+///
+/// ```javascript
+/// ""[Symbol.iterator]()
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct StringIterator<'a>(BaseIndex<'a, StringIteratorHeapData<'static>>);
@@ -22,14 +34,18 @@ object_handle!(StringIterator);
 arena_vec_access!(StringIterator, 'a, StringIteratorHeapData, string_iterators);
 
 impl<'a> StringIterator<'a> {
-    pub fn create(agent: &mut Agent, string: String, gc: NoGcScope<'a, '_>) -> StringIterator<'a> {
+    pub(crate) fn create(
+        agent: &mut Agent,
+        string: String,
+        gc: NoGcScope<'a, '_>,
+    ) -> StringIterator<'a> {
         agent
             .heap
             .create(StringIteratorHeapData::new(string))
             .bind(gc)
     }
 
-    pub fn is_completed(self, agent: &Agent) -> bool {
+    pub(crate) fn is_completed(self, agent: &Agent) -> bool {
         // a. Let len be the length of s.
         // b. Let position be 0.
         // c. Repeat, while position < len,

@@ -69,14 +69,12 @@ impl SymbolPrototype {
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        let gc = gc.into_nogc();
         // 1. Let s be the this value.
         // 2. Let sym be ? ThisSymbolValue(s).
-        let sym = this_symbol_value(agent, this_value, gc.nogc())
-            .unbind()?
-            .bind(gc.into_nogc());
+        let sym = this_symbol_value(agent, this_value.bind(gc), gc)?;
         // 3. Return sym.[[Description]].
-        sym.get(agent)
-            .descriptor
+        sym.description(agent)
             .map_or_else(|| Ok(Value::Undefined), |desc| Ok(desc.into()))
     }
 
@@ -92,7 +90,7 @@ impl SymbolPrototype {
         // 1. Let sym be ? ThisSymbolValue(this value).
         let symb = this_symbol_value(agent, this_value, gc)?;
         // 2. Return SymbolDescriptiveString(sym).
-        Ok(symbol_descriptive_string(agent, symb, gc).into())
+        Ok(symb.descriptive_string(agent, gc).into())
     }
 
     /// ### [20.4.3.4 Symbol.prototype.valueOf ( )](https://tc39.es/ecma262/#sec-symbol.prototype.valueof)
@@ -150,27 +148,5 @@ fn this_symbol_value<'a>(
             "this is not a symbol",
             gc,
         )),
-    }
-}
-
-/// ### [20.4.3.3.1 SymbolDescriptiveString ( sym )](https://tc39.es/ecma262/#sec-symboldescriptivestring)
-///
-/// The abstract operation SymbolDescriptiveString takes argument sym (a Symbol)
-/// and returns a String.
-fn symbol_descriptive_string<'gc>(
-    agent: &mut Agent,
-    sym: Symbol,
-    gc: NoGcScope<'gc, '_>,
-) -> String<'gc> {
-    // 1. Let desc be sym's [[Description]] value.
-    let desc = sym.get(agent).descriptor;
-    // 2. If desc is undefined, set desc to the empty String.
-    if let Some(desc) = desc {
-        // 3. Assert: desc is a String.
-        // 4. Return the string-concatenation of "Symbol(", desc, and ")".
-        let result = format!("Symbol({})", desc.to_string_lossy_(agent));
-        String::from_string(agent, result, gc)
-    } else {
-        BUILTIN_STRING_MEMORY.Symbol__
     }
 }

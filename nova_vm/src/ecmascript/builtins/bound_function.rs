@@ -17,6 +17,13 @@ use crate::{
 
 use super::ArgumentsList;
 
+/// ### [10.4.1 Bound Function Exotic Objects](https://tc39.es/ecma262/#sec-bound-function-exotic-objects)
+///
+/// A bound function exotic object is an exotic object that wraps another
+/// function object. A bound function exotic object is callable (it has a
+/// \[\[Call]] internal method and may have a \[\[Construct]] internal method).
+/// Calling a bound function exotic object generally results in a call of its
+/// wrapped function.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct BoundFunction<'a>(BaseIndex<'a, BoundFunctionHeapData<'static>>);
@@ -29,6 +36,7 @@ arena_vec_access!(
 );
 
 impl<'f> BoundFunction<'f> {
+    /// Returns `true` if the function being bound is a constructor function.
     pub fn is_constructor(self, agent: &Agent) -> bool {
         // A bound function has the [[Construct]] method if the target function
         // does.

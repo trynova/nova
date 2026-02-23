@@ -166,6 +166,7 @@ impl<'r> ModuleRequest<'r> {
         self.get(agent).specifier
     }
 
+    /// Get the ModuleRequest's \[\[Attributes]] list.
     pub fn attributes(self, agent: &Agent) -> &[ImportAttributeRecord<'r>] {
         self.get(agent).attributes()
     }
@@ -198,6 +199,16 @@ pub(crate) struct LoadedModuleRequestRecord<'a> {
 }
 
 /// # [ImportAttribute Records](https://tc39.es/ecma262/#table-importattribute-fields)
+///
+/// Import attribute records are used by the ECMAScript module import code to
+/// express import attributes. Each attribute consists of a key and value string
+/// pair.
+///
+/// # Example
+///
+/// ```javascript
+/// import {} from "" with { "key": "value" };
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImportAttributeRecord<'a> {
     /// ### \[\[Key]]

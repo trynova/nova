@@ -29,6 +29,16 @@ use crate::{
     },
 };
 
+/// ## [28.2 Proxy Objects](https://tc39.es/ecma262/#sec-proxy-objects)
+///
+/// A Proxy object is an exotic object whose essential internal methods are
+/// partially implemented using ECMAScript code. Every Proxy object has an
+/// internal slot called \[\[ProxyHandler]]. The value of \[\[ProxyHandler]] is
+/// an object, called the proxy's _handler object_, or **`null`**. Methods (see
+/// Table 29) of a handler object may be used to augment the implementation for
+/// one or more of the Proxy object's internal methods. Every Proxy object also
+/// has an internal slot called \[\[ProxyTarget]] whose value is either an
+/// object or **`null`**. This object is called the proxy's target object.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Proxy<'a>(BaseIndex<'a, ProxyHeapData<'static>>);

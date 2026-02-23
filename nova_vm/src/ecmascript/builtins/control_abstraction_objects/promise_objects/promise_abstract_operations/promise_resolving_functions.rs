@@ -33,6 +33,10 @@ pub(crate) struct PromiseResolvingFunctionHeapData<'a> {
     pub(crate) resolve_type: PromiseResolvingFunctionType,
 }
 
+/// Special built-in functions created to resolve or reject native [`Promise`]
+/// objects.
+///
+/// [`Promise`]: crate::ecmascript::Promise
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct BuiltinPromiseResolvingFunction<'a>(

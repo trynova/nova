@@ -68,6 +68,7 @@ impl StringRecord {
     /// The maximum UTF-8 length of a JS string.
     const MAX_UTF8_LENGTH: usize = 3 * Self::MAX_UTF16_LENGTH;
 
+    /// Get the byte length of the string.
     pub fn len(&self) -> usize {
         match &self.data {
             StringBuffer::Owned(buf) => buf.len(),
@@ -137,6 +138,7 @@ impl StringRecord {
         })
     }
 
+    /// Get the WTF-16 length of the string.
     pub fn utf16_len(&self) -> usize {
         match self.index_mapping() {
             IndexMapping::Ascii => self.len(),

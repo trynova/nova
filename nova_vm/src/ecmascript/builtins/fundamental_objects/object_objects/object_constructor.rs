@@ -1282,7 +1282,7 @@ fn object_define_properties<'gc>(
 /// This is a specialization for the `Object.fromEntries` use case where we
 /// know what adder does and that it is never seen from JavaScript: As such it
 /// does not need to be defined as a JavaScript function.
-pub fn add_entries_from_iterable_from_entries<'a>(
+pub(crate) fn add_entries_from_iterable_from_entries<'a>(
     agent: &mut Agent,
     target: OrdinaryObject,
     iterable: Value,

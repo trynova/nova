@@ -18,6 +18,14 @@ use crate::{
     },
 };
 
+/// ## [24.4 WeakSet Objects](https://tc39.es/ecma262/#sec-weakset-objects)
+//
+/// WeakSets are collections of objects and/or symbols. A distinct object or
+/// symbol may only occur once as an element of a WeakSet's collection. A
+/// WeakSet may be queried to see if it contains a specific value, but no
+/// mechanism is provided for enumerating the values it holds. In certain
+/// conditions, values which are not live are removed as WeakSet elements, as
+/// described in 9.9.3.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct WeakSet<'a>(BaseIndex<'a, WeakSetHeapData<'static>>);

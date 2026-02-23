@@ -28,15 +28,28 @@ use crate::{
 use num_traits::{PrimInt, Zero};
 
 /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+///
+/// The ECMAScript _Number type_ is officially a double-precision floating point
+/// IEEE 754-2019 value, but with the added benefit of acting in a special way
+/// under bitwise operations wherein the value gets narrowed down into a 32-bit
+/// signed integer.
+///
+/// In Nova JavaScript engine, a [`Number`] is split into one of three options:
+/// it is either a full double-precision floating point value allocated on the
+/// heap, or it is a 54-bit signed integer stored on the stack, or it is a full
+/// double-precision floating point value with 8 trailing zeroes stored in 56
+/// bits on the stack with the 8 trailing zeroes chopped off.
+///
+/// [`Number`]: Number
 #[derive(Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub enum Number<'a> {
-    /// f64 on the heap. Accessing the data must be done through the Agent.
+    /// f64 on the heap. Accessing the data can only be done through the Agent.
     Number(HeapNumber<'a>) = NUMBER_DISCRIMINANT,
-    /// 53-bit signed integer on the stack.
+    /// 54-bit signed integer on the stack.
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
-    /// 56-bit f64 on the stack. The missing byte is a zero least significant
-    /// byte.
+    /// f64 with 8 trailing zeroes on the stack. The trailing zeroes are chopped
+    /// off to fit into 56 bits.
     SmallF64(SmallF64) = FLOAT_DISCRIMINANT,
 }
 bindable_handle!(Number);
@@ -58,6 +71,7 @@ impl<'a> Number<'a> {
         HeapNumber(BaseIndex::last(&heap.numbers))
     }
 
+    /// Create a new Number from an f64.
     pub fn from_f64(agent: &mut Agent, value: f64, gc: NoGcScope<'a, '_>) -> Self {
         if let Ok(value) = Number::try_from(value) {
             value
@@ -69,6 +83,7 @@ impl<'a> Number<'a> {
         }
     }
 
+    /// Create a new Number from an i64.
     pub fn from_i64(agent: &mut Agent, value: i64, gc: NoGcScope<'a, '_>) -> Self {
         if let Ok(value) = Number::try_from(value) {
             value
@@ -106,26 +121,32 @@ impl<'a> Number<'a> {
         }
     }
 
+    /// Get the canonical NaN value.
     pub fn nan() -> Self {
         Self::from(f32::NAN)
     }
 
+    /// Get the -0 value.
     pub fn neg_zero() -> Self {
         Self::from(-0.0f32)
     }
 
+    /// Get the 0 value.
     pub fn pos_zero() -> Self {
         Self::from(0)
     }
 
+    /// Get the Infinity value.
     pub fn pos_inf() -> Self {
         Self::from(f32::INFINITY)
     }
 
+    /// Get the -Infinity value.
     pub fn neg_inf() -> Self {
         Self::from(f32::NEG_INFINITY)
     }
 
+    /// Returns `true` if the number is any NaN.
     #[inline(always)]
     pub fn is_nan(self, agent: &Agent) -> bool {
         self.is_nan_(agent)
@@ -142,6 +163,7 @@ impl<'a> Number<'a> {
         }
     }
 
+    /// Returns `true` if the number is exactly +0 (and not -0).
     #[inline(always)]
     pub fn is_pos_zero(self, agent: &Agent) -> bool {
         self.is_pos_zero_(agent)
@@ -158,6 +180,7 @@ impl<'a> Number<'a> {
         }
     }
 
+    /// Returns `true` if the number is exactly -0 (and not +0).
     #[inline(always)]
     pub fn is_neg_zero(self, agent: &Agent) -> bool {
         self.is_neg_zero_(agent)
@@ -174,6 +197,7 @@ impl<'a> Number<'a> {
         }
     }
 
+    /// Returns `true` if the number is Infinity.
     #[inline(always)]
     pub fn is_pos_infinity(self, agent: &Agent) -> bool {
         self.is_pos_infinity_(agent)
@@ -190,6 +214,7 @@ impl<'a> Number<'a> {
         }
     }
 
+    /// Returns `true` if the number is -Infinity.
     #[inline(always)]
     pub fn is_neg_infinity(self, agent: &Agent) -> bool {
         self.is_neg_infinity_(agent)
@@ -206,6 +231,7 @@ impl<'a> Number<'a> {
         }
     }
 
+    /// Returns `true` if this number is neither infinite nor NaN.
     #[inline(always)]
     pub fn is_finite(self, agent: &Agent) -> bool {
         self.is_finite_(agent)
@@ -222,6 +248,8 @@ impl<'a> Number<'a> {
         }
     }
 
+    /// Returns `true` if this number is an integer (has a fractional part of
+    /// 0).
     #[inline(always)]
     pub fn is_integer(self, agent: &Agent) -> bool {
         self.is_integer_(agent)
@@ -238,6 +266,7 @@ impl<'a> Number<'a> {
         }
     }
 
+    /// Returns `true` if this number is not equal to 0 or -0.
     #[inline(always)]
     pub fn is_nonzero(self, agent: &Agent) -> bool {
         self.is_nonzero_(agent)
@@ -248,12 +277,13 @@ impl<'a> Number<'a> {
         T: NumberHeapAccess,
     {
         match self {
-            Number::Number(n) => &0.0 != n.get(agent),
-            Number::Integer(n) => 0i64 != n.into_i64(),
-            Number::SmallF64(n) => !n.into_f64().is_zero(),
+            Number::Number(n) => n.get(agent) != &0.0,
+            Number::Integer(n) => n.into_i64() != 0,
+            Number::SmallF64(n) => n.into_f64() != 0.0,
         }
     }
 
+    /// Returns `true` if this number is equal to 1.
     #[inline(always)]
     pub fn is_pos_one(self, agent: &Agent) -> bool {
         self.is_pos_one_(agent)
@@ -279,6 +309,7 @@ impl<'a> Number<'a> {
         }
     }
 
+    /// Returns `true` if this number is equal to -1.
     #[inline(always)]
     pub fn is_neg_one(self, agent: &Agent) -> bool {
         self.is_neg_one_(agent)
@@ -301,6 +332,8 @@ impl<'a> Number<'a> {
         }
     }
 
+    /// Returns `true` if this number has a positive sign, including `+0.0`,
+    /// NaNs with positive sign bit and positive infinity.
     #[inline(always)]
     pub fn is_sign_positive(self, agent: &Agent) -> bool {
         self.is_sign_positive_(agent)
@@ -317,6 +350,8 @@ impl<'a> Number<'a> {
         }
     }
 
+    /// Returns `true` if this number has a negative sign, including `-0.0`,
+    /// NaNs with negative sign bit and negative infinity.
     #[inline(always)]
     pub fn is_sign_negative(self, agent: &Agent) -> bool {
         self.is_sign_negative_(agent)
@@ -345,6 +380,7 @@ impl<'a> Number<'a> {
         }
     }
 
+    /// Get the number value as f64.
     #[inline(always)]
     pub fn into_f64(self, agent: &Agent) -> f64 {
         self.into_f64_(agent)
@@ -361,6 +397,7 @@ impl<'a> Number<'a> {
         }
     }
 
+    /// Get the number value as f32.
     #[inline(always)]
     pub fn into_f32(self, agent: &Agent) -> f32 {
         self.into_f32_(agent)
@@ -377,6 +414,7 @@ impl<'a> Number<'a> {
         }
     }
 
+    /// Get the number value as f16.
     #[cfg(feature = "proposal-float16array")]
     #[inline(always)]
     pub fn into_f16(self, agent: &Agent) -> f16 {
@@ -497,6 +535,7 @@ impl<'a> Number<'a> {
         }
     }
 
+    /// Returns `true` if this number is an integer number and is odd.
     pub fn is_odd_integer(self, agent: &mut Agent) -> bool {
         match self {
             Number::Number(n) => n.get(agent).rem_euclid(2.0) == 1.0,
@@ -505,6 +544,7 @@ impl<'a> Number<'a> {
         }
     }
 
+    /// Get the absolute value of this number.
     pub fn abs(self, agent: &mut Agent) -> Self {
         match self {
             Number::Number(n) => {
@@ -1602,8 +1642,11 @@ impl Rootable for Number<'_> {
 
 /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
 ///
-/// Heap-allocated [Number] data. Accessing the data must be done through the
-/// [Agent].
+/// Heap-allocated [`Number`] data. Accessing the data can only be done through
+/// the [`Agent`].
+///
+/// [`Agent`]: Agent
+/// [`Number`]: Number
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct HeapNumber<'a>(BaseIndex<'a, NumberHeapData>);

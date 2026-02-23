@@ -264,7 +264,7 @@ impl Vm {
         eprintln!();
     }
 
-    pub fn resume<'gc>(
+    pub(crate) fn resume<'gc>(
         mut self,
         agent: &mut Agent,
         executable: Scoped<Executable>,
@@ -275,7 +275,7 @@ impl Vm {
         self.inner_execute(agent, executable, gc)
     }
 
-    pub fn resume_throw<'gc>(
+    pub(crate) fn resume_throw<'gc>(
         mut self,
         agent: &mut Agent,
         executable: Scoped<Executable>,

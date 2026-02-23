@@ -40,8 +40,8 @@ use crate::{
         parse_script, script_evaluation, to_string, try_get_identifier_reference,
     },
     engine::{
-        Bindable, GcScope, HeapRootCollection, HeapRootData, HeapRootRef, NoGcScope, Rootable, Vm,
-        bindable_handle,
+        Bindable, GcScope, Global, HeapRootCollection, HeapRootData, HeapRootRef, NoGcScope,
+        Rootable, Vm, bindable_handle,
     },
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapIndexHandle, HeapMarkAndSweep,
@@ -51,15 +51,21 @@ use crate::{
 };
 
 use core::{any::Any, cell::RefCell, ops::ControlFlow, ptr::NonNull};
-use std::{collections::TryReserveError, sync::Arc};
+use std::collections::TryReserveError;
 
+/// Creation options for [`GcAgent`].
+///
+/// [`GcAgent`]: GcAgent
 #[derive(Debug, Default)]
 pub struct AgentOptions {
+    /// Stops the Agent from performing any garbage collection.
     pub disable_gc: bool,
+    /// Makes the Agent print its internal bytecode execution debug data into
+    /// stderr.
     pub print_internals: bool,
     /// Controls the \[\[CanBlock]] option of the Agent Record. If set to true,
-    /// calling `Atomics.wait()` will throw an error to signal that blocking
-    /// the main thread is not allowed.
+    /// calling `Atomics.wait()` will throw an error to signal that blocking the
+    /// main thread is not allowed.
     pub no_block: bool,
 }
 
@@ -72,6 +78,9 @@ impl<'a, T: 'a> From<JsError<'a>> for JsResult<'a, T> {
     }
 }
 
+/// A JavaScript [`Value`] thrown as an error.
+///
+/// [`Value`]: crate::ecmascript::Value
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 #[repr(transparent)]
 pub struct JsError<'a>(Value<'a>);
@@ -82,10 +91,17 @@ impl<'a> JsError<'a> {
         Self(value)
     }
 
+    /// Get the thrown JavaScript [`Value`].
+    ///
+    /// [`Value`]: crate::ecmascript::Value
     pub fn value(self) -> Value<'a> {
         self.0
     }
 
+    /// Convert the thrown JavaScript [`Value`] into a JavaScript [`String`].
+    ///
+    /// [`Value`]: crate::ecmascript::Value
+    /// [`String`]: crate::ecmascript::String
     pub fn to_string<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> String<'gc> {
         to_string(agent, self.0, gc).unwrap()
     }
@@ -146,7 +162,12 @@ pub enum TryError<'a> {
 }
 bindable_handle!(TryError);
 
-pub fn option_into_try<'a, T: 'a>(value: Option<T>) -> TryResult<'a, T> {
+/// Helper function turning an Option into a [`TryResult`]. If the value is
+/// `Some` then the result is `Continue`, otherwise it is [`TryError::GcError`].
+///
+/// [`TryResult`]: crate::ecmascript::TryResult
+/// [`TryError::GcError`]: crate::ecmascript::TryError::GcError
+pub(crate) fn option_into_try<'a, T: 'a>(value: Option<T>) -> TryResult<'a, T> {
     match value {
         Some(value) => TryResult::Continue(value),
         None => TryError::GcError.into(),
@@ -241,12 +262,23 @@ pub(crate) enum InnerJob {
     FinalizationRegistry(FinalizationRegistryCleanupJob),
 }
 
+/// ## [Job](https://tc39.es/ecma262/#sec-jobs)
+///
+/// A _Job_ is an Abstract Closure with no parameters that initiates an
+/// ECMAScript computation when no other ECMAScript computation is currently in
+/// progress. Jobs are scheduled for execution by ECMAScript host environments
+/// in a particular agent.
+///
+/// A Job is executed by calling the [`run`] method on it, consuming it.
+///
+/// [`run`]: Job::run
 pub struct Job {
-    pub(crate) realm: Option<Realm<'static>>,
+    pub(crate) realm: Option<Global<Realm<'static>>>,
     pub(crate) inner: InnerJob,
 }
 
 impl Job {
+    // Returns `true` if the Job has finished and can be run.
     pub fn is_finished(&self) -> bool {
         match &self.inner {
             #[cfg(feature = "atomics")]
@@ -255,6 +287,10 @@ impl Job {
         }
     }
 
+    /// Execute the Job, consuming it in the process.
+    ///
+    /// The execution of a Job never returns any result but it may throw an
+    /// error value.
     pub fn run<'a>(self, agent: &mut Agent, gc: GcScope<'a, '_>) -> JsResult<'a, ()> {
         let mut id = 0;
         ndt::job_evaluation_start!(|| {
@@ -262,7 +298,7 @@ impl Job {
             id
         });
         let mut pushed_context = false;
-        if let Some(realm) = self.realm
+        if let Some(realm) = self.realm.map(|r| r.take(agent))
             && agent.current_realm(gc.nogc()) != realm
         {
             agent.push_execution_context(ExecutionContext {
@@ -309,22 +345,8 @@ pub enum GrowSharedArrayBufferResult {
     Handled = 1,
 }
 
-pub trait HostEnqueueGenericJobHandle {
-    /// ### [9.5.4 HostEnqueueGenericJob ( job, realm )](https://tc39.es/ecma262/#sec-hostenqueuegenericjob)
-    ///
-    /// The host-defined abstract operation HostEnqueueGenericJob takes
-    /// arguments _job_ (a Job Abstract Closure) and _realm_ (a Realm Record)
-    /// and returns unused. It schedules _job_ in the realm realm in the agent
-    /// signified by _realm_.\[\[AgentSignifier]] to be performed at some
-    /// future time. The Abstract Closures used with this algorithm are
-    /// intended to be scheduled without additional constraints, such as
-    /// priority and ordering.
-    ///
-    /// An implementation of HostEnqueueGenericJob must conform to the
-    /// requirements in 9.5.
-    fn enqueue_generic_job(&self, job: Job);
-}
-
+/// Trait the Nova JavaScript engine to interact with the embedder. The embedder
+/// calls methods are defined by the ECMAScript specification.
 pub trait HostHooks: core::fmt::Debug {
     /// ### [19.2.1.2 HostEnsureCanCompileStrings ( calleeRealm )](https://tc39.es/ecma262/#sec-hostensurecancompilestrings)
     #[allow(unused_variables)]
@@ -344,24 +366,14 @@ pub trait HostHooks: core::fmt::Debug {
         true
     }
 
-    /// Get a shareable handle to the HostEnqueueGenericJob function.
-    ///
-    /// This is used by off-thread tasks that may or may not ever resolve. By
-    /// default the function returns None to indicate that off-thread tasks are
-    /// not supported.
-    fn get_enqueue_generic_job_handle(&self) -> Option<Arc<dyn HostEnqueueGenericJobHandle>> {
-        None
-    }
-
     /// ### [9.5.4 HostEnqueueGenericJob ( job, realm )](https://tc39.es/ecma262/#sec-hostenqueuegenericjob)
     ///
     /// The host-defined abstract operation HostEnqueueGenericJob takes
     /// arguments _job_ (a Job Abstract Closure) and _realm_ (a Realm Record)
     /// and returns unused. It schedules _job_ in the realm realm in the agent
-    /// signified by _realm_.\[\[AgentSignifier]] to be performed at some
-    /// future time. The Abstract Closures used with this algorithm are
-    /// intended to be scheduled without additional constraints, such as
-    /// priority and ordering.
+    /// signified by _realm_.\[\[AgentSignifier]] to be performed at some future
+    /// time. The Abstract Closures used with this algorithm are intended to be
+    /// scheduled without additional constraints, such as priority and ordering.
     ///
     /// An implementation of HostEnqueueGenericJob must conform to the
     /// requirements in 9.5.
@@ -376,8 +388,8 @@ pub trait HostHooks: core::fmt::Debug {
     /// arguments _timeoutJob_ (a Job Abstract Closure), _realm_ (a Realm
     /// Record), and _milliseconds_ (a non-negative finite Number) and returns
     /// unused. It schedules _timeoutJob_ in the realm _realm_ in the agent
-    /// signified by _realm_.\[\[AgentSignifier]] to be performed after at
-    /// least _milliseconds_ milliseconds.
+    /// signified by _realm_.\[\[AgentSignifier]] to be performed after at least
+    /// _milliseconds_ milliseconds.
     ///
     /// An implementation of HostEnqueueTimeoutJob must conform to the
     /// requirements in 9.5.
@@ -401,9 +413,9 @@ pub trait HostHooks: core::fmt::Debug {
     /// 3. Return unused.
     /// ```
     ///
-    /// An implementation of HostEnqueueFinalizationRegistryCleanupJob
-    /// schedules cleanupJob to be performed at some future time, if possible.
-    /// It must also conform to the requirements in 9.5.
+    /// An implementation of HostEnqueueFinalizationRegistryCleanupJob schedules
+    /// cleanupJob to be performed at some future time, if possible. It must
+    /// also conform to the requirements in 9.5.
     #[allow(unused_variables)]
     #[cfg(feature = "weak-refs")]
     fn enqueue_finalization_registry_cleanup_job(&self, job: Job) {
@@ -424,9 +436,9 @@ pub trait HostHooks: core::fmt::Debug {
     ///
     /// The host-defined abstract operation HostLoadImportedModule takes
     /// arguments referrer (a Script Record, a Cyclic Module Record, or a Realm
-    /// Record), moduleRequest (a ModuleRequest Record), hostDefined
-    /// (anything), and payload (a GraphLoadingState Record or a
-    /// PromiseCapability Record) and returns unused.
+    /// Record), moduleRequest (a ModuleRequest Record), hostDefined (anything),
+    /// and payload (a GraphLoadingState Record or a PromiseCapability Record)
+    /// and returns unused.
     ///
     /// > NOTE 1: An example of when referrer can be a Realm Record is in a web
     /// > browser host. There, if a user clicks on a control given by
@@ -440,6 +452,7 @@ pub trait HostHooks: core::fmt::Debug {
     ///
     /// An implementation of HostLoadImportedModule must conform to the
     /// following requirements:
+    ///
     /// * The host environment must perform `FinishLoadingImportedModule
     ///   referrer, moduleRequest, payload, result)`, where `result` is either
     ///   a normal completion containing the loaded Module Record or a throw
@@ -469,8 +482,8 @@ pub trait HostHooks: core::fmt::Debug {
     ///   through to `FinishLoadingImportedModule`.
     ///
     /// The actual process performed is host-defined, but typically consists of
-    /// performing whatever I/O operations are necessary to load the
-    /// appropriate Module Record. Multiple different `(referrer,
+    /// performing whatever I/O operations are necessary to load the appropriate
+    /// Module Record. Multiple different `(referrer,
     /// moduleRequest.[[Specifier]], moduleRequest.[[Attributes]])` triples may
     /// map to the same Module Record instance. The actual mapping semantics is
     /// host-defined but typically a normalization process is applied to
@@ -527,11 +540,11 @@ pub trait HostHooks: core::fmt::Debug {
     /// The host-defined abstract operation HostGetImportMetaProperties takes
     /// argument moduleRecord (a Module Record) and returns a List of Records
     /// with fields \[\[Key]] (a property key) and \[\[Value]] (an ECMAScript
-    /// language value). It allows hosts to provide property keys and values
-    /// for the object returned from `import.meta`.
+    /// language value). It allows hosts to provide property keys and values for
+    /// the object returned from `import.meta`.
     ///
-    /// The default implementation of HostGetImportMetaProperties is to return
-    /// a new empty List.
+    /// The default implementation of HostGetImportMetaProperties is to return a
+    /// new empty List.
     #[allow(unused_variables)]
     fn get_import_meta_properties<'gc>(
         &self,
@@ -572,9 +585,9 @@ pub trait HostHooks: core::fmt::Debug {
     /// The host-defined abstract operation HostGrowSharedArrayBuffer takes
     /// arguments `buffer` (a SharedArrayBuffer) and `newByteLength` (a
     /// non-negative integer) and returns either a normal completion containing
-    /// either HANDLED or UNHANDLED, or a throw completion. It gives the host
-    /// an opportunity to perform implementation-defined growing of `buffer`.
-    /// If the host chooses not to handle growing of `buffer`, it may return
+    /// either HANDLED or UNHANDLED, or a throw completion. It gives the host an
+    /// opportunity to perform implementation-defined growing of `buffer`. If
+    /// the host chooses not to handle growing of `buffer`, it may return
     /// UNHANDLED for the default behaviour.
     ///
     /// The implementation of HostGrowSharedArrayBuffer must conform to the
@@ -622,22 +635,48 @@ pub trait HostHooks: core::fmt::Debug {
         Ok(GrowSharedArrayBufferResult::Unhandled)
     }
 
-    /// Get access to the Host data, useful to share state between calls of built-in functions.
+    /// Get access to the Host data, useful to share state between calls of
+    /// built-in functions.
     ///
-    /// Note: This will panic if not implemented manually.
+    /// # Panics
+    ///
+    /// The default implementation panics when called.
     fn get_host_data(&self) -> &dyn Any {
         unimplemented!()
     }
 }
 
-/// Owned ECMAScript Agent that can be used to run code but also to run garbage
-/// collection on the Agent heap.
+/// # Owned ECMAScript [`Agent`]
+///
+/// This can be used to run code and to run garbage collection on the [`Agent`]
+/// with no JavaScript guaranteed to be running.
+///
+/// [`Agent`]: Agent
+///
+/// ## Examples
+///
+/// ```rust
+/// use nova_vm::{ecmascript::{Agent, DefaultHostHooks, GcAgent, Object}, engine::GcScope};
+/// let mut agent = GcAgent::new(Default::default(), &DefaultHostHooks);
+/// let create_global_object: Option<
+///     for<'a> fn(&mut Agent, GcScope<'a, '_>) -> Object<'a>,
+/// > = None;
+/// let create_global_this_value: Option<
+///     for<'a> fn(&mut Agent, GcScope<'a, '_>) -> Object<'a>,
+/// > = None;
+/// let initialize_global_object: Option<fn(&mut Agent, Object, GcScope)> = None;
+/// let realm = agent.create_realm(create_global_object, create_global_this_value, initialize_global_object);
+/// let _ = agent.run_in_realm(&realm, |_agent, _gc| {
+///   // do work here
+/// });
+/// agent.gc();
+/// ```
 pub struct GcAgent {
     agent: Agent,
     realm_roots: Vec<Option<Realm<'static>>>,
 }
 
-/// ECMAScript Realm root
+/// # ECMAScript Realm root
 ///
 /// As long as this is not passed back into GcAgent, the Realm it represents
 /// won't be removed by the garbage collector.
@@ -662,6 +701,7 @@ impl RealmRoot {
 }
 
 impl GcAgent {
+    /// Create a new JavaScript engine.
     pub fn new(options: AgentOptions, host_hooks: &'static dyn HostHooks) -> Self {
         Self {
             agent: Agent::new(options, host_hooks),
@@ -669,6 +709,10 @@ impl GcAgent {
         }
     }
 
+    /// Root the given realm: this stores the [`Realm`] in a list of roots and returns a RealmRoot object that
+    /// points to the list index where the
+    ///
+    /// [`Realm`]: crate::ecmascript::Realm
     fn root_realm(&mut self, identifier: Realm<'static>) -> RealmRoot {
         let index = if let Some((index, deleted_entry)) = self
             .realm_roots
@@ -718,8 +762,8 @@ impl GcAgent {
         self.root_realm(realm)
     }
 
-    /// Removes the given Realm. Resources associated with the Realm are free
-    /// to be collected by the garbage collector after this call.
+    /// Removes the given realm. Resources associated with the realm are free to
+    /// be collected by the garbage collector after this call.
     pub fn remove_realm(&mut self, realm: RealmRoot) {
         let RealmRoot { index } = realm;
         let error_message = "Cannot remove a non-existing Realm";
@@ -737,6 +781,7 @@ impl GcAgent {
         }
     }
 
+    /// Run a closure inside a given realm.
     pub fn run_in_realm<F, R>(&mut self, realm: &RealmRoot, func: F) -> R
     where
         F: for<'agent, 'gc, 'scope> FnOnce(&'agent mut Agent, GcScope<'gc, 'scope>) -> R,
@@ -752,6 +797,7 @@ impl GcAgent {
         result
     }
 
+    /// Run a macrotask job.
     pub fn run_job<F, R>(&mut self, job: Job, then: F) -> R
     where
         F: for<'agent, 'gc, 'scope> FnOnce(
@@ -781,6 +827,10 @@ impl GcAgent {
             .expect(error_message)
     }
 
+    /// Perform garbage collection on the Agent heap. Any [`RealmRoot`]s are
+    /// retained.
+    ///
+    /// [`RealmRoot`]: RealmRoot
     pub fn gc(&mut self) {
         if self.agent.options.disable_gc {
             // GC is disabled; no-op
@@ -859,6 +909,12 @@ impl Agent {
         !self.options.no_block
     }
 
+    /// Perform garbage collection on the Agent's heap.
+    ///
+    /// This invalidates all handles; be sure to use the [`Bindable::bind`]
+    /// function to make handles automatically invalidate on garbage collection.
+    ///
+    /// [`Bindable::bind`]: crate::engine::Bindable::bind
     pub fn gc(&mut self, gc: GcScope) {
         let mut root_realms = self
             .heap
@@ -967,7 +1023,8 @@ impl Agent {
         result
     }
 
-    fn run_job<F, R>(&mut self, job: Job, then: F) -> R
+    /// Run a macrotask job.
+    fn run_job<F, R>(&mut self, mut job: Job, then: F) -> R
     where
         F: for<'agent, 'gc, 'scope> FnOnce(
             &'agent mut Agent,
@@ -975,7 +1032,7 @@ impl Agent {
             GcScope<'gc, 'scope>,
         ) -> R,
     {
-        let realm = job.realm.unwrap();
+        let realm = job.realm.take().unwrap().take(self);
         let execution_stack_depth_before_call = self.execution_context_stack.len();
         self.push_execution_context(ExecutionContext {
             ecmascript_code: None,
@@ -1041,6 +1098,7 @@ impl Agent {
         id.get(self)
     }
 
+    /// Create a native Error object with the given message.
     #[must_use]
     pub fn create_exception_with_static_message<'a>(
         &mut self,
@@ -1077,6 +1135,7 @@ impl Agent {
         )
     }
 
+    /// ### [5.2.3.2 Throw an Exception](https://tc39.es/ecma262/#sec-throw-an-exception)
     #[must_use]
     pub fn throw_exception<'a>(
         &mut self,
@@ -1092,6 +1151,7 @@ impl Agent {
         )
     }
 
+    /// ### [5.2.3.2 Throw an Exception](https://tc39.es/ecma262/#sec-throw-an-exception)
     #[must_use]
     pub fn throw_exception_with_message<'a>(
         &mut self,
@@ -1107,6 +1167,7 @@ impl Agent {
         )
     }
 
+    /// ### [5.2.3.2 Throw an Exception](https://tc39.es/ecma262/#sec-throw-an-exception)
     #[must_use]
     pub(crate) fn throw_allocation_exception<'a>(
         &mut self,
@@ -1334,7 +1395,13 @@ impl Agent {
 
     /// Get access to the Host data, useful to share state between calls of built-in functions.
     ///
-    /// Note: This will panic if not implemented manually.
+    /// # Panics
+    ///
+    /// Panics if the [`HostHooks::get_host_data`] hook was not implemented on
+    /// the `host_hooks` parameter provided to [`GcAgent::new`].
+    ///
+    /// [`HostHooks::get_host_data`]: crate::ecmascript::HostHooks::get_host_data
+    /// [`GcAgent::new`]: crate::ecmascript::GcAgent::new
     pub fn get_host_data(&self) -> &dyn Any {
         self.host_hooks.get_host_data()
     }
@@ -1362,12 +1429,12 @@ impl Agent {
         script_evaluation(self, script.unbind(), gc)
     }
 
-    /// Run a parsed SourceTextModule in the current Realm.
+    /// Run a SourceTextModule in the current Realm.
     ///
     /// This runs the LoadRequestedModules (passing in the host_defined
     /// parameter), Link, and finally Evaluate operations on the module.
     /// This should not be called multiple times on the same module.
-    pub fn run_parsed_module<'gc>(
+    pub fn run_module<'gc>(
         &mut self,
         module: SourceTextModule,
         host_defined: Option<HostDefined>,
@@ -1490,6 +1557,7 @@ pub(crate) fn resolve_binding<'a, 'b>(
     )
 }
 
+/// Native error types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExceptionType {
     Error,

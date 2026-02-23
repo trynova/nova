@@ -154,11 +154,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let module_map: Rc<ModuleMap> = lib::get_module_map(agent, gc.nogc());
                         module_map.add(absolute_path, Global::new(agent, module.unbind().into()));
                         agent
-                            .run_parsed_module(
-                                module.unbind(),
-                                Some(module_map.clone()),
-                                gc.reborrow(),
-                            )
+                            .run_module(module.unbind(), Some(module_map.clone()), gc.reborrow())
                             .unbind()
                             .bind(gc.nogc())
                     } else {

@@ -7,6 +7,8 @@
 mod abstract_operations;
 mod data;
 
+use std::collections::hash_map::Entry;
+
 pub(crate) use abstract_operations::*;
 pub(crate) use data::*;
 
@@ -32,6 +34,13 @@ use crate::{
 use ecmascript_atomics::Ordering;
 
 /// ## [25.1 ArrayBuffer Objects](https://tc39.es/ecma262/#sec-arraybuffer-objects)
+///
+/// _ArrayBuffer_ objects are byte buffers that can be allocated and accessed
+/// from JavaScript code. An [`ArrayBuffer`] cannot be shared between threads.
+/// For shareable memory, see [`SharedArrayBuffer`] objects.
+///
+/// [`ArrayBuffer`]: ArrayBuffer
+/// [`SharedArrayBuffer`]: crate::ecmascript::SharedArrayBuffer
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct ArrayBuffer<'a>(BaseIndex<'a, ArrayBufferHeapData<'static>>);
@@ -39,6 +48,7 @@ array_buffer_handle!(ArrayBuffer);
 arena_vec_access!(ArrayBuffer, 'a, ArrayBufferHeapData, array_buffers);
 
 impl<'ab> ArrayBuffer<'ab> {
+    /// Allocate a new ArrayBuffer with the given byte length.
     pub fn new<'gc>(
         agent: &mut Agent,
         byte_length: usize,
@@ -52,44 +62,55 @@ impl<'ab> ArrayBuffer<'ab> {
             .bind(gc))
     }
 
+    /// Returns `true` if this ArrayBuffer is detached.
     #[inline]
     pub fn is_detached(self, agent: &Agent) -> bool {
         self.get(agent).is_detached()
     }
 
+    /// Returns `true` if this ArrayBuffer has the
+    /// \[\[ArrayBufferMaxByteLength]] slot.
     #[inline]
     pub fn is_resizable(self, agent: &Agent) -> bool {
         self.get(agent).is_resizable()
     }
 
+    /// Returns the \[\[ArrayBufferByteLength]] value.
     #[inline]
     pub fn byte_length(self, agent: &Agent) -> usize {
         self.get(agent).byte_length()
     }
 
+    /// Returns the \[\[ArrayBufferMaxByteLength]] value or the
+    /// \[\[ArrayBufferByteLength]] value if this ArrayBuffer is not resizable.
     #[inline]
     pub fn max_byte_length(self, agent: &Agent) -> usize {
         self.get(agent).max_byte_length()
     }
 
     #[inline]
-    pub fn get_detach_key(self, agent: &Agent) -> Option<DetachKey> {
+    pub(crate) fn get_detach_key(self, agent: &Agent) -> Option<DetachKey> {
         agent.heap.array_buffer_detach_keys.get(&self).copied()
     }
 
+    /// Set the detach key of an ArrayBuffer if not yet set.
+    ///
+    /// Attempting to override an already-set key is ignored.
     #[inline]
-    pub fn set_detach_key(self, agent: &mut Agent, key: Option<DetachKey>) {
-        if let Some(key) = key {
-            agent.heap.alloc_counter += core::mem::size_of::<(ArrayBuffer, DetachKey)>();
-            agent
-                .heap
-                .array_buffer_detach_keys
-                .insert(self.unbind(), key);
-        } else {
-            agent.heap.array_buffer_detach_keys.remove(&self.unbind());
+    pub fn set_detach_key(self, agent: &mut Agent, key: DetachKey) {
+        match agent.heap.array_buffer_detach_keys.entry(self.unbind()) {
+            Entry::Occupied(_) => {
+                // Ignore already-set key.
+            }
+            Entry::Vacant(e) => {
+                // Set the key.
+                e.insert(key);
+                agent.heap.alloc_counter += core::mem::size_of::<(ArrayBuffer, DetachKey)>();
+            }
         }
     }
 
+    /// Detach the ArrayBuffer.
     pub fn detach<'a>(
         self,
         agent: &mut Agent,
@@ -260,6 +281,12 @@ impl<'a> CreateHeapData<ArrayBufferHeapData<'a>, ArrayBuffer<'a>> for Heap {
     }
 }
 
+/// ## [25.1 ArrayBuffer Objects](https://tc39.es/ecma262/#sec-arraybuffer-objects)
+///
+/// An [`ArrayBuffer`] or [`SharedArrayBuffer`].
+///
+/// [`ArrayBuffer`]: crate::ecmascript::ArrayBuffer
+/// [`SharedArrayBuffer`]: crate::ecmascript::SharedArrayBuffer
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
 pub enum AnyArrayBuffer<'a> {
@@ -290,12 +317,13 @@ impl<'ab> AnyArrayBuffer<'ab> {
         }
     }
 
+    /// Returns true if the ArrayBuffer is detached.
     #[inline(always)]
     pub fn is_detached(self, agent: &Agent) -> bool {
         array_buffer_delegate!(self, is_detached, agent)
     }
 
-    /// Returns true if the ArrayBuffer is resizable.
+    /// Returns true if the ArrayBuffer is resizable or growable.
     #[inline(always)]
     pub fn is_resizable(self, agent: &Agent) -> bool {
         match self {
@@ -305,7 +333,7 @@ impl<'ab> AnyArrayBuffer<'ab> {
         }
     }
 
-    /// \[\[ByteLength]]
+    /// \[\[ArrayBufferByteLength]]
     #[inline(always)]
     pub fn byte_length(self, agent: &Agent, order: Ordering) -> usize {
         #[cfg(not(feature = "shared-array-buffer"))]
@@ -314,6 +342,16 @@ impl<'ab> AnyArrayBuffer<'ab> {
             Self::ArrayBuffer(ta) => ta.byte_length(agent),
             #[cfg(feature = "shared-array-buffer")]
             Self::SharedArrayBuffer(sta) => sta.byte_length(agent, order),
+        }
+    }
+
+    /// \[\[ArrayBufferMaxByteLength]]
+    #[inline(always)]
+    pub fn max_byte_length(self, agent: &Agent) -> usize {
+        match self {
+            Self::ArrayBuffer(ta) => ta.max_byte_length(agent),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedArrayBuffer(sta) => sta.max_byte_length(agent),
         }
     }
 }

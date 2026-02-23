@@ -4,7 +4,9 @@
 
 use crate::ecmascript::{SmallInteger, numeric_value};
 
-/// 56-bit signed integer.
+/// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
+///
+/// Primitive BigInt value allocated on the stack.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct SmallBigInt {
     pub(crate) data: [u8; 7],

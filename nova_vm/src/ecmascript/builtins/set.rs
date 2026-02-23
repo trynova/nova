@@ -17,6 +17,21 @@ use crate::{
     },
 };
 
+/// ## [24.2 Set Objects](https://tc39.es/ecma262/#sec-set-objects)
+///
+/// _Set_ objects are collections of ECMAScript language values. A Set may
+/// contain each distinct value at most once. Distinct values are discriminated
+/// using the semantics of the SameValueZero comparison algorithm.
+///
+/// Set objects must be implemented using either hash tables or other mechanisms
+/// that, on average, provide access times that are sublinear on the number of
+/// elements in the collection.
+///
+/// ### Example
+///
+/// ```javascript
+/// new Set()
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Set<'a>(BaseIndex<'a, SetHeapData<'static>>);

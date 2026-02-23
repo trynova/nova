@@ -1725,7 +1725,7 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
         }
     });
     let wait_async_job = Job {
-        realm: Some(agent.current_realm(gc).unbind()),
+        realm: Some(Global::new(agent, agent.current_realm(gc).unbind())),
         inner: InnerJob::WaitAsync(WaitAsyncJob(Box::new(WaitAsyncJobInner {
             promise_to_resolve: promise,
             join_handle: handle,

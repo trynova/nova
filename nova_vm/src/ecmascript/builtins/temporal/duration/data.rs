@@ -8,19 +8,10 @@ use crate::{
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct DurationRecord<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) duration: temporal_rs::Duration,
-}
-
-impl DurationRecord<'_> {
-    pub fn default() -> Self {
-        Self {
-            object_index: None,
-            duration: temporal_rs::Duration::new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0).unwrap(),
-        }
-    }
 }
 
 trivially_bindable!(temporal_rs::Duration);

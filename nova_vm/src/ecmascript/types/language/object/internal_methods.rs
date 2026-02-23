@@ -27,10 +27,12 @@ where
     /// ## Infallible \[\[GetPrototypeOf\]\]
     ///
     /// This is an infallible variant of the method that does not allow calling
-    /// into JavaScript or triggering garbage collection. If the internal
-    /// method cannot be completed without calling into JavaScript, then `None`
+    /// into JavaScript or triggering garbage collection. If the internal method
+    /// cannot be completed without calling into JavaScript, then [`TryError`]
     /// is returned. It is preferable to call this method first and only call
-    /// the main method if this returns None.
+    /// the main method if this fails.
+    ///
+    /// [`TryError`]: crate::ecmascript::TryError
     fn try_get_prototype_of<'gc>(
         self,
         agent: &mut Agent,
@@ -59,10 +61,12 @@ where
     /// ## Infallible \[\[SetPrototypeOf\]\]
     ///
     /// This is an infallible variant of the method that does not allow calling
-    /// into JavaScript or triggering garbage collection. If the internal
-    /// method cannot be completed without calling into JavaScript, then `None`
+    /// into JavaScript or triggering garbage collection. If the internal method
+    /// cannot be completed without calling into JavaScript, then [`TryError`]
     /// is returned. It is preferable to call this method first and only call
-    /// the main method if this returns None.
+    /// the main method if this fails.
+    ///
+    /// [`TryError`]: crate::ecmascript::TryError
     fn try_set_prototype_of<'gc>(
         self,
         agent: &mut Agent,
@@ -90,10 +94,12 @@ where
     /// ## Infallible \[\[IsExtensible\]\]
     ///
     /// This is an infallible variant of the method that does not allow calling
-    /// into JavaScript or triggering garbage collection. If the internal
-    /// method cannot be completed without calling into JavaScript, then `None`
+    /// into JavaScript or triggering garbage collection. If the internal method
+    /// cannot be completed without calling into JavaScript, then [`TryError`]
     /// is returned. It is preferable to call this method first and only call
-    /// the main method if this returns None.
+    /// the main method if this fails.
+    ///
+    /// [`TryError`]: crate::ecmascript::TryError
     fn try_is_extensible<'gc>(
         self,
         agent: &mut Agent,
@@ -121,10 +127,12 @@ where
     /// ## Infallible \[\[PreventExtensions\]\]
     ///
     /// This is an infallible variant of the method that does not allow calling
-    /// into JavaScript or triggering garbage collection. If the internal
-    /// method cannot be completed without calling into JavaScript, then `None`
+    /// into JavaScript or triggering garbage collection. If the internal method
+    /// cannot be completed without calling into JavaScript, then [`TryError`]
     /// is returned. It is preferable to call this method first and only call
-    /// the main method if this returns None.
+    /// the main method if this fails.
+    ///
+    /// [`TryError`]: crate::ecmascript::TryError
     fn try_prevent_extensions<'gc>(
         self,
         agent: &mut Agent,
@@ -155,10 +163,12 @@ where
     /// ## Infallible \[\[GetOwnProperty\]\]
     ///
     /// This is an infallible variant of the method that does not allow calling
-    /// into JavaScript or triggering garbage collection. If the internal
-    /// method cannot be completed without calling into JavaScript, then `None`
+    /// into JavaScript or triggering garbage collection. If the internal method
+    /// cannot be completed without calling into JavaScript, then [`TryError`]
     /// is returned. It is preferable to call this method first and only call
-    /// the main method if this returns None.
+    /// the main method if this fails.
+    ///
+    /// [`TryError`]: crate::ecmascript::TryError
     fn try_get_own_property<'gc>(
         self,
         agent: &mut Agent,
@@ -202,10 +212,12 @@ where
     /// ## Infallible \[\[DefineOwnProperty\]\]
     ///
     /// This is an infallible variant of the method that does not allow calling
-    /// into JavaScript or triggering garbage collection. If the internal
-    /// method cannot be completed without calling into JavaScript, then `None`
+    /// into JavaScript or triggering garbage collection. If the internal method
+    /// cannot be completed without calling into JavaScript, then [`TryError`]
     /// is returned. It is preferable to call this method first and only call
-    /// the main method if this returns None.
+    /// the main method if this fails.
+    ///
+    /// [`TryError`]: crate::ecmascript::TryError
     fn try_define_own_property<'gc>(
         self,
         agent: &mut Agent,
@@ -249,10 +261,12 @@ where
     /// ## Infallible \[\[HasProperty\]\]
     ///
     /// This is an infallible variant of the method that does not allow calling
-    /// into JavaScript or triggering garbage collection. If the internal
-    /// method cannot be completed without calling into JavaScript, then `None`
+    /// into JavaScript or triggering garbage collection. If the internal method
+    /// cannot be completed without calling into JavaScript, then [`TryError`]
     /// is returned. It is preferable to call this method first and only call
-    /// the main method if this returns None.
+    /// the main method if this fails.
+    ///
+    /// [`TryError`]: crate::ecmascript::TryError
     fn try_has_property<'gc>(
         self,
         agent: &mut Agent,
@@ -373,10 +387,12 @@ where
     /// ## Infallible \[\[Set\]\]
     ///
     /// This is an infallible variant of the method that does not allow calling
-    /// into JavaScript or triggering garbage collection. If the internal
-    /// method cannot be completed without calling into JavaScript, then `None`
+    /// into JavaScript or triggering garbage collection. If the internal method
+    /// cannot be completed without calling into JavaScript, then [`TryError`]
     /// is returned. It is preferable to call this method first and only call
-    /// the main method if this returns None.
+    /// the main method if this fails.
+    ///
+    /// [`TryError`]: crate::ecmascript::TryError
     #[inline(always)]
     fn try_set<'gc>(
         self,
@@ -408,10 +424,12 @@ where
     /// ## Infallible \[\[Delete\]\]
     ///
     /// This is an infallible variant of the method that does not allow calling
-    /// into JavaScript or triggering garbage collection. If the internal
-    /// method cannot be completed without calling into JavaScript, then `None`
+    /// into JavaScript or triggering garbage collection. If the internal method
+    /// cannot be completed without calling into JavaScript, then [`TryError`]
     /// is returned. It is preferable to call this method first and only call
-    /// the main method if this returns None.
+    /// the main method if this fails.
+    ///
+    /// [`TryError`]: crate::ecmascript::TryError
     fn try_delete<'gc>(
         self,
         agent: &mut Agent,
@@ -445,10 +463,12 @@ where
     /// ## Infallible \[\[OwnPropertyKeys\]\]
     ///
     /// This is an infallible variant of the method that does not allow calling
-    /// into JavaScript or triggering garbage collection. If the internal
-    /// method cannot be completed without calling into JavaScript, then `None`
+    /// into JavaScript or triggering garbage collection. If the internal method
+    /// cannot be completed without calling into JavaScript, then [`TryError`]
     /// is returned. It is preferable to call this method first and only call
-    /// the main method if this returns None.
+    /// the main method if this fails.
+    ///
+    /// [`TryError`]: crate::ecmascript::TryError
     fn try_own_property_keys<'gc>(
         self,
         agent: &mut Agent,
@@ -500,10 +520,10 @@ where
 
     /// ## \[\[Set]] method with offset.
     ///
-    /// This is a variant of the \[\[Set]] method that attempts to set the
-    /// value of property at an offset. The method cannot call into JavaScript
-    /// or trigger garbage collection, and any such needs must be interrupted
-    /// and control returned to the caller. The method is used as part of the
+    /// This is a variant of the \[\[Set]] method that attempts to set the value
+    /// of property at an offset. The method cannot call into JavaScript or
+    /// trigger garbage collection, and any such needs must be interrupted and
+    /// control returned to the caller. The method is used as part of the
     /// \[\[Set]] method's cached variant.
     fn set_at_offset<'gc>(
         self,
@@ -634,7 +654,9 @@ pub fn handle_try_get_result<'gc>(
     }
 }
 
-pub fn try_get_result_into_value<'a>(
+/// Turn a TryGetResult into a Value without calling into JavaScript, or return
+/// a GcError otherwise.
+pub(crate) fn try_get_result_into_value<'a>(
     v: TryResult<'a, TryGetResult<'a>>,
 ) -> TryResult<'a, Value<'a>> {
     match v? {
@@ -675,6 +697,7 @@ impl<'a, T> From<Value<'a>> for ControlFlow<TryGetResult<'a>, T> {
     }
 }
 
+/// Parameters for the \[\[Set]] call when performed at a cached offset.
 pub struct SetAtOffsetProps<'a> {
     pub(crate) p: PropertyKey<'a>,
     pub(crate) receiver: Value<'a>,

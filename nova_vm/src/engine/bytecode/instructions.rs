@@ -602,7 +602,7 @@ impl Instruction {
         }
     }
 
-    pub fn has_double_arg(self) -> bool {
+    pub(crate) fn has_double_arg(self) -> bool {
         debug_assert_eq!(self.argument_count(), 2);
         matches!(
             self,

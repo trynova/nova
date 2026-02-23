@@ -15,6 +15,15 @@ use crate::{
     },
 };
 
+/// ### [6.1.5 The Symbol Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-symbol-type)
+///
+/// The Symbol type is the set of all non-String values that may be used as the
+/// key of an Object property (6.1.7).
+///
+/// Each Symbol is unique and immutable.
+///
+/// Each Symbol has an immutable \[\[Description]] internal slot whose value is
+/// either a String or undefined.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Symbol<'a>(BaseIndex<'a, SymbolHeapData<'static>>);
@@ -39,6 +48,11 @@ enum SymbolRootReprInner {
 pub(crate) struct SymbolRootRepr(SymbolRootReprInner);
 
 impl<'a> Symbol<'a> {
+    /// Returns the \[\[Description]] internal slot value of the Symbol.
+    pub fn description(self, agent: &Agent) -> Option<String<'a>> {
+        self.get(agent).description
+    }
+
     /// Return the name for functions created using NamedEvaluation with a
     /// Symbol property key.
     ///
@@ -56,10 +70,10 @@ impl<'a> Symbol<'a> {
         gc: NoGcScope<'a, '_>,
     ) -> String<'a> {
         // a. Let description be name's [[Description]] value.
-        if let Some(descriptor) = self.get(agent).descriptor {
+        if let Some(description) = self.description(agent) {
             // c. Else, set name to the string-concatenation of
             //    "[", description, and "]".
-            let description = descriptor.to_string_lossy_(agent);
+            let description = description.to_string_lossy_(agent);
             String::from_string(agent, format!("[{description}]"), gc)
         } else {
             // b. If description is undefined, set name to the empty String.
@@ -68,18 +82,22 @@ impl<'a> Symbol<'a> {
     }
 
     /// ### [20.4.3.3.1 SymbolDescriptiveString ( sym )](https://tc39.es/ecma262/#sec-symboldescriptivestring)
-    pub fn descriptive_string(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> String<'a> {
-        if let Some(descriptor) = self.get(agent).descriptor {
+    pub(crate) fn descriptive_string(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> String<'a> {
+        // 1. Let desc be sym's [[Description]] value.
+        if let Some(desc) = self.description(agent) {
+            // 3. Assert: desc is a String.
+            // 4. Return the string-concatenation of "Symbol(", desc, and ")".
             String::concat(
                 agent,
                 [
                     String::from_small_string("Symbol("),
-                    descriptor,
+                    desc,
                     String::from_small_string(")"),
                 ],
                 gc,
             )
         } else {
+            // 2. If desc is undefined, set desc to the empty String.
             BUILTIN_STRING_MEMORY.Symbol__
         }
     }

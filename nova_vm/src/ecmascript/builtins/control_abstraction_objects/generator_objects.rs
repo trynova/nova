@@ -16,6 +16,15 @@ use crate::{
     },
 };
 
+/// ## [27.5 Generator Objects](https://tc39.es/ecma262/#sec-generator-objects)
+///
+/// A Generator is created by calling a generator function and conforms to both
+/// the iterator interface and the iterable interface.
+///
+/// Generator instances directly inherit properties from the initial value of
+/// the **"prototype"** property of the generator function that created the
+/// instance. Generator instances indirectly inherit properties from
+/// %GeneratorPrototype%.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Generator<'a>(BaseIndex<'a, GeneratorHeapData<'static>>);

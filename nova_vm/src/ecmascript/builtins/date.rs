@@ -17,6 +17,13 @@ use crate::{
     },
 };
 
+/// ## [21.4 Date Objects](https://tc39.es/ecma262/#sec-date-objects)
+///
+/// Time measurement in ECMAScript is analogous to time measurement in POSIX, in
+/// particular sharing definition in terms of the proleptic Gregorian calendar,
+/// an _epoch_ of midnight at the beginning of 1 January 1970 UTC, and an
+/// accounting of every day as comprising exactly 86,400 seconds (each of which
+/// is 1000 milliseconds long).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Date<'a>(BaseIndex<'a, DateHeapData<'static>>);

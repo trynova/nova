@@ -42,12 +42,18 @@ pub struct PromiseCapability<'a> {
 impl<'a> PromiseCapability<'a> {
     ///### [27.2.1.5 NewPromiseCapability ( C )](https://tc39.es/ecma262/#sec-newpromisecapability)
     ///
+    /// Create a new PromiseCapability
+    ///
     /// NOTE: Our implementation doesn't take C as a parameter, since we don't
     /// yet support promise subclassing.
     pub fn new(agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Self {
         Self::from_promise(agent.heap.create(PromiseHeapData::default()), true).bind(gc)
     }
 
+    /// Recreate a PromiseCapability from its associated [`Promise`] and the
+    /// `must_be_resolved` boolean value.
+    ///
+    /// [`Promise`]: crate::ecmascript::Promise
     pub fn from_promise(promise: Promise<'a>, must_be_unresolved: bool) -> Self {
         Self {
             promise,
@@ -55,6 +61,9 @@ impl<'a> PromiseCapability<'a> {
         }
     }
 
+    /// Get the associated [`Promise`].
+    ///
+    /// [`Promise`]: crate::ecmascript::Promise
     pub fn promise(&self) -> Promise<'a> {
         self.promise
     }
@@ -133,6 +142,11 @@ impl<'a> PromiseCapability<'a> {
     }
 
     ///### [27.2.1.3.2 Promise Resolve Functions](https://tc39.es/ecma262/#sec-promise-resolve-functions)
+    ///
+    /// Resolve the associated [`Promise`] with a given value. Ignored if the
+    /// [`Promise`] is already resolved.
+    ///
+    /// [`Promise`]: crate::ecmascript::Promise
     pub fn resolve(self, agent: &mut Agent, resolution: Value, mut gc: GcScope) {
         let promise_capability = self.bind(gc.nogc());
         let resolution = resolution.bind(gc.nogc());
@@ -233,6 +247,12 @@ impl<'a> PromiseCapability<'a> {
     }
 
     ///### [27.2.1.3.2 Promise Resolve Functions](https://tc39.es/ecma262/#sec-promise-resolve-functions)
+    ///
+    /// Try resolve the associated [`Promise`] with a given value. Fails if
+    /// resolving would require calling into user-code. Ignored if the
+    /// [`Promise`] is already resolved.
+    ///
+    /// [`Promise`]: crate::ecmascript::Promise
     pub fn try_resolve<'gc>(
         &self,
         agent: &mut Agent,
@@ -316,6 +336,11 @@ impl<'a> PromiseCapability<'a> {
     }
 
     ///### [27.2.1.3.1 Promise Reject Functions](https://tc39.es/ecma262/#sec-promise-reject-functions)
+    ///
+    /// Reject the associated [`Promise`] with a given value. Ignored if the
+    /// [`Promise`] is already resolved.
+    ///
+    /// [`Promise`]: crate::ecmascript::Promise
     pub fn reject(&self, agent: &mut Agent, reason: Value, gc: NoGcScope) {
         // 1. Let F be the active function object.
         // 2. Assert: F has a [[Promise]] internal slot whose value is an Object.

@@ -13,13 +13,13 @@ use super::{HeapRootData, RootableCollection};
 
 /// # Scoped heap root
 ///
-/// This type roots a heap-allocated JavaScript engine value for the duration
-/// of the current JavaScript call context, roughly corresponding to a native
-/// call scope. Stack-allocated values avoid rooting. Rooted values cannot be
-/// garbage collected, so accessing the rooted value is always safe within the
-/// current call context. This type is intended for cheap rooting of JavaScript
-/// Values that need to be used after calling into functions that may trigger
-/// garbage collection.
+/// This type roots a heap-allocated JavaScript engine value for the duration of
+/// the current JavaScript call context, roughly corresponding to a native call
+/// scope. Stack-allocated values avoid rooting. Rooted values cannot be garbage
+/// collected, so accessing the rooted value is always safe within the current
+/// call context. This type is intended for cheap rooting of JavaScript Values
+/// that need to be used after calling into functions that may trigger garbage
+/// collection.
 #[derive(Hash, Clone)]
 #[repr(transparent)]
 #[allow(private_bounds)]
@@ -300,11 +300,14 @@ impl<'scope, T: Rootable> Scoped<'scope, T> {
     }
 }
 
+/// Trait for rooting collections of handles for the duration of the `'scope`
+/// lifetime.
 #[allow(private_bounds)]
 pub trait ScopableCollection: Bindable
 where
     Self::Of<'static>: RootableCollection,
 {
+    /// Root this handle collection for the `'scope` lifetime.
     fn scope<'scope>(
         self,
         agent: &Agent,
@@ -313,6 +316,13 @@ where
 }
 
 /// # Scoped heap root collection
+///
+/// This type roots a heap-allocated JavaScript engine value collection for the
+/// duration of the current JavaScript call context, roughly corresponding to a
+/// native call scope. Rooted values cannot be garbage collected, so accessing
+/// the rooted values is always safe within the current call context. This type
+/// is intended for cheap rooting of JavaScript Values that need to be used
+/// after calling into functions that may trigger garbage collection.
 #[derive(Debug, Hash, Clone)]
 #[repr(transparent)]
 #[allow(private_bounds)]

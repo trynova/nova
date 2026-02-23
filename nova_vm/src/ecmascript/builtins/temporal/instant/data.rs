@@ -14,8 +14,8 @@ pub struct InstantRecord<'a> {
     pub(crate) instant: temporal_rs::Instant,
 }
 
-impl InstantRecord<'_> {
-    pub fn default() -> Self {
+impl Default for InstantRecord<'_> {
+    fn default() -> Self {
         Self {
             object_index: None,
             instant: temporal_rs::Instant::try_new(0).unwrap(),

@@ -58,17 +58,31 @@ impl<'a> PropertyKey<'a> {
         Scoped::from_root_repr(key_root_repr)
     }
 
-    // FIXME: This API is not necessarily in the right place.
+    /// Parse a borrowed UTF-8 string into a PropertyKey, converting
+    /// integer-like strings into [`PropertyKey::Integer`] and copying the
+    /// string if the heap if necessary.
+    ///
+    /// [`PropertyKey::Integer`]: PropertyKey::Integer
     pub fn from_str(agent: &mut Agent, str: &str, gc: NoGcScope<'a, '_>) -> Self {
         parse_string_to_integer_property_key(str)
             .unwrap_or_else(|| String::from_str(agent, str, gc).into())
     }
 
+    /// Parse a static UTF-8 string literal into a PropertyKey, converting
+    /// integer-like strings into [`PropertyKey::Integer`] and copying the
+    /// string reference onto the heap if necessary.
+    ///
+    /// [`PropertyKey::Integer`]: PropertyKey::Integer
     pub fn from_static_str(agent: &mut Agent, str: &'static str, gc: NoGcScope<'a, '_>) -> Self {
         parse_string_to_integer_property_key(str)
             .unwrap_or_else(|| String::from_static_str(agent, str, gc).into())
     }
 
+    /// Parse an owned UTF-8 string into a PropertyKey, converting integer-like
+    /// strings into [`PropertyKey::Integer`] and moving the string onto the
+    /// heap as necessary.
+    ///
+    /// [`PropertyKey::Integer`]: PropertyKey::Integer
     pub fn from_string(
         agent: &mut Agent,
         string: std::string::String,
@@ -149,7 +163,8 @@ impl<'a> PropertyKey<'a> {
         }
     }
 
-    pub fn is_array_index(self) -> bool {
+    /// Returns `true` if this PropertyKey is a 54-bit signed integer.
+    pub(crate) fn is_array_index(self) -> bool {
         matches!(self, PropertyKey::Integer(_))
     }
 
@@ -173,6 +188,7 @@ impl<'a> PropertyKey<'a> {
         s == Wtf8Buf::from_string(n.to_string())
     }
 
+    /// Checks equality of two PropertyKeys.
     pub fn equals(self, agent: &Agent, y: Self) -> bool {
         let x = self;
 
@@ -258,19 +274,19 @@ pub(crate) struct DisplayablePropertyKey<'a, 'b, 'c> {
 impl core::fmt::Display for DisplayablePropertyKey<'_, '_, '_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self.key {
-            PropertyKey::Integer(data) => data.into_i64().fmt(f),
-            PropertyKey::SmallString(data) => data.to_string_lossy().fmt(f),
-            PropertyKey::String(data) => data.to_string_lossy(self.agent).fmt(f),
-            PropertyKey::Symbol(data) => {
-                if let Some(descriptor) = data.get(self.agent).descriptor {
-                    let descriptor = descriptor.to_string_lossy_(self.agent);
+            PropertyKey::Integer(i) => i.into_i64().fmt(f),
+            PropertyKey::SmallString(s) => s.to_string_lossy().fmt(f),
+            PropertyKey::String(s) => s.to_string_lossy(self.agent).fmt(f),
+            PropertyKey::Symbol(s) => {
+                if let Some(desc) = s.description(self.agent) {
+                    let descriptor = desc.to_string_lossy_(self.agent);
                     f.debug_tuple("Symbol").field(&descriptor).finish()
                 } else {
                     "Symbol()".fmt(f)
                 }
             }
-            PropertyKey::PrivateName(data) => {
-                write!(f, "##{}", data.into_u32())
+            PropertyKey::PrivateName(p) => {
+                write!(f, "##{}", p.into_u32())
             }
         }
     }

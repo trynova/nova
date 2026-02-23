@@ -29,6 +29,21 @@ use crate::{
     ndt,
 };
 
+/// ## [10.2 ECMAScript Function Objects](https://tc39.es/ecma262/#sec-ecmascript-function-objects)
+///
+/// ECMAScript function objects encapsulate parameterized ECMAScript code closed
+/// over a lexical environment and support the dynamic evaluation of that code.
+/// An ECMAScript function object is an ordinary object and has the same
+/// internal slots and the same internal methods as other ordinary objects. The
+/// code of an ECMAScript function object may be either strict mode code
+/// (11.2.2) or non-strict code. An ECMAScript function object whose code is
+/// strict mode code is called a _strict function_. One whose code is not strict
+/// mode code is called a _non-strict function_.
+///
+/// In addition to \[\[Extensible]] and \[\[Prototype]], ECMAScript function
+/// objects also have the internal slots listed in [Table 25].
+///
+/// [Table 25]: https://tc39.es/ecma262/#table-internal-slots-of-ecmascript-function-objects
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct ECMAScriptFunction<'a>(BaseIndex<'a, ECMAScriptFunctionHeapData<'static>>);
@@ -330,6 +345,15 @@ impl<'a> ECMAScriptFunction<'a> {
         unsafe { self.get(agent).ecmascript_function.ast.as_ref() }
     }
 
+    /// Returns `true` if the ECMAScript function is a constructor.
+    ///
+    /// ## Examples
+    ///
+    /// ```javascript
+    /// const f1 = () => {}; // returns false
+    /// const f2 = function() {}; // returns true
+    /// const f3 = class { constructor() {} }; // returns true
+    /// ```
     pub fn is_constructor(self, agent: &Agent) -> bool {
         // An ECMAScript function has the [[Construct]] slot if its constructor
         // status is something other than non-constructor.
@@ -1068,13 +1092,11 @@ pub(crate) fn set_function_name<'a>(
     // 5. If prefix is present, then
     // a. Set name to the string-concatenation of prefix, the code unit 0x0020 (SPACE), and name.
     let name: String = match name {
-        PropertyKey::Symbol(idx) => {
+        PropertyKey::Symbol(s) => {
             // a. Let description be name's [[Description]] value.
             // b. If description is undefined, set name to the empty String.
             // c. Else, set name to the string-concatenation of "[", description, and "]".
-            let symbol_data = &idx.get(agent);
-            symbol_data
-                .descriptor
+            s.description(agent)
                 .map_or(String::EMPTY_STRING, |descriptor| {
                     let descriptor = descriptor.to_string_lossy_(agent);
                     String::from_string(

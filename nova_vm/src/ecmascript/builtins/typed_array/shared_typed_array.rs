@@ -53,6 +53,7 @@ pub struct GenericSharedTypedArray<'a, T: Viewable>(
 
 #[allow(private_bounds)]
 impl<'ta, T: Viewable> GenericSharedTypedArray<'ta, T> {
+    /// Create a new TypedArray from a SharedArrayBuffer.
     pub fn new_from_array_buffer(agent: &mut Agent, sab: SharedArrayBuffer<'ta>) -> Self {
         agent.heap.create(SharedTypedArrayRecord {
             object_index: None,

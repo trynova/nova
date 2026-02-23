@@ -8,7 +8,7 @@ use crate::{
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct PlainTimeRecord<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) plain_time: temporal_rs::PlainTime,

@@ -109,6 +109,20 @@ pub(crate) struct SourceTextModuleRecord<'a> {
 unsafe impl Send for SourceTextModuleRecord<'_> {}
 
 /// ### [16.2.1.7 Source Text Module Records](https://tc39.es/ecma262/#sec-source-text-module-records)
+///
+/// A _Source Text Module Record_ is used to represent information about a
+/// module that was defined from ECMAScript source text that was parsed using
+/// the goal symbol _Module_. They are also colloquially known as "ECMAScript
+/// modules" and are the recommended way of executing JavaScript code in the
+/// Nova JavaScript engine.
+///
+/// To create a [`SourceTextModule`], parse a source text using the
+/// [`parse_module`] function. To run the module, use the [`Agent::run_module`]
+/// function.
+///
+/// [`SourceTextModule`]: SourceTextModule
+/// [`parse_module`]: parse_module
+/// [`Agent::run_module`]: crate::ecmascript::Agent::run_module
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct SourceTextModule<'a>(u32, PhantomData<&'a GcToken>);
@@ -884,9 +898,9 @@ impl AbstractModuleMethods for SourceTextModule<'_> {
     /// The Link concrete method of a Cyclic Module Record module takes no
     /// arguments and returns either a normal completion containing unused or a
     /// throw completion. On success, Link transitions this module's
-    /// \[\[Status]] from unlinked to linked. On failure, an exception is
-    /// thrown and this module's \[\[Status]] remains unlinked. (Most of the
-    /// work is done by the auxiliary function InnerModuleLinking.)
+    /// \[\[Status]] from unlinked to linked. On failure, an exception is thrown
+    /// and this module's \[\[Status]] remains unlinked. (Most of the work is
+    /// done by the auxiliary function InnerModuleLinking.)
     fn link<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> JsResult<'a, ()> {
         let module = self.bind(gc);
         // 1. Assert: module.[[Status]] is one of unlinked, linked, evaluating-async, or evaluated.
@@ -936,10 +950,10 @@ impl AbstractModuleMethods for SourceTextModule<'_> {
     /// first time it is called on a module in a given strongly connected
     /// component, Evaluate creates and returns a Promise which resolves when
     /// the module has finished evaluating. This Promise is stored in the
-    /// \[\[TopLevelCapability]] field of the \[\[CycleRoot]] for the
-    /// component. Future invocations of Evaluate on any module in the
-    /// component return the same Promise. (Most of the work is done by the
-    /// auxiliary function InnerModuleEvaluation.)
+    /// \[\[TopLevelCapability]] field of the \[\[CycleRoot]] for the component.
+    /// Future invocations of Evaluate on any module in the component return the
+    /// same Promise. (Most of the work is done by the auxiliary function
+    /// InnerModuleEvaluation.)
     fn evaluate<'gc>(self, agent: &mut Agent, mut gc: GcScope<'gc, '_>) -> Promise<'gc> {
         let mut module = self.bind(gc.nogc());
         // 1. Assert: This call to Evaluate is not happening at the same time
@@ -1607,16 +1621,21 @@ fn async_module_start(
     //}
 }
 
-pub(crate) type ModuleOrErrors<'a> = Result<SourceTextModule<'a>, Vec<OxcDiagnostic>>;
-
 /// ### [16.2.1.7.1 ParseModule ( sourceText, realm, hostDefined )](https://tc39.es/ecma262/#sec-parsemodule)
+///
+/// This function parses the `source_text` as an ECMAScript module and returns
+/// the resulting [`SourceTextModule`] or error diagnostics. To then execute the
+/// module code, use the [`Agent::run_module`] function.
+///
+/// [`SourceTextModule`]: SourceTextModule
+/// [`Agent::run_module`]: crate::ecmascript::Agent::run_module
 pub fn parse_module<'a>(
     agent: &mut Agent,
     source_text: String,
     realm: Realm,
     host_defined: Option<HostDefined>,
     gc: NoGcScope<'a, '_>,
-) -> ModuleOrErrors<'a> {
+) -> Result<SourceTextModule<'a>, Vec<OxcDiagnostic>> {
     let realm = realm.bind(gc);
     // 1. Let body be ParseText(sourceText, Module).
     // SAFETY: Script keeps the SourceCode reference alive in the Heap, thus

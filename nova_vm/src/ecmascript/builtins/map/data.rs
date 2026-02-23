@@ -43,7 +43,7 @@ pub(crate) struct MapHeapData<'a> {
 bindable_handle!(MapHeapData);
 
 impl MapHeapData<'_> {
-    pub fn with_capacity(new_len: usize) -> Self {
+    pub(crate) fn with_capacity(new_len: usize) -> Self {
         Self {
             keys: Vec::with_capacity(new_len),
             values: Vec::with_capacity(new_len),
@@ -56,7 +56,7 @@ impl MapHeapData<'_> {
 
 impl<'map, 'soa> MapHeapDataMut<'map, 'soa> {
     #[inline(always)]
-    pub fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         // 3. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
         // a. Set p.[[Key]] to EMPTY.
         // b. Set p.[[Value]] to EMPTY.

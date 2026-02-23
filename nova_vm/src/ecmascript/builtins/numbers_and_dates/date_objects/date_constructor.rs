@@ -375,7 +375,7 @@ mod parse_date {
     ///
     /// [spec]: https://tc39.es/ecma262/#sec-date.parse
     /// [spec-format]: https://tc39.es/ecma262/#sec-date-time-string-format
-    pub fn parse(agent: &Agent, date: &str) -> f64 {
+    pub(crate) fn parse(agent: &Agent, date: &str) -> f64 {
         // Date Time String Format: 'YYYY-MM-DDTHH:mm:ss.sssZ'
         if let Some(dt) = DateParser::new(agent, date).parse() {
             return dt as f64;

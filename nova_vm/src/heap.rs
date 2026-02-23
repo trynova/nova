@@ -213,7 +213,7 @@ impl CreateHeapData<Wtf8Buf, String<'static>> for Heap {
 }
 
 impl Heap {
-    pub fn new() -> Heap {
+    pub(crate) fn new() -> Heap {
         let mut heap = Heap {
             #[cfg(feature = "array-buffer")]
             array_buffers: Vec::with_capacity(1024),
@@ -354,45 +354,19 @@ impl Heap {
         }
 
         heap.symbols.extend_from_slice(&[
-            SymbolHeapData {
-                descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_asyncIterator),
-            },
-            SymbolHeapData {
-                descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_hasInstance),
-            },
-            SymbolHeapData {
-                descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_isConcatSpreadable),
-            },
-            SymbolHeapData {
-                descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_iterator),
-            },
-            SymbolHeapData {
-                descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_match),
-            },
-            SymbolHeapData {
-                descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_matchAll),
-            },
-            SymbolHeapData {
-                descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_replace),
-            },
-            SymbolHeapData {
-                descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_search),
-            },
-            SymbolHeapData {
-                descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_species),
-            },
-            SymbolHeapData {
-                descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_split),
-            },
-            SymbolHeapData {
-                descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_toPrimitive),
-            },
-            SymbolHeapData {
-                descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_toStringTag),
-            },
-            SymbolHeapData {
-                descriptor: Some(BUILTIN_STRING_MEMORY.Symbol_unscopables),
-            },
+            SymbolHeapData::new(BUILTIN_STRING_MEMORY.Symbol_asyncIterator),
+            SymbolHeapData::new(BUILTIN_STRING_MEMORY.Symbol_hasInstance),
+            SymbolHeapData::new(BUILTIN_STRING_MEMORY.Symbol_isConcatSpreadable),
+            SymbolHeapData::new(BUILTIN_STRING_MEMORY.Symbol_iterator),
+            SymbolHeapData::new(BUILTIN_STRING_MEMORY.Symbol_match),
+            SymbolHeapData::new(BUILTIN_STRING_MEMORY.Symbol_matchAll),
+            SymbolHeapData::new(BUILTIN_STRING_MEMORY.Symbol_replace),
+            SymbolHeapData::new(BUILTIN_STRING_MEMORY.Symbol_search),
+            SymbolHeapData::new(BUILTIN_STRING_MEMORY.Symbol_species),
+            SymbolHeapData::new(BUILTIN_STRING_MEMORY.Symbol_split),
+            SymbolHeapData::new(BUILTIN_STRING_MEMORY.Symbol_toPrimitive),
+            SymbolHeapData::new(BUILTIN_STRING_MEMORY.Symbol_toStringTag),
+            SymbolHeapData::new(BUILTIN_STRING_MEMORY.Symbol_unscopables),
         ]);
 
         // Set up the `{ __proto__: null }` shape; all null-proto objects are
