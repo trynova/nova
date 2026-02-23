@@ -3,15 +3,18 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use std::{
+    collections::VecDeque,
     hint::assert_unchecked,
     ops::ControlFlow,
-    sync::{Arc, atomic::AtomicBool},
+    sync::{
+        Arc, Condvar,
+        atomic::{AtomicBool, Ordering as StdOrdering},
+    },
     thread::{self, JoinHandle},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use ecmascript_atomics::Ordering;
-use ecmascript_futex::{ECMAScriptAtomicWait, FutexError};
 
 use crate::{
     ecmascript::{
@@ -27,6 +30,7 @@ use crate::{
         to_integer_or_infinity, to_number, try_result_into_js, try_to_index, unwrap_try,
         validate_index, validate_typed_array,
     },
+    ecmascript::{WaitResult, WaiterList, WaiterRecord},
     engine::{Bindable, GcScope, Global, NoGcScope, Scopable},
     heap::{ObjectEntry, WellKnownSymbols},
 };
@@ -666,35 +670,23 @@ impl AtomicsObject {
         };
         // 6. Let block be buffer.[[ArrayBufferData]].
         // 8. Let WL be GetWaiterList(block, byteIndexInBuffer).
-        let is_big_int_64_array = matches!(typed_array, AnyTypedArray::SharedBigInt64Array(_));
-        let slot = buffer.as_slice(agent).slice_from(byte_index_in_buffer);
-        let n = if is_big_int_64_array {
-            // SAFETY: offset was checked.
-            let slot = unsafe { slot.as_aligned::<u64>().unwrap_unchecked() };
-            if c == usize::MAX {
-                // Force the notify count down into a reasonable range: the
-                // ecmascript_futex may return usize::MAX if the OS doesn't
-                // give us a count number.
-                slot.notify_all().min(i32::MAX as usize)
-            } else {
-                slot.notify_many(c)
-            }
-        } else {
-            // SAFETY: offset was checked.
-            let slot = unsafe { slot.as_aligned::<u32>().unwrap_unchecked() };
-            if c == usize::MAX {
-                // Force the notify count down into a reasonable range: the
-                // ecmascript_futex may return usize::MAX if the OS doesn't
-                // give us a count number.
-                slot.notify_all().min(i32::MAX as usize)
-            } else {
-                slot.notify_many(c)
-            }
-        };
+        let data_block = buffer.get_data_block(agent);
         // 9. Perform EnterCriticalSection(WL).
-        // 10. Let S be RemoveWaiters(WL, c).
-        // 11. For each element W of S, do
-        //         a. Perform NotifyWaiter(WL, W).
+        // SAFETY: buffer is a valid SharedArrayBuffer, data block is non-dangling.
+        let mut n = 0;
+        if let Some(waiters) = unsafe { data_block.get_waiters() } {
+            let mut guard = waiters.lock().unwrap();
+            // 10. Let S be RemoveWaiters(WL, c).
+            if let Some(list) = guard.get_mut(&byte_index_in_buffer) {
+                // 11. For each element W of S, do
+                //         a. Perform NotifyWaiter(WL, W).
+                while let Some(waiter) = list.waiters.pop_front() {
+                    waiter.notified.store(true, StdOrdering::Release);
+                    waiter.condvar.notify_one();
+                    n += 1;
+                }
+            }
+        }
         // 12. Perform LeaveCriticalSection(WL).
         // 13. Let n be the number of elements in S.
         // 14. Return 𝔽(n).
@@ -1486,37 +1478,65 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
     // 28. Perform AddWaiter(WL, waiterRecord).
     // 29. If mode is sync, then
     if !IS_ASYNC {
-        // a. Perform SuspendThisAgent(WL, waiterRecord).
-        let result = if IS_I64 {
-            let v = v as u64;
-            // SAFETY: buffer is still live and index was checked.
+        let data_block = buffer.get_data_block(agent);
+        // SAFETY: buffer is a valid SharedArrayBuffer, data block is non-dangling.
+        let waiters = unsafe { data_block.get_or_init_waiters() };
+        let condvar = Arc::new(Condvar::new());
+        let notified = Arc::new(AtomicBool::new(false));
+        let mut guard = waiters.lock().unwrap();
+
+        // Re-read value under critical section to avoid TOCTOU race.
+        let slot = data_block.as_racy_slice().slice_from(byte_index_in_buffer);
+        let v_changed = if IS_I64 {
             let slot = unsafe { slot.as_aligned::<u64>().unwrap_unchecked() };
-            if t == u64::MAX {
-                slot.wait(v)
-            } else {
-                slot.wait_timeout(v, Duration::from_millis(t))
+            v as u64 != slot.load(Ordering::SeqCst)
+        } else {
+            let slot = unsafe { slot.as_aligned::<u32>().unwrap_unchecked() };
+            v as i32 as u32 != slot.load(Ordering::SeqCst)
+        };
+        if v_changed {
+            return BUILTIN_STRING_MEMORY.not_equal.into();
+        }
+
+        // a. Perform SuspendThisAgent(WL, waiterRecord).
+        guard
+            .entry(byte_index_in_buffer)
+            .or_insert_with(|| WaiterList {
+                waiters: VecDeque::new(),
+            })
+            .waiters
+            .push_back(WaiterRecord {
+                condvar: condvar.clone(),
+                notified: notified.clone(),
+            });
+
+        if t == u64::MAX {
+            while !notified.load(StdOrdering::Acquire) {
+                guard = condvar.wait(guard).unwrap();
             }
         } else {
-            let v = v as u32;
-            // SAFETY: buffer is still live and index was checked.
-            let slot = unsafe { slot.as_aligned::<u32>().unwrap_unchecked() };
-            if t == u64::MAX {
-                slot.wait(v)
-            } else {
-                slot.wait_timeout(v, Duration::from_millis(t))
+            let deadline = Instant::now() + Duration::from_millis(t);
+            loop {
+                if notified.load(StdOrdering::Acquire) {
+                    break;
+                }
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                if remaining.is_zero() {
+                    // Timed out — remove ourselves from the waiter list.
+                    if let Some(list) = guard.get_mut(&byte_index_in_buffer) {
+                        list.waiters.retain(|w| !Arc::ptr_eq(&w.condvar, &condvar));
+                    }
+                    // 31. Perform LeaveCriticalSection(WL).
+                    // 32. If mode is sync, return waiterRecord.[[Result]].
+                    return BUILTIN_STRING_MEMORY.timed_out.into();
+                }
+                let (new_guard, _) = condvar.wait_timeout(guard, remaining).unwrap();
+                guard = new_guard;
             }
-        };
+        }
         // 31. Perform LeaveCriticalSection(WL).
         // 32. If mode is sync, return waiterRecord.[[Result]].
-
-        match result {
-            Ok(_) => BUILTIN_STRING_MEMORY.ok.into(),
-            Err(err) => match err {
-                FutexError::Timeout => BUILTIN_STRING_MEMORY.timed_out.into(),
-                FutexError::NotEqual => BUILTIN_STRING_MEMORY.not_equal.into(),
-                FutexError::Unknown => panic!(),
-            },
-        }
+        BUILTIN_STRING_MEMORY.ok.into()
     } else {
         let promise_capability = PromiseCapability::new(agent, gc);
         let promise = Global::new(agent, promise_capability.promise.unbind());
@@ -1623,7 +1643,7 @@ fn create_wait_result_object<'gc>(
 #[derive(Debug)]
 struct WaitAsyncJobInner {
     promise_to_resolve: Global<Promise<'static>>,
-    join_handle: JoinHandle<Result<(), FutexError>>,
+    join_handle: JoinHandle<WaitResult>,
     _has_timeout: bool,
 }
 
@@ -1662,18 +1682,8 @@ impl WaitAsyncJob {
         // c. Perform LeaveCriticalSection(WL).
         let promise_capability = PromiseCapability::from_promise(promise, true);
         let result = match result {
-            Ok(_) => BUILTIN_STRING_MEMORY.ok.into(),
-            Err(FutexError::NotEqual) => BUILTIN_STRING_MEMORY.ok.into(),
-            Err(FutexError::Timeout) => BUILTIN_STRING_MEMORY.timed_out.into(),
-            Err(FutexError::Unknown) => {
-                let error = agent.throw_exception_with_static_message(
-                    ExceptionType::Error,
-                    "unknown error occurred",
-                    gc,
-                );
-                promise_capability.reject(agent, error.value(), gc);
-                return Ok(());
-            }
+            WaitResult::Ok | WaitResult::NotEqual => BUILTIN_STRING_MEMORY.ok.into(),
+            WaitResult::TimedOut => BUILTIN_STRING_MEMORY.timed_out.into(),
         };
         unwrap_try(promise_capability.try_resolve(agent, result, gc));
         // d. Return unused.
@@ -1701,26 +1711,60 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
     let signal = Arc::new(AtomicBool::new(false));
     let s = signal.clone();
     let handle = thread::spawn(move || {
+        // SAFETY: buffer is a cloned SharedDataBlock; non-dangling.
+        let waiters = unsafe { buffer.get_or_init_waiters() };
+        let condvar = Arc::new(Condvar::new());
+        let notified = Arc::new(AtomicBool::new(false));
+        let mut guard = waiters.lock().unwrap();
+
+        // Re-check the value under the critical section.
         let slot = buffer.as_racy_slice().slice_from(byte_index_in_buffer);
-        if IS_I64 {
-            let v = v as u64;
-            // SAFETY: buffer is still live and index was checked.
+        let v_not_equal = if IS_I64 {
             let slot = unsafe { slot.as_aligned::<u64>().unwrap_unchecked() };
-            s.store(true, std::sync::atomic::Ordering::Release);
-            if t == u64::MAX {
-                slot.wait(v)
-            } else {
-                slot.wait_timeout(v, Duration::from_millis(t))
-            }
+            v as u64 != slot.load(Ordering::SeqCst)
         } else {
-            let v = v as i32 as u32;
-            // SAFETY: buffer is still live and index was checked.
             let slot = unsafe { slot.as_aligned::<u32>().unwrap_unchecked() };
-            s.store(true, std::sync::atomic::Ordering::Release);
-            if t == u64::MAX {
-                slot.wait(v)
-            } else {
-                slot.wait_timeout(v, Duration::from_millis(t))
+            v as i32 as u32 != slot.load(Ordering::SeqCst)
+        };
+
+        // Signal the main thread that we have the lock and are about to sleep.
+        s.store(true, StdOrdering::Release);
+
+        if v_not_equal {
+            return WaitResult::NotEqual;
+        }
+
+        guard
+            .entry(byte_index_in_buffer)
+            .or_insert_with(|| WaiterList {
+                waiters: VecDeque::new(),
+            })
+            .waiters
+            .push_back(WaiterRecord {
+                condvar: condvar.clone(),
+                notified: notified.clone(),
+            });
+
+        if t == u64::MAX {
+            while !notified.load(StdOrdering::Acquire) {
+                guard = condvar.wait(guard).unwrap();
+            }
+            WaitResult::Ok
+        } else {
+            let deadline = Instant::now() + Duration::from_millis(t);
+            loop {
+                if notified.load(StdOrdering::Acquire) {
+                    return WaitResult::Ok;
+                }
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                if remaining.is_zero() {
+                    if let Some(list) = guard.get_mut(&byte_index_in_buffer) {
+                        list.waiters.retain(|w| !Arc::ptr_eq(&w.condvar, &condvar));
+                    }
+                    return WaitResult::TimedOut;
+                }
+                let (new_guard, _) = condvar.wait_timeout(guard, remaining).unwrap();
+                guard = new_guard;
             }
         }
     });
@@ -1732,7 +1776,7 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
             _has_timeout: t != u64::MAX,
         }))),
     };
-    while !signal.load(std::sync::atomic::Ordering::Acquire) {
+    while !signal.load(StdOrdering::Acquire) {
         // Wait until the thread has started up and is about to go to sleep.
     }
     // 2. Let now be the time value (UTC) identifying the current time.
