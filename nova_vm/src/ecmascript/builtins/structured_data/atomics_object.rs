@@ -1533,8 +1533,10 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
                     // 32. If mode is sync, return waiterRecord.[[Result]].
                     return BUILTIN_STRING_MEMORY.timed_out.into();
                 }
-                let (new_guard, _) =
-                    waiter_record.condvar.wait_timeout(guard, remaining).unwrap();
+                let (new_guard, _) = waiter_record
+                    .condvar
+                    .wait_timeout(guard, remaining)
+                    .unwrap();
                 guard = new_guard;
             }
         }
@@ -1762,8 +1764,7 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
                 let remaining = deadline.saturating_duration_since(Instant::now());
                 if remaining.is_zero() {
                     if let Some(list) = guard.get_mut(&byte_index_in_buffer) {
-                        list.waiters
-                            .retain(|w| !Arc::ptr_eq(w, &waiter_record));
+                        list.waiters.retain(|w| !Arc::ptr_eq(w, &waiter_record));
                     }
                     return WaitResult::TimedOut;
                 }
