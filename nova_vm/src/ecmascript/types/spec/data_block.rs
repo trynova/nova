@@ -464,8 +464,8 @@ pub type SharedWaiterMap = Mutex<std::collections::HashMap<usize, WaiterList>>;
 /// ```rust,ignore
 /// #[repr(C)]
 /// struct StaticSharedDataBuffer<const N: usize> {
-///   rc: AtomicUsize,
 ///   waiters: AtomicPtr<SharedWaiterMap>,
+///   rc: AtomicUsize,
 ///   bytes: [AtomicU8; N],
 /// }
 /// ```
@@ -475,8 +475,8 @@ pub type SharedWaiterMap = Mutex<std::collections::HashMap<usize, WaiterList>>;
 /// #[repr(C)]
 /// struct GrowableSharedDataBuffer<const N: usize> {
 ///   byte_length: AtomicUsize,
-///   rc: AtomicUsize,
 ///   waiters: AtomicPtr<SharedWaiterMap>,
+///   rc: AtomicUsize,
 ///   bytes: [AtomicU8; N],
 /// }
 /// ```
@@ -539,9 +539,9 @@ impl Drop for SharedDataBlock {
             return;
         }
         let growable = self.is_growable();
-        // SAFETY: SharedDataBlock guarantees we have rc and waiters_ptr
-        // allocated before the bytes. rc is 2 slots before ptr.
-        let rc_ptr = unsafe { self.ptr.as_ptr().cast::<AtomicUsize>().sub(2) };
+        // SAFETY: SharedDataBlock guarantees we have waiters_ptr and rc
+        // allocated before the bytes. rc is 1 slot before ptr.
+        let rc_ptr = unsafe { self.ptr.as_ptr().cast::<AtomicUsize>().sub(1) };
         {
             // SAFETY: the RC is definitely still allocated, as we haven't
             // subtracted ourselves from it yet.
@@ -587,7 +587,7 @@ impl Drop for SharedDataBlock {
                         AtomicUsize,
                         AtomicUsize,
                     )>()),
-                    rc_ptr.sub(1),
+                    rc_ptr.sub(2),
                 )
             }
         } else {
@@ -595,7 +595,7 @@ impl Drop for SharedDataBlock {
                 (
                     max_byte_length
                         .unchecked_add(core::mem::size_of::<(AtomicUsize, AtomicUsize)>()),
-                    rc_ptr,
+                    rc_ptr.sub(1),
                 )
             }
         };
@@ -603,7 +603,7 @@ impl Drop for SharedDataBlock {
         // SAFETY: As per the CAS loop on the reference count, we are the only
         // referrer to the racy memory. We can thus deallocate the ECMAScript
         // memory; this effectively grows our Rust memory from being just the
-        // RC, waiters pointer, and possible byte length value, into also
+        // Waiters pointer, RC, and possible byte length value, into also
         // containing the byte data.
         let _ = unsafe { memory.exit() };
         // SAFETY: layout guaranteed by type.
@@ -667,22 +667,24 @@ impl SharedDataBlock {
                 unsafe { base_ptr.write(byte_length) };
                 // SAFETY: allocation size is
                 // (AtomicUsize, AtomicUsize, AtomicUsize, [AtomicU8; max_byte_length])
-                unsafe { base_ptr.add(1) }
+                // Skip byte_length and waiters to reach rc.
+                unsafe { base_ptr.add(2) }
             } else {
-                base_ptr
+                // Skip waiters to reach rc.
+                unsafe { base_ptr.add(1) }
             };
             {
                 // SAFETY: we're the only owner of this data.
                 unsafe { rc_ptr.write(1) };
             }
 
-            // SAFETY: ptr is past rc and waiters_ptr
-            let ptr = unsafe { rc_ptr.add(2) };
+            // SAFETY: ptr is past waiters_ptr and rc
+            let ptr = unsafe { rc_ptr.add(1) };
             // SAFETY: ptr does point to size bytes of readable and writable
             // Rust memory. After this call, that memory is deallocated and we
             // receive a new RacyMemory in its stead. Reads and writes through
             // it are undefined behaviour. Note though that we still have the
-            // RC, waiters pointer, and possible length values before the
+            // Waiters pointer, RC, and possible length values before the
             // pointer; those are in normal Rust memory.
             let ptr = unsafe { RacyMemory::<u8>::enter(ptr.cast(), size) };
             Some(Self {
@@ -707,8 +709,8 @@ impl SharedDataBlock {
     ///
     /// Must not be a dangling SharedDataBlock.
     unsafe fn get_rc(&self) -> &AtomicUsize {
-        // SAFETY: type guarantees layout
-        unsafe { self.ptr.as_ptr().cast::<AtomicUsize>().sub(2).as_ref() }
+        // SAFETY: type guarantees layout; rc is 1 slot before ptr.
+        unsafe { self.ptr.as_ptr().cast::<AtomicUsize>().sub(1).as_ref() }
     }
 
     /// Get a reference to the atomic byte length.
@@ -771,12 +773,12 @@ impl SharedDataBlock {
     ///
     /// Must not be a dangling SharedDataBlock.
     unsafe fn get_waiters_ptr(&self) -> &AtomicPtr<SharedWaiterMap> {
-        // SAFETY: type guarantees layout; waiters_ptr is 1 slot before ptr.
+        // SAFETY: type guarantees layout; waiters_ptr is 2 slots before ptr.
         unsafe {
             self.ptr
                 .as_ptr()
                 .cast::<AtomicPtr<SharedWaiterMap>>()
-                .sub(1)
+                .sub(2)
                 .as_ref()
         }
     }
