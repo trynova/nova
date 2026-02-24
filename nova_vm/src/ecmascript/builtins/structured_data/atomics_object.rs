@@ -683,7 +683,10 @@ impl AtomicsObject {
 
             // 11. For each element W of S, do
             //         a. Perform NotifyWaiter(WL, W).
-            while let Some(waiter) = list.waiters.pop_front() {
+            while n < c {
+                let Some(waiter) = list.waiters.pop_front() else {
+                    break;
+                };
                 waiter.notified.store(true, StdOrdering::Release);
                 waiter.condvar.notify_one();
                 n += 1;
