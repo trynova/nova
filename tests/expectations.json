@@ -3980,8 +3980,6 @@
   "built-ins/Temporal/PlainTime/prototype/microsecond/prop-desc.js": "FAIL",
   "built-ins/Temporal/PlainTime/prototype/millisecond/branding.js": "FAIL",
   "built-ins/Temporal/PlainTime/prototype/millisecond/prop-desc.js": "FAIL",
-  "built-ins/Temporal/PlainTime/prototype/minute/branding.js": "FAIL",
-  "built-ins/Temporal/PlainTime/prototype/minute/prop-desc.js": "FAIL",
   "built-ins/Temporal/PlainTime/prototype/nanosecond/branding.js": "FAIL",
   "built-ins/Temporal/PlainTime/prototype/nanosecond/prop-desc.js": "FAIL",
   "built-ins/Temporal/PlainTime/prototype/round/branding.js": "FAIL",
