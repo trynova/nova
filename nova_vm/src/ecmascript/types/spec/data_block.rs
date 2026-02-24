@@ -423,8 +423,8 @@ impl SharedDataBlockMaxByteLength {
 
 #[cfg(feature = "shared-array-buffer")]
 pub struct WaiterRecord {
-    pub condvar: Arc<Condvar>,
-    pub notified: Arc<AtomicBool>,
+    pub condvar: Condvar,
+    pub notified: AtomicBool,
 }
 
 /// Result of an `Atomics.wait` or `Atomics.waitAsync` operation.
@@ -438,7 +438,7 @@ pub enum WaitResult {
 
 #[cfg(feature = "shared-array-buffer")]
 pub struct WaiterList {
-    pub waiters: std::collections::VecDeque<WaiterRecord>,
+    pub waiters: std::collections::VecDeque<Arc<WaiterRecord>>,
 }
 
 #[cfg(feature = "shared-array-buffer")]

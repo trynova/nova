@@ -1486,8 +1486,10 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
         let data_block = buffer.get_data_block(agent);
         // SAFETY: buffer is a valid SharedArrayBuffer it cannot be detached, so the data block is non-dangling.
         let waiters = unsafe { data_block.get_or_init_waiters() };
-        let condvar = Arc::new(Condvar::new());
-        let notified = Arc::new(AtomicBool::new(false));
+        let waiter_record = Arc::new(WaiterRecord {
+            condvar: Condvar::new(),
+            notified: AtomicBool::new(false),
+        });
         let mut guard = waiters.lock().unwrap();
 
         // Re-read value under critical section to avoid TOCTOU race.
@@ -1510,32 +1512,29 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
                 waiters: VecDeque::new(),
             })
             .waiters
-            .push_back(WaiterRecord {
-                condvar: condvar.clone(),
-                notified: notified.clone(),
-            });
+            .push_back(waiter_record.clone());
 
         if t == u64::MAX {
-            while !notified.load(StdOrdering::Acquire) {
-                guard = condvar.wait(guard).unwrap();
+            while !waiter_record.notified.load(StdOrdering::Acquire) {
+                guard = waiter_record.condvar.wait(guard).unwrap();
             }
         } else {
             let deadline = Instant::now() + Duration::from_millis(t);
             loop {
-                if notified.load(StdOrdering::Acquire) {
+                if waiter_record.notified.load(StdOrdering::Acquire) {
                     break;
                 }
                 let remaining = deadline.saturating_duration_since(Instant::now());
                 if remaining.is_zero() {
-                    // Timed out — remove ourselves from the waiter list.
                     if let Some(list) = guard.get_mut(&byte_index_in_buffer) {
-                        list.waiters.retain(|w| !Arc::ptr_eq(&w.condvar, &condvar));
+                        list.waiters.retain(|w| !Arc::ptr_eq(w, &waiter_record));
                     }
                     // 31. Perform LeaveCriticalSection(WL).
                     // 32. If mode is sync, return waiterRecord.[[Result]].
                     return BUILTIN_STRING_MEMORY.timed_out.into();
                 }
-                let (new_guard, _) = condvar.wait_timeout(guard, remaining).unwrap();
+                let (new_guard, _) =
+                    waiter_record.condvar.wait_timeout(guard, remaining).unwrap();
                 guard = new_guard;
             }
         }
@@ -1718,8 +1717,10 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
     let handle = thread::spawn(move || {
         // SAFETY: buffer is a cloned SharedDataBlock; non-dangling.
         let waiters = unsafe { buffer.get_or_init_waiters() };
-        let condvar = Arc::new(Condvar::new());
-        let notified = Arc::new(AtomicBool::new(false));
+        let waiter_record = Arc::new(WaiterRecord {
+            condvar: Condvar::new(),
+            notified: AtomicBool::new(false),
+        });
         let mut guard = waiters.lock().unwrap();
 
         // Re-check the value under the critical section.
@@ -1745,30 +1746,31 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
                 waiters: VecDeque::new(),
             })
             .waiters
-            .push_back(WaiterRecord {
-                condvar: condvar.clone(),
-                notified: notified.clone(),
-            });
+            .push_back(waiter_record.clone());
 
         if t == u64::MAX {
-            while !notified.load(StdOrdering::Acquire) {
-                guard = condvar.wait(guard).unwrap();
+            while !waiter_record.notified.load(StdOrdering::Acquire) {
+                guard = waiter_record.condvar.wait(guard).unwrap();
             }
             WaitResult::Ok
         } else {
             let deadline = Instant::now() + Duration::from_millis(t);
             loop {
-                if notified.load(StdOrdering::Acquire) {
+                if waiter_record.notified.load(StdOrdering::Acquire) {
                     return WaitResult::Ok;
                 }
                 let remaining = deadline.saturating_duration_since(Instant::now());
                 if remaining.is_zero() {
                     if let Some(list) = guard.get_mut(&byte_index_in_buffer) {
-                        list.waiters.retain(|w| !Arc::ptr_eq(&w.condvar, &condvar));
+                        list.waiters
+                            .retain(|w| !Arc::ptr_eq(w, &waiter_record));
                     }
                     return WaitResult::TimedOut;
                 }
-                let (new_guard, _) = condvar.wait_timeout(guard, remaining).unwrap();
+                let (new_guard, _) = waiter_record
+                    .condvar
+                    .wait_timeout(guard, remaining)
+                    .unwrap();
                 guard = new_guard;
             }
         }
