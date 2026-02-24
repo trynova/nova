@@ -12,9 +12,10 @@ pub(crate) use plain_time_prototype::*;
 
 use crate::{
     ecmascript::{
-        Agent, InternalMethods, InternalSlots, OrdinaryObject, ProtoIntrinsics, object_handle,
+        Agent, ExceptionType, InternalMethods, InternalSlots, JsResult, OrdinaryObject,
+        ProtoIntrinsics, Value, object_handle,
     },
-    engine::Bindable,
+    engine::{Bindable, NoGcScope},
     heap::{
         ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
         HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
@@ -33,8 +34,8 @@ arena_vec_access!(
 );
 
 impl TemporalPlainTime<'_> {
-    pub(crate) fn _inner_plain_time(self, agent: &Agent) -> &temporal_rs::PlainTime {
-        &self.unbind().get(agent)._plain_time
+    pub(crate) fn inner_plain_time(self, agent: &Agent) -> &temporal_rs::PlainTime {
+        &self.unbind().get(agent).plain_time
     }
 }
 
@@ -75,5 +76,21 @@ impl<'a> CreateHeapData<PlainTimeRecord<'a>, TemporalPlainTime<'a>> for Heap {
         self.plain_times.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<PlainTimeRecord<'static>>();
         TemporalPlainTime(BaseIndex::last(&self.plain_times))
+    }
+}
+
+#[inline(always)]
+fn require_internal_slot_temporal_plain_time<'a>(
+    agent: &mut Agent,
+    value: Value,
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<'a, TemporalPlainTime<'a>> {
+    match value {
+        Value::PlainTime(plain_time) => Ok(plain_time.bind(gc)),
+        _ => Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Object is not a Temporal PlainTime",
+            gc,
+        )),
     }
 }
