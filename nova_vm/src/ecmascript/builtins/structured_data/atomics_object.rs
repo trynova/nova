@@ -674,24 +674,28 @@ impl AtomicsObject {
         // 9. Perform EnterCriticalSection(WL).
         // SAFETY: buffer is a valid SharedArrayBuffer it cannot be detached, so the data block is non-dangling.
         let mut n = 0;
-        if let Some(waiters) = unsafe { data_block.get_waiters() } {
-            let mut guard = waiters.lock().unwrap();
-            // 10. Let S be RemoveWaiters(WL, c).
-            let Some(list) = guard.get_mut(&byte_index_in_buffer) else {
-                return Ok(0.into());
-            };
+        let Some(waiters) = (unsafe { data_block.get_waiters() }) else {
+            return Ok(0.into());
+        };
 
-            // 11. For each element W of S, do
-            //         a. Perform NotifyWaiter(WL, W).
-            while n < c {
-                let Some(waiter) = list.waiters.pop_front() else {
-                    break;
-                };
-                waiter.notified.store(true, StdOrdering::Release);
-                waiter.condvar.notify_one();
-                n += 1;
-            }
+        let mut guard = waiters.lock().unwrap();
+        // 10. Let S be RemoveWaiters(WL, c).
+        let Some(list) = guard.get_mut(&byte_index_in_buffer) else {
+            return Ok(0.into());
+        };
+
+        // 11. For each element W of S, do
+        //         a. Perform NotifyWaiter(WL, W).
+        while n < c {
+            let Some(waiter) = list.waiters.pop_front() else {
+                break;
+            };
+            waiter.notified.store(true, StdOrdering::Release);
+            waiter.condvar.notify_one();
+            n += 1;
         }
+        drop(guard);
+
         // 12. Perform LeaveCriticalSection(WL).
         // 13. Let n be the number of elements in S.
         // 14. Return 𝔽(n).
