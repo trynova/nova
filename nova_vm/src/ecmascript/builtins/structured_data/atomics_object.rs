@@ -672,7 +672,7 @@ impl AtomicsObject {
         // 8. Let WL be GetWaiterList(block, byteIndexInBuffer).
         let data_block = buffer.get_data_block(agent);
         // 9. Perform EnterCriticalSection(WL).
-        // SAFETY: buffer is a valid SharedArrayBuffer, data block is non-dangling.
+        // SAFETY: buffer is a valid SharedArrayBuffer it cannot be detached, so the data block is non-dangling.
         let mut n = 0;
         if let Some(waiters) = unsafe { data_block.get_waiters() } {
             let mut guard = waiters.lock().unwrap();
@@ -1481,7 +1481,7 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
     // 29. If mode is sync, then
     if !IS_ASYNC {
         let data_block = buffer.get_data_block(agent);
-        // SAFETY: buffer is a valid SharedArrayBuffer, data block is non-dangling.
+        // SAFETY: buffer is a valid SharedArrayBuffer it cannot be detached, so the data block is non-dangling.
         let waiters = unsafe { data_block.get_or_init_waiters() };
         let condvar = Arc::new(Condvar::new());
         let notified = Arc::new(AtomicBool::new(false));
