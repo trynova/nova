@@ -677,14 +677,16 @@ impl AtomicsObject {
         if let Some(waiters) = unsafe { data_block.get_waiters() } {
             let mut guard = waiters.lock().unwrap();
             // 10. Let S be RemoveWaiters(WL, c).
-            if let Some(list) = guard.get_mut(&byte_index_in_buffer) {
-                // 11. For each element W of S, do
-                //         a. Perform NotifyWaiter(WL, W).
-                while let Some(waiter) = list.waiters.pop_front() {
-                    waiter.notified.store(true, StdOrdering::Release);
-                    waiter.condvar.notify_one();
-                    n += 1;
-                }
+            let Some(list) = guard.get_mut(&byte_index_in_buffer) else {
+                return Ok(0.into());
+            };
+
+            // 11. For each element W of S, do
+            //         a. Perform NotifyWaiter(WL, W).
+            while let Some(waiter) = list.waiters.pop_front() {
+                waiter.notified.store(true, StdOrdering::Release);
+                waiter.condvar.notify_one();
+                n += 1;
             }
         }
         // 12. Perform LeaveCriticalSection(WL).
