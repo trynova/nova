@@ -178,6 +178,7 @@ get description
 #[cfg(feature = "regexp")]get global
 #[cfg(feature = "shared-array-buffer")]get growable
 #[cfg(feature = "regexp")]get hasIndices
+#[cfg(feature = "temporal")]get hour
 #[cfg(feature = "regexp")]get ignoreCase
 #[cfg(feature = "array-buffer")]get length
 #[cfg(feature = "array-buffer")]get maxByteLength
@@ -237,6 +238,7 @@ hasInstance
 hasOwn
 hasOwnProperty
 #[cfg(feature = "math")]hypot
+#[cfg(feature = "temporal")]hour
 #[cfg(feature = "temporal")]hours
 #[cfg(feature = "regexp")]ignoreCase
 #[cfg(feature = "math")]imul
