@@ -446,7 +446,7 @@ impl<'a> OrdinaryObject<'a> {
         agent.heap.create(ObjectRecord::new(shape, values))
     }
 
-    /// Create an object with the given prototype and properies.
+    /// Create an object with the given prototype and properties.
     pub fn create_object(
         agent: &mut Agent,
         prototype: Option<Object<'a>>,

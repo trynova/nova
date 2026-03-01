@@ -813,10 +813,10 @@ impl<'e> ObjectEnvironment<'e> {
     ) -> JsResult<'a, bool> {
         let env_rec = &self.get(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
-        let binding_boject = env_rec.binding_object;
+        let binding_object = env_rec.binding_object;
         let name = PropertyKey::from(name);
         // 2. Return ? bindingObject.[[Delete]](N).
-        binding_boject.internal_delete(agent, name, gc)
+        binding_object.internal_delete(agent, name, gc)
     }
 
     /// ### [9.1.1.2.10 WithBaseObject ( )](https://tc39.es/ecma262/#sec-object-environment-records-withbaseobject)
