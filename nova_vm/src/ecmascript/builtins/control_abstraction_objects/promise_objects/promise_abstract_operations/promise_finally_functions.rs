@@ -18,10 +18,12 @@ use crate::{
 enum PromiseFinallyFunctionType<'a> {
     ResolveFinally {
         on_finally: Function<'a>,
+        /// Promise constructor
         c: Function<'a>,
     },
     RejectFinally {
         on_finally: Function<'a>,
+        /// Promise constructor
         c: Function<'a>,
     },
     ReturnValue {
@@ -45,6 +47,7 @@ pub(crate) struct PromiseFinallyFunctionHeapData<'a> {
 }
 bindable_handle!(PromiseFinallyFunctionHeapData);
 
+/// Special functions created as part of `Promise.prototype.finally`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct BuiltinPromiseFinallyFunction<'a>(

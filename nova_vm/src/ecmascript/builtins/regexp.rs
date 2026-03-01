@@ -33,6 +33,12 @@ use super::ordinary::{
     ordinary_try_get, ordinary_try_has_property, ordinary_try_set,
 };
 
+/// ## [22.2 RegExp (Regular Expression) Objects](https://tc39.es/ecma262/#sec-regexp-regular-expression-objects)
+///
+/// A RegExp object contains a regular expression and the associated flags.
+///
+/// > NOTE: The form and functionality of regular expressions is modelled after
+/// > the regular expression facility in the Perl 5 programming language.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct RegExp<'a>(BaseIndex<'a, RegExpHeapData<'static>>);

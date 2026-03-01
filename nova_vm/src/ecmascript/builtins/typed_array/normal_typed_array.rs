@@ -418,6 +418,7 @@ impl<'a> TypedArray<'a> {
         }
     }
 
+    /// Get the length of the TypedArray.
     #[inline]
     pub fn array_length(self, agent: &Agent) -> Option<usize> {
         let array_length = self.into_void_array().get(agent).array_length;
@@ -451,6 +452,7 @@ impl<'a> TypedArray<'a> {
         }
     }
 
+    /// \[\[ViewedArrayBuffer]]
     #[inline]
     pub fn get_viewed_array_buffer(self, agent: &Agent) -> ArrayBuffer<'a> {
         self.into_void_array().get(agent).viewed_array_buffer

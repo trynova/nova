@@ -49,6 +49,7 @@ pub enum Function<'a> {
 bindable_handle!(Function);
 
 impl Function<'_> {
+    /// Call the function with the given arguments.
     pub fn call<'gc>(
         self,
         agent: &mut Agent,
@@ -64,6 +65,7 @@ impl Function<'_> {
         )
     }
 
+    /// Returns `true` if the function can be called as a constructor.
     pub fn is_constructor(self, agent: &Agent) -> bool {
         match self {
             Function::BoundFunction(f) => f.is_constructor(agent),

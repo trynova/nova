@@ -14,6 +14,20 @@ use crate::{
     },
 };
 
+/// ### [24.1.5 Map Iterator Objects](https://tc39.es/ecma262/#sec-map-iterator-objects)
+///
+/// A _Map Iterator_ is an object that represents a specific iteration over some
+/// specific Map instance object. There is not a named constructor for Map
+/// Iterator objects. Instead, Map Iterator objects are created by calling
+/// certain methods of Map instance objects.
+///
+/// #### Example
+///
+/// ```javascript
+/// new Map().entries();
+/// new Map().keys();
+/// new Map().values();
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct MapIterator<'a>(BaseIndex<'a, MapIteratorHeapData<'static>>);

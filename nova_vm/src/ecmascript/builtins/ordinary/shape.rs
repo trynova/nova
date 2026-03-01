@@ -26,6 +26,22 @@ use crate::{
 use super::caches::PropertyLookupCache;
 
 /// Data structure describing the shape of an object.
+///
+/// In the Nova JavaScript engine, JavaScript objects are split into two
+/// categories: specialised objects, and ordinary objects. Ordinary objects are
+/// created eg. by object literals `{}` and contain an object shape and a
+/// property data reference. Specialised objects are all other objects, such as
+/// Arrays, ArrayBuffers, and primitive objects, and they contain any
+/// specialised data needed by the object, and an optional ordinary object
+/// reference called the "backing object".
+///
+/// The object shape describes what the prototype of the object is, how many
+/// properties it has, what are they property keys, and in which order they
+/// appear. The object's property data defines what the property values and
+/// descriptors are. Specialised objects do not have an object shape nor
+/// property data, and thus are mostly not objects at all. When required to act
+/// as objects by eg. prototype changes or property assignments, they act merely
+/// as a front to their backing object.
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ObjectShape<'a>(

@@ -43,9 +43,9 @@ use crate::{
 /// by a [`SharedTypedArray`], and TypedArrays viewing an [`ArrayBuffer`] are
 /// represented by a [`TypedArray`].
 ///
-/// [`ArrayBuffer`]: crate::ecmascript::builtins::ArrayBuffer
-/// [`SharedArrayBuffer`]: crate::ecmascript::builtins::SharedArrayBuffer
-/// [`SharedTypedArray`]: crate::ecmascript::builtins::SharedTypedArray
+/// [`ArrayBuffer`]: crate::ecmascript::ArrayBuffer
+/// [`SharedArrayBuffer`]: crate::ecmascript::SharedArrayBuffer
+/// [`SharedTypedArray`]: crate::ecmascript::SharedTypedArray
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]

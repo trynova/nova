@@ -104,6 +104,7 @@ impl<'a> Array<'a> {
             .push(&mut agent.heap.elements, Some(value), None)
     }
 
+    /// Reserve space for `additional` Values in the Array.
     pub fn reserve(self, agent: &mut Agent, additional: u32) -> Result<(), TryReserveError> {
         let Heap {
             arrays, elements, ..
@@ -143,6 +144,7 @@ impl<'a> Array<'a> {
         create_array_from_list(agent, elements, gc)
     }
 
+    /// Get the length property value of the Array.
     pub fn len(self, agent: &Agent) -> u32 {
         self.get_elements(agent).len()
     }
@@ -167,6 +169,7 @@ impl<'a> Array<'a> {
         self.get_elements_mut(agent).len_writable = false;
     }
 
+    /// Returns `true` if the Array length is 0.
     pub fn is_empty(self, agent: &Agent) -> bool {
         self.get_elements(agent).is_empty()
     }

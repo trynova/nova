@@ -98,7 +98,7 @@ pub(crate) fn new_promise_resolve_thenable_job(
     };
     // 6. Return the Record { [[Job]]: job, [[Realm]]: thenRealm }.
     Job {
-        realm: Some(then_realm.unbind()),
+        realm: Some(Global::new(agent, then_realm.unbind())),
         inner: InnerJob::PromiseResolveThenable(PromiseResolveThenableJob {
             promise_to_resolve: Global::new(agent, promise_to_resolve.unbind()),
             thenable: Global::new(agent, thenable.unbind()),
@@ -355,8 +355,9 @@ pub(crate) fn new_promise_reaction_job(
     // 4. Return the Record { [[Job]]: job, [[Realm]]: handlerRealm }.
     let reaction = Global::new(agent, reaction.unbind());
     let argument = Global::new(agent, argument.unbind());
+    let realm = handler_realm.map(|realm| Global::new(agent, realm.unbind()));
     Job {
-        realm: handler_realm.unbind(),
+        realm,
         inner: InnerJob::PromiseReaction(PromiseReactionJob { reaction, argument }),
     }
 }

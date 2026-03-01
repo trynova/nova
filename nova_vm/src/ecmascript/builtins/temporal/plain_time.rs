@@ -22,6 +22,11 @@ use crate::{
     },
 };
 
+/// # [4 Temporal.PlainTime Objects](https://tc39.es/proposal-temporal/#sec-temporal-plaintime-objects)
+///
+/// A Temporal.PlainTime object is an Object that contains integers
+/// corresponding to a particular hour, minute, second, millisecond,
+/// microsecond, and nanosecond.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct TemporalPlainTime<'a>(BaseIndex<'a, PlainTimeRecord<'static>>);

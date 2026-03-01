@@ -20,6 +20,11 @@ use crate::{
 };
 
 /// ### [6.2.12 Private Names](https://tc39.es/ecma262/#sec-private-names)
+///
+/// The _Private Name_ specification type is used to describe a globally unique
+/// value (one which differs from any other Private Name, even if they are
+/// otherwise indistinguishable) which represents the key of a private class
+/// element (field, method, or accessor).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct PrivateName(u32);

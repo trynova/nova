@@ -18,6 +18,12 @@ use crate::{
     },
 };
 
+/// ## [26.1 WeakRef Objects](https://tc39.es/ecma262/#sec-weak-ref-objects)
+///
+/// A WeakRef is an object that is used to refer to a target object or symbol
+/// without preserving it from garbage collection. WeakRefs can be dereferenced
+/// to allow access to the target value, if the target hasn't been reclaimed by
+/// garbage collection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct WeakRef<'a>(BaseIndex<'a, WeakRefHeapData<'static>>);

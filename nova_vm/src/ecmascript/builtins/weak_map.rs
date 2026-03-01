@@ -18,6 +18,14 @@ use crate::{
     },
 };
 
+/// ## [24.3 WeakMap Objects](https://tc39.es/ecma262/#sec-weakmap-objects)
+///
+/// WeakMaps are collections of key/value pairs where the keys are objects
+/// and/or symbols and values may be arbitrary ECMAScript language values. A
+/// WeakMap may be queried to see if it contains a key/value pair with a
+/// specific key, but no mechanism is provided for enumerating the values it
+/// holds as keys. In certain conditions, values which are not live are removed
+/// as WeakMap keys.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct WeakMap<'a>(BaseIndex<'a, WeakMapRecord<'static>>);

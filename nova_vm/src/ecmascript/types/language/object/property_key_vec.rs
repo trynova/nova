@@ -69,10 +69,12 @@ impl ScopedCollection<'_, Vec<PropertyKey<'static>>> {
         })
     }
 
+    /// Returns `true` if the scoped vec is empty.
     pub fn is_empty(&self, agent: &Agent) -> bool {
         self.with_cb(agent, |property_key_vec| property_key_vec.is_empty())
     }
 
+    /// Returns the length of the scoped vec.
     pub fn len(&self, agent: &Agent) -> usize {
         self.with_cb(agent, |property_key_vec| property_key_vec.len())
     }
@@ -107,6 +109,7 @@ pub(crate) struct ScopedPropertyKey<'a> {
 }
 
 impl ScopedPropertyKey<'_> {
+    /// Get the referenced PropertyKey.
     pub fn get<'a>(self, gc: NoGcScope<'a, '_>) -> PropertyKey<'a> {
         // SAFETY: We retain exclusive access to ScopedCollection, meaning that
         // no one else can push into the vector while we are iterating over it.

@@ -9,11 +9,12 @@ pub(crate) use abstract_operations::*;
 pub(crate) use data::*;
 
 #[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::SHARED_DATA_VIEW_DISCRIMINANT;
+use crate::ecmascript::{SHARED_DATA_VIEW_DISCRIMINANT, SharedArrayBuffer};
 use crate::{
     ecmascript::{
-        Agent, DATA_VIEW_DISCRIMINANT, InternalMethods, InternalSlots, Object, OrdinaryObject,
-        ProtoIntrinsics, Value, Viewable,
+        Agent, AnyArrayBuffer, ArrayBuffer, DATA_VIEW_DISCRIMINANT, InternalMethods, InternalSlots,
+        Object, OrdinaryObject, ProtoIntrinsics, Value, Viewable, ViewedArrayBufferByteLength,
+        ViewedArrayBufferByteOffset,
     },
     engine::{Bindable, HeapRootData, bindable_handle},
     heap::{
@@ -22,13 +23,16 @@ use crate::{
     },
 };
 
-#[cfg(feature = "shared-array-buffer")]
-use super::SharedArrayBuffer;
-use super::{
-    ArrayBuffer,
-    array_buffer::{AnyArrayBuffer, ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset},
-};
-
+/// ## [25.3 DataView Objects](https://tc39.es/ecma262/#sec-dataview-objects)
+///
+/// _DataView_ objects are used to view [`ArrayBuffer`] data. The data viewed by
+/// a [`DataView`] cannot be shared between threads. For viewing shareable
+/// memory, see [`SharedDataView`] objects.
+///
+/// [`ArrayBuffer`]: crate::ecmascript::ArrayBuffer
+/// [`SharedArrayBuffer`]: crate::ecmascript::SharedArrayBuffer
+/// [`DataView`]: crate::ecmascript::DataView
+/// [`SharedDataView`]: crate::ecmascript::SharedDataView
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct DataView<'a>(BaseIndex<'a, DataViewRecord<'static>>);
@@ -133,6 +137,14 @@ impl<'gc> DataView<'gc> {
     }
 }
 
+/// ## [25.3 DataView Objects](https://tc39.es/ecma262/#sec-dataview-objects)
+///
+/// _SharedDataView_ objects are used to view [`SharedArrayBuffer`] data. For
+/// viewing [`ArrayBuffer`] data see [`DataView`] objects.
+///
+/// [`ArrayBuffer`]: crate::ecmascript::ArrayBuffer
+/// [`SharedArrayBuffer`]: crate::ecmascript::SharedArrayBuffer
+/// [`DataView`]: crate::ecmascript::DataView
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 #[cfg(feature = "shared-array-buffer")]
@@ -345,6 +357,12 @@ impl HeapSweepWeakReference for SharedDataView<'static> {
     }
 }
 
+/// ## [25.3 DataView Objects](https://tc39.es/ecma262/#sec-dataview-objects)
+///
+/// A [`DataView`] or [`SharedDataView`] object.
+///
+/// [`DataView`]: crate::ecmascript::DataView
+/// [`SharedDataView`]: crate::ecmascript::SharedDataView
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
 pub enum AnyDataView<'a> {

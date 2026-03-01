@@ -27,6 +27,9 @@ use core::ops::Neg;
 use num_bigint::{Sign, ToBigInt, TryFromBigIntError};
 use std::ops::{BitAnd, BitOr, BitXor};
 
+/// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
+///
+/// Primitive BigInt value allocated on the heap.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct HeapBigInt<'a>(BaseIndex<'a, BigIntHeapData>);
@@ -141,6 +144,7 @@ pub(crate) enum BigIntRootRepr {
 }
 
 impl<'a> BigInt<'a> {
+    /// Returns `true` if the BigInt's value is 0n.
     pub fn is_zero(self, agent: &Agent) -> bool {
         match self {
             BigInt::BigInt(b) => {
@@ -156,6 +160,7 @@ impl<'a> BigInt<'a> {
         Self::SmallBigInt(SmallBigInt::zero())
     }
 
+    /// Create a new BigInt from an i64.
     #[inline]
     pub fn from_i64(agent: &mut Agent, value: i64) -> Self {
         if let Ok(result) = SmallBigInt::try_from(value) {
@@ -165,6 +170,7 @@ impl<'a> BigInt<'a> {
         }
     }
 
+    /// Create a new BigInt from a u64.
     #[inline]
     pub fn from_u64(agent: &mut Agent, value: u64) -> Self {
         if let Ok(result) = SmallBigInt::try_from(value) {
@@ -174,6 +180,7 @@ impl<'a> BigInt<'a> {
         }
     }
 
+    /// Create a new BigInt from an i128.
     #[inline]
     pub fn from_i128(agent: &mut Agent, value: i128, gc: NoGcScope<'a, '_>) -> Self {
         if let Ok(result) = SmallBigInt::try_from(value) {
@@ -186,6 +193,7 @@ impl<'a> BigInt<'a> {
         }
     }
 
+    /// Create a new BigInt from a u128.
     #[inline]
     pub fn from_u128(agent: &mut Agent, value: u128, gc: NoGcScope<'a, '_>) -> Self {
         if let Ok(result) = SmallBigInt::try_from(value) {
@@ -198,6 +206,7 @@ impl<'a> BigInt<'a> {
         }
     }
 
+    /// Try to convert a BigInt into an i64.
     pub fn try_into_i64(self, agent: &Agent) -> Result<i64, TryFromBigIntError<()>> {
         match self {
             BigInt::BigInt(b) => i64::try_from(&b.get(agent).data),
@@ -214,6 +223,7 @@ impl<'a> BigInt<'a> {
         }
     }
 
+    /// Try to convert a BigInt into an i128.
     pub fn try_into_i128(self, agent: &Agent) -> Option<i128> {
         match self {
             BigInt::BigInt(b) => {

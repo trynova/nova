@@ -18,6 +18,32 @@ use crate::{
     },
 };
 
+/// ## [27.2 Promise Objects](https://tc39.es/ecma262/#sec-promise-objects)
+///
+/// A Promise is an object that is used as a placeholder for the eventual
+/// results of a deferred (and possibly asynchronous) computation.
+///
+/// Any Promise is in one of three mutually exclusive states: _fulfilled_,
+/// _rejected_, and _pending_:
+///
+/// * A promise **`p`** is fulfilled if **`p.then(f, r)`** will immediately
+///   enqueue a [Job] to call the function **`f`**.
+///
+/// * A promise **`p`** is rejected if **`p.then(f, r)`** will immediately enqueue
+///   a [Job] to call the function **`r`**.
+///
+/// * A promise is pending if it is neither fulfilled nor rejected.
+///
+/// A promise is said to be _settled_ if it is not pending, i.e. if it is either
+/// fulfilled or rejected.
+///
+/// A promise is _resolved_ if it is settled or if it has been "locked in" to
+/// match the state of another promise. Attempting to resolve or reject a
+/// resolved promise has no effect. A promise is _unresolved_ if it is not
+/// resolved. An unresolved promise is always in the pending state. A resolved
+/// promise may be pending, fulfilled or rejected.
+///
+/// [Job]: crate::ecmascript::Job
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Promise<'a>(BaseIndex<'a, PromiseHeapData<'static>>);
@@ -73,7 +99,7 @@ impl<'a> Promise<'a> {
     }
 
     ///### [27.2.4.7.1 PromiseResolve ( C, x )](https://tc39.es/ecma262/#sec-promise-resolve)
-    pub fn resolve(agent: &mut Agent, x: Value, mut gc: GcScope<'a, '_>) -> Self {
+    pub(crate) fn resolve(agent: &mut Agent, x: Value, mut gc: GcScope<'a, '_>) -> Self {
         // 1. If IsPromise(x) is true, then
         if let Value::Promise(promise) = x {
             // a. Let xConstructor be ? Get(x, "constructor").

@@ -367,6 +367,9 @@ impl<'m> CyclicModuleRecord<'m> {
 }
 
 /// ### [16.2.1.6 Cyclic Module Records](https://tc39.es/ecma262/#sec-cyclic-module-records)
+///
+/// Cyclic module records are the module records that can participate in
+/// dependency cycles. These are ECMAScript modules and WebAssembly modules.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct CyclicModule<'a>(InnerCyclicModule<'a>);
@@ -470,37 +473,40 @@ pub(crate) trait CyclicModuleMethods: CyclicModuleSlots {
     ) -> JsResult<'a, ()>;
 }
 
+/// A _GraphLoadingState Record_ is a Record that contains information about the
+/// loading process of a module graph. It's used to continue loading after a
+/// call to HostLoadImportedModule.
 #[derive(Debug)]
 pub struct GraphLoadingStateRecord<'a> {
-    // ### \[\[PromiseCapability]]
-    //
-    // a PromiseCapability Record
-    //
-    // The promise to resolve when the loading process finishes.
+    /// ### \[\[PromiseCapability]]
+    ///
+    /// a PromiseCapability Record
+    ///
+    /// The promise to resolve when the loading process finishes.
     pub(super) promise_capability: PromiseCapability<'a>,
-    // ### \[\[IsLoading]]
-    //
-    // a Boolean
-    //
-    // It is true if the loading process has not finished yet, neither successfully nor with an error.
+    /// ### \[\[IsLoading]]
+    ///
+    /// a Boolean
+    ///
+    /// It is true if the loading process has not finished yet, neither successfully nor with an error.
     pub(super) is_loading: bool,
-    // ### \[\[PendingModulesCount]]
-    //
-    // a non-negative integer
-    //
-    // It tracks the number of pending HostLoadImportedModule calls.
+    /// ### \[\[PendingModulesCount]]
+    ///
+    /// a non-negative integer
+    ///
+    /// It tracks the number of pending HostLoadImportedModule calls.
     pub(super) pending_modules_count: u32,
-    // ### \[\[Visited]]
-    //
-    // a List of Cyclic Module Records
-    //
-    // It is a list of the Cyclic Module Records that have been already loaded by the current loading process, to avoid infinite loops with circular dependencies.
+    /// ### \[\[Visited]]
+    ///
+    /// a List of Cyclic Module Records
+    ///
+    /// It is a list of the Cyclic Module Records that have been already loaded by the current loading process, to avoid infinite loops with circular dependencies.
     pub(super) visited: Vec<SourceTextModule<'a>>,
-    // ### \[\[HostDefined]]
-    //
-    // anything (default value is empty)
-    //
-    // It contains host-defined data to pass from the LoadRequestedModules caller to HostLoadImportedModule.
+    /// ### \[\[HostDefined]]
+    ///
+    /// anything (default value is empty)
+    ///
+    /// It contains host-defined data to pass from the LoadRequestedModules caller to HostLoadImportedModule.
     pub(super) host_defined: Option<HostDefined>,
 }
 

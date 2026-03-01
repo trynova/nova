@@ -28,6 +28,21 @@ use super::{
     ordinary_try_has_property, ordinary_try_set,
 };
 
+/// Primitive objects are special objects that hold a primitive value in their
+/// internal data.
+///
+/// # Examples
+///
+/// ```javascript
+/// new Number(0);
+/// new String("");
+/// new Boolean(true);
+/// new Object(0);
+/// new Object("");
+/// new Object(true);
+/// new Object(0n);
+/// new Object(Symbol());
+/// ```
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct PrimitiveObject<'a>(BaseIndex<'a, PrimitiveObjectRecord<'static>>);
@@ -46,6 +61,13 @@ impl IntrinsicPrimitiveObjectIndexes {
 }
 
 impl PrimitiveObject<'_> {
+    /// Returns `true` if the primitive object is a BigInt object.
+    ///
+    /// ## Examples
+    ///
+    /// ```javascript
+    /// new Object(0n);
+    /// ```
     pub fn is_bigint_object(self, agent: &Agent) -> bool {
         matches!(
             self.get(agent).data,
@@ -53,6 +75,14 @@ impl PrimitiveObject<'_> {
         )
     }
 
+    /// Returns `true` if the primitive object is a Number object.
+    ///
+    /// ## Examples
+    ///
+    /// ```javascript
+    /// new Number(0);
+    /// new Object(0);
+    /// ```
     pub fn is_number_object(self, agent: &Agent) -> bool {
         matches!(
             self.get(agent).data,
@@ -62,6 +92,14 @@ impl PrimitiveObject<'_> {
         )
     }
 
+    /// Returns `true` if the primitive object is a String object.
+    ///
+    /// ## Examples
+    ///
+    /// ```javascript
+    /// new String("");
+    /// new Object("");
+    /// ```
     pub fn is_string_object(self, agent: &Agent) -> bool {
         matches!(
             self.get(agent).data,
@@ -69,6 +107,13 @@ impl PrimitiveObject<'_> {
         )
     }
 
+    /// Returns `true` if the primitive object is a Symbol object.
+    ///
+    /// ## Examples
+    ///
+    /// ```javascript
+    /// new Object(Symbol())
+    /// ```
     pub fn is_symbol_object(self, agent: &Agent) -> bool {
         matches!(self.get(agent).data, PrimitiveObjectData::Symbol(_))
     }

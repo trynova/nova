@@ -445,6 +445,7 @@ impl HeapMarkAndSweep for ElementsVector<'static> {
     }
 }
 
+/// Property descriptor enumeration used for creating objects.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub enum ElementDescriptor<'a> {

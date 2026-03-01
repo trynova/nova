@@ -20,6 +20,22 @@ use crate::{
     },
 };
 
+/// ## [25.2 SharedArrayBuffer Objects](https://tc39.es/ecma262/#sec-sharedarraybuffer-objects)
+///
+/// _SharedArrayBuffer_ objects are byte buffers that be accessed concurrently
+/// from multiple Nova JavaScript engines. They are the main building block of
+/// true multi-threaded concurrency in JavaScript.
+///
+/// ### Memory model
+///
+/// The [ECMAScript memory model](https://tc39.es/ecma262/#sec-memory-model) is
+/// sequentially consistent when the program as no data races, but data races
+/// are allowed by the model. This makes the model strictly weaker than the Rust
+/// memory model, which decrees all data races to be undefined behaviour. Thus,
+/// it is not possible to access the backing bytes of a [`SharedArrayBuffer`]
+/// from Rust under any circumstances.
+///
+/// [`SharedArrayBuffer`]: SharedArrayBuffer
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct SharedArrayBuffer<'a>(BaseIndex<'a, SharedArrayBufferRecord<'static>>);
@@ -27,6 +43,7 @@ array_buffer_handle!(SharedArrayBuffer);
 arena_vec_access!(SharedArrayBuffer, 'a, SharedArrayBufferRecord, shared_array_buffers);
 
 impl<'sab> SharedArrayBuffer<'sab> {
+    /// Create a new ungrowable SharedArrayBuffer with the given byte length.
     pub fn new<'gc>(
         agent: &mut Agent,
         byte_length: usize,
@@ -44,6 +61,9 @@ impl<'sab> SharedArrayBuffer<'sab> {
         self.get_data_block(agent).as_racy_slice()
     }
 
+    /// Returns `true` if the SharedArrayBuffer has a 0 length.
+    ///
+    /// Note: this is wrong and will be going away.
     #[inline]
     pub fn is_detached(self, agent: &Agent) -> bool {
         self.get(agent).data_block.is_dangling()
@@ -89,6 +109,12 @@ impl<'sab> SharedArrayBuffer<'sab> {
             .bind(gc)
     }
 
+    /// Grows the SharedArrayBuffer.
+    ///
+    /// # Errors
+    ///
+    /// Throws an error if the new byte length is smaller than the current byte
+    /// length, or if it is greater than the maximum byte length.
     pub fn grow<'gc>(
         self,
         agent: &mut Agent,

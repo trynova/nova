@@ -133,29 +133,37 @@ impl<'a> TryFrom<Value<'a>> for HeapPrimitive<'a> {
 }
 
 impl Primitive<'_> {
+    /// Returns `true` if this primitive is a boolean.
     pub fn is_boolean(self) -> bool {
         matches!(self, Self::Boolean(_))
     }
 
+    /// Returns `true` if this primitive is a bigint.
     pub fn is_bigint(self) -> bool {
         matches!(self, Self::BigInt(_) | Self::SmallBigInt(_))
     }
 
+    /// Returns `true` if this primitive is a null.
     pub fn is_null(self) -> bool {
         matches!(self, Self::Null)
     }
 
+    /// Returns `true` if this primitive is a number.
     pub fn is_number(self) -> bool {
         matches!(self, Self::Number(_) | Self::SmallF64(_) | Self::Integer(_))
     }
 
+    /// Returns `true` if this primitive is a string.
     pub fn is_string(self) -> bool {
         matches!(self, Self::String(_) | Self::SmallString(_))
     }
+
+    /// Returns `true` if this primitive is a symbol.
     pub fn is_symbol(self) -> bool {
         matches!(self, Self::Symbol(_))
     }
 
+    /// Returns `true` if this primitive is undefined.
     pub fn is_undefined(self) -> bool {
         matches!(self, Self::Undefined)
     }

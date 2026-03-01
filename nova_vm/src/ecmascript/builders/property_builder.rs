@@ -7,39 +7,50 @@ use crate::{
     heap::ElementDescriptor,
 };
 
+#[doc(hidden)]
 #[derive(Default, Clone, Copy)]
 pub struct NoKey;
 
+#[doc(hidden)]
 #[derive(Default, Clone, Copy)]
 pub struct NoEnumerable;
 
+#[doc(hidden)]
 #[derive(Default, Clone, Copy)]
 pub struct NoConfigurable;
 
+#[doc(hidden)]
 #[derive(Default, Clone, Copy)]
 pub struct NoDefinition;
 
+#[doc(hidden)]
 #[derive(Clone, Copy)]
 pub struct CreatorKey(PropertyKey<'static>);
 
+#[doc(hidden)]
 #[derive(Clone, Copy)]
 pub struct CreatorGetAccessor(Function<'static>);
 
+#[doc(hidden)]
 #[derive(Clone, Copy)]
 pub struct CreatorSetAccess(Function<'static>);
 
+#[doc(hidden)]
 #[derive(Clone, Copy)]
 pub struct CreatorGetSetAccessor {
     get: Function<'static>,
     set: Function<'static>,
 }
 
+#[doc(hidden)]
 #[derive(Clone, Copy)]
 pub struct CreatorValue(Value<'static>);
 
+#[doc(hidden)]
 #[derive(Clone, Copy)]
 pub struct CreatorReadOnlyValue(Value<'static>);
 
+/// Builder struct for creating object or function properties in embedders.
 pub struct PropertyBuilder<'agent, K: 'static, D> {
     pub(crate) agent: &'agent mut Agent,
     key: K,
@@ -49,7 +60,8 @@ pub struct PropertyBuilder<'agent, K: 'static, D> {
 }
 
 impl<'agent> PropertyBuilder<'agent, NoKey, NoDefinition> {
-    pub fn new(agent: &'agent mut Agent) -> Self {
+    /// Create a new property descriptor builder.
+    pub(crate) fn new(agent: &'agent mut Agent) -> Self {
         PropertyBuilder {
             agent,
             key: NoKey,
@@ -61,6 +73,7 @@ impl<'agent> PropertyBuilder<'agent, NoKey, NoDefinition> {
 }
 
 impl<'agent, D> PropertyBuilder<'agent, NoKey, D> {
+    /// Set the property descriptor key.
     pub fn with_key(self, key: PropertyKey<'static>) -> PropertyBuilder<'agent, CreatorKey, D> {
         PropertyBuilder {
             agent: self.agent,
@@ -73,6 +86,7 @@ impl<'agent, D> PropertyBuilder<'agent, NoKey, D> {
 }
 
 impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
+    /// Set the property descriptor value.
     pub fn with_value(self, value: Value<'static>) -> PropertyBuilder<'agent, K, CreatorValue> {
         PropertyBuilder {
             agent: self.agent,
@@ -83,6 +97,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
         }
     }
 
+    /// Set the property descriptor value and make it read-only.
     pub fn with_value_readonly(
         self,
         value: Value<'static>,
@@ -96,6 +111,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
         }
     }
 
+    /// Create a value for the property descriptor.
     pub fn with_value_creator(
         self,
         creator: impl FnOnce(&mut Agent) -> Value<'static>,
@@ -110,6 +126,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
         }
     }
 
+    /// Create a value for the property descriptor and make it read-only.
     pub fn with_value_creator_readonly(
         self,
         creator: impl FnOnce(&mut Agent) -> Value<'static>,
@@ -126,6 +143,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
 }
 
 impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
+    /// Set a getter function on the property descriptor.
     pub fn with_getter_function(
         self,
         getter: Function<'static>,
@@ -139,6 +157,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
         }
     }
 
+    /// Create a getter function and set it on the property descriptor.
     pub fn with_getter(
         self,
         creator: impl FnOnce(&mut Agent) -> Function<'static>,
@@ -153,6 +172,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
         }
     }
 
+    /// Set a setter function on the property descriptor.
     pub fn with_setter_function(
         self,
         setter: Function<'static>,
@@ -166,6 +186,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
         }
     }
 
+    /// Create a setter function and set it on the property descriptor.
     pub fn with_setter(
         self,
         creator: impl FnOnce(&mut Agent) -> Function<'static>,
@@ -180,6 +201,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
         }
     }
 
+    /// Set getter and setter functions on the property descriptor.
     pub fn with_getter_and_setter_functions(
         self,
         getter: Function<'static>,
@@ -197,6 +219,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
         }
     }
 
+    /// Create getter and setter functions and set them on the property descriptor.
     pub fn with_getter_and_setter(
         self,
         creator: impl FnOnce(&mut Agent) -> (Function<'static>, Function<'static>),
@@ -216,6 +239,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
 }
 
 impl<'agent, K, D> PropertyBuilder<'agent, K, D> {
+    /// Set the `enumerable` flag of the property descriptor.
     pub fn with_enumerable(self, enumerable: bool) -> PropertyBuilder<'agent, K, D> {
         PropertyBuilder {
             agent: self.agent,
@@ -228,6 +252,7 @@ impl<'agent, K, D> PropertyBuilder<'agent, K, D> {
 }
 
 impl<'agent, K, D> PropertyBuilder<'agent, K, D> {
+    /// Set the `configurable` flag of the property descriptor.
     pub fn with_configurable(self, configurable: bool) -> PropertyBuilder<'agent, K, D> {
         PropertyBuilder {
             agent: self.agent,
@@ -240,6 +265,7 @@ impl<'agent, K, D> PropertyBuilder<'agent, K, D> {
 }
 
 impl PropertyBuilder<'_, CreatorKey, CreatorValue> {
+    /// Builds the property descriptor.
     pub fn build(
         self,
     ) -> (
@@ -256,6 +282,7 @@ impl PropertyBuilder<'_, CreatorKey, CreatorValue> {
 }
 
 impl PropertyBuilder<'_, CreatorKey, CreatorReadOnlyValue> {
+    /// Builds the property descriptor.
     pub fn build(
         self,
     ) -> (
@@ -272,6 +299,7 @@ impl PropertyBuilder<'_, CreatorKey, CreatorReadOnlyValue> {
 }
 
 impl PropertyBuilder<'_, CreatorKey, CreatorGetAccessor> {
+    /// Builds the property descriptor.
     pub fn build(
         self,
     ) -> (
@@ -292,6 +320,7 @@ impl PropertyBuilder<'_, CreatorKey, CreatorGetAccessor> {
 }
 
 impl PropertyBuilder<'_, CreatorKey, CreatorSetAccess> {
+    /// Builds the property descriptor.
     pub fn build(
         self,
     ) -> (
@@ -312,6 +341,7 @@ impl PropertyBuilder<'_, CreatorKey, CreatorSetAccess> {
 }
 
 impl PropertyBuilder<'_, CreatorKey, CreatorGetSetAccessor> {
+    /// Builds the property descriptor.
     pub fn build(
         self,
     ) -> (

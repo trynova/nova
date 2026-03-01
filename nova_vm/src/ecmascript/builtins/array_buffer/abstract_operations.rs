@@ -109,8 +109,6 @@ pub(crate) fn detach_array_buffer<'a>(
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
     // 1. Assert: IsSharedArrayBuffer(arrayBuffer) is false.
-    // TODO: SharedArrayBuffer that we can even take here.
-
     // 2. If key is not present, set key to undefined.
     // 3. If arrayBuffer.[[ArrayBufferDetachKey]] is not key, throw a TypeError exception.
     if array_buffer.get_detach_key(agent) != key {

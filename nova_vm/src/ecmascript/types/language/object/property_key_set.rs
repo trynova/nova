@@ -25,10 +25,12 @@ impl core::fmt::Debug for PropertyKeySet<'_> {
 }
 
 impl<'a> PropertyKeySet<'a> {
+    /// Create a new PropertyKeySet.
     pub fn new(_: NoGcScope<'a, '_>) -> Self {
         Self(HashTable::new())
     }
 
+    /// Create a new PropertyKeySet with a given capacity.
     pub fn with_capacity(capacity: usize, _: NoGcScope<'a, '_>) -> Self {
         Self(HashTable::with_capacity(capacity))
     }

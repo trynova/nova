@@ -156,7 +156,7 @@ impl Default for ElementIndex<'static> {
 
 impl ElementIndex<'_> {
     #[inline(always)]
-    pub fn last_element_index<const N: usize>(vec: &[[Option<Value>; N]]) -> Self {
+    pub(crate) fn last_element_index<const N: usize>(vec: &[[Option<Value>; N]]) -> Self {
         assert!(!vec.is_empty());
         Self::from_index(vec.len() - 1)
     }
@@ -190,7 +190,9 @@ impl Default for PropertyKeyIndex<'static> {
 
 impl PropertyKeyIndex<'_> {
     #[inline(always)]
-    pub fn last_property_key_index<const N: usize>(vec: &[[Option<PropertyKey>; N]]) -> Self {
+    pub(crate) fn last_property_key_index<const N: usize>(
+        vec: &[[Option<PropertyKey>; N]],
+    ) -> Self {
         assert!(!vec.is_empty());
         Self::from_index(vec.len() - 1)
     }

@@ -31,6 +31,18 @@ use std::{ptr::NonNull, rc::Rc};
 pub type HostDefined = Rc<dyn Any>;
 
 /// ## [16.1 Scripts](https://tc39.es/ecma262/#sec-scripts)
+///
+/// Scripts are the most common way of executing synchronous JavaScript code. A
+/// _Script_ can be created by parsing a source [`String`] using the
+/// [`parse_script`] function, and Script can then be run using the
+/// [`script_evaluation`] function.
+///
+/// Consider favouring [ECMAScript Modules] instead whenever possible.
+///
+/// [`String`]: crate::ecmascript::String
+/// [`parse_script`]: crate::ecmascript::parse_script
+/// [`script_evaluation`]: crate::ecmascript::script_evaluation
+/// [ECMAScript Modules]: crate::ecmascript::SourceTextModule
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct Script<'a>(BaseIndex<'a, ScriptRecord<'static>>);
@@ -192,11 +204,22 @@ impl HeapMarkAndSweep for ScriptRecord<'static> {
 
 /// ### [16.1.5 ParseScript ( sourceText, realm, hostDefined )](https://tc39.es/ecma262/#sec-parse-script)
 ///
-/// The abstract operation ParseScript takes arguments sourceText (ECMAScript
-/// source text), realm (a Realm Record), and hostDefined (anything) and
-/// returns a Script Record or a non-empty List of SyntaxError objects. It
-/// creates a Script Record based upon the result of parsing sourceText as a
-/// Script.
+/// The abstract operation ParseScript takes arguments _sourceText_ ([ECMAScript
+/// source text]), _realm_ (a [Realm Record]), and _hostDefined_ ([anything])
+/// and returns a Script Record or a non-empty List of SyntaxError objects. It
+/// creates a Script Record based upon the result of parsing _sourceText_ as a
+/// Script. The `strict` boolean is an additional parameter that can be used to
+/// parse the _sourceText_ in strict mode: it is recommended to use strict mode
+/// unless non-strict mode is required.
+///
+/// The resulting [`Script`] can be executed using the [`script_evaluation`]
+/// function.
+///
+/// [`Script`]: crate::ecmascript::Script
+/// [`script_evaluation`]: crate::ecmascript::script_evaluation
+/// [ECMAScript source text]: crate::ecmascript::String
+/// [Realm Record]: crate::ecmascript::Realm
+/// [anything]: crate::ecmascript::HostDefined
 pub fn parse_script<'a>(
     agent: &mut Agent,
     source_text: String,

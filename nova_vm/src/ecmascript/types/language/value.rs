@@ -54,6 +54,45 @@ use core::{
 };
 
 /// ## [6.1 ECMAScript Language Types](https://tc39.es/ecma262/#sec-ecmascript-language-types)
+///
+/// The _Value_ is the main entry data type of the ECMAScript language. All data
+/// within JavaScript code is expressed as Values, and they are separated into
+/// two primary groups: primitives and objects. Primitives are `undefined`,
+/// `null`, booleans, strings, numbers, bigints, and symbols. All other Values
+/// are objects.
+///
+/// In Nova JavaScript engine, the Value is a normal Rust enum containing either
+/// stack-allocated primitive data, or a [handle] referencing the heap-allocated
+/// data of the Value. Objects are always heap-allocated, while primitives are
+/// allocated on the stack when possible. A handle does not keep its
+/// heap-allocated data from being garbage collected unless it has been
+/// explicitly rooted into a [`Scoped`] or [`Global`].
+///
+/// ### Garbage collection and rooting
+///
+/// Garbage collection in Nova JavaScript engine can only happen by calling the
+/// [`Agent::gc`] function, called also "a garbage collection safepoint", and
+/// calling the function requires holding the [`GcScope`] marker type. This
+/// marker is guaranteed to be unique from a usage stand point, meaning that
+/// only one marker is active at any given time in the call graph, and therefore
+/// a function can directly see if it contains safepoints by seeing if it holds
+/// a [`GcScope`] and if it is passed to any other functions either by value or
+/// by reborrowing using the [`GcScope::reborrow`] function.
+///
+/// When a safepoint exists in the function, all handles (Values and other
+/// types, like Objects) invalidate at the safepoint. To detect this, handles
+/// can be bound to the [`GcScope`] marker type by using the [`Bindable::bind`]
+/// method which will make the handle automatically invalidate at safepoints. To
+/// hold a handle past a safepoint, it is easiest to "root" it for the duration
+/// of the current call stack using the [`Scopable::scope`] method.
+///
+/// [handle]: https://en.wikipedia.org/wiki/Handle_(computing)
+/// [`Scoped`]: crate::engine::Scoped
+/// [`Global`]: crate::engine::Global
+/// [`GcScope`]: crate::engine::GcScope
+/// [`GcScope::reborrow`]: crate::engine::GcScope::reborrow
+/// [`Bindable::bind`]: crate::engine::Bindable::bind
+/// [`Scopable::scope`]: crate::engine::Scopable::scope
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 #[repr(u8)]
 pub enum Value<'a> {
@@ -69,15 +108,15 @@ pub enum Value<'a> {
 
     /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
     ///
-    /// UTF-8 string on the heap. Accessing the data must be done through the
-    /// Agent. ECMAScript specification compliant UTF-16 indexing is
+    /// WTF-8 string on the heap. Accessing the data can only be done through
+    /// the Agent. ECMAScript specification compliant WTF-16 indexing is
     /// implemented through an index mapping.
     String(HeapString<'a>),
     /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
     ///
-    /// 7-byte UTF-8 string on the stack. End of the string is determined by
-    /// the first 0xFF byte in the data. UTF-16 indexing is calculated on
-    /// demand from the data.
+    /// 7-byte WTF-8 string on the stack. End of the string is determined by the
+    /// first 0xFF byte in the data. WTF-16 indexing is calculated on demand
+    /// from the data.
     SmallString(SmallString),
 
     /// ### [6.1.5 The Symbol Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-symbol-type)
@@ -85,21 +124,21 @@ pub enum Value<'a> {
 
     /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
-    /// f64 on the heap. Accessing the data must be done through the Agent.
+    /// f64 on the heap. Accessing the data can only be done through the Agent.
     Number(HeapNumber<'a>),
     /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
-    /// 53-bit signed integer on the stack.
+    /// 54-bit signed integer on the stack.
     Integer(SmallInteger),
     /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
-    /// 56-bit f64 on the stack. The missing byte is a zero least significant
-    /// byte.
+    /// f64 with 8 trailing zeroes on the stack that are cut off to produce a
+    /// 56-bit value.
     SmallF64(SmallF64),
 
     /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
     ///
-    /// Unlimited size integer data on the heap. Accessing the data must be
+    /// Unlimited size integer data on the heap. Accessing the data can only be
     /// done through the Agent.
     BigInt(HeapBigInt<'a>),
     /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)

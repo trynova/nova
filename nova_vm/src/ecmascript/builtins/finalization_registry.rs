@@ -18,6 +18,11 @@ use crate::{
     },
 };
 
+/// ## [26.2 FinalizationRegistry Objects](https://tc39.es/ecma262/#sec-finalization-registry-objects)
+///
+/// A FinalizationRegistry is an object that manages registration and
+/// unregistration of cleanup operations that are performed when target objects
+/// and symbols are garbage collected.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct FinalizationRegistry<'a>(BaseIndex<'a, FinalizationRegistryRecord<'static>>);

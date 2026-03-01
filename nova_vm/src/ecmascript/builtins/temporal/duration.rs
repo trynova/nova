@@ -23,6 +23,13 @@ use crate::{
     },
 };
 
+/// # [7 Temporal.Duration Objects](https://tc39.es/proposal-temporal/#sec-temporal-duration-objects)
+///
+/// A Temporal.Duration object describes the difference in elapsed time between
+/// two other Temporal objects of the same type: Instant, PlainDate,
+/// PlainDateTime, PlainTime, PlainYearMonth, or ZonedDateTime. Objects of this
+/// type are only created via the _`.since()`_ and _`.until()`_ methods of these
+/// objects.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct TemporalDuration<'a>(BaseIndex<'a, DurationRecord<'static>>);

@@ -8,21 +8,30 @@ use crate::{
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct SymbolHeapData<'a> {
-    pub(crate) descriptor: Option<String<'a>>,
+    /// \[\[Description]]
+    pub(super) description: Option<String<'a>>,
+}
+
+impl<'a> SymbolHeapData<'a> {
+    pub(crate) fn new(description: String<'a>) -> Self {
+        Self {
+            description: Some(description),
+        }
+    }
 }
 
 bindable_handle!(SymbolHeapData);
 
 impl HeapMarkAndSweep for SymbolHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        let Self { descriptor } = self;
-        descriptor.mark_values(queues);
+        let Self { description } = self;
+        description.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let Self { descriptor } = self;
-        descriptor.sweep_values(compactions);
+        let Self { description } = self;
+        description.sweep_values(compactions);
     }
 }

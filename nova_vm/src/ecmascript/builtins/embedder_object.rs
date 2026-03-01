@@ -16,6 +16,10 @@ use crate::{
     },
 };
 
+/// Embedder objects are intended for embedders to create objects with native
+/// data embedded into them. The type is currently unimplemented but the
+/// intention will be that each embedder object is always provided with a
+/// backing object reference while the embedder provides the data.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct EmbedderObject<'a>(BaseIndex<'a, EmbedderObjectHeapData<'static>>);

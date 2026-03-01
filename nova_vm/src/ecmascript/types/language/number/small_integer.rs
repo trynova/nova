@@ -4,7 +4,12 @@
 
 use crate::ecmascript::{SmallBigInt, number_value};
 
-/// 56-bit signed integer.
+/// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+///
+/// Stack-allocated integer [`Number`] data. Internally, the value is a 54-bit
+/// signed integer stored in 56 bits, filling in the entire safe integer range.
+///
+/// [`Number`]: crate::ecmascript::Number
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct SmallInteger {
     pub(crate) data: [u8; 7],
