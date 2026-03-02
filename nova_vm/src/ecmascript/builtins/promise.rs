@@ -8,8 +8,8 @@ pub(crate) use data::*;
 
 use crate::{
     ecmascript::{
-        Agent, InternalMethods, InternalSlots, JsError, JsResult, OrdinaryObject,
-        PromiseCapability, ProtoIntrinsics, Value, object_handle,
+        Agent, BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, JsError, JsResult,
+        OrdinaryObject, PromiseCapability, ProtoIntrinsics, Value, get, object_handle,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{
@@ -51,6 +51,45 @@ object_handle!(Promise);
 arena_vec_access!(Promise, 'a, PromiseHeapData, promises);
 
 impl<'a> Promise<'a> {
+    /// ### [27.2.4.7.1 PromiseResolve ( C, x )](https://tc39.es/ecma262/#sec-promise-resolve)
+    ///
+    /// Internal variant for call sites that must handle abrupt completion from
+    /// `PromiseResolve(%Promise%, x)`.
+    pub fn resolve_maybe_abrupt(
+        agent: &mut Agent,
+        x: Value,
+        mut gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, Self> {
+        // 1. If IsPromise(x) is true, then
+        if let Value::Promise(promise) = x {
+            let scoped_promise = promise.scope(agent, gc.nogc());
+            // a. Let xConstructor be ? Get(x, "constructor").
+            let x_constructor = match get(
+                agent,
+                promise,
+                BUILTIN_STRING_MEMORY.constructor.into(),
+                gc.reborrow(),
+            ) {
+                Ok(value) => value.unbind().bind(gc.nogc()),
+                Err(err) => return Err(err.unbind().bind(gc.into_nogc())),
+            };
+            // b. If SameValue(xConstructor, C) is true, return x.
+            // NOTE: Ignoring subclasses.
+            if x_constructor == agent.current_realm_record().intrinsics().promise().into() {
+                return Ok(scoped_promise.get(agent).bind(gc.into_nogc()));
+            }
+        }
+        // 2. Let promiseCapability be ? NewPromiseCapability(C).
+        let promise_capability = PromiseCapability::new(agent, gc.nogc());
+        let promise = promise_capability.promise().scope(agent, gc.nogc());
+        // 3. Perform ? Call(promiseCapability.[[Resolve]], undefined, « x »).
+        // NOTE: Promise capability resolve never throws in Nova's internal model.
+        promise_capability.unbind().resolve(agent, x, gc.reborrow());
+        // 4. Return promiseCapability.[[Promise]].
+        // SAFETY: Not shared.
+        Ok(unsafe { promise.take(agent) }.bind(gc.into_nogc()))
+    }
+
     /// Create a new resolved Promise.
     pub(crate) fn new_resolved(agent: &mut Agent, value: Value<'a>) -> Self {
         agent.heap.create(PromiseHeapData {
