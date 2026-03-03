@@ -136,7 +136,11 @@ impl TemporalPlainTimeConstructor {
             .map_err(|err| temporal_err_to_js_err(agent, err, gc.nogc()))
             .unbind()?
         } else {
-            todo!() // TODO: create range error
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "not a valid time",
+                gc.into_nogc(),
+            ));
         };
 
         // 10. Return ? CreateTemporalTime(time, NewTarget).
