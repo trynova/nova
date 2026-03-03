@@ -41,6 +41,16 @@ impl Builtin for TemporalPlainTimePrototypeGetSecond {
 }
 impl BuiltinGetter for TemporalPlainTimePrototypeGetSecond {}
 
+struct TemporalPlainTimePrototypeGetMicrosecond;
+impl Builtin for TemporalPlainTimePrototypeGetMicrosecond {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_microsecond;
+    const KEY: Option<PropertyKey<'static>> =
+        Some(BUILTIN_STRING_MEMORY.microsecond.to_property_key());
+    const LENGTH: u8 = 0;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalPlainTimePrototype::get_microsecond);
+}
+impl BuiltinGetter for TemporalPlainTimePrototypeGetMicrosecond {}
+
 struct TemporalPlainTimePrototypeGetNanosecond;
 impl Builtin for TemporalPlainTimePrototypeGetNanosecond {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_nanosecond;
@@ -118,6 +128,21 @@ impl TemporalPlainTimePrototype {
         Ok(value.into())
     }
 
+    /// ### [4.3.4 get Temporal.PlainTime.prototype.microsecond](https://tc39.es/proposal-temporal/#sec-get-temporal.plaintime.prototype.microsecond)
+    pub(crate) fn get_microsecond<'gc>(
+        agent: &mut Agent,
+        this_value: Value,
+        _: ArgumentsList,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        let gc = gc.into_nogc();
+        // 1. Let plainTime be the this value.
+        // 2. Perform ? RequireInternalSlot(plainTime, [[InitializedTemporalTime]]).
+        let plain_time = require_internal_slot_temporal_plain_time(agent, this_value, gc)?;
+        // 3. Return 𝔽(plainTime.[[Time]].[[Microsecond]]).
+        let value = plain_time.inner_plain_time(agent).microsecond();
+        Ok(value.into())
+    }
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, _: NoGcScope) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let this = intrinsics.temporal_plain_time_prototype();
@@ -125,12 +150,13 @@ impl TemporalPlainTimePrototype {
         let plain_time_constructor = intrinsics.temporal_plain_time();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
-            .with_property_capacity(6)
+            .with_property_capacity(7)
             .with_prototype(object_prototype)
             .with_constructor_property(plain_time_constructor)
             .with_builtin_function_getter_property::<TemporalPlainTimePrototypeGetHour>()
             .with_builtin_function_getter_property::<TemporalPlainTimePrototypeGetMinute>()
             .with_builtin_function_getter_property::<TemporalPlainTimePrototypeGetSecond>()
+            .with_builtin_function_getter_property::<TemporalPlainTimePrototypeGetMicrosecond>()
             .with_builtin_function_getter_property::<TemporalPlainTimePrototypeGetNanosecond>()
             .with_property(|builder| {
                 builder
