@@ -422,7 +422,7 @@ impl SharedDataBlockMaxByteLength {
 }
 
 #[cfg(feature = "shared-array-buffer")]
-pub struct WaiterRecord {
+pub(crate) struct WaiterRecord {
     pub condvar: Condvar,
     pub notified: AtomicBool,
 }
@@ -430,7 +430,7 @@ pub struct WaiterRecord {
 /// Result of an `Atomics.wait` or `Atomics.waitAsync` operation.
 #[derive(Debug)]
 #[cfg(feature = "shared-array-buffer")]
-pub enum WaitResult {
+pub(crate) enum WaitResult {
     Ok,
     TimedOut,
     NotEqual,
@@ -438,12 +438,12 @@ pub enum WaitResult {
 
 #[cfg(feature = "shared-array-buffer")]
 #[derive(Default)]
-pub struct WaiterList {
+pub(crate) struct WaiterList {
     pub waiters: std::collections::VecDeque<Arc<WaiterRecord>>,
 }
 
 #[cfg(feature = "shared-array-buffer")]
-pub type SharedWaiterMap = Mutex<std::collections::HashMap<usize, WaiterList>>;
+type SharedWaiterMap = Mutex<std::collections::HashMap<usize, WaiterList>>;
 
 /// # [6.2.9 Data Blocks](https://tc39.es/ecma262/#sec-data-blocks)
 ///
