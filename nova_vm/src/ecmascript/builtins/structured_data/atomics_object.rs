@@ -1524,7 +1524,7 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
                 !waiter_record.notified.load(StdOrdering::Acquire)
             });
             match lock_result {
-                Ok(new_guard) => guard = new_guard,
+                Ok(_) => (),
                 Err(e) => panic!(
                     "Another thread panicked while holding the waiter list lock, poisoning it: {e:?}"
                 ),
