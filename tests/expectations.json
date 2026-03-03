@@ -4022,8 +4022,6 @@
   "built-ins/Temporal/PlainTime/prototype/round/smallestunit-string-shorthand.js": "FAIL",
   "built-ins/Temporal/PlainTime/prototype/round/smallestunit-wrong-type.js": "FAIL",
   "built-ins/Temporal/PlainTime/prototype/round/subclassing-ignored.js": "FAIL",
-  "built-ins/Temporal/PlainTime/prototype/second/branding.js": "FAIL",
-  "built-ins/Temporal/PlainTime/prototype/second/prop-desc.js": "FAIL",
   "built-ins/Temporal/PlainTime/prototype/since/argument-cast.js": "FAIL",
   "built-ins/Temporal/PlainTime/prototype/since/argument-number.js": "FAIL",
   "built-ins/Temporal/PlainTime/prototype/since/argument-string-calendar-annotation-invalid-key.js": "FAIL",

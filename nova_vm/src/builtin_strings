@@ -184,6 +184,7 @@ get description
 #[cfg(feature = "temporal")]get minute
 #[cfg(feature = "regexp")]get multiline
 #[cfg(feature = "array-buffer")]get resizable
+#[cfg(feature = "temporal")]get second
 get size
 #[cfg(feature = "regexp")]get source
 #[cfg(feature = "regexp")]get sticky
@@ -370,6 +371,7 @@ revocable
 #[cfg(feature = "temporal")]roundingIncrement
 seal
 #[cfg(feature = "regexp")]search
+#[cfg(feature = "temporal")]second
 #[cfg(feature = "temporal")]seconds
 set
 #[cfg(feature = "set")]Set
