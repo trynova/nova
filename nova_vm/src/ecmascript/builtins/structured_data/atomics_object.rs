@@ -1764,28 +1764,40 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
             .push_back(waiter_record.clone());
 
         if t == u64::MAX {
-            while !waiter_record.notified.load(StdOrdering::Acquire) {
-                guard = waiter_record.condvar.wait(guard).unwrap();
+            let lock_result = waiter_record.condvar.wait_while(guard, |_| {
+                !waiter_record.notified.load(StdOrdering::Acquire)
+            });
+            match lock_result {
+                Ok(_) => return WaitResult::Ok,
+                Err(e) => panic!(
+                    "Another thread panicked while holding the waiter list lock, poisoning it: {e:?}"
+                ),
             }
-            WaitResult::Ok
         } else {
-            let deadline = Instant::now() + Duration::from_millis(t);
-            loop {
-                if waiter_record.notified.load(StdOrdering::Acquire) {
+            let lock_result =
+                waiter_record
+                    .condvar
+                    .wait_timeout_while(guard, Duration::from_millis(t), |_| {
+                        !waiter_record.notified.load(StdOrdering::Acquire)
+                    });
+
+            match lock_result {
+                Ok((new_guard, timeout)) => {
+                    guard = new_guard;
+                    if timeout.timed_out() {
+                        if let Some(list) = guard.get_mut(&byte_index_in_buffer) {
+                            list.waiters.retain(|w| !Arc::ptr_eq(w, &waiter_record));
+                        }
+
+                        // 31. Perform LeaveCriticalSection(WL).
+                        // 32. If mode is sync, return waiterRecord.[[Result]].
+                        return WaitResult::TimedOut;
+                    }
                     return WaitResult::Ok;
                 }
-                let remaining = deadline.saturating_duration_since(Instant::now());
-                if remaining.is_zero() {
-                    if let Some(list) = guard.get_mut(&byte_index_in_buffer) {
-                        list.waiters.retain(|w| !Arc::ptr_eq(w, &waiter_record));
-                    }
-                    return WaitResult::TimedOut;
-                }
-                let (new_guard, _) = waiter_record
-                    .condvar
-                    .wait_timeout(guard, remaining)
-                    .unwrap();
-                guard = new_guard;
+                Err(e) => panic!(
+                    "Another thread panicked while holding the waiter list lock, poisoning it: {e:?}"
+                ),
             }
         }
     });
