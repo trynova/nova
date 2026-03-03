@@ -1768,7 +1768,7 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
                 !waiter_record.notified.load(StdOrdering::Acquire)
             });
             match lock_result {
-                Ok(_) => return WaitResult::Ok,
+                Ok(_) => WaitResult::Ok,
                 Err(e) => panic!(
                     "Another thread panicked while holding the waiter list lock, poisoning it: {e:?}"
                 ),
@@ -1793,7 +1793,7 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
                         // 32. If mode is sync, return waiterRecord.[[Result]].
                         return WaitResult::TimedOut;
                     }
-                    return WaitResult::Ok;
+                    WaitResult::Ok
                 }
                 Err(e) => panic!(
                     "Another thread panicked while holding the waiter list lock, poisoning it: {e:?}"
