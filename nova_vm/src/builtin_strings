@@ -183,6 +183,7 @@ get description
 #[cfg(feature = "array-buffer")]get maxByteLength
 #[cfg(feature = "temporal")]get minute
 #[cfg(feature = "regexp")]get multiline
+#[cfg(feature = "regexp")]get nanosecond
 #[cfg(feature = "array-buffer")]get resizable
 #[cfg(feature = "temporal")]get second
 get size
@@ -309,6 +310,7 @@ Module
 #[cfg(feature = "regexp")]multiline
 name
 NaN
+#[cfg(feature = "temporal")]nanosecond
 #[cfg(feature = "temporal")]nanoseconds
 NEGATIVE_INFINITY
 next
