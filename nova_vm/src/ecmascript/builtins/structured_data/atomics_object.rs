@@ -10,7 +10,7 @@ use std::{
         atomic::{AtomicBool, Ordering as StdOrdering},
     },
     thread::{self, JoinHandle},
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use ecmascript_atomics::Ordering;
