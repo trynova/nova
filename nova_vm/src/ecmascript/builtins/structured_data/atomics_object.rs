@@ -1524,25 +1524,29 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
                 guard = waiter_record.condvar.wait(guard).unwrap();
             }
         } else {
-            let deadline = Instant::now() + Duration::from_millis(t);
-            loop {
-                if waiter_record.notified.load(StdOrdering::Acquire) {
-                    break;
-                }
-                let remaining = deadline.saturating_duration_since(Instant::now());
-                if remaining.is_zero() {
-                    if let Some(list) = guard.get_mut(&byte_index_in_buffer) {
-                        list.waiters.retain(|w| !Arc::ptr_eq(w, &waiter_record));
-                    }
-                    // 31. Perform LeaveCriticalSection(WL).
-                    // 32. If mode is sync, return waiterRecord.[[Result]].
-                    return BUILTIN_STRING_MEMORY.timed_out.into();
-                }
-                let (new_guard, _) = waiter_record
+            let lock_result =
+                waiter_record
                     .condvar
-                    .wait_timeout(guard, remaining)
-                    .unwrap();
-                guard = new_guard;
+                    .wait_timeout_while(guard, Duration::from_millis(t), |_| {
+                        !waiter_record.notified.load(StdOrdering::Acquire)
+                    });
+
+            match lock_result {
+                Ok((new_guard, timeout)) => {
+                    guard = new_guard;
+                    if timeout.timed_out() {
+                        if let Some(list) = guard.get_mut(&byte_index_in_buffer) {
+                            list.waiters.retain(|w| !Arc::ptr_eq(w, &waiter_record));
+                        }
+
+                        // 31. Perform LeaveCriticalSection(WL).
+                        // 32. If mode is sync, return waiterRecord.[[Result]].
+                        return BUILTIN_STRING_MEMORY.timed_out.into();
+                    }
+                }
+                Err(e) => panic!(
+                    "Another thread panicked while holding the waiter list lock, poisoning it: {e:?}"
+                ),
             }
         }
         // 31. Perform LeaveCriticalSection(WL).
