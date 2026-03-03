@@ -3,7 +3,6 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use std::{
-    collections::VecDeque,
     hint::assert_unchecked,
     ops::ControlFlow,
     sync::{
@@ -30,7 +29,7 @@ use crate::{
         to_integer_or_infinity, to_number, try_result_into_js, try_to_index, unwrap_try,
         validate_index, validate_typed_array,
     },
-    ecmascript::{WaitResult, WaiterList, WaiterRecord},
+    ecmascript::{WaitResult, WaiterRecord},
     engine::{Bindable, GcScope, Global, NoGcScope, Scopable},
     heap::{ObjectEntry, WellKnownSymbols},
 };
@@ -672,7 +671,8 @@ impl AtomicsObject {
         // 8. Let WL be GetWaiterList(block, byteIndexInBuffer).
         let data_block = buffer.get_data_block(agent);
         // 9. Perform EnterCriticalSection(WL).
-        // SAFETY: buffer is a valid SharedArrayBuffer it cannot be detached, so the data block is non-dangling.
+        // SAFETY: buffer is a valid SharedArrayBuffer and cannot be detached. A 0-sized SAB has a
+        // dangling data block with no backing allocation, but `get_waiters` returns `None` in that case.
         let mut n = 0;
         let Some(waiters) = (unsafe { data_block.get_waiters() }) else {
             return Ok(0.into());
@@ -694,9 +694,10 @@ impl AtomicsObject {
             waiter.condvar.notify_one();
             n += 1;
         }
-        drop(guard);
 
         // 12. Perform LeaveCriticalSection(WL).
+        drop(guard);
+
         // 13. Let n be the number of elements in S.
         // 14. Return 𝔽(n).
         Ok(Number::from_usize(agent, n, gc).into())
@@ -1488,7 +1489,9 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
     // 29. If mode is sync, then
     if !IS_ASYNC {
         let data_block = buffer.get_data_block(agent);
-        // SAFETY: buffer is a valid SharedArrayBuffer it cannot be detached, so the data block is non-dangling.
+        // SAFETY: buffer is a valid SharedArrayBuffer and cannot be detached. A 0-sized SAB would
+        // have a dangling data block, but Atomics.wait requires `byteIndex` to be within bounds,
+        // so a 0-sized SAB would have been rejected earlier with a RangeError.
         let waiters = unsafe { data_block.get_or_init_waiters() };
         let waiter_record = Arc::new(WaiterRecord {
             condvar: Condvar::new(),
@@ -1512,9 +1515,7 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
         // a. Perform SuspendThisAgent(WL, waiterRecord).
         guard
             .entry(byte_index_in_buffer)
-            .or_insert_with(|| WaiterList {
-                waiters: VecDeque::new(),
-            })
+            .or_default()
             .waiters
             .push_back(waiter_record.clone());
 
@@ -1748,9 +1749,7 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
 
         guard
             .entry(byte_index_in_buffer)
-            .or_insert_with(|| WaiterList {
-                waiters: VecDeque::new(),
-            })
+            .or_default()
             .waiters
             .push_back(waiter_record.clone());
 

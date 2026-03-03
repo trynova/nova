@@ -437,6 +437,7 @@ pub enum WaitResult {
 }
 
 #[cfg(feature = "shared-array-buffer")]
+#[derive(Default)]
 pub struct WaiterList {
     pub waiters: std::collections::VecDeque<Arc<WaiterRecord>>,
 }
