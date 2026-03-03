@@ -1520,8 +1520,14 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
             .push_back(waiter_record.clone());
 
         if t == u64::MAX {
-            while !waiter_record.notified.load(StdOrdering::Acquire) {
-                guard = waiter_record.condvar.wait(guard).unwrap();
+            let lock_result = waiter_record.condvar.wait_while(guard, |_| {
+                !waiter_record.notified.load(StdOrdering::Acquire)
+            });
+            match lock_result {
+                Ok(new_guard) => guard = new_guard,
+                Err(e) => panic!(
+                    "Another thread panicked while holding the waiter list lock, poisoning it: {e:?}"
+                ),
             }
         } else {
             let lock_result =
