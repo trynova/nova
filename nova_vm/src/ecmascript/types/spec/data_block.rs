@@ -5,11 +5,15 @@
 //! ### [6.2.9 Data Blocks](https://tc39.es/ecma262/#sec-data-blocks)
 
 #[cfg(feature = "shared-array-buffer")]
-use core::sync::atomic::{AtomicBool, AtomicPtr, AtomicUsize, Ordering};
-#[cfg(feature = "shared-array-buffer")]
-use std::hint::assert_unchecked;
-#[cfg(feature = "shared-array-buffer")]
-use std::sync::{Arc, Condvar, Mutex};
+use std::{
+    collections::hash_map::Entry,
+    hint::assert_unchecked,
+    sync::{
+        Arc, Condvar, Mutex, MutexGuard, WaitTimeoutResult,
+        atomic::{AtomicBool, AtomicPtr, AtomicUsize, Ordering},
+    },
+    time::Duration,
+};
 
 use core::{
     f32, f64,
@@ -422,9 +426,52 @@ impl SharedDataBlockMaxByteLength {
 }
 
 #[cfg(feature = "shared-array-buffer")]
+#[derive(Default)]
 pub(crate) struct WaiterRecord {
-    pub condvar: Condvar,
-    pub notified: AtomicBool,
+    condvar: Condvar,
+    notified: AtomicBool,
+}
+
+#[cfg(feature = "shared-array-buffer")]
+impl WaiterRecord {
+    pub(crate) fn new_shared() -> Arc<Self> {
+        Arc::new(Self::default())
+    }
+
+    pub(crate) fn notify_waiters(self: Arc<Self>) {
+        self.notified
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+        self.condvar.notify_all();
+    }
+
+    pub(crate) fn wait<'a, T>(self: &Arc<Self>, guard: MutexGuard<'a, T>) {
+        let lock_result = self
+            .condvar
+            .wait_while(guard, |_| !self.notified.load(Ordering::Relaxed));
+        match lock_result {
+            Ok(_) => (),
+            Err(e) => panic!(
+                "Another thread panicked while holding the waiter list lock, poisoning it: {e:?}"
+            ),
+        }
+    }
+
+    pub(crate) fn wait_timeout<'a, T>(
+        self: &Arc<Self>,
+        guard: MutexGuard<'a, T>,
+        dur: Duration,
+    ) -> (MutexGuard<'a, T>, WaitTimeoutResult) {
+        let lock_result = self
+            .condvar
+            .wait_timeout_while(guard, dur, |_| !self.notified.load(Ordering::Relaxed));
+
+        match lock_result {
+            Ok(result) => result,
+            Err(e) => panic!(
+                "Another thread panicked while holding the waiter list lock, poisoning it: {e:?}"
+            ),
+        }
+    }
 }
 
 /// Result of an `Atomics.wait` or `Atomics.waitAsync` operation.
@@ -438,12 +485,66 @@ pub(crate) enum WaitResult {
 
 #[cfg(feature = "shared-array-buffer")]
 #[derive(Default)]
+#[repr(transparent)]
 pub(crate) struct WaiterList {
-    pub waiters: std::collections::VecDeque<Arc<WaiterRecord>>,
+    waiters: std::collections::VecDeque<Arc<WaiterRecord>>,
+}
+
+impl WaiterList {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.waiters.is_empty()
+    }
+
+    pub(crate) fn pop(&mut self) -> Option<Arc<WaiterRecord>> {
+        self.waiters.pop_front()
+    }
+
+    pub(crate) fn push(&mut self, w: Arc<WaiterRecord>) {
+        self.waiters.push_back(w);
+    }
+
+    pub(crate) fn remove(&mut self, w: Arc<WaiterRecord>) -> bool {
+        let Some(index) = self
+            .waiters
+            .iter()
+            .enumerate()
+            .find(|(_, e)| Arc::ptr_eq(e, &w))
+            .map(|(i, _)| i)
+        else {
+            return false;
+        };
+        self.waiters.remove(index);
+        true
+    }
 }
 
 #[cfg(feature = "shared-array-buffer")]
-type SharedWaiterMap = Mutex<std::collections::HashMap<usize, WaiterList>>;
+#[repr(transparent)]
+#[derive(Default)]
+pub(crate) struct WaiterLists {
+    map: std::collections::HashMap<usize, WaiterList>,
+}
+
+impl WaiterLists {
+    pub(crate) fn get_list_mut(&mut self, index: usize) -> Option<&mut WaiterList> {
+        self.map.get_mut(&index)
+    }
+
+    pub(crate) fn push_to_list(&mut self, index: usize, w: Arc<WaiterRecord>) {
+        self.map.entry(index).or_default().push(w);
+    }
+
+    pub(crate) fn remove_from_list(&mut self, index: usize, w: Arc<WaiterRecord>) {
+        match self.map.entry(index) {
+            Entry::Occupied(mut entry) => {
+                if entry.get_mut().remove(w) && entry.get().is_empty() {
+                    entry.remove();
+                }
+            }
+            Entry::Vacant(_) => {}
+        }
+    }
+}
 
 /// # [6.2.9 Data Blocks](https://tc39.es/ecma262/#sec-data-blocks)
 ///
@@ -784,12 +885,12 @@ impl SharedDataBlock {
     /// ## Safety
     ///
     /// Must not be a dangling SharedDataBlock.
-    unsafe fn get_waiters_ptr(&self) -> &AtomicPtr<SharedWaiterMap> {
+    unsafe fn get_waiters_ptr(&self) -> &AtomicPtr<Mutex<WaiterLists>> {
         // SAFETY: type guarantees layout; waiters_ptr is 2 slots before ptr.
         unsafe {
             self.ptr
                 .as_ptr()
-                .cast::<AtomicPtr<SharedWaiterMap>>()
+                .cast::<AtomicPtr<Mutex<WaiterLists>>>()
                 .sub(2)
                 .as_ref()
         }
@@ -804,7 +905,7 @@ impl SharedDataBlock {
     /// ## Safety
     ///
     /// Must not be a dangling SharedDataBlock.
-    pub(crate) unsafe fn get_or_init_waiters(&self) -> &SharedWaiterMap {
+    pub(crate) unsafe fn get_or_init_waiters(&self) -> &Mutex<WaiterLists> {
         // SAFETY: caller guarantees non-dangling.
         let waiters_atomic = unsafe { self.get_waiters_ptr() };
         let current = waiters_atomic.load(Ordering::Acquire);
@@ -814,9 +915,7 @@ impl SharedDataBlock {
             return unsafe { &*current };
         }
 
-        let new_map = Box::into_raw(Box::new(SharedWaiterMap::new(
-            std::collections::HashMap::new(),
-        )));
+        let new_map = Box::into_raw(Box::new(Default::default()));
         match waiters_atomic.compare_exchange(
             core::ptr::null_mut(),
             new_map,
@@ -848,7 +947,7 @@ impl SharedDataBlock {
     /// ## Safety
     ///
     /// Must not be a dangling SharedDataBlock.
-    pub(crate) unsafe fn get_waiters(&self) -> Option<&SharedWaiterMap> {
+    pub(crate) unsafe fn get_waiters(&self) -> Option<&Mutex<WaiterLists>> {
         // SAFETY: caller guarantees non-dangling.
         let waiters_atomic = unsafe { self.get_waiters_ptr() };
         let current = waiters_atomic.load(Ordering::Acquire);

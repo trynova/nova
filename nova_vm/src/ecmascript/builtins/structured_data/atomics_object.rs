@@ -6,7 +6,7 @@ use std::{
     hint::assert_unchecked,
     ops::ControlFlow,
     sync::{
-        Arc, Condvar,
+        Arc,
         atomic::{AtomicBool, Ordering as StdOrdering},
     },
     thread::{self, JoinHandle},
@@ -21,15 +21,14 @@ use crate::{
         BigInt, Builtin, ExceptionType, InnerJob, Job, JsResult, Number, Numeric, OrdinaryObject,
         Promise, PromiseCapability, Realm, SharedArrayBuffer, SharedDataBlock, SharedTypedArray,
         String, TryError, TryResult, TypedArrayAbstractOperations,
-        TypedArrayWithBufferWitnessRecords, Value, builders::OrdinaryObjectBuilder,
-        compare_exchange_in_buffer, for_any_typed_array, get_modify_set_value_in_buffer,
-        get_value_from_buffer, make_typed_array_with_buffer_witness_record,
-        number_convert_to_integer_or_infinity, set_value_in_buffer, to_big_int, to_big_int64,
-        to_big_int64_big_int, to_index, to_int32, to_int32_number, to_integer_number_or_infinity,
-        to_integer_or_infinity, to_number, try_result_into_js, try_to_index, unwrap_try,
-        validate_index, validate_typed_array,
+        TypedArrayWithBufferWitnessRecords, Value, WaitResult, WaiterRecord,
+        builders::OrdinaryObjectBuilder, compare_exchange_in_buffer, for_any_typed_array,
+        get_modify_set_value_in_buffer, get_value_from_buffer,
+        make_typed_array_with_buffer_witness_record, number_convert_to_integer_or_infinity,
+        set_value_in_buffer, to_big_int, to_big_int64, to_big_int64_big_int, to_index, to_int32,
+        to_int32_number, to_integer_number_or_infinity, to_integer_or_infinity, to_number,
+        try_result_into_js, try_to_index, unwrap_try, validate_index, validate_typed_array,
     },
-    ecmascript::{WaitResult, WaiterRecord},
     engine::{Bindable, GcScope, Global, NoGcScope, Scopable},
     heap::{ObjectEntry, WellKnownSymbols},
 };
@@ -680,18 +679,17 @@ impl AtomicsObject {
 
         let mut guard = waiters.lock().unwrap();
         // 10. Let S be RemoveWaiters(WL, c).
-        let Some(list) = guard.get_mut(&byte_index_in_buffer) else {
+        let Some(list) = guard.get_list_mut(byte_index_in_buffer) else {
             return Ok(0.into());
         };
 
         // 11. For each element W of S, do
-        //         a. Perform NotifyWaiter(WL, W).
         while n < c {
-            let Some(waiter) = list.waiters.pop_front() else {
+            let Some(w) = list.pop() else {
                 break;
             };
-            waiter.notified.store(true, StdOrdering::Release);
-            waiter.condvar.notify_one();
+            // a. Perform NotifyWaiter(WL, W).
+            w.notify_waiters();
             n += 1;
         }
 
@@ -1493,10 +1491,7 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
         // have a dangling data block, but Atomics.wait requires `byteIndex` to be within bounds,
         // so a 0-sized SAB would have been rejected earlier with a RangeError.
         let waiters = unsafe { data_block.get_or_init_waiters() };
-        let waiter_record = Arc::new(WaiterRecord {
-            condvar: Condvar::new(),
-            notified: AtomicBool::new(false),
-        });
+        let waiter_record = WaiterRecord::new_shared();
         let mut guard = waiters.lock().unwrap();
 
         // Re-read value under critical section to avoid TOCTOU race.
@@ -1513,46 +1508,20 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
         }
 
         // a. Perform SuspendThisAgent(WL, waiterRecord).
-        guard
-            .entry(byte_index_in_buffer)
-            .or_default()
-            .waiters
-            .push_back(waiter_record.clone());
+        guard.push_to_list(byte_index_in_buffer, waiter_record.clone());
 
         if t == u64::MAX {
-            let lock_result = waiter_record.condvar.wait_while(guard, |_| {
-                !waiter_record.notified.load(StdOrdering::Acquire)
-            });
-            match lock_result {
-                Ok(_) => (),
-                Err(e) => panic!(
-                    "Another thread panicked while holding the waiter list lock, poisoning it: {e:?}"
-                ),
-            }
+            waiter_record.wait(guard);
         } else {
-            let lock_result =
-                waiter_record
-                    .condvar
-                    .wait_timeout_while(guard, Duration::from_millis(t), |_| {
-                        !waiter_record.notified.load(StdOrdering::Acquire)
-                    });
+            let dur = Duration::from_millis(t);
+            let (new_guard, timeout) = waiter_record.wait_timeout(guard, dur);
+            guard = new_guard;
+            if timeout.timed_out() {
+                guard.remove_from_list(byte_index_in_buffer, waiter_record);
 
-            match lock_result {
-                Ok((new_guard, timeout)) => {
-                    guard = new_guard;
-                    if timeout.timed_out() {
-                        if let Some(list) = guard.get_mut(&byte_index_in_buffer) {
-                            list.waiters.retain(|w| !Arc::ptr_eq(w, &waiter_record));
-                        }
-
-                        // 31. Perform LeaveCriticalSection(WL).
-                        // 32. If mode is sync, return waiterRecord.[[Result]].
-                        return BUILTIN_STRING_MEMORY.timed_out.into();
-                    }
-                }
-                Err(e) => panic!(
-                    "Another thread panicked while holding the waiter list lock, poisoning it: {e:?}"
-                ),
+                // 31. Perform LeaveCriticalSection(WL).
+                // 32. If mode is sync, return waiterRecord.[[Result]].
+                return BUILTIN_STRING_MEMORY.timed_out.into();
             }
         }
         // 31. Perform LeaveCriticalSection(WL).
@@ -1734,10 +1703,7 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
     let handle = thread::spawn(move || {
         // SAFETY: buffer is a cloned SharedDataBlock; non-dangling.
         let waiters = unsafe { buffer.get_or_init_waiters() };
-        let waiter_record = Arc::new(WaiterRecord {
-            condvar: Condvar::new(),
-            notified: AtomicBool::new(false),
-        });
+        let waiter_record = WaiterRecord::new_shared();
         let mut guard = waiters.lock().unwrap();
 
         // Re-check the value under the critical section.
@@ -1757,49 +1723,23 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
             return WaitResult::NotEqual;
         }
 
-        guard
-            .entry(byte_index_in_buffer)
-            .or_default()
-            .waiters
-            .push_back(waiter_record.clone());
+        guard.push_to_list(byte_index_in_buffer, waiter_record.clone());
 
         if t == u64::MAX {
-            let lock_result = waiter_record.condvar.wait_while(guard, |_| {
-                !waiter_record.notified.load(StdOrdering::Acquire)
-            });
-            match lock_result {
-                Ok(_) => WaitResult::Ok,
-                Err(e) => panic!(
-                    "Another thread panicked while holding the waiter list lock, poisoning it: {e:?}"
-                ),
-            }
+            waiter_record.wait(guard);
         } else {
-            let lock_result =
-                waiter_record
-                    .condvar
-                    .wait_timeout_while(guard, Duration::from_millis(t), |_| {
-                        !waiter_record.notified.load(StdOrdering::Acquire)
-                    });
+            let dur = Duration::from_millis(t);
+            let (new_guard, timeout) = waiter_record.wait_timeout(guard, dur);
+            guard = new_guard;
+            if timeout.timed_out() {
+                guard.remove_from_list(byte_index_in_buffer, waiter_record);
 
-            match lock_result {
-                Ok((new_guard, timeout)) => {
-                    guard = new_guard;
-                    if timeout.timed_out() {
-                        if let Some(list) = guard.get_mut(&byte_index_in_buffer) {
-                            list.waiters.retain(|w| !Arc::ptr_eq(w, &waiter_record));
-                        }
-
-                        // 31. Perform LeaveCriticalSection(WL).
-                        // 32. If mode is sync, return waiterRecord.[[Result]].
-                        return WaitResult::TimedOut;
-                    }
-                    WaitResult::Ok
-                }
-                Err(e) => panic!(
-                    "Another thread panicked while holding the waiter list lock, poisoning it: {e:?}"
-                ),
+                // 31. Perform LeaveCriticalSection(WL).
+                // 32. If mode is sync, return waiterRecord.[[Result]].
+                return WaitResult::TimedOut;
             }
         }
+        WaitResult::Ok
     });
     let wait_async_job = Job {
         realm: Some(Global::new(agent, agent.current_realm(gc).unbind())),
