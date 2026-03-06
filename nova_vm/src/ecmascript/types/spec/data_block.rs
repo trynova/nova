@@ -915,7 +915,7 @@ impl SharedDataBlock {
             return unsafe { &*current };
         }
 
-        let new_map = Box::into_raw(Box::new(Default::default()));
+        let new_map = Box::into_raw(Box::default());
         match waiters_atomic.compare_exchange(
             core::ptr::null_mut(),
             new_map,
