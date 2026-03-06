@@ -21,7 +21,6 @@ cliclack = "0.4.0"
 console = "0.16.2"
 ctrlc = "3.5.0"
 ecmascript_atomics = { version = "0.2.3" }
-ecmascript_futex = { version = "0.1.0" }
 fast-float = "0.2.0"
 hashbrown = "0.16.1"
 lexical = { version = "7.0.5", default-features = false, features = [
