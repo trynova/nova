@@ -10,11 +10,11 @@ use crate::{
         Agent, ArgumentsList, Array, BUILTIN_STRING_MEMORY, BigInt, BuiltinConstructorArgs,
         ConstructorStatus, Environment, ExceptionType, Function, FunctionAstRef, InternalMethods,
         InternalSlots, JsResult, Number, Numeric, Object, OrdinaryFunctionCreateParams,
-        OrdinaryObject, Primitive, PrivateMethod, PropertyDescriptor, PropertyKey, PropertyKeySet,
-        PropertyLookupCache, ProtoIntrinsics, Reference, ScriptOrModule, SetFunctionNamePrefix,
-        SetResult, String, TryError, TryGetValueContinue, TryHasResult, TryResult, Value,
-        array_create, call, call_function, call_proxy_set, construct, copy_data_properties,
-        copy_data_properties_into_object, create_builtin_constructor,
+        OrdinaryObject, Primitive, PrivateMethod, Promise, PropertyDescriptor, PropertyKey,
+        PropertyKeySet, PropertyLookupCache, ProtoIntrinsics, Reference, ScriptOrModule,
+        SetFunctionNamePrefix, SetResult, String, TryError, TryGetValueContinue, TryHasResult,
+        TryResult, Value, array_create, call, call_function, call_proxy_set, construct,
+        copy_data_properties, copy_data_properties_into_object, create_builtin_constructor,
         create_data_property_or_throw, create_unmapped_arguments_object, define_property_or_throw,
         evaluate_import_call, get_this_environment, get_this_value, get_value, has_property,
         is_constructor, is_less_than, is_loosely_equal, is_private_reference,
@@ -52,6 +52,25 @@ use super::{
     concat_string_from_slice, instanceof_operator, number_binary_operator, set_class_name,
     throw_error_in_target_not_object, typeof_operator, verify_is_object, with_vm_gc,
 };
+
+// Perform step 2 of `Await( value )` in the VM context.
+pub(super) fn execute_await_promise_resolve<'gc>(
+    agent: &mut Agent,
+    vm: &mut Vm,
+    gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, ()> {
+    let value = vm.result.take().unwrap();
+    // 1. Let asyncContext be the running execution context.
+    // 2. Let promise be ? PromiseResolve(%Promise%, value).
+    let promise = with_vm_gc(
+        agent,
+        vm,
+        |agent, gc| Promise::resolve(agent, value, gc),
+        gc,
+    )?;
+    vm.result = Some(promise.unbind().into());
+    Ok(())
+}
 
 pub(super) fn execute_array_create<'gc>(
     agent: &mut Agent,

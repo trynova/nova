@@ -1572,7 +1572,10 @@ fn async_module_start(
             //       ii. Perform ! Call(promiseCapability.[[Reject]], undefined, « result.[[Value]] »).
             promise_capability.reject(agent, err.value(), gc.nogc());
         }
-        ExecutionResult::Await { vm, awaited_value } => {
+        ExecutionResult::Await {
+            vm,
+            promise: resolve_promise,
+        } => {
             let async_context = agent.pop_execution_context().unwrap();
             // SAFETY: not shared.
             let (bytecode, promise, module) = unsafe {
@@ -1596,9 +1599,6 @@ fn async_module_start(
             // `handler` corresponds to the `fulfilledClosure` and `rejectedClosure` functions,
             // which resume execution of the function.
             // 2. Let promise be ? PromiseResolve(%Promise%, value).
-            let resolve_promise = Promise::resolve(agent, awaited_value.unbind(), gc.reborrow())
-                .unbind()
-                .bind(gc.nogc());
 
             module.set_executable(agent, bytecode);
 

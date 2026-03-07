@@ -13,9 +13,9 @@ use wtf8::Wtf8Buf;
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, BigInt, Environment, ExceptionType, JsError,
-        JsResult, Number, Object, Primitive, Reference, ScopedArgumentsList, String, Value,
-        call_function, get_method, is_callable, ordinary_has_instance, to_boolean, to_numeric,
-        to_numeric_primitive, to_primitive, to_property_key, to_string_primitive,
+        JsResult, Number, Object, Primitive, Promise, Reference, ScopedArgumentsList, String,
+        Value, call_function, get_method, is_callable, ordinary_has_instance, to_boolean,
+        to_numeric, to_numeric_primitive, to_primitive, to_property_key, to_string_primitive,
         try_get_object_method, try_result_into_option_js,
     },
     engine::{
@@ -34,7 +34,7 @@ pub(crate) enum ExecutionResult<'a> {
     Throw(JsError<'a>),
     Await {
         vm: SuspendedVm,
-        awaited_value: Value<'a>,
+        promise: Promise<'a>,
     },
     Yield {
         vm: SuspendedVm,
@@ -365,10 +365,12 @@ impl Vm {
                 if agent.options.print_internals {
                     Self::print_awaiting();
                 }
-                let awaited_value = self.result.take().unwrap();
+                let Value::Promise(promise) = self.result.take().unwrap() else {
+                    unreachable!()
+                };
                 Some(ExecutionResult::Await {
                     vm: core::mem::take(self).suspend(),
-                    awaited_value,
+                    promise,
                 })
             }
             Err(err) => {
@@ -571,7 +573,10 @@ impl Vm {
                 unreachable!("hot instruction not handled before execute_cold_instruction")
             }
             Instruction::Return => return Ok(ContinuationKind::Return),
-            Instruction::Await => return Ok(ContinuationKind::Await),
+            Instruction::Await => {
+                execute_await_promise_resolve(agent, vm, gc)?;
+                return Ok(ContinuationKind::Await);
+            }
             Instruction::Yield => return Ok(ContinuationKind::Yield),
             Instruction::IsStrictlyEqual => execute_is_strictly_equal(agent, vm, gc.into_nogc()),
             Instruction::IsNullOrUndefined => vm.execute_is_null_or_undefined(),

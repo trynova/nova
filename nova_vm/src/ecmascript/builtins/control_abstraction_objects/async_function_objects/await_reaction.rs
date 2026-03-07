@@ -4,8 +4,8 @@
 
 use crate::{
     ecmascript::{
-        Agent, ECMAScriptFunction, ExecutionContext, Promise, PromiseCapability,
-        PromiseReactionHandler, PromiseReactionType, SourceTextModule, Value, inner_promise_then,
+        Agent, ECMAScriptFunction, ExecutionContext, PromiseCapability, PromiseReactionHandler,
+        PromiseReactionType, SourceTextModule, Value, inner_promise_then,
     },
     engine::{
         Bindable, Executable, ExecutionResult, GcScope, Scopable, SuspendedVm, bindable_handle,
@@ -105,21 +105,20 @@ impl AwaitReaction<'_> {
                     .clone()
                     .reject(agent, err.value().unbind(), gc.nogc());
             }
-            ExecutionResult::Await { vm, awaited_value } => {
+            ExecutionResult::Await { vm, promise } => {
+                let promise = promise.unbind();
+                let gc = gc.into_nogc();
+                let promise = promise.bind(gc);
                 // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
                 // 8. Remove asyncContext from the execution context stack and
                 //    restore the execution context that is at the top of the
                 //    execution context stack as the running execution context.
                 let execution_context = agent.pop_execution_context().unwrap();
-                let data = reaction.get(agent).bind(gc.nogc()).get_mut(agent);
+                let data = reaction.get(agent).bind(gc).get_mut(agent);
                 data.vm = Some(vm);
                 data.execution_context = Some(execution_context);
 
                 // 2. Let promise be ? PromiseResolve(%Promise%, value).
-                let promise =
-                    Promise::resolve(agent, awaited_value.unbind(), gc.reborrow()).unbind();
-                let gc = gc.into_nogc();
-                let promise = promise.bind(gc);
 
                 // SAFETY: not shared.
                 let reaction = unsafe { reaction.take(agent) }.bind(gc);
