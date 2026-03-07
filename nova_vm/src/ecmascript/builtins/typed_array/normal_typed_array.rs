@@ -1439,13 +1439,10 @@ impl<'a, T: Viewable> TypedArrayAbstractOperations<'a> for GenericTypedArray<'a,
         let scoped_buffer = buffer.scope(agent, gc.nogc());
 
         // 5. Let kept be a new empty List.
-        let mut kept = create_byte_data_block(
-            agent,
-            (len as u64).saturating_mul(size_of::<T>() as u64),
-            gc.nogc(),
-        )
-        .unbind()?
-        .bind(gc.nogc());
+        let mut kept =
+            create_byte_data_block(agent, len.saturating_mul(size_of::<T>()) as u64, gc.nogc())
+                .unbind()?
+                .bind(gc.nogc());
         // SAFETY: All viewable types are trivially transmutable.
         let (head, kept_slice, _) = unsafe { kept.align_to_mut::<T>() };
         // Should be properly aligned for all T.

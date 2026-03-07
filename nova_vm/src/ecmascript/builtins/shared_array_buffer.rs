@@ -64,9 +64,9 @@ impl<'sab> SharedArrayBuffer<'sab> {
     /// Returns `true` if the SharedArrayBuffer has a 0 length.
     ///
     /// Note: this is wrong and will be going away.
-    #[inline]
-    pub fn is_detached(self, agent: &Agent) -> bool {
-        self.get(agent).data_block.is_dangling()
+    #[inline(always)]
+    pub fn is_detached(self) -> bool {
+        false
     }
 
     /// Returns true if the SharedArrayBuffer is growable.
