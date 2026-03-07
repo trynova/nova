@@ -8,8 +8,8 @@ pub(crate) use data::*;
 
 use crate::{
     ecmascript::{
-        Agent, InternalMethods, InternalSlots, JsError, JsResult, OrdinaryObject,
-        PromiseCapability, ProtoIntrinsics, Value, object_handle,
+        Agent, BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, JsError, JsResult,
+        OrdinaryObject, PromiseCapability, ProtoIntrinsics, Value, get, object_handle,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{
@@ -99,23 +99,48 @@ impl<'a> Promise<'a> {
     }
 
     ///### [27.2.4.7.1 PromiseResolve ( C, x )](https://tc39.es/ecma262/#sec-promise-resolve)
-    pub(crate) fn resolve(agent: &mut Agent, x: Value, mut gc: GcScope<'a, '_>) -> Self {
+    pub(crate) fn resolve(
+        agent: &mut Agent,
+        x: Value,
+        mut gc: GcScope<'a, '_>,
+    ) -> JsResult<'a, Self> {
+        let x = x.bind(gc.nogc());
         // 1. If IsPromise(x) is true, then
-        if let Value::Promise(promise) = x {
+        let x = if let Value::Promise(x) = x {
+            let scoped_x = x.scope(agent, gc.nogc());
             // a. Let xConstructor be ? Get(x, "constructor").
+            let x_constructor = match get(
+                agent,
+                x.unbind(),
+                BUILTIN_STRING_MEMORY.constructor.into(),
+                gc.reborrow(),
+            )
+            .unbind()
+            .bind(gc.nogc())
+            {
+                Ok(v) => v,
+                Err(err) => return Err(err.unbind()),
+            };
+            // SAFETY: not shared.
+            let x = unsafe { scoped_x.take(agent) }.bind(gc.nogc());
             // b. If SameValue(xConstructor, C) is true, return x.
-            // NOTE: Ignoring subclasses.
-            promise.unbind()
+            if x_constructor == agent.current_realm_record().intrinsics().promise().into() {
+                return Ok(x.unbind().bind(gc.into_nogc()));
+            }
+            x.into()
         } else {
-            // 2. Let promiseCapability be ? NewPromiseCapability(C).
-            let promise_capability = PromiseCapability::new(agent, gc.nogc());
-            let promise = promise_capability.promise().scope(agent, gc.nogc());
-            // 3. Perform ? Call(promiseCapability.[[Resolve]], undefined, « x »).
-            promise_capability.unbind().resolve(agent, x, gc.reborrow());
-            // 4. Return promiseCapability.[[Promise]].
-            // SAFETY: Not shared.
-            unsafe { promise.take(agent) }
-        }
+            x
+        };
+        // 2. Let promiseCapability be ? NewPromiseCapability(C).
+        let promise_capability = PromiseCapability::new(agent, gc.nogc());
+        let promise = promise_capability.promise().scope(agent, gc.nogc());
+        // 3. Perform ? Call(promiseCapability.[[Resolve]], undefined, « x »).
+        promise_capability
+            .unbind()
+            .resolve(agent, x.unbind(), gc.reborrow());
+        // 4. Return promiseCapability.[[Promise]].
+        // SAFETY: Not shared.
+        Ok(unsafe { promise.take(agent).bind(gc.into_nogc()) })
     }
 }
 

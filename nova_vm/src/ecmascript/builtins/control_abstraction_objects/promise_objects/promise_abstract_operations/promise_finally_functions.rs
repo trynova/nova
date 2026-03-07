@@ -133,7 +133,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseFinallyFunction<'a> {
                 let _c = unsafe { c.take(agent) }.bind(gc.nogc());
                 // ii. Let p be ? PromiseResolve(C, result).
                 let p = Promise::resolve(agent, result.unbind(), gc.reborrow())
-                    .unbind()
+                    .unbind()?
                     .bind(gc.nogc());
                 // SAFETY: not shared.
                 let value = unsafe { value.take(agent) }.bind(gc.nogc());
@@ -175,10 +175,12 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseFinallyFunction<'a> {
                 let _c = unsafe { c.take(agent) }.bind(gc.nogc());
                 // ii. Let p be ? PromiseResolve(C, result).
                 let p = Promise::resolve(agent, result.unbind(), gc.reborrow())
-                    .unbind()
+                    .unbind()?
                     .bind(gc.nogc());
                 let reason = unsafe { reason.take(agent) }.bind(gc.nogc());
-                // iii. Let throwReason be a new Abstract Closure with no parameters that captures reason and performs the following steps when called:
+                // iii. Let throwReason be a new Abstract Closure with no
+                // parameters that captures reason and performs the following
+                // steps when called:
                 // iv. Let thrower be CreateBuiltinFunction(throwReason, 0, "", « »).
                 let thrower = agent.heap.create(PromiseFinallyFunctionHeapData {
                     backing_object: None,

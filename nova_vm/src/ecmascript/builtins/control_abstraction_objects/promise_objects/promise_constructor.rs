@@ -516,7 +516,7 @@ impl PromiseConstructor {
         }
 
         // 3. Return ? PromiseResolve(C, x).
-        Ok(Promise::resolve(agent, arguments.get(0), gc).into())
+        Promise::resolve(agent, arguments.get(0), gc).map(Value::from)
     }
 
     /// ### [27.2.4.8 Promise.try ( callback, ...args )](https://tc39.es/ecma262/#sec-promise.try)
@@ -573,7 +573,7 @@ impl PromiseConstructor {
             // 6. Else,
             Ok(result) => {
                 // a. Perform ? Call(promiseCapability.[[Resolve]], undefined, « status.[[Value]] »).
-                Promise::resolve(agent, result.unbind(), gc)
+                Promise::resolve(agent, result.unbind(), gc)?
             }
         };
         // 7. Return promiseCapability.[[Promise]].
