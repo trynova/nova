@@ -153,7 +153,7 @@ pub(crate) fn create_temporal_duration<'gc>(
 /// language value) and returns either a normal completion containing a
 /// Temporal.Duration or a throw completion. Converts item to a new
 /// Temporal.Duration instance if possible and returns that, and throws
-/// otherwise. It performs the following steps when called:
+/// otherwise.
 pub(crate) fn to_temporal_duration<'gc>(
     agent: &mut Agent,
     item: Value,
@@ -382,24 +382,6 @@ pub(crate) fn to_temporal_partial_duration_record<'gc>(
     }
     // 25. Return result.
     Ok(result)
-}
-
-/// [7.5.20 CreateNegatedTemporalDuration ( duration )] (https://tc39.es/proposal-temporal/#sec-temporal-createnegatedtemporalduration)
-/// The abstract operation CreateNegatedTemporalDuration takes argument
-/// duration (a Temporal.Duration) and returns a Temporal.Duration.
-/// It returns a new Temporal.Duration instance that is the
-/// negation of duration.
-pub(crate) fn _create_negated_temporal_duration<'gc>(
-    _agent: &mut Agent,
-    _item: temporal_rs::Duration,
-    mut _gc: GcScope<'gc, '_>,
-) -> JsResult<'gc, temporal_rs::Duration> {
-    // 1. Return ! CreateTemporalDuration(-duration.[[Years]],
-    // -duration.[[Months]], -duration.[[Weeks]], -duration.[[Days]],
-    // -duration.[[Hours]], -duration.[[Minutes]], -duration.[[Seconds]],
-    // -duration.[[Milliseconds]], -duration.[[Microseconds]],
-    // -duration.[[Nanoseconds]]).
-    unimplemented!()
 }
 
 #[inline(always)]

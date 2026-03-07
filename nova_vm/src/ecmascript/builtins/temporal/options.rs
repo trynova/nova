@@ -145,7 +145,7 @@ where
 // The abstract operation GetRoundingModeOption takes arguments options (an Object) and fallback (a
 // rounding mode) and returns either a normal completion containing a rounding mode, or a throw
 // completion. It fetches and validates the "roundingMode" property from options, returning
-// fallback as a default if absent. It performs the following steps when called:
+// fallback as a default if absent.
 pub(crate) fn get_rounding_mode_option<'gc>(
     agent: &mut Agent,
     options: Object,
@@ -179,7 +179,7 @@ pub(crate) fn get_rounding_mode_option<'gc>(
 /// Object) and returns either a normal completion containing a positive integer
 /// in the inclusive interval from 1 to 10**9, or a throw completion. It fetches
 /// and validates the "roundingIncrement" property from options, returning a
-/// default if absent. It performs the following steps when called:
+/// default if absent.
 pub(crate) fn get_rounding_increment_option<'gc>(
     agent: &mut Agent,
     options: Object,

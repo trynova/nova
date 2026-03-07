@@ -262,7 +262,7 @@ pub(crate) enum InnerJob {
     FinalizationRegistry(FinalizationRegistryCleanupJob),
 }
 
-/// ## [Job](https://tc39.es/ecma262/#sec-jobs)
+/// # [Job](https://tc39.es/ecma262/#sec-jobs)
 ///
 /// A _Job_ is an Abstract Closure with no parameters that initiates an
 /// ECMAScript computation when no other ECMAScript computation is currently in

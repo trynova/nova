@@ -633,7 +633,7 @@ impl TemporalInstantPrototype {
 /// The abstract operation ToIntegerWithTruncation takes argument argument (an ECMAScript language
 /// value) and returns either a normal completion containing an integer or a throw completion. It
 /// converts argument to an integer representing its Number value with fractional part truncated, or
-/// throws a RangeError when that value is not finite. It performs the following steps when called:
+/// throws a RangeError when that value is not finite.
 pub(crate) fn to_integer_with_truncation<'gc>(
     agent: &mut Agent,
     argument: Value,
