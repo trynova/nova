@@ -546,7 +546,7 @@ impl WaiterLists {
     }
 }
 
-/// # [6.2.9 Data Blocks](https://tc39.es/ecma262/#sec-data-blocks)
+/// ### [6.2.9 Data Blocks](https://tc39.es/ecma262/#sec-data-blocks)
 ///
 /// The Shared Data Block specification type is used to describe a distinct and
 /// mutable sequence of byte-sized (8 bit) racy atomic memory values. A byte
