@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::u8;
+
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
@@ -58,90 +60,80 @@ impl TemporalPlainTimeConstructor {
         let new_target = new_target.scope(agent, gc.nogc());
 
         // 2. If hour is undefined, set hour to 0; else set hour to ? ToIntegerWithTruncation(hour).
-        let h = if hours.get(agent).is_undefined() {
-            Ok(0)
+        let hour = if hours.get(agent).is_undefined() {
+            0
         } else {
             u8::try_from(
                 to_integer_with_truncation(agent, hours.get(agent), gc.reborrow()).unbind()?,
             )
+            .unwrap_or(u8::MAX)
         };
 
         // 3. If minute is undefined, set minute to 0; else set minute to ? ToIntegerWithTruncation(minute).
-        let m = if minutes.get(agent).is_undefined() {
-            Ok(0)
+        let minute = if minutes.get(agent).is_undefined() {
+            0
         } else {
             u8::try_from(
                 to_integer_with_truncation(agent, minutes.get(agent), gc.reborrow()).unbind()?,
             )
+            .unwrap_or(u8::MAX)
         };
 
         // 4. If second is undefined, set second to 0; else set second to ? ToIntegerWithTruncation(second).
-        let s = if seconds.get(agent).is_undefined() {
-            Ok(0)
+        let second = if seconds.get(agent).is_undefined() {
+            0
         } else {
             u8::try_from(
                 to_integer_with_truncation(agent, seconds.get(agent), gc.reborrow()).unbind()?,
             )
+            .unwrap_or(u8::MAX)
         };
 
         // 5. If millisecond is undefined, set millisecond to 0; else set millisecond to ? ToIntegerWithTruncation(millisecond).
-        let ms = if milliseconds.get(agent).is_undefined() {
-            Ok(0)
+        let millisecond = if milliseconds.get(agent).is_undefined() {
+            0
         } else {
             u16::try_from(
                 to_integer_with_truncation(agent, milliseconds.get(agent), gc.reborrow())
                     .unbind()?,
             )
+            .unwrap_or(u16::MAX)
         };
 
         // 6. If microsecond is undefined, set microsecond to 0; else set microsecond to ? ToIntegerWithTruncation(microsecond).
-        let mis = if microseconds.get(agent).is_undefined() {
-            Ok(0)
+        let microsecond = if microseconds.get(agent).is_undefined() {
+            0
         } else {
             u16::try_from(
                 to_integer_with_truncation(agent, microseconds.get(agent), gc.reborrow())
                     .unbind()?,
             )
+            .unwrap_or(u16::MAX)
         };
 
         // 7. If nanosecond is undefined, set nanosecond to 0; else set nanosecond to ? ToIntegerWithTruncation(nanosecond).
-        let ns = if nanoseconds.get(agent).is_undefined() {
-            Ok(0)
+        let nanosecond = if nanoseconds.get(agent).is_undefined() {
+            0
         } else {
             u16::try_from(
                 to_integer_with_truncation(agent, nanoseconds.get(agent), gc.reborrow())
                     .unbind()?,
             )
+            .unwrap_or(u16::MAX)
         };
 
         // 8. If IsValidTime(hour, minute, second, millisecond, microsecond, nanosecond) is false, throw a RangeError exception.
         // 9. Let time be CreateTimeRecord(hour, minute, second, millisecond, microsecond, nanosecond).
-        let time = if let (
-            Ok(hour),
-            Ok(minute),
-            Ok(second),
-            Ok(millisecond),
-            Ok(microsecond),
-            Ok(nanosecond),
-        ) = (h, m, s, ms, mis, ns)
-        {
-            temporal_rs::PlainTime::try_new(
-                hour,
-                minute,
-                second,
-                millisecond,
-                microsecond,
-                nanosecond,
-            )
-            .map_err(|err| temporal_err_to_js_err(agent, err, gc.nogc()))
-            .unbind()?
-        } else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::RangeError,
-                "not a valid time",
-                gc.into_nogc(),
-            ));
-        };
+        let time = temporal_rs::PlainTime::try_new(
+            hour,
+            minute,
+            second,
+            millisecond,
+            microsecond,
+            nanosecond,
+        )
+        .map_err(|err| temporal_err_to_js_err(agent, err, gc.nogc()))
+        .unbind()?;
 
         // 10. Return ? CreateTemporalTime(time, NewTarget).
         create_temporal_plain_time(agent, time, Some(new_target.get(agent)), gc).map(Value::from)
