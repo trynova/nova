@@ -12,10 +12,10 @@ pub(crate) use plain_time_prototype::*;
 
 use crate::{
     ecmascript::{
-        Agent, ExceptionType, InternalMethods, InternalSlots, JsResult, OrdinaryObject,
-        ProtoIntrinsics, Value, object_handle,
+        Agent, ExceptionType, Function, InternalMethods, InternalSlots, JsResult, OrdinaryObject,
+        ProtoIntrinsics, Value, object_handle, ordinary_populate_from_constructor,
     },
-    engine::{Bindable, NoGcScope},
+    engine::{Bindable, GcScope, NoGcScope},
     heap::{
         ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
         HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
@@ -98,4 +98,38 @@ fn require_internal_slot_temporal_plain_time<'a>(
             gc,
         )),
     }
+}
+
+/// ### [4.5.11 CreateTemporalTime](https://tc39.es/proposal-temporal/#sec-temporal-createtemporaltime)
+pub(crate) fn create_temporal_plain_time<'gc>(
+    agent: &mut Agent,
+    plain_time: temporal_rs::PlainTime,
+    new_target: Option<Function>,
+    gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, TemporalPlainTime<'gc>> {
+    // 1. If newTarget is not present, set newTarget to %Temporal.PlainTime%.
+    let new_target = new_target.unwrap_or_else(|| {
+        agent
+            .current_realm_record()
+            .intrinsics()
+            .temporal_plain_time()
+            .into()
+    });
+    // 2. Let object be ? OrdinaryCreateFromConstructor(newTarget, "%Temporal.PlainTime.prototype%", « [[InitializedTemporalTime]], [[Time]] »).
+    // 3. Set object.[[Time]] to time.
+    // 4. Return object.
+    let object = agent.heap.create(PlainTimeRecord {
+        object_index: None,
+        plain_time,
+    });
+    Ok(
+        TemporalPlainTime::try_from(ordinary_populate_from_constructor(
+            agent,
+            object.unbind().into(),
+            new_target,
+            ProtoIntrinsics::TemporalPlainTime,
+            gc,
+        )?)
+        .unwrap(),
+    )
 }
