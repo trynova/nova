@@ -12,7 +12,7 @@ good idea of the data and common actions on it.
 So what are common actions that a JavaScript runtime does?
 
 - Calling functions
-- Accessing properties of objects
+- Accessing named properties of objects
 - Adding and manipulating object properties
 - Accessing indexed properties of arrays
 - Iterating arrays
@@ -21,10 +21,12 @@ What are some uncommon actions?
 
 - Deleting object properties: Hashmap-like object are rare in modern JavaScript.
 - Accessing or defining property descriptors.
-- Accessing or assigning named (non-indexed) properties on arrays.
-- Calling getter or setter functions.
+- Accessing or assigning named properties on arrays (except `length`).
+- Calling getter or setter functions (compared to reading or writing data
+  properties).
 - Accessing the length or name of a function.
-- Adding, manipulating, or deleting properties on functions.
+- Adding, manipulating, or deleting properties on functions (except for
+  classes).
 - Adding, manipulating, or deleting properties on ArrayBuffers, Uint8Arrays,
   DataViews, Dates, RegExps, ... Most builtin objects are used for their named
   purpose only and beyond that are left alone.
@@ -39,11 +41,11 @@ So what we can gather from this is that
 1. Function calls are very important. Properties of functions are not very
    important.
 1. Objects mostly need good access to their keys and values. Their prototype is
-   mostly secondary, and with hidden classes / shapes the keys actually become
-   secondary as well. This should be no big surprise, as this is exactly what
-   structs are in system programming languages.
+   mostly secondary, and with "hidden class" / "shape" optimisations the keys
+   actually become secondary as well. This should be no big surprise, as this is
+   exactly what structs are in systems programming languages.
 1. Property descriptors are not very important.
-1. Quick iteration over array elements is very important.
+1. Quick access into and iteration over arrays is very important.
 
 From an engine standpoint the only common action that is done outside of
 JavaScript is the garbage collection. The garbage collection mostly cares about
@@ -52,11 +54,11 @@ quick access to JavaScript heap values and efficient iteration over them.
 Thus our heap design starts to form. To help the garbage collection along we
 want to place like elements one after the other. As much as possible, we want to
 give the CPU an easy time in guessing where we'll be accessing data next. This
-then means both that vectors are our friend but also we want to avoid vectors of
-`dyn Trait` and instead want vectors of concrete structs even if we end up with
+then means both that vectors are our friend and that we want to avoid vectors of
+`dyn Trait`; vectors of concrete types is what we want, even if we end up with
 more vectors.
 
-To avoid unnecessary memory usage for eg. arrays, ArrayBuffers, RegExps etc.
+To avoid unnecessary memory usage for eg. Arrays, ArrayBuffers, RegExps etc.
 we'd want to avoid creating their "object" side if its not going to be used.
 This then means that the "object" side of these must be separate from their
 "business" side. An ArrayBuffer will need to have a pointer to a raw memory
@@ -64,11 +66,11 @@ buffer somewhere and that is its most common usage so it makes sense to put that
 in its "business" side but we do not need to keep its property key-value pairs
 close at hand.
 
-So we put object base heap data one after the other somewhere. We could refer to
-these by pointer but that takes 8 bytes of memory and Rust doesn't particularly
-like raw pointers, nor does it like `&'static` references. So direct references
-are not a good idea. If we use heap vectors we can instead use indexes into
-these vectors! A vector is `usize` indexed but a JS engine will never run into 4
+So we put ordinary object data in a vector of their own. We could refer to these
+by pointer but that takes 8 bytes of memory and Rust doesn't particularly like
+raw pointers, nor does it like `&'static` references. So direct references are
+not a good idea. If we use heap vectors we can instead use indexes into these
+vectors! A vector is `usize` indexed but a JS engine will never run into 4
 billion objects or numbers or strings. A `u32` index is thus sufficient.
 
 It then makes sense to put other heap data in vectors as well. So we have
@@ -85,7 +87,7 @@ locality!
 
 In a simple, object-oriented design an Object looks like follows:
 
-```rs
+```rust
 struct Object {
    prototype: Option<Gc<Object>>,
    properties: HashMap<Gc<String>, Gc<PropertyDescriptor>>,
@@ -94,7 +96,7 @@ struct Object {
 
 and an Array would be:
 
-```rs
+```rust
 struct Array {
    base: Object,
    elements: Vec<Option<PropertyDescriptor>>,
@@ -107,7 +109,7 @@ As we noted above, named properties on arrays are rare as are changing
 prototypes. Hence, we do not actually need the "base" very often. We can thus
 reduce memory usage by changing Array to:
 
-```rs
+```rust
 struct Array {
    base: Option<Gc<Object>>,
    elements: Vec<Option<PropertyDescriptor>>,
@@ -116,7 +118,7 @@ struct Array {
 
 Now most Arrays will avoid creating the object base entirely and will instead
 rely on the knowledge that an Array without a base contains no named properties
-(except length, which can be synthesised from elements) and has
+(except `length`, which can be synthesised from elements) and has
 `Array.prototype` as its prototype. (Note: An Array without a base does actually
 need to know which Realm it was created in, so the above struct is not quite
 adequate.)
@@ -126,11 +128,11 @@ reduce memory usage, but it does not yet give us the benefit for iterating over
 objects that we want. For that, we need to split the Array into parts and put
 them into parallel vectors:
 
-```rs
+```rust
 struct BaseObject(Option<ObjectIndex>);
 struct Elements(Vec<Option<PropertyDescriptor>>);
 
-let arrays: ParallelVec<(BaseObject, Elements)>;
+let arrays: SoAVec<(BaseObject, Elements)>;
 
 struct Array(usize); // Array is now just an index into the arrays vector.
 ```
@@ -173,7 +175,7 @@ though:
    algorithm.
 
 Then Boa: Boa uses a modified version of the [gc](https://crates.io/crates/gc)
-crate, which is a tracing garbage collector based on a `Trace`, trait and
+crate, which is a tracing garbage collector based on a `Trace` trait, and
 created using basic Rust structs. Thus it follows that:
 
 1. The Boa heap is not located in a defined area. Each heap object is allocated
@@ -229,11 +231,11 @@ Still, V8 does have some disadvantages as well.
 
 So, what can we expect from Nova's heap? First the advantages:
 
-1. All objects are of the same size and can thus be placed in a vector,
-   benefiting from cache locality and amortisation of allocations.
-1. All references to and within the heap data can be done with a 32 bit integer
-   index and a type: The type tells which array to access from and the index
-   gives the offset.
+1. All objects of a given type are of the same size and can thus be placed in a
+   vector, benefiting from cache locality and amortisation of allocations.
+1. All references to and within the heap data can be done using a 32-bit handle
+   and a type: The type tells which vector to access from and the handle gives
+   the offset.
 1. Placing heap data "by type and use" in a DOD fashion allows eg. `Uint8Array`s
    to not include any of the data that an object has.
 1. Garbage collection must be done on the heap level which quite logically lends
@@ -262,7 +264,7 @@ There are disadvantages as well.
 ## Ownership, Rust and the borrow checker
 
 We've established that our heap will consist of vectors that contain heap data
-that refer to one another using a type + index pair (an enum, essentially). The
+that refer to one another using a type + handle pair (an enum, essentially). The
 question one might then ask is, what does the Rust borrow checker think of this?
 
 There are two immediate answers:
@@ -283,9 +285,10 @@ We do not want to do reference counting, so that way is barred to us. But we
 cannot do references either, the borrow checker will not allow such a thing. So
 it seems like the borrow checker does not like what we're doing at all.
 
-But remember, we're not doing references (ie. pointers), we're doing indexes. So
+But remember, we're not doing references (ie. pointers), we're doing handles. So
 instead of the above `struct A` with an internal reference we have
-`struct A { key: (u8, u32) }` where the `u8` is the type information and `u32`
+`struct A {
+key: (u8, u32) }` where the `u8` is the type information and `u32`
 the index. These imply no referential ownership and thus the borrow check does
 not care at all.
 
@@ -306,7 +309,14 @@ memory corruption with this, even if we do cause heap corruption.
 
 That is exactly how we want it to be as well: As said, JavaScript's ownership
 model cannot be represented in a way that would satisfy the Rust borrow checker
-and thus it would be a waste of time to even try.
+and it would be a waste of time to even try. Consider this as well: when an
+object is ready to be garbage collected from the JavaScript's point of view, it
+must be the engine that frees or reuses the object's backing memory. It should
+therefore be immediately obvious that attempting to track "actual memory
+ownership" of garbage collected data using normal Rust references is an
+fundamental misunderstanding, as the garbage collected references must never
+free the memory they point at and therefore do not _own_ that memory in any
+sense of the word.
 
 So summing up: Our heap model does not try to present the JavaScript ownership
 model to Rust's borrow checker in any way or form. Instead we represent to the
@@ -323,9 +333,9 @@ Here're the broad strokes of it:
 1. Starting with roots (global values as well as local values currently held by
    the mutator thread, ie. the JavaScript thread), mark the heap data entries
    corresponding to those roots. Marks are entered in a separate vector of mark
-   bytes (or possibly bits).
+   bits.
 2. For each marked entry, trace all its referred heap data entries. Recurse.
-3. Once no more work is left to be done, walk through the vector of mark bytes
+3. Once no more work is left to be done, walk through the vector of mark bits
    and note each unmarked slot in the heap vectors. Gather up a list of
    compactions (eg. Starting at index 30 in object heap vector, shift down 2,
    starting at index 45 shift down 3, ...) and the number of marked elements

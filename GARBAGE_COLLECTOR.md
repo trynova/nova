@@ -2,23 +2,28 @@
 
 > Alternative title: Why is the borrow checker angry at me?
 
-At the time of writing this, Nova's garbage collector is still not interleaved
-but the support for interleaving GC is getting closer to being done, so the
-engine mostly runs as if garbage collection could already be interleaved. This
-means that when you write code in the engine, you'll need to understand a bit of
-the garbage collector.
+Nova's garbage collector can be run in any function that takes the marker
+`GcScope` as a parameter. Nova's handles (JavaScript values) are "unrooted"
+handles meaning that when the garbage collector runs, they are invalidated.
+Taken together, this means that when writing code in Nova you have to be very,
+very careful! ... or would have to be if we didn't make use of the borrow
+checker to help us.
 
-## What the garbage collector does
+Instead of being very, very careful you just have to remember and abide by a few
+rules. Follow along!
 
-The garbage collector is, at its core, a fairly simple thing. It starts from a
-set of "root" heap allocated values and
+## What Nova's garbage collector does
+
+Nova' garbage collector is, at its core, a fairly simple thing. It starts from a
+set of "roots" (heap allocated values) and
 [traces](https://en.wikipedia.org/wiki/Tracing_garbage_collection) them to find
-all heap allocated values that are reachable from the roots. It then removes all
-those heap allocated values that were not reachable, and finally compacts the
-heap to only contain live values. Compacting means that all live `Value`s
-(`Value`s that will be used after the garbage collection) must also be fixed to
-point to the correct post-compact locations. This requires the garbage collector
-to be able to reach and mutate all live `Value`s.
+all heap allocated values that are reachable from them. It then removes all
+other heap allocated values, and finally compacts the heap to only contain the
+values deemed reachable. Compacting means that most `Value`s that remain in the
+heap move during garbage collection, and any references that pointed to their
+old location must be fixed to point to the correct post-compaction location.
+This means that the garbage collector must be able to reach and mutate all
+`Value`s that are going to be used after garbage collection.
 
 The "set of roots" in Nova's case is a list of global JavaScript `Value`s, a
 list of "scoped" JavaScript `Value`s, a list of `Vm` structs that are currently
@@ -32,40 +37,39 @@ either out of bounds data or to data that is different than what it was before
 the garbage collection.
 
 To avoid this, we want to add the `Value` to the list of "scoped" `Value`s, and
-refer to the entry in that list: The garbage collector does not move `Value`s
-within the list, so our entry will still point to the same conceptual `Value`
+refer to the index in that list: The garbage collector does not move `Value`s
+within the list, so our index will still point to the same conceptual `Value`
 after garbage collection and its pointed-to location will be fixed
-post-compaction. Adding `Value`s to the list is done using the `Value::scope`
-API.
+post-compaction. Adding `Value`s to the list is done using the `Scoped::scope`
+trait method.
 
 Fortunately, we can explain the interaction between `Value`s and the garbage
 collector to Rust's borrow checker and have it ensure that we call
-`Value::scope` before the garbage collector is (possibly) run. **Unfortunately**
-explaining the interaction isn't entirely trivial and means we have to jump
-through quite a few hoops.
+`Scoped::scope` before the garbage collector is (possibly) run.
+**Unfortunately** explaining the interaction isn't entirely trivial and means we
+have to jump through quite a few hoops.
 
 ## Simple example
 
 Let's take a silly and mostly trivial example: A method that takes a single
 JavaScript object, deletes a property from it and returns the object. Here's the
-way we would have written the function before interleaved garbage collection
-(though we didn't actually have GcToken back then):
+naive way to write the function:
 
 ```rs
-fn method(agent: &mut Agent, obj: Object, gc: GcToken) -> JsResult<Object> {
+fn method<'gc>(agent: &mut Agent, obj: Object, gc: GcScope<'gc, '_>) -> JsResult<'gc, Object<'gc>> {
+    // WARNING: the next line is erroneous!
     delete(agent, obj, "key".into(), gc)?;
     Ok(obj)
 }
 ```
 
-Now, with interleaved garbage collection we must realise that `obj` could be a
-Proxy with a `delete` trap that performs wild allocations, trying to crash the
-engine through OOM. If within the `delete` call garbage collection happens, the
-`obj` would no longer point to the same object that we took as a parameter.
-Here, we can use scoping to solve the problem:
+Because the `delete` method takes a `GcScope`, it might trigger garbage
+collection. If that happens, then the `obj` would no longer point to the same
+object that we took as a parameter: this is use-after-free. Here, we can use
+scoping to solve the problem:
 
 ```rs
-fn method(agent: &mut Agent, obj: Object, gc: GcToken) -> JsResult<Object> {
+fn method<'gc>(agent: &mut Agent, obj: Object, gc: GcScope<'gc, '_>) -> JsResult<'gc, Object<'gc>> {
     let scoped_obj = obj.scope(agent, gc.nogc());
     delete(agent, obj, "key".into(), gc.reborrow())?;
     Ok(scoped_obj.get(agent))
@@ -80,16 +84,16 @@ object heap data.
 
 The issue here is that we have to know to call the `scope` method ourselves, and
 without help this will be impossible to keep track of. Above you already see the
-`GcToken::nogc` and `GcToken::reborrow` methods: We use these to make Rust's
+`GcScope::nogc` and `GcScope::reborrow` methods: We use these to make Rust's
 borrow checker track the GC safety for us.
 
-The `GcToken::nogc` method performs a shared borrow on the current `GcToken` and
-returns a `NoGcToken` that is bound to the lifetime of that shared borrow.
-Effectively you can think of it as saying "for as long as this `NoGcToken` or a
+The `GcScope::nogc` method performs a shared borrow on the current `GcScope` and
+returns a `NoGcScope` that is bound to the lifetime of that shared borrow.
+Effectively you can think of it as saying "for as long as this `NoGcScope` or a
 `Value` derived from it exists, garbage collection cannot be performed". This
-API is used for scoping, for explicitly binding `Value`s to the `GcToken`'s
-lifetime, and for calling methods that are guaranteed to not call JavaScript
-and/or perform garbage collection.
+method is used for scoping, explicitly binding `Value`s to the `GcScope`'s
+lifetime, and calling methods that are guaranteed to not call JavaScript or
+perform garbage collection otherwise.
 
 > Note 1: "Scoped" `Value`s do not restrict garbage collection from being
 > performed. They have a different type, `Scoped<Value>`, and are thus not
@@ -98,25 +102,26 @@ and/or perform garbage collection.
 > Note 2: Currently, Nova makes no difference between methods that can call into
 > JavaScript and methods that can perform garbage collection. All JavaScript
 > execution is required to be capable of performing garbage collection so
-> calling into JavaScript always requires the `GcToken`. A method that cannot
+> calling into JavaScript always requires the `GcScope`. A method that cannot
 > call into JavaScript but may trigger garbage collection is theoretically
-> possible and would likewise require a `GcToken` but there would be no way to
+> possible and would likewise require a `GcScope` but there would be no way to
 > say that it never calls JavaScript.
 
-The `GcToken::reborrow` method performs an exclusive borrow on the current
-`GcToken` and returns a new `GcToken` that is bound to the lifetime of that
-exclusive borrow. Effectively, it says "for as long as this `GcToken` or a
-`Value` derived from it exists, no other `GcToken` or `Value` can be used". This
-API is used when calling into methods that may perform garbage collection.
+The `GcScope::reborrow` method performs an exclusive borrow on the current
+`GcScope` and returns a new `GcScope` that is bound to the lifetime of that
+exclusive borrow. Effectively, it says "for as long as this `GcScope` or a
+`Value` derived from it exists, no other `GcScope` or `Value` derived from them
+can be used". This method is used when calling into methods that may perform
+garbage collection.
 
-With the `GcToken::nogc`, we can explicitly "bind" a `Value` to the `GcToken`
+With the `GcScope::nogc`, we can explicitly "bind" a `Value` to the `GcScope`
 like this:
 
 ```rs
-fn method(agent: &mut Agent, obj: Object, gc: GcToken) -> JsResult<Object> {
+fn method(agent: &mut Agent, obj: Object, gc: GcScope) -> JsResult<Object> {
     let obj = obj.bind(gc.nogc());
     let scoped_obj = obj.scope(agent, gc.nogc());
-    delete(agent, obj.unbind(), "key".into(), gc.reborrow())?;
+    delete(agent, obj.unbind(), "key".into(), gc.reborrow()).unbind()?;
     Ok(scoped_obj.get(agent))
 }
 ```
@@ -125,16 +130,18 @@ If we were to write out all the lifetime changes here a bit more explicitly, it
 would look something like this:
 
 ```rs
-fn method(agent: &'agent mut Agent, obj: Object<'obj>, gc: GcToken<'gc, 'scope>) -> JsResult<'gc, Object<'gc>> {
-    let nogc: NoGcToken<'nogc, 'scope> = gc.nogc(); // [1]
+fn method(agent: &'agent mut Agent, obj: Object<'obj>, gc: GcScope<'gc, 'scope>) -> JsResult<'gc, Object<'gc>> {
+    let nogc: NoGcScope<'nogc, 'scope> = gc.nogc(); // [1]
     let obj: Object<'nogc> = obj.bind(gc.nogc());
     let scoped_obj: Scoped<'scope, Object<'static>> = obj.scope(agent, gc.nogc()); // [2]
     {
         let obj_unbind: Object<'static> = obj.unbind(); // [3]
-        let gc_reborrow: GcToken<'gcrb, 'scope> = gc.reborrow(); // [4]
-        delete(agent, obj_unbind, "key".into(), gc_reborrow)?;
+        let gc_reborrow: GcScope<'gcrb, 'scope> = gc.reborrow(); // [4]
+        let result: JsResult<'gcrb, bool> = delete(agent, obj_unbind, "key".into(), gc_reborrow); // [5]
+        let unbound_result: JsResult<'static, bool> = result.unbind();
+        unbound_result?;
     }
-    let scoped_obj_get: Object<'static> = scoped_obj.get(agent); // [5]
+    let scoped_obj_get: Object<'static> = scoped_obj.get(agent); // [6]
     Ok(scoped_obj_get)
 }
 ```
@@ -144,40 +151,46 @@ Taking the steps in order:
 - 1: `'gc: 'nogc`, ie. `'nogc` is shorter than and derives/reborrows from `'gc`.
 
 - 2: `Scoped` does not bind to the `'nogc` lifetime of
-  `NoGcToken<'nogc, 'scope>` but instead to the `'scope` lifetime. This is
+  `NoGcScope<'nogc, 'scope>` but instead to the `'scope` lifetime. This is
   purposeful and is what enables `Scoped` to be used after the `delete` call
-  without angering the garbage collector.
+  without angering the borrow checker.
 
-- 3: The `Object` needs to be "unbound" from the `GcToken` when used as a
+- 3: The `Object` needs to be "unbound" from the `GcScope` when used as a
   parameter for a method that may perform garbage collection. The reason for
   this is that, effectively, performing `gc.reborrow()` or passing `gc` as a
   parameter to a call invalidates all existing `Value`s "bound" to the
-  `GcToken`.
+  `GcScope`, including the `obj` that we wanted to pass as a parameter.
 
 - 4: `'gc: 'gcrb`, ie. `'gcrb` is shorter than and derives/reborrows from `'gc`.
 
-- 5: The returned `Value` (in this case `Object`) from a `Scoped::get` is
-  currently bound to the `'static` lifetime, ie. unbound from the `GcToken`.
-  This isn't great and we'd prefer to have `get` take in a `NoGcToken` and
-  return `Value<'nogc>` instead but I've not yet figured out if that's possible
-  (it requires expert level trait magics). Because here we return the `Value` we
-  got immediately, this lifetime is not a problem but in general we should
-  perform call `value.bind(gc.nogc())` immediately after the `get`.
+- 5: The `delete` method returns a `JsResult<bool>` that carries the `'gcrb`
+  lifetime. As this is a shorter lifetime than `'gc`, we cannot rethrow the
+  `JsResult::Err` variant as-is (it does not live long enough to be returned
+  from the `fn method` function) and therefore have to `.unbind()` the result
+  before rethrowing.
+
+- 6: The `Value` (or in this case `Object`) returned from a `Scoped::get` is
+  unbound from the `GcScope`. This isn't great and we'd prefer to have `get`
+  take in a `NoGcScope` and return `Value<'nogc>` instead but I've not yet
+  figured out if that's possible (it requires expert level trait magics).
+  Because here we return the `Value` we got immediately, this lifetime is not a
+  problem but in general we should perform call `value.bind(gc.nogc())`
+  immediately after the `get`.
 
 With these steps, the borrow checker will now ensure that `obj` is not used
 after the `delete` call, giving us the help we want and desperately need.
 
-## Rules of thumb for methods that take `GcToken`
+## Rules of thumb for methods that take `GcScope`
 
 Here's a helpful set of things to remember about scoping of `Value`s in calls
-and the different APIs related to the `GcToken`.
+and the different APIs related to the `GcScope`.
 
 ### At the beginning of a function, bind all parameters
 
 Example:
 
 ```rs
-fn method(agent: &mut Agent, a: Object, b: Value, c: PropertyKey, d: ArgumentsList, gc: GcToken) {
+fn method(agent: &mut Agent, a: Object, b: Value, c: PropertyKey, d: ArgumentsList, gc: GcScope) {
     let nogc = gc.nogc(); // Perfectly okay to avoid repeating `gc.nogc()` in each call.
     let a = a.bind(nogc);
     let b = b.bind(nogc);
@@ -190,11 +203,12 @@ fn method(agent: &mut Agent, a: Object, b: Value, c: PropertyKey, d: ArgumentsLi
 ```
 
 Yes, this is annoying, I understand. You **must** still do it, or bugs will seep
-through! TODO: We should allow binding `ArgumentsList` directly as well.
+through! You can also bind `d: ArgumentsList` directly as well to reduce the
+work a little.
 
 > Note: The `nogc` local value cannot be used after the first `gc.reborrow()`
-> call. You'll need to re-do `let nogc = gc.nogc();` if you want the convenience
-> again.
+> call. You'll need to re-do `let nogc = gc.nogc();` or `nogc = gc.nogc()` if
+> you want the convenience again.
 
 ### Unbind all parameters only at the call-site, never before
 
@@ -222,32 +236,34 @@ Example:
 method(agent, scoped_a.get(agent), gc.reborrow());
 ```
 
-### Immediately "rebind" return values from methods that take `GcToken`
+### Immediately "rebind" return values from methods that take `GcScope`
 
 Example:
 
 ```rs
 let result = method(agent, a.unbind(), gc.reborrow())
-    .unbind().bind(gc.nogc());
+    .unbind()
+    .bind(gc.nogc());
 ```
 
 The reason to do this is that the `result` as returned from `method` extends the
-lifetime of the `gc.reborrow()` exclusive borrow on the `GcToken`. In effect,
-the `result` says that as long as it lives, the `gc: GcToken` cannot be used nor
+lifetime of the `gc.reborrow()` exclusive borrow on the `GcScope`. In effect,
+the `result` says that as long as it lives, the `gc: GcScope` cannot be used nor
 can any other `Value`s exist. The exact reason for why it works like this is
 some fairly obscure Rust lifetime trivia having to do with internal mutability.
 
 In our case, a quick `.unbind().bind(gc.nogc())` allows us to drop the exclusive
-borrow on the `GcToken` and replace it with, effectively, a shared borrow on the
-`GcToken`. This gives us the `GcToken` binding we wanted.
+borrow on the `GcScope` and replace it with, effectively, a shared borrow on the
+`GcScope`. This gives us the `GcScope` binding we wanted.
 
 Exception: This does not need to be done if you're simply returning the result
-immediately:
+immediately (this does require passing the entire `gc` by-value instead of by
+calling `gc.reborrow()`):
 
 ```rs
-fn call<'a>(agent: &mut Agent, a: Value, gc: GcToken<'a, '_>) -> JsResult<'a, Value<'a>> {
+fn call<'a>(agent: &mut Agent, a: Value, gc: GcScope<'a, '_>) -> JsResult<'a, Value<'a>> {
     let a = a.bind(gc.nogc());
-    method(agent, a.unbind(), gc.reborrow()) // No need to rebind the result
+    method(agent, a.unbind(), gc) // No need to rebind the result
 }
 ```
 
@@ -276,8 +292,10 @@ as the borrow checker would force you to again unbind both `Value`s immediately.
 Example:
 
 ```rs
+let a = a.bind(gc.nogc());
 let result = method(agent, a.unbind(), gc.reborrow())
-    .unbind().bind(gc.nogc());
+    .unbind()
+    .bind(gc.nogc());
 a.internal_set_prototype(agent, result.unbind(), gc.reborrow()); // Error! `gc` is immutably borrowed here but mutably borrowed above
 ```
 
@@ -285,6 +303,7 @@ If you cannot figure out a way around the borrow checker error (it is absolutely
 correct in erroring here), then scope the offending `Value`:
 
 ```rs
+let a = a.bind(gc.nogc());
 let scoped_a = a.scope(agent, gc.nogc());
 let result = method(agent, a.unbind(), gc.reborrow())
     .unbind().bind(gc.nogc());
@@ -308,21 +327,25 @@ the `into_nogc` method, this can be done:
 
 ```rs
 let a = a.unbind();
-// No garbage collection or JS call can happen after this point. We no longer need the GcToken.
+// No garbage collection or JS call can happen after this point. We no longer
+// need the GcScope.
 let gc = gc.into_nogc();
-let a = a.bind(gc); // With this we're back to being bound; temporary unbinding like this is okay.
+// With this we're back to being bound; temporary unbinding like this is okay.
+let a = a.bind(gc);
 ```
 
 **Bad example:**
 
-"Temporary unbinding" like above must not contain any `GcToken` usage in
+"Temporary unbinding" like above must not contain any `GcScope` usage in
 between:
 
 ```rs
 let a = a.unbind();
-method(agent, b.unbind(), gc.reborrow()); // GC can trigger here!
+// GC can trigger here!
+method(agent, b.unbind(), gc.reborrow());
 let gc = gc.into_nogc();
-let a = a.bind(gc); // We're back to being bound but GC might have triggered while we were unbound!
+// We're back to being bound but GC might have triggered while we were unbound!
+let a = a.bind(gc);
 ```
 
 This is absolutely incorrect and will one day lead to a weird bug.
