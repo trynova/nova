@@ -97,21 +97,20 @@ pub(crate) struct Vm {
 #[derive(Debug)]
 pub(crate) struct SuspendedVm {
     ip: usize,
-    /// Note: Stack is non-empty only if the code awaits inside a call
-    /// expression. This is reasonably rare that we can expect the stack to
-    /// usually be empty. In this case this Box is an empty dangling pointer
-    /// and no heap data clone is required.
+    /// Note: Stack is empty only if the code contains no local variables
+    /// optimised into stack slots or temporarily stored Values. A heap clone is
+    /// probably often performed by the `stack.into_boxed_slice()` call.
     stack: Box<[Value<'static>]>,
-    /// Note: Reference stack is non-empty only if the code awaits inside a
-    /// call expression. This means that usually no heap data clone is
-    /// required.
+    /// Note: Reference stack is non-empty only if the code awaits inside a call
+    /// expression. This means that usually no heap data clone is required.
     reference_stack: Box<[Reference<'static>]>,
     /// Note: Iterator stack is non-empty only if the code awaits inside a
     /// for-in or for-of loop. This means that often no heap data clone is
     /// required.
     iterator_stack: Box<[VmIteratorRecord<'static>]>,
-    /// Note: Exception jump stack is non-empty only if the code awaits inside
-    /// a try block. This means that often no heap data clone is required.
+    /// Note: Exception jump stack is non-empty only if the code awaits inside a
+    /// try block or an await for-of loop. This means that often no heap data
+    /// clone is required.
     exception_jump_target_stack: Box<[ExceptionHandler<'static>]>,
 }
 
@@ -264,7 +263,7 @@ impl Vm {
         eprintln!();
     }
 
-    pub(crate) fn resume<'gc>(
+    fn resume<'gc>(
         mut self,
         agent: &mut Agent,
         executable: Scoped<Executable>,
@@ -275,7 +274,7 @@ impl Vm {
         self.inner_execute(agent, executable, gc)
     }
 
-    pub(crate) fn resume_throw<'gc>(
+    fn resume_throw<'gc>(
         mut self,
         agent: &mut Agent,
         executable: Scoped<Executable>,
