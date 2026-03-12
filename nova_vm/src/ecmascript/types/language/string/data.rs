@@ -69,7 +69,7 @@ impl StringRecord {
     const MAX_UTF8_LENGTH: usize = 3 * Self::MAX_UTF16_LENGTH;
 
     /// Get the byte length of the string.
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         match &self.data {
             StringBuffer::Owned(buf) => buf.len(),
             StringBuffer::Static(buf) => buf.len(),
@@ -139,14 +139,17 @@ impl StringRecord {
     }
 
     /// Get the WTF-16 length of the string.
-    pub fn utf16_len(&self) -> usize {
+    pub(crate) fn utf16_len(&self) -> usize {
         match self.index_mapping() {
             IndexMapping::Ascii => self.len(),
             IndexMapping::NonAscii { mapping } => mapping.len(),
         }
     }
 
-    pub fn char_code_at(&self, idx: usize) -> CodePoint {
+    /// Get the WTF-16 code unit at a given WTF-16 code unit index.
+    ///
+    /// This is equivalent to the JavaScript `string.charCodeAt(idx)` method.
+    pub(crate) fn char_code_at(&self, idx: usize) -> CodePoint {
         let (utf8_idx, take_latter_half): (usize, bool) = if idx != 0 {
             match self.index_mapping() {
                 IndexMapping::Ascii => {
@@ -193,7 +196,7 @@ impl StringRecord {
         unsafe { CodePoint::from_u32_unchecked(surrogate as u32) }
     }
 
-    pub fn utf8_index(&self, utf16_idx: usize) -> Option<usize> {
+    pub(crate) fn utf8_index(&self, utf16_idx: usize) -> Option<usize> {
         if utf16_idx == 0 {
             Some(0)
         } else {
@@ -213,7 +216,7 @@ impl StringRecord {
         }
     }
 
-    pub fn utf16_index(&self, utf8_idx: usize) -> usize {
+    pub(crate) fn utf16_index(&self, utf8_idx: usize) -> usize {
         if utf8_idx == 0 {
             0
         } else {
@@ -275,7 +278,10 @@ impl StringRecord {
         }
     }
 
-    pub fn code_point_at(&self, utf16_idx: usize) -> CodePoint {
+    /// Get the CodePoint at a given WTF-16 code unit index.
+    ///
+    /// This is equivalent to the JavaScript `string.codePointAt(idx)` method.
+    pub(crate) fn code_point_at(&self, utf16_idx: usize) -> CodePoint {
         assert!(utf16_idx <= self.utf16_len());
         let mapping = match self.index_mapping() {
             // SAFETY: ASCII is all valid CodePoints.
@@ -327,7 +333,7 @@ impl StringRecord {
     /// Surrogates are replaced with `"\u{FFFD}"` (the replacement character “�”).
     ///
     /// This only copies the data if necessary (if it contains any surrogate).
-    pub fn to_string_lossy(&self) -> Cow<'_, str> {
+    pub(crate) fn to_string_lossy(&self) -> Cow<'_, str> {
         self.as_wtf8().to_string_lossy()
     }
 
@@ -337,24 +343,24 @@ impl StringRecord {
     ///
     /// This does not copy the data.
     #[inline]
-    pub fn as_str(&self) -> Option<&str> {
+    pub(crate) fn as_str(&self) -> Option<&str> {
         self.as_wtf8().as_str()
     }
 
-    pub fn as_bytes(&self) -> &[u8] {
+    pub(crate) fn as_bytes(&self) -> &[u8] {
         let buf = self.as_wtf8();
         // SAFETY: converting to backing store data.
         unsafe { core::mem::transmute::<&Wtf8, &[u8]>(buf) }
     }
 
-    pub fn as_wtf8(&self) -> &Wtf8 {
+    pub(crate) fn as_wtf8(&self) -> &Wtf8 {
         match &self.data {
             StringBuffer::Owned(buf) => buf,
             StringBuffer::Static(buf) => buf,
         }
     }
 
-    pub fn from_str(str: &str) -> Self {
+    pub(crate) fn from_str(str: &str) -> Self {
         debug_assert!(str.len() > 7);
         assert!(str.len() <= Self::MAX_UTF8_LENGTH, "String is too long.");
         StringRecord {
@@ -363,7 +369,7 @@ impl StringRecord {
         }
     }
 
-    pub fn from_static_str(str: &'static str) -> Self {
+    pub(crate) fn from_static_str(str: &'static str) -> Self {
         debug_assert!(str.len() > 7);
         assert!(str.len() <= Self::MAX_UTF8_LENGTH, "String is too long.");
         StringRecord {
@@ -372,7 +378,7 @@ impl StringRecord {
         }
     }
 
-    pub fn from_string(str: String) -> Self {
+    pub(crate) fn from_string(str: String) -> Self {
         debug_assert!(str.len() > 7);
         assert!(str.len() <= Self::MAX_UTF8_LENGTH, "String is too long.");
         StringRecord {
@@ -381,7 +387,7 @@ impl StringRecord {
         }
     }
 
-    pub fn from_wtf8_buf(str: Wtf8Buf) -> Self {
+    pub(crate) fn from_wtf8_buf(str: Wtf8Buf) -> Self {
         debug_assert!(str.len() > 7);
         assert!(str.len() <= Self::MAX_UTF8_LENGTH, "String is too long.");
         StringRecord {

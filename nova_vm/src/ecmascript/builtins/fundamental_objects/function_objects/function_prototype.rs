@@ -416,7 +416,7 @@ impl FunctionPrototype {
                         .unbind(),
                 )
             }
-            Function::BuiltinPromiseCollectorFunction | Function::BuiltinProxyRevokerFunction => {
+            Function::BuiltinProxyRevokerFunction => {
                 unreachable!()
             }
         }

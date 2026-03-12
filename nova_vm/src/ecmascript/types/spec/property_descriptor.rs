@@ -125,6 +125,9 @@ impl<'a> PropertyDescriptor<'a> {
         }
     }
 
+    /// Creates a new data descriptor from a [Value].
+    ///
+    /// Data descriptors are writable, enumerable, and configurable.
     pub fn new_data_descriptor(value: impl Into<Value<'a>>) -> Self {
         Self {
             value: Some(value.into()),
@@ -136,6 +139,7 @@ impl<'a> PropertyDescriptor<'a> {
         }
     }
 
+    /// Creates a new non-enumerable data descriptor from a [Value].
     pub fn non_enumerable_data_descriptor(value: impl Into<Value<'a>>) -> Self {
         Self {
             value: Some(value.into()),
@@ -147,14 +151,9 @@ impl<'a> PropertyDescriptor<'a> {
         }
     }
 
+    /// Creates a new non-enumerable data descriptor from a [Function].
     pub fn new_prototype_method_descriptor(function: impl Into<Function<'a>>) -> Self {
-        Self {
-            value: Some(function.into().unbind().into()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        }
+        Self::non_enumerable_data_descriptor(function.into())
     }
 
     /// ### [6.2.6.1 IsAccessorDescriptor ( Desc )](https://tc39.es/ecma262/#sec-isaccessordescriptor)
@@ -717,6 +716,9 @@ impl<'a> PropertyDescriptor<'a> {
         Ok(())
     }
 
+    /// Returns `true` if this property descriptor has been fully populated with
+    /// enumerable and configurable bits, and either a value and a writable bit
+    /// OR at least a getter or setter function.
     pub fn is_fully_populated(&self) -> bool {
         ((self.value.is_some() && self.writable.is_some())
             // A property descriptor can contain just get or set.
@@ -725,6 +727,7 @@ impl<'a> PropertyDescriptor<'a> {
             && self.configurable.is_some()
     }
 
+    /// Returns `true` if this property descriptor has any fields populated.
     pub fn has_fields(&self) -> bool {
         self.value.is_some()
             || self.writable.is_some()

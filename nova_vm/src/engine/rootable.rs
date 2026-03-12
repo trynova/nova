@@ -68,7 +68,6 @@ use crate::{
         ASYNC_GENERATOR_DISCRIMINANT, Array, ArrayIterator, AsyncGenerator, AwaitReaction,
         BIGINT_DISCRIMINANT, BOUND_FUNCTION_DISCRIMINANT,
         BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
-        BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
         BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
         BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
         BoundFunction, BuiltinConstructorFunction, BuiltinFunction, BuiltinPromiseFinallyFunction,
@@ -314,7 +313,6 @@ pub(crate) enum HeapRootData {
         BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT,
     BuiltinPromiseFinallyFunction(BuiltinPromiseFinallyFunction<'static>) =
         BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
-    BuiltinPromiseCollectorFunction = BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
     BuiltinProxyRevokerFunction = BUILTIN_PROXY_REVOKER_FUNCTION,
     PrimitiveObject(PrimitiveObject<'static>),
     Arguments(UnmappedArguments<'static>) = ARGUMENTS_DISCRIMINANT,
@@ -495,7 +493,6 @@ impl HeapMarkAndSweep for HeapRootData {
             Self::BuiltinPromiseFinallyFunction(builtin_promise_finally_function) => {
                 builtin_promise_finally_function.mark_values(queues)
             }
-            Self::BuiltinPromiseCollectorFunction => todo!(),
             Self::BuiltinProxyRevokerFunction => todo!(),
             Self::PrimitiveObject(primitive_object) => primitive_object.mark_values(queues),
             Self::Arguments(ordinary_object) => ordinary_object.mark_values(queues),
@@ -650,7 +647,6 @@ impl HeapMarkAndSweep for HeapRootData {
             Self::BuiltinPromiseFinallyFunction(builtin_promise_finally_function) => {
                 builtin_promise_finally_function.sweep_values(compactions);
             }
-            Self::BuiltinPromiseCollectorFunction => todo!(),
             Self::BuiltinProxyRevokerFunction => todo!(),
             Self::PrimitiveObject(primitive_object) => primitive_object.sweep_values(compactions),
             Self::Arguments(ordinary_object) => ordinary_object.sweep_values(compactions),

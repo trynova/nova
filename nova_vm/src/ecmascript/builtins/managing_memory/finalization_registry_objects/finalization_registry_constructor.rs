@@ -98,7 +98,6 @@ impl FinalizationRegistryConstructor {
             Function::BuiltinPromiseFinallyFunction(_) => {
                 unreachable!("builtin promise finally function constructing FinalizationRegistry")
             }
-            Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         };
         // 6. Set finalizationRegistry.[[CleanupCallback]] to

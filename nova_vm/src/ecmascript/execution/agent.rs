@@ -278,7 +278,7 @@ pub struct Job {
 }
 
 impl Job {
-    // Returns `true` if the Job has finished and can be run.
+    /// Returns `true` if the Job has finished and can be run.
     pub fn is_finished(&self) -> bool {
         match &self.inner {
             #[cfg(feature = "atomics")]
@@ -332,16 +332,28 @@ impl Job {
     }
 }
 
+/// Parameter to [HostPromiseRejectionTracker] embedder hook.
+///
+/// [HostPromiseRejectionTracker]: https://tc39.es/ecma262/#sec-host-promise-rejection-tracker
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum PromiseRejectionTrackerOperation {
+    /// A Promise was rejected without any handlers.
     Reject,
+    /// A handler was added to a rejected Promise for the first time.
     Handle,
 }
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 #[cfg(feature = "shared-array-buffer")]
+/// Parameter to [HostGrowSharedArrayBuffer] embedder hook.
+///
+/// [HostGrowSharedArrayBuffer]: https://tc39.es/ecma262/#sec-hostgrowsharedarraybuffer
 pub enum GrowSharedArrayBufferResult {
+    /// Returned when the embedder does not handle growing of this
+    /// SharedArrayBuffer.
     #[default]
     Unhandled = 0,
+    /// Returned when the embedder did handle growing of this SharedArrayBuffer.
     Handled = 1,
 }
 
@@ -1560,13 +1572,21 @@ pub(crate) fn resolve_binding<'a, 'b>(
 /// Native error types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExceptionType {
+    /// ### [19.3.10 Error ( . . . )](https://tc39.es/ecma262/#sec-constructor-properties-of-the-global-object-error)
     Error,
+    /// ### [19.3.1 AggregateError ( . . . )](https://tc39.es/ecma262/#sec-constructor-properties-of-the-global-object-aggregate-error)
     AggregateError,
+    /// ### [19.3.11 EvalError ( . . . )](https://tc39.es/ecma262/#sec-constructor-properties-of-the-global-object-evalerror)
     EvalError,
+    /// ### [19.3.26 RangeError ( . . . )](https://tc39.es/ecma262/#sec-constructor-properties-of-the-global-object-rangeerror)
     RangeError,
+    /// ### [19.3.27 ReferenceError ( . . . )](https://tc39.es/ecma262/#sec-constructor-properties-of-the-global-object-referenceerror)
     ReferenceError,
+    /// ### [19.3.33 SyntaxError ( . . . )](https://tc39.es/ecma262/#sec-constructor-properties-of-the-global-object-syntaxerror)
     SyntaxError,
+    /// ### [19.3.34 TypeError ( . . . )](https://tc39.es/ecma262/#sec-constructor-properties-of-the-global-object-typeerror)
     TypeError,
+    /// ### [19.3.39 URIError ( . . . )](https://tc39.es/ecma262/#sec-constructor-properties-of-the-global-object-urierror)
     UriError,
 }
 

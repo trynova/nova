@@ -3,6 +3,66 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #![cfg_attr(feature = "proposal-float16array", feature(f16))]
+#![warn(missing_docs)]
+
+//! # Nova JavaScript engine
+//!
+//! Nova is a JavaScript engine aiming to be lightweight, easy to embed, and
+//! close to the ECMAScript specification in form with the implementation
+//! relying on idiomatic Rust rather than traditional JavaScript engine building
+//! wisdom. Great performance is also an aspirational goal of the engine, but
+//! not something that can be said to really be a reality today.
+//!
+//! ## API architecture
+//!
+//! The API of the engine relies on idiomatic Rust rather than traditional
+//! JavaScript engine building wisdom. This is most apparent in the [`Value`]
+//! type and its subtypes: instead of using NaN-boxing, NuN-boxing, or other
+//! traditional and known efficient strategies for building a dynamically typed
+//! language, Nova uses normal Rust enums carrying either on-stack data or a
+//! handle to heap-allocated data. The only pointer that gets consistently
+//! passed through call stacks is the [`Agent`] reference, and handles are
+//! merely ways to access heap-allocated JavaScript data held inside the
+//! `Agent`.
+//!
+//! ## Lightweight engine
+//!
+//! The engine's heap is set up to keep heap allocations small, trading speed
+//! for a smaller memory footprint in the general case. This should make working
+//! with large, regular datasets fairly low-impact on the memory usage of the
+//! engine.
+//!
+//! ## Ease of embedding
+//!
+//! The engine has very little bells or whistles and is very easy to set up for
+//! one-off script runs. The engine uses the [WTF-8] encoding internally for
+//! [`String`] storage, making interfacing between the engine and normal Rust
+//! code much nicer than one might expect.
+//!
+//! ## Shortcomings and unexpected edge cases
+//!
+//! Nova JavaScript engine has not been born perfect, and has many shortcomings.
+//!
+//! 1. The engine performance is acceptable, but it is not fast by any means.
+//!
+//! 1. The [`Array`] implementation does not support sparse storage internally.
+//! Calling `new Array(10 ** 9)` will request an allocation for 8 billion bytes.
+//!
+//! 1. The [`RegExp`] implementation does not support lookaheads, lookbehinds,
+//! or backreferences. It is always in UTF-8 / Unicode sets mode, does not
+//! support RegExp patterns containing unpaired surrogates, and its groups are
+//! slightly different from what the ECMAScript specification defines. In short:
+//! it is not compliant.
+//!
+//! 1. [`Promise`] subclassing is currently not supported.
+//!
+//! [`Agent`]: crate::ecmascript::Agent
+//! [`Array`]: crate::ecmascript::Array
+//! [`RegExp`]: crate::ecmascript::RegExp
+//! [`Promise`]: crate::ecmascript::Promise
+//! [`String`]: crate::ecmascript::String
+//! [`Value`]: crate::ecmascript::Value
+//! [WTF-8]: https://wtf-8.codeberg.page/
 
 pub mod ecmascript;
 pub mod engine;

@@ -39,6 +39,15 @@ use super::ordinary::{
 ///
 /// > NOTE: The form and functionality of regular expressions is modelled after
 /// > the regular expression facility in the Perl 5 programming language.
+///
+/// ## Support status
+///
+/// `RegExp` in Nova does not currently conform to the ECMAScript specification.
+/// The implementation does not support lookaheads, lookbehinds, or
+/// backreferences. It is always in UTF-8 / Unicode sets mode, does not support
+/// RegExp patterns containing unpaired surrogates, and its groups are slightly
+/// different from what the ECMAScript specification defines. In short: it is
+/// not compliant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct RegExp<'a>(BaseIndex<'a, RegExpHeapData<'static>>);

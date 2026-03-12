@@ -46,23 +46,24 @@ impl ScopedCollection<'_, Vec<Value<'static>>> {
         f(value_vec)
     }
 
-    /// Push a Value into the scoped vec.
+    /// Push a Value into the scoped Vec.
     pub fn push(&mut self, agent: &Agent, value: Value) {
         self.with_cb_mut(agent, |value_vec| value_vec.push(value.unbind()));
     }
 
-    /// Pop a Value from the scoped vec.
+    /// Pop a Value from the scoped Vec.
     pub fn pop<'a>(&mut self, agent: &Agent, gc: NoGcScope<'a, '_>) -> Option<Value<'a>> {
         self.with_cb_mut(agent, |value_vec| value_vec.pop().bind(gc))
     }
 
+    /// Copy the last Value from the scoped Vec if not empty.
     pub fn last<'a>(&self, agent: &Agent, gc: NoGcScope<'a, '_>) -> Option<Value<'a>> {
         self.with_cb(agent, |value_vec| {
             value_vec.last().map(|value| value.bind(gc))
         })
     }
 
-    /// Returns `true` if the scoped vec contains a Value.
+    /// Returns `true` if the scoped Vec contains a Value.
     pub fn contains(&self, agent: &Agent, value: Value) -> bool {
         self.with_cb(agent, |value_vec| value_vec.contains(&value.unbind()))
     }
@@ -74,10 +75,12 @@ impl ScopedCollection<'_, Vec<Value<'static>>> {
         })
     }
 
+    /// Returns `true` if the scoped Vec is empty.
     pub fn is_empty(&self, agent: &Agent) -> bool {
         self.with_cb(agent, |value_vec| value_vec.is_empty())
     }
 
+    /// Returns the scoped Vec's length.
     pub fn len(&self, agent: &Agent) -> usize {
         self.with_cb(agent, |value_vec| value_vec.len())
     }

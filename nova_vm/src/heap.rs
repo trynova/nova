@@ -2,6 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+//! # Nova engine heap structures
+//!
+//! This module contains internal details of how the Nova engine lays out its
+//! heap. It is likely to go away in the future.
+
 mod element_array;
 mod heap_bits;
 mod heap_constants;

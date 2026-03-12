@@ -387,7 +387,10 @@ pub type ConstructorFn = for<'gc> fn(
 #[allow(unpredictable_function_pointer_comparisons)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Behaviour {
+    /// Regular JavaScript function not callable with the `new` keyword.
     Regular(RegularFn),
+    /// JavaScript function callable with the `new` keyword, and possibly
+    /// without it.
     Constructor(ConstructorFn),
 }
 
@@ -446,27 +449,37 @@ pub(crate) trait BuiltinIntrinsic: Builtin {
 }
 /// Helper trait for defining builtin getter function properties.
 pub trait BuiltinGetter: Builtin {
+    /// Accessor property's getter function's `name` property value.
     const GETTER_NAME: String<'static> = Self::NAME;
+    /// Accessor property's getter function's call behaviour.
     const GETTER_BEHAVIOUR: Behaviour = Self::BEHAVIOUR;
 }
 /// Helper trait for defining builtin setter function properties.
 pub trait BuiltinSetter: Builtin {
+    /// Accessor property's setter function's `name` property value.
     const SETTER_NAME: String<'static> = Self::NAME;
+    /// Accessor property's setter function's call behaviour.
     const SETTER_BEHAVIOUR: Behaviour = Self::BEHAVIOUR;
 }
 
 /// Builtin function creation arguments.
 #[derive(Debug, Default)]
 pub struct BuiltinFunctionArgs<'a> {
+    /// The builtin function's `length` property initial value.
     pub length: u32,
+    /// The builtin function's `name` property initial value.
     pub name: &'static str,
+    /// The builtin function's Realm. Defaults to the current Realm.
     pub realm: Option<Realm<'a>>,
+    /// The builtin function's prototype. Defaults to the current Realm's
+    /// `Function.prototype`
     pub prototype: Option<Object<'a>>,
+    /// An optional prefix for the builtin function's name.
     pub prefix: Option<&'static str>,
 }
 
 impl<'a> BuiltinFunctionArgs<'a> {
-    // Create new builtin function creation arguments with length and name.
+    /// Create new builtin function creation arguments with length and name.
     pub fn new(length: u32, name: &'static str) -> Self {
         Self {
             length,
@@ -475,7 +488,7 @@ impl<'a> BuiltinFunctionArgs<'a> {
         }
     }
 
-    // Create new builtin function creation arguments with length, name, and a realm.
+    /// Create new builtin function creation arguments with length, name, and a realm.
     pub fn new_with_realm(length: u32, name: &'static str, realm: Realm<'a>) -> Self {
         Self {
             length,

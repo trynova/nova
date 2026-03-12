@@ -1313,7 +1313,6 @@ pub(crate) fn typeof_operator(agent: &Agent, val: Value, gc: NoGcScope) -> Strin
         Value::BuiltinConstructorFunction(_) |
         Value::BuiltinPromiseResolvingFunction(_) |
         Value::BuiltinPromiseFinallyFunction(_) |
-        Value::BuiltinPromiseCollectorFunction |
         Value::BuiltinProxyRevokerFunction => BUILTIN_STRING_MEMORY.function,
         Value::Proxy(proxy) => {
             if proxy.is_callable(agent, gc) {

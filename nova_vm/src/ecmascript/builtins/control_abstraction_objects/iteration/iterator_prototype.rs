@@ -81,6 +81,7 @@ impl Builtin for IteratorPrototypeToStringTag {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(IteratorPrototype::get_to_string_tag);
 }
 impl BuiltinGetter for IteratorPrototypeToStringTag {
+    /// Accessor property's getter function's `name` property value.
     const GETTER_NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_toStringTag_;
 }
 impl BuiltinSetter for IteratorPrototypeToStringTag {

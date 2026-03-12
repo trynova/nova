@@ -22,11 +22,10 @@ use crate::ecmascript::{
     ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
     ASYNC_GENERATOR_DISCRIMINANT, BOUND_FUNCTION_DISCRIMINANT,
     BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
-    BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT, BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
-    BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
-    ECMASCRIPT_FUNCTION_DISCRIMINANT, EMBEDDER_OBJECT_DISCRIMINANT, ERROR_DISCRIMINANT,
-    FINALIZATION_REGISTRY_DISCRIMINANT, Function, GENERATOR_DISCRIMINANT, MAP_DISCRIMINANT,
-    MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, OBJECT_DISCRIMINANT,
+    BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT, BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT,
+    BUILTIN_PROXY_REVOKER_FUNCTION, ECMASCRIPT_FUNCTION_DISCRIMINANT, EMBEDDER_OBJECT_DISCRIMINANT,
+    ERROR_DISCRIMINANT, FINALIZATION_REGISTRY_DISCRIMINANT, Function, GENERATOR_DISCRIMINANT,
+    MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, OBJECT_DISCRIMINANT,
     PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT,
     STRING_ITERATOR_DISCRIMINANT, UnmappedArguments, Value,
 };
@@ -107,124 +106,240 @@ use std::collections::TryReserveError;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
 pub enum Object<'a> {
+    /// ### [6.1.7 The Object Type](https://tc39.es/ecma262/#sec-object-type)
     Object(OrdinaryObject<'a>) = OBJECT_DISCRIMINANT,
+    /// ### [10.4.1 Bound Function Exotic Objects](https://tc39.es/ecma262/#sec-bound-function-exotic-objects)
     BoundFunction(BoundFunction<'a>) = BOUND_FUNCTION_DISCRIMINANT,
+    /// ## [10.3 Built-in Function Objects](https://tc39.es/ecma262/#sec-built-in-function-objects)
     BuiltinFunction(BuiltinFunction<'a>) = BUILTIN_FUNCTION_DISCRIMINANT,
+    /// ## [10.2 ECMAScript Function Objects](https://tc39.es/ecma262/#sec-ecmascript-function-objects)
     ECMAScriptFunction(ECMAScriptFunction<'a>) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
+    /// ### [4.4.36 built-in constructor](https://tc39.es/ecma262/#sec-built-in-constructor)
+    ///
+    /// A class built-in default constructor created in step 14 of
+    /// ClassDefinitionEvaluation.
     BuiltinConstructorFunction(BuiltinConstructorFunction<'a>) =
         BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
+    /// Special built-in functions created to resolve or reject native [`Promise`]
+    /// objects.
+    ///
+    /// [`Promise`]: crate::ecmascript::Promise
     BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction<'a>) =
         BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT,
+    /// Special functions created as part of `Promise.prototype.finally`.
     BuiltinPromiseFinallyFunction(BuiltinPromiseFinallyFunction<'a>) =
         BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
-    BuiltinPromiseCollectorFunction = BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
+    /// Placeholder.
     BuiltinProxyRevokerFunction = BUILTIN_PROXY_REVOKER_FUNCTION,
+    /// Primitive objects are special objects that hold a primitive value in their
+    /// internal data.
     PrimitiveObject(PrimitiveObject<'a>) = PRIMITIVE_OBJECT_DISCRIMINANT,
+    /// ### [10.4.4 Arguments Exotic Objects](https://tc39.es/ecma262/#sec-arguments-exotic-objects)
+    ///
+    /// An unmapped arguments object is an ordinary object with an additional
+    /// internal slot \[\[ParameterMap]] whose value is always **undefined**.
     Arguments(UnmappedArguments<'a>) = ARGUMENTS_DISCRIMINANT,
+    /// ### [10.4.2 Array Exotic Objects](https://tc39.es/ecma262/#sec-array-exotic-objects)
     Array(Array<'a>) = ARRAY_DISCRIMINANT,
     #[cfg(feature = "date")]
+    /// ## [21.4 Date Objects](https://tc39.es/ecma262/#sec-date-objects)
     Date(Date<'a>) = DATE_DISCRIMINANT,
     #[cfg(feature = "temporal")]
+    /// # [8 Temporal.Instant Objects](https://tc39.es/proposal-temporal/#sec-temporal-instant-objects)
     Instant(TemporalInstant<'a>) = INSTANT_DISCRIMINANT,
     #[cfg(feature = "temporal")]
+    /// # [7 Temporal.Duration Objects](https://tc39.es/proposal-temporal/#sec-temporal-duration-objects)
     Duration(TemporalDuration<'a>) = DURATION_DISCRIMINANT,
     #[cfg(feature = "temporal")]
+    /// # [4 Temporal.PlainTime Objects](https://tc39.es/proposal-temporal/#sec-temporal-plaintime-objects)
     PlainTime(TemporalPlainTime<'a>) = PLAIN_TIME_DISCRIMINANT,
+    /// ## [20.5 Error Objects](https://tc39.es/ecma262/#sec-error-objects)
     Error(Error<'a>) = ERROR_DISCRIMINANT,
+    /// ## [26.2 FinalizationRegistry Objects](https://tc39.es/ecma262/#sec-finalization-registry-objects)
     FinalizationRegistry(FinalizationRegistry<'a>) = FINALIZATION_REGISTRY_DISCRIMINANT,
+    /// ## [24.1 Map Objects](https://tc39.es/ecma262/#sec-map-objects)
     Map(Map<'a>) = MAP_DISCRIMINANT,
+    /// ## [27.2 Promise Objects](https://tc39.es/ecma262/#sec-promise-objects)
     Promise(Promise<'a>) = PROMISE_DISCRIMINANT,
+    /// ## [28.2 Proxy Objects](https://tc39.es/ecma262/#sec-proxy-objects)
     Proxy(Proxy<'a>) = PROXY_DISCRIMINANT,
     #[cfg(feature = "regexp")]
+    /// ## [22.2 RegExp (Regular Expression) Objects](https://tc39.es/ecma262/#sec-regexp-regular-expression-objects)
     RegExp(RegExp<'a>) = REGEXP_DISCRIMINANT,
     #[cfg(feature = "set")]
+    /// ## [24.2 Set Objects](https://tc39.es/ecma262/#sec-set-objects)
     Set(Set<'a>) = SET_DISCRIMINANT,
     #[cfg(feature = "weak-refs")]
+    /// ## [24.3 WeakMap Objects](https://tc39.es/ecma262/#sec-weakmap-objects)
     WeakMap(WeakMap<'a>) = WEAK_MAP_DISCRIMINANT,
     #[cfg(feature = "weak-refs")]
+    /// ## [26.1 WeakRef Objects](https://tc39.es/ecma262/#sec-weak-ref-objects)
     WeakRef(WeakRef<'a>) = WEAK_REF_DISCRIMINANT,
     #[cfg(feature = "weak-refs")]
+    /// ## [24.4 WeakSet Objects](https://tc39.es/ecma262/#sec-weakset-objects)
     WeakSet(WeakSet<'a>) = WEAK_SET_DISCRIMINANT,
 
     /// ## [25.1 ArrayBuffer Objects](https://tc39.es/ecma262/#sec-arraybuffer-objects)
     #[cfg(feature = "array-buffer")]
     ArrayBuffer(ArrayBuffer<'a>) = ARRAY_BUFFER_DISCRIMINANT,
-    /// ## [25.3 DataView Objects](https://tc39.es/ecma262/#sec-dataview-objects)
-    #[cfg(feature = "array-buffer")]
-    DataView(DataView<'a>) = DATA_VIEW_DISCRIMINANT,
-    // ### [23.2 TypedArray Objects](https://tc39.es/ecma262/#sec-typedarray-objects)
-    #[cfg(feature = "array-buffer")]
-    Int8Array(Int8Array<'a>) = INT_8_ARRAY_DISCRIMINANT,
-    #[cfg(feature = "array-buffer")]
-    Uint8Array(Uint8Array<'a>) = UINT_8_ARRAY_DISCRIMINANT,
-    #[cfg(feature = "array-buffer")]
-    Uint8ClampedArray(Uint8ClampedArray<'a>) = UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
-    #[cfg(feature = "array-buffer")]
-    Int16Array(Int16Array<'a>) = INT_16_ARRAY_DISCRIMINANT,
-    #[cfg(feature = "array-buffer")]
-    Uint16Array(Uint16Array<'a>) = UINT_16_ARRAY_DISCRIMINANT,
-    #[cfg(feature = "array-buffer")]
-    Int32Array(Int32Array<'a>) = INT_32_ARRAY_DISCRIMINANT,
-    #[cfg(feature = "array-buffer")]
-    Uint32Array(Uint32Array<'a>) = UINT_32_ARRAY_DISCRIMINANT,
-    #[cfg(feature = "array-buffer")]
-    BigInt64Array(BigInt64Array<'a>) = BIGINT_64_ARRAY_DISCRIMINANT,
-    #[cfg(feature = "array-buffer")]
-    BigUint64Array(BigUint64Array<'a>) = BIGUINT_64_ARRAY_DISCRIMINANT,
-    #[cfg(feature = "proposal-float16array")]
-    Float16Array(Float16Array<'a>) = FLOAT_16_ARRAY_DISCRIMINANT,
-    #[cfg(feature = "array-buffer")]
-    Float32Array(Float32Array<'a>) = FLOAT_32_ARRAY_DISCRIMINANT,
-    #[cfg(feature = "array-buffer")]
-    Float64Array(Float64Array<'a>) = FLOAT_64_ARRAY_DISCRIMINANT,
-
     /// ## [25.2 SharedArrayBuffer Objects](https://tc39.es/ecma262/#sec-sharedarraybuffer-objects)
     #[cfg(feature = "shared-array-buffer")]
     SharedArrayBuffer(SharedArrayBuffer<'a>) = SHARED_ARRAY_BUFFER_DISCRIMINANT,
+    /// ## [25.3 DataView Objects](https://tc39.es/ecma262/#sec-dataview-objects)
+    #[cfg(feature = "array-buffer")]
+    DataView(DataView<'a>) = DATA_VIEW_DISCRIMINANT,
     /// ## [25.3 DataView Objects](https://tc39.es/ecma262/#sec-dataview-objects)
     ///
     /// A variant of DataView Objects viewing a SharedArrayBuffer.
     #[cfg(feature = "shared-array-buffer")]
     SharedDataView(SharedDataView<'a>) = SHARED_DATA_VIEW_DISCRIMINANT,
     // ### [23.2 TypedArray Objects](https://tc39.es/ecma262/#sec-typedarray-objects)
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.17 Int8Array ( . . . )](https://tc39.es/ecma262/#sec-int8array)
+    ///
+    /// An `i8` view into an ArrayBuffer.
+    Int8Array(Int8Array<'a>) = INT_8_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.35 Uint8Array ( . . . )](https://tc39.es/ecma262/#sec-uint8array)
+    ///
+    /// A `u8` view into an ArrayBuffer.
+    Uint8Array(Uint8Array<'a>) = UINT_8_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.36 Uint8ClampedArray ( . . . )](https://tc39.es/ecma262/#sec-uint8clampedarray)
+    ///
+    /// A `u8` view into an ArrayBuffer with clamping behaviour on assignment.
+    Uint8ClampedArray(Uint8ClampedArray<'a>) = UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.18 Int16Array ( . . . )](https://tc39.es/ecma262/#sec-int16array)
+    ///
+    /// An `i16` view into an ArrayBuffer.
+    Int16Array(Int16Array<'a>) = INT_16_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.37 Uint16Array ( . . . )](https://tc39.es/ecma262/#sec-uint16array)
+    ///
+    /// A `u16` view into an ArrayBuffer.
+    Uint16Array(Uint16Array<'a>) = UINT_16_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.19 Int32Array ( . . . )](https://tc39.es/ecma262/#sec-int32array)
+    ///
+    /// An `i32` view into an ArrayBuffer.
+    Int32Array(Int32Array<'a>) = INT_32_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.38 Uint32Array ( . . . )](https://tc39.es/ecma262/#sec-uint32array)
+    ///
+    /// A `u32` view into an ArrayBuffer.
+    Uint32Array(Uint32Array<'a>) = UINT_32_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.5 BigInt64Array ( . . . )](https://tc39.es/ecma262/#sec-constructor-properties-of-the-global-object-bigint64array)
+    ///
+    /// An `i64` view into an ArrayBuffer.
+    BigInt64Array(BigInt64Array<'a>) = BIGINT_64_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.6 BigUint64Array ( . . . )](https://tc39.es/ecma262/#sec-constructor-properties-of-the-global-object-biguint64array)
+    ///
+    /// A `u64` view into an ArrayBuffer.
+    BigUint64Array(BigUint64Array<'a>) = BIGUINT_64_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "proposal-float16array")]
+    /// ### [19.3.13 Float16Array ( . . . )](https://tc39.es/ecma262/#sec-float16array)
+    ///
+    /// An `f16` view into an ArrayBuffer.
+    Float16Array(Float16Array<'a>) = FLOAT_16_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.13 Float32Array ( . . . )](https://tc39.es/ecma262/#sec-float32array)
+    ///
+    /// An `f32` view into an ArrayBuffer.
+    Float32Array(Float32Array<'a>) = FLOAT_32_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.13 Float64Array ( . . . )](https://tc39.es/ecma262/#sec-float64array)
+    ///
+    /// An `f64` view into an ArrayBuffer.
+    Float64Array(Float64Array<'a>) = FLOAT_64_ARRAY_DISCRIMINANT,
+
+    // ### [23.2 TypedArray Objects](https://tc39.es/ecma262/#sec-typedarray-objects)
     //
     // Variants of TypedArray Objects viewing a SharedArrayBuffer.
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.17 Int8Array ( . . . )](https://tc39.es/ecma262/#sec-int8array)
+    ///
+    /// An `i8` view into a SharedArrayBuffer.
     SharedInt8Array(SharedInt8Array<'a>) = SHARED_INT_8_ARRAY_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.35 Uint8Array ( . . . )](https://tc39.es/ecma262/#sec-uint8array)
+    ///
+    /// A `u8` view into a SharedArrayBuffer.
     SharedUint8Array(SharedUint8Array<'a>) = SHARED_UINT_8_ARRAY_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.36 Uint8ClampedArray ( . . . )](https://tc39.es/ecma262/#sec-uint8clampedarray)
+    ///
+    /// A `u8` view into an ArrayBuffer with clamping behaviour o Sharedassignment.
     SharedUint8ClampedArray(SharedUint8ClampedArray<'a>) = SHARED_UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.18 Int16Array ( . . . )](https://tc39.es/ecma262/#sec-int16array)
+    ///
+    /// An `i16` view into a SharedArrayBuffer.
     SharedInt16Array(SharedInt16Array<'a>) = SHARED_INT_16_ARRAY_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.37 Uint16Array ( . . . )](https://tc39.es/ecma262/#sec-uint16array)
+    ///
+    /// A `u16` view into a SharedArrayBuffer.
     SharedUint16Array(SharedUint16Array<'a>) = SHARED_UINT_16_ARRAY_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.19 Int32Array ( . . . )](https://tc39.es/ecma262/#sec-int32array)
+    ///
+    /// An `i32` view into a SharedArrayBuffer.
     SharedInt32Array(SharedInt32Array<'a>) = SHARED_INT_32_ARRAY_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.38 Uint32Array ( . . . )](https://tc39.es/ecma262/#sec-uint32array)
+    ///
+    /// A `u32` view into a SharedArrayBuffer.
     SharedUint32Array(SharedUint32Array<'a>) = SHARED_UINT_32_ARRAY_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.5 BigInt64Array ( . . . )](https://tc39.es/ecma262/#sec-constructor-properties-of-the-global-object-bigint64array)
+    ///
+    /// An `i64` view into a SharedArrayBuffer.
     SharedBigInt64Array(SharedBigInt64Array<'a>) = SHARED_BIGINT_64_ARRAY_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.6 BigUint64Array ( . . . )](https://tc39.es/ecma262/#sec-constructor-properties-of-the-global-object-biguint64array)
+    ///
+    /// A `u64` view into a SharedArrayBuffer.
     SharedBigUint64Array(SharedBigUint64Array<'a>) = SHARED_BIGUINT_64_ARRAY_DISCRIMINANT,
     #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+    /// ### [19.3.13 Float16Array ( . . . )](https://tc39.es/ecma262/#sec-float16array)
+    ///
+    /// An `f16` view into a SharedArrayBuffer.
     SharedFloat16Array(SharedFloat16Array<'a>) = SHARED_FLOAT_16_ARRAY_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.13 Float32Array ( . . . )](https://tc39.es/ecma262/#sec-float32array)
+    ///
+    /// An `f32` view into a SharedArrayBuffer.
     SharedFloat32Array(SharedFloat32Array<'a>) = SHARED_FLOAT_32_ARRAY_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.13 Float64Array ( . . . )](https://tc39.es/ecma262/#sec-float64array)
+    ///
+    /// An `f64` view into a SharedArrayBuffer.
     SharedFloat64Array(SharedFloat64Array<'a>) = SHARED_FLOAT_64_ARRAY_DISCRIMINANT,
 
+    /// ## [27.6 AsyncGenerator Objects](https://tc39.es/ecma262/#sec-asyncgenerator-objects)
     AsyncGenerator(AsyncGenerator<'a>) = ASYNC_GENERATOR_DISCRIMINANT,
+    /// ### [23.1.5 Array Iterator Objects](https://tc39.es/ecma262/#sec-array-iterator-objects)
     ArrayIterator(ArrayIterator<'a>) = ARRAY_ITERATOR_DISCRIMINANT,
     #[cfg(feature = "set")]
+    /// ### [24.2.6 Set Iterator Objects](https://tc39.es/ecma262/#sec-set-iterator-objects)
     SetIterator(SetIterator<'a>) = SET_ITERATOR_DISCRIMINANT,
     #[cfg(feature = "set")]
+    /// ### [24.1.5 Map Iterator Objects](https://tc39.es/ecma262/#sec-map-iterator-objects)
     MapIterator(MapIterator<'a>) = MAP_ITERATOR_DISCRIMINANT,
+    /// ### [22.1.5 String Iterator Objects](https://tc39.es/ecma262/#sec-string-iterator-objects)
     StringIterator(StringIterator<'a>) = STRING_ITERATOR_DISCRIMINANT,
     #[cfg(feature = "regexp")]
+    ///### [22.2.9 RegExp String Iterator Objects](https://tc39.es/ecma262/#sec-regexp-string-iterator-objects)
     RegExpStringIterator(RegExpStringIterator<'a>) = REGEXP_STRING_ITERATOR_DISCRIMINANT,
+    /// ## [27.5 Generator Objects](https://tc39.es/ecma262/#sec-generator-objects)
     Generator(Generator<'a>) = GENERATOR_DISCRIMINANT,
+    /// ### [10.4.6 Module Namespace Exotic Objects](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects)
     Module(Module<'a>) = MODULE_DISCRIMINANT,
+    /// Embedder objects are intended for embedders to create objects with
+    /// native data embedded into them.
     EmbedderObject(EmbedderObject<'a>) = EMBEDDER_OBJECT_DISCRIMINANT,
 }
 
@@ -668,7 +783,6 @@ impl<'a> From<Object<'a>> for Value<'a> {
             Object::BuiltinPromiseFinallyFunction(data) => {
                 Self::BuiltinPromiseFinallyFunction(data)
             }
-            Object::BuiltinPromiseCollectorFunction => Self::BuiltinPromiseCollectorFunction,
             Object::BuiltinProxyRevokerFunction => Self::BuiltinProxyRevokerFunction,
             Object::PrimitiveObject(data) => Self::PrimitiveObject(data),
             Object::Arguments(data) => Self::Arguments(data),
@@ -818,7 +932,6 @@ macro_rules! object_delegate {
             Self::BuiltinConstructorFunction(data) => data.$method($($arg),+),
             Self::BuiltinPromiseResolvingFunction(data) => data.$method($($arg),+),
             Self::BuiltinPromiseFinallyFunction(data) => data.$method($($arg),+),
-            Self::BuiltinPromiseCollectorFunction => todo!(),
             Self::BuiltinProxyRevokerFunction => todo!(),
             Self::PrimitiveObject(data) => data.$method($($arg),+),
             Self::Arguments(data) => data.$method($($arg),+),
@@ -1266,7 +1379,6 @@ impl HeapSweepWeakReference for Object<'static> {
             Self::BuiltinPromiseFinallyFunction(data) => data
                 .sweep_weak_reference(compactions)
                 .map(Self::BuiltinPromiseFinallyFunction),
-            Self::BuiltinPromiseCollectorFunction => todo!(),
             Self::BuiltinProxyRevokerFunction => todo!(),
             Self::PrimitiveObject(data) => data
                 .sweep_weak_reference(compactions)
@@ -1442,7 +1554,6 @@ impl From<Object<'_>> for HeapRootData {
             Object::BuiltinConstructorFunction(d) => Self::from(d),
             Object::BuiltinPromiseResolvingFunction(d) => Self::from(d),
             Object::BuiltinPromiseFinallyFunction(d) => Self::from(d),
-            Object::BuiltinPromiseCollectorFunction => Self::BuiltinPromiseCollectorFunction,
             Object::BuiltinProxyRevokerFunction => Self::BuiltinProxyRevokerFunction,
             Object::PrimitiveObject(d) => Self::from(d),
             Object::Arguments(d) => Self::from(d),
@@ -1561,9 +1672,6 @@ impl TryFrom<HeapRootData> for Object<'_> {
             HeapRootData::BuiltinConstructorFunction(f) => Ok(Self::BuiltinConstructorFunction(f)),
             HeapRootData::BuiltinPromiseResolvingFunction(f) => Ok(Self::from(f)),
             HeapRootData::BuiltinPromiseFinallyFunction(f) => Ok(Self::from(f)),
-            HeapRootData::BuiltinPromiseCollectorFunction => {
-                Ok(Self::BuiltinPromiseCollectorFunction)
-            }
             HeapRootData::BuiltinProxyRevokerFunction => Ok(Self::BuiltinProxyRevokerFunction),
             HeapRootData::PrimitiveObject(o) => Ok(Self::from(o)),
             HeapRootData::Arguments(o) => Ok(Self::from(o)),

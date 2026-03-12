@@ -24,10 +24,27 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub enum Numeric<'a> {
+    /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+    ///
+    /// f64 on the heap. Accessing the data can only be done through the Agent.
     Number(HeapNumber<'a>) = NUMBER_DISCRIMINANT,
+    /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+    ///
+    /// 54-bit signed integer on the stack.
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
+    /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+    ///
+    /// f64 with 8 trailing zeroes on the stack that are cut off to produce a
+    /// 56-bit value.
     SmallF64(SmallF64) = FLOAT_DISCRIMINANT,
+    /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
+    ///
+    /// Unlimited size integer data on the heap. Accessing the data can only be
+    /// done through the Agent.
     BigInt(HeapBigInt<'a>) = BIGINT_DISCRIMINANT,
+    /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
+    ///
+    /// 56-bit signed integer on the stack.
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
 

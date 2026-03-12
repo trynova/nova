@@ -77,87 +77,252 @@ pub(crate) struct Intrinsics {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ProtoIntrinsics {
+    /// ```javascript
+    /// AggregateError.prototype
+    /// ```
     AggregateError,
+    /// ```javascript
+    /// Array.prototype
+    /// ```
     Array,
     #[cfg(feature = "array-buffer")]
+    /// ```javascript
+    /// ArrayBuffer.prototype
+    /// ```
     ArrayBuffer,
+    /// ```javascript
+    /// Object.getPrototypeOf([].values())
+    /// ```
     ArrayIterator,
+    /// ```javascript
+    /// Object.getPrototypeOf(async () => {})
+    /// ```
     AsyncFunction,
+    /// ```javascript
+    /// Object.getPrototypeOf(Object.getPrototypeOf(async function*() {}()))
+    /// ```
     AsyncGenerator,
+    /// ```javascript
+    /// Object.getPrototypeOf(async function*() {})
+    /// ```
     AsyncGeneratorFunction,
+    /// ```javascript
+    /// BigInt.prototype
+    /// ```
     BigInt,
     #[cfg(feature = "array-buffer")]
+    /// ```javascript
+    /// BigInt64Array.prototype
+    /// ```
     BigInt64Array,
     #[cfg(feature = "array-buffer")]
+    /// ```javascript
+    /// BigUint64Array.prototype
+    /// ```
     BigUint64Array,
+    /// ```javascript
+    /// Boolean.prototype
+    /// ```
     Boolean,
     #[cfg(feature = "array-buffer")]
+    /// ```javascript
+    /// DataView.prototype
+    /// ```
     DataView,
     #[cfg(feature = "shared-array-buffer")]
+    /// ```javascript
+    /// DataView.prototype
+    /// ```
     SharedDataView,
     #[cfg(feature = "date")]
+    /// ```javascript
+    /// Date.prototype
+    /// ```
     Date,
+    /// ```javascript
+    /// Error.prototype
+    /// ```
     Error,
+    /// ```javascript
+    /// EvalError.prototype
+    /// ```
     EvalError,
+    /// ```javascript
+    /// FinalizationRegistry.prototype
+    /// ```
     FinalizationRegistry,
     #[cfg(feature = "proposal-float16array")]
+    /// ```javascript
+    /// Float16Array.prototype
+    /// ```
     Float16Array,
     #[cfg(feature = "array-buffer")]
+    /// ```javascript
+    /// Float32Array.prototype
+    /// ```
     Float32Array,
     #[cfg(feature = "array-buffer")]
+    /// ```javascript
+    /// Float64Array.prototype
+    /// ```
     Float64Array,
+    /// ```javascript
+    /// Function.prototype
+    /// ```
     Function,
+    /// ```javascript
+    /// Generator.prototype
+    /// ```
     Generator,
+    /// ```javascript
+    /// GeneratorFunction.prototype
+    /// ```
     GeneratorFunction,
     #[cfg(feature = "array-buffer")]
+    /// ```javascript
+    /// Int16Array.prototype
+    /// ```
     Int16Array,
     #[cfg(feature = "array-buffer")]
+    /// ```javascript
+    /// Int32Array.prototype
+    /// ```
     Int32Array,
     #[cfg(feature = "array-buffer")]
+    /// ```javascript
+    /// Int8Array.prototype
+    /// ```
     Int8Array,
+    /// ```javascript
+    /// Iterator.prototype
+    /// ```
     Iterator,
+    /// ```javascript
+    /// Map.prototype
+    /// ```
     Map,
+    /// ```javascript
+    /// Object.getPrototypeOf(new Map().values())
+    /// ```
     MapIterator,
+    /// ```javascript
+    /// Number.prototype
+    /// ```
     Number,
+    /// ```javascript
+    /// Object.prototype
+    /// ```
     Object,
+    /// ```javascript
+    /// Promise.prototype
+    /// ```
     Promise,
+    /// ```javascript
+    /// RangeError.prototype
+    /// ```
     RangeError,
+    /// ```javascript
+    /// ReferenceError.prototype
+    /// ```
     ReferenceError,
     #[cfg(feature = "regexp")]
+    /// ```javascript
+    /// RegExp.prototype
+    /// ```
     RegExp,
     #[cfg(feature = "set")]
+    /// ```javascript
+    /// Set.prototype
+    /// ```
     Set,
     #[cfg(feature = "set")]
+    /// ```javascript
+    /// Object.getPrototypeOf(new Set().values())
+    /// ```
     SetIterator,
     #[cfg(feature = "shared-array-buffer")]
+    /// ```javascript
+    /// SharedArrayBuffer.prototype
+    /// ```
     SharedArrayBuffer,
+    /// ```javascript
+    /// String.prototype
+    /// ```
     String,
+    /// ```javascript
+    /// Object.getPrototypeOf(""[Symbol.iterator]())
+    /// ```
     StringIterator,
     #[cfg(feature = "regexp")]
+    /// ```javascript
+    /// Object.getPrototypeOf("".matchAll(/./g))
+    /// ```
     RegExpStringIterator,
+    /// ```javascript
+    /// Symbol.prototype
+    /// ```
     Symbol,
+    /// ```javascript
+    /// SyntaxError.prototype
+    /// ```
     SyntaxError,
     #[cfg(feature = "temporal")]
+    /// ```javascript
+    /// TemporalInstant.prototype
+    /// ```
     TemporalInstant,
     #[cfg(feature = "temporal")]
+    /// ```javascript
+    /// TemporalDuration.prototype
+    /// ```
     TemporalDuration,
     #[cfg(feature = "temporal")]
+    /// ```javascript
+    /// TemporalPlainTime.prototype
+    /// ```
     TemporalPlainTime,
+    /// ```javascript
+    /// TypeError.prototype
+    /// ```
     TypeError,
     #[cfg(feature = "array-buffer")]
+    /// ```javascript
+    /// Uint16Array.prototype
+    /// ```
     Uint16Array,
     #[cfg(feature = "array-buffer")]
+    /// ```javascript
+    /// Uint32Array.prototype
+    /// ```
     Uint32Array,
     #[cfg(feature = "array-buffer")]
+    /// ```javascript
+    /// Uint8Array.prototype
+    /// ```
     Uint8Array,
     #[cfg(feature = "array-buffer")]
+    /// ```javascript
+    /// Uint8ClampedArray.prototype
+    /// ```
     Uint8ClampedArray,
+    /// ```javascript
+    /// URIError.prototype
+    /// ```
     URIError,
     #[cfg(feature = "weak-refs")]
+    /// ```javascript
+    /// WeakMap.prototype
+    /// ```
     WeakMap,
     #[cfg(feature = "weak-refs")]
+    /// ```javascript
+    /// WeakRef.prototype
+    /// ```
     WeakRef,
     #[cfg(feature = "weak-refs")]
+    /// ```javascript
+    /// WeakSet.prototype
+    /// ```
     WeakSet,
 }
 

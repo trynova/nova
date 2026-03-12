@@ -24,7 +24,8 @@ use super::ArgumentsList;
 
 /// ### [4.4.36 built-in constructor](https://tc39.es/ecma262/#sec-built-in-constructor)
 ///
-/// A class built-in default constructor created in step 14 of [ClassDefinitionEvaluation].
+/// A class built-in default constructor created in step 14 of
+/// [ClassDefinitionEvaluation].
 ///
 /// #### Examples
 ///
@@ -44,12 +45,6 @@ arena_vec_access!(
     BuiltinConstructorRecord,
     builtin_constructors
 );
-
-impl BuiltinConstructorFunction<'_> {
-    pub const fn is_constructor(self) -> bool {
-        true
-    }
-}
 
 impl<'a> FunctionInternalProperties<'a> for BuiltinConstructorFunction<'a> {
     fn get_name(self, agent: &Agent) -> &String<'a> {

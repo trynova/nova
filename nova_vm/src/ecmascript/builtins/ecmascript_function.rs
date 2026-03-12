@@ -969,7 +969,6 @@ pub(crate) fn make_constructor<'a>(
         Function::BuiltinConstructorFunction(_)
         | Function::BuiltinPromiseResolvingFunction(_)
         | Function::BuiltinPromiseFinallyFunction(_)
-        | Function::BuiltinPromiseCollectorFunction
         | Function::BuiltinProxyRevokerFunction => unreachable!(),
     }
     // 5. If prototype is not present, then
@@ -1162,7 +1161,6 @@ pub(crate) fn set_function_name<'a>(
         Function::BuiltinConstructorFunction(_)
         | Function::BuiltinPromiseResolvingFunction(_)
         | Function::BuiltinPromiseFinallyFunction(_)
-        | Function::BuiltinPromiseCollectorFunction
         | Function::BuiltinProxyRevokerFunction => unreachable!(),
     }
 }
