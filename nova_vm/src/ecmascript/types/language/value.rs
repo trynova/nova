@@ -380,7 +380,7 @@ pub enum Value<'a> {
     /// ### [22.1.5 String Iterator Objects](https://tc39.es/ecma262/#sec-string-iterator-objects)
     StringIterator(StringIterator<'a>),
     #[cfg(feature = "regexp")]
-    ///### [22.2.9 RegExp String Iterator Objects](https://tc39.es/ecma262/#sec-regexp-string-iterator-objects)
+    /// ### [22.2.9 RegExp String Iterator Objects](https://tc39.es/ecma262/#sec-regexp-string-iterator-objects)
     RegExpStringIterator(RegExpStringIterator<'a>),
     /// ## [27.5 Generator Objects](https://tc39.es/ecma262/#sec-generator-objects)
     Generator(Generator<'a>),

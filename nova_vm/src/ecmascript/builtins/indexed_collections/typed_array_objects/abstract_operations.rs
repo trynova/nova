@@ -485,7 +485,7 @@ pub(crate) trait TypedArrayAbstractOperations<'ta>: Copy + Sized {
         count: usize,
     );
 
-    ///### [23.2.3.26.2 SetTypedArrayFromTypedArray ( target, targetOffset, source )](https://tc39.es/ecma262/#sec-settypedarrayfromtypedarray)
+    /// ### [23.2.3.26.2 SetTypedArrayFromTypedArray ( target, targetOffset, source )](https://tc39.es/ecma262/#sec-settypedarrayfromtypedarray)
     ///
     /// The abstract operation SetTypedArrayFromTypedArray takes arguments
     /// target (a TypedArray), targetOffset (a non-negative integer or +∞), and

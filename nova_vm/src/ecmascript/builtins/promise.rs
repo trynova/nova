@@ -43,6 +43,10 @@ use crate::{
 /// resolved. An unresolved promise is always in the pending state. A resolved
 /// promise may be pending, fulfilled or rejected.
 ///
+/// ## Support status
+///
+/// `Promise` in Nova does not currently support subclassing.
+///
 /// [Job]: crate::ecmascript::Job
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
@@ -98,7 +102,7 @@ impl<'a> Promise<'a> {
         };
     }
 
-    ///### [27.2.4.7.1 PromiseResolve ( C, x )](https://tc39.es/ecma262/#sec-promise-resolve)
+    /// ### [27.2.4.7.1 PromiseResolve ( C, x )](https://tc39.es/ecma262/#sec-promise-resolve)
     pub(crate) fn resolve(
         agent: &mut Agent,
         x: Value,

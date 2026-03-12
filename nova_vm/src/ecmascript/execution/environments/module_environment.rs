@@ -29,7 +29,7 @@ use super::{
 /// and share the same specifications for all of those methods except for
 /// GetBindingValue, DeleteBinding, HasThisBinding and GetThisBinding. In
 /// addition, Module Environment Records support the methods listed in
-///# [Table 22](https://tc39.es/ecma262/#table-additional-methods-of-module-environment-records).
+/// # [Table 22](https://tc39.es/ecma262/#table-additional-methods-of-module-environment-records).
 ///
 /// NOTE: There is no data-wise difference between a DeclarativeEnvironment and
 /// a ModuleEnvironment, so we treat them exactly the same way.
