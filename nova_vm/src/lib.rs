@@ -46,13 +46,14 @@
 //! 1. The engine performance is acceptable, but it is not fast by any means.
 //!
 //! 1. The [`Array`] implementation does not support sparse storage internally.
-//! Calling `new Array(10 ** 9)` will request an allocation for 8 billion bytes.
+//!    Calling `new Array(10 ** 9)` will request an allocation for 8 billion
+//!    bytes.
 //!
 //! 1. The [`RegExp`] implementation does not support lookaheads, lookbehinds,
-//! or backreferences. It is always in UTF-8 / Unicode sets mode, does not
-//! support RegExp patterns containing unpaired surrogates, and its groups are
-//! slightly different from what the ECMAScript specification defines. In short:
-//! it is not compliant.
+//!    or backreferences. It is always in UTF-8 / Unicode sets mode, does not
+//!    support RegExp patterns containing unpaired surrogates, and its groups
+//!    are slightly different from what the ECMAScript specification defines. In
+//!    short: it is not compliant.
 //!
 //! 1. [`Promise`] subclassing is currently not supported.
 //!
