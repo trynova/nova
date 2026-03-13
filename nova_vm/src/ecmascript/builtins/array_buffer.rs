@@ -290,8 +290,10 @@ impl<'a> CreateHeapData<ArrayBufferHeapData<'a>, ArrayBuffer<'a>> for Heap {
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
 pub enum AnyArrayBuffer<'a> {
+    /// ## [25.1 ArrayBuffer Objects](https://tc39.es/ecma262/#sec-arraybuffer-objects)
     ArrayBuffer(ArrayBuffer<'a>) = ARRAY_BUFFER_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
+    /// ## [25.2 SharedArrayBuffer Objects](https://tc39.es/ecma262/#sec-sharedarraybuffer-objects)
     SharedArrayBuffer(SharedArrayBuffer<'a>) = SHARED_ARRAY_BUFFER_DISCRIMINANT,
 }
 bindable_handle!(AnyArrayBuffer);

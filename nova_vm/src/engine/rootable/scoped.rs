@@ -79,6 +79,7 @@ impl<'scope, T: Rootable> Scoped<'scope, T> {
         self.inner
     }
 
+    /// Create a new `Scoped` from a scopable value.
     pub fn new(agent: &Agent, value: T, _gc: NoGcScope<'_, 'scope>) -> Self {
         let value = match T::to_root_repr(value) {
             Ok(stack_repr) => {
@@ -111,8 +112,8 @@ impl<'scope, T: Rootable> Scoped<'scope, T> {
     ///
     /// ## Panics
     ///
-    /// If the scoped value has been taken by another caller already, the
-    /// method panics.
+    /// Panics if the `Scoped` has been cloned and the clone has been used to
+    /// call `take` already.
     #[must_use]
     pub unsafe fn take(self, agent: &Agent) -> T {
         match T::from_root_repr(&self.inner) {
@@ -152,6 +153,14 @@ impl<'scope, T: Rootable> Scoped<'scope, T> {
         unsafe { stack_refs.set_len(last_non_empty_index) };
     }
 
+    /// Get a copy of the contained scopable value from a `Scoped`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `Scoped` has been cloned and the clone has been used to
+    /// [take] the value out of the slot.
+    ///
+    /// [take]: Scoped::take
     pub fn get(&self, agent: &Agent) -> T {
         match T::from_root_repr(&self.inner) {
             Ok(value) => value,

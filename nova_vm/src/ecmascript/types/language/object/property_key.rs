@@ -39,14 +39,33 @@ const PRIVATE_NAME_DISCRIMINANT: u8 = SYMBOL_DISCRIMINANT + 0b1000_0000;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum PropertyKey<'a> {
+    /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+    ///
+    /// 54-bit signed integer on the stack.
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
+    /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
+    ///
+    /// 7-byte WTF-8 string on the stack. End of the string is determined by the
+    /// first 0xFF byte in the data. WTF-16 indexing is calculated on demand
+    /// from the data.
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
+    /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
+    ///
+    /// WTF-8 string on the heap. Accessing the data can only be done through
+    /// the Agent. ECMAScript specification compliant WTF-16 indexing is
+    /// implemented through an index mapping.
     String(HeapString<'a>) = STRING_DISCRIMINANT,
+    /// ### [6.1.5 The Symbol Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-symbol-type)
     Symbol(Symbol<'a>) = SYMBOL_DISCRIMINANT,
+    /// ### [6.2.12 Private Names](https://tc39.es/ecma262/#sec-private-names)
     PrivateName(PrivateName) = PRIVATE_NAME_DISCRIMINANT,
 }
 
 impl<'a> PropertyKey<'a> {
+    /// Perform a dummy scoping operation on a stack-allocated PropertyKey.
+    ///
+    /// This is useful when types dictate that scoping must be performed, but
+    /// the value is known to be stack-allocated.
     pub const fn scope_static(self) -> Scoped<'static, PropertyKey<'static>> {
         let key_root_repr = match self {
             PropertyKey::Integer(small_integer) => PropertyKeyRootRepr::Integer(small_integer),

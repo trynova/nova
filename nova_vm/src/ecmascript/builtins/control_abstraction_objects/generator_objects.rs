@@ -32,7 +32,7 @@ object_handle!(Generator);
 arena_vec_access!(Generator, 'a, GeneratorHeapData, generators);
 
 impl Generator<'_> {
-    ///### [27.5.3.3 GeneratorResume ( generator, value, generatorBrand )](https://tc39.es/ecma262/#sec-generatorresume)
+    /// ### [27.5.3.3 GeneratorResume ( generator, value, generatorBrand )](https://tc39.es/ecma262/#sec-generatorresume)
     pub(crate) fn resume<'a>(
         self,
         agent: &mut Agent,
@@ -152,7 +152,7 @@ impl Generator<'_> {
         }
     }
 
-    ///### [27.5.3.4 GeneratorResumeAbrupt ( generator, abruptCompletion, generatorBrand )](https://tc39.es/ecma262/#sec-generatorresumeabrupt)
+    /// ### [27.5.3.4 GeneratorResumeAbrupt ( generator, abruptCompletion, generatorBrand )](https://tc39.es/ecma262/#sec-generatorresumeabrupt)
     /// NOTE: This method only accepts throw completions.
     pub(crate) fn resume_throw<'a>(
         self,
@@ -262,7 +262,7 @@ impl Generator<'_> {
         }
     }
 
-    ///### [27.5.3.4 GeneratorResumeAbrupt ( generator, abruptCompletion, generatorBrand )](https://tc39.es/ecma262/#sec-generatorresumeabrupt)
+    /// ### [27.5.3.4 GeneratorResumeAbrupt ( generator, abruptCompletion, generatorBrand )](https://tc39.es/ecma262/#sec-generatorresumeabrupt)
     /// NOTE: This method only accepts return completions.
     pub(crate) fn resume_return<'a>(
         self,

@@ -51,6 +51,9 @@
 //! use-after-free, in JavaScript world this means that a value changes to
 //! another value of the same type without any assignment, or the engine crashes
 //! from an out-of-bounds memory access.
+//!
+//! [`Object`]: crate::ecmascript::Object
+//! [`Value`]: crate::ecmascript::Value
 
 mod bytecode;
 mod context;

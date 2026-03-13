@@ -500,61 +500,93 @@ pub enum ElementDescriptor<'a> {
     /// ```js
     /// { get, set: undefined, enumerable: true, configurable: true }
     /// ```
-    ReadOnlyEnumerableConfigurableAccessor { get: Function<'a> },
+    ReadOnlyEnumerableConfigurableAccessor {
+        /// Getter function of a read-only accessor property.
+        get: Function<'a>,
+    },
     /// ```js
     /// { get, set: undefined, enumerable: true, configurable: false }
     /// ```
-    ReadOnlyEnumerableUnconfigurableAccessor { get: Function<'a> },
+    ReadOnlyEnumerableUnconfigurableAccessor {
+        /// Getter function of a read-only accessor property.
+        get: Function<'a>,
+    },
     /// ```js
     /// { get, set: undefined, enumerable: false, configurable: true }
     /// ```
-    ReadOnlyUnenumerableConfigurableAccessor { get: Function<'a> },
+    ReadOnlyUnenumerableConfigurableAccessor {
+        /// Getter function of a read-only accessor property.
+        get: Function<'a>,
+    },
     /// ```js
     /// { get, set: undefined, enumerable: false, configurable: false }
     /// ```
-    ReadOnlyUnenumerableUnconfigurableAccessor { get: Function<'a> },
+    ReadOnlyUnenumerableUnconfigurableAccessor {
+        /// Getter function of a read-only accessor property.
+        get: Function<'a>,
+    },
     /// ```js
     /// { get: undefined, set, enumerable: true, configurable: true }
     /// ```
-    WriteOnlyEnumerableConfigurableAccessor { set: Function<'a> },
+    WriteOnlyEnumerableConfigurableAccessor {
+        /// Setter function of a write-only accessor property.
+        set: Function<'a>,
+    },
     /// ```js
     /// { get: undefined, set, enumerable: true, configurable: false }
     /// ```
-    WriteOnlyEnumerableUnconfigurableAccessor { set: Function<'a> },
+    WriteOnlyEnumerableUnconfigurableAccessor {
+        /// Setter function of a write-only accessor property.
+        set: Function<'a>,
+    },
     /// ```js
     /// { get: undefined, set, enumerable: false, configurable: true }
     /// ```
-    WriteOnlyUnenumerableConfigurableAccessor { set: Function<'a> },
+    WriteOnlyUnenumerableConfigurableAccessor {
+        /// Setter function of a write-only accessor property.
+        set: Function<'a>,
+    },
     /// ```js
     /// { get: undefined, set, enumerable: false, configurable: false }
     /// ```
-    WriteOnlyUnenumerableUnconfigurableAccessor { set: Function<'a> },
+    WriteOnlyUnenumerableUnconfigurableAccessor {
+        /// Setter function of a write-only accessor property.
+        set: Function<'a>,
+    },
     /// ```js
     /// { get, set, enumerable: true, configurable: true }
     /// ```
     ReadWriteEnumerableConfigurableAccessor {
+        /// Getter function of a read-write accessor property.
         get: Function<'a>,
+        /// Setter function of a read-write accessor property.
         set: Function<'a>,
     },
     /// ```js
     /// { get, set, enumerable: true, configurable: false }
     /// ```
     ReadWriteEnumerableUnconfigurableAccessor {
+        /// Getter function of a read-write accessor property.
         get: Function<'a>,
+        /// Setter function of a read-write accessor property.
         set: Function<'a>,
     },
     /// ```js
     /// { get, set, enumerable: false, configurable: true }
     /// ```
     ReadWriteUnenumerableConfigurableAccessor {
+        /// Getter function of a read-write accessor property.
         get: Function<'a>,
+        /// Setter function of a read-write accessor property.
         set: Function<'a>,
     },
     /// ```js
     /// { get, set, enumerable: false, configurable: false }
     /// ```
     ReadWriteUnenumerableUnconfigurableAccessor {
+        /// Getter function of a read-write accessor property.
         get: Function<'a>,
+        /// Setter function of a read-write accessor property.
         set: Function<'a>,
     },
 }

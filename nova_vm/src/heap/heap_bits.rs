@@ -873,7 +873,7 @@ impl HeapBits {
             WeakKey::BuiltinPromiseFinallyFunction(d) => self
                 .promise_finally_functions
                 .get_bit(d.get_index(), &self.bits),
-            WeakKey::BuiltinPromiseCollectorFunction | WeakKey::BuiltinProxyRevokerFunction => {
+            WeakKey::BuiltinProxyRevokerFunction => {
                 unreachable!()
             }
             WeakKey::PrimitiveObject(d) => {

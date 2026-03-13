@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//!# [ECMAScript language](https://tc39.es/ecma262/)
+//! # [ECMAScript language](https://tc39.es/ecma262/)
 //!
 //! This module is the main entry point into the Nova JavaScript API and its
 //! implementation of the ECMAScript language specification.

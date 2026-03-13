@@ -32,12 +32,12 @@ use crate::{
         Agent, Array, ArrayIterator, AsyncGenerator, BUILTIN_STRING_MEMORY, BigInt, BoundFunction,
         BuiltinConstructorFunction, BuiltinFunction, BuiltinPromiseFinallyFunction,
         BuiltinPromiseResolvingFunction, ECMAScriptFunction, EmbedderObject, Error,
-        FinalizationRegistry, Generator, HeapBigInt, HeapNumber, HeapString, JsResult, Map,
-        MapIterator, Module, Number, Numeric, Object, OrdinaryObject, Primitive, PrimitiveObject,
-        Promise, Proxy, SmallBigInt, SmallF64, SmallInteger, SmallString, String, StringIterator,
-        Symbol, TryResult, UnmappedArguments, to_big_int, to_big_int64, to_big_uint64, to_int8,
-        to_int16, to_int32, to_number, to_numeric, to_string, to_uint8, to_uint8_clamp, to_uint16,
-        to_uint32, try_result_into_js, try_to_string,
+        FinalizationRegistry, Function, Generator, HeapBigInt, HeapNumber, HeapString, JsResult,
+        Map, MapIterator, Module, Number, Numeric, Object, OrdinaryObject, Primitive,
+        PrimitiveObject, Promise, Proxy, SmallBigInt, SmallF64, SmallInteger, SmallString, String,
+        StringIterator, Symbol, TryResult, UnmappedArguments, to_big_int, to_big_int64,
+        to_big_uint64, to_int8, to_int16, to_int32, to_number, to_numeric, to_string, to_uint8,
+        to_uint8_clamp, to_uint16, to_uint32, try_result_into_js, try_to_string,
     },
     engine::{
         Bindable, GcScope, HeapRootData, HeapRootRef, NoGcScope, Rootable, Scoped, bindable_handle,
@@ -150,18 +150,29 @@ pub enum Value<'a> {
     Object(OrdinaryObject<'a>),
 
     // Functions
+    /// ### [10.4.1 Bound Function Exotic Objects](https://tc39.es/ecma262/#sec-bound-function-exotic-objects)
     BoundFunction(BoundFunction<'a>),
+    /// ## [10.3 Built-in Function Objects](https://tc39.es/ecma262/#sec-built-in-function-objects)
     BuiltinFunction(BuiltinFunction<'a>),
+    /// ## [10.2 ECMAScript Function Objects](https://tc39.es/ecma262/#sec-ecmascript-function-objects)
     ECMAScriptFunction(ECMAScriptFunction<'a>),
-    /// Default class constructor created in step 14 of
-    ///# [ClassDefinitionEvaluation](https://tc39.es/ecma262/#sec-runtime-semantics-classdefinitionevaluation).
+    /// ### [4.4.36 built-in constructor](https://tc39.es/ecma262/#sec-built-in-constructor)
+    ///
+    /// A class built-in default constructor created in step 14 of
+    /// ClassDefinitionEvaluation.
     BuiltinConstructorFunction(BuiltinConstructorFunction<'a>),
+    /// Special built-in functions created to resolve or reject native [`Promise`]
+    /// objects.
+    ///
+    /// [`Promise`]: crate::ecmascript::Promise
     BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction<'a>),
+    /// Special functions created as part of `Promise.prototype.finally`.
     BuiltinPromiseFinallyFunction(BuiltinPromiseFinallyFunction<'a>),
-    BuiltinPromiseCollectorFunction,
+    /// Placeholder.
     BuiltinProxyRevokerFunction,
 
-    // Boolean, Number, String, Symbol, BigInt objects
+    /// Primitive objects are special objects that hold a primitive value in their
+    /// internal data.
     PrimitiveObject(PrimitiveObject<'a>),
 
     // Well-known object types
@@ -175,115 +186,210 @@ pub enum Value<'a> {
     /// internal slot \[\[ParameterMap]] whose value is always **undefined**.
     Arguments(UnmappedArguments<'a>),
     // TODO: MappedArguments(MappedArgumentsObject),
+    /// ### [10.4.2 Array Exotic Objects](https://tc39.es/ecma262/#sec-array-exotic-objects)
     Array(Array<'a>),
     #[cfg(feature = "date")]
+    /// ## [21.4 Date Objects](https://tc39.es/ecma262/#sec-date-objects)
     Date(Date<'a>),
     #[cfg(feature = "temporal")]
+    /// # [8 Temporal.Instant Objects](https://tc39.es/proposal-temporal/#sec-temporal-instant-objects)
     Instant(TemporalInstant<'a>),
     #[cfg(feature = "temporal")]
+    /// # [7 Temporal.Duration Objects](https://tc39.es/proposal-temporal/#sec-temporal-duration-objects)
     Duration(TemporalDuration<'a>),
     #[cfg(feature = "temporal")]
+    /// # [4 Temporal.PlainTime Objects](https://tc39.es/proposal-temporal/#sec-temporal-plaintime-objects)
     PlainTime(TemporalPlainTime<'a>),
+    /// ## [20.5 Error Objects](https://tc39.es/ecma262/#sec-error-objects)
     Error(Error<'a>),
+    /// ## [26.2 FinalizationRegistry Objects](https://tc39.es/ecma262/#sec-finalization-registry-objects)
     FinalizationRegistry(FinalizationRegistry<'a>),
+    /// ## [24.1 Map Objects](https://tc39.es/ecma262/#sec-map-objects)
     Map(Map<'a>),
+    /// ## [27.2 Promise Objects](https://tc39.es/ecma262/#sec-promise-objects)
     Promise(Promise<'a>),
+    /// ## [28.2 Proxy Objects](https://tc39.es/ecma262/#sec-proxy-objects)
     Proxy(Proxy<'a>),
     #[cfg(feature = "regexp")]
+    /// ## [22.2 RegExp (Regular Expression) Objects](https://tc39.es/ecma262/#sec-regexp-regular-expression-objects)
     RegExp(RegExp<'a>),
     #[cfg(feature = "set")]
+    /// ## [24.2 Set Objects](https://tc39.es/ecma262/#sec-set-objects)
     Set(Set<'a>),
     #[cfg(feature = "weak-refs")]
+    /// ## [24.3 WeakMap Objects](https://tc39.es/ecma262/#sec-weakmap-objects)
     WeakMap(WeakMap<'a>),
     #[cfg(feature = "weak-refs")]
+    /// ## [26.1 WeakRef Objects](https://tc39.es/ecma262/#sec-weak-ref-objects)
     WeakRef(WeakRef<'a>),
     #[cfg(feature = "weak-refs")]
+    /// ## [24.4 WeakSet Objects](https://tc39.es/ecma262/#sec-weakset-objects)
     WeakSet(WeakSet<'a>),
 
     /// ## [25.1 ArrayBuffer Objects](https://tc39.es/ecma262/#sec-arraybuffer-objects)
     #[cfg(feature = "array-buffer")]
     ArrayBuffer(ArrayBuffer<'a>),
-    /// ## [25.3 DataView Objects](https://tc39.es/ecma262/#sec-dataview-objects)
-    #[cfg(feature = "array-buffer")]
-    DataView(DataView<'a>),
-    // ### [23.2 TypedArray Objects](https://tc39.es/ecma262/#sec-typedarray-objects)
-    #[cfg(feature = "array-buffer")]
-    Int8Array(Int8Array<'a>),
-    #[cfg(feature = "array-buffer")]
-    Uint8Array(Uint8Array<'a>),
-    #[cfg(feature = "array-buffer")]
-    Uint8ClampedArray(Uint8ClampedArray<'a>),
-    #[cfg(feature = "array-buffer")]
-    Int16Array(Int16Array<'a>),
-    #[cfg(feature = "array-buffer")]
-    Uint16Array(Uint16Array<'a>),
-    #[cfg(feature = "array-buffer")]
-    Int32Array(Int32Array<'a>),
-    #[cfg(feature = "array-buffer")]
-    Uint32Array(Uint32Array<'a>),
-    #[cfg(feature = "array-buffer")]
-    BigInt64Array(BigInt64Array<'a>),
-    #[cfg(feature = "array-buffer")]
-    BigUint64Array(BigUint64Array<'a>),
-    #[cfg(feature = "proposal-float16array")]
-    Float16Array(Float16Array<'a>),
-    #[cfg(feature = "array-buffer")]
-    Float32Array(Float32Array<'a>),
-    #[cfg(feature = "array-buffer")]
-    Float64Array(Float64Array<'a>),
-
     /// ## [25.2 SharedArrayBuffer Objects](https://tc39.es/ecma262/#sec-sharedarraybuffer-objects)
     #[cfg(feature = "shared-array-buffer")]
     SharedArrayBuffer(SharedArrayBuffer<'a>),
+    /// ## [25.3 DataView Objects](https://tc39.es/ecma262/#sec-dataview-objects)
+    #[cfg(feature = "array-buffer")]
+    DataView(DataView<'a>),
     /// ## [25.3 DataView Objects](https://tc39.es/ecma262/#sec-dataview-objects)
     ///
     /// A variant of DataView Objects viewing a SharedArrayBuffer.
     #[cfg(feature = "shared-array-buffer")]
     SharedDataView(SharedDataView<'a>),
     // ### [23.2 TypedArray Objects](https://tc39.es/ecma262/#sec-typedarray-objects)
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.17 Int8Array ( . . . )](https://tc39.es/ecma262/#sec-int8array)
+    ///
+    /// An `i8` view into an ArrayBuffer.
+    Int8Array(Int8Array<'a>),
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.35 Uint8Array ( . . . )](https://tc39.es/ecma262/#sec-uint8array)
+    ///
+    /// A `u8` view into an ArrayBuffer.
+    Uint8Array(Uint8Array<'a>),
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.36 Uint8ClampedArray ( . . . )](https://tc39.es/ecma262/#sec-uint8clampedarray)
+    ///
+    /// A `u8` view into an ArrayBuffer with clamping behaviour on assignment.
+    Uint8ClampedArray(Uint8ClampedArray<'a>),
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.18 Int16Array ( . . . )](https://tc39.es/ecma262/#sec-int16array)
+    ///
+    /// An `i16` view into an ArrayBuffer.
+    Int16Array(Int16Array<'a>),
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.37 Uint16Array ( . . . )](https://tc39.es/ecma262/#sec-uint16array)
+    ///
+    /// A `u16` view into an ArrayBuffer.
+    Uint16Array(Uint16Array<'a>),
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.19 Int32Array ( . . . )](https://tc39.es/ecma262/#sec-int32array)
+    ///
+    /// An `i32` view into an ArrayBuffer.
+    Int32Array(Int32Array<'a>),
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.38 Uint32Array ( . . . )](https://tc39.es/ecma262/#sec-uint32array)
+    ///
+    /// A `u32` view into an ArrayBuffer.
+    Uint32Array(Uint32Array<'a>),
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.5 BigInt64Array ( . . . )](https://tc39.es/ecma262/#sec-constructor-properties-of-the-global-object-bigint64array)
+    ///
+    /// An `i64` view into an ArrayBuffer.
+    BigInt64Array(BigInt64Array<'a>),
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.6 BigUint64Array ( . . . )](https://tc39.es/ecma262/#sec-constructor-properties-of-the-global-object-biguint64array)
+    ///
+    /// A `u64` view into an ArrayBuffer.
+    BigUint64Array(BigUint64Array<'a>),
+    #[cfg(feature = "proposal-float16array")]
+    /// ### [19.3.13 Float16Array ( . . . )](https://tc39.es/ecma262/#sec-float16array)
+    ///
+    /// An `f16` view into an ArrayBuffer.
+    Float16Array(Float16Array<'a>),
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.13 Float32Array ( . . . )](https://tc39.es/ecma262/#sec-float32array)
+    ///
+    /// An `f32` view into an ArrayBuffer.
+    Float32Array(Float32Array<'a>),
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.13 Float64Array ( . . . )](https://tc39.es/ecma262/#sec-float64array)
+    ///
+    /// An `f64` view into an ArrayBuffer.
+    Float64Array(Float64Array<'a>),
+
+    // ### [23.2 TypedArray Objects](https://tc39.es/ecma262/#sec-typedarray-objects)
     //
     // Variants of TypedArray Objects viewing a SharedArrayBuffer.
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.17 Int8Array ( . . . )](https://tc39.es/ecma262/#sec-int8array)
+    ///
+    /// An `i8` view into a SharedArrayBuffer.
     SharedInt8Array(SharedInt8Array<'a>),
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.35 Uint8Array ( . . . )](https://tc39.es/ecma262/#sec-uint8array)
+    ///
+    /// A `u8` view into a SharedArrayBuffer.
     SharedUint8Array(SharedUint8Array<'a>),
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.36 Uint8ClampedArray ( . . . )](https://tc39.es/ecma262/#sec-uint8clampedarray)
+    ///
+    /// A `u8` view into an ArrayBuffer with clamping behaviour o Sharedassignment.
     SharedUint8ClampedArray(SharedUint8ClampedArray<'a>),
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.18 Int16Array ( . . . )](https://tc39.es/ecma262/#sec-int16array)
+    ///
+    /// An `i16` view into a SharedArrayBuffer.
     SharedInt16Array(SharedInt16Array<'a>),
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.37 Uint16Array ( . . . )](https://tc39.es/ecma262/#sec-uint16array)
+    ///
+    /// A `u16` view into a SharedArrayBuffer.
     SharedUint16Array(SharedUint16Array<'a>),
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.19 Int32Array ( . . . )](https://tc39.es/ecma262/#sec-int32array)
+    ///
+    /// An `i32` view into a SharedArrayBuffer.
     SharedInt32Array(SharedInt32Array<'a>),
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.38 Uint32Array ( . . . )](https://tc39.es/ecma262/#sec-uint32array)
+    ///
+    /// A `u32` view into a SharedArrayBuffer.
     SharedUint32Array(SharedUint32Array<'a>),
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.5 BigInt64Array ( . . . )](https://tc39.es/ecma262/#sec-constructor-properties-of-the-global-object-bigint64array)
+    ///
+    /// An `i64` view into a SharedArrayBuffer.
     SharedBigInt64Array(SharedBigInt64Array<'a>),
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.6 BigUint64Array ( . . . )](https://tc39.es/ecma262/#sec-constructor-properties-of-the-global-object-biguint64array)
+    ///
+    /// A `u64` view into a SharedArrayBuffer.
     SharedBigUint64Array(SharedBigUint64Array<'a>),
     #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+    /// ### [19.3.13 Float16Array ( . . . )](https://tc39.es/ecma262/#sec-float16array)
+    ///
+    /// An `f16` view into a SharedArrayBuffer.
     SharedFloat16Array(SharedFloat16Array<'a>),
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.13 Float32Array ( . . . )](https://tc39.es/ecma262/#sec-float32array)
+    ///
+    /// An `f32` view into a SharedArrayBuffer.
     SharedFloat32Array(SharedFloat32Array<'a>),
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.13 Float64Array ( . . . )](https://tc39.es/ecma262/#sec-float64array)
+    ///
+    /// An `f64` view into a SharedArrayBuffer.
     SharedFloat64Array(SharedFloat64Array<'a>),
 
     // Iterator objects
+    /// ## [27.6 AsyncGenerator Objects](https://tc39.es/ecma262/#sec-asyncgenerator-objects)
     AsyncGenerator(AsyncGenerator<'a>),
+    /// ### [23.1.5 Array Iterator Objects](https://tc39.es/ecma262/#sec-array-iterator-objects)
     ArrayIterator(ArrayIterator<'a>),
     #[cfg(feature = "set")]
+    /// ### [24.2.6 Set Iterator Objects](https://tc39.es/ecma262/#sec-set-iterator-objects)
     SetIterator(SetIterator<'a>),
     #[cfg(feature = "set")]
+    /// ### [24.1.5 Map Iterator Objects](https://tc39.es/ecma262/#sec-map-iterator-objects)
     MapIterator(MapIterator<'a>),
+    /// ### [22.1.5 String Iterator Objects](https://tc39.es/ecma262/#sec-string-iterator-objects)
     StringIterator(StringIterator<'a>),
     #[cfg(feature = "regexp")]
+    /// ### [22.2.9 RegExp String Iterator Objects](https://tc39.es/ecma262/#sec-regexp-string-iterator-objects)
     RegExpStringIterator(RegExpStringIterator<'a>),
+    /// ## [27.5 Generator Objects](https://tc39.es/ecma262/#sec-generator-objects)
     Generator(Generator<'a>),
 
-    // ECMAScript Module
+    /// ### [10.4.6 Module Namespace Exotic Objects](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects)
     Module(Module<'a>),
 
-    // Embedder objects
+    /// Embedder objects are intended for embedders to create objects with
+    /// native data embedded into them.
     EmbedderObject(EmbedderObject<'a>) = 0x7f,
 }
 
@@ -347,8 +453,6 @@ pub(crate) const BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT: u8 = value_dis
 pub(crate) const BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT: u8 = value_discriminant(
     Value::BuiltinPromiseFinallyFunction(BuiltinPromiseFinallyFunction::_DEF),
 );
-pub(crate) const BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT: u8 =
-    value_discriminant(Value::BuiltinPromiseCollectorFunction);
 pub(crate) const BUILTIN_PROXY_REVOKER_FUNCTION: u8 =
     value_discriminant(Value::BuiltinProxyRevokerFunction);
 pub(crate) const PRIMITIVE_OBJECT_DISCRIMINANT: u8 =
@@ -500,10 +604,18 @@ impl<'a> Value<'a> {
         Scoped::from_root_repr(key_root_repr)
     }
 
+    /// Create a [Value] from a UTF-8 string slice.
+    ///
+    /// This copies the string data.
     pub fn from_str(agent: &mut Agent, str: &str, gc: NoGcScope<'a, '_>) -> Value<'a> {
         String::from_str(agent, str, gc).into()
     }
 
+    /// Create a [Value] from an owned Rust [`String`].
+    ///
+    /// This does not copy the string data.
+    ///
+    /// [`String`]: std::string::String
     pub fn from_string(
         agent: &mut Agent,
         string: std::string::String,
@@ -512,6 +624,9 @@ impl<'a> Value<'a> {
         String::from_string(agent, string, gc).into()
     }
 
+    /// Create a [Value] from a statically allocated UTF-8 string slice.
+    ///
+    /// This does not copy the string data.
     pub fn from_static_str(
         agent: &mut Agent,
         str: &'static str,
@@ -520,108 +635,129 @@ impl<'a> Value<'a> {
         String::from_static_str(agent, str, gc).into()
     }
 
+    /// Create a [Value] from an f64.
     pub fn from_f64(agent: &mut Agent, value: f64, gc: NoGcScope<'a, '_>) -> Value<'a> {
         Number::from_f64(agent, value, gc).into()
     }
 
+    /// Create a [Value] from an i64.
     pub fn from_i64(agent: &mut Agent, value: i64, gc: NoGcScope<'a, '_>) -> Value<'a> {
         Number::from_i64(agent, value, gc).into()
     }
 
+    /// Get the canonical `NaN` value.
     pub fn nan() -> Self {
         Number::nan().into()
     }
 
+    /// Get the `+Infinity` value.
     pub fn pos_inf() -> Self {
         Number::pos_inf().into()
     }
 
+    /// Get the `-Infinity` value.
     pub fn neg_inf() -> Self {
         Number::neg_inf().into()
     }
 
+    /// Get the `+0` value.
     pub fn pos_zero() -> Self {
         Number::pos_zero().into()
     }
 
+    /// Get the `-0` value.
     pub fn neg_zero() -> Self {
         Number::neg_zero().into()
     }
 
+    /// Returns `true` if this is the JavaScript boolean value `true`.
     pub fn is_true(self) -> bool {
         matches!(self, Value::Boolean(true))
     }
 
+    /// Returns `true` if this is the JavaScript boolean value `false`.
     pub fn is_false(self) -> bool {
         matches!(self, Value::Boolean(false))
     }
 
+    /// Returns `true` if this is a JavaScript object.
     pub fn is_object(self) -> bool {
         super::Object::try_from(self).is_ok()
     }
 
+    /// Returns `true` if this is a JavaScript function.
     pub fn is_function(self) -> bool {
-        matches!(
-            self,
-            Value::BoundFunction(_) | Value::BuiltinFunction(_) | Value::ECMAScriptFunction(_)
-        )
+        Function::try_from(self).is_ok()
     }
 
+    /// Returns `true` if this is a primitive value.
     pub fn is_primitive(self) -> bool {
         Primitive::try_from(self).is_ok()
     }
 
+    /// Returns `true` if this is a String.
     pub fn is_string(self) -> bool {
         matches!(self, Value::String(_) | Value::SmallString(_))
     }
 
+    /// Returns `true` if this is a boolean.
     pub fn is_boolean(self) -> bool {
         matches!(self, Value::Boolean(_))
     }
 
+    /// Returns `true` if this is `null`.
     pub fn is_null(self) -> bool {
         matches!(self, Value::Null)
     }
 
+    /// Returns `true` if this is `undefined`.
     pub fn is_undefined(self) -> bool {
         matches!(self, Value::Undefined)
     }
 
+    /// Returns `true` if this is `+0`.
     pub fn is_pos_zero(self, agent: &Agent) -> bool {
         Number::try_from(self).is_ok_and(|n| n.is_pos_zero_(agent))
             || BigInt::try_from(self).is_ok_and(|n| n.is_zero(agent))
     }
 
+    /// Returns `true` if this is `-0`.
     pub fn is_neg_zero(self, agent: &Agent) -> bool {
         Number::try_from(self).is_ok_and(|n| n.is_neg_zero_(agent))
     }
 
+    /// Returns `true` if this is `+Infinity`.
     pub fn is_pos_infinity(self, agent: &Agent) -> bool {
         Number::try_from(self)
             .map(|n| n.is_pos_infinity_(agent))
             .unwrap_or(false)
     }
 
+    /// Returns `true` if this is `-Infinity`.
     pub fn is_neg_infinity(self, agent: &Agent) -> bool {
         Number::try_from(self)
             .map(|n| n.is_neg_infinity_(agent))
             .unwrap_or(false)
     }
 
+    /// Returns `true` if this is `NaN`.
     pub fn is_nan(self, agent: &Agent) -> bool {
         Number::try_from(self)
             .map(|n| n.is_nan_(agent))
             .unwrap_or(false)
     }
 
+    /// Returns `true` if this is a BigInt.
     pub fn is_bigint(self) -> bool {
         matches!(self, Value::BigInt(_) | Value::SmallBigInt(_))
     }
 
+    /// Returns `true` if this is a Symbol.
     pub fn is_symbol(self) -> bool {
         matches!(self, Value::Symbol(_))
     }
 
+    /// Returns `true` if this is a numeric Value.
     pub fn is_numeric(self) -> bool {
         matches!(
             self,
@@ -633,6 +769,7 @@ impl<'a> Value<'a> {
         )
     }
 
+    /// Returns `true` if this is a Number.
     pub fn is_number(self) -> bool {
         matches!(
             self,
@@ -640,10 +777,12 @@ impl<'a> Value<'a> {
         )
     }
 
+    /// Returns `true` if this is a safe integer.
     pub fn is_integer(self) -> bool {
         matches!(self, Value::Integer(_))
     }
 
+    /// Returns `true` if this is the empty string (`""`).
     pub fn is_empty_string(self) -> bool {
         if let Value::SmallString(s) = self {
             s.is_empty()
@@ -652,6 +791,7 @@ impl<'a> Value<'a> {
         }
     }
 
+    /// ### [7.1.4 ToNumber ( argument )](https://tc39.es/ecma262/#sec-tonumber)
     pub fn to_number<'gc>(
         self,
         agent: &mut Agent,
@@ -660,6 +800,7 @@ impl<'a> Value<'a> {
         to_number(agent, self, gc)
     }
 
+    /// ### [7.1.13 ToBigInt ( argument )](https://tc39.es/ecma262/#sec-tobigint)
     pub fn to_bigint<'gc>(
         self,
         agent: &mut Agent,
@@ -668,6 +809,7 @@ impl<'a> Value<'a> {
         to_big_int(agent, self, gc)
     }
 
+    /// ### [7.1.3 ToNumeric ( value )](https://tc39.es/ecma262/#sec-tonumeric)
     pub fn to_numeric<'gc>(
         self,
         agent: &mut Agent,
@@ -677,50 +819,60 @@ impl<'a> Value<'a> {
     }
 
     #[inline]
+    /// ### [7.1.6 ToInt32 ( argument )](https://tc39.es/ecma262/#sec-toint32)
     pub fn to_int32<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, i32> {
         to_int32(agent, self, gc)
     }
 
     #[inline]
+    /// ### [7.1.7 ToUint32 ( argument )](https://tc39.es/ecma262/#sec-touint32)
     pub fn to_uint32<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, u32> {
         to_uint32(agent, self, gc)
     }
 
     #[inline]
+    /// ### [7.1.8 ToInt16 ( argument )](https://tc39.es/ecma262/#sec-toint16)
     pub fn to_int16<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, i16> {
         to_int16(agent, self, gc)
     }
 
     #[inline]
+    /// ### [7.1.9 ToUint16 ( argument )](https://tc39.es/ecma262/#sec-touint16)
     pub fn to_uint16<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, u16> {
         to_uint16(agent, self, gc)
     }
 
     #[inline]
+    /// ### [7.1.10 ToInt8 ( argument )](https://tc39.es/ecma262/#sec-toint8)
     pub fn to_int8<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, i8> {
         to_int8(agent, self, gc)
     }
 
     #[inline]
+    /// ### [7.1.11 ToUint8 ( argument )](https://tc39.es/ecma262/#sec-touint8)
     pub fn to_uint8<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, u8> {
         to_uint8(agent, self, gc)
     }
 
     #[inline]
+    /// ### [7.1.12 ToUint8Clamp ( argument )](https://tc39.es/ecma262/#sec-touint8clamp)
     pub fn to_uint8_clamp<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, u8> {
         to_uint8_clamp(agent, self, gc)
     }
 
     #[inline]
+    /// ### [7.1.15 ToBigInt64 ( argument )](https://tc39.es/ecma262/#sec-tobigint64)
     pub fn to_big_int64<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, i64> {
         to_big_int64(agent, self, gc)
     }
 
     #[inline]
+    /// ### [7.1.16 ToBigUint64 ( argument )](https://tc39.es/ecma262/#sec-tobiguint64)
     pub fn to_big_uint64<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, u64> {
         to_big_uint64(agent, self, gc)
     }
 
+    /// ### [7.1.17 ToString ( argument )](https://tc39.es/ecma262/#sec-tostring)
     pub fn to_string<'gc>(
         self,
         agent: &mut Agent,
@@ -729,6 +881,10 @@ impl<'a> Value<'a> {
         to_string(agent, self, gc)
     }
 
+    /// ### [7.1.17 ToString ( argument )](https://tc39.es/ecma262/#sec-tostring)
+    ///
+    /// Variant of the `ToString` abstract operation that will never call into
+    /// JavaScript and therefore can never trigger garbage collection.
     pub fn try_to_string<'gc>(
         self,
         agent: &mut Agent,
@@ -957,10 +1113,7 @@ impl Rootable for Value<'_> {
             Self::BuiltinPromiseFinallyFunction(builtin_promise_finally_function) => {
                 Err(HeapRootData::from(builtin_promise_finally_function))
             }
-            Self::BuiltinPromiseCollectorFunction => {
-                Err(HeapRootData::BuiltinPromiseCollectorFunction)
-            }
-            Self::BuiltinProxyRevokerFunction => Err(HeapRootData::BuiltinPromiseCollectorFunction),
+            Self::BuiltinProxyRevokerFunction => Err(HeapRootData::BuiltinProxyRevokerFunction),
             Self::PrimitiveObject(primitive_object) => Err(HeapRootData::from(primitive_object)),
             Self::Arguments(ordinary_object) => Err(HeapRootData::from(ordinary_object)),
             Self::Array(array) => Err(HeapRootData::from(array)),
@@ -1093,9 +1246,6 @@ impl Rootable for Value<'_> {
             HeapRootData::BuiltinConstructorFunction(f) => Some(Self::from(f)),
             HeapRootData::BuiltinPromiseResolvingFunction(f) => Some(Self::from(f)),
             HeapRootData::BuiltinPromiseFinallyFunction(f) => Some(Self::from(f)),
-            HeapRootData::BuiltinPromiseCollectorFunction => {
-                Some(Self::BuiltinPromiseCollectorFunction)
-            }
             HeapRootData::BuiltinProxyRevokerFunction => Some(Self::BuiltinProxyRevokerFunction),
             HeapRootData::PrimitiveObject(o) => Some(Self::from(o)),
             HeapRootData::Arguments(o) => Some(Self::from(o)),
@@ -1334,7 +1484,6 @@ impl HeapMarkAndSweep for Value<'static> {
             Self::BuiltinConstructorFunction(data) => data.mark_values(queues),
             Self::BuiltinPromiseResolvingFunction(data) => data.mark_values(queues),
             Self::BuiltinPromiseFinallyFunction(data) => data.mark_values(queues),
-            Self::BuiltinPromiseCollectorFunction => todo!(),
             Self::BuiltinProxyRevokerFunction => todo!(),
             Self::AsyncGenerator(data) => data.mark_values(queues),
             Self::ArrayIterator(data) => data.mark_values(queues),
@@ -1457,7 +1606,6 @@ impl HeapMarkAndSweep for Value<'static> {
             Self::BuiltinConstructorFunction(data) => data.sweep_values(compactions),
             Self::BuiltinPromiseResolvingFunction(data) => data.sweep_values(compactions),
             Self::BuiltinPromiseFinallyFunction(data) => data.sweep_values(compactions),
-            Self::BuiltinPromiseCollectorFunction => todo!(),
             Self::BuiltinProxyRevokerFunction => todo!(),
             Self::AsyncGenerator(data) => data.sweep_values(compactions),
             Self::ArrayIterator(data) => data.sweep_values(compactions),
@@ -1482,7 +1630,6 @@ fn map_object_to_static_string_repr(value: Value) -> String<'static> {
         | Object::BuiltinConstructorFunction(_)
         | Object::BuiltinPromiseResolvingFunction(_)
         | Object::BuiltinPromiseFinallyFunction(_)
-        | Object::BuiltinPromiseCollectorFunction
         | Object::BuiltinProxyRevokerFunction => BUILTIN_STRING_MEMORY._object_Function_,
         Object::Arguments(_) => BUILTIN_STRING_MEMORY._object_Arguments_,
         Object::Array(_) => BUILTIN_STRING_MEMORY._object_Array_,

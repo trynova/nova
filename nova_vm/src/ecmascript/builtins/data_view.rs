@@ -366,8 +366,12 @@ impl HeapSweepWeakReference for SharedDataView<'static> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
 pub enum AnyDataView<'a> {
+    /// ## [25.3 DataView Objects](https://tc39.es/ecma262/#sec-dataview-objects)
     DataView(DataView<'a>) = DATA_VIEW_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
+    /// ## [25.3 DataView Objects](https://tc39.es/ecma262/#sec-dataview-objects)
+    ///
+    /// A variant of DataView Objects viewing a SharedArrayBuffer.
     SharedDataView(SharedDataView<'a>) = SHARED_DATA_VIEW_DISCRIMINANT,
 }
 bindable_handle!(AnyDataView);

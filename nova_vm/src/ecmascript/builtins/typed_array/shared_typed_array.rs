@@ -264,18 +264,54 @@ pub(crate) type SharedVoidArray<'a> = GenericSharedTypedArray<'a, ()>;
 
 impl<'gc> SharedVoidArray<'gc> {}
 
+/// ### [19.3.17 Int8Array ( . . . )](https://tc39.es/ecma262/#sec-int8array)
+///
+/// An `i8` view into a SharedArrayBuffer.
 pub type SharedUint8Array<'a> = GenericSharedTypedArray<'a, u8>;
+/// ### [19.3.35 Uint8Array ( . . . )](https://tc39.es/ecma262/#sec-uint8array)
+///
+/// A `u8` view into a SharedArrayBuffer.
 pub type SharedUint8ClampedArray<'a> = GenericSharedTypedArray<'a, U8Clamped>;
+/// ### [19.3.36 Uint8ClampedArray ( . . . )](https://tc39.es/ecma262/#sec-uint8clampedarray)
+///
+/// A `u8` view into an ArrayBuffer with clamping behaviour o Sharedassignment.
 pub type SharedInt8Array<'a> = GenericSharedTypedArray<'a, i8>;
+/// ### [19.3.18 Int16Array ( . . . )](https://tc39.es/ecma262/#sec-int16array)
+///
+/// An `i16` view into a SharedArrayBuffer.
 pub type SharedUint16Array<'a> = GenericSharedTypedArray<'a, u16>;
+/// ### [19.3.37 Uint16Array ( . . . )](https://tc39.es/ecma262/#sec-uint16array)
+///
+/// A `u16` view into a SharedArrayBuffer.
 pub type SharedInt16Array<'a> = GenericSharedTypedArray<'a, i16>;
+/// ### [19.3.19 Int32Array ( . . . )](https://tc39.es/ecma262/#sec-int32array)
+///
+/// An `i32` view into a SharedArrayBuffer.
 pub type SharedUint32Array<'a> = GenericSharedTypedArray<'a, u32>;
+/// ### [19.3.38 Uint32Array ( . . . )](https://tc39.es/ecma262/#sec-uint32array)
+///
+/// A `u32` view into a SharedArrayBuffer.
 pub type SharedInt32Array<'a> = GenericSharedTypedArray<'a, i32>;
+/// ### [19.3.5 BigInt64Array ( . . . )](https://tc39.es/ecma262/#sec-constructor-properties-of-the-global-object-bigint64array)
+///
+/// An `i64` view into a SharedArrayBuffer.
 pub type SharedBigUint64Array<'a> = GenericSharedTypedArray<'a, u64>;
+/// ### [19.3.6 BigUint64Array ( . . . )](https://tc39.es/ecma262/#sec-constructor-properties-of-the-global-object-biguint64array)
+///
+/// A `u64` view into a SharedArrayBuffer.
 pub type SharedBigInt64Array<'a> = GenericSharedTypedArray<'a, i64>;
 #[cfg(feature = "proposal-float16array")]
+/// ### [19.3.13 Float16Array ( . . . )](https://tc39.es/ecma262/#sec-float16array)
+///
+/// An `f16` view into a SharedArrayBuffer.
 pub type SharedFloat16Array<'a> = GenericSharedTypedArray<'a, f16>;
+/// ### [19.3.13 Float32Array ( . . . )](https://tc39.es/ecma262/#sec-float32array)
+///
+/// An `f32` view into a SharedArrayBuffer.
 pub type SharedFloat32Array<'a> = GenericSharedTypedArray<'a, f32>;
+/// ### [19.3.13 Float64Array ( . . . )](https://tc39.es/ecma262/#sec-float64array)
+///
+/// An `f64` view into a SharedArrayBuffer.
 pub type SharedFloat64Array<'a> = GenericSharedTypedArray<'a, f64>;
 
 macro_rules! shared_typed_array_delegate {
@@ -599,18 +635,54 @@ impl<'a> InternalMethods<'a> for SharedTypedArray<'a> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
 pub enum SharedTypedArray<'a> {
+    /// ### [19.3.17 Int8Array ( . . . )](https://tc39.es/ecma262/#sec-int8array)
+    ///
+    /// An `i8` view into a SharedArrayBuffer.
     SharedInt8Array(SharedInt8Array<'a>) = SHARED_INT_8_ARRAY_DISCRIMINANT,
+    /// ### [19.3.35 Uint8Array ( . . . )](https://tc39.es/ecma262/#sec-uint8array)
+    ///
+    /// A `u8` view into a SharedArrayBuffer.
     SharedUint8Array(SharedUint8Array<'a>) = SHARED_UINT_8_ARRAY_DISCRIMINANT,
+    /// ### [19.3.36 Uint8ClampedArray ( . . . )](https://tc39.es/ecma262/#sec-uint8clampedarray)
+    ///
+    /// A `u8` view into an ArrayBuffer with clamping behaviour o Sharedassignment.
     SharedUint8ClampedArray(SharedUint8ClampedArray<'a>) = SHARED_UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+    /// ### [19.3.18 Int16Array ( . . . )](https://tc39.es/ecma262/#sec-int16array)
+    ///
+    /// An `i16` view into a SharedArrayBuffer.
     SharedInt16Array(SharedInt16Array<'a>) = SHARED_INT_16_ARRAY_DISCRIMINANT,
+    /// ### [19.3.37 Uint16Array ( . . . )](https://tc39.es/ecma262/#sec-uint16array)
+    ///
+    /// A `u16` view into a SharedArrayBuffer.
     SharedUint16Array(SharedUint16Array<'a>) = SHARED_UINT_16_ARRAY_DISCRIMINANT,
+    /// ### [19.3.19 Int32Array ( . . . )](https://tc39.es/ecma262/#sec-int32array)
+    ///
+    /// An `i32` view into a SharedArrayBuffer.
     SharedInt32Array(SharedInt32Array<'a>) = SHARED_INT_32_ARRAY_DISCRIMINANT,
+    /// ### [19.3.38 Uint32Array ( . . . )](https://tc39.es/ecma262/#sec-uint32array)
+    ///
+    /// A `u32` view into a SharedArrayBuffer.
     SharedUint32Array(SharedUint32Array<'a>) = SHARED_UINT_32_ARRAY_DISCRIMINANT,
+    /// ### [19.3.5 BigInt64Array ( . . . )](https://tc39.es/ecma262/#sec-constructor-properties-of-the-global-object-bigint64array)
+    ///
+    /// An `i64` view into a SharedArrayBuffer.
     SharedBigInt64Array(SharedBigInt64Array<'a>) = SHARED_BIGINT_64_ARRAY_DISCRIMINANT,
+    /// ### [19.3.6 BigUint64Array ( . . . )](https://tc39.es/ecma262/#sec-constructor-properties-of-the-global-object-biguint64array)
+    ///
+    /// A `u64` view into a SharedArrayBuffer.
     SharedBigUint64Array(SharedBigUint64Array<'a>) = SHARED_BIGUINT_64_ARRAY_DISCRIMINANT,
     #[cfg(feature = "proposal-float16array")]
+    /// ### [19.3.13 Float16Array ( . . . )](https://tc39.es/ecma262/#sec-float16array)
+    ///
+    /// An `f16` view into a SharedArrayBuffer.
     SharedFloat16Array(SharedFloat16Array<'a>) = SHARED_FLOAT_16_ARRAY_DISCRIMINANT,
+    /// ### [19.3.13 Float32Array ( . . . )](https://tc39.es/ecma262/#sec-float32array)
+    ///
+    /// An `f32` view into a SharedArrayBuffer.
     SharedFloat32Array(SharedFloat32Array<'a>) = SHARED_FLOAT_32_ARRAY_DISCRIMINANT,
+    /// ### [19.3.13 Float64Array ( . . . )](https://tc39.es/ecma262/#sec-float64array)
+    ///
+    /// An `f64` view into a SharedArrayBuffer.
     SharedFloat64Array(SharedFloat64Array<'a>) = SHARED_FLOAT_64_ARRAY_DISCRIMINANT,
 }
 bindable_handle!(SharedTypedArray);

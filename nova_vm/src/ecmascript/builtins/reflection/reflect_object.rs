@@ -124,7 +124,7 @@ impl Builtin for ReflectObjectSetPrototypeOf {
 }
 
 impl ReflectObject {
-    ///### [28.1.1 Reflect.apply ( target, thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-reflect.apply)
+    /// ### [28.1.1 Reflect.apply ( target, thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-reflect.apply)
     fn apply<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -214,7 +214,7 @@ impl ReflectObject {
         .map(|o| o.into())
     }
 
-    ///### [28.1.3 Reflect.defineProperty ( target, propertyKey, attributes )](https://tc39.es/ecma262/#sec-reflect.defineproperty)
+    /// ### [28.1.3 Reflect.defineProperty ( target, propertyKey, attributes )](https://tc39.es/ecma262/#sec-reflect.defineproperty)
     fn define_property<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -285,7 +285,7 @@ impl ReflectObject {
         Ok(ret.into())
     }
 
-    ///### [28.1.4 Reflect.deleteProperty ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.deleteproperty)
+    /// ### [28.1.4 Reflect.deleteProperty ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.deleteproperty)
     fn delete_property<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -373,7 +373,7 @@ impl ReflectObject {
             .internal_get(agent, key.unbind(), receiver.unbind(), gc)
     }
 
-    ///### [28.1.6 Reflect.getOwnPropertyDescriptor ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.getownpropertydescriptor)
+    /// ### [28.1.6 Reflect.getOwnPropertyDescriptor ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.getownpropertydescriptor)
     fn get_own_property_descriptor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -418,7 +418,7 @@ impl ReflectObject {
         }
     }
 
-    ///### [28.1.7 Reflect.getPrototypeOf ( target )](https://tc39.es/ecma262/#sec-reflect.getprototypeof)
+    /// ### [28.1.7 Reflect.getPrototypeOf ( target )](https://tc39.es/ecma262/#sec-reflect.getprototypeof)
     fn get_prototype_of<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -444,7 +444,7 @@ impl ReflectObject {
         }
     }
 
-    ///### [28.1.8 Reflect.has ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.has)
+    /// ### [28.1.8 Reflect.has ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.has)
     fn has<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -483,7 +483,7 @@ impl ReflectObject {
         Ok(ret.into())
     }
 
-    ///### [28.1.9 Reflect.isExtensible ( target )](https://tc39.es/ecma262/#sec-reflect.isextensible)
+    /// ### [28.1.9 Reflect.isExtensible ( target )](https://tc39.es/ecma262/#sec-reflect.isextensible)
     fn is_extensible<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -507,7 +507,7 @@ impl ReflectObject {
         Ok(ret.into())
     }
 
-    ///### [28.1.10 Reflect.ownKeys ( target )](https://tc39.es/ecma262/#sec-reflect.ownkeys)
+    /// ### [28.1.10 Reflect.ownKeys ( target )](https://tc39.es/ecma262/#sec-reflect.ownkeys)
     fn own_keys<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -538,7 +538,7 @@ impl ReflectObject {
         Ok(create_array_from_list(agent, &keys.unbind(), gc.into_nogc()).into())
     }
 
-    ///### [28.1.11 Reflect.preventExtensions ( target )](https://tc39.es/ecma262/#sec-reflect.preventextensions)
+    /// ### [28.1.11 Reflect.preventExtensions ( target )](https://tc39.es/ecma262/#sec-reflect.preventextensions)
     fn prevent_extensions<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -616,7 +616,7 @@ impl ReflectObject {
         Ok(ret.into())
     }
 
-    ///### [28.1.13 Reflect.setPrototypeOf ( target, proto )](https://tc39.es/ecma262/#sec-reflect.setprototypeof)
+    /// ### [28.1.13 Reflect.setPrototypeOf ( target, proto )](https://tc39.es/ecma262/#sec-reflect.setprototypeof)
     fn set_prototype_of<'gc>(
         agent: &mut Agent,
         _this_value: Value,

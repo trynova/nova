@@ -2683,7 +2683,7 @@ pub(crate) fn try_private_set<'gc>(
     }
 }
 
-///### [7.3.33 InitializeInstanceElements ( O, constructor )](https://tc39.es/ecma262/#sec-initializeinstanceelements)
+/// ### [7.3.33 InitializeInstanceElements ( O, constructor )](https://tc39.es/ecma262/#sec-initializeinstanceelements)
 ///
 /// The abstract operation InitializeInstanceElements takes arguments O (an
 /// Object) and constructor (an ECMAScript function object) and returns either

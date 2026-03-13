@@ -12,7 +12,6 @@ use crate::{
     ecmascript::{
         Agent, ArgumentsList, BOUND_FUNCTION_DISCRIMINANT,
         BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
-        BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
         BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
         BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
         BoundFunction, BuiltinConstructorFunction, BuiltinFunction, BuiltinPromiseFinallyFunction,
@@ -34,16 +33,28 @@ use crate::{
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Function<'a> {
+    /// ### [10.4.1 Bound Function Exotic Objects](https://tc39.es/ecma262/#sec-bound-function-exotic-objects)
     BoundFunction(BoundFunction<'a>) = BOUND_FUNCTION_DISCRIMINANT,
+    /// ## [10.3 Built-in Function Objects](https://tc39.es/ecma262/#sec-built-in-function-objects)
     BuiltinFunction(BuiltinFunction<'a>) = BUILTIN_FUNCTION_DISCRIMINANT,
+    /// ## [10.2 ECMAScript Function Objects](https://tc39.es/ecma262/#sec-ecmascript-function-objects)
     ECMAScriptFunction(ECMAScriptFunction<'a>) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
+    /// ### [4.4.36 built-in constructor](https://tc39.es/ecma262/#sec-built-in-constructor)
+    ///
+    /// A class built-in default constructor created in step 14 of
+    /// ClassDefinitionEvaluation.
     BuiltinConstructorFunction(BuiltinConstructorFunction<'a>) =
         BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
+    /// Special built-in functions created to resolve or reject native [`Promise`]
+    /// objects.
+    ///
+    /// [`Promise`]: crate::ecmascript::Promise
     BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction<'a>) =
         BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT,
+    /// Special functions created as part of `Promise.prototype.finally`.
     BuiltinPromiseFinallyFunction(BuiltinPromiseFinallyFunction<'a>) =
         BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
-    BuiltinPromiseCollectorFunction = BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
+    /// Placeholder.
     BuiltinProxyRevokerFunction = BUILTIN_PROXY_REVOKER_FUNCTION,
 }
 bindable_handle!(Function);
@@ -74,7 +85,6 @@ impl Function<'_> {
             Function::BuiltinPromiseResolvingFunction(_) => false,
             Function::BuiltinPromiseFinallyFunction(_) => false,
             Function::BuiltinConstructorFunction(_) => true,
-            Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
@@ -108,7 +118,6 @@ impl core::fmt::Debug for Function<'_> {
             Self::BuiltinPromiseFinallyFunction(d) => {
                 write!(f, "BuiltinPromiseFinallyFunction({d:?})")
             }
-            Self::BuiltinPromiseCollectorFunction => todo!(),
             Self::BuiltinProxyRevokerFunction => todo!(),
         }
     }
@@ -134,7 +143,6 @@ impl<'a> InternalSlots<'a> for Function<'a> {
             Function::BuiltinConstructorFunction(d) => d.get_backing_object(agent),
             Function::BuiltinPromiseResolvingFunction(d) => d.get_backing_object(agent),
             Function::BuiltinPromiseFinallyFunction(d) => d.get_backing_object(agent),
-            Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
@@ -161,7 +169,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BuiltinConstructorFunction(x) => x.try_get_prototype_of(agent, gc),
             Function::BuiltinPromiseResolvingFunction(x) => x.try_get_prototype_of(agent, gc),
             Function::BuiltinPromiseFinallyFunction(x) => x.try_get_prototype_of(agent, gc),
-            Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
@@ -183,7 +190,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BuiltinPromiseFinallyFunction(x) => {
                 x.try_set_prototype_of(agent, prototype, gc)
             }
-            Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
@@ -200,7 +206,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BuiltinConstructorFunction(x) => x.try_is_extensible(agent, gc),
             Function::BuiltinPromiseResolvingFunction(x) => x.try_is_extensible(agent, gc),
             Function::BuiltinPromiseFinallyFunction(x) => x.try_is_extensible(agent, gc),
-            Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
@@ -217,7 +222,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BuiltinConstructorFunction(x) => x.try_prevent_extensions(agent, gc),
             Function::BuiltinPromiseResolvingFunction(x) => x.try_prevent_extensions(agent, gc),
             Function::BuiltinPromiseFinallyFunction(x) => x.try_prevent_extensions(agent, gc),
-            Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
@@ -244,7 +248,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BuiltinPromiseFinallyFunction(x) => {
                 x.try_get_own_property(agent, property_key, cache, gc)
             }
-            Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
@@ -276,7 +279,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BuiltinPromiseFinallyFunction(x) => {
                 x.try_define_own_property(agent, property_key, property_descriptor, cache, gc)
             }
-            Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
@@ -301,7 +303,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BuiltinPromiseFinallyFunction(x) => {
                 x.try_has_property(agent, property_key, cache, gc)
             }
-            Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
@@ -325,7 +326,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BuiltinPromiseFinallyFunction(x) => {
                 x.internal_has_property(agent, property_key, gc)
             }
-            Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
@@ -351,7 +351,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BuiltinPromiseFinallyFunction(x) => {
                 x.try_get(agent, property_key, receiver, cache, gc)
             }
-            Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
@@ -376,7 +375,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BuiltinPromiseFinallyFunction(x) => {
                 x.internal_get(agent, property_key, receiver, gc)
             }
-            Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
@@ -409,7 +407,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BuiltinPromiseFinallyFunction(x) => {
                 x.try_set(agent, property_key, value, receiver, cache, gc)
             }
-            Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
@@ -439,7 +436,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BuiltinPromiseFinallyFunction(x) => {
                 x.internal_set(agent, property_key, value, receiver, gc)
             }
-            Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
@@ -457,7 +453,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BuiltinConstructorFunction(x) => x.try_delete(agent, property_key, gc),
             Function::BuiltinPromiseResolvingFunction(x) => x.try_delete(agent, property_key, gc),
             Function::BuiltinPromiseFinallyFunction(x) => x.try_delete(agent, property_key, gc),
-            Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
@@ -474,7 +469,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BuiltinConstructorFunction(x) => x.try_own_property_keys(agent, gc),
             Function::BuiltinPromiseResolvingFunction(x) => x.try_own_property_keys(agent, gc),
             Function::BuiltinPromiseFinallyFunction(x) => x.try_own_property_keys(agent, gc),
-            Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
@@ -498,7 +492,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BuiltinPromiseFinallyFunction(f) => {
                 f.get_own_property_at_offset(agent, offset, gc)
             }
-            Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
@@ -519,7 +512,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
                 f.set_at_offset(agent, props, offset, gc)
             }
             Function::BuiltinPromiseFinallyFunction(f) => f.set_at_offset(agent, props, offset, gc),
-            Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
@@ -544,7 +536,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BuiltinPromiseFinallyFunction(x) => {
                 x.internal_call(agent, this_argument, arguments, gc)
             }
-            Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
@@ -571,7 +562,6 @@ impl<'a> InternalMethods<'a> for Function<'a> {
             Function::BuiltinPromiseFinallyFunction(x) => {
                 x.internal_construct(agent, arguments, new_target, gc)
             }
-            Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
@@ -586,7 +576,6 @@ impl HeapMarkAndSweep for Function<'static> {
             Function::BuiltinConstructorFunction(x) => x.mark_values(queues),
             Function::BuiltinPromiseResolvingFunction(x) => x.mark_values(queues),
             Function::BuiltinPromiseFinallyFunction(x) => x.mark_values(queues),
-            Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
@@ -599,7 +588,6 @@ impl HeapMarkAndSweep for Function<'static> {
             Function::BuiltinConstructorFunction(x) => x.sweep_values(compactions),
             Function::BuiltinPromiseResolvingFunction(x) => x.sweep_values(compactions),
             Function::BuiltinPromiseFinallyFunction(x) => x.sweep_values(compactions),
-            Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
@@ -618,7 +606,6 @@ impl<'a> From<Function<'a>> for Value<'a> {
                 Self::BuiltinPromiseResolvingFunction(d)
             }
             Function::BuiltinPromiseFinallyFunction(d) => Self::BuiltinPromiseFinallyFunction(d),
-            Function::BuiltinPromiseCollectorFunction => Self::BuiltinPromiseCollectorFunction,
             Function::BuiltinProxyRevokerFunction => Self::BuiltinProxyRevokerFunction,
         }
     }
@@ -633,7 +620,6 @@ impl<'a> From<Function<'a>> for HeapRootData {
             Function::BuiltinConstructorFunction(d) => Self::from(d),
             Function::BuiltinPromiseResolvingFunction(d) => Self::from(d),
             Function::BuiltinPromiseFinallyFunction(d) => Self::from(d),
-            Function::BuiltinPromiseCollectorFunction => Self::BuiltinPromiseCollectorFunction,
             Function::BuiltinProxyRevokerFunction => Self::BuiltinProxyRevokerFunction,
         }
     }
@@ -649,7 +635,6 @@ impl<'a> TryFrom<Value<'a>> for Function<'a> {
             Value::BuiltinPromiseResolvingFunction(data) => {
                 Ok(Self::BuiltinPromiseResolvingFunction(data))
             }
-            Value::BuiltinPromiseCollectorFunction => Ok(Self::BuiltinPromiseCollectorFunction),
             Value::BuiltinProxyRevokerFunction => Ok(Self::BuiltinProxyRevokerFunction),
             _ => Err(()),
         }
@@ -669,9 +654,6 @@ impl TryFrom<HeapRootData> for Function<'_> {
             HeapRootData::BuiltinPromiseResolvingFunction(data) => {
                 Ok(Self::BuiltinPromiseResolvingFunction(data))
             }
-            HeapRootData::BuiltinPromiseCollectorFunction => {
-                Ok(Self::BuiltinPromiseCollectorFunction)
-            }
             HeapRootData::BuiltinProxyRevokerFunction => Ok(Self::BuiltinProxyRevokerFunction),
             _ => Err(()),
         }
@@ -688,7 +670,6 @@ impl<'a> From<Function<'a>> for Object<'a> {
                 Self::BuiltinPromiseResolvingFunction(f)
             }
             Function::BuiltinPromiseFinallyFunction(f) => Self::BuiltinPromiseFinallyFunction(f),
-            Function::BuiltinPromiseCollectorFunction => Self::BuiltinPromiseCollectorFunction,
             Function::BuiltinProxyRevokerFunction => Self::BuiltinProxyRevokerFunction,
         }
     }
@@ -704,7 +685,6 @@ impl<'a> TryFrom<Object<'a>> for Function<'a> {
             Object::BuiltinPromiseResolvingFunction(data) => {
                 Ok(Self::BuiltinPromiseResolvingFunction(data))
             }
-            Object::BuiltinPromiseCollectorFunction => Ok(Self::BuiltinPromiseCollectorFunction),
             Object::BuiltinProxyRevokerFunction => Ok(Self::BuiltinProxyRevokerFunction),
             _ => Err(()),
         }

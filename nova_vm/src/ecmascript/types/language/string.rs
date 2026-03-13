@@ -44,14 +44,17 @@ primitive_value!(SmallString);
 arena_vec_access!(HeapString, StringRecord, strings, StringRecord);
 
 impl HeapString<'_> {
+    /// Get the byte length of the heap-allocated String.
     pub fn len(self, agent: &Agent) -> usize {
         self.get(agent).len()
     }
 
+    /// Covert the heap-allocated String into UTF-8.
     pub fn to_string_lossy(self, agent: &Agent) -> Cow<'_, str> {
         self.get(agent).to_string_lossy()
     }
 
+    /// Get the heap-allocated String as UTF-8 if it is valid.
     pub fn as_str(self, agent: &Agent) -> Option<&str> {
         self.get(agent).as_str()
     }
@@ -90,7 +93,13 @@ impl HeapString<'_> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(u8)]
 pub enum String<'a> {
+    /// WTF-8 string on the heap. Accessing the data can only be done through
+    /// the Agent. ECMAScript specification compliant WTF-16 indexing is
+    /// implemented through an index mapping.
     String(HeapString<'a>) = STRING_DISCRIMINANT,
+    /// 7-byte WTF-8 string on the stack. End of the string is determined by the
+    /// first 0xFF byte in the data. WTF-16 indexing is calculated on demand
+    /// from the data.
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
 }
 bindable_handle!(String);
@@ -214,6 +223,7 @@ impl<'a> TryFrom<String<'a>> for SmallString {
 }
 
 impl<'a> String<'a> {
+    /// The empty string `""`.
     pub const EMPTY_STRING: String<'static> = String::from_small_string("");
 
     /// Scope a stack-only String. Stack-only Strings do not need to store any
@@ -231,10 +241,15 @@ impl<'a> String<'a> {
         Scoped::from_root_repr(key_root_repr)
     }
 
+    /// Returns true if this is the empty string `""`.
     pub fn is_empty_string(self) -> bool {
         self == Self::EMPTY_STRING
     }
 
+    /// Converts the string into a PropertyKey without checking for numeric
+    /// strings.
+    ///
+    /// This will cause erroneous behaviour if the string is eg. `"0"`.
     pub const fn to_property_key(self) -> PropertyKey<'a> {
         match self {
             String::String(data) => PropertyKey::String(data),
@@ -251,6 +266,7 @@ impl<'a> String<'a> {
         String::SmallString(unsafe { SmallString::from_str_unchecked(message) })
     }
 
+    /// Concatenate a list of JavaScript strings together.
     pub fn concat<'gc>(
         agent: &mut Agent,
         strings: impl AsRef<[Self]>,
@@ -377,6 +393,9 @@ impl<'a> String<'a> {
     }
 
     #[inline(always)]
+    /// Get the WTF-16 code unit at a given WTF-16 code unit index.
+    ///
+    /// This is equivalent to the JavaScript `string.charCodeAt(idx)` method.
     pub fn char_code_at(self, agent: &Agent, idx: usize) -> CodePoint {
         self.char_code_at_(agent, idx)
     }
@@ -389,6 +408,9 @@ impl<'a> String<'a> {
     }
 
     #[inline(always)]
+    /// Get the CodePoint at a given WTF-16 code unit index.
+    ///
+    /// This is equivalent to the JavaScript `string.codePointAt(idx)` method.
     pub fn code_point_at(self, agent: &Agent, utf16_idx: usize) -> CodePoint {
         self.code_point_at_(agent, utf16_idx)
     }
@@ -481,6 +503,9 @@ impl<'a> String<'a> {
         }
     }
 
+    /// Return the string as a UTF-8 `&str` slice. This does not copy the data.
+    ///
+    /// Returns `None` if the string is not valid UTF-8.
     #[inline(always)]
     pub fn as_str(&self, agent: &Agent) -> Option<&str> {
         self.as_str_(agent)
@@ -500,6 +525,7 @@ impl<'a> String<'a> {
         }
     }
 
+    /// Get the String data as a WTF-8 slice.
     #[inline(always)]
     pub fn as_wtf8(&self, agent: &Agent) -> &Wtf8 {
         self.as_wtf8_(agent)
@@ -519,6 +545,7 @@ impl<'a> String<'a> {
         }
     }
 
+    /// Get the String data as a byte slice.
     #[inline(always)]
     pub fn as_bytes(&self, agent: &Agent) -> &[u8] {
         self.as_bytes_(agent)
@@ -619,10 +646,14 @@ impl<'a> String<'a> {
 }
 
 impl<'gc> String<'gc> {
+    /// Create a [String] from a UTF-8 string slice.
+    ///
+    /// This copies the string data.
     pub fn from_str(agent: &mut Agent, str: &str, _gc: NoGcScope<'gc, '_>) -> Self {
         agent.heap.create(str)
     }
 
+    /// Create a [String] from a [CodePoint].
     pub const fn from_code_point(cp: CodePoint) -> Self {
         // UTF-8 ranges and tags for encoding characters
         // Copied from 48d5fe9ec560b53b1f5069219b0d62015e1de5ba^:src/libcore/char.rs
@@ -725,6 +756,11 @@ impl<'gc> String<'gc> {
             .ok_or(hash)
     }
 
+    /// Create a [String] from an owned Rust [`String`].
+    ///
+    /// This does not copy the string data.
+    ///
+    /// [`String`]: std::string::String
     pub fn from_string(
         agent: &mut Agent,
         string: std::string::String,
@@ -733,10 +769,14 @@ impl<'gc> String<'gc> {
         agent.heap.create(string).bind(gc)
     }
 
+    /// Create a [String] from a WTF-8 buffer.
     pub fn from_wtf8_buf(agent: &mut Agent, string: Wtf8Buf, gc: NoGcScope<'gc, '_>) -> Self {
         agent.heap.create(string).bind(gc)
     }
 
+    /// Create a [String] from a statically allocated UTF-8 string slice.
+    ///
+    /// This does not copy the string data.
     pub fn from_static_str(agent: &mut Agent, str: &'static str, _gc: NoGcScope<'gc, '_>) -> Self {
         if let Ok(value) = String::try_from(str) {
             value
@@ -748,6 +788,7 @@ impl<'gc> String<'gc> {
 }
 
 impl Scoped<'_, String<'static>> {
+    /// Returns true if this is the empty string (`""`).
     pub fn is_empty_string(&self) -> bool {
         match self.inner {
             StringRootRepr::SmallString(s) => s.is_empty(),
@@ -755,6 +796,7 @@ impl Scoped<'_, String<'static>> {
         }
     }
 
+    /// Covert the heap-allocated String into UTF-8.
     pub fn to_string_lossy<'string, 'agent: 'string>(
         &'string self,
         agent: &'agent Agent,

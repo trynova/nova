@@ -29,9 +29,16 @@ impl core::hash::Hash for SmallInteger {
 }
 
 impl SmallInteger {
+    /// Minimum value that can be represented as a SmallInteger.
+    ///
+    /// This corresponds with `Number.MIN_SAFE_INTEGER`.
     pub const MIN: i64 = -(2i64.pow(53)) + 1;
+    /// Maximum value that can be represented as a SmallInteger.
+    ///
+    /// This corresponds with `Number.MAX_SAFE_INTEGER`.
     pub const MAX: i64 = 2i64.pow(53) - 1;
 
+    /// Returns the contained value as an i64.
     #[inline]
     pub const fn into_i64(self) -> i64 {
         let SmallInteger { data } = self;
@@ -52,6 +59,7 @@ impl SmallInteger {
         }
     }
 
+    /// Returns the `0` value.
     pub const fn zero() -> Self {
         Self {
             data: [0, 0, 0, 0, 0, 0, 0],

@@ -40,7 +40,7 @@ pub struct PromiseCapability<'a> {
 }
 
 impl<'a> PromiseCapability<'a> {
-    ///### [27.2.1.5 NewPromiseCapability ( C )](https://tc39.es/ecma262/#sec-newpromisecapability)
+    /// ### [27.2.1.5 NewPromiseCapability ( C )](https://tc39.es/ecma262/#sec-newpromisecapability)
     ///
     /// Create a new PromiseCapability
     ///
@@ -84,7 +84,7 @@ impl<'a> PromiseCapability<'a> {
         }
     }
 
-    ///### [27.2.1.4 FulfillPromise ( promise, value )](https://tc39.es/ecma262/#sec-fulfillpromise)
+    /// ### [27.2.1.4 FulfillPromise ( promise, value )](https://tc39.es/ecma262/#sec-fulfillpromise)
     pub(crate) fn internal_fulfill(&self, agent: &mut Agent, value: Value, gc: NoGcScope) {
         // 1. Assert: The value of promise.[[PromiseState]] is pending.
         // 2. Let reactions be promise.[[PromiseFulfillReactions]].
@@ -108,7 +108,7 @@ impl<'a> PromiseCapability<'a> {
         }
     }
 
-    ///### [27.2.1.7 RejectPromise ( promise, reason )](https://tc39.es/ecma262/#sec-rejectpromise)
+    /// ### [27.2.1.7 RejectPromise ( promise, reason )](https://tc39.es/ecma262/#sec-rejectpromise)
     fn internal_reject(&self, agent: &mut Agent, reason: Value, gc: NoGcScope) {
         // 1. Assert: The value of promise.[[PromiseState]] is pending.
         // 2. Let reactions be promise.[[PromiseRejectReactions]].
@@ -141,7 +141,7 @@ impl<'a> PromiseCapability<'a> {
         }
     }
 
-    ///### [27.2.1.3.2 Promise Resolve Functions](https://tc39.es/ecma262/#sec-promise-resolve-functions)
+    /// ### [27.2.1.3.2 Promise Resolve Functions](https://tc39.es/ecma262/#sec-promise-resolve-functions)
     ///
     /// Resolve the associated [`Promise`] with a given value. Ignored if the
     /// [`Promise`] is already resolved.
@@ -246,7 +246,7 @@ impl<'a> PromiseCapability<'a> {
         // 16. Return undefined.
     }
 
-    ///### [27.2.1.3.2 Promise Resolve Functions](https://tc39.es/ecma262/#sec-promise-resolve-functions)
+    /// ### [27.2.1.3.2 Promise Resolve Functions](https://tc39.es/ecma262/#sec-promise-resolve-functions)
     ///
     /// Try resolve the associated [`Promise`] with a given value. Fails if
     /// resolving would require calling into user-code. Ignored if the
@@ -335,7 +335,7 @@ impl<'a> PromiseCapability<'a> {
         TryResult::Continue(())
     }
 
-    ///### [27.2.1.3.1 Promise Reject Functions](https://tc39.es/ecma262/#sec-promise-reject-functions)
+    /// ### [27.2.1.3.1 Promise Reject Functions](https://tc39.es/ecma262/#sec-promise-reject-functions)
     ///
     /// Reject the associated [`Promise`] with a given value. Ignored if the
     /// [`Promise`] is already resolved.

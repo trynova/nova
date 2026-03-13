@@ -132,7 +132,10 @@ impl TryFrom<&num_bigint::BigInt> for SmallBigInt {
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum BigInt<'a> {
+    /// Unlimited size integer data on the heap. Accessing the data can only be
+    /// done through the Agent.
     BigInt(HeapBigInt<'a>) = BIGINT_DISCRIMINANT,
+    /// 56-bit signed integer on the stack.
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
 
@@ -156,6 +159,7 @@ impl<'a> BigInt<'a> {
         }
     }
 
+    /// Returns the `0n` value.
     pub const fn zero() -> Self {
         Self::SmallBigInt(SmallBigInt::zero())
     }

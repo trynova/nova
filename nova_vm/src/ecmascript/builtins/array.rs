@@ -38,6 +38,12 @@ use super::{
 };
 
 /// ### [10.4.2 Array Exotic Objects](https://tc39.es/ecma262/#sec-array-exotic-objects)
+///
+/// ## Support status
+///
+/// `Array` in Nova does not support sparse storage. This means that setting the
+/// `length` property will grow the `Array`'s backing storage to the requested
+/// size or larger.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Array<'a>(BaseIndex<'a, ArrayHeapData<'static>>);

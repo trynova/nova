@@ -79,7 +79,7 @@ impl Default for CleanupRecord<'_> {
         Self {
             cleanup_queue: Default::default(),
             // Note: impossible value currently.
-            callback: Function::BuiltinPromiseCollectorFunction,
+            callback: Function::BuiltinProxyRevokerFunction,
             realm: Realm::_DEF,
             cleanup_requested: false,
         }
@@ -102,7 +102,7 @@ impl<'fr> CleanupRecord<'fr> {
     /// FinalizationRegistry must be previously uninitialised.
     pub(super) unsafe fn initialise(&mut self, realm: Realm, cleanup_callback: Function) {
         debug_assert_eq!(self.realm, Realm::_DEF);
-        debug_assert_eq!(self.callback, Function::BuiltinPromiseCollectorFunction);
+        debug_assert_eq!(self.callback, Function::BuiltinProxyRevokerFunction);
         self.realm = realm.unbind();
         self.callback = cleanup_callback.unbind();
     }
