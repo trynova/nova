@@ -11,6 +11,7 @@ homepage.workspace = true
 readme.workspace = true
 keywords.workspace = true
 categories = ["development-tools", "command-line-utilities"]
+publish = false
 
 [lib]
 name = "nova_cli"
@@ -25,7 +26,7 @@ clap = { workspace = true }
 cliclack = { workspace = true }
 ctrlc = { workspace = true }
 console = { workspace = true }
-nova_vm = { path = "../nova_vm", version = "0.3.0" }
+nova_vm = { path = "../nova_vm" }
 oxc_ast = { workspace = true }
 oxc-miette = { workspace = true }
 oxc_parser = { workspace = true }
