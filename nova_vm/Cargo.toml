@@ -31,7 +31,7 @@ oxc_syntax = { workspace = true }
 rand = { workspace = true }
 regex = { workspace = true, optional = true }
 ryu-js = { workspace = true }
-small_string = { path = "../small_string", version = "0.2.0" }
+small_string = { path = "../small_string", version = "1.0.0" }
 soavec = { workspace = true }
 soavec_derive = { workspace = true }
 sonic-rs = { workspace = true, optional = true }
@@ -105,5 +105,5 @@ proposal-atomics-microwait = ["atomics"]
 proposal-temporal = ["temporal"]
 
 [build-dependencies]
-small_string = { path = "../small_string", version = "0.2.0" }
+small_string = { path = "../small_string", version = "1.0.0" }
 usdt = { workspace = true }
