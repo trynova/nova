@@ -37,7 +37,6 @@ let realm = agent.create_default_realm();
 let _ = agent.run_in_realm(&realm, |_agent, _gc| {
   // do work here
 });
-agent.gc();
 ```
 
 ## [Architecture]
