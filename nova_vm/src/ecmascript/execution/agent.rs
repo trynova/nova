@@ -681,7 +681,6 @@ pub trait HostHooks: core::fmt::Debug {
 /// let _ = agent.run_in_realm(&realm, |_agent, _gc| {
 ///   // do work here
 /// });
-/// agent.gc();
 /// ```
 pub struct GcAgent {
     agent: Agent,
