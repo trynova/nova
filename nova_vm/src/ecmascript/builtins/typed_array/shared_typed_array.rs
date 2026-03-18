@@ -2321,13 +2321,15 @@ impl<'a, T: Viewable> DirectArenaAccessMut for GenericSharedTypedArray<'a, T> {
         }
     }
 }
-impl AsRef<Vec<SharedTypedArrayRecord<'static>>> for crate::ecmascript::execution::Agent {
+#[doc(hidden)]
+impl AsRef<Vec<SharedTypedArrayRecord<'static>>> for crate::ecmascript::Agent {
     #[inline(always)]
     fn as_ref(&self) -> &Vec<SharedTypedArrayRecord<'static>> {
         &self.heap.shared_typed_arrays
     }
 }
-impl AsMut<Vec<SharedTypedArrayRecord<'static>>> for crate::ecmascript::execution::Agent {
+#[doc(hidden)]
+impl AsMut<Vec<SharedTypedArrayRecord<'static>>> for crate::ecmascript::Agent {
     #[inline(always)]
     fn as_mut(&mut self) -> &mut Vec<SharedTypedArrayRecord<'static>> {
         &mut self.heap.shared_typed_arrays

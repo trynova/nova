@@ -720,6 +720,7 @@ fn init_heap() {
 
 macro_rules! arena_vec_access {
     (soa: $name: ident, $lt: lifetime, $data: ident, $member: ident, $output_ref: ident, $output_mut: ident) => {
+        #[doc(hidden)]
         impl<$lt> crate::heap::DirectArenaAccessSoA for $name<$lt> {
             type Data = $data<'static>;
 
@@ -734,6 +735,7 @@ macro_rules! arena_vec_access {
             }
         }
 
+        #[doc(hidden)]
         impl<$lt> crate::heap::DirectArenaAccessSoAMut for $name<$lt> {
             #[inline]
             fn get_direct_mut<'agent>(
@@ -760,14 +762,16 @@ macro_rules! arena_vec_access {
             }
         }
 
-        impl AsRef<soavec::SoAVec<$data<'static>>> for crate::ecmascript::execution::Agent {
+        #[doc(hidden)]
+        impl AsRef<soavec::SoAVec<$data<'static>>> for crate::ecmascript::Agent {
             #[inline(always)]
             fn as_ref(&self) -> &soavec::SoAVec<$data<'static>> {
                 &self.heap.$member
             }
         }
 
-        impl AsMut<soavec::SoAVec<$data<'static>>> for crate::ecmascript::execution::Agent {
+        #[doc(hidden)]
+        impl AsMut<soavec::SoAVec<$data<'static>>> for crate::ecmascript::Agent {
             #[inline(always)]
             fn as_mut(&mut self) -> &mut soavec::SoAVec<$data<'static>> {
                 &mut self.heap.$member
@@ -775,6 +779,7 @@ macro_rules! arena_vec_access {
         }
     };
     ($name: ident, $lt: lifetime, $data: ident, $member: ident) => {
+        #[doc(hidden)]
         impl<$lt> crate::heap::DirectArenaAccess for $name<$lt> {
             type Data = $data<'static>;
             type Output = $data<$lt>;
@@ -787,6 +792,7 @@ macro_rules! arena_vec_access {
             }
         }
 
+        #[doc(hidden)]
         impl<$lt> crate::heap::DirectArenaAccessMut for $name<$lt> {
             #[inline]
             fn get_direct_mut(self, source: &mut Vec<Self::Data>) -> &mut Self::Output {
@@ -801,6 +807,7 @@ macro_rules! arena_vec_access {
             }
         }
 
+        #[doc(hidden)]
         impl AsRef<Vec<$data<'static>>> for crate::ecmascript::Agent {
             #[inline(always)]
             fn as_ref(&self) -> &Vec<$data<'static>> {
@@ -808,6 +815,7 @@ macro_rules! arena_vec_access {
             }
         }
 
+        #[doc(hidden)]
         impl AsMut<Vec<$data<'static>>> for crate::ecmascript::Agent {
             #[inline(always)]
             fn as_mut(&mut self) -> &mut Vec<$data<'static>> {
@@ -816,6 +824,7 @@ macro_rules! arena_vec_access {
         }
     };
     ($name: ident, $data: ty, $member: ident, $output: ty) => {
+        #[doc(hidden)]
         impl crate::heap::DirectArenaAccess for $name<'_> {
             type Data = $data;
             type Output = $output;
@@ -828,6 +837,7 @@ macro_rules! arena_vec_access {
             }
         }
 
+        #[doc(hidden)]
         impl crate::heap::DirectArenaAccessMut for $name<'_> {
             #[inline]
             fn get_direct_mut(self, source: &mut Vec<Self::Data>) -> &mut Self::Output {
@@ -837,14 +847,16 @@ macro_rules! arena_vec_access {
             }
         }
 
-        impl AsRef<Vec<$data>> for crate::ecmascript::execution::Agent {
+        #[doc(hidden)]
+        impl AsRef<Vec<$data>> for crate::ecmascript::Agent {
             #[inline(always)]
             fn as_ref(&self) -> &Vec<$data> {
                 &self.heap.$member
             }
         }
 
-        impl AsMut<Vec<$data>> for crate::ecmascript::execution::Agent {
+        #[doc(hidden)]
+        impl AsMut<Vec<$data>> for crate::ecmascript::Agent {
             #[inline(always)]
             fn as_mut(&mut self) -> &mut Vec<$data> {
                 &mut self.heap.$member

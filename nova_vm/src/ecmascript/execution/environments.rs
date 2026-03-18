@@ -109,14 +109,16 @@ macro_rules! create_environment_index {
             }
         }
 
-        impl AsRef<Vec<$record>> for crate::ecmascript::execution::Agent {
+        #[doc(hidden)]
+        impl AsRef<Vec<$record>> for crate::ecmascript::Agent {
             #[inline(always)]
             fn as_ref(&self) -> &Vec<$record> {
                 &self.heap.environments.$entry
             }
         }
 
-        impl AsMut<Vec<$record>> for crate::ecmascript::execution::Agent {
+        #[doc(hidden)]
+        impl AsMut<Vec<$record>> for crate::ecmascript::Agent {
             #[inline(always)]
             fn as_mut(&mut self) -> &mut Vec<$record> {
                 &mut self.heap.environments.$entry
@@ -1155,12 +1157,14 @@ impl AsMut<Environments> for Environments {
     }
 }
 
+#[doc(hidden)]
 impl AsRef<Environments> for Agent {
     fn as_ref(&self) -> &Environments {
         &self.heap.environments
     }
 }
 
+#[doc(hidden)]
 impl AsMut<Environments> for Agent {
     fn as_mut(&mut self) -> &mut Environments {
         &mut self.heap.environments

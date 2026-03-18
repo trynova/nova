@@ -2247,12 +2247,14 @@ impl AsMut<SourceTextModuleHeap> for SourceTextModuleHeap {
     }
 }
 
+#[doc(hidden)]
 impl AsRef<SourceTextModuleHeap> for Agent {
     fn as_ref(&self) -> &SourceTextModuleHeap {
         &self.heap.source_text_module_records
     }
 }
 
+#[doc(hidden)]
 impl AsMut<SourceTextModuleHeap> for Agent {
     fn as_mut(&mut self) -> &mut SourceTextModuleHeap {
         &mut self.heap.source_text_module_records

@@ -3681,12 +3681,14 @@ impl HeapMarkAndSweep for ElementDescriptor<'static> {
     }
 }
 
+#[doc(hidden)]
 impl AsRef<ElementArrays> for Agent {
     fn as_ref(&self) -> &ElementArrays {
         &self.heap.elements
     }
 }
 
+#[doc(hidden)]
 impl AsMut<ElementArrays> for Agent {
     fn as_mut(&mut self) -> &mut ElementArrays {
         &mut self.heap.elements

@@ -233,12 +233,14 @@ impl<'a> PromiseGroup<'a> {
     }
 }
 
+#[doc(hidden)]
 impl AsRef<[PromiseGroupRecord<'static>]> for Agent {
     fn as_ref(&self) -> &[PromiseGroupRecord<'static>] {
         &self.heap.promise_group_records
     }
 }
 
+#[doc(hidden)]
 impl AsMut<[PromiseGroupRecord<'static>]> for Agent {
     fn as_mut(&mut self) -> &mut [PromiseGroupRecord<'static>] {
         &mut self.heap.promise_group_records
