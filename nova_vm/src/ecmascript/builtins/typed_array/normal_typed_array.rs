@@ -2297,12 +2297,14 @@ impl<'a, T: Viewable> DirectArenaAccessMut for GenericTypedArray<'a, T> {
         }
     }
 }
+#[doc(hidden)]
 impl AsRef<Vec<TypedArrayRecord<'static>>> for Agent {
     #[inline(always)]
     fn as_ref(&self) -> &Vec<TypedArrayRecord<'static>> {
         &self.heap.typed_arrays
     }
 }
+#[doc(hidden)]
 impl AsMut<Vec<TypedArrayRecord<'static>>> for Agent {
     #[inline(always)]
     fn as_mut(&mut self) -> &mut Vec<TypedArrayRecord<'static>> {

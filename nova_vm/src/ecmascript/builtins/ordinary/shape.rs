@@ -1093,6 +1093,7 @@ impl<'a> DirectArenaAccessMut for ObjectShape<'a> {
     }
 }
 
+#[doc(hidden)]
 impl AsRef<Vec<ObjectShapeRecord<'static>>> for Agent {
     #[inline(always)]
     fn as_ref(&self) -> &Vec<ObjectShapeRecord<'static>> {
@@ -1100,6 +1101,7 @@ impl AsRef<Vec<ObjectShapeRecord<'static>>> for Agent {
     }
 }
 
+#[doc(hidden)]
 impl AsMut<Vec<ObjectShapeRecord<'static>>> for Agent {
     #[inline(always)]
     fn as_mut(&mut self) -> &mut Vec<ObjectShapeRecord<'static>> {
@@ -1283,12 +1285,14 @@ impl HeapMarkAndSweep for PrototypeShapeTable {
     }
 }
 
+#[doc(hidden)]
 impl AsRef<[ObjectShapeTransitionMap<'static>]> for Agent {
     fn as_ref(&self) -> &[ObjectShapeTransitionMap<'static>] {
         &self.heap.object_shape_transitions
     }
 }
 
+#[doc(hidden)]
 impl AsMut<[ObjectShapeTransitionMap<'static>]> for Agent {
     fn as_mut(&mut self) -> &mut [ObjectShapeTransitionMap<'static>] {
         &mut self.heap.object_shape_transitions

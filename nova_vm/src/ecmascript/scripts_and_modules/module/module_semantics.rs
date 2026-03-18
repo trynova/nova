@@ -62,12 +62,14 @@ impl<'a> ModuleRequestRecord<'a> {
     }
 }
 
+#[doc(hidden)]
 impl AsRef<[ModuleRequestRecord<'static>]> for Agent {
     fn as_ref(&self) -> &[ModuleRequestRecord<'static>] {
         &self.heap.module_request_records
     }
 }
 
+#[doc(hidden)]
 impl AsMut<[ModuleRequestRecord<'static>]> for Agent {
     fn as_mut(&mut self) -> &mut [ModuleRequestRecord<'static>] {
         &mut self.heap.module_request_records
