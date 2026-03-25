@@ -182,8 +182,8 @@ pub(crate) struct AwaitReactionRecord<'a> {
     pub(crate) return_promise_capability: PromiseCapability<'a>,
 }
 
-impl<'a> CreateHeapData<AwaitReactionRecord<'a>, AwaitReaction<'a>> for Heap {
-    fn create(&mut self, data: AwaitReactionRecord<'a>) -> AwaitReaction<'a> {
+impl<'gc> CreateHeapData<'gc, AwaitReactionRecord<'static>, AwaitReaction<'gc>> for Heap {
+    fn create(&mut self, data: AwaitReactionRecord, gc: GcScope<'gc, '_>) -> AwaitReaction<'gc> {
         self.await_reactions.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<AwaitReactionRecord<'static>>();
         AwaitReaction(BaseIndex::last(&self.await_reactions))

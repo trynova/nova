@@ -8,7 +8,7 @@ pub(crate) use data::*;
 
 use crate::{
     ecmascript::{Agent, BUILTIN_STRING_MEMORY, Primitive, PropertyKey, String, Value},
-    engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, bindable_handle},
+    engine::{Bindable, GcScope, HeapRootData, HeapRootRef, NoGcScope, Rootable, bindable_handle},
     heap::{
         ArenaAccess, BaseIndex, CompactionLists, CreateHeapData, Heap, HeapIndexHandle,
         HeapMarkAndSweep, HeapSweepWeakReference, WellKnownSymbols, WorkQueues, arena_vec_access,
@@ -131,8 +131,8 @@ impl HeapSweepWeakReference for Symbol<'static> {
     }
 }
 
-impl<'a> CreateHeapData<SymbolHeapData<'a>, Symbol<'a>> for Heap {
-    fn create(&mut self, data: SymbolHeapData<'a>) -> Symbol<'a> {
+impl<'gc> CreateHeapData<'gc, SymbolHeapData<'static>, Symbol<'gc>> for Heap {
+    fn create(&mut self, data: SymbolHeapData, gc: GcScope<'gc, '_>) -> Symbol<'gc> {
         self.symbols.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<SymbolHeapData<'static>>();
         Symbol(BaseIndex::last(&self.symbols))

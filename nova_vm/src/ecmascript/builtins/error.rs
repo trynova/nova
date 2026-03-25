@@ -420,8 +420,8 @@ impl HeapSweepWeakReference for Error<'static> {
     }
 }
 
-impl<'a> CreateHeapData<ErrorHeapData<'a>, Error<'a>> for Heap {
-    fn create(&mut self, data: ErrorHeapData<'a>) -> Error<'a> {
+impl<'gc> CreateHeapData<'gc, ErrorHeapData<'static>, Error<'gc>> for Heap {
+    fn create(&mut self, data: ErrorHeapData, gc: GcScope<'gc, '_>) -> Error<'gc> {
         self.errors.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<ErrorHeapData<'static>>();
         Error(BaseIndex::last(&self.errors))

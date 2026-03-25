@@ -5,7 +5,7 @@
 use crate::{
     ecmascript::{
         BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, FLOAT_DISCRIMINANT, HeapBigInt, HeapNumber,
-        HeapString, INTEGER_DISCRIMINANT, NULL_DISCRIMINANT, NUMBER_DISCRIMINANT,
+        HeapString, INTEGER_DISCRIMINANT, NULL_DISCRIMINANT, NUMBER_DISCRIMINANT, Object,
         SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
         SYMBOL_DISCRIMINANT, SmallBigInt, SmallF64, SmallInteger, SmallString, Symbol,
         UNDEFINED_DISCRIMINANT, Value,
@@ -189,7 +189,7 @@ impl<'a> From<Primitive<'a>> for Value<'a> {
 }
 
 impl<'a> TryFrom<Value<'a>> for Primitive<'a> {
-    type Error = ();
+    type Error = Object<'a>;
 
     fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
@@ -204,7 +204,7 @@ impl<'a> TryFrom<Value<'a>> for Primitive<'a> {
             Value::SmallF64(p) => Ok(Primitive::SmallF64(p)),
             Value::BigInt(p) => Ok(Primitive::BigInt(p)),
             Value::SmallBigInt(p) => Ok(Primitive::SmallBigInt(p)),
-            _ => Err(()),
+            _ => Err(Object::try_from(value).unwrap()),
         }
     }
 }

@@ -684,8 +684,12 @@ impl HeapSweepWeakReference for PrimitiveObject<'static> {
     }
 }
 
-impl<'a> CreateHeapData<PrimitiveObjectRecord<'a>, PrimitiveObject<'a>> for Heap {
-    fn create(&mut self, data: PrimitiveObjectRecord<'a>) -> PrimitiveObject<'a> {
+impl<'gc> CreateHeapData<'gc, PrimitiveObjectRecord<'static>, PrimitiveObject<'gc>> for Heap {
+    fn create(
+        &mut self,
+        data: PrimitiveObjectRecord,
+        gc: GcScope<'gc, '_>,
+    ) -> PrimitiveObject<'gc> {
         self.primitive_objects.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<PrimitiveObjectRecord<'static>>();
         PrimitiveObject(BaseIndex::last(&self.primitive_objects))

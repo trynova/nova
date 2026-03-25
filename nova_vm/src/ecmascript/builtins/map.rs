@@ -14,11 +14,11 @@ use crate::{
         Agent, InternalMethods, InternalSlots, OrdinaryObject, ProtoIntrinsics, Value,
         object_handle,
     },
-    engine::Bindable,
+    engine::{Bindable, GcScope},
     heap::{
-        ArenaAccessSoA, ArenaAccessSoAMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, PrimitiveHeapAccess, WorkQueues, arena_vec_access,
-        {BaseIndex, HeapIndexHandle},
+        ArenaAccessSoA, ArenaAccessSoAMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapIndexHandle, HeapMarkAndSweep, HeapSweepWeakReference, PrimitiveHeapAccess, WorkQueues,
+        arena_vec_access,
     },
 };
 
@@ -150,8 +150,8 @@ impl HeapSweepWeakReference for Map<'static> {
     }
 }
 
-impl<'a> CreateHeapData<MapHeapData<'a>, Map<'a>> for Heap {
-    fn create(&mut self, data: MapHeapData<'a>) -> Map<'a> {
+impl<'gc> CreateHeapData<'gc, MapHeapData<'static>, Map<'gc>> for Heap {
+    fn create(&mut self, data: MapHeapData, gc: GcScope<'gc, '_>) -> Map<'gc> {
         let i = self.maps.len();
         self.maps
             .push(data.unbind())

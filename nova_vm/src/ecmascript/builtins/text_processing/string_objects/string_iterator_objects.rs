@@ -37,12 +37,11 @@ impl<'a> StringIterator<'a> {
     pub(crate) fn create(
         agent: &mut Agent,
         string: String,
-        gc: NoGcScope<'a, '_>,
+        gc: GcScope<'a, '_>,
     ) -> StringIterator<'a> {
         agent
             .heap
-            .create(StringIteratorHeapData::new(string))
-            .bind(gc)
+            .create(StringIteratorHeapData::new(string.unbind()), gc)
     }
 
     pub(crate) fn is_completed(self, agent: &Agent) -> bool {
@@ -209,8 +208,12 @@ impl<'a> StringIteratorHeapData<'a> {
 
 bindable_handle!(StringIteratorHeapData);
 
-impl<'a> CreateHeapData<StringIteratorHeapData<'a>, StringIterator<'a>> for Heap {
-    fn create(&mut self, data: StringIteratorHeapData<'a>) -> StringIterator<'a> {
+impl<'gc> CreateHeapData<'gc, StringIteratorHeapData<'static>, StringIterator<'gc>> for Heap {
+    fn create(
+        &mut self,
+        data: StringIteratorHeapData,
+        gc: GcScope<'gc, '_>,
+    ) -> StringIterator<'gc> {
         self.string_iterators.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<StringIteratorHeapData<'static>>();
         StringIterator(BaseIndex::last(&self.string_iterators))

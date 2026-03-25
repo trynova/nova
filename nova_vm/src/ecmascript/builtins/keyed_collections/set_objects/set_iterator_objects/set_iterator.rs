@@ -7,7 +7,7 @@ use crate::{
         Agent, CollectionIteratorKind, InternalMethods, InternalSlots, OrdinaryObject,
         ProtoIntrinsics, Set, object_handle,
     },
-    engine::{Bindable, bindable_handle},
+    engine::{Bindable, GcScope, bindable_handle},
     heap::{
         ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
         HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
@@ -64,8 +64,8 @@ impl<'a> InternalSlots<'a> for SetIterator<'a> {
 
 impl<'a> InternalMethods<'a> for SetIterator<'a> {}
 
-impl<'a> CreateHeapData<SetIteratorHeapData<'a>, SetIterator<'a>> for Heap {
-    fn create(&mut self, data: SetIteratorHeapData<'a>) -> SetIterator<'a> {
+impl<'gc> CreateHeapData<'gc, SetIteratorHeapData<'static>, SetIterator<'gc>> for Heap {
+    fn create(&mut self, data: SetIteratorHeapData, gc: GcScope<'gc, '_>) -> SetIterator<'gc> {
         self.set_iterators.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<SetIteratorHeapData<'static>>();
         SetIterator(BaseIndex::last(&self.set_iterators))

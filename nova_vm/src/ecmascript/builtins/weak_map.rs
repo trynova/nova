@@ -11,7 +11,7 @@ use crate::{
         Agent, InternalMethods, InternalSlots, OrdinaryObject, ProtoIntrinsics, Value, WeakKey,
         object_handle,
     },
-    engine::Bindable,
+    engine::{Bindable, GcScope},
     heap::{
         ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
         HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
@@ -70,8 +70,8 @@ impl<'a> InternalSlots<'a> for WeakMap<'a> {
 
 impl<'a> InternalMethods<'a> for WeakMap<'a> {}
 
-impl<'a> CreateHeapData<WeakMapRecord<'a>, WeakMap<'a>> for Heap {
-    fn create(&mut self, data: WeakMapRecord<'a>) -> WeakMap<'a> {
+impl<'gc> CreateHeapData<'gc, WeakMapRecord<'static>, WeakMap<'gc>> for Heap {
+    fn create(&mut self, data: WeakMapRecord, gc: GcScope<'gc, '_>) -> WeakMap<'gc> {
         self.weak_maps.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<WeakMapRecord<'static>>();
         WeakMap(BaseIndex::last(&self.weak_maps))

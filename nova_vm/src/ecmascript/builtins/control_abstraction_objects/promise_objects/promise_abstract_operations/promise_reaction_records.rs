@@ -7,7 +7,7 @@ use crate::{
         AbstractModule, AsyncGenerator, AwaitReaction, Function, Object, Promise,
         PromiseCapability, PromiseGroup, SourceTextModule,
     },
-    engine::{Bindable, bindable_handle},
+    engine::{Bindable, GcScope, bindable_handle},
     heap::{
         BaseIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
         arena_vec_access, index_handle,
@@ -173,8 +173,12 @@ impl HeapMarkAndSweep for PromiseReactionRecord<'static> {
     }
 }
 
-impl<'a> CreateHeapData<PromiseReactionRecord<'a>, PromiseReaction<'a>> for Heap {
-    fn create(&mut self, data: PromiseReactionRecord<'a>) -> PromiseReaction<'a> {
+impl<'gc> CreateHeapData<'gc, PromiseReactionRecord<'static>, PromiseReaction<'gc>> for Heap {
+    fn create(
+        &mut self,
+        data: PromiseReactionRecord,
+        gc: GcScope<'gc, '_>,
+    ) -> PromiseReaction<'gc> {
         self.promise_reaction_records.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<PromiseReactionRecord<'static>>();
         PromiseReaction(BaseIndex::last(&self.promise_reaction_records))

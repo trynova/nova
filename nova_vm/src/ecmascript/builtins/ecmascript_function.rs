@@ -1207,8 +1207,14 @@ impl HeapSweepWeakReference for ECMAScriptFunction<'static> {
     }
 }
 
-impl<'a> CreateHeapData<ECMAScriptFunctionHeapData<'a>, ECMAScriptFunction<'a>> for Heap {
-    fn create(&mut self, data: ECMAScriptFunctionHeapData<'a>) -> ECMAScriptFunction<'a> {
+impl<'gc> CreateHeapData<'gc, ECMAScriptFunctionHeapData<'static>, ECMAScriptFunction<'gc>>
+    for Heap
+{
+    fn create(
+        &mut self,
+        data: ECMAScriptFunctionHeapData,
+        gc: GcScope<'gc, '_>,
+    ) -> ECMAScriptFunction<'gc> {
         self.ecmascript_functions.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<ECMAScriptFunctionHeapData<'static>>();
 

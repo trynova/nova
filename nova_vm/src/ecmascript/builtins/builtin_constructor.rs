@@ -288,8 +288,14 @@ pub(crate) fn create_builtin_constructor<'a>(
         .bind(gc)
 }
 
-impl<'a> CreateHeapData<BuiltinConstructorRecord<'a>, BuiltinConstructorFunction<'a>> for Heap {
-    fn create(&mut self, data: BuiltinConstructorRecord) -> BuiltinConstructorFunction<'a> {
+impl<'gc> CreateHeapData<'gc, BuiltinConstructorRecord<'static>, BuiltinConstructorFunction<'gc>>
+    for Heap
+{
+    fn create(
+        &mut self,
+        data: BuiltinConstructorRecord,
+        gc: GcScope<'gc, '_>,
+    ) -> BuiltinConstructorFunction<'gc> {
         self.builtin_constructors.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<BuiltinConstructorRecord<'static>>();
 

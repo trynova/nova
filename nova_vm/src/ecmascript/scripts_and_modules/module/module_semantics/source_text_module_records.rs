@@ -2052,8 +2052,12 @@ impl TryFrom<HeapRootData> for SourceTextModule<'_> {
     }
 }
 
-impl<'a> CreateHeapData<SourceTextModuleRecord<'a>, SourceTextModule<'a>> for Heap {
-    fn create(&mut self, data: SourceTextModuleRecord<'a>) -> SourceTextModule<'a> {
+impl<'gc> CreateHeapData<'gc, SourceTextModuleRecord<'static>, SourceTextModule<'gc>> for Heap {
+    fn create(
+        &mut self,
+        data: SourceTextModuleRecord,
+        gc: GcScope<'gc, '_>,
+    ) -> SourceTextModule<'gc> {
         let index = u32::try_from(self.source_text_module_records.len())
             .expect("SourceTextModuleRecord count overflowed");
         self.source_text_module_records.push(data.unbind());

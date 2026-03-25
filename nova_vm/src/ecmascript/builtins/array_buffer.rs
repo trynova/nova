@@ -24,7 +24,7 @@ use crate::{
             Value, Viewable, copy_data_block_bytes, create_byte_data_block,
         },
     },
-    engine::{Bindable, HeapRootData, NoGcScope, bindable_handle},
+    engine::{Bindable, GcScope, HeapRootData, NoGcScope, bindable_handle},
     heap::{
         ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
         HeapIndexHandle, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
@@ -273,8 +273,8 @@ impl HeapSweepWeakReference for ArrayBuffer<'static> {
     }
 }
 
-impl<'a> CreateHeapData<ArrayBufferHeapData<'a>, ArrayBuffer<'a>> for Heap {
-    fn create(&mut self, data: ArrayBufferHeapData<'a>) -> ArrayBuffer<'a> {
+impl<'gc> CreateHeapData<'gc, ArrayBufferHeapData<'static>, ArrayBuffer<'gc>> for Heap {
+    fn create(&mut self, data: ArrayBufferHeapData, gc: GcScope<'gc, '_>) -> ArrayBuffer<'gc> {
         self.array_buffers.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<ArrayBufferHeapData<'static>>();
         ArrayBuffer(BaseIndex::last(&self.array_buffers))

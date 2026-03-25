@@ -4,7 +4,7 @@
 
 use crate::{
     ecmascript::{AbstractModule, String},
-    engine::{Bindable, bindable_handle},
+    engine::{Bindable, GcScope, bindable_handle},
     heap::{CompactionLists, CreateHeapData, Heap, HeapIndexHandle, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -16,8 +16,8 @@ pub(crate) struct ModuleHeapData<'a> {
     pub(super) exports: Box<[String<'a>]>,
 }
 
-impl<'a> CreateHeapData<ModuleHeapData<'a>, Module<'a>> for Heap {
-    fn create(&mut self, data: ModuleHeapData<'a>) -> Module<'a> {
+impl<'gc> CreateHeapData<'gc, ModuleHeapData<'static>, Module<'gc>> for Heap {
+    fn create(&mut self, data: ModuleHeapData, gc: GcScope<'gc, '_>) -> Module<'gc> {
         let index = self.modules.len();
         self.modules.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<ModuleHeapData<'static>>();

@@ -1195,81 +1195,234 @@ pub(crate) fn to_string_primitive<'gc>(
 pub(crate) fn to_object<'a>(
     agent: &mut Agent,
     argument: Value,
-    gc: NoGcScope<'a, '_>,
+    gc: GcScope<'a, '_>,
 ) -> JsResult<'a, Object<'a>> {
-    let argument = argument.bind(gc);
-    require_object_coercible(agent, argument, gc)?;
-    match argument {
-        Value::Undefined | Value::Null => unreachable!(),
-        // Return a new Boolean object whose [[BooleanData]] internal slot is set to argument.
-        Value::Boolean(bool) => Ok(agent
-            .heap
-            .create(PrimitiveObjectRecord {
-                object_index: None,
-                data: PrimitiveObjectData::Boolean(bool),
-            })
-            .into()),
-        // Return a new String object whose [[StringData]] internal slot is set to argument.
-        Value::String(str) => Ok(agent
-            .heap
-            .create(PrimitiveObjectRecord {
-                object_index: None,
-                data: PrimitiveObjectData::String(str.unbind()),
-            })
-            .into()),
-        Value::SmallString(str) => Ok(agent
-            .heap
-            .create(PrimitiveObjectRecord {
-                object_index: None,
-                data: PrimitiveObjectData::SmallString(str),
-            })
-            .into()),
-        // Return a new Symbol object whose [[SymbolnData]] internal slot is set to argument.
-        Value::Symbol(symbol) => Ok(agent
-            .heap
-            .create(PrimitiveObjectRecord {
-                object_index: None,
-                data: PrimitiveObjectData::Symbol(symbol.unbind()),
-            })
-            .into()),
-        // Return a new Number object whose [[NumberData]] internal slot is set to argument.
-        Value::Number(number) => Ok(agent
-            .heap
-            .create(PrimitiveObjectRecord {
-                object_index: None,
-                data: PrimitiveObjectData::Number(number.unbind()),
-            })
-            .into()),
-        Value::Integer(integer) => Ok(agent
-            .heap
-            .create(PrimitiveObjectRecord {
-                object_index: None,
-                data: PrimitiveObjectData::Integer(integer),
-            })
-            .into()),
-        Value::SmallF64(float) => Ok(agent
-            .heap
-            .create(PrimitiveObjectRecord {
-                object_index: None,
-                data: PrimitiveObjectData::SmallF64(float),
-            })
-            .into()),
-        // Return a new BigInt object whose [[BigIntData]] internal slot is set to argument.
-        Value::BigInt(bigint) => Ok(agent
-            .heap
-            .create(PrimitiveObjectRecord {
-                object_index: None,
-                data: PrimitiveObjectData::BigInt(bigint.unbind()),
-            })
-            .into()),
-        Value::SmallBigInt(bigint) => Ok(agent
-            .heap
-            .create(PrimitiveObjectRecord {
-                object_index: None,
-                data: PrimitiveObjectData::SmallBigInt(bigint),
-            })
-            .into()),
-        _ => Ok(Object::try_from(argument).unwrap()),
+    let argument = argument.bind(gc.nogc());
+    match Object::try_from(argument) {
+        Ok(obj) => Ok(obj.unbind()),
+        Err(argument) => match argument {
+            Primitive::Undefined | Primitive::Null => Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Argument cannot be converted into an object",
+                    gc.into_nogc(),
+                )),
+            // Return a new Boolean object whose [[BooleanData]] internal slot is set to argument.
+            Primitive::Boolean(bool) => Ok(agent
+                .heap
+                .create(
+                    PrimitiveObjectRecord {
+                        object_index: None,
+                        data: PrimitiveObjectData::Boolean(bool),
+                    },
+                    gc,
+                )
+                .into()),
+            // Return a new String object whose [[StringData]] internal slot is set to argument.
+            Primitive::String(str) => Ok(agent
+                .heap
+                .create(
+                    PrimitiveObjectRecord {
+                        object_index: None,
+                        data: PrimitiveObjectData::String(str.unbind()),
+                    },
+                    gc,
+                )
+                .into()),
+            Primitive::SmallString(str) => Ok(agent
+                .heap
+                .create(
+                    PrimitiveObjectRecord {
+                        object_index: None,
+                        data: PrimitiveObjectData::SmallString(str),
+                    },
+                    gc,
+                )
+                .into()),
+            // Return a new Symbol object whose [[SymbolnData]] internal slot is set to argument.
+            Primitive::Symbol(symbol) => Ok(agent
+                .heap
+                .create(
+                    PrimitiveObjectRecord {
+                        object_index: None,
+                        data: PrimitiveObjectData::Symbol(symbol.unbind()),
+                    },
+                    gc,
+                )
+                .into()),
+            // Return a new Number object whose [[NumberData]] internal slot is set to argument.
+            Primitive::Number(number) => Ok(agent
+                .heap
+                .create(
+                    PrimitiveObjectRecord {
+                        object_index: None,
+                        data: PrimitiveObjectData::Number(number.unbind()),
+                    },
+                    gc,
+                )
+                .into()),
+            Primitive::Integer(integer) => Ok(agent
+                .heap
+                .create(
+                    PrimitiveObjectRecord {
+                        object_index: None,
+                        data: PrimitiveObjectData::Integer(integer),
+                    },
+                    gc,
+                )
+                .into()),
+            Primitive::SmallF64(float) => Ok(agent
+                .heap
+                .create(
+                    PrimitiveObjectRecord {
+                        object_index: None,
+                        data: PrimitiveObjectData::SmallF64(float),
+                    },
+                    gc,
+                )
+                .into()),
+            // Return a new BigInt object whose [[BigIntData]] internal slot is set to argument.
+            Primitive::BigInt(bigint) => Ok(agent
+                .heap
+                .create(
+                    PrimitiveObjectRecord {
+                        object_index: None,
+                        data: PrimitiveObjectData::BigInt(bigint.unbind()),
+                    },
+                    gc,
+                )
+                .into()),
+            Primitive::SmallBigInt(bigint) => Ok(agent
+                .heap
+                .create(
+                    PrimitiveObjectRecord {
+                        object_index: None,
+                        data: PrimitiveObjectData::SmallBigInt(bigint),
+                    },
+                    gc,
+                )
+                .into()),
+        },
+    }
+}
+
+/// ### [7.1.18 ToObject ( argument )](https://tc39.es/ecma262/#sec-toobject)
+///
+/// The abstract operation ToObject takes argument argument (an ECMAScript
+/// language value) and returns either a normal completion containing an Object
+/// or a throw completion. It converts argument to a value of type Object
+/// according to [Table 13](https://tc39.es/ecma262/#table-toobject-conversions):
+pub(crate) fn try_to_object<'a>(
+    agent: &mut Agent,
+    argument: Value,
+    gc: GcScope<'a, '_>,
+) -> JsResult<'a, Object<'a>> {
+    let argument = argument.bind(gc.nogc());
+    match Object::try_from(argument) {
+        Ok(obj) => Ok(obj.unbind()),
+        Err(argument) => match argument {
+            Primitive::Undefined | Primitive::Null => Err(agent
+                .throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Argument cannot be converted into an object",
+                    gc.into_nogc(),
+                )),
+            // Return a new Boolean object whose [[BooleanData]] internal slot is set to argument.
+            Primitive::Boolean(bool) => Ok(agent
+                .heap
+                .create(
+                    PrimitiveObjectRecord {
+                        object_index: None,
+                        data: PrimitiveObjectData::Boolean(bool),
+                    },
+                    gc,
+                )
+                .into()),
+            // Return a new String object whose [[StringData]] internal slot is set to argument.
+            Primitive::String(str) => Ok(agent
+                .heap
+                .create(
+                    PrimitiveObjectRecord {
+                        object_index: None,
+                        data: PrimitiveObjectData::String(str.unbind()),
+                    },
+                    gc,
+                )
+                .into()),
+            Primitive::SmallString(str) => Ok(agent
+                .heap
+                .create(
+                    PrimitiveObjectRecord {
+                        object_index: None,
+                        data: PrimitiveObjectData::SmallString(str),
+                    },
+                    gc,
+                )
+                .into()),
+            // Return a new Symbol object whose [[SymbolnData]] internal slot is set to argument.
+            Primitive::Symbol(symbol) => Ok(agent
+                .heap
+                .create(
+                    PrimitiveObjectRecord {
+                        object_index: None,
+                        data: PrimitiveObjectData::Symbol(symbol.unbind()),
+                    },
+                    gc,
+                )
+                .into()),
+            // Return a new Number object whose [[NumberData]] internal slot is set to argument.
+            Primitive::Number(number) => Ok(agent
+                .heap
+                .create(
+                    PrimitiveObjectRecord {
+                        object_index: None,
+                        data: PrimitiveObjectData::Number(number.unbind()),
+                    },
+                    gc,
+                )
+                .into()),
+            Primitive::Integer(integer) => Ok(agent
+                .heap
+                .create(
+                    PrimitiveObjectRecord {
+                        object_index: None,
+                        data: PrimitiveObjectData::Integer(integer),
+                    },
+                    gc,
+                )
+                .into()),
+            Primitive::SmallF64(float) => Ok(agent
+                .heap
+                .create(
+                    PrimitiveObjectRecord {
+                        object_index: None,
+                        data: PrimitiveObjectData::SmallF64(float),
+                    },
+                    gc,
+                )
+                .into()),
+            // Return a new BigInt object whose [[BigIntData]] internal slot is set to argument.
+            Primitive::BigInt(bigint) => Ok(agent
+                .heap
+                .create(
+                    PrimitiveObjectRecord {
+                        object_index: None,
+                        data: PrimitiveObjectData::BigInt(bigint.unbind()),
+                    },
+                    gc,
+                )
+                .into()),
+            Primitive::SmallBigInt(bigint) => Ok(agent
+                .heap
+                .create(
+                    PrimitiveObjectRecord {
+                        object_index: None,
+                        data: PrimitiveObjectData::SmallBigInt(bigint),
+                    },
+                    gc,
+                )
+                .into()),
+        },
     }
 }
 

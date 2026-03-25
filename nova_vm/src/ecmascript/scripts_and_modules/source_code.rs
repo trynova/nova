@@ -18,7 +18,7 @@ use oxc_span::SourceType;
 
 use crate::{
     ecmascript::{HeapString, String, execution::Agent},
-    engine::{Bindable, NoGcScope, bindable_handle},
+    engine::{Bindable, GcScope, NoGcScope, bindable_handle},
     heap::{
         ArenaAccess, BaseIndex, CompactionLists, CreateHeapData, Heap, HeapIndexHandle,
         HeapMarkAndSweep, WorkQueues, arena_vec_access, index_handle,
@@ -333,8 +333,8 @@ impl Debug for SourceCodeHeapData<'_> {
     }
 }
 
-impl<'a> CreateHeapData<SourceCodeHeapData<'a>, SourceCode<'a>> for Heap {
-    fn create(&mut self, data: SourceCodeHeapData<'a>) -> SourceCode<'a> {
+impl<'gc> CreateHeapData<'gc, SourceCodeHeapData<'static>, SourceCode<'gc>> for Heap {
+    fn create(&mut self, data: SourceCodeHeapData, gc: GcScope<'gc, '_>) -> SourceCode<'gc> {
         self.source_codes.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<SourceCodeHeapData<'static>>();
         SourceCode(BaseIndex::last(&self.source_codes))

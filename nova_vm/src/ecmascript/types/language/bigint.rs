@@ -17,7 +17,7 @@ use crate::{
         Agent, BIGINT_DISCRIMINANT, ExceptionType, JsResult, Numeric, Primitive,
         SMALL_BIGINT_DISCRIMINANT, SmallInteger, String, Value, primitive_handle, with_radix,
     },
-    engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, bindable_handle},
+    engine::{Bindable, GcScope, HeapRootData, HeapRootRef, NoGcScope, Rootable, bindable_handle},
     heap::{
         ArenaAccess, BaseIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         WorkQueues, arena_vec_access,
@@ -835,8 +835,8 @@ impl_value_from_n!(i16);
 impl_value_from_n!(u32);
 impl_value_from_n!(i32);
 
-impl<'a> CreateHeapData<BigIntHeapData, BigInt<'a>> for Heap {
-    fn create(&mut self, data: BigIntHeapData) -> BigInt<'a> {
+impl<'gc> CreateHeapData<'gc, BigIntHeapData, BigInt<'gc>> for Heap {
+    fn create(&mut self, data: BigIntHeapData, gc: GcScope<'gc, '_>) -> BigInt<'gc> {
         self.bigints.push(data);
         self.alloc_counter += core::mem::size_of::<BigIntHeapData>();
         BigInt::BigInt(HeapBigInt(BaseIndex::last(&self.bigints)))

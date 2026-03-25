@@ -8,12 +8,12 @@ use crate::{
         SourceCode, SourceTextModule, String, Value,
     },
     engine::{
-        Bindable, NoGcScope, Scoped, bindable_handle,
+        Bindable, GcScope, NoGcScope, Scoped, bindable_handle,
         bytecode::{CompileContext, NamedEvaluationParameter, instructions::Instr},
     },
     heap::{
-        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
-        arena_vec_access, {BaseIndex, HeapIndexHandle, index_handle},
+        ArenaAccess, BaseIndex, CompactionLists, CreateHeapData, Heap, HeapIndexHandle,
+        HeapMarkAndSweep, WorkQueues, arena_vec_access, index_handle,
     },
 };
 use oxc_ast::ast;
@@ -428,8 +428,8 @@ impl Scoped<'_, Executable<'static>> {
     }
 }
 
-impl<'a> CreateHeapData<ExecutableHeapData<'a>, Executable<'a>> for Heap {
-    fn create(&mut self, data: ExecutableHeapData<'a>) -> Executable<'a> {
+impl<'gc> CreateHeapData<'gc, ExecutableHeapData<'static>, Executable<'gc>> for Heap {
+    fn create(&mut self, data: ExecutableHeapData, gc: GcScope<'gc, '_>) -> Executable<'gc> {
         let index = u32::try_from(self.executables.len()).expect("Executables overflowed");
         self.executables.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<ExecutableHeapData<'static>>();

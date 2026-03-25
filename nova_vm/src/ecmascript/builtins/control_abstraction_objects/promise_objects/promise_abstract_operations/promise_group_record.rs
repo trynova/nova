@@ -283,8 +283,8 @@ impl HeapMarkAndSweep for PromiseGroup<'static> {
 
 bindable_handle!(PromiseGroupRecord);
 
-impl<'a> CreateHeapData<PromiseGroupRecord<'a>, PromiseGroup<'a>> for Heap {
-    fn create(&mut self, data: PromiseGroupRecord<'a>) -> PromiseGroup<'a> {
+impl<'gc> CreateHeapData<'gc, PromiseGroupRecord<'static>, PromiseGroup<'gc>> for Heap {
+    fn create(&mut self, data: PromiseGroupRecord, gc: GcScope<'gc, '_>) -> PromiseGroup<'gc> {
         self.promise_group_records.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<PromiseGroupRecord<'static>>();
         PromiseGroup(BaseIndex::last(&self.promise_group_records))

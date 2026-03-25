@@ -411,8 +411,8 @@ impl<'a> InternalSlots<'a> for Generator<'a> {
 
 impl<'a> InternalMethods<'a> for Generator<'a> {}
 
-impl<'a> CreateHeapData<GeneratorHeapData<'a>, Generator<'a>> for Heap {
-    fn create(&mut self, data: GeneratorHeapData<'a>) -> Generator<'a> {
+impl<'gc> CreateHeapData<'gc, GeneratorHeapData<'static>, Generator<'gc>> for Heap {
+    fn create(&mut self, data: GeneratorHeapData, gc: GcScope<'gc, '_>) -> Generator<'gc> {
         self.generators.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<GeneratorHeapData<'static>>();
         Generator(BaseIndex::last(&self.generators))

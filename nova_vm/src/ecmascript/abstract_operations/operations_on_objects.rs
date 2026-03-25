@@ -90,7 +90,7 @@ pub(crate) fn get_v<'gc>(
     let o = match v {
         Value::Undefined | Value::Null => {
             // Call to conversion function to throw error.
-            return Err(to_object(agent, v.unbind(), gc.into_nogc()).unwrap_err());
+            return Err(to_object(agent, v.unbind(), gc).unwrap_err());
         }
         Value::Boolean(_) => agent
             .current_realm_record()

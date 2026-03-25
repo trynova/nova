@@ -14,12 +14,12 @@ use crate::{
         Agent, InternalMethods, Object, Primitive, PrivateField, PropertyKey, Realm, Symbol,
         TryGetResult, Value,
     },
-    engine::{Bindable, GcToken, NoGcScope, bindable_handle},
+    engine::{Bindable, GcScope, GcToken, NoGcScope, bindable_handle},
     heap::{
         ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, DirectArenaAccess,
-        DirectArenaAccessMut, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        IntrinsicObjectShapes, PropertyKeyHeap, WeakReference, WorkQueues,
-        {ElementArrayKey, ElementArrays}, {HeapIndexHandle, PropertyKeyIndex},
+        DirectArenaAccessMut, ElementArrayKey, ElementArrays, Heap, HeapIndexHandle,
+        HeapMarkAndSweep, HeapSweepWeakReference, IntrinsicObjectShapes, PropertyKeyHeap,
+        PropertyKeyIndex, WeakReference, WorkQueues,
     },
 };
 
@@ -1109,19 +1109,27 @@ impl AsMut<Vec<ObjectShapeRecord<'static>>> for Agent {
     }
 }
 
-impl<'a> CreateHeapData<ObjectShapeRecord<'a>, ObjectShape<'a>> for Heap {
-    fn create(&mut self, data: ObjectShapeRecord<'a>) -> ObjectShape<'a> {
-        self.create((data, ObjectShapeTransitionMap::ROOT))
+impl<'gc> CreateHeapData<'gc, ObjectShapeRecord<'static>, ObjectShape<'gc>> for Heap {
+    fn create(&mut self, data: ObjectShapeRecord, gc: GcScope<'gc, '_>) -> ObjectShape<'gc> {
+        self.create((data, ObjectShapeTransitionMap::ROOT), gc)
     }
 }
 
-impl<'a> CreateHeapData<(ObjectShapeRecord<'a>, ObjectShapeTransitionMap<'a>), ObjectShape<'a>>
-    for Heap
+impl<'gc>
+    CreateHeapData<
+        'gc,
+        (
+            ObjectShapeRecord<'static>,
+            ObjectShapeTransitionMap<'static>,
+        ),
+        ObjectShape<'gc>,
+    > for Heap
 {
     fn create(
         &mut self,
-        data: (ObjectShapeRecord<'a>, ObjectShapeTransitionMap<'a>),
-    ) -> ObjectShape<'a> {
+        data: (ObjectShapeRecord, ObjectShapeTransitionMap),
+        gc: GcScope<'gc, '_>,
+    ) -> ObjectShape<'gc> {
         let (record, transitions) = data;
         let is_root = record.keys_cap == ElementArrayKey::Empty;
         let prototype = record.prototype;

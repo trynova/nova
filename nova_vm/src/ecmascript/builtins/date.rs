@@ -10,7 +10,7 @@ use crate::{
     ecmascript::{
         Agent, InternalMethods, InternalSlots, OrdinaryObject, ProtoIntrinsics, object_handle,
     },
-    engine::Bindable,
+    engine::{Bindable, GcScope},
     heap::{
         ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
         HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
@@ -85,8 +85,8 @@ impl HeapSweepWeakReference for Date<'static> {
     }
 }
 
-impl<'a> CreateHeapData<DateHeapData<'a>, Date<'a>> for Heap {
-    fn create(&mut self, data: DateHeapData<'a>) -> Date<'a> {
+impl<'gc> CreateHeapData<'gc, DateHeapData<'static>, Date<'gc>> for Heap {
+    fn create(&mut self, data: DateHeapData, gc: GcScope<'gc, '_>) -> Date<'gc> {
         self.dates.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<DateHeapData<'static>>();
         Date(BaseIndex::last(&self.dates))

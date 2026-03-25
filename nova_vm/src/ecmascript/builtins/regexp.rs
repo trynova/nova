@@ -417,8 +417,8 @@ impl HeapSweepWeakReference for RegExp<'static> {
     }
 }
 
-impl<'a> CreateHeapData<RegExpHeapData<'a>, RegExp<'a>> for Heap {
-    fn create(&mut self, data: RegExpHeapData<'a>) -> RegExp<'a> {
+impl<'gc> CreateHeapData<'gc, RegExpHeapData<'static>, RegExp<'gc>> for Heap {
+    fn create(&mut self, data: RegExpHeapData, gc: GcScope<'gc, '_>) -> RegExp<'gc> {
         self.regexps.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<RegExpHeapData<'static>>();
         RegExp(BaseIndex::last(&self.regexps))

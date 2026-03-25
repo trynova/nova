@@ -26,7 +26,7 @@ use crate::ecmascript::{
     BUILTIN_PROXY_REVOKER_FUNCTION, ECMASCRIPT_FUNCTION_DISCRIMINANT, EMBEDDER_OBJECT_DISCRIMINANT,
     ERROR_DISCRIMINANT, FINALIZATION_REGISTRY_DISCRIMINANT, Function, GENERATOR_DISCRIMINANT,
     MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, OBJECT_DISCRIMINANT,
-    PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT,
+    PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT, Primitive,
     STRING_ITERATOR_DISCRIMINANT, UnmappedArguments, Value,
 };
 #[cfg(feature = "array-buffer")]
@@ -885,9 +885,9 @@ impl<'a> From<Object<'a>> for Value<'a> {
 }
 
 impl<'a> TryFrom<Value<'a>> for Object<'a> {
-    type Error = ();
+    type Error = Primitive<'a>;
     #[inline]
-    fn try_from(value: Value<'a>) -> Result<Self, ()> {
+    fn try_from(value: Value<'a>) -> Result<Self, Primitive<'a>> {
         match value {
             Value::Undefined
             | Value::Null
@@ -899,7 +899,7 @@ impl<'a> TryFrom<Value<'a>> for Object<'a> {
             | Value::Integer(_)
             | Value::SmallF64(_)
             | Value::BigInt(_)
-            | Value::SmallBigInt(_) => Err(()),
+            | Value::SmallBigInt(_) => Err(Primitive::try_from(value).unwrap()),
             // SAFETY: non-primitives are all objects.
             _ => Ok(unsafe { core::mem::transmute::<Value<'a>, Object<'a>>(value) }),
         }
@@ -1535,8 +1535,8 @@ impl HeapSweepWeakReference for OrdinaryObject<'static> {
     }
 }
 
-impl<'a> CreateHeapData<ObjectRecord<'a>, OrdinaryObject<'a>> for Heap {
-    fn create(&mut self, data: ObjectRecord<'a>) -> OrdinaryObject<'a> {
+impl<'gc> CreateHeapData<'gc, ObjectRecord<'static>, OrdinaryObject<'gc>> for Heap {
+    fn create(&mut self, data: ObjectRecord, gc: GcScope<'gc, '_>) -> OrdinaryObject<'gc> {
         self.objects.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<ObjectRecord<'static>>();
         OrdinaryObject(BaseIndex::last(&self.objects))

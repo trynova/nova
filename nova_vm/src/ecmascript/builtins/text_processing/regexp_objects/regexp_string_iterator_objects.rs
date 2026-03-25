@@ -15,7 +15,7 @@ use crate::{
         Agent, InternalMethods, InternalSlots, Object, OrdinaryObject, ProtoIntrinsics, String,
         object_handle,
     },
-    engine::{Bindable, NoGcScope, bindable_handle},
+    engine::{Bindable, GcScope, NoGcScope, bindable_handle},
     heap::{
         ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
         HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
@@ -145,8 +145,14 @@ pub(crate) struct RegExpStringIteratorRecord<'a> {
 }
 bindable_handle!(RegExpStringIteratorRecord);
 
-impl<'a> CreateHeapData<RegExpStringIteratorRecord<'a>, RegExpStringIterator<'a>> for Heap {
-    fn create(&mut self, data: RegExpStringIteratorRecord<'a>) -> RegExpStringIterator<'a> {
+impl<'gc> CreateHeapData<'gc, RegExpStringIteratorRecord<'static>, RegExpStringIterator<'gc>>
+    for Heap
+{
+    fn create(
+        &mut self,
+        data: RegExpStringIteratorRecord,
+        gc: GcScope<'gc, '_>,
+    ) -> RegExpStringIterator<'gc> {
         self.regexp_string_iterators.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<RegExpStringIteratorRecord<'static>>();
         RegExpStringIterator(BaseIndex::<RegExpStringIteratorRecord>::last(

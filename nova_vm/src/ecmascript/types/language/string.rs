@@ -17,7 +17,9 @@ use crate::{
         Agent, Primitive, PropertyDescriptor, PropertyKey, SMALL_STRING_DISCRIMINANT,
         STRING_DISCRIMINANT, SmallInteger, Value, primitive_handle, primitive_value,
     },
-    engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, Scoped, bindable_handle},
+    engine::{
+        Bindable, GcScope, HeapRootData, HeapRootRef, NoGcScope, Rootable, Scoped, bindable_handle,
+    },
     heap::{
         ArenaAccess, BaseIndex, CompactionLists, CreateHeapData, Heap, HeapIndexHandle,
         HeapMarkAndSweep, HeapSweepWeakReference, StringHeapAccess, WorkQueues, arena_vec_access,
@@ -813,8 +815,8 @@ impl Scoped<'_, String<'static>> {
     }
 }
 
-impl<'a> CreateHeapData<(StringRecord, u64), String<'a>> for Heap {
-    fn create(&mut self, (data, hash): (StringRecord, u64)) -> String<'a> {
+impl<'gc> CreateHeapData<'gc, (StringRecord, u64), String<'gc>> for Heap {
+    fn create(&mut self, (data, hash): (StringRecord, u64), gc: GcScope<'gc, '_>) -> String<'gc> {
         self.strings.push(data);
         self.alloc_counter += core::mem::size_of::<StringRecord>();
         let index = BaseIndex::last(&self.strings);

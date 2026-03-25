@@ -100,8 +100,8 @@ impl HeapMarkAndSweep for Realm<'static> {
     }
 }
 
-impl<'a> CreateHeapData<RealmRecord<'a>, Realm<'a>> for Heap {
-    fn create(&mut self, data: RealmRecord<'a>) -> Realm<'a> {
+impl<'gc> CreateHeapData<'gc, RealmRecord<'static>, Realm<'gc>> for Heap {
+    fn create(&mut self, data: RealmRecord, gc: GcScope<'gc, '_>) -> Realm<'gc> {
         self.realms.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<RealmRecord<'static>>();
         Realm(BaseIndex::last(&self.realms))

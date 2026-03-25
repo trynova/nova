@@ -96,13 +96,18 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseResolvingFunction<'a> 
     }
 }
 
-impl<'a> CreateHeapData<PromiseResolvingFunctionHeapData<'a>, BuiltinPromiseResolvingFunction<'a>>
-    for Heap
+impl<'gc>
+    CreateHeapData<
+        'gc,
+        PromiseResolvingFunctionHeapData<'static>,
+        BuiltinPromiseResolvingFunction<'gc>,
+    > for Heap
 {
     fn create(
         &mut self,
-        data: PromiseResolvingFunctionHeapData<'a>,
-    ) -> BuiltinPromiseResolvingFunction<'a> {
+        data: PromiseResolvingFunctionHeapData,
+        gc: GcScope<'gc, '_>,
+    ) -> BuiltinPromiseResolvingFunction<'gc> {
         self.promise_resolving_functions.push(data.unbind());
         self.alloc_counter +=
             core::mem::size_of::<Option<PromiseResolvingFunctionHeapData<'static>>>();

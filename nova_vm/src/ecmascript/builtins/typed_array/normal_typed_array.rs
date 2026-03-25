@@ -2135,8 +2135,14 @@ fn copy_between_typed_arrays<Source: Viewable, Target: Viewable>(
     };
 }
 
-impl<'a, T: Viewable> CreateHeapData<TypedArrayRecord<'a>, GenericTypedArray<'a, T>> for Heap {
-    fn create(&mut self, data: TypedArrayRecord<'a>) -> GenericTypedArray<'a, T> {
+impl<'gc, T: Viewable> CreateHeapData<'gc, TypedArrayRecord<'static>, GenericTypedArray<'gc, T>>
+    for Heap
+{
+    fn create(
+        &mut self,
+        data: TypedArrayRecord,
+        gc: GcScope<'gc, '_>,
+    ) -> GenericTypedArray<'gc, T> {
         self.typed_arrays.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<TypedArrayRecord<'static>>();
         // TODO: The type should be checked based on data or something equally stupid

@@ -77,8 +77,8 @@ impl HeapSweepWeakReference for TemporalPlainTime<'static> {
     }
 }
 
-impl<'a> CreateHeapData<PlainTimeRecord<'a>, TemporalPlainTime<'a>> for Heap {
-    fn create(&mut self, data: PlainTimeRecord<'a>) -> TemporalPlainTime<'a> {
+impl<'gc> CreateHeapData<'gc, PlainTimeRecord<'static>, TemporalPlainTime<'gc>> for Heap {
+    fn create(&mut self, data: PlainTimeRecord, gc: GcScope<'gc, '_>) -> TemporalPlainTime<'gc> {
         self.plain_times.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<PlainTimeRecord<'static>>();
         TemporalPlainTime(BaseIndex::last(&self.plain_times))

@@ -210,13 +210,15 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseFinallyFunction<'a> {
     }
 }
 
-impl<'a> CreateHeapData<PromiseFinallyFunctionHeapData<'a>, BuiltinPromiseFinallyFunction<'a>>
+impl<'gc>
+    CreateHeapData<'gc, PromiseFinallyFunctionHeapData<'static>, BuiltinPromiseFinallyFunction<'gc>>
     for Heap
 {
     fn create(
         &mut self,
-        data: PromiseFinallyFunctionHeapData<'a>,
-    ) -> BuiltinPromiseFinallyFunction<'a> {
+        data: PromiseFinallyFunctionHeapData,
+        gc: GcScope<'gc, '_>,
+    ) -> BuiltinPromiseFinallyFunction<'gc> {
         self.promise_finally_functions.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<PromiseFinallyFunctionHeapData<'static>>();
 

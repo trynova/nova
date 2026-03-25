@@ -1896,8 +1896,8 @@ pub(crate) fn proxy_create<'a>(
     Ok(p)
 }
 
-impl<'a> CreateHeapData<ProxyHeapData<'a>, Proxy<'a>> for Heap {
-    fn create(&mut self, data: ProxyHeapData<'a>) -> Proxy<'a> {
+impl<'gc> CreateHeapData<'gc, ProxyHeapData<'static>, Proxy<'gc>> for Heap {
+    fn create(&mut self, data: ProxyHeapData, gc: GcScope<'gc, '_>) -> Proxy<'gc> {
         self.proxies.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<ProxyHeapData<'static>>();
         Proxy(BaseIndex::last(&self.proxies))

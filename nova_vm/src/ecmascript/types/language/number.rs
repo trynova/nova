@@ -18,7 +18,7 @@ use super::{
 };
 use crate::{
     ecmascript::{Agent, numeric_handle, to_int32_number, to_uint32_number},
-    engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, bindable_handle},
+    engine::{Bindable, GcScope, HeapRootData, HeapRootRef, NoGcScope, Rootable, bindable_handle},
     heap::{
         ArenaAccess, BaseIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         NumberHeapAccess, WorkQueues, arena_vec_access,
@@ -1557,8 +1557,8 @@ impl_value_from_n!(i16);
 impl_value_from_n!(u32);
 impl_value_from_n!(i32);
 
-impl<'a> CreateHeapData<f64, Number<'a>> for Heap {
-    fn create(&mut self, data: f64) -> Number<'a> {
+impl<'gc> CreateHeapData<'gc, f64, Number<'gc>> for Heap {
+    fn create(&mut self, data: f64, gc: GcScope<'gc, '_>) -> Number<'gc> {
         // NOTE: This function cannot currently be implemented
         // directly using `Number::from_f64` as it takes an Agent
         // parameter that we do not have access to here.

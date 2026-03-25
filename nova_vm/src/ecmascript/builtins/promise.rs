@@ -168,8 +168,8 @@ impl<'a> InternalSlots<'a> for Promise<'a> {
 
 impl<'a> InternalMethods<'a> for Promise<'a> {}
 
-impl<'a> CreateHeapData<PromiseHeapData<'a>, Promise<'a>> for Heap {
-    fn create(&mut self, data: PromiseHeapData<'a>) -> Promise<'a> {
+impl<'gc> CreateHeapData<'gc, PromiseHeapData<'static>, Promise<'gc>> for Heap {
+    fn create(&mut self, data: PromiseHeapData, gc: GcScope<'gc, '_>) -> Promise<'gc> {
         self.promises.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<PromiseHeapData<'static>>();
         Promise(BaseIndex::last(&self.promises))

@@ -340,8 +340,12 @@ impl<'a> InternalSlots<'a> for AsyncGenerator<'a> {
 
 impl<'a> InternalMethods<'a> for AsyncGenerator<'a> {}
 
-impl<'a> CreateHeapData<AsyncGeneratorHeapData<'a>, AsyncGenerator<'a>> for Heap {
-    fn create(&mut self, data: AsyncGeneratorHeapData<'a>) -> AsyncGenerator<'a> {
+impl<'gc> CreateHeapData<'gc, AsyncGeneratorHeapData<'static>, AsyncGenerator<'gc>> for Heap {
+    fn create(
+        &mut self,
+        data: AsyncGeneratorHeapData,
+        gc: GcScope<'gc, '_>,
+    ) -> AsyncGenerator<'gc> {
         self.async_generators.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<AsyncGeneratorHeapData<'static>>();
         AsyncGenerator(BaseIndex::last(&self.async_generators))

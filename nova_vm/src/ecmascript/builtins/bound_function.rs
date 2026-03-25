@@ -265,8 +265,8 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
     }
 }
 
-impl<'a> CreateHeapData<BoundFunctionHeapData<'a>, BoundFunction<'a>> for Heap {
-    fn create(&mut self, data: BoundFunctionHeapData<'a>) -> BoundFunction<'a> {
+impl<'gc> CreateHeapData<'gc, BoundFunctionHeapData<'static>, BoundFunction<'gc>> for Heap {
+    fn create(&mut self, data: BoundFunctionHeapData, gc: GcScope<'gc, '_>) -> BoundFunction<'gc> {
         self.bound_functions.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<BoundFunctionHeapData<'static>>();
         BoundFunction(BaseIndex::last(&self.bound_functions))

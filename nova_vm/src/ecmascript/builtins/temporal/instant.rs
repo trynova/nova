@@ -80,8 +80,8 @@ impl HeapSweepWeakReference for TemporalInstant<'static> {
     }
 }
 
-impl<'a> CreateHeapData<InstantRecord<'a>, TemporalInstant<'a>> for Heap {
-    fn create(&mut self, data: InstantRecord<'a>) -> TemporalInstant<'a> {
+impl<'gc> CreateHeapData<'gc, InstantRecord<'static>, TemporalInstant<'gc>> for Heap {
+    fn create(&mut self, data: InstantRecord, gc: GcScope<'gc, '_>) -> TemporalInstant<'gc> {
         self.instants.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<InstantRecord<'static>>();
         TemporalInstant(BaseIndex::last(&self.instants))

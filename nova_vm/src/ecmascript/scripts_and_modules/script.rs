@@ -115,8 +115,8 @@ impl HeapMarkAndSweep for Script<'static> {
     }
 }
 
-impl<'a> CreateHeapData<ScriptRecord<'a>, Script<'a>> for Heap {
-    fn create(&mut self, data: ScriptRecord<'a>) -> Script<'a> {
+impl<'gc> CreateHeapData<'gc, ScriptRecord<'static>, Script<'gc>> for Heap {
+    fn create(&mut self, data: ScriptRecord, gc: GcScope<'gc, '_>) -> Script<'gc> {
         self.scripts.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<ScriptRecord<'static>>();
         Script(BaseIndex::last(&self.scripts))

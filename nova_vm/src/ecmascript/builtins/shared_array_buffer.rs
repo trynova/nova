@@ -13,7 +13,7 @@ use crate::{
         Agent, ExceptionType, InternalMethods, InternalSlots, JsResult, OrdinaryObject,
         ProtoIntrinsics, SharedDataBlock, array_buffer_handle, create_shared_byte_data_block,
     },
-    engine::{Bindable, NoGcScope},
+    engine::{Bindable, GcScope, NoGcScope},
     heap::{
         ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
         HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
@@ -200,8 +200,12 @@ impl HeapSweepWeakReference for SharedArrayBuffer<'static> {
     }
 }
 
-impl<'a> CreateHeapData<SharedArrayBufferRecord<'a>, SharedArrayBuffer<'a>> for Heap {
-    fn create(&mut self, data: SharedArrayBufferRecord<'a>) -> SharedArrayBuffer<'a> {
+impl<'gc> CreateHeapData<'gc, SharedArrayBufferRecord<'static>, SharedArrayBuffer<'gc>> for Heap {
+    fn create(
+        &mut self,
+        data: SharedArrayBufferRecord,
+        gc: GcScope<'gc, '_>,
+    ) -> SharedArrayBuffer<'gc> {
         self.shared_array_buffers.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<SharedArrayBufferRecord<'static>>();
         SharedArrayBuffer(BaseIndex::last(&self.shared_array_buffers))

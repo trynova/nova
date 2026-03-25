@@ -58,7 +58,7 @@ use crate::{
         ScriptRecord, SourceCodeHeapData, SourceTextModuleHeap, String, StringIteratorHeapData,
         StringRecord, SymbolHeapData,
     },
-    engine::{ExecutableHeapData, HeapRootData},
+    engine::{ExecutableHeapData, GcScope, HeapRootData},
 };
 #[cfg(feature = "array-buffer")]
 use ahash::AHashMap;
@@ -178,14 +178,14 @@ pub(crate) struct Heap {
     pub(crate) alloc_counter: usize,
 }
 
-pub(crate) trait CreateHeapData<T, F> {
+pub(crate) trait CreateHeapData<'gc, T, F: 'gc> {
     /// Creates a [`Value`] from the given data. Allocating the data is **not**
     /// guaranteed.
-    fn create(&mut self, data: T) -> F;
+    fn create(&mut self, data: T, gc: GcScope<'gc, '_>) -> F;
 }
 
-impl CreateHeapData<&str, String<'static>> for Heap {
-    fn create(&mut self, data: &str) -> String<'static> {
+impl<'gc> CreateHeapData<'gc, &str, String<'gc>> for Heap {
+    fn create(&mut self, data: &str, gc: GcScope<'gc, '_>) -> String<'gc> {
         if let Ok(value) = String::try_from(data) {
             value
         } else {
@@ -195,8 +195,8 @@ impl CreateHeapData<&str, String<'static>> for Heap {
     }
 }
 
-impl CreateHeapData<std::string::String, String<'static>> for Heap {
-    fn create(&mut self, data: std::string::String) -> String<'static> {
+impl<'gc> CreateHeapData<'gc, std::string::String, String<'gc>> for Heap {
+    fn create(&mut self, data: std::string::String, gc: GcScope<'gc, '_>) -> String<'gc> {
         if let Ok(value) = String::try_from(data.as_str()) {
             value
         } else {
@@ -206,8 +206,8 @@ impl CreateHeapData<std::string::String, String<'static>> for Heap {
     }
 }
 
-impl CreateHeapData<Wtf8Buf, String<'static>> for Heap {
-    fn create(&mut self, data: Wtf8Buf) -> String<'static> {
+impl<'gc> CreateHeapData<'gc, Wtf8Buf, String<'gc>> for Heap {
+    fn create(&mut self, data: Wtf8Buf, gc: GcScope<'gc, '_>) -> String<'gc> {
         if let Ok(value) = String::try_from(data.deref()) {
             value
         } else {

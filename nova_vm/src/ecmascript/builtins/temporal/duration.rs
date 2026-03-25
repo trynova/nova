@@ -79,8 +79,8 @@ impl HeapSweepWeakReference for TemporalDuration<'static> {
     }
 }
 
-impl<'a> CreateHeapData<DurationRecord<'a>, TemporalDuration<'a>> for Heap {
-    fn create(&mut self, data: DurationRecord<'a>) -> TemporalDuration<'a> {
+impl<'gc> CreateHeapData<'gc, DurationRecord<'static>, TemporalDuration<'gc>> for Heap {
+    fn create(&mut self, data: DurationRecord, gc: GcScope<'gc, '_>) -> TemporalDuration<'gc> {
         self.durations.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<DurationRecord<'static>>();
         TemporalDuration(BaseIndex::last(&self.durations))

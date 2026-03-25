@@ -11,10 +11,10 @@ use crate::{
         Agent, FinalizationRegistryCleanupJob, Function, InnerJob, InternalMethods, InternalSlots,
         Job, OrdinaryObject, ProtoIntrinsics, Realm, Value, WeakKey, object_handle,
     },
-    engine::Bindable,
+    engine::{Bindable, GcScope},
     heap::{
-        ArenaAccessSoA, ArenaAccessSoAMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, WorkQueues, arena_vec_access, {BaseIndex, HeapIndexHandle},
+        ArenaAccessSoA, ArenaAccessSoAMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapIndexHandle, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
 
@@ -145,8 +145,14 @@ impl<'fr> InternalSlots<'fr> for FinalizationRegistry<'fr> {
 
 impl<'a> InternalMethods<'a> for FinalizationRegistry<'a> {}
 
-impl<'a> CreateHeapData<FinalizationRegistryRecord<'a>, FinalizationRegistry<'a>> for Heap {
-    fn create(&mut self, data: FinalizationRegistryRecord<'a>) -> FinalizationRegistry<'a> {
+impl<'gc> CreateHeapData<'gc, FinalizationRegistryRecord<'static>, FinalizationRegistry<'gc>>
+    for Heap
+{
+    fn create(
+        &mut self,
+        data: FinalizationRegistryRecord,
+        gc: GcScope<'gc, '_>,
+    ) -> FinalizationRegistry<'gc> {
         let i = self.finalization_registrys.len();
         self.finalization_registrys
             .push(data.unbind())

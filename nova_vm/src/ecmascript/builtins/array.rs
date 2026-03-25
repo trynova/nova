@@ -833,8 +833,8 @@ impl<'a> InternalMethods<'a> for Array<'a> {
     }
 }
 
-impl<'a> CreateHeapData<ArrayHeapData<'a>, Array<'a>> for Heap {
-    fn create(&mut self, data: ArrayHeapData<'a>) -> Array<'a> {
+impl<'gc> CreateHeapData<'gc, ArrayHeapData<'static>, Array<'gc>> for Heap {
+    fn create(&mut self, data: ArrayHeapData, gc: GcScope<'gc, '_>) -> Array<'gc> {
         let i = self.arrays.len();
         self.arrays
             .push(data.unbind())

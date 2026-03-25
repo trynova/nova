@@ -2154,10 +2154,14 @@ fn sdb_as_viewable_slice<T: Viewable>(
     slice
 }
 
-impl<'a, T: Viewable> CreateHeapData<SharedTypedArrayRecord<'a>, GenericSharedTypedArray<'a, T>>
-    for Heap
+impl<'gc, T: Viewable>
+    CreateHeapData<'gc, SharedTypedArrayRecord<'static>, GenericSharedTypedArray<'gc, T>> for Heap
 {
-    fn create(&mut self, data: SharedTypedArrayRecord<'a>) -> GenericSharedTypedArray<'a, T> {
+    fn create(
+        &mut self,
+        data: SharedTypedArrayRecord,
+        gc: GcScope<'gc, '_>,
+    ) -> GenericSharedTypedArray<'gc, T> {
         self.shared_typed_arrays.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<SharedTypedArrayRecord<'static>>();
         // TODO: The type should be checked based on data or something equally stupid

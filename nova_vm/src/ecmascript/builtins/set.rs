@@ -10,10 +10,10 @@ use crate::{
     ecmascript::{
         Agent, InternalMethods, InternalSlots, OrdinaryObject, ProtoIntrinsics, object_handle,
     },
-    engine::Bindable,
+    engine::{Bindable, GcScope},
     heap::{
-        ArenaAccessSoA, ArenaAccessSoAMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, WorkQueues, arena_vec_access, {BaseIndex, HeapIndexHandle},
+        ArenaAccessSoA, ArenaAccessSoAMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapIndexHandle, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
 
@@ -76,8 +76,8 @@ impl HeapSweepWeakReference for Set<'static> {
     }
 }
 
-impl<'a> CreateHeapData<SetHeapData<'a>, Set<'a>> for Heap {
-    fn create(&mut self, data: SetHeapData<'a>) -> Set<'a> {
+impl<'gc> CreateHeapData<'gc, SetHeapData<'static>, Set<'gc>> for Heap {
+    fn create(&mut self, data: SetHeapData, gc: GcScope<'gc, '_>) -> Set<'gc> {
         let i = self.sets.len();
         self.sets
             .push(data.unbind())

@@ -16,7 +16,7 @@ use crate::{
         Object, OrdinaryObject, ProtoIntrinsics, Value, Viewable, ViewedArrayBufferByteLength,
         ViewedArrayBufferByteOffset,
     },
-    engine::{Bindable, HeapRootData, bindable_handle},
+    engine::{Bindable, GcScope, HeapRootData, bindable_handle},
     heap::{
         ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
         HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
@@ -303,8 +303,8 @@ impl<'a> InternalSlots<'a> for SharedDataView<'a> {
 #[cfg(feature = "shared-array-buffer")]
 impl<'a> InternalMethods<'a> for SharedDataView<'a> {}
 
-impl<'a> CreateHeapData<DataViewRecord<'a>, DataView<'a>> for Heap {
-    fn create(&mut self, data: DataViewRecord<'a>) -> DataView<'a> {
+impl<'gc> CreateHeapData<'gc, DataViewRecord<'static>, DataView<'gc>> for Heap {
+    fn create(&mut self, data: DataViewRecord, gc: GcScope<'gc, '_>) -> DataView<'gc> {
         self.data_views.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<DataViewRecord<'static>>();
         DataView(BaseIndex::last(&self.data_views))
@@ -328,8 +328,8 @@ impl HeapSweepWeakReference for DataView<'static> {
 }
 
 #[cfg(feature = "shared-array-buffer")]
-impl<'a> CreateHeapData<SharedDataViewRecord<'a>, SharedDataView<'a>> for Heap {
-    fn create(&mut self, data: SharedDataViewRecord<'a>) -> SharedDataView<'a> {
+impl<'gc> CreateHeapData<'gc, SharedDataViewRecord<'static>, SharedDataView<'gc>> for Heap {
+    fn create(&mut self, data: SharedDataViewRecord, gc: GcScope<'gc, '_>) -> SharedDataView<'gc> {
         self.shared_data_views.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<SharedDataViewRecord<'static>>();
         SharedDataView(BaseIndex::last(&self.shared_data_views))
