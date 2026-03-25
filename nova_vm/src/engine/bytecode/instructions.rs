@@ -704,9 +704,7 @@ pub(crate) struct Instr<'a> {
 
 impl<'a> Instr<'a> {
     pub(super) fn consume_instruction(instructions: &'a [u8], ip: &mut usize) -> Option<Self> {
-        let Some(kind_at) = instructions.get(*ip) else {
-            return None;
-        };
+        let kind_at = instructions.get(*ip)?;
         let Ok(kind) = Instruction::try_from(*kind_at) else {
             panic_invalid_instruction()
         };
@@ -714,7 +712,7 @@ impl<'a> Instr<'a> {
         let ptr = NonNull::from_ref(kind_at).cast::<Instruction>();
 
         let byte_count = match kind.argument_count() {
-            value @ (0 | 1 | 2) => (value * 2) as usize,
+            value @ (0..=2) => (value * 2) as usize,
             _ => panic_invalid_instruction(),
         };
         *ip += byte_count + 1;
