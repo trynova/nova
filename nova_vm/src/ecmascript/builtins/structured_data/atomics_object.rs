@@ -1485,27 +1485,29 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
     // }.
     // 28. Perform AddWaiter(WL, waiterRecord).
     // 29. If mode is sync, then
+
+    let data_block = buffer.get_data_block(agent);
+
+    // Re-read value under critical section to avoid TOCTOU race.
+    let slot = data_block.as_racy_slice().slice_from(byte_index_in_buffer);
+    let v_changed = if IS_I64 {
+        let slot = unsafe { slot.as_aligned::<u64>().unwrap_unchecked() };
+        v as u64 != slot.load(Ordering::SeqCst)
+    } else {
+        let slot = unsafe { slot.as_aligned::<u32>().unwrap_unchecked() };
+        v as i32 as u32 != slot.load(Ordering::SeqCst)
+    };
+    if v_changed {
+        return BUILTIN_STRING_MEMORY.not_equal.into();
+    }
+
     if !IS_ASYNC {
-        let data_block = buffer.get_data_block(agent);
         // SAFETY: buffer is a valid SharedArrayBuffer and cannot be detached. A 0-sized SAB would
         // have a dangling data block, but Atomics.wait requires `byteIndex` to be within bounds,
         // so a 0-sized SAB would have been rejected earlier with a RangeError.
         let waiters = unsafe { data_block.get_or_init_waiters() };
         let waiter_record = WaiterRecord::new_shared();
         let mut guard = waiters.lock().unwrap();
-
-        // Re-read value under critical section to avoid TOCTOU race.
-        let slot = data_block.as_racy_slice().slice_from(byte_index_in_buffer);
-        let v_changed = if IS_I64 {
-            let slot = unsafe { slot.as_aligned::<u64>().unwrap_unchecked() };
-            v as u64 != slot.load(Ordering::SeqCst)
-        } else {
-            let slot = unsafe { slot.as_aligned::<u32>().unwrap_unchecked() };
-            v as i32 as u32 != slot.load(Ordering::SeqCst)
-        };
-        if v_changed {
-            return BUILTIN_STRING_MEMORY.not_equal.into();
-        }
 
         // a. Perform SuspendThisAgent(WL, waiterRecord).
         guard.push_to_list(byte_index_in_buffer, waiter_record.clone());
@@ -1532,12 +1534,12 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
         let promise = Global::new(agent, promise_capability.promise.unbind());
         // 30. Else if timeoutTime is finite, then
         // a. Perform EnqueueAtomicsWaitAsyncTimeoutJob(WL, waiterRecord).
-        let buffer = buffer.get_data_block(agent).clone();
+
+        let data_block_clone = buffer.get_data_block(agent).clone();
         enqueue_atomics_wait_async_job::<IS_I64>(
             agent,
-            buffer,
+            data_block_clone,
             byte_index_in_buffer,
-            v,
             t,
             promise,
             gc,
@@ -1672,7 +1674,7 @@ impl WaitAsyncJob {
         // c. Perform LeaveCriticalSection(WL).
         let promise_capability = PromiseCapability::from_promise(promise, true);
         let result = match result {
-            WaitResult::Ok | WaitResult::NotEqual => BUILTIN_STRING_MEMORY.ok.into(),
+            WaitResult::Ok => BUILTIN_STRING_MEMORY.ok.into(),
             WaitResult::TimedOut => BUILTIN_STRING_MEMORY.timed_out.into(),
         };
         unwrap_try(promise_capability.try_resolve(agent, result, gc));
@@ -1688,9 +1690,8 @@ impl WaitAsyncJob {
 /// unused.
 fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
     agent: &mut Agent,
-    buffer: SharedDataBlock,
+    data_block: SharedDataBlock,
     byte_index_in_buffer: usize,
-    v: i64,
     t: u64,
     promise: Global<Promise>,
     gc: NoGcScope,
@@ -1698,30 +1699,13 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
     // 1. Let timeoutJob be a new Job Abstract Closure with no parameters that
     //    captures WL and waiterRecord and performs the following steps when
     //    called:
+    // let data_block = data_block.clone();
     let signal = Arc::new(AtomicBool::new(false));
-    let s = signal.clone();
     let handle = thread::spawn(move || {
         // SAFETY: buffer is a cloned SharedDataBlock; non-dangling.
-        let waiters = unsafe { buffer.get_or_init_waiters() };
+        let waiters = unsafe { data_block.get_or_init_waiters() };
         let waiter_record = WaiterRecord::new_shared();
         let mut guard = waiters.lock().unwrap();
-
-        // Re-check the value under the critical section.
-        let slot = buffer.as_racy_slice().slice_from(byte_index_in_buffer);
-        let v_not_equal = if IS_I64 {
-            let slot = unsafe { slot.as_aligned::<u64>().unwrap_unchecked() };
-            v as u64 != slot.load(Ordering::SeqCst)
-        } else {
-            let slot = unsafe { slot.as_aligned::<u32>().unwrap_unchecked() };
-            v as i32 as u32 != slot.load(Ordering::SeqCst)
-        };
-
-        // Signal the main thread that we have the lock and are about to sleep.
-        s.store(true, StdOrdering::Release);
-
-        if v_not_equal {
-            return WaitResult::NotEqual;
-        }
 
         guard.push_to_list(byte_index_in_buffer, waiter_record.clone());
 
